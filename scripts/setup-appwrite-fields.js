@@ -42,69 +42,30 @@ const DATABASE_ID = 'tennismehl24_db';
 const FIXKOSTEN_COLLECTION_ID = 'fixkosten';
 const VARIABLE_KOSTEN_COLLECTION_ID = 'variable_kosten';
 
-// Felder für fixkosten Collection
+// NEUES SCHEMA: Nur noch 2 Felder pro Collection!
+// - data (String/JSON): Enthält alle Werte als JSON
+// - updatedAt (DateTime): Automatisch von Appwrite verwaltet
+
 const fixkostenFields = [
-  // Grundstück
-  { key: 'grundstueck_pacht', type: 'double', required: false },
-  { key: 'grundstueck_steuer', type: 'double', required: false },
-  { key: 'grundstueck_pflege', type: 'double', required: false },
-  { key: 'grundstueck_buerocontainer', type: 'double', required: false },
-  // Maschinen
-  { key: 'maschinen_wartungRadlader', type: 'double', required: false },
-  { key: 'maschinen_wartungStapler', type: 'double', required: false },
-  { key: 'maschinen_wartungMuehle', type: 'double', required: false },
-  { key: 'maschinen_wartungSiebanlage', type: 'double', required: false },
-  { key: 'maschinen_wartungAbsackanlage', type: 'double', required: false },
-  { key: 'maschinen_sonstigeWartung', type: 'double', required: false },
-  { key: 'maschinen_grundkostenMaschinen', type: 'double', required: false },
-  // Sonstige
-  { key: 'ruecklagenErsatzkauf', type: 'double', required: false },
-  { key: 'sonstiges', type: 'double', required: false },
-  // Verwaltung
-  { key: 'verwaltung_sigleKuhn', type: 'double', required: false },
-  { key: 'verwaltung_brzSteuerberater', type: 'double', required: false },
-  { key: 'verwaltung_kostenVorndran', type: 'double', required: false },
-  { key: 'verwaltung_telefonCloudServer', type: 'double', required: false },
-  { key: 'verwaltung_gewerbesteuer', type: 'double', required: false },
+  { key: 'data', type: 'string', required: false, size: 10000 }, // JSON-String mit allen Daten
 ];
 
-// Felder für variable_kosten Collection
 const variableKostenFields = [
-  // Lohnkosten
-  { key: 'lohnkosten_stundenlohn', type: 'double', required: false },
-  { key: 'lohnkosten_tonnenProArbeitsstunde', type: 'double', required: false },
-  // Einkauf
-  { key: 'einkauf_dieselKostenProTonne', type: 'double', required: false },
-  { key: 'einkauf_ziegelbruchKostenProTonne', type: 'double', required: false },
-  { key: 'einkauf_stromKostenProTonne', type: 'double', required: false },
-  { key: 'einkauf_entsorgungContainerKostenProTonne', type: 'double', required: false },
-  { key: 'einkauf_gasflaschenKostenProTonne', type: 'double', required: false },
-  // Verschleißteile
-  { key: 'verschleissteile_preisProHammer', type: 'double', required: false },
-  { key: 'verschleissteile_verbrauchHaemmerProTonne', type: 'double', required: false },
-  { key: 'verschleissteile_siebkoerbeKostenProTonne', type: 'double', required: false },
-  { key: 'verschleissteile_verschleissblecheKostenProTonne', type: 'double', required: false },
-  { key: 'verschleissteile_wellenlagerKostenProTonne', type: 'double', required: false },
-  // Sackware
-  { key: 'sackware_palettenKostenProPalette', type: 'double', required: false },
-  { key: 'sackware_saeckeKostenProPalette', type: 'double', required: false },
-  { key: 'sackware_schrumpfhaubenKostenProPalette', type: 'double', required: false },
-  { key: 'sackware_palettenProTonne', type: 'double', required: false },
-  // Verkaufspreise
-  { key: 'verkaufspreis1_tonnen', type: 'double', required: false },
-  { key: 'verkaufspreis1_preisProTonne', type: 'double', required: false },
-  { key: 'verkaufspreis2_tonnen', type: 'double', required: false },
-  { key: 'verkaufspreis2_preisProTonne', type: 'double', required: false },
-  { key: 'verkaufspreis3_tonnen', type: 'double', required: false },
-  { key: 'verkaufspreis3_preisProTonne', type: 'double', required: false },
-  // Sonstiges
-  { key: 'geplanterUmsatz', type: 'double', required: false },
+  { key: 'data', type: 'string', required: false, size: 10000 }, // JSON-String mit allen Daten
 ];
 
 async function createField(collectionId, field) {
   try {
-    // Verwende die spezifische Methode für Double-Attribute
-    if (field.type === 'double') {
+    // Verwende die spezifische Methode für String-Attribute (JSON)
+    if (field.type === 'string') {
+      await databases.createStringAttribute(
+        DATABASE_ID,
+        collectionId,
+        field.key,
+        field.size || 255, // Größe für JSON-String
+        field.required || false
+      );
+    } else if (field.type === 'double') {
       await databases.createFloatAttribute(
         DATABASE_ID,
         collectionId,
