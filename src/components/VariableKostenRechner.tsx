@@ -22,7 +22,7 @@ const VariableKostenRechner = () => {
   const [fixkostenProJahr, setFixkostenProJahr] = useState<number>(164740.0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ergebnis = berechneVariableKosten(input, fixkostenProJahr);
 

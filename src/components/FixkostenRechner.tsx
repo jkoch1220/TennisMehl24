@@ -12,7 +12,7 @@ const FixkostenRechner = () => {
   const [input, setInput] = useState<FixkostenInput>(DEFAULT_FIXKOSTEN);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ergebnis = berechneFixkosten(input);
 

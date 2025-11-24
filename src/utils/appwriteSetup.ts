@@ -3,7 +3,6 @@
  * Wird beim ersten App-Start ausgeführt
  */
 
-import { Client, Databases } from 'appwrite';
 import { DATABASE_ID, FIXKOSTEN_COLLECTION_ID, VARIABLE_KOSTEN_COLLECTION_ID } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
