@@ -116,6 +116,13 @@ export const berechneVariableKosten = (
   const herstellkostenJeTonne =
     fixkostenJeTonne + veraenderlicheKostenJeTonne;
 
+  // Berechne Gewinn je Tonne: Verkaufspreis - Herstellkosten
+  const gewinnJeTonne =
+    durchschnittlicherVerkaufspreisProTonne - herstellkostenJeTonne;
+
+  // Berechne Jahresgewinn: Gesamtzahl Tonnen × Gewinn je Tonne
+  const jahresgewinn = geplanterUmsatz * gewinnJeTonne;
+
   return {
     jahreskostenLohn,
     jahreskostenVerbrauchsmaterial,
@@ -133,6 +140,8 @@ export const berechneVariableKosten = (
     anzahlPaletten,
     durchschnittlicherVerkaufspreisProTonne,
     geplanterUmsatzBerechnet,
+    gewinnJeTonne,
+    jahresgewinn,
   };
 };
 

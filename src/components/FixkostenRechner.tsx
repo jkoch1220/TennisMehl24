@@ -1,16 +1,64 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calculator, Euro, TrendingUp, Settings } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { FixkostenInput } from '../types';
 import { berechneFixkosten } from '../utils/fixkostenCalculations';
 import { DEFAULT_FIXKOSTEN } from '../constants/defaultValues';
+import { fixkostenService } from '../services/fixkostenService';
 
 const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
 
 const FixkostenRechner = () => {
   const [input, setInput] = useState<FixkostenInput>(DEFAULT_FIXKOSTEN);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const ergebnis = berechneFixkosten(input);
+
+  // Lade Daten beim Mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const savedData = await fixkostenService.loadFixkosten();
+        if (savedData) {
+          setInput(savedData);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Fixkosten:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Auto-Save mit Debouncing (speichere 1 Sekunde nach letzter Änderung)
+  useEffect(() => {
+    if (isLoading) return; // Nicht speichern während des Ladens
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    setIsSaving(true);
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fixkostenService.saveFixkosten(input);
+      } catch (error) {
+        console.error('Fehler beim Speichern der Fixkosten:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000); // 1 Sekunde Debounce
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [input, isLoading]);
 
   // Jahresfixkosten im localStorage speichern für Variable-Kosten-Rechner
   useEffect(() => {
@@ -58,11 +106,25 @@ const FixkostenRechner = () => {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
-          <div className="flex items-center gap-3 mb-8">
-            <Calculator className="w-10 h-10 text-red-600" />
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Fixkosten Rechner - Ziegelmehl Herstellung 2025
-            </h1>
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <Calculator className="w-10 h-10 text-red-600" />
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                Fixkosten Rechner - Ziegelmehl Herstellung 2025
+              </h1>
+            </div>
+            {isSaving && (
+              <div className="text-sm text-gray-500 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                Speichere...
+              </div>
+            )}
+            {!isSaving && !isLoading && (
+              <div className="text-sm text-green-600 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Gespeichert
+              </div>
+            )}
           </div>
 
           {/* Ergebnis Highlight */}

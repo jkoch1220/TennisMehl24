@@ -1,18 +1,74 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Calculator, Euro, TrendingUp, Settings, Users, ShoppingCart, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { VariableKostenInput } from '../types';
 import { berechneVariableKosten } from '../utils/variableKostenCalculations';
 import { DEFAULT_VARIABLE_KOSTEN } from '../constants/defaultValues';
+import { variableKostenService } from '../services/variableKostenService';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+// Formatierung für Zahlen mit Tausendertrennzeichen
+const formatNumber = (value: number): string => {
+  return new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
 
 const VariableKostenRechner = () => {
   const [input, setInput] = useState<VariableKostenInput>(DEFAULT_VARIABLE_KOSTEN);
   const [fixkostenProJahr, setFixkostenProJahr] = useState<number>(164740.0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const ergebnis = berechneVariableKosten(input, fixkostenProJahr);
+
+  // Lade Daten beim Mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const savedData = await variableKostenService.loadVariableKosten();
+        if (savedData) {
+          setInput(savedData);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Variable Kosten:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Auto-Save mit Debouncing (speichere 1 Sekunde nach letzter Änderung)
+  useEffect(() => {
+    if (isLoading) return; // Nicht speichern während des Ladens
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    setIsSaving(true);
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await variableKostenService.saveVariableKosten(input);
+      } catch (error) {
+        console.error('Fehler beim Speichern der Variable Kosten:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000); // 1 Sekunde Debounce
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [input, isLoading]);
   
   // Verwende berechneten Umsatz für Fixkosten je Tonne
   const geplanterUmsatz = ergebnis.geplanterUmsatzBerechnet > 0 ? ergebnis.geplanterUmsatzBerechnet : input.geplanterUmsatz;
@@ -20,6 +76,9 @@ const VariableKostenRechner = () => {
     geplanterUmsatz > 0
       ? fixkostenProJahr / geplanterUmsatz
       : 0;
+  
+  // Berechne Jahresumsatz: Gesamtzahl Tonnen × Durchschnittlicher Verkaufspreis
+  const jahresumsatz = geplanterUmsatz * ergebnis.durchschnittlicherVerkaufspreisProTonne;
 
   // Lohnkosten-Diagramm entfernt, da nur noch ein einheitlicher Stundenlohn verwendet wird
 
@@ -125,11 +184,25 @@ const VariableKostenRechner = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
-          <div className="flex items-center gap-3 mb-8">
-            <Calculator className="w-10 h-10 text-blue-600" />
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Variable Kosten Rechner - Ziegelmehl Herstellung 2025
-            </h1>
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <Calculator className="w-10 h-10 text-blue-600" />
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                Variable Kosten Rechner - Ziegelmehl Herstellung 2025
+              </h1>
+            </div>
+            {isSaving && (
+              <div className="text-sm text-gray-500 flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                Speichere...
+              </div>
+            )}
+            {!isSaving && !isLoading && (
+              <div className="text-sm text-green-600 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Gespeichert
+              </div>
+            )}
           </div>
 
           {/* Ergebnis Highlight */}
@@ -151,9 +224,9 @@ const VariableKostenRechner = () => {
                 <p className="text-4xl font-bold">{ergebnis.herstellkostenJeTonne.toFixed(2)} €/t</p>
               </div>
               <div>
-                <p className="text-sm opacity-90 mb-2">Ø Verkaufspreis je t</p>
-                <p className="text-4xl font-bold">{ergebnis.durchschnittlicherVerkaufspreisProTonne.toFixed(2)} €/t</p>
-                <p className="text-sm opacity-90 mt-2">bei {geplanterUmsatz.toFixed(0)} t geplantem Umsatz</p>
+                <p className="text-sm opacity-90 mb-2">Jahresgewinn</p>
+                <p className="text-4xl font-bold">{formatNumber(ergebnis.jahresgewinn)} €</p>
+                <p className="text-sm opacity-90 mt-2">Umsatz: {formatNumber(jahresumsatz)} €</p>
               </div>
             </div>
           </div>

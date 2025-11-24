@@ -7,6 +7,7 @@ import ZiegelmehlRechner from './components/ZiegelmehlRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import { isAuthenticated } from './utils/auth';
+import { setupAppwriteFields } from './utils/appwriteSetup';
 
 function App() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -21,6 +22,11 @@ function App() {
     };
 
     checkAuth();
+    
+    // Versuche Appwrite-Felder automatisch zu erstellen (nur wenn API Key vorhanden)
+    if (import.meta.env.VITE_APPWRITE_API_KEY) {
+      setupAppwriteFields().catch(console.error);
+    }
   }, []);
 
   const handleLogin = () => {

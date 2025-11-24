@@ -147,5 +147,7 @@ export interface VariableKostenErgebnis {
   anzahlPaletten: number;
   durchschnittlicherVerkaufspreisProTonne: number; // Berechnet aus Verkaufspreisen
   geplanterUmsatzBerechnet: number; // Berechnet aus Verkaufspreisen
+  gewinnJeTonne: number; // Gewinn = Verkaufspreis - Herstellkosten
+  jahresgewinn: number; // Jahresgewinn = Gesamtzahl Tonnen × Gewinn je Tonne
 }
 
