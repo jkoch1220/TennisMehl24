@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { clearSession } from '../utils/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -50,10 +51,21 @@ const Layout = ({ children }: LayoutProps) => {
                 })}
               </div>
             </div>
-            <div className="sm:hidden flex items-center">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  clearSession();
+                  window.location.reload();
+                }}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 transition-colors"
+                title="Abmelden"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Abmelden</span>
+              </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500"
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500 sm:hidden"
               >
                 <Menu className="h-6 w-6" />
               </button>
@@ -84,6 +96,16 @@ const Layout = ({ children }: LayoutProps) => {
                   </Link>
                 );
               })}
+              <button
+                onClick={() => {
+                  clearSession();
+                  window.location.reload();
+                }}
+                className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 w-full text-left"
+              >
+                <LogOut className="w-5 h-5 mr-3" />
+                Abmelden
+              </button>
             </div>
           </div>
         )}
