@@ -200,7 +200,7 @@ const VariableKostenRechner = () => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {pieDataEinkauf.map((entry, index) => (
+                    {pieDataEinkauf.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -226,7 +226,7 @@ const VariableKostenRechner = () => {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {pieDataVerschleiss.map((entry, index) => (
+                    {pieDataVerschleiss.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>

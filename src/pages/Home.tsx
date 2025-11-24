@@ -44,13 +44,8 @@ const Home = () => {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {tools.map((tool) => {
             const Icon = tool.icon;
-            const isComingSoon = tool.comingSoon;
             const content = (
-              <div
-                className={`bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all ${
-                  isComingSoon ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-105'
-                }`}
-              >
+              <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105">
                 <div
                   className={`w-16 h-16 rounded-lg bg-gradient-to-r ${tool.color} flex items-center justify-center mb-4`}
                 >
@@ -60,17 +55,10 @@ const Home = () => {
                   {tool.name}
                 </h3>
                 <p className="text-gray-600 mb-4">{tool.description}</p>
-                {isComingSoon && (
-                  <span className="inline-block px-3 py-1 text-xs font-semibold text-gray-500 bg-gray-100 rounded-full">
-                    Coming Soon
-                  </span>
-                )}
               </div>
             );
 
-            return isComingSoon ? (
-              <div key={tool.name}>{content}</div>
-            ) : (
+            return (
               <Link key={tool.name} to={tool.href}>
                 {content}
               </Link>
