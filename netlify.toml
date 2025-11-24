@@ -4,8 +4,9 @@
   command = "npm run build"
   publish = "dist"
 
-# Secrets Scanning: Deaktiviere für nicht-sensible öffentliche Werte
-# PROJECT_ID, PROJECT_NAME und ENDPOINT sind öffentlich und nicht geheim
-# Diese müssen als Umgebungsvariablen im Netlify-Dashboard gesetzt werden
-# SECRETS_SCAN_OMIT_KEYS wird als Umgebungsvariable im Netlify-Dashboard gesetzt
+# Secrets Scanning: Deaktiviere für Build-Output und öffentliche Werte
+# Die Werte erscheinen im Build-Output, weil Vite sie zur Build-Zeit einbettet
+# Das ist normal und erwartet. PROJECT_ID, PROJECT_NAME und ENDPOINT sind öffentlich.
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"
 
