@@ -12,6 +12,8 @@ const FixkostenRechner = () => {
   const [input, setInput] = useState<FixkostenInput>(DEFAULT_FIXKOSTEN);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ergebnis = berechneFixkosten(input);
@@ -43,11 +45,20 @@ const FixkostenRechner = () => {
     }
 
     setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         await fixkostenService.saveFixkosten(input);
-      } catch (error) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000); // Nach 3 Sekunden ausblenden
+      } catch (error: any) {
+        const errorMessage = error?.message || 'Unbekannter Fehler beim Speichern';
         console.error('Fehler beim Speichern der Fixkosten:', error);
+        setSaveError(errorMessage);
+        // Fehler nach 5 Sekunden ausblenden
+        setTimeout(() => setSaveError(null), 5000);
       } finally {
         setIsSaving(false);
       }
@@ -113,18 +124,26 @@ const FixkostenRechner = () => {
                 Fixkosten Rechner - Ziegelmehl Herstellung 2025
               </h1>
             </div>
-            {isSaving && (
-              <div className="text-sm text-gray-500 flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                Speichere...
-              </div>
-            )}
-            {!isSaving && !isLoading && (
-              <div className="text-sm text-green-600 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                Gespeichert
-              </div>
-            )}
+            <div className="flex flex-col items-end gap-1">
+              {isSaving && (
+                <div className="text-sm text-gray-500 flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                  Speichere...
+                </div>
+              )}
+              {!isSaving && !isLoading && saveSuccess && (
+                <div className="text-sm text-green-600 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Gespeichert
+                </div>
+              )}
+              {saveError && (
+                <div className="text-sm text-red-600 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  Fehler: {saveError}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Ergebnis Highlight */}

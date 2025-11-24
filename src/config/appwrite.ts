@@ -6,10 +6,22 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 
 if (!endpoint || !projectId) {
+  console.error('❌ Appwrite Konfiguration fehlt!');
+  console.error('VITE_APPWRITE_ENDPOINT:', endpoint);
+  console.error('VITE_APPWRITE_PROJECT_ID:', projectId);
   throw new Error('VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein');
 }
 
 client.setEndpoint(endpoint).setProject(projectId);
+
+// Debug: Zeige Konfiguration in Development
+if (import.meta.env.DEV) {
+  console.log('✅ Appwrite konfiguriert:', {
+    endpoint,
+    projectId,
+    databaseId: DATABASE_ID,
+  });
+}
 
 export const databases = new Databases(client);
 

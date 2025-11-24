@@ -107,7 +107,8 @@ export const fixkostenService = {
         );
       } else {
         console.error('Fehler beim Speichern der Fixkosten:', error);
-        throw error;
+        const errorMessage = error?.message || `Fehler beim Speichern: ${error?.code || 'Unbekannter Fehler'}`;
+        throw new Error(errorMessage);
       }
     }
   },

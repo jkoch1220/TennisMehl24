@@ -132,7 +132,8 @@ export const variableKostenService = {
         );
       } else {
         console.error('Fehler beim Speichern der Variable Kosten:', error);
-        throw error;
+        const errorMessage = error?.message || `Fehler beim Speichern: ${error?.code || 'Unbekannter Fehler'}`;
+        throw new Error(errorMessage);
       }
     }
   },
