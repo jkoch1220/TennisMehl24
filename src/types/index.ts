@@ -116,12 +116,18 @@ export interface SackwareKostenVariable {
   palettenProTonne: number; // Anzahl Paletten pro Tonne (Standard: 1 Palette = 1 Tonne)
 }
 
+export interface VerkaufspreisEingabe {
+  tonnen: number;
+  preisProTonne: number; // €/t
+}
+
 export interface VariableKostenInput {
   lohnkosten: Lohnkosten;
   einkauf: Einkauf;
   verschleissteile: VerschleissTeile;
   sackware: SackwareKostenVariable;
-  geplanterUmsatz: number; // in Tonnen
+  verkaufspreise: [VerkaufspreisEingabe, VerkaufspreisEingabe, VerkaufspreisEingabe]; // 3 Verkaufspreis-Eingaben
+  geplanterUmsatz: number; // in Tonnen - wird berechnet aus Verkaufspreisen
 }
 
 export interface VariableKostenErgebnis {
@@ -139,5 +145,7 @@ export interface VariableKostenErgebnis {
   benoetigteHaemmer: number;
   jahreskostenHaemmer: number;
   anzahlPaletten: number;
+  durchschnittlicherVerkaufspreisProTonne: number; // Berechnet aus Verkaufspreisen
+  geplanterUmsatzBerechnet: number; // Berechnet aus Verkaufspreisen
 }
 

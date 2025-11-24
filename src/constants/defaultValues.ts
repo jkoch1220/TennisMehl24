@@ -78,6 +78,11 @@ export const DEFAULT_VARIABLE_KOSTEN: VariableKostenInput = {
     // 1 Palette = 1 Tonne
     palettenProTonne: 1.0,
   },
-  geplanterUmsatz: 4300,
+  verkaufspreise: [
+    { tonnen: 1000, preisProTonne: 200.0 },
+    { tonnen: 2000, preisProTonne: 190.0 },
+    { tonnen: 1300, preisProTonne: 180.0 },
+  ],
+  geplanterUmsatz: 4300, // Wird aus verkaufspreise berechnet
 };
 

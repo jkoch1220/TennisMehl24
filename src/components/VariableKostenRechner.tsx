@@ -14,27 +14,28 @@ const VariableKostenRechner = () => {
 
   const ergebnis = berechneVariableKosten(input, fixkostenProJahr);
   
-  // Berechne Fixkosten je Tonne aus Jahresfixkosten und geplantem Umsatz
+  // Verwende berechneten Umsatz für Fixkosten je Tonne
+  const geplanterUmsatz = ergebnis.geplanterUmsatzBerechnet > 0 ? ergebnis.geplanterUmsatzBerechnet : input.geplanterUmsatz;
   const fixkostenJeTonne =
-    input.geplanterUmsatz > 0
-      ? fixkostenProJahr / input.geplanterUmsatz
+    geplanterUmsatz > 0
+      ? fixkostenProJahr / geplanterUmsatz
       : 0;
 
   // Lohnkosten-Diagramm entfernt, da nur noch ein einheitlicher Stundenlohn verwendet wird
 
   const pieDataEinkauf = [
-    { name: 'Diesel', value: input.geplanterUmsatz * input.einkauf.dieselKostenProTonne },
+    { name: 'Diesel', value: geplanterUmsatz * input.einkauf.dieselKostenProTonne },
     { name: 'Ziegelbruch', value: ergebnis.jahreskostenZiegelbruch },
-    { name: 'Strom', value: input.geplanterUmsatz * input.einkauf.stromKostenProTonne },
-    { name: 'Entsorgung', value: input.geplanterUmsatz * input.einkauf.entsorgungContainerKostenProTonne },
-    { name: 'Gasflaschen', value: input.geplanterUmsatz * input.einkauf.gasflaschenKostenProTonne },
+    { name: 'Strom', value: geplanterUmsatz * input.einkauf.stromKostenProTonne },
+    { name: 'Entsorgung', value: geplanterUmsatz * input.einkauf.entsorgungContainerKostenProTonne },
+    { name: 'Gasflaschen', value: geplanterUmsatz * input.einkauf.gasflaschenKostenProTonne },
   ];
 
   const pieDataVerschleiss = [
     { name: 'Hämmer', value: ergebnis.jahreskostenHaemmer },
-    { name: 'Siebkörbe', value: input.geplanterUmsatz * input.verschleissteile.siebkoerbeKostenProTonne },
-    { name: 'Verschleißbleche', value: input.geplanterUmsatz * input.verschleissteile.verschleissblecheKostenProTonne },
-    { name: 'Wellenlager', value: input.geplanterUmsatz * input.verschleissteile.wellenlagerKostenProTonne },
+    { name: 'Siebkörbe', value: geplanterUmsatz * input.verschleissteile.siebkoerbeKostenProTonne },
+    { name: 'Verschleißbleche', value: geplanterUmsatz * input.verschleissteile.verschleissblecheKostenProTonne },
+    { name: 'Wellenlager', value: geplanterUmsatz * input.verschleissteile.wellenlagerKostenProTonne },
   ];
 
   const barData = [
@@ -76,6 +77,18 @@ const VariableKostenRechner = () => {
       ...prev,
       sackware: { ...prev.sackware, [field]: value }
     }));
+  };
+
+  const updateVerkaufspreis = (index: number, field: 'tonnen' | 'preisProTonne', value: number) => {
+    setInput(prev => {
+      const neueVerkaufspreise = [...prev.verkaufspreise] as [typeof prev.verkaufspreise[0], typeof prev.verkaufspreise[1], typeof prev.verkaufspreise[2]];
+      neueVerkaufspreise[index] = { ...neueVerkaufspreise[index], [field]: value };
+      return {
+        ...prev,
+        verkaufspreise: neueVerkaufspreise,
+        geplanterUmsatz: neueVerkaufspreise.reduce((sum, v) => sum + v.tonnen, 0), // Aktualisiere auch geplanterUmsatz für Fallback
+      };
+    });
   };
 
   // Jahresfixkosten aus localStorage laden (automatisch vom Fixkosten-Rechner)
@@ -121,7 +134,7 @@ const VariableKostenRechner = () => {
 
           {/* Ergebnis Highlight */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-xl text-white mb-8">
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-4 gap-6">
               <div>
                 <p className="text-sm opacity-90 mb-2">Variable Kosten je t</p>
                 <p className="text-4xl font-bold">{ergebnis.veraenderlicheKostenJeTonne.toFixed(2)} €/t</p>
@@ -130,13 +143,17 @@ const VariableKostenRechner = () => {
                 <p className="text-sm opacity-90 mb-2">Fixkosten je t</p>
                 <p className="text-4xl font-bold">{fixkostenJeTonne.toFixed(2)} €/t</p>
                 <p className="text-xs opacity-75 mt-1">
-                  ({fixkostenProJahr.toFixed(2)} € ÷ {input.geplanterUmsatz} t)
+                  ({fixkostenProJahr.toFixed(2)} € ÷ {geplanterUmsatz.toFixed(0)} t)
                 </p>
               </div>
               <div>
                 <p className="text-sm opacity-90 mb-2">Herstellkosten je t</p>
                 <p className="text-4xl font-bold">{ergebnis.herstellkostenJeTonne.toFixed(2)} €/t</p>
-                <p className="text-sm opacity-90 mt-2">bei {input.geplanterUmsatz} t geplantem Umsatz</p>
+              </div>
+              <div>
+                <p className="text-sm opacity-90 mb-2">Ø Verkaufspreis je t</p>
+                <p className="text-4xl font-bold">{ergebnis.durchschnittlicherVerkaufspreisProTonne.toFixed(2)} €/t</p>
+                <p className="text-sm opacity-90 mt-2">bei {geplanterUmsatz.toFixed(0)} t geplantem Umsatz</p>
               </div>
             </div>
           </div>
@@ -612,7 +629,7 @@ const VariableKostenRechner = () => {
               </div>
               <div className="mt-4 p-3 bg-purple-100 rounded-lg">
                 <p className="text-sm font-semibold text-gray-700">
-                  Anzahl Paletten: <span className="text-purple-700">{ergebnis.anzahlPaletten.toFixed(0)}</span> ({input.geplanterUmsatz} t × {input.sackware.palettenProTonne} Paletten/t)
+                  Anzahl Paletten: <span className="text-purple-700">{ergebnis.anzahlPaletten.toFixed(0)}</span> ({geplanterUmsatz.toFixed(0)} t × {input.sackware.palettenProTonne} Paletten/t)
                 </p>
                 <p className="text-sm font-semibold text-gray-700 mt-1">
                   Jahreskosten Sackware: <span className="text-purple-700">{ergebnis.jahreskostenSackware.toFixed(2)} €</span>
@@ -620,20 +637,83 @@ const VariableKostenRechner = () => {
               </div>
             </div>
 
-            {/* Geplanter Umsatz */}
+            {/* Verkaufspreise und Umlage */}
             <div className="bg-red-50 p-6 rounded-xl border-2 border-red-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Umlage auf hergestelltes Ziegelmehl</h2>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Geplanter Umsatz (Tonnen)
-                </label>
-                <input
-                  type="number"
-                  value={input.geplanterUmsatz}
-                  onChange={(e) => setInput(prev => ({ ...prev, geplanterUmsatz: parseFloat(e.target.value) || 0 }))}
-                  className="w-full p-2 border-2 border-red-200 rounded-lg focus:border-red-400 focus:outline-none"
-                />
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Verkaufspreise und Umlage auf hergestelltes Ziegelmehl</h2>
+              
+              {/* Berechnete Felder */}
+              <div className="grid md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-white p-4 rounded-lg border-2 border-red-300">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Geplanter Umsatz (Tonnen) - Berechnet
+                  </label>
+                  <input
+                    type="number"
+                    value={ergebnis.geplanterUmsatzBerechnet.toFixed(0)}
+                    readOnly
+                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 text-lg font-bold text-red-700"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Summe aller Verkaufspreis-Tonnen
+                  </p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border-2 border-red-300">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Durchschnittlicher Verkaufspreis (€/t) - Berechnet
+                  </label>
+                  <input
+                    type="number"
+                    value={ergebnis.durchschnittlicherVerkaufspreisProTonne.toFixed(2)}
+                    readOnly
+                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 text-lg font-bold text-red-700"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Gewichteter Durchschnitt aus allen Verkaufspreisen
+                  </p>
+                </div>
               </div>
+
+              {/* Verkaufspreis-Eingaben */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Verkaufspreis-Eingaben (3 Stück)</h3>
+                {input.verkaufspreise.map((verkaufspreis, index) => (
+                  <div key={index} className="bg-white p-4 rounded-lg border-2 border-red-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Verkaufspreis {index + 1}</h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Tonnen
+                        </label>
+                        <input
+                          type="number"
+                          value={verkaufspreis.tonnen}
+                          onChange={(e) => updateVerkaufspreis(index, 'tonnen', parseFloat(e.target.value) || 0)}
+                          className="w-full p-2 border-2 border-red-200 rounded-lg focus:border-red-400 focus:outline-none"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Preis pro Tonne (€/t)
+                        </label>
+                        <input
+                          type="number"
+                          value={verkaufspreis.preisProTonne}
+                          onChange={(e) => updateVerkaufspreis(index, 'preisProTonne', parseFloat(e.target.value) || 0)}
+                          className="w-full p-2 border-2 border-red-200 rounded-lg focus:border-red-400 focus:outline-none"
+                          min="0"
+                          step="0.01"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                          Gesamt: {(verkaufspreis.tonnen * verkaufspreis.preisProTonne).toFixed(2)} €
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="mt-4 p-3 bg-red-100 rounded-lg">
                 <p className="text-sm font-semibold text-gray-700">
                   Jahreskosten veränderlich ohne Sackware: <span className="text-red-700">{ergebnis.jahreskostenVeraenderlichOhneSackware.toFixed(2)} €</span>
