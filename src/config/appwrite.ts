@@ -2,9 +2,14 @@ import { Client, Databases } from 'appwrite';
 
 const client = new Client();
 
-client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || 'tennismehl24');
+const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+
+if (!endpoint || !projectId) {
+  throw new Error('VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein');
+}
+
+client.setEndpoint(endpoint).setProject(projectId);
 
 export const databases = new Databases(client);
 

@@ -6,8 +6,8 @@
 import { DATABASE_ID, FIXKOSTEN_COLLECTION_ID, VARIABLE_KOSTEN_COLLECTION_ID } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
-const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
-const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'tennismehl24';
+const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
 // Felder für fixkosten Collection

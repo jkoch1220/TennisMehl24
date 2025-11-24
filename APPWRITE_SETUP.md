@@ -15,11 +15,19 @@ VITE_APPWRITE_API_KEY=dein_api_key_hier
 **WICHTIG**: Die `.env`-Datei ist bereits in `.gitignore` und wird nicht gepusht.
 
 ### Für Netlify:
-Setze die folgenden Umgebungsvariablen im Netlify-Dashboard:
+Setze die folgenden Umgebungsvariablen im Netlify-Dashboard (Site Settings → Environment variables):
+
+**Erforderliche Variablen:**
 - `VITE_APPWRITE_PROJECT_ID` = `tennismehl24`
 - `VITE_APPWRITE_PROJECT_NAME` = `TennisMehl24`
 - `VITE_APPWRITE_ENDPOINT` = `https://fra.cloud.appwrite.io/v1`
 - `VITE_APPWRITE_API_KEY` = Dein API Key (siehe Schritt 6)
+
+**WICHTIG für Secrets Scanning:**
+Um Netlify Secrets Scanning zu konfigurieren, füge zusätzlich hinzu:
+- `SECRETS_SCAN_OMIT_KEYS` = `VITE_APPWRITE_PROJECT_ID,VITE_APPWRITE_PROJECT_NAME,VITE_APPWRITE_ENDPOINT`
+
+Dies teilt Netlify mit, dass diese Werte öffentlich sind und nicht als Secrets behandelt werden sollen.
 
 ## Schritt 2: Appwrite-Projekt erstellen
 

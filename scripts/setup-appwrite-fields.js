@@ -15,9 +15,14 @@ import dotenv from 'dotenv';
 // Lade Umgebungsvariablen aus .env (für lokale Entwicklung)
 dotenv.config();
 
-const endpoint = process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
-const projectId = process.env.VITE_APPWRITE_PROJECT_ID || 'tennismehl24';
+const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
+const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = process.env.VITE_APPWRITE_API_KEY;
+
+if (!endpoint || !projectId) {
+  console.error('❌ VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein!');
+  process.exit(1);
+}
 
 if (!apiKey) {
   console.error('❌ VITE_APPWRITE_API_KEY ist nicht gesetzt!');
