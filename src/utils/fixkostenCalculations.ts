@@ -19,11 +19,10 @@ export const berechneFixkosten = (
     input.maschinen.grundkostenMaschinen;
 
   const grundkostenVerwaltung =
-    input.verwaltung.sigleKuhn +
     input.verwaltung.brzSteuerberater +
-    input.verwaltung.kostenVorndran +
     input.verwaltung.telefonCloudServer +
-    input.verwaltung.gewerbesteuer;
+    input.verwaltung.gfGehalt +
+    input.verwaltung.grundsteuer;
 
   const fixkostenProJahr =
     jahreskostenGrundstueck +

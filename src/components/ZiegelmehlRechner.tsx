@@ -103,7 +103,7 @@ const ZiegelmehlRechner = () => {
                 type="text"
                 value={plz}
                 onChange={(e) => setPlz(e.target.value)}
-                placeholder="z.B. 60311"
+                placeholder="z.B. 10115"
                 maxLength={5}
                 className="w-full p-3 border-2 border-blue-200 rounded-lg text-lg focus:border-blue-400 focus:outline-none"
               />

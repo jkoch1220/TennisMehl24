@@ -32,6 +32,41 @@ export interface Berechnungsergebnis {
   preisProKg: number;
 }
 
+// Speditionskosten Typen
+export type Lieferart = 'spedition' | 'eigenlieferung';
+
+export interface EigenlieferungStammdaten {
+  dieselverbrauchDurchschnitt: number; // Liter pro 100km
+  durchschnittsgeschwindigkeit: number; // km/h
+  dieselLiterKostenBrutto: number; // €/Liter
+  beladungszeit: number; // Minuten
+  abladungszeit: number; // Minuten
+  pausenzeit: number; // Minuten pro 4 Stunden Fahrt
+}
+
+export interface RoutenBerechnung {
+  distanz: number; // km (Gesamt: Hinweg + Rückweg)
+  fahrzeit: number; // Minuten (Gesamt: Hinweg + Rückweg)
+  gesamtzeit: number; // Minuten (inkl. Beladung, Abladung, Pause)
+  dieselverbrauch: number; // Liter
+  dieselkosten: number; // €
+  beladungszeit: number; // Minuten
+  abladungszeit: number; // Minuten
+  pausenzeit: number; // Minuten
+  hinwegDistanz?: number; // km (nur Hinweg)
+  rueckwegDistanz?: number; // km (nur Rückweg)
+  hinwegFahrzeit?: number; // Minuten (nur Hinweg)
+  rueckwegFahrzeit?: number; // Minuten (nur Rückweg)
+}
+
+export interface SpeditionskostenErgebnis extends Berechnungsergebnis {
+  lieferart: Lieferart;
+  eigenlieferung?: {
+    route: RoutenBerechnung;
+    stammdaten: EigenlieferungStammdaten;
+  };
+}
+
 export interface LieferPreisTabelle {
   [paletten: number]: {
     [gewicht: number]: {
@@ -71,11 +106,10 @@ export interface VerschleissTeile {
 }
 
 export interface VerwaltungKosten {
-  sigleKuhn: number;
   brzSteuerberater: number;
-  kostenVorndran: number;
   telefonCloudServer: number;
-  gewerbesteuer: number;
+  gfGehalt: number;
+  grundsteuer: number;
 }
 
 export interface FixkostenInput {
@@ -97,7 +131,8 @@ export interface FixkostenErgebnis {
 
 // Variable Kosten Typen
 export interface Lohnkosten {
-  stundenlohn: number; // Einheitlicher Stundenlohn für alle Personen
+  stundenlohnHelfer: number; // Stundenlohn für Helfer
+  stundenlohnFacharbeiter: number; // Stundenlohn für Facharbeiter
   tonnenProArbeitsstunde: number; // Produktivität: wie viele Tonnen pro Stunde produziert werden
 }
 
@@ -114,6 +149,11 @@ export interface SackwareKostenVariable {
   saeckeKostenProPalette: number; // Kosten pro Palette
   schrumpfhaubenKostenProPalette: number; // Kosten pro Palette
   palettenProTonne: number; // Anzahl Paletten pro Tonne (Standard: 1 Palette = 1 Tonne)
+  saeckeProPalette: number; // Anzahl Säcke pro Palette
+  sackpreis: number; // Preis pro Sack (€)
+  arbeitszeitAbsackenJeSack: number; // Arbeitszeit Absacken je Sack (in Stunden)
+  kostenProSack: number; // Berechnete Kosten pro Sack (Sackpreis + Lohnkosten)
+  kostenJeTonne: number; // Berechnete Kosten je Tonne für Sackware
 }
 
 export interface VerkaufspreisEingabe {

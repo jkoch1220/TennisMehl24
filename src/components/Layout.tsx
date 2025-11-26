@@ -13,9 +13,9 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navigation = [
     { name: 'Startseite', href: '/', icon: Home },
-    { name: 'Ziegelmehl Rechner', href: '/ziegelmehl', icon: Calculator },
     { name: 'Fixkosten Rechner', href: '/fixkosten', icon: Euro },
     { name: 'Variable Kosten', href: '/variable-kosten', icon: TrendingUp },
+    { name: 'Speditionskosten Rechner', href: '/speditionskosten', icon: Calculator },
   ];
 
   return (

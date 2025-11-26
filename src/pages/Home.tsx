@@ -4,9 +4,9 @@ import { Calculator, TrendingUp, Package, BarChart3, Euro } from 'lucide-react';
 const Home = () => {
   const tools = [
     {
-      name: 'Ziegelmehl Rechner',
-      description: 'Preisberechnung für Ziegelmehl (Sackware & Schüttware)',
-      href: '/ziegelmehl',
+      name: 'Speditionskosten Rechner',
+      description: 'Preisberechnung für Ziegelmehl mit Spedition oder Eigenlieferung',
+      href: '/speditionskosten',
       icon: Calculator,
       color: 'from-red-500 to-orange-500',
     },

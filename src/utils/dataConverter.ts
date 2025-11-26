@@ -22,11 +22,10 @@ export function flattenFixkosten(data: FixkostenInput): Record<string, number> {
     'maschinen.grundkostenMaschinen': data.maschinen.grundkostenMaschinen,
     'ruecklagenErsatzkauf': data.ruecklagenErsatzkauf,
     'sonstiges': data.sonstiges,
-    'verwaltung.sigleKuhn': data.verwaltung.sigleKuhn,
     'verwaltung.brzSteuerberater': data.verwaltung.brzSteuerberater,
-    'verwaltung.kostenVorndran': data.verwaltung.kostenVorndran,
     'verwaltung.telefonCloudServer': data.verwaltung.telefonCloudServer,
-    'verwaltung.gewerbesteuer': data.verwaltung.gewerbesteuer,
+    'verwaltung.gfGehalt': data.verwaltung.gfGehalt,
+    'verwaltung.grundsteuer': data.verwaltung.grundsteuer,
   };
 }
 
@@ -53,11 +52,10 @@ export function unflattenFixkosten(data: Record<string, number>): FixkostenInput
     ruecklagenErsatzkauf: data['ruecklagenErsatzkauf'] || 0,
     sonstiges: data['sonstiges'] || 0,
     verwaltung: {
-      sigleKuhn: data['verwaltung.sigleKuhn'] || 0,
       brzSteuerberater: data['verwaltung.brzSteuerberater'] || 0,
-      kostenVorndran: data['verwaltung.kostenVorndran'] || 0,
       telefonCloudServer: data['verwaltung.telefonCloudServer'] || 0,
-      gewerbesteuer: data['verwaltung.gewerbesteuer'] || 0,
+      gfGehalt: data['verwaltung.gfGehalt'] || 0,
+      grundsteuer: data['verwaltung.grundsteuer'] || 0,
     },
   };
 }
@@ -67,7 +65,8 @@ export function unflattenFixkosten(data: Record<string, number>): FixkostenInput
  */
 export function flattenVariableKosten(data: VariableKostenInput): Record<string, number> {
   return {
-    'lohnkosten.stundenlohn': data.lohnkosten.stundenlohn,
+    'lohnkosten.stundenlohnHelfer': data.lohnkosten.stundenlohnHelfer,
+    'lohnkosten.stundenlohnFacharbeiter': data.lohnkosten.stundenlohnFacharbeiter,
     'lohnkosten.tonnenProArbeitsstunde': data.lohnkosten.tonnenProArbeitsstunde,
     'einkauf.dieselKostenProTonne': data.einkauf.dieselKostenProTonne,
     'einkauf.ziegelbruchKostenProTonne': data.einkauf.ziegelbruchKostenProTonne,
@@ -83,6 +82,11 @@ export function flattenVariableKosten(data: VariableKostenInput): Record<string,
     'sackware.saeckeKostenProPalette': data.sackware.saeckeKostenProPalette,
     'sackware.schrumpfhaubenKostenProPalette': data.sackware.schrumpfhaubenKostenProPalette,
     'sackware.palettenProTonne': data.sackware.palettenProTonne,
+    'sackware.saeckeProPalette': data.sackware.saeckeProPalette,
+    'sackware.sackpreis': data.sackware.sackpreis,
+    'sackware.arbeitszeitAbsackenJeSack': data.sackware.arbeitszeitAbsackenJeSack,
+    'sackware.kostenProSack': data.sackware.kostenProSack,
+    'sackware.kostenJeTonne': data.sackware.kostenJeTonne,
     'verkaufspreise.0.tonnen': data.verkaufspreise[0].tonnen,
     'verkaufspreise.0.preisProTonne': data.verkaufspreise[0].preisProTonne,
     'verkaufspreise.1.tonnen': data.verkaufspreise[1].tonnen,
@@ -99,7 +103,8 @@ export function flattenVariableKosten(data: VariableKostenInput): Record<string,
 export function unflattenVariableKosten(data: Record<string, number>): VariableKostenInput {
   return {
     lohnkosten: {
-      stundenlohn: data['lohnkosten.stundenlohn'] || 0,
+      stundenlohnHelfer: data['lohnkosten.stundenlohnHelfer'] || 0,
+      stundenlohnFacharbeiter: data['lohnkosten.stundenlohnFacharbeiter'] || 0,
       tonnenProArbeitsstunde: data['lohnkosten.tonnenProArbeitsstunde'] || 0,
     },
     einkauf: {
@@ -121,6 +126,11 @@ export function unflattenVariableKosten(data: Record<string, number>): VariableK
       saeckeKostenProPalette: data['sackware.saeckeKostenProPalette'] || 0,
       schrumpfhaubenKostenProPalette: data['sackware.schrumpfhaubenKostenProPalette'] || 0,
       palettenProTonne: data['sackware.palettenProTonne'] || 0,
+      saeckeProPalette: data['sackware.saeckeProPalette'] || 0,
+      sackpreis: data['sackware.sackpreis'] || 0,
+      arbeitszeitAbsackenJeSack: data['sackware.arbeitszeitAbsackenJeSack'] || 0,
+      kostenProSack: data['sackware.kostenProSack'] || 0,
+      kostenJeTonne: data['sackware.kostenJeTonne'] || 0,
     },
     verkaufspreise: [
       {

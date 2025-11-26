@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, VARIABLE_KOSTEN_COLLECTION_ID, VARIABLE_KOSTEN_DOCUMENT_ID } from '../config/appwrite';
-import { VariableKostenInput, VerkaufspreisEingabe } from '../types';
+import { VariableKostenInput } from '../types';
 import { flattenVariableKosten, unflattenVariableKosten } from '../utils/dataConverter';
 
 export const variableKostenService = {
@@ -19,10 +19,10 @@ export const variableKostenService = {
       }
       
       // Fallback: Altes Format (wenn noch einzelne Felder vorhanden)
-      return unflattenVariableKosten(document as any);
-    } catch (error: any) {
+      return unflattenVariableKosten(document as Record<string, unknown>);
+    } catch (error: unknown) {
       // Wenn Dokument nicht existiert, gib null zurück
-      if (error.code === 404) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
         return null;
       }
       console.error('Fehler beim Laden der Variable Kosten:', error);
@@ -35,9 +35,16 @@ export const variableKostenService = {
     const flattened = flattenVariableKosten(data);
     const dataJson = JSON.stringify(flattened);
     
+    console.log('📤 Speichere Variable Kosten in Appwrite:', {
+      collectionId: VARIABLE_KOSTEN_COLLECTION_ID,
+      documentId: VARIABLE_KOSTEN_DOCUMENT_ID,
+      dataLength: dataJson.length,
+      keys: Object.keys(flattened).length,
+    });
+    
     try {
       // Versuche zuerst zu aktualisieren
-      await databases.updateDocument(
+      const result = await databases.updateDocument(
         DATABASE_ID,
         VARIABLE_KOSTEN_COLLECTION_ID,
         VARIABLE_KOSTEN_DOCUMENT_ID,
@@ -45,10 +52,12 @@ export const variableKostenService = {
           data: dataJson,
         }
       );
-    } catch (error: any) {
+      console.log('✅ Variable Kosten erfolgreich aktualisiert:', result);
+    } catch (error: unknown) {
       // Wenn Dokument nicht existiert, erstelle es
-      if (error.code === 404) {
-        await databases.createDocument(
+      if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
+        console.log('📝 Dokument existiert nicht, erstelle neues...');
+        const result = await databases.createDocument(
           DATABASE_ID,
           VARIABLE_KOSTEN_COLLECTION_ID,
           VARIABLE_KOSTEN_DOCUMENT_ID,
@@ -56,9 +65,12 @@ export const variableKostenService = {
             data: dataJson,
           }
         );
+        console.log('✅ Variable Kosten erfolgreich erstellt:', result);
       } else {
-        console.error('Fehler beim Speichern der Variable Kosten:', error);
-        const errorMessage = error?.message || `Fehler beim Speichern: ${error?.code || 'Unbekannter Fehler'}`;
+        console.error('❌ Fehler beim Speichern der Variable Kosten:', error);
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : `Fehler beim Speichern: ${error && typeof error === 'object' && 'code' in error ? String(error.code) : 'Unbekannter Fehler'}`;
         throw new Error(errorMessage);
       }
     }

@@ -45,9 +45,13 @@ export const berechneVariableKosten = (
       ? geplanterUmsatz / input.lohnkosten.tonnenProArbeitsstunde
       : 0;
 
-  // Berechne Lohnkosten mit einheitlichem Stundenlohn
-  const jahreskostenLohn =
-    benoetigteStunden * input.lohnkosten.stundenlohn;
+  // Berechne Lohnkosten für Produktion: Helfer und Facharbeiter arbeiten beide die benötigten Stunden
+  const jahreskostenLohnHelfer =
+    benoetigteStunden * input.lohnkosten.stundenlohnHelfer;
+  const jahreskostenLohnFacharbeiter =
+    benoetigteStunden * input.lohnkosten.stundenlohnFacharbeiter;
+  const jahreskostenLohnProduktion =
+    jahreskostenLohnHelfer + jahreskostenLohnFacharbeiter;
 
   // Berechne Ziegelbruch-Kosten: Benötigte Menge = Output × 0.75
   const benoetigteMengeZiegelbruch = geplanterUmsatz * 0.75;
@@ -93,20 +97,49 @@ export const berechneVariableKosten = (
 
   // Berechne Sackware-Kosten: Anzahl Paletten = Tonnen × Paletten pro Tonne
   const anzahlPaletten = geplanterUmsatz * input.sackware.palettenProTonne;
+  
+  // Berechne Anzahl Säcke: Anzahl Paletten × Säcke pro Palette
+  const anzahlSaecke = anzahlPaletten * input.sackware.saeckeProPalette;
+  
+  // Berechne Lohnkosten für Absacken: Anzahl Säcke × Arbeitszeit je Sack × Durchschnitts-Stundenlohn
+  const arbeitsstundenAbsacken = anzahlSaecke * input.sackware.arbeitszeitAbsackenJeSack;
+  const durchschnittsStundenlohn = (input.lohnkosten.stundenlohnHelfer + input.lohnkosten.stundenlohnFacharbeiter) / 2;
+  const jahreskostenLohnAbsacken = arbeitsstundenAbsacken * durchschnittsStundenlohn;
+  
+  // Berechne Kosten pro Sack: Sackpreis + (Arbeitszeit je Sack × Durchschnitts-Stundenlohn)
+  const kostenProSack = input.sackware.sackpreis + (input.sackware.arbeitszeitAbsackenJeSack * durchschnittsStundenlohn);
+  
+  // Berechne Sackware-Materialkosten
   const jahreskostenPaletten =
     anzahlPaletten * input.sackware.palettenKostenProPalette;
   const jahreskostenSaecke =
     anzahlPaletten * input.sackware.saeckeKostenProPalette;
   const jahreskostenSchrumpfhauben =
     anzahlPaletten * input.sackware.schrumpfhaubenKostenProPalette;
-
-  const jahreskostenSackware =
+  
+  // Gesamtkosten Sackware: Materialkosten + Sackkosten (inkl. Lohn für Absacken)
+  const jahreskostenSackwareMaterial =
     jahreskostenPaletten +
     jahreskostenSaecke +
     jahreskostenSchrumpfhauben;
+  
+  // Sackkosten: Anzahl Säcke × Kosten pro Sack (inkl. Sackpreis und Lohn)
+  const jahreskostenSaeckeNeu = anzahlSaecke * kostenProSack;
+  
+  const jahreskostenSackware =
+    jahreskostenSackwareMaterial +
+    jahreskostenSaeckeNeu;
+  
+  // Berechne Kosten je Tonne für Sackware
+  const kostenJeTonne = geplanterUmsatz > 0
+    ? jahreskostenSackware / geplanterUmsatz
+    : 0;
+
+  // Gesamtlohnkosten: Produktion + Absacken
+  const jahreskostenLohn = jahreskostenLohnProduktion + jahreskostenLohnAbsacken;
 
   const jahreskostenVeraenderlichOhneSackware =
-    jahreskostenLohn + jahreskostenVerbrauchsmaterial + jahreskostenVerschleiss;
+    jahreskostenLohnProduktion + jahreskostenVerbrauchsmaterial + jahreskostenVerschleiss;
 
   const veraenderlicheKostenJeTonne =
     geplanterUmsatz > 0

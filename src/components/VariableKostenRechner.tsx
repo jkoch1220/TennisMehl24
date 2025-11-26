@@ -6,6 +6,7 @@ import { VariableKostenInput } from '../types';
 import { berechneVariableKosten } from '../utils/variableKostenCalculations';
 import { DEFAULT_VARIABLE_KOSTEN } from '../constants/defaultValues';
 import { variableKostenService } from '../services/variableKostenService';
+import { NumberInput } from './NumberInput';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -18,7 +19,7 @@ const formatNumber = (value: number): string => {
 };
 
 const VariableKostenRechner = () => {
-  const [input, setInput] = useState<VariableKostenInput>(DEFAULT_VARIABLE_KOSTEN);
+  const [input, setInput] = useState<VariableKostenInput | null>(null);
   const [fixkostenProJahr, setFixkostenProJahr] = useState<number>(164740.0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,9 +27,7 @@ const VariableKostenRechner = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ergebnis = berechneVariableKosten(input, fixkostenProJahr);
-
-  // Lade Daten beim Mount
+  // Lade Daten beim Mount - KEINE Default-Werte anzeigen
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -36,9 +35,14 @@ const VariableKostenRechner = () => {
         const savedData = await variableKostenService.loadVariableKosten();
         if (savedData) {
           setInput(savedData);
+        } else {
+          // Nur wenn keine Daten vorhanden sind, Default-Werte verwenden
+          setInput(DEFAULT_VARIABLE_KOSTEN);
         }
       } catch (error) {
         console.error('Fehler beim Laden der Variable Kosten:', error);
+        // Bei Fehler auch Default-Werte verwenden
+        setInput(DEFAULT_VARIABLE_KOSTEN);
       } finally {
         setIsLoading(false);
       }
@@ -46,9 +50,12 @@ const VariableKostenRechner = () => {
     loadData();
   }, []);
 
-  // Auto-Save mit Debouncing (speichere 1 Sekunde nach letzter Änderung)
+  // Berechne Ergebnis nur wenn input vorhanden ist
+  const ergebnis = input ? berechneVariableKosten(input, fixkostenProJahr) : null;
+
+  // Auto-Save mit kurzem Debouncing (speichere 500ms nach letzter Änderung)
   useEffect(() => {
-    if (isLoading) return; // Nicht speichern während des Ladens
+    if (isLoading || !input) return; // Nicht speichern während des Ladens oder wenn keine Daten
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -60,19 +67,21 @@ const VariableKostenRechner = () => {
     
     saveTimeoutRef.current = setTimeout(async () => {
       try {
+        console.log('💾 Speichere Variable Kosten...', input);
         await variableKostenService.saveVariableKosten(input);
+        console.log('✅ Variable Kosten erfolgreich gespeichert');
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000); // Nach 3 Sekunden ausblenden
-      } catch (error: any) {
-        const errorMessage = error?.message || 'Unbekannter Fehler beim Speichern';
-        console.error('Fehler beim Speichern der Variable Kosten:', error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler beim Speichern';
+        console.error('❌ Fehler beim Speichern der Variable Kosten:', error);
         setSaveError(errorMessage);
         // Fehler nach 5 Sekunden ausblenden
         setTimeout(() => setSaveError(null), 5000);
       } finally {
         setIsSaving(false);
       }
-    }, 1000); // 1 Sekunde Debounce
+    }, 500); // 500ms Debounce für schnelleres Speichern
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -80,6 +89,90 @@ const VariableKostenRechner = () => {
       }
     };
   }, [input, isLoading]);
+
+  // Jahresfixkosten aus localStorage laden (automatisch vom Fixkosten-Rechner)
+  useEffect(() => {
+    const loadFixkosten = () => {
+      const savedFixkosten = localStorage.getItem('fixkostenProJahr');
+      if (savedFixkosten) {
+        setFixkostenProJahr(parseFloat(savedFixkosten));
+      }
+    };
+
+    // Beim Mount laden
+    loadFixkosten();
+
+    // Event Listener für Änderungen im localStorage (wenn Fixkosten-Rechner aktualisiert wird)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'fixkostenProJahr' && e.newValue) {
+        setFixkostenProJahr(parseFloat(e.newValue));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Polling für localStorage-Änderungen (für gleichen Tab)
+    const interval = setInterval(loadFixkosten, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Speichere Herstellkosten je Tonne (Abwerkspreis) für Speditionskosten-Rechner
+  useEffect(() => {
+    if (ergebnis) {
+      localStorage.setItem('herstellkostenJeTonne', ergebnis.herstellkostenJeTonne.toString());
+    }
+  }, [ergebnis]);
+
+  // Berechne kostenProSack und kostenJeTonne automatisch
+  useEffect(() => {
+    if (!input) return;
+    
+    // Verwende Durchschnitts-Stundenlohn für Absacken
+    const durchschnittsStundenlohn = (input.lohnkosten.stundenlohnHelfer + input.lohnkosten.stundenlohnFacharbeiter) / 2;
+    const kostenProSack = input.sackware.sackpreis + (input.sackware.arbeitszeitAbsackenJeSack * durchschnittsStundenlohn);
+    
+    // Berechne kostenJeTonne basierend auf aktuellen Werten
+    const geplanterUmsatz = ergebnis?.geplanterUmsatzBerechnet || input.geplanterUmsatz;
+    const anzahlPaletten = geplanterUmsatz * input.sackware.palettenProTonne;
+    const anzahlSaecke = anzahlPaletten * input.sackware.saeckeProPalette;
+    const arbeitsstundenAbsacken = anzahlSaecke * input.sackware.arbeitszeitAbsackenJeSack;
+    const jahreskostenLohnAbsacken = arbeitsstundenAbsacken * durchschnittsStundenlohn;
+    const jahreskostenPaletten = anzahlPaletten * input.sackware.palettenKostenProPalette;
+    const jahreskostenSaecke = anzahlPaletten * input.sackware.saeckeKostenProPalette;
+    const jahreskostenSchrumpfhauben = anzahlPaletten * input.sackware.schrumpfhaubenKostenProPalette;
+    const jahreskostenSackwareMaterial = jahreskostenPaletten + jahreskostenSaecke + jahreskostenSchrumpfhauben;
+    const jahreskostenSaeckeNeu = anzahlSaecke * kostenProSack;
+    const jahreskostenSackware = jahreskostenSackwareMaterial + jahreskostenSaeckeNeu;
+    const kostenJeTonne = geplanterUmsatz > 0 ? jahreskostenSackware / geplanterUmsatz : 0;
+    
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sackware: {
+          ...prev.sackware,
+          kostenProSack,
+          kostenJeTonne,
+        }
+      };
+    });
+  }, [input?.sackware.sackpreis, input?.sackware.arbeitszeitAbsackenJeSack, input?.lohnkosten.stundenlohnHelfer, input?.lohnkosten.stundenlohnFacharbeiter, input?.sackware.palettenProTonne, input?.sackware.saeckeProPalette, input?.geplanterUmsatz, ergebnis?.geplanterUmsatzBerechnet]);
+
+  // Zeige Loading-Screen während Daten geladen werden (NACH allen Hooks!)
+  if (isLoading || !input || !ergebnis) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Lade Daten aus der Datenbank...</p>
+        </div>
+      </div>
+    );
+  }
   
   // Verwende berechneten Umsatz für Fixkosten je Tonne
   const geplanterUmsatz = ergebnis.geplanterUmsatzBerechnet > 0 ? ergebnis.geplanterUmsatzBerechnet : input.geplanterUmsatz;
@@ -151,6 +244,7 @@ const VariableKostenRechner = () => {
 
   const updateVerkaufspreis = (index: number, field: 'tonnen' | 'preisProTonne', value: number) => {
     setInput(prev => {
+      if (!prev) return prev;
       const neueVerkaufspreise = [...prev.verkaufspreise] as [typeof prev.verkaufspreise[0], typeof prev.verkaufspreise[1], typeof prev.verkaufspreise[2]];
       neueVerkaufspreise[index] = { ...neueVerkaufspreise[index], [field]: value };
       return {
@@ -161,46 +255,16 @@ const VariableKostenRechner = () => {
     });
   };
 
-  // Jahresfixkosten aus localStorage laden (automatisch vom Fixkosten-Rechner)
-  useEffect(() => {
-    const loadFixkosten = () => {
-      const savedFixkosten = localStorage.getItem('fixkostenProJahr');
-      if (savedFixkosten) {
-        setFixkostenProJahr(parseFloat(savedFixkosten));
-      }
-    };
-
-    // Beim Mount laden
-    loadFixkosten();
-
-    // Event Listener für Änderungen im localStorage (wenn Fixkosten-Rechner aktualisiert wird)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'fixkostenProJahr' && e.newValue) {
-        setFixkostenProJahr(parseFloat(e.newValue));
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    // Polling für localStorage-Änderungen (für gleichen Tab)
-    const interval = setInterval(loadFixkosten, 1000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <Calculator className="w-10 h-10 text-blue-600" />
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-                Variable Kosten Rechner - Ziegelmehl Herstellung 2025
-              </h1>
+            <Calculator className="w-10 h-10 text-blue-600" />
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+              Variable Kosten Rechner - Ziegelmehl Herstellung 2025
+            </h1>
             </div>
             <div className="flex flex-col items-end gap-1">
               {isSaving && (
@@ -265,12 +329,11 @@ const VariableKostenRechner = () => {
               </Link>
             </div>
             <div className="relative">
-              <input
-                type="number"
+              <NumberInput
                 value={fixkostenProJahr}
-                onChange={(e) => setFixkostenProJahr(parseFloat(e.target.value) || 0)}
+                onChange={(value) => setFixkostenProJahr(value)}
                 className="w-full p-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-400 focus:outline-none bg-white"
-                step="0.01"
+                step={0.01}
                 readOnly
                 title="Dieser Wert wird automatisch vom Fixkosten-Rechner übernommen"
               />
@@ -391,34 +454,47 @@ const VariableKostenRechner = () => {
               </h2>
               
               {/* Eingabefelder */}
-              <div className="grid md:grid-cols-2 gap-4 mb-4">
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Stundenlohn (€/Std)
+                    Lohn Helfer (€/Std)
                   </label>
-                  <input
-                    type="number"
-                    value={input.lohnkosten.stundenlohn}
-                    onChange={(e) => updateLohnkosten('stundenlohn', parseFloat(e.target.value) || 0)}
+                  <NumberInput
+                    value={input.lohnkosten.stundenlohnHelfer}
+                    onChange={(value) => updateLohnkosten('stundenlohnHelfer', value)}
                     className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs text-gray-600 mt-1">
-                    Einheitlicher Stundenlohn für alle Personen
+                    Stundenlohn für Helfer
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Lohn Facharbeiter (€/Std)
+                  </label>
+                  <NumberInput
+                    value={input.lohnkosten.stundenlohnFacharbeiter}
+                    onChange={(value) => updateLohnkosten('stundenlohnFacharbeiter', value)}
+                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    step={0.01}
+                    min={0}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Stundenlohn für Facharbeiter
                   </p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Produzierte Tonnen pro Arbeitsstunde
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.lohnkosten.tonnenProArbeitsstunde}
-                    onChange={(e) => updateLohnkosten('tonnenProArbeitsstunde', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateLohnkosten('tonnenProArbeitsstunde', value)}
                     className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs text-gray-600 mt-1">
                     Produktivität: Wie viele Tonnen werden pro Arbeitsstunde produziert?
@@ -428,25 +504,40 @@ const VariableKostenRechner = () => {
 
               {/* Berechnete Ergebnisse */}
               <div className="mt-4 p-4 bg-blue-100 rounded-lg">
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid md:grid-cols-3 gap-4 mb-3">
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Benötigte Arbeitsstunden</p>
                     <p className="text-lg font-semibold text-blue-700">
                       {ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      ({input.geplanterUmsatz} t ÷ {input.lohnkosten.tonnenProArbeitsstunde} t/Std)
+                      ({geplanterUmsatz.toFixed(0)} t ÷ {input.lohnkosten.tonnenProArbeitsstunde} t/Std)
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn gesamt</p>
+                    <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Helfer</p>
                     <p className="text-lg font-semibold text-blue-700">
-                      {ergebnis.jahreskostenLohn.toFixed(2)} €
+                      {(ergebnis.benoetigteArbeitsstunden * input.lohnkosten.stundenlohnHelfer).toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      ({ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std × {input.lohnkosten.stundenlohn.toFixed(2)} €/Std)
+                      ({ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std × {input.lohnkosten.stundenlohnHelfer.toFixed(2)} €/Std)
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Facharbeiter</p>
+                    <p className="text-lg font-semibold text-blue-700">
+                      {(ergebnis.benoetigteArbeitsstunden * input.lohnkosten.stundenlohnFacharbeiter).toFixed(2)} €
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      ({ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std × {input.lohnkosten.stundenlohnFacharbeiter.toFixed(2)} €/Std)
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-3 border-t-2 border-blue-200">
+                  <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn gesamt</p>
+                  <p className="text-xl font-bold text-blue-800">
+                    {ergebnis.jahreskostenLohn.toFixed(2)} €
+                  </p>
                 </div>
               </div>
             </div>
@@ -462,13 +553,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Diesel Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.einkauf.dieselKostenProTonne}
-                    onChange={(e) => updateEinkauf('dieselKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateEinkauf('dieselKostenProTonne', value)}
                     className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.einkauf.dieselKostenProTonne).toFixed(2)} €
@@ -478,13 +568,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Ziegelbruch Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.einkauf.ziegelbruchKostenProTonne}
-                    onChange={(e) => updateEinkauf('ziegelbruchKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateEinkauf('ziegelbruchKostenProTonne', value)}
                     className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs text-gray-600 mt-1">
                     Benötigte Menge: {ergebnis.benoetigteMengeZiegelbruch.toFixed(1)} t ({input.geplanterUmsatz} t Output × 0.75)
@@ -497,13 +586,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Strom Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.einkauf.stromKostenProTonne}
-                    onChange={(e) => updateEinkauf('stromKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateEinkauf('stromKostenProTonne', value)}
                     className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.einkauf.stromKostenProTonne).toFixed(2)} €
@@ -513,13 +601,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Entsorgung Container Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.einkauf.entsorgungContainerKostenProTonne}
-                    onChange={(e) => updateEinkauf('entsorgungContainerKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateEinkauf('entsorgungContainerKostenProTonne', value)}
                     className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.einkauf.entsorgungContainerKostenProTonne).toFixed(2)} €
@@ -529,13 +616,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Gasflaschen Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.einkauf.gasflaschenKostenProTonne}
-                    onChange={(e) => updateEinkauf('gasflaschenKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateEinkauf('gasflaschenKostenProTonne', value)}
                     className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.einkauf.gasflaschenKostenProTonne).toFixed(2)} €
@@ -560,13 +646,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Preis pro Hammer (€/Stück)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verschleissteile.preisProHammer}
-                    onChange={(e) => updateVerschleiss('preisProHammer', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateVerschleiss('preisProHammer', value)}
                     className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs text-gray-600 mt-1">
                     Einkaufspreis pro Hammer
@@ -576,13 +661,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Verbrauch Hämmer pro Tonne
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verschleissteile.verbrauchHaemmerProTonne}
-                    onChange={(e) => updateVerschleiss('verbrauchHaemmerProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateVerschleiss('verbrauchHaemmerProTonne', value)}
                     className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs text-gray-600 mt-1">
                     Benötigte Hämmer: {ergebnis.benoetigteHaemmer.toFixed(0)} Stück ({input.geplanterUmsatz} t × {input.verschleissteile.verbrauchHaemmerProTonne})
@@ -595,13 +679,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Siebkörbe Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verschleissteile.siebkoerbeKostenProTonne}
-                    onChange={(e) => updateVerschleiss('siebkoerbeKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateVerschleiss('siebkoerbeKostenProTonne', value)}
                     className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.siebkoerbeKostenProTonne).toFixed(2)} €
@@ -611,13 +694,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Verschleißbleche Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verschleissteile.verschleissblecheKostenProTonne}
-                    onChange={(e) => updateVerschleiss('verschleissblecheKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateVerschleiss('verschleissblecheKostenProTonne', value)}
                     className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.verschleissblecheKostenProTonne).toFixed(2)} €
@@ -627,13 +709,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Wellenlager Kosten pro Tonne (€/t)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verschleissteile.wellenlagerKostenProTonne}
-                    onChange={(e) => updateVerschleiss('wellenlagerKostenProTonne', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateVerschleiss('wellenlagerKostenProTonne', value)}
                     className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
-                    step="0.01"
-                    min="0"
+                    step={0.01}
+                    min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
                     Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.wellenlagerKostenProTonne).toFixed(2)} €
@@ -657,19 +738,18 @@ const VariableKostenRechner = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Paletten pro Tonne
                 </label>
-                <input
-                  type="number"
+                <NumberInput
                   value={input.sackware.palettenProTonne}
-                  onChange={(e) => updateSackware('palettenProTonne', parseFloat(e.target.value) || 0)}
+                  onChange={(value) => updateSackware('palettenProTonne', value)}
                   className="w-full md:w-1/3 p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
-                  step="0.01"
-                  min="0"
+                  step={0.01}
+                  min={0}
                 />
                 <p className="text-xs text-gray-600 mt-1">
                   Anzahl Paletten pro produzierte Tonne (Standard: 1 Palette = 1 Tonne)
                 </p>
               </div>
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
                     Paletten Kosten pro Palette (€/Palette)
@@ -719,9 +799,86 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
               </div>
+              
+              {/* Neue Felder für abgepacktes TennisMehl */}
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Säcke pro Palette
+                  </label>
+                  <input
+                    type="number"
+                    value={input.sackware.saeckeProPalette}
+                    onChange={(e) => updateSackware('saeckeProPalette', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step="1"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Sackpreis (€/Sack)
+                  </label>
+                  <input
+                    type="number"
+                    value={input.sackware.sackpreis}
+                    onChange={(e) => updateSackware('sackpreis', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Arbeitszeit Absacken je Sack (Stunden)
+                  </label>
+                  <input
+                    type="number"
+                    value={input.sackware.arbeitszeitAbsackenJeSack}
+                    onChange={(e) => updateSackware('arbeitszeitAbsackenJeSack', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Kosten pro Sack (€/Sack) - Berechnet
+                  </label>
+                  <input
+                    type="number"
+                    value={input.sackware.kostenProSack}
+                    readOnly
+                    className="w-full p-2 border-2 border-purple-300 rounded-lg bg-purple-50 focus:outline-none"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Sackpreis + (Arbeitszeit × Stundenlohn)
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Kosten je Tonne (€/t) - Berechnet
+                </label>
+                <input
+                  type="number"
+                  value={input.sackware.kostenJeTonne}
+                  readOnly
+                  className="w-full md:w-1/3 p-2 border-2 border-purple-300 rounded-lg bg-purple-50 focus:outline-none"
+                  step="0.01"
+                />
+                <p className="text-xs text-gray-600 mt-1">
+                  Gesamtkosten Sackware / Geplanter Umsatz
+                </p>
+              </div>
               <div className="mt-4 p-3 bg-purple-100 rounded-lg">
                 <p className="text-sm font-semibold text-gray-700">
                   Anzahl Paletten: <span className="text-purple-700">{ergebnis.anzahlPaletten.toFixed(0)}</span> ({geplanterUmsatz.toFixed(0)} t × {input.sackware.palettenProTonne} Paletten/t)
+                </p>
+                <p className="text-sm font-semibold text-gray-700 mt-1">
+                  Anzahl Säcke: <span className="text-purple-700">{(ergebnis.anzahlPaletten * input.sackware.saeckeProPalette).toFixed(0)}</span> ({ergebnis.anzahlPaletten.toFixed(0)} Paletten × {input.sackware.saeckeProPalette} Säcke/Palette)
                 </p>
                 <p className="text-sm font-semibold text-gray-700 mt-1">
                   Jahreskosten Sackware: <span className="text-purple-700">{ergebnis.jahreskostenSackware.toFixed(2)} €</span>

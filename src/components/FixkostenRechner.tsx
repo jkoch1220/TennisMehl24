@@ -9,16 +9,14 @@ import { fixkostenService } from '../services/fixkostenService';
 const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
 
 const FixkostenRechner = () => {
-  const [input, setInput] = useState<FixkostenInput>(DEFAULT_FIXKOSTEN);
+  const [input, setInput] = useState<FixkostenInput | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const ergebnis = berechneFixkosten(input);
-
-  // Lade Daten beim Mount
+  // Lade Daten beim Mount - KEINE Default-Werte anzeigen
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -26,9 +24,14 @@ const FixkostenRechner = () => {
         const savedData = await fixkostenService.loadFixkosten();
         if (savedData) {
           setInput(savedData);
+        } else {
+          // Nur wenn keine Daten vorhanden sind, Default-Werte verwenden
+          setInput(DEFAULT_FIXKOSTEN);
         }
       } catch (error) {
         console.error('Fehler beim Laden der Fixkosten:', error);
+        // Bei Fehler auch Default-Werte verwenden
+        setInput(DEFAULT_FIXKOSTEN);
       } finally {
         setIsLoading(false);
       }
@@ -36,9 +39,12 @@ const FixkostenRechner = () => {
     loadData();
   }, []);
 
-  // Auto-Save mit Debouncing (speichere 1 Sekunde nach letzter Änderung)
+  // Berechne Ergebnis nur wenn input vorhanden ist
+  const ergebnis = input ? berechneFixkosten(input) : null;
+
+  // Auto-Save mit kurzem Debouncing (speichere 500ms nach letzter Änderung)
   useEffect(() => {
-    if (isLoading) return; // Nicht speichern während des Ladens
+    if (isLoading || !input) return; // Nicht speichern während des Ladens oder wenn keine Daten
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -50,19 +56,21 @@ const FixkostenRechner = () => {
     
     saveTimeoutRef.current = setTimeout(async () => {
       try {
+        console.log('💾 Speichere Fixkosten...', input);
         await fixkostenService.saveFixkosten(input);
+        console.log('✅ Fixkosten erfolgreich gespeichert');
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000); // Nach 3 Sekunden ausblenden
-      } catch (error: any) {
-        const errorMessage = error?.message || 'Unbekannter Fehler beim Speichern';
-        console.error('Fehler beim Speichern der Fixkosten:', error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler beim Speichern';
+        console.error('❌ Fehler beim Speichern der Fixkosten:', error);
         setSaveError(errorMessage);
         // Fehler nach 5 Sekunden ausblenden
         setTimeout(() => setSaveError(null), 5000);
       } finally {
         setIsSaving(false);
       }
-    }, 1000); // 1 Sekunde Debounce
+    }, 500); // 500ms Debounce für schnelleres Speichern
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -73,8 +81,22 @@ const FixkostenRechner = () => {
 
   // Jahresfixkosten im localStorage speichern für Variable-Kosten-Rechner
   useEffect(() => {
-    localStorage.setItem('fixkostenProJahr', ergebnis.fixkostenProJahr.toString());
-  }, [ergebnis.fixkostenProJahr]);
+    if (ergebnis) {
+      localStorage.setItem('fixkostenProJahr', ergebnis.fixkostenProJahr.toString());
+    }
+  }, [ergebnis]);
+
+  // Zeige Loading-Screen während Daten geladen werden (NACH allen Hooks!)
+  if (isLoading || !input || !ergebnis) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Lade Daten aus der Datenbank...</p>
+        </div>
+      </div>
+    );
+  }
 
   const pieData = [
     { name: 'Grundstück', value: ergebnis.jahreskostenGrundstueck },
@@ -93,24 +115,33 @@ const FixkostenRechner = () => {
   ];
 
   const updateGrundstueck = (field: keyof FixkostenInput['grundstueck'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      grundstueck: { ...prev.grundstueck, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        grundstueck: { ...prev.grundstueck, [field]: value }
+      };
+    });
   };
 
   const updateMaschinen = (field: keyof FixkostenInput['maschinen'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      maschinen: { ...prev.maschinen, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        maschinen: { ...prev.maschinen, [field]: value }
+      };
+    });
   };
 
   const updateVerwaltung = (field: keyof FixkostenInput['verwaltung'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      verwaltung: { ...prev.verwaltung, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        verwaltung: { ...prev.verwaltung, [field]: value }
+      };
+    });
   };
 
   return (
@@ -366,7 +397,7 @@ const FixkostenRechner = () => {
                 <input
                   type="number"
                   value={input.ruecklagenErsatzkauf}
-                  onChange={(e) => setInput(prev => ({ ...prev, ruecklagenErsatzkauf: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setInput(prev => prev ? ({ ...prev, ruecklagenErsatzkauf: parseFloat(e.target.value) || 0 }) : prev)}
                   className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
                 />
               </div>
@@ -382,7 +413,7 @@ const FixkostenRechner = () => {
                 <input
                   type="number"
                   value={input.sonstiges}
-                  onChange={(e) => setInput(prev => ({ ...prev, sonstiges: parseFloat(e.target.value) || 0 }))}
+                  onChange={(e) => setInput(prev => prev ? ({ ...prev, sonstiges: parseFloat(e.target.value) || 0 }) : prev)}
                   className="w-full p-2 border-2 border-gray-200 rounded-lg focus:border-gray-400 focus:outline-none"
                 />
               </div>
@@ -397,34 +428,12 @@ const FixkostenRechner = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Sigle, Kuhn (€)
-                  </label>
-                  <input
-                    type="number"
-                    value={input.verwaltung.sigleKuhn}
-                    onChange={(e) => updateVerwaltung('sigleKuhn', parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-400 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
                     BRZ, Steuerberater (€)
                   </label>
                   <input
                     type="number"
                     value={input.verwaltung.brzSteuerberater}
                     onChange={(e) => updateVerwaltung('brzSteuerberater', parseFloat(e.target.value) || 0)}
-                    className="w-full p-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-400 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Kosten Vorndran (€)
-                  </label>
-                  <input
-                    type="number"
-                    value={input.verwaltung.kostenVorndran}
-                    onChange={(e) => updateVerwaltung('kostenVorndran', parseFloat(e.target.value) || 0)}
                     className="w-full p-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-400 focus:outline-none"
                   />
                 </div>
@@ -441,12 +450,23 @@ const FixkostenRechner = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Gewerbesteuer (€)
+                    GF Gehalt (€)
                   </label>
                   <input
                     type="number"
-                    value={input.verwaltung.gewerbesteuer}
-                    onChange={(e) => updateVerwaltung('gewerbesteuer', parseFloat(e.target.value) || 0)}
+                    value={input.verwaltung.gfGehalt}
+                    onChange={(e) => updateVerwaltung('gfGehalt', parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Grundsteuer (€)
+                  </label>
+                  <input
+                    type="number"
+                    value={input.verwaltung.grundsteuer}
+                    onChange={(e) => updateVerwaltung('grundsteuer', parseFloat(e.target.value) || 0)}
                     className="w-full p-2 border-2 border-indigo-200 rounded-lg focus:border-indigo-400 focus:outline-none"
                   />
                 </div>

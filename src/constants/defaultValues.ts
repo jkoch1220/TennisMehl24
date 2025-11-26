@@ -19,11 +19,10 @@ export const DEFAULT_FIXKOSTEN: FixkostenInput = {
   ruecklagenErsatzkauf: 10000.0,
   sonstiges: 2747.0,
   verwaltung: {
-    sigleKuhn: 6180.0,
     brzSteuerberater: 7370.0,
-    kostenVorndran: 3800.0,
     telefonCloudServer: 3325.0,
-    gewerbesteuer: 30000.0,
+    gfGehalt: 0.0,
+    grundsteuer: 0.0,
   },
 };
 
@@ -35,7 +34,9 @@ export const DEFAULT_VARIABLE_KOSTEN: VariableKostenInput = {
     // Durchschnittlicher Stundenlohn: 91277.064 / 2400 = 38.03 €/Std
     // Tonnen pro Stunde: 4300 t / 2400 Std = 1.792 t/Std (gesamt)
     // Oder pro Person: 4300 t / 800 Std = 5.375 t/Std
-    stundenlohn: 38.03,
+    // Aufgeteilt in Helfer und Facharbeiter (angenommen 50/50 Verteilung)
+    stundenlohnHelfer: 30.0, // Beispielwert für Helfer
+    stundenlohnFacharbeiter: 46.06, // Beispielwert für Facharbeiter (so dass Durchschnitt 38.03 ist)
     tonnenProArbeitsstunde: 5.375,
   },
   einkauf: {
@@ -77,6 +78,12 @@ export const DEFAULT_VARIABLE_KOSTEN: VariableKostenInput = {
     schrumpfhaubenKostenProPalette: 6.00,
     // 1 Palette = 1 Tonne
     palettenProTonne: 1.0,
+    // Neue Felder für abgepacktes TennisMehl
+    saeckeProPalette: 25.0, // Standard: 25 Säcke pro Palette
+    sackpreis: 0.0, // Wird vom Benutzer eingegeben
+    arbeitszeitAbsackenJeSack: 0.0, // Wird vom Benutzer eingegeben (in Stunden)
+    kostenProSack: 0.0, // Wird automatisch berechnet
+    kostenJeTonne: 0.0, // Wird automatisch berechnet
   },
   verkaufspreise: [
     { tonnen: 1000, preisProTonne: 200.0 },

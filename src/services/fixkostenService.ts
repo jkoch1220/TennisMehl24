@@ -19,10 +19,10 @@ export const fixkostenService = {
       }
       
       // Fallback: Altes Format (wenn noch einzelne Felder vorhanden)
-      return unflattenFixkosten(document as any);
-    } catch (error: any) {
+      return unflattenFixkosten(document as Record<string, unknown>);
+    } catch (error: unknown) {
       // Wenn Dokument nicht existiert, gib null zurück
-      if (error.code === 404) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
         return null;
       }
       console.error('Fehler beim Laden der Fixkosten:', error);
@@ -35,9 +35,16 @@ export const fixkostenService = {
     const flattened = flattenFixkosten(data);
     const dataJson = JSON.stringify(flattened);
     
+    console.log('📤 Speichere Fixkosten in Appwrite:', {
+      collectionId: FIXKOSTEN_COLLECTION_ID,
+      documentId: FIXKOSTEN_DOCUMENT_ID,
+      dataLength: dataJson.length,
+      keys: Object.keys(flattened).length,
+    });
+    
     try {
       // Versuche zuerst zu aktualisieren
-      await databases.updateDocument(
+      const result = await databases.updateDocument(
         DATABASE_ID,
         FIXKOSTEN_COLLECTION_ID,
         FIXKOSTEN_DOCUMENT_ID,
@@ -45,10 +52,12 @@ export const fixkostenService = {
           data: dataJson,
         }
       );
-    } catch (error: any) {
+      console.log('✅ Fixkosten erfolgreich aktualisiert:', result);
+    } catch (error: unknown) {
       // Wenn Dokument nicht existiert, erstelle es
-      if (error.code === 404) {
-        await databases.createDocument(
+      if (error && typeof error === 'object' && 'code' in error && error.code === 404) {
+        console.log('📝 Dokument existiert nicht, erstelle neues...');
+        const result = await databases.createDocument(
           DATABASE_ID,
           FIXKOSTEN_COLLECTION_ID,
           FIXKOSTEN_DOCUMENT_ID,
@@ -56,9 +65,12 @@ export const fixkostenService = {
             data: dataJson,
           }
         );
+        console.log('✅ Fixkosten erfolgreich erstellt:', result);
       } else {
-        console.error('Fehler beim Speichern der Fixkosten:', error);
-        const errorMessage = error?.message || `Fehler beim Speichern: ${error?.code || 'Unbekannter Fehler'}`;
+        console.error('❌ Fehler beim Speichern der Fixkosten:', error);
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : `Fehler beim Speichern: ${error && typeof error === 'object' && 'code' in error ? String(error.code) : 'Unbekannter Fehler'}`;
         throw new Error(errorMessage);
       }
     }

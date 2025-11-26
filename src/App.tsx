@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import Home from './pages/Home';
-import ZiegelmehlRechner from './components/ZiegelmehlRechner';
+import SpeditionskostenRechner from './components/SpeditionskostenRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import { isAuthenticated } from './utils/auth';
@@ -53,9 +53,11 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/ziegelmehl" element={<ZiegelmehlRechner />} />
+          <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
           <Route path="/fixkosten" element={<FixkostenRechner />} />
           <Route path="/variable-kosten" element={<VariableKostenRechner />} />
+          {/* Legacy route redirect */}
+          <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
         </Routes>
       </Layout>
     </Router>
