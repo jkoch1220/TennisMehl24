@@ -1,91 +1,140 @@
 /**
  * API-Integration für Dieselpreise
  * Unterstützt mehrere Datenquellen:
- * 1. Tankerkoenig API (falls API-Key vorhanden)
- * 2. Web Scraping von öffentlichen Quellen (Fallback)
- * 3. Aktueller deutscher Durchschnittspreis (manuell konfigurierbar)
+ * 1. Tankerkoenig API (falls API-Key vorhanden) - automatisch aktuelle Preise
+ * 2. Aktueller deutscher Durchschnittspreis (manuell konfigurierbar) - Fallback
  */
 
 const TANKERKOENIG_API_KEY = import.meta.env.VITE_TANKERKOENIG_API_KEY || '';
+const TANKERKOENIG_API_BASE_URL = 'https://creativecommons.tankerkoenig.de/json';
 
-// Aktueller deutscher Durchschnittspreis für Diesel (manuell aktualisierbar)
+// Aktueller deutscher Durchschnittspreis für Diesel (Fallback wenn API nicht verfügbar)
 // Kann über Umgebungsvariable VITE_DIESEL_DURCHSCHNITTSPREIS überschrieben werden
-// Quelle: z.B. ADAC Spritpreismonitor oder Statistisches Bundesamt
-// Stand: Dezember 2024 - sollte regelmäßig aktualisiert werden
 const AKTUELLER_DURCHSCHNITTSPREIS_DIESEL = 
   import.meta.env.VITE_DIESEL_DURCHSCHNITTSPREIS 
     ? parseFloat(import.meta.env.VITE_DIESEL_DURCHSCHNITTSPREIS)
     : 1.55; // €/Liter (Standardwert)
 
 /**
- * Versucht den Dieselpreis über Web Scraping von einer öffentlichen Quelle zu holen
- * Fallback-Methode wenn keine API verfügbar ist
+ * Geocodiert eine PLZ zu Koordinaten (für Tankerkönig-API)
+ * Nutzt Nominatim als primäre Quelle
  */
-const holeDieselPreisViaScraping = async (): Promise<number | null> => {
+const geocodePLZFuerDieselPreis = async (plz: string): Promise<[number, number] | null> => {
   try {
-    // Option 1: ADAC Spritpreismonitor (öffentliche Seite)
-    // Hinweis: Web Scraping sollte respektvoll sein und Rate-Limiting beachten
-    // Da direkte CORS-Probleme auftreten können, verwenden wir einen Proxy-Service
-    // oder versuchen es über einen öffentlichen API-Endpoint
-    // Für jetzt: Verwende den Durchschnittswert
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?postalcode=${plz}&countrycodes=de&format=json&limit=1`;
     
-    // Alternative: Einfacher Fetch-Versuch (funktioniert nur wenn CORS erlaubt ist)
-    // const response = await fetch(adacUrl, { mode: 'no-cors' });
+    const response = await fetch(nominatimUrl, {
+      headers: {
+        'User-Agent': 'TennisMehl-Kostenrechner/1.0'
+      }
+    });
     
-    return null; // Scraping nicht implementiert, da CORS-Probleme erwartet werden
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      const result = data[0];
+      const lon = parseFloat(result.lon);
+      const lat = parseFloat(result.lat);
+      return [lon, lat];
+    }
+    
+    return null;
   } catch (error) {
-    console.warn('Web Scraping fehlgeschlagen:', error);
+    console.warn('Geocodierung für Dieselpreis fehlgeschlagen:', error);
     return null;
   }
 };
 
 /**
- * Holt den aktuellen Dieselpreis von einer Tankstelle in der Nähe einer PLZ
- * Falls keine API verfügbar ist, wird ein aktueller Durchschnittswert zurückgegeben
+ * Holt den aktuellen Dieselpreis von Tankerkönig-API basierend auf PLZ
+ * Falls API nicht verfügbar ist oder fehlschlägt, wird ein Durchschnittswert zurückgegeben
  */
-export const holeDieselPreis = async (_plz: string): Promise<number> => {
+export const holeDieselPreis = async (plz: string): Promise<number> => {
   // Option 1: Tankerkoenig API (falls API-Key vorhanden)
   if (TANKERKOENIG_API_KEY) {
     try {
-      // TODO: Implementiere echte API-Anfrage
-      // Die Tankerkoenig API benötigt Station-IDs, nicht PLZ
-      // Für eine echte Implementierung müsste man zuerst Stationen in der Nähe finden
-      // 
-      // Beispiel-Implementierung:
-      // 1. Zuerst Stationen in der Nähe finden:
-      //    const stationsUrl = `https://creativecommons.tankerkoenig.de/json/list.php?lat=${lat}&lng=${lng}&rad=5&sort=dist&type=diesel&apikey=${TANKERKOENIG_API_KEY}`;
-      // 2. Dann Preise abrufen:
-      //    const pricesUrl = `${TANKERKOENIG_API_URL}?ids=${stationIds.join(',')}&apikey=${TANKERKOENIG_API_KEY}`;
-      //    const response = await fetch(pricesUrl);
-      //    const data = await response.json();
-      //    return data.prices[stationIds[0]].diesel;
+      // 1. Geocodiere PLZ zu Koordinaten
+      const koordinaten = await geocodePLZFuerDieselPreis(plz);
       
-      // Für jetzt: Fallback auf Durchschnittswert
-      console.info('Tankerkoenig API-Key vorhanden, aber Implementierung noch ausstehend. Verwende Durchschnittswert.');
+      if (!koordinaten) {
+        console.warn(`⚠️ Konnte PLZ ${plz} nicht geocodieren, verwende Durchschnittspreis`);
+        return AKTUELLER_DURCHSCHNITTSPREIS_DIESEL;
+      }
+      
+      const [lon, lat] = koordinaten;
+      
+      // 2. Hole Tankstellen-Liste mit aktuellen Preisen von Tankerkönig-API
+      // Die list.php API gibt direkt Preise zurück, kein separater Call nötig
+      const radius = 10; // 10 km Radius
+      const apiUrl = `${TANKERKOENIG_API_BASE_URL}/list.php?lat=${lat}&lng=${lon}&rad=${radius}&type=diesel&sort=price&apikey=${TANKERKOENIG_API_KEY}`;
+      
+      console.log(`🔍 Hole Dieselpreise von Tankerkönig-API für PLZ ${plz} (Koordinaten: ${lat}, ${lon})...`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Tankerkönig API Fehler: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Prüfe ob API erfolgreich war
+      if (!data.ok) {
+        throw new Error(`Tankerkönig API Fehler: ${data.message || 'Unbekannter Fehler'}`);
+      }
+      
+      // Extrahiere Dieselpreise von geöffneten Tankstellen
+      const stations = data.stations || [];
+      const dieselPreise: number[] = [];
+      
+      for (const station of stations) {
+        // Nur geöffnete Tankstellen mit gültigem Dieselpreis berücksichtigen
+        if (station.isOpen && station.diesel && typeof station.diesel === 'number' && station.diesel > 0) {
+          dieselPreise.push(station.diesel);
+        }
+      }
+      
+      if (dieselPreise.length > 0) {
+        // Berechne Durchschnittspreis (könnte auch günstigsten nehmen)
+        const durchschnittspreis = dieselPreise.reduce((sum, preis) => sum + preis, 0) / dieselPreise.length;
+        const guenstigsterPreis = Math.min(...dieselPreise);
+        
+        console.log(`✅ Tankerkönig-API: ${dieselPreise.length} Tankstellen gefunden`);
+        console.log(`   Günstigster Preis: ${guenstigsterPreis.toFixed(3)} €/Liter`);
+        console.log(`   Durchschnittspreis: ${durchschnittspreis.toFixed(3)} €/Liter`);
+        console.log(`   → Verwende Durchschnittspreis: ${durchschnittspreis.toFixed(3)} €/Liter`);
+        
+        return durchschnittspreis;
+      } else {
+        console.warn(`⚠️ Keine geöffneten Tankstellen mit Dieselpreis gefunden für PLZ ${plz}, verwende Durchschnittspreis`);
+        return AKTUELLER_DURCHSCHNITTSPREIS_DIESEL;
+      }
     } catch (error) {
-      console.error('Fehler bei Tankerkoenig API:', error);
+      console.error('❌ Fehler bei Tankerkönig-API:', error);
+      console.log(`   → Fallback auf Durchschnittspreis: ${AKTUELLER_DURCHSCHNITTSPREIS_DIESEL} €/Liter`);
+      return AKTUELLER_DURCHSCHNITTSPREIS_DIESEL;
     }
   }
 
-  // Option 2: Versuche Web Scraping (Fallback)
-  const scrapingPreis = await holeDieselPreisViaScraping();
-  if (scrapingPreis !== null) {
-    return scrapingPreis;
-  }
-
-  // Option 3: Verwende aktuellen deutschen Durchschnittspreis
-  // Dieser Wert sollte regelmäßig manuell aktualisiert werden
-  // oder über eine einfache Konfiguration geändert werden können
-  console.info(`Verwende aktuellen deutschen Durchschnittspreis: ${AKTUELLER_DURCHSCHNITTSPREIS_DIESEL} €/Liter`);
+  // Option 2: Fallback auf Durchschnittspreis wenn kein API-Key vorhanden
+  console.info(`ℹ️ Kein Tankerkönig-API-Key vorhanden, verwende Durchschnittspreis: ${AKTUELLER_DURCHSCHNITTSPREIS_DIESEL} €/Liter`);
   return AKTUELLER_DURCHSCHNITTSPREIS_DIESEL;
 };
 
 /**
- * Validiert ob ein API-Key vorhanden ist
+ * Validiert ob die Tankerkönig-API verfügbar ist
  */
 export const istDieselPreisAPIVerfuegbar = (): boolean => {
-  // Gibt true zurück, da wir immer einen Fallback-Wert haben
-  return true;
+  return TANKERKOENIG_API_KEY.length > 0;
 };
 
 /**
