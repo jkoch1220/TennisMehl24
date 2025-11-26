@@ -288,8 +288,6 @@ export const berechneDistanzVonPLZ = async (
     const startParam = `${startCoords[0]},${startCoords[1]}`;
     const endParam = `${zielCoords[0]},${zielCoords[1]}`;
     
-    // Füge Timestamp hinzu, um Caching zu vermeiden
-    const timestamp = Date.now();
     const apiUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${OPENROUTESERVICE_API_KEY}&start=${startParam}&end=${endParam}`;
     console.log(`🗺️ API-Anfrage für Route: ${startPLZ} → ${zielPLZ}`);
     console.log(`   Start-Koordinaten: [${startCoords[0]}, ${startCoords[1]}]`);

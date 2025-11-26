@@ -7,7 +7,6 @@
  */
 
 const TANKERKOENIG_API_KEY = import.meta.env.VITE_TANKERKOENIG_API_KEY || '';
-const TANKERKOENIG_API_URL = 'https://creativecommons.tankerkoenig.de/json/prices.php';
 
 // Aktueller deutscher Durchschnittspreis für Diesel (manuell aktualisierbar)
 // Kann über Umgebungsvariable VITE_DIESEL_DURCHSCHNITTSPREIS überschrieben werden
@@ -26,8 +25,6 @@ const holeDieselPreisViaScraping = async (): Promise<number | null> => {
   try {
     // Option 1: ADAC Spritpreismonitor (öffentliche Seite)
     // Hinweis: Web Scraping sollte respektvoll sein und Rate-Limiting beachten
-    const adacUrl = 'https://www.adac.de/verkehr/tanken-kraftstoff-und-antrieb/kraftstoffpreise/';
-    
     // Da direkte CORS-Probleme auftreten können, verwenden wir einen Proxy-Service
     // oder versuchen es über einen öffentlichen API-Endpoint
     // Für jetzt: Verwende den Durchschnittswert
@@ -46,7 +43,7 @@ const holeDieselPreisViaScraping = async (): Promise<number | null> => {
  * Holt den aktuellen Dieselpreis von einer Tankstelle in der Nähe einer PLZ
  * Falls keine API verfügbar ist, wird ein aktueller Durchschnittswert zurückgegeben
  */
-export const holeDieselPreis = async (plz: string): Promise<number> => {
+export const holeDieselPreis = async (_plz: string): Promise<number> => {
   // Option 1: Tankerkoenig API (falls API-Key vorhanden)
   if (TANKERKOENIG_API_KEY) {
     try {

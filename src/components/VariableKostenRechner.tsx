@@ -139,8 +139,7 @@ const VariableKostenRechner = () => {
     const geplanterUmsatz = ergebnis?.geplanterUmsatzBerechnet || input.geplanterUmsatz;
     const anzahlPaletten = geplanterUmsatz * input.sackware.palettenProTonne;
     const anzahlSaecke = anzahlPaletten * input.sackware.saeckeProPalette;
-    const arbeitsstundenAbsacken = anzahlSaecke * input.sackware.arbeitszeitAbsackenJeSack;
-    const jahreskostenLohnAbsacken = arbeitsstundenAbsacken * durchschnittsStundenlohn;
+    // arbeitsstundenAbsacken wird nicht direkt verwendet, da Lohnkosten bereits in kostenProSack enthalten sind
     const jahreskostenPaletten = anzahlPaletten * input.sackware.palettenKostenProPalette;
     const jahreskostenSaecke = anzahlPaletten * input.sackware.saeckeKostenProPalette;
     const jahreskostenSchrumpfhauben = anzahlPaletten * input.sackware.schrumpfhaubenKostenProPalette;
@@ -215,31 +214,43 @@ const VariableKostenRechner = () => {
   ];
 
   const updateLohnkosten = (field: keyof VariableKostenInput['lohnkosten'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      lohnkosten: { ...prev.lohnkosten, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        lohnkosten: { ...prev.lohnkosten, [field]: value }
+      };
+    });
   };
 
   const updateEinkauf = (field: keyof VariableKostenInput['einkauf'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      einkauf: { ...prev.einkauf, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        einkauf: { ...prev.einkauf, [field]: value }
+      };
+    });
   };
 
   const updateVerschleiss = (field: keyof VariableKostenInput['verschleissteile'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      verschleissteile: { ...prev.verschleissteile, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        verschleissteile: { ...prev.verschleissteile, [field]: value }
+      };
+    });
   };
 
   const updateSackware = (field: keyof VariableKostenInput['sackware'], value: number) => {
-    setInput(prev => ({
-      ...prev,
-      sackware: { ...prev.sackware, [field]: value }
-    }));
+    setInput(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        sackware: { ...prev.sackware, [field]: value }
+      };
+    });
   };
 
   const updateVerkaufspreis = (index: number, field: 'tonnen' | 'preisProTonne', value: number) => {

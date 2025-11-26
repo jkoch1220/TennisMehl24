@@ -32,30 +32,35 @@ export function flattenFixkosten(data: FixkostenInput): Record<string, number> {
 /**
  * Konvertiert ein flaches Objekt zurück zu FixkostenInput
  */
-export function unflattenFixkosten(data: Record<string, number>): FixkostenInput {
+export function unflattenFixkosten(data: Record<string, number | unknown>): FixkostenInput {
+  // Konvertiere alle Werte zu Zahlen
+  const numericData: Record<string, number> = {};
+  for (const [key, value] of Object.entries(data)) {
+    numericData[key] = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) || 0 : 0);
+  }
   return {
     grundstueck: {
-      pacht: data['grundstueck.pacht'] || 0,
-      steuer: data['grundstueck.steuer'] || 0,
-      pflege: data['grundstueck.pflege'] || 0,
-      buerocontainer: data['grundstueck.buerocontainer'] || 0,
+      pacht: numericData['grundstueck.pacht'] || 0,
+      steuer: numericData['grundstueck.steuer'] || 0,
+      pflege: numericData['grundstueck.pflege'] || 0,
+      buerocontainer: numericData['grundstueck.buerocontainer'] || 0,
     },
     maschinen: {
-      wartungRadlader: data['maschinen.wartungRadlader'] || 0,
-      wartungStapler: data['maschinen.wartungStapler'] || 0,
-      wartungMuehle: data['maschinen.wartungMuehle'] || 0,
-      wartungSiebanlage: data['maschinen.wartungSiebanlage'] || 0,
-      wartungAbsackanlage: data['maschinen.wartungAbsackanlage'] || 0,
-      sonstigeWartung: data['maschinen.sonstigeWartung'] || 0,
-      grundkostenMaschinen: data['maschinen.grundkostenMaschinen'] || 0,
+      wartungRadlader: numericData['maschinen.wartungRadlader'] || 0,
+      wartungStapler: numericData['maschinen.wartungStapler'] || 0,
+      wartungMuehle: numericData['maschinen.wartungMuehle'] || 0,
+      wartungSiebanlage: numericData['maschinen.wartungSiebanlage'] || 0,
+      wartungAbsackanlage: numericData['maschinen.wartungAbsackanlage'] || 0,
+      sonstigeWartung: numericData['maschinen.sonstigeWartung'] || 0,
+      grundkostenMaschinen: numericData['maschinen.grundkostenMaschinen'] || 0,
     },
-    ruecklagenErsatzkauf: data['ruecklagenErsatzkauf'] || 0,
-    sonstiges: data['sonstiges'] || 0,
+    ruecklagenErsatzkauf: numericData['ruecklagenErsatzkauf'] || 0,
+    sonstiges: numericData['sonstiges'] || 0,
     verwaltung: {
-      brzSteuerberater: data['verwaltung.brzSteuerberater'] || 0,
-      telefonCloudServer: data['verwaltung.telefonCloudServer'] || 0,
-      gfGehalt: data['verwaltung.gfGehalt'] || 0,
-      grundsteuer: data['verwaltung.grundsteuer'] || 0,
+      brzSteuerberater: numericData['verwaltung.brzSteuerberater'] || 0,
+      telefonCloudServer: numericData['verwaltung.telefonCloudServer'] || 0,
+      gfGehalt: numericData['verwaltung.gfGehalt'] || 0,
+      grundsteuer: numericData['verwaltung.grundsteuer'] || 0,
     },
   };
 }
@@ -100,53 +105,58 @@ export function flattenVariableKosten(data: VariableKostenInput): Record<string,
 /**
  * Konvertiert ein flaches Objekt zurück zu VariableKostenInput
  */
-export function unflattenVariableKosten(data: Record<string, number>): VariableKostenInput {
+export function unflattenVariableKosten(data: Record<string, number | unknown>): VariableKostenInput {
+  // Konvertiere alle Werte zu Zahlen
+  const numericData: Record<string, number> = {};
+  for (const [key, value] of Object.entries(data)) {
+    numericData[key] = typeof value === 'number' ? value : (typeof value === 'string' ? parseFloat(value) || 0 : 0);
+  }
   return {
     lohnkosten: {
-      stundenlohnHelfer: data['lohnkosten.stundenlohnHelfer'] || 0,
-      stundenlohnFacharbeiter: data['lohnkosten.stundenlohnFacharbeiter'] || 0,
-      tonnenProArbeitsstunde: data['lohnkosten.tonnenProArbeitsstunde'] || 0,
+      stundenlohnHelfer: numericData['lohnkosten.stundenlohnHelfer'] || 0,
+      stundenlohnFacharbeiter: numericData['lohnkosten.stundenlohnFacharbeiter'] || 0,
+      tonnenProArbeitsstunde: numericData['lohnkosten.tonnenProArbeitsstunde'] || 0,
     },
     einkauf: {
-      dieselKostenProTonne: data['einkauf.dieselKostenProTonne'] || 0,
-      ziegelbruchKostenProTonne: data['einkauf.ziegelbruchKostenProTonne'] || 0,
-      stromKostenProTonne: data['einkauf.stromKostenProTonne'] || 0,
-      entsorgungContainerKostenProTonne: data['einkauf.entsorgungContainerKostenProTonne'] || 0,
-      gasflaschenKostenProTonne: data['einkauf.gasflaschenKostenProTonne'] || 0,
+      dieselKostenProTonne: numericData['einkauf.dieselKostenProTonne'] || 0,
+      ziegelbruchKostenProTonne: numericData['einkauf.ziegelbruchKostenProTonne'] || 0,
+      stromKostenProTonne: numericData['einkauf.stromKostenProTonne'] || 0,
+      entsorgungContainerKostenProTonne: numericData['einkauf.entsorgungContainerKostenProTonne'] || 0,
+      gasflaschenKostenProTonne: numericData['einkauf.gasflaschenKostenProTonne'] || 0,
     },
     verschleissteile: {
-      preisProHammer: data['verschleissteile.preisProHammer'] || 0,
-      verbrauchHaemmerProTonne: data['verschleissteile.verbrauchHaemmerProTonne'] || 0,
-      siebkoerbeKostenProTonne: data['verschleissteile.siebkoerbeKostenProTonne'] || 0,
-      verschleissblecheKostenProTonne: data['verschleissteile.verschleissblecheKostenProTonne'] || 0,
-      wellenlagerKostenProTonne: data['verschleissteile.wellenlagerKostenProTonne'] || 0,
+      preisProHammer: numericData['verschleissteile.preisProHammer'] || 0,
+      verbrauchHaemmerProTonne: numericData['verschleissteile.verbrauchHaemmerProTonne'] || 0,
+      siebkoerbeKostenProTonne: numericData['verschleissteile.siebkoerbeKostenProTonne'] || 0,
+      verschleissblecheKostenProTonne: numericData['verschleissteile.verschleissblecheKostenProTonne'] || 0,
+      wellenlagerKostenProTonne: numericData['verschleissteile.wellenlagerKostenProTonne'] || 0,
     },
     sackware: {
-      palettenKostenProPalette: data['sackware.palettenKostenProPalette'] || 0,
-      saeckeKostenProPalette: data['sackware.saeckeKostenProPalette'] || 0,
-      schrumpfhaubenKostenProPalette: data['sackware.schrumpfhaubenKostenProPalette'] || 0,
-      palettenProTonne: data['sackware.palettenProTonne'] || 0,
-      saeckeProPalette: data['sackware.saeckeProPalette'] || 0,
-      sackpreis: data['sackware.sackpreis'] || 0,
-      arbeitszeitAbsackenJeSack: data['sackware.arbeitszeitAbsackenJeSack'] || 0,
-      kostenProSack: data['sackware.kostenProSack'] || 0,
-      kostenJeTonne: data['sackware.kostenJeTonne'] || 0,
+      palettenKostenProPalette: numericData['sackware.palettenKostenProPalette'] || 0,
+      saeckeKostenProPalette: numericData['sackware.saeckeKostenProPalette'] || 0,
+      schrumpfhaubenKostenProPalette: numericData['sackware.schrumpfhaubenKostenProPalette'] || 0,
+      palettenProTonne: numericData['sackware.palettenProTonne'] || 0,
+      saeckeProPalette: numericData['sackware.saeckeProPalette'] || 0,
+      sackpreis: numericData['sackware.sackpreis'] || 0,
+      arbeitszeitAbsackenJeSack: numericData['sackware.arbeitszeitAbsackenJeSack'] || 0,
+      kostenProSack: numericData['sackware.kostenProSack'] || 0,
+      kostenJeTonne: numericData['sackware.kostenJeTonne'] || 0,
     },
     verkaufspreise: [
       {
-        tonnen: data['verkaufspreise.0.tonnen'] || 0,
-        preisProTonne: data['verkaufspreise.0.preisProTonne'] || 0,
+        tonnen: numericData['verkaufspreise.0.tonnen'] || 0,
+        preisProTonne: numericData['verkaufspreise.0.preisProTonne'] || 0,
       },
       {
-        tonnen: data['verkaufspreise.1.tonnen'] || 0,
-        preisProTonne: data['verkaufspreise.1.preisProTonne'] || 0,
+        tonnen: numericData['verkaufspreise.1.tonnen'] || 0,
+        preisProTonne: numericData['verkaufspreise.1.preisProTonne'] || 0,
       },
       {
-        tonnen: data['verkaufspreise.2.tonnen'] || 0,
-        preisProTonne: data['verkaufspreise.2.preisProTonne'] || 0,
+        tonnen: numericData['verkaufspreise.2.tonnen'] || 0,
+        preisProTonne: numericData['verkaufspreise.2.preisProTonne'] || 0,
       },
     ] as [VerkaufspreisEingabe, VerkaufspreisEingabe, VerkaufspreisEingabe],
-    geplanterUmsatz: data['geplanterUmsatz'] || 0,
+    geplanterUmsatz: numericData['geplanterUmsatz'] || 0,
   };
 }
 

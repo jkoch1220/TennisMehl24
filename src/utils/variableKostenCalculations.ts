@@ -130,10 +130,10 @@ export const berechneVariableKosten = (
     jahreskostenSackwareMaterial +
     jahreskostenSaeckeNeu;
   
-  // Berechne Kosten je Tonne für Sackware
-  const kostenJeTonne = geplanterUmsatz > 0
-    ? jahreskostenSackware / geplanterUmsatz
-    : 0;
+  // Berechne Kosten je Tonne für Sackware (wird in sackware.kostenJeTonne gespeichert)
+  // const kostenJeTonne = geplanterUmsatz > 0
+  //   ? jahreskostenSackware / geplanterUmsatz
+  //   : 0;
 
   // Gesamtlohnkosten: Produktion + Absacken
   const jahreskostenLohn = jahreskostenLohnProduktion + jahreskostenLohnAbsacken;
