@@ -10,3 +10,10 @@
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
 
+# Redirect-Regel für Single-Page Application (SPA)
+# Alle Routen werden auf index.html umgeleitet, damit React Router funktioniert
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
