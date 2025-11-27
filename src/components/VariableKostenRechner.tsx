@@ -217,8 +217,8 @@ const VariableKostenRechner = () => {
     setInput(prev => {
       if (!prev) return prev;
       return {
-        ...prev,
-        lohnkosten: { ...prev.lohnkosten, [field]: value }
+      ...prev,
+      lohnkosten: { ...prev.lohnkosten, [field]: value }
       };
     });
   };
@@ -227,8 +227,8 @@ const VariableKostenRechner = () => {
     setInput(prev => {
       if (!prev) return prev;
       return {
-        ...prev,
-        einkauf: { ...prev.einkauf, [field]: value }
+      ...prev,
+      einkauf: { ...prev.einkauf, [field]: value }
       };
     });
   };
@@ -237,8 +237,8 @@ const VariableKostenRechner = () => {
     setInput(prev => {
       if (!prev) return prev;
       return {
-        ...prev,
-        verschleissteile: { ...prev.verschleissteile, [field]: value }
+      ...prev,
+      verschleissteile: { ...prev.verschleissteile, [field]: value }
       };
     });
   };
@@ -247,8 +247,8 @@ const VariableKostenRechner = () => {
     setInput(prev => {
       if (!prev) return prev;
       return {
-        ...prev,
-        sackware: { ...prev.sackware, [field]: value }
+      ...prev,
+      sackware: { ...prev.sackware, [field]: value }
       };
     });
   };
@@ -511,6 +511,21 @@ const VariableKostenRechner = () => {
                     Produktivität: Wie viele Tonnen werden pro Arbeitsstunde produziert?
                   </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Verhältnis Helfer zu Facharbeiter
+                  </label>
+                  <NumberInput
+                    value={input.lohnkosten.verhaeltnisHelferZuFacharbeiter}
+                    onChange={(value) => updateLohnkosten('verhaeltnisHelferZuFacharbeiter', value)}
+                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    step={0.1}
+                    min={0}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Beispiel: 0.5 = 1 Helfer auf 2 Facharbeiter (1:2), 1.0 = 1:1, 2.0 = 2:1
+                  </p>
+                </div>
               </div>
 
               {/* Berechnete Ergebnisse */}
@@ -528,19 +543,39 @@ const VariableKostenRechner = () => {
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Helfer</p>
                     <p className="text-lg font-semibold text-blue-700">
-                      {(ergebnis.benoetigteArbeitsstunden * input.lohnkosten.stundenlohnHelfer).toFixed(2)} €
+                      {(() => {
+                        const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
+                        const anteilHelfer = verhaeltnis / (1 + verhaeltnis);
+                        const stundenHelfer = ergebnis.benoetigteArbeitsstunden * anteilHelfer;
+                        return (stundenHelfer * input.lohnkosten.stundenlohnHelfer).toFixed(2);
+                      })()} €
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      ({ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std × {input.lohnkosten.stundenlohnHelfer.toFixed(2)} €/Std)
+                      {(() => {
+                        const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
+                        const anteilHelfer = verhaeltnis / (1 + verhaeltnis);
+                        const stundenHelfer = ergebnis.benoetigteArbeitsstunden * anteilHelfer;
+                        return `${stundenHelfer.toFixed(1)} Std × ${input.lohnkosten.stundenlohnHelfer.toFixed(2)} €/Std`;
+                      })()}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Facharbeiter</p>
                     <p className="text-lg font-semibold text-blue-700">
-                      {(ergebnis.benoetigteArbeitsstunden * input.lohnkosten.stundenlohnFacharbeiter).toFixed(2)} €
+                      {(() => {
+                        const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
+                        const anteilFacharbeiter = 1 / (1 + verhaeltnis);
+                        const stundenFacharbeiter = ergebnis.benoetigteArbeitsstunden * anteilFacharbeiter;
+                        return (stundenFacharbeiter * input.lohnkosten.stundenlohnFacharbeiter).toFixed(2);
+                      })()} €
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
-                      ({ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std × {input.lohnkosten.stundenlohnFacharbeiter.toFixed(2)} €/Std)
+                      {(() => {
+                        const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
+                        const anteilFacharbeiter = 1 / (1 + verhaeltnis);
+                        const stundenFacharbeiter = ergebnis.benoetigteArbeitsstunden * anteilFacharbeiter;
+                        return `${stundenFacharbeiter.toFixed(1)} Std × ${input.lohnkosten.stundenlohnFacharbeiter.toFixed(2)} €/Std`;
+                      })()}
                     </p>
                   </div>
                 </div>

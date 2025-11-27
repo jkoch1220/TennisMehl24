@@ -86,7 +86,7 @@ export const berechneSpeditionskosten = async (
   aufschlagTyp: AufschlagTyp,
   lieferart: Lieferart,
   eigenlieferungStammdaten?: EigenlieferungStammdaten,
-  startPLZ: string = '97950', // Hundsberg 13, 97950 Großrinderfeld
+  startPLZ: string = '97828', // Wertheimer Str. 30, 97828 Marktheidenfeld
   herstellkostenJeTonne?: number // Abwerkspreis aus Variable-Kosten-Rechner
 ): Promise<SpeditionskostenErgebnis> => {
   const tonnen = gewicht / 1000;
@@ -103,26 +103,31 @@ export const berechneSpeditionskosten = async (
 
   // Verwende Abwerkspreis aus Variable-Kosten-Rechner falls verfügbar
   let herstellungskostenGesamt = 0;
-  let werkspreis = 0;
+  let werkspreisBasis = 0; // Basis-Werkspreis ohne Aufschlag
   
   if (warenart === 'sackware') {
     // Für Sackware: Verwende herstellkostenJeTonne falls verfügbar, sonst statische Werte
     const kostenJeTonne = herstellkostenJeTonne || SACKWARE_KOSTEN.cvk_ab_werk;
     herstellungskostenGesamt = kostenJeTonne * tonnen;
-    werkspreis = kostenJeTonne * paletten; // Sackware: 1 Tonne = 1 Palette
+    werkspreisBasis = kostenJeTonne * paletten; // Sackware: 1 Tonne = 1 Palette
   } else {
     // Für Schüttware: Verwende herstellkostenJeTonne falls verfügbar, sonst statische Werte
     const kostenJeTonne = herstellkostenJeTonne || HERSTELLUNGSKOSTEN.gesamt_pro_tonne;
     herstellungskostenGesamt = kostenJeTonne * tonnen;
-    werkspreis = herstellungskostenGesamt;
+    werkspreisBasis = herstellungskostenGesamt;
   }
 
+  // Berechne Aufschlag basierend auf Kundentyp
   const aufschlagFaktor =
     aufschlagTyp === 'endkunde'
       ? AUFSCHLAEGE.endkunde
       : AUFSCHLAEGE.grosskunde;
-  const aufschlag = werkspreis * aufschlagFaktor;
-  const verkaufspreis = werkspreis + aufschlag;
+  const aufschlag = werkspreisBasis * aufschlagFaktor;
+  
+  // Werkspreis enthält bereits den Aufschlag basierend auf Kundentyp
+  const werkspreis = werkspreisBasis + aufschlag;
+  // Verkaufspreis = Werkspreis (da Aufschlag bereits enthalten ist)
+  const verkaufspreis = werkspreis;
 
   let eigenlieferungRoute = undefined;
   
@@ -135,9 +140,8 @@ export const berechneSpeditionskosten = async (
       eigenlieferungStammdaten
     );
     
-    // Transportkosten = Dieselkosten + Zeitkosten (optional)
-    transportkosten = route.dieselkosten;
-    // Optional: Zeitkosten hinzufügen (z.B. Fahrerlohn)
+    // Transportkosten = Dieselkosten + Verschleißkosten
+    transportkosten = route.dieselkosten + route.verschleisskosten;
     
     eigenlieferungRoute = {
       route,
@@ -147,19 +151,39 @@ export const berechneSpeditionskosten = async (
   
   const gesamtpreisMitLieferung = verkaufspreis + transportkosten;
   
+  // Berechne Preise pro Tonne explizit
+  // Endpreis pro Tonne = Werkspreis pro Tonne + Transportkosten pro Tonne
+  const werkspreisProTonne = tonnen > 0 ? werkspreis / tonnen : 0;
+  
+  // Bei Eigenlieferung: Transportkosten pro Tonne basierend auf LKW-Ladung
+  // Bei Spedition: Transportkosten pro Tonne basierend auf tatsächlicher Liefermenge
+  let transportkostenProTonne = 0;
+  if (lieferart === 'eigenlieferung' && eigenlieferungStammdaten) {
+    // Verwende LKW-Ladung für Berechnung der Kosten pro Tonne
+    const lkwLadung = eigenlieferungStammdaten.lkwLadungInTonnen;
+    transportkostenProTonne = lkwLadung > 0 ? transportkosten / lkwLadung : 0;
+  } else {
+    // Bei Spedition: Verwende tatsächliche Liefermenge
+    transportkostenProTonne = tonnen > 0 ? transportkosten / tonnen : 0;
+  }
+  
+  const preisProTonne = werkspreisProTonne + transportkostenProTonne;
+  
   return {
     tonnen,
     zone,
     herstellungskostenGesamt,
-    herstellungskostenProTonne: herstellungskostenGesamt / tonnen,
+    herstellungskostenProTonne: tonnen > 0 ? herstellungskostenGesamt / tonnen : 0,
     werkspreis,
     aufschlag,
     verkaufspreis,
     transportkosten,
     gesamtpreisMitLieferung,
-    preisProTonne: gesamtpreisMitLieferung / tonnen,
-    preisProKg: gesamtpreisMitLieferung / gewicht,
+    preisProTonne, // Endpreis pro Tonne = Werkspreis pro Tonne + Transportkosten pro Tonne
+    preisProKg: gewicht > 0 ? gesamtpreisMitLieferung / gewicht : 0,
     lieferart,
+    werkspreisProTonne, // Werkspreis pro Tonne
+    transportkostenProTonne, // Transportkosten pro Tonne
     eigenlieferung: eigenlieferungRoute,
   };
 };

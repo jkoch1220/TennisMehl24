@@ -73,6 +73,7 @@ export function flattenVariableKosten(data: VariableKostenInput): Record<string,
     'lohnkosten.stundenlohnHelfer': data.lohnkosten.stundenlohnHelfer,
     'lohnkosten.stundenlohnFacharbeiter': data.lohnkosten.stundenlohnFacharbeiter,
     'lohnkosten.tonnenProArbeitsstunde': data.lohnkosten.tonnenProArbeitsstunde,
+    'lohnkosten.verhaeltnisHelferZuFacharbeiter': data.lohnkosten.verhaeltnisHelferZuFacharbeiter,
     'einkauf.dieselKostenProTonne': data.einkauf.dieselKostenProTonne,
     'einkauf.ziegelbruchKostenProTonne': data.einkauf.ziegelbruchKostenProTonne,
     'einkauf.stromKostenProTonne': data.einkauf.stromKostenProTonne,
@@ -116,6 +117,7 @@ export function unflattenVariableKosten(data: Record<string, number | unknown>):
       stundenlohnHelfer: numericData['lohnkosten.stundenlohnHelfer'] || 0,
       stundenlohnFacharbeiter: numericData['lohnkosten.stundenlohnFacharbeiter'] || 0,
       tonnenProArbeitsstunde: numericData['lohnkosten.tonnenProArbeitsstunde'] || 0,
+      verhaeltnisHelferZuFacharbeiter: numericData['lohnkosten.verhaeltnisHelferZuFacharbeiter'] ?? 0.5, // Default: 0.5 (1:2)
     },
     einkauf: {
       dieselKostenProTonne: numericData['einkauf.dieselKostenProTonne'] || 0,

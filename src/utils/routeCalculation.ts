@@ -5,12 +5,12 @@
 import { EigenlieferungStammdaten, RoutenBerechnung } from '../types';
 
 // Startadresse (Standort des Unternehmens)
-const START_ADRESSE = 'Hundsberg 13, 97950 Großrinderfeld';
-const START_PLZ = '97950'; // PLZ für Fallback
+const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
+const START_PLZ = '97828'; // PLZ für Fallback
 
-// Manuelle Koordinaten für Großrinderfeld (Fallback falls Geocodierung fehlschlägt)
-// Koordinaten für Großrinderfeld: ~49.66°N, 9.75°E
-const START_COORDS_MANUELL: [number, number] = [9.75, 49.66]; // [lon, lat]
+// Manuelle Koordinaten für Marktheidenfeld (Fallback falls Geocodierung fehlschlägt)
+// Koordinaten für Marktheidenfeld: ~49.85°N, 9.60°E
+const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]
 
 const OPENROUTESERVICE_API_KEY = import.meta.env.VITE_OPENROUTESERVICE_API_KEY || '';
 
@@ -234,7 +234,7 @@ export const berechneDistanzVonPLZ = async (
     const startAdresse = startPLZ === START_PLZ ? START_ADRESSE : startPLZ;
     
     if (startPLZ === START_PLZ) {
-      // Verwende direkt die manuellen Koordinaten für Großrinderfeld
+      // Verwende direkt die manuellen Koordinaten für Marktheidenfeld
       startCoords = START_COORDS_MANUELL;
       console.log(`📍 Verwende manuelle Koordinaten für Start-PLZ ${startPLZ}: ${startAdresse} -> [${startCoords[0]}, ${startCoords[1]}]`);
     } else {
@@ -318,7 +318,7 @@ export const berechneDistanzVonPLZ = async (
       if (segments && segments.length > 0) {
         const segment = segments[0];
         
-        // Distanz in Metern, konvertiere zu km
+      // Distanz in Metern, konvertiere zu km
         const distanzMeter = segment.distance;
         const distanzKm = distanzMeter / 1000; // km
         const dauerSekunden = segment.duration;
@@ -461,8 +461,12 @@ export const berechneEigenlieferungRoute = async (
   // Berechne Dieselkosten für die gesamte Strecke
   const dieselkosten = dieselverbrauch * stammdaten.dieselLiterKostenBrutto;
   
+  // Berechne Verschleißkosten basierend auf Verschleißpauschale pro km
+  const verschleisskosten = distanz * stammdaten.verschleisspauschaleProKm;
+  
   console.log(`   Dieselverbrauch: ${dieselverbrauch.toFixed(2)} Liter`);
   console.log(`   Dieselkosten: ${dieselkosten.toFixed(2)} €`);
+  console.log(`   Verschleißkosten: ${verschleisskosten.toFixed(2)} € (${stammdaten.verschleisspauschaleProKm.toFixed(3)} €/km × ${distanz.toFixed(2)} km)`);
   
   return {
     distanz,
@@ -470,6 +474,7 @@ export const berechneEigenlieferungRoute = async (
     gesamtzeit,
     dieselverbrauch,
     dieselkosten,
+    verschleisskosten,
     beladungszeit: stammdaten.beladungszeit,
     abladungszeit: stammdaten.abladungszeit,
     pausenzeit,

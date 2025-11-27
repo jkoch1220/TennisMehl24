@@ -9,8 +9,8 @@ import { holeDieselPreis, istDieselPreisAPIVerfuegbar } from '../utils/dieselPre
 import { formatZeit } from '../utils/routeCalculation';
 import { NumberInput } from './NumberInput';
 
-const START_PLZ = '97950'; // Standort des Unternehmens: Hundsberg 13, 97950 Großrinderfeld
-const START_ADRESSE = 'Hundsberg 13, 97950 Großrinderfeld';
+const START_PLZ = '97828'; // Standort des Unternehmens: Wertheimer Str. 30, 97828 Marktheidenfeld
+const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
 
 const SpeditionskostenRechner = () => {
   const [warenart, setWarenart] = useState<Warenart>('sackware');
@@ -28,6 +28,8 @@ const SpeditionskostenRechner = () => {
     beladungszeit: 30, // Minuten
     abladungszeit: 30, // Minuten
     pausenzeit: 45, // Minuten pro 4 Stunden
+    verschleisspauschaleProKm: 0.50, // €/km - Verschleißpauschale pro gefahrenen Kilometer
+    lkwLadungInTonnen: 1.0, // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
   });
   
   const [dieselPreisManuell, setDieselPreisManuell] = useState<boolean>(false);
@@ -335,6 +337,38 @@ const SpeditionskostenRechner = () => {
                     min={0}
                   />
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Verschleißpauschale pro km (€/km)
+                  </label>
+                  <NumberInput
+                    value={stammdaten.verschleisspauschaleProKm}
+                    onChange={(value) => setStammdaten(prev => ({ ...prev, verschleisspauschaleProKm: value }))}
+                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    step={0.01}
+                    min={0}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Verschleißkosten pro gefahrenen Kilometer
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    LKW Ladung in Tonnen
+                  </label>
+                  <NumberInput
+                    value={stammdaten.lkwLadungInTonnen}
+                    onChange={(value) => setStammdaten(prev => ({ ...prev, lkwLadungInTonnen: value }))}
+                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    step={0.1}
+                    min={0.1}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -386,7 +420,7 @@ const SpeditionskostenRechner = () => {
                         <p className="text-xs text-gray-500 mt-1">
                           Hinweg: {formatZeit(ergebnis.eigenlieferung.route.hinwegFahrzeit)} | 
                           Rückweg: {formatZeit(ergebnis.eigenlieferung.route.rueckwegFahrzeit)}
-                        </p>
+                      </p>
                       )}
                       <p className="text-xs text-gray-500 mt-1">
                         Gesamt: {formatZeit(ergebnis.eigenlieferung.route.gesamtzeit)} | 
@@ -416,6 +450,47 @@ const SpeditionskostenRechner = () => {
                       <p className="text-xs text-gray-500 mt-1">
                         {ergebnis.eigenlieferung.stammdaten.dieselLiterKostenBrutto.toFixed(2)} €/L
                       </p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 mb-1">
+                        Verschleißkosten
+                      </p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {ergebnis.eigenlieferung.route.verschleisskosten.toFixed(2)} €
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {ergebnis.eigenlieferung.stammdaten.verschleisspauschaleProKm.toFixed(3)} €/km
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Kosten pro Lieferung - Unten rechts */}
+                  <div className="mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-lg text-white">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm opacity-90 mb-1">
+                          Gesamtkosten für die Lieferung (Eigenlieferung)
+                        </p>
+                        <p className="text-3xl font-bold">
+                          {ergebnis.transportkosten.toFixed(2)} €
+                        </p>
+                        <p className="text-xs opacity-75 mt-1">
+                          Diesel: {ergebnis.eigenlieferung.route.dieselkosten.toFixed(2)} € + 
+                          Verschleiß: {ergebnis.eigenlieferung.route.verschleisskosten.toFixed(2)} €
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold">
+                          {ergebnis.transportkostenProTonne.toFixed(2)} €/t
+                        </p>
+                        <p className="text-sm opacity-90">
+                          Transportkosten pro Tonne
+                        </p>
+                        <p className="text-xs opacity-75 mt-1">
+                          bei {ergebnis.eigenlieferung.stammdaten.lkwLadungInTonnen.toFixed(1)} t LKW-Ladung
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -447,11 +522,10 @@ const SpeditionskostenRechner = () => {
                       {ergebnis.werkspreis.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500">
-                      {herstellkostenJeTonne ? (
-                        <>Abwerkspreis aus Variable-Kosten-Rechner: {herstellkostenJeTonne.toFixed(2)} €/t</>
-                      ) : (
-                        <>inkl. {warenart === 'sackware' ? 'Verpackung' : 'Kosten'} (Standardwert)</>
-                      )}
+                      {aufschlagTyp === 'endkunde' ? 'inkl. 25% W+G (Endkunde)' : 'inkl. 12% W+G (Großkunde)'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Basis: {(ergebnis.werkspreis - ergebnis.aufschlag).toFixed(2)} € + {ergebnis.aufschlag.toFixed(2)} € Aufschlag
                     </p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow">
@@ -471,7 +545,7 @@ const SpeditionskostenRechner = () => {
                       {ergebnis.verkaufspreis.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500">
-                      + {ergebnis.aufschlag.toFixed(2)} € W+G
+                      = Werkspreis (Aufschlag bereits enthalten)
                     </p>
                   </div>
                 </div>

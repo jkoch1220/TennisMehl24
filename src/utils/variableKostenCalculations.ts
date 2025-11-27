@@ -45,11 +45,21 @@ export const berechneVariableKosten = (
       ? geplanterUmsatz / input.lohnkosten.tonnenProArbeitsstunde
       : 0;
 
-  // Berechne Lohnkosten für Produktion: Helfer und Facharbeiter arbeiten beide die benötigten Stunden
+  // Berechne Lohnkosten für Produktion basierend auf Verhältnis Helfer zu Facharbeiter
+  // Verhältnis: z.B. 0.5 bedeutet 1 Helfer auf 2 Facharbeiter (1:2)
+  // Gesamtanteil: 1 + verhaeltnisHelferZuFacharbeiter = Anzahl Einheiten
+  // Beispiel: Verhältnis 0.5 → 1 + 0.5 = 1.5 Einheiten (1 Facharbeiter + 0.5 Helfer)
+  const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
+  const anteilHelfer = verhaeltnis / (1 + verhaeltnis); // Anteil der Stunden für Helfer
+  const anteilFacharbeiter = 1 / (1 + verhaeltnis); // Anteil der Stunden für Facharbeiter
+  
+  const stundenHelfer = benoetigteStunden * anteilHelfer;
+  const stundenFacharbeiter = benoetigteStunden * anteilFacharbeiter;
+  
   const jahreskostenLohnHelfer =
-    benoetigteStunden * input.lohnkosten.stundenlohnHelfer;
+    stundenHelfer * input.lohnkosten.stundenlohnHelfer;
   const jahreskostenLohnFacharbeiter =
-    benoetigteStunden * input.lohnkosten.stundenlohnFacharbeiter;
+    stundenFacharbeiter * input.lohnkosten.stundenlohnFacharbeiter;
   const jahreskostenLohnProduktion =
     jahreskostenLohnHelfer + jahreskostenLohnFacharbeiter;
 

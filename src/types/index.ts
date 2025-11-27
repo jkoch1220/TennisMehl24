@@ -42,6 +42,8 @@ export interface EigenlieferungStammdaten {
   beladungszeit: number; // Minuten
   abladungszeit: number; // Minuten
   pausenzeit: number; // Minuten pro 4 Stunden Fahrt
+  verschleisspauschaleProKm: number; // €/km - Verschleißpauschale pro gefahrenen Kilometer
+  lkwLadungInTonnen: number; // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
 }
 
 export interface RoutenBerechnung {
@@ -50,6 +52,7 @@ export interface RoutenBerechnung {
   gesamtzeit: number; // Minuten (inkl. Beladung, Abladung, Pause)
   dieselverbrauch: number; // Liter
   dieselkosten: number; // €
+  verschleisskosten: number; // € - Verschleißkosten basierend auf Verschleißpauschale pro km
   beladungszeit: number; // Minuten
   abladungszeit: number; // Minuten
   pausenzeit: number; // Minuten
@@ -61,6 +64,8 @@ export interface RoutenBerechnung {
 
 export interface SpeditionskostenErgebnis extends Berechnungsergebnis {
   lieferart: Lieferart;
+  werkspreisProTonne: number; // Werkspreis pro Tonne
+  transportkostenProTonne: number; // Transportkosten pro Tonne
   eigenlieferung?: {
     route: RoutenBerechnung;
     stammdaten: EigenlieferungStammdaten;
@@ -134,6 +139,7 @@ export interface Lohnkosten {
   stundenlohnHelfer: number; // Stundenlohn für Helfer
   stundenlohnFacharbeiter: number; // Stundenlohn für Facharbeiter
   tonnenProArbeitsstunde: number; // Produktivität: wie viele Tonnen pro Stunde produziert werden
+  verhaeltnisHelferZuFacharbeiter: number; // Verhältnis Helfer zu Facharbeiter (z.B. 0.5 = 1 Helfer auf 2 Facharbeiter)
 }
 
 export interface Einkauf {

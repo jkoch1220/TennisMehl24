@@ -38,6 +38,7 @@ export const DEFAULT_VARIABLE_KOSTEN: VariableKostenInput = {
     stundenlohnHelfer: 30.0, // Beispielwert für Helfer
     stundenlohnFacharbeiter: 46.06, // Beispielwert für Facharbeiter (so dass Durchschnitt 38.03 ist)
     tonnenProArbeitsstunde: 5.375,
+    verhaeltnisHelferZuFacharbeiter: 0.5, // Standard: 1 Helfer auf 2 Facharbeiter (1:2)
   },
   einkauf: {
     // Berechnet aus ursprünglichen Werten für 4300 t:
