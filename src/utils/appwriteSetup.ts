@@ -3,7 +3,15 @@
  * Wird beim ersten App-Start ausgeführt
  */
 
-import { DATABASE_ID, FIXKOSTEN_COLLECTION_ID, VARIABLE_KOSTEN_COLLECTION_ID } from '../config/appwrite';
+import { 
+  DATABASE_ID, 
+  FIXKOSTEN_COLLECTION_ID, 
+  VARIABLE_KOSTEN_COLLECTION_ID,
+  LIEFERUNGEN_COLLECTION_ID,
+  ROUTEN_COLLECTION_ID,
+  FAHRZEUGE_COLLECTION_ID,
+  KUNDEN_COLLECTION_ID,
+} from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
@@ -124,6 +132,20 @@ export async function setupAppwriteFields() {
     // Setup variable_kosten Collection
     for (const field of variableKostenFields) {
       await createFieldViaAPI(VARIABLE_KOSTEN_COLLECTION_ID, field);
+      await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
+    }
+
+    // Setup Dispo-Collections (nur data-Feld für JSON-Strings)
+    const dispoCollections = [
+      LIEFERUNGEN_COLLECTION_ID,
+      ROUTEN_COLLECTION_ID,
+      FAHRZEUGE_COLLECTION_ID,
+      KUNDEN_COLLECTION_ID,
+      BESTELLUNGEN_COLLECTION_ID,
+    ];
+
+    for (const collectionId of dispoCollections) {
+      await createFieldViaAPI(collectionId, { key: 'data', type: 'string' });
       await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
     }
 

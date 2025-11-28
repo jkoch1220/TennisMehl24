@@ -1,8 +1,22 @@
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, Package, BarChart3, Euro } from 'lucide-react';
+import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt } from 'lucide-react';
 
 const Home = () => {
   const tools = [
+    {
+      name: 'Dispo-Planung',
+      description: 'Planung und Verwaltung von Lieferungen, Routen und Fahrzeugen',
+      href: '/dispo-planung',
+      icon: Calendar,
+      color: 'from-purple-500 to-pink-500',
+    },
+    {
+      name: 'Kreditoren-Verwaltung',
+      description: 'Verwaltung offener Rechnungen und Kreditoren mit Übersicht und Statistiken',
+      href: '/kreditoren',
+      icon: Receipt,
+      color: 'from-red-600 to-red-800',
+    },
     {
       name: 'Speditionskosten Rechner',
       description: 'Preisberechnung für Ziegelmehl mit Spedition oder Eigenlieferung',

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
 
@@ -13,6 +13,8 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navigation = [
     { name: 'Startseite', href: '/', icon: Home },
+    { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
+    { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
     { name: 'Fixkosten Rechner', href: '/fixkosten', icon: Euro },
     { name: 'Variable Kosten', href: '/variable-kosten', icon: TrendingUp },
     { name: 'Speditionskosten Rechner', href: '/speditionskosten', icon: Calculator },

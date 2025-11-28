@@ -5,12 +5,12 @@
 import { EigenlieferungStammdaten, RoutenBerechnung } from '../types';
 
 // Startadresse (Standort des Unternehmens)
-const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
+export const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
 const START_PLZ = '97828'; // PLZ für Fallback
 
 // Manuelle Koordinaten für Marktheidenfeld (Fallback falls Geocodierung fehlschlägt)
 // Koordinaten für Marktheidenfeld: ~49.85°N, 9.60°E
-const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]
+export const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]
 
 const OPENROUTESERVICE_API_KEY = import.meta.env.VITE_OPENROUTESERVICE_API_KEY || '';
 

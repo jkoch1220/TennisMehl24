@@ -6,6 +6,8 @@ import Home from './pages/Home';
 import SpeditionskostenRechner from './components/SpeditionskostenRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
+import DispoPlanung from './components/DispoPlanung/DispoPlanung';
+import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVerwaltung';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
@@ -56,6 +58,8 @@ function App() {
           <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
           <Route path="/fixkosten" element={<FixkostenRechner />} />
           <Route path="/variable-kosten" element={<VariableKostenRechner />} />
+          <Route path="/dispo-planung" element={<DispoPlanung />} />
+          <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
           {/* Legacy route redirect */}
           <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
         </Routes>

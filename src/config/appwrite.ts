@@ -4,6 +4,13 @@ import { Client, Databases } from 'appwrite';
 export const DATABASE_ID = 'tennismehl24_db';
 export const FIXKOSTEN_COLLECTION_ID = 'fixkosten';
 export const VARIABLE_KOSTEN_COLLECTION_ID = 'variable_kosten';
+export const LIEFERUNGEN_COLLECTION_ID = 'lieferungen';
+export const ROUTEN_COLLECTION_ID = 'routen';
+export const FAHRZEUGE_COLLECTION_ID = 'fahrzeuge';
+export const KUNDEN_COLLECTION_ID = 'kunden';
+export const BESTELLUNGEN_COLLECTION_ID = 'bestellungen';
+export const KREDITOREN_COLLECTION_ID = 'kreditoren';
+export const OFFENE_RECHNUNGEN_COLLECTION_ID = 'offene_rechnungen';
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';
