@@ -62,7 +62,7 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
         updateData.bezahlbetrag = neuerGesamtbetrag;
       }
 
-      const aktualisierteRechnung = await kreditorService.updateRechnung(rechnung.id, updateData);
+      await kreditorService.updateRechnung(rechnung.id, updateData);
 
       setBetrag('');
       setNotiz('');

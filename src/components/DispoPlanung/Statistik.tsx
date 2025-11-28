@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Package, Truck, Euro } from 'lucide-react';
+import { TrendingUp, Package, Truck, Euro } from 'lucide-react';
 import { Lieferung, Route } from '../../types/dispo';
 import { lieferungService } from '../../services/lieferungService';
 import { routeService } from '../../services/routeService';

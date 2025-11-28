@@ -63,13 +63,13 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60 }: FaelligkeitsTim
     }
   };
 
-  const getTageColor = (tage: number) => {
-    if (tage < 0) return 'bg-red-500';
-    if (tage === 0) return 'bg-orange-500';
-    if (tage <= 7) return 'bg-yellow-500';
-    if (tage <= 30) return 'bg-blue-500';
-    return 'bg-green-500';
-  };
+  // const getTageColor = (tage: number) => {
+  //   if (tage < 0) return 'bg-red-500';
+  //   if (tage === 0) return 'bg-orange-500';
+  //   if (tage <= 7) return 'bg-yellow-500';
+  //   if (tage <= 30) return 'bg-blue-500';
+  //   return 'bg-green-500';
+  // };
 
   const getStatusIcon = (tage: number) => {
     if (tage < 0) return <AlertCircle className="w-5 h-5 text-red-600" />;

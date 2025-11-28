@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Truck, MapPin, Clock, Euro, Edit, Trash2 } from 'lucide-react';
+import { Plus, Truck, Clock, Edit, Trash2 } from 'lucide-react';
 import { Route, Lieferung } from '../../types/dispo';
 import { routeService } from '../../services/routeService';
 import { lieferungService } from '../../services/lieferungService';

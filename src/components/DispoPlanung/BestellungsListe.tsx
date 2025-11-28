@@ -118,14 +118,14 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
     return farben[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getPrioritaetFarbe = (prioritaet: Bestellung['prioritaet']): string => {
-    const farben = {
-      hoch: 'text-red-600',
-      normal: 'text-yellow-600',
-      niedrig: 'text-gray-600',
-    };
-    return farben[prioritaet] || 'text-gray-600';
-  };
+  // const getPrioritaetFarbe = (prioritaet: Bestellung['prioritaet']): string => {
+  //   const farben = {
+  //     hoch: 'text-red-600',
+  //     normal: 'text-yellow-600',
+  //     niedrig: 'text-gray-600',
+  //   };
+  //   return farben[prioritaet] || 'text-gray-600';
+  // };
 
   if (isLoading) {
     return (

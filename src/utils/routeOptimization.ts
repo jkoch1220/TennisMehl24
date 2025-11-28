@@ -1,5 +1,4 @@
 import { Lieferung, Route, Fahrzeug } from '../types/dispo';
-import { berechneEigenlieferungRoute } from './routeCalculation';
 import { START_ADRESSE } from './routeCalculation';
 
 const START_COORDS: [number, number] = [9.60, 49.85]; // Marktheidenfeld [lon, lat]
@@ -65,7 +64,7 @@ export async function optimiereRoute(
   const optimierteReihenfolge: Lieferung[] = [];
   const verfuegbar = new Set(lieferungen.map(l => l.id));
   let aktuellerPunkt = startPunkt;
-  let aktuelleZeit = new Date(startZeit);
+  // let aktuelleZeit = new Date(startZeit);
 
   while (verfuegbar.size > 0) {
     let naechsteLieferung: Lieferung | null = null;

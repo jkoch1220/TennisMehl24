@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Package, Truck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Truck } from 'lucide-react';
 import { Lieferung, Route } from '../../types/dispo';
 import { lieferungService } from '../../services/lieferungService';
 import { routeService } from '../../services/routeService';
@@ -9,7 +9,6 @@ import {
   addMonate,
   formatDatum,
   istGleicherTag,
-  getWochentagKurz,
 } from '../../utils/kalenderUtils';
 import LieferungFormular from './LieferungFormular';
 

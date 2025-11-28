@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Truck, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
-import { Fahrzeug, NeuesFahrzeug, EigenlieferungStammdaten } from '../../types/dispo';
+import { Fahrzeug, NeuesFahrzeug } from '../../types/dispo';
 import { fahrzeugService } from '../../services/fahrzeugService';
 import { NumberInput } from '../NumberInput';
 

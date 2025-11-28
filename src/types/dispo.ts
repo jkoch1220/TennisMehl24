@@ -1,4 +1,6 @@
-import { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten } from './index';
+// Re-export types from index for convenience
+export type { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten } from './index';
+import type { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten } from './index';
 
 // Status-Typen
 export type LieferungStatus = 'geplant' | 'bestaetigt' | 'beladen' | 'unterwegs' | 'geliefert' | 'abgerechnet';

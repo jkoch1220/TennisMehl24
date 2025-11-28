@@ -1,4 +1,6 @@
-import { Warenart, AufschlagTyp } from './index';
+// Re-export types from index for convenience
+export type { Warenart, AufschlagTyp } from './index';
+import type { Warenart, AufschlagTyp } from './index';
 
 // Bestellungsstatus
 export type BestellungsStatus = 'offen' | 'geplant' | 'in_produktion' | 'bereit' | 'geliefert' | 'storniert';

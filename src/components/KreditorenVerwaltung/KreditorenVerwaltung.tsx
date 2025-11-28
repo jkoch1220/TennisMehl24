@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, DollarSign, FileText, RefreshCw, BarChart3, PieChart } from 'lucide-react';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import RechnungsFormular from './RechnungsFormular';

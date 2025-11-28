@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Sparkles, Truck } from 'lucide-react';
+import { X, Save, Sparkles } from 'lucide-react';
 import { Route, Lieferung, Fahrzeug, NeueRoute } from '../../types/dispo';
 import { routeService } from '../../services/routeService';
 import { lieferungService } from '../../services/lieferungService';

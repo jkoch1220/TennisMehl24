@@ -11,6 +11,7 @@ import {
   ROUTEN_COLLECTION_ID,
   FAHRZEUGE_COLLECTION_ID,
   KUNDEN_COLLECTION_ID,
+  BESTELLUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen

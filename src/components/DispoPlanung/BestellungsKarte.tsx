@@ -9,7 +9,7 @@ interface BestellungsKarteProps {
   onBestellungClick?: (bestellung: Bestellung) => void;
 }
 
-const BestellungsKarte = ({ bestellungen, onBestellungClick }: BestellungsKarteProps) => {
+const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
   const [zoom, setZoom] = useState(10);
   const [center, setCenter] = useState<[number, number]>(START_COORDS);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -22,12 +22,12 @@ const BestellungsKarte = ({ bestellungen, onBestellungClick }: BestellungsKarteP
   const minTonnen = tonnenWerte.length > 0 ? Math.min(...tonnenWerte, 1) : 1;
   const maxTonnen = tonnenWerte.length > 0 ? Math.max(...tonnenWerte, 10) : 10;
 
-  // Berechne Punktgröße basierend auf Tonnen
-  const getPunktGroesse = (tonnen: number): number => {
-    if (tonnenWerte.length === 0) return 20;
-    const faktor = (tonnen - minTonnen) / (maxTonnen - minTonnen || 1);
-    return 15 + faktor * 35; // Mindestgröße 15px, Maximum 50px
-  };
+  // Berechne Punktgröße basierend auf Tonnen (für zukünftige Verwendung)
+  // const getPunktGroesse = (tonnen: number): number => {
+  //   if (tonnenWerte.length === 0) return 20;
+  //   const faktor = (tonnen - minTonnen) / (maxTonnen - minTonnen || 1);
+  //   return 15 + faktor * 35; // Mindestgröße 15px, Maximum 50px
+  // };
 
   // Berechne Farbe basierend auf Status
   const getPunktFarbe = (status: Bestellung['status']): string => {
@@ -90,14 +90,14 @@ const BestellungsKarte = ({ bestellungen, onBestellungClick }: BestellungsKarteP
     }
   }, [bestellungenMitKoordinaten.length]);
 
-  // Erstelle Marker-URLs für Google Maps
-  const markerUrls = bestellungenMitKoordinaten.map((bestellung, index) => {
-    if (!bestellung.adresse.koordinaten) return '';
-    const [lon, lat] = bestellung.adresse.koordinaten;
-    const farbe = getPunktFarbe(bestellung.status).replace('#', '');
-    // Google Maps Marker mit Farbe
-    return `&markers=color:0x${farbe}|label:${index + 1}|${lat},${lon}`;
-  }).join('');
+  // Erstelle Marker-URLs für Google Maps (für zukünftige Verwendung)
+  // const markerUrls = bestellungenMitKoordinaten.map((bestellung, index) => {
+  //   if (!bestellung.adresse.koordinaten) return '';
+  //   const [lon, lat] = bestellung.adresse.koordinaten;
+  //   const farbe = getPunktFarbe(bestellung.status).replace('#', '');
+  //   // Google Maps Marker mit Farbe
+  //   return `&markers=color:0x${farbe}|label:${index + 1}|${lat},${lon}`;
+  // }).join('');
 
   // Google Maps Embed URL (funktioniert auch ohne API Key für einfache Embed-Karten)
   // Verwende die einfache Google Maps URL mit q-Parameter für mehrere Marker

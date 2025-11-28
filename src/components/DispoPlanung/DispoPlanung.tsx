@@ -11,7 +11,7 @@ type Tab = 'liste' | 'karte';
 const DispoPlanung = () => {
   const [aktiverTab, setAktiverTab] = useState<Tab>('liste');
   const [bestellungen, setBestellungen] = useState<Bestellung[]>([]);
-  const [ausgewaehlteBestellung, setAusgewaehlteBestellung] = useState<Bestellung | null>(null);
+  // const [ausgewaehlteBestellung, setAusgewaehlteBestellung] = useState<Bestellung | null>(null);
 
   const tabs = [
     { id: 'liste' as Tab, name: 'Bestellungsliste', icon: List },
@@ -82,8 +82,8 @@ const DispoPlanung = () => {
           {aktiverTab === 'karte' && (
             <BestellungsKarte
               bestellungen={bestellungen}
-              onBestellungClick={(bestellung) => {
-                setAusgewaehlteBestellung(bestellung);
+              onBestellungClick={(_bestellung) => {
+                // setAusgewaehlteBestellung(_bestellung);
                 setAktiverTab('liste');
               }}
             />

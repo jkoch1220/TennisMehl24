@@ -19,7 +19,7 @@ export const fahrzeugService = {
   },
 
   // Lade verfügbare Fahrzeuge
-  async loadVerfuegbareFahrzeuge(datum: Date): Promise<Fahrzeug[]> {
+  async loadVerfuegbareFahrzeuge(_datum: Date): Promise<Fahrzeug[]> {
     try {
       const alleFahrzeuge = await this.loadAlleFahrzeuge();
       const jetzt = new Date();
