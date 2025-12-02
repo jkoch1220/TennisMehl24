@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin } from 'lucide-react';
+import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users } from 'lucide-react';
 
 const Home = () => {
   const tools = [
@@ -23,6 +23,13 @@ const Home = () => {
       href: '/konkurrenten',
       icon: MapPin,
       color: 'from-blue-600 to-indigo-600',
+    },
+    {
+      name: 'Kunden-Karte',
+      description: 'Google Maps-Karte mit allen Kundenstandorten',
+      href: '/kunden-karte',
+      icon: Users,
+      color: 'from-green-600 to-emerald-600',
     },
     {
       name: 'Speditionskosten Rechner',

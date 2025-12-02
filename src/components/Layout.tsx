@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
 import VorschlagButton from './Tickets/VorschlagButton';
@@ -17,6 +17,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
     { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
     { name: 'Konkurrenten-Karte', href: '/konkurrenten', icon: MapPin },
+    { name: 'Kunden-Karte', href: '/kunden-karte', icon: Users },
     { name: 'Vorschläge', href: '/vorschlaege', icon: MessageSquare },
     { name: 'TODOs', href: '/todos', icon: CheckSquare },
     { name: 'Fixkosten Rechner', href: '/fixkosten', icon: Euro },

@@ -84,12 +84,18 @@ const KonkurrentenVerwaltung = () => {
     setShowFormular(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Möchten Sie diesen Konkurrenten wirklich löschen?')) {
-      return;
-    }
+  const handleDeleteClick = (konkurrent: Konkurrent) => {
+    setKonkurrentToDelete(konkurrent);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!konkurrentToDelete) return;
+    
     try {
-      await konkurrentService.deleteKonkurrent(id);
+      await konkurrentService.deleteKonkurrent(konkurrentToDelete.id);
+      setShowDeleteModal(false);
+      setKonkurrentToDelete(null);
       loadKonkurrenten();
     } catch (error) {
       console.error('Fehler beim Löschen:', error);

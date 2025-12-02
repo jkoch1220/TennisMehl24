@@ -3,7 +3,6 @@ import {
   Konkurrent, 
   NeuerKonkurrent,
   LieferkostenBerechnung,
-  LieferkostenModell,
   PLZLieferkostenZone
 } from '../types/konkurrent';
 import { ID } from 'appwrite';
@@ -48,16 +47,18 @@ export const konkurrentService = {
     const jetzt = new Date().toISOString();
     
     // Geocode Adresse falls noch nicht vorhanden
-    let koordinaten = konkurrent.adresse.koordinaten;
+    let koordinaten: [number, number] | undefined = konkurrent.adresse.koordinaten;
     if (!koordinaten && konkurrent.adresse.plz) {
       if (konkurrent.adresse.strasse && konkurrent.adresse.ort) {
-        koordinaten = await geocodeAdresse(
+        const coords = await geocodeAdresse(
           konkurrent.adresse.strasse,
           konkurrent.adresse.plz,
           konkurrent.adresse.ort
         );
+        koordinaten = coords || undefined;
       } else {
-        koordinaten = await geocodePLZ(konkurrent.adresse.plz);
+        const coords = await geocodePLZ(konkurrent.adresse.plz);
+        koordinaten = coords || undefined;
       }
     }
 
@@ -98,16 +99,18 @@ export const konkurrentService = {
       }
 
       // Geocode Adresse falls geändert
-      let koordinaten = konkurrent.adresse?.koordinaten || aktuell.adresse.koordinaten;
+      let koordinaten: [number, number] | undefined = konkurrent.adresse?.koordinaten || aktuell.adresse.koordinaten;
       if (konkurrent.adresse && !koordinaten) {
         if (konkurrent.adresse.strasse && konkurrent.adresse.plz && konkurrent.adresse.ort) {
-          koordinaten = await geocodeAdresse(
+          const coords = await geocodeAdresse(
             konkurrent.adresse.strasse,
             konkurrent.adresse.plz,
             konkurrent.adresse.ort
           );
+          koordinaten = coords || undefined;
         } else if (konkurrent.adresse.plz) {
-          koordinaten = await geocodePLZ(konkurrent.adresse.plz);
+          const coords = await geocodePLZ(konkurrent.adresse.plz);
+          koordinaten = coords || undefined;
         }
       }
 

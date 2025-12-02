@@ -21,15 +21,25 @@ export function geoToSvg(
   return [x, y];
 }
 
-export function calculateBounds(coordinates: number[][][]): Bounds {
+export function calculateBounds(coordinates: number[][][] | number[][]): Bounds {
   let minLat = Infinity;
   let maxLat = -Infinity;
   let minLon = Infinity;
   let maxLon = -Infinity;
 
-  coordinates.forEach(polygon => {
-    polygon.forEach(ring => {
-      ring.forEach(([lon, lat]) => {
+  // Handle both Polygon (number[][]) and MultiPolygon (number[][][])
+  const polygons = Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]) && typeof coordinates[0][0][0] === 'number'
+    ? (coordinates as unknown as number[][][])
+    : [(coordinates as unknown as number[][])];
+
+  polygons.forEach(polygon => {
+    const rings = Array.isArray(polygon[0]) && Array.isArray(polygon[0][0])
+      ? (polygon as unknown as number[][][])
+      : [(polygon as unknown as number[][])];
+    
+    rings.forEach(ring => {
+      ring.forEach((coord) => {
+        const [lon, lat] = Array.isArray(coord) ? coord : [coord, coord];
         minLat = Math.min(minLat, lat);
         maxLat = Math.max(maxLat, lat);
         minLon = Math.min(minLon, lon);
@@ -42,18 +52,28 @@ export function calculateBounds(coordinates: number[][][]): Bounds {
 }
 
 export function geoJsonToSvgPath(
-  coordinates: number[][][],
+  coordinates: number[][][] | number[][],
   width: number,
   height: number,
   bounds: Bounds
 ): string {
   const paths: string[] = [];
 
-  coordinates.forEach(polygon => {
-    polygon.forEach((ring, ringIndex) => {
+  // Handle both Polygon (number[][]) and MultiPolygon (number[][][])
+  const polygons = Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0]) && typeof coordinates[0][0][0] === 'number'
+    ? (coordinates as unknown as number[][][])
+    : [(coordinates as unknown as number[][])];
+
+  polygons.forEach(polygon => {
+    const rings = Array.isArray(polygon[0]) && Array.isArray(polygon[0][0])
+      ? (polygon as unknown as number[][][])
+      : [(polygon as unknown as number[][])];
+    
+    rings.forEach((ring, ringIndex) => {
       const pathParts: string[] = [];
       
-      ring.forEach(([lon, lat], pointIndex) => {
+      ring.forEach((coord, pointIndex) => {
+        const [lon, lat] = Array.isArray(coord) && coord.length >= 2 ? coord : [0, 0];
         const [x, y] = geoToSvg(lon, lat, width, height, bounds);
         
         if (pointIndex === 0) {

@@ -25,9 +25,11 @@ const deutschlandGeoJSON = deutschlandGeoJSONData.features.length > 0
 const getDeutschlandBounds = () => {
   const feature = deutschlandGeoJSON.features[0];
   if (feature.geometry.type === 'Polygon') {
-    return calculateBounds([feature.geometry.coordinates]);
+    // Polygon coordinates are number[][], wrap in array for calculateBounds
+    return calculateBounds(feature.geometry.coordinates as unknown as number[][]);
   } else if (feature.geometry.type === 'MultiPolygon') {
-    return calculateBounds(feature.geometry.coordinates);
+    // MultiPolygon coordinates are number[][][]
+    return calculateBounds(feature.geometry.coordinates as unknown as number[][][]);
   }
   // Fallback
   return {
@@ -44,9 +46,9 @@ const DEUTSCHLAND_BOUNDS = getDeutschlandBounds();
 const getDeutschlandPath = (width: number, height: number): string => {
   const feature = deutschlandGeoJSON.features[0];
   if (feature.geometry.type === 'Polygon') {
-    return geoJsonToSvgPath([feature.geometry.coordinates], width, height, DEUTSCHLAND_BOUNDS);
+    return geoJsonToSvgPath(feature.geometry.coordinates as unknown as number[][], width, height, DEUTSCHLAND_BOUNDS);
   } else if (feature.geometry.type === 'MultiPolygon') {
-    return geoJsonToSvgPath(feature.geometry.coordinates, width, height, DEUTSCHLAND_BOUNDS);
+    return geoJsonToSvgPath(feature.geometry.coordinates as unknown as number[][][], width, height, DEUTSCHLAND_BOUNDS);
   }
   return '';
 };

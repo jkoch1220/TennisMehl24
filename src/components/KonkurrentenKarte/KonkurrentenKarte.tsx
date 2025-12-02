@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Search, MapPin, Euro, Info } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Search, MapPin, Info } from 'lucide-react';
 import { Konkurrent } from '../../types/konkurrent';
 import { konkurrentService } from '../../services/konkurrentService';
 import { LieferkostenBerechnung } from '../../types/konkurrent';
 import DeutschlandKarte from './DeutschlandKarte';
-
-const DEUTSCHLAND_CENTER: [number, number] = [51.16, 10.45]; // Zentrum von Deutschland [lat, lon]
 
 const KonkurrentenKarte = () => {
   const [konkurrenten, setKonkurrenten] = useState<Konkurrent[]>([]);
@@ -226,9 +224,7 @@ const KonkurrentenKarte = () => {
             zoom={zoom}
             onZoomChange={setZoom}
             onReset={() => {
-              karteResetRef.current = () => {
-                setZoom(1);
-              };
+              // Reset function wird intern verwaltet
             }}
             onKonkurrentClick={(konkurrent) => {
               console.log('Konkurrent geklickt:', konkurrent);

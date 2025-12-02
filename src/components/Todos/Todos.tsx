@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { todoService } from '../../services/todoService';
 import { Todo, NeuesTodo, TodoStatus, Bearbeiter } from '../../types/todo';
-import { Plus, X, Calendar, User, AlertCircle, LayoutGrid, List, Filter, Search } from 'lucide-react';
+import { Plus, X, Calendar, User, LayoutGrid, List, Filter, Search } from 'lucide-react';
 
 const Todos = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -225,25 +225,6 @@ const Todos = () => {
     );
   };
 
-  const getStatusBadge = (status: TodoStatus) => {
-    const styles: Record<TodoStatus, string> = {
-      todo: 'bg-gray-100 text-gray-800',
-      in_arbeit: 'bg-blue-100 text-blue-800',
-      review: 'bg-yellow-100 text-yellow-800',
-      done: 'bg-green-100 text-green-800',
-    };
-    const labels: Record<TodoStatus, string> = {
-      todo: 'TODO',
-      in_arbeit: 'In Arbeit',
-      review: 'Review',
-      done: 'Done',
-    };
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
-        {labels[status]}
-      </span>
-    );
-  };
 
   const handleDragStart = (e: React.DragEvent, todoId: string) => {
     e.dataTransfer.setData('todoId', todoId);
