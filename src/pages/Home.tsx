@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt } from 'lucide-react';
+import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin } from 'lucide-react';
 
 const Home = () => {
   const tools = [
@@ -16,6 +16,13 @@ const Home = () => {
       href: '/kreditoren',
       icon: Receipt,
       color: 'from-red-600 to-red-800',
+    },
+    {
+      name: 'Konkurrenten-Karte',
+      description: 'Übersicht aller Konkurrenten und Lieferkosten-Analyse nach Postleitzahl',
+      href: '/konkurrenten',
+      icon: MapPin,
+      color: 'from-blue-600 to-indigo-600',
     },
     {
       name: 'Speditionskosten Rechner',
@@ -37,6 +44,20 @@ const Home = () => {
       href: '/variable-kosten',
       icon: TrendingUp,
       color: 'from-blue-500 to-indigo-500',
+    },
+    {
+      name: 'Verbesserungsvorschläge',
+      description: 'Vorschläge zur Verbesserung des Online-Tools anlegen und verwalten',
+      href: '/vorschlaege',
+      icon: MessageSquare,
+      color: 'from-green-500 to-emerald-500',
+    },
+    {
+      name: 'TODO-Verwaltung',
+      description: 'Aufgaben im Kanban-Board verwalten und bearbeiten',
+      href: '/todos',
+      icon: CheckSquare,
+      color: 'from-purple-500 to-violet-500',
     },
   ];
 

@@ -8,6 +8,9 @@ import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import DispoPlanung from './components/DispoPlanung/DispoPlanung';
 import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVerwaltung';
+import KonkurrentenVerwaltung from './components/KonkurrentenKarte/KonkurrentenVerwaltung';
+import Vorschlaege from './components/Tickets/Vorschlaege';
+import Todos from './components/Todos/Todos';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
@@ -60,6 +63,9 @@ function App() {
           <Route path="/variable-kosten" element={<VariableKostenRechner />} />
           <Route path="/dispo-planung" element={<DispoPlanung />} />
           <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
+          <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
+          <Route path="/vorschlaege" element={<Vorschlaege />} />
+          <Route path="/todos" element={<Todos />} />
           {/* Legacy route redirect */}
           <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
         </Routes>

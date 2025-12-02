@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
+import VorschlagButton from './Tickets/VorschlagButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,9 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'Startseite', href: '/', icon: Home },
     { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
     { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
+    { name: 'Konkurrenten-Karte', href: '/konkurrenten', icon: MapPin },
+    { name: 'Vorschläge', href: '/vorschlaege', icon: MessageSquare },
+    { name: 'TODOs', href: '/todos', icon: CheckSquare },
     { name: 'Fixkosten Rechner', href: '/fixkosten', icon: Euro },
     { name: 'Variable Kosten', href: '/variable-kosten', icon: TrendingUp },
     { name: 'Speditionskosten Rechner', href: '/speditionskosten', icon: Calculator },
@@ -25,14 +29,37 @@ const Layout = ({ children }: LayoutProps) => {
       {/* Navigation */}
       <nav className="bg-white shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-2xl font-bold text-red-600">
+          <div className="flex justify-between items-center min-h-[72px] py-3">
+            <div className="flex items-center flex-1 min-w-0">
+              <div className="flex-shrink-0 flex items-center mr-6 lg:mr-8">
+                <h1 className="text-2xl font-bold text-red-600 whitespace-nowrap">
                   TennisMehl24
                 </h1>
               </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <div className="hidden lg:flex items-center flex-1 overflow-x-auto scrollbar-hide -mx-2 px-2">
+                <div className="flex items-center gap-1 xl:gap-2">
+                  {navigation.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.href;
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        className={`inline-flex items-center px-3 xl:px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all whitespace-nowrap ${
+                          isActive
+                            ? 'border-red-500 text-gray-900 bg-red-50'
+                            : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span>{item.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Tablet Navigation - Kompakter */}
+              <div className="hidden sm:flex lg:hidden items-center gap-1 overflow-x-auto scrollbar-hide flex-1 -mx-2 px-2">
                 {navigation.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.href;
@@ -40,30 +67,30 @@ const Layout = ({ children }: LayoutProps) => {
                     <Link
                       key={item.name}
                       to={item.href}
-                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                      className={`inline-flex items-center px-2 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                         isActive
-                          ? 'border-red-500 text-gray-900'
-                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                          ? 'text-red-600 bg-red-50'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                       }`}
+                      title={item.name}
                     >
-                      <Icon className="w-5 h-5 mr-2" />
-                      {item.name}
+                      <Icon className="w-4 h-4" />
                     </Link>
                   );
                 })}
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 flex-shrink-0 ml-4">
               <button
                 onClick={() => {
                   clearSession();
                   window.location.reload();
                 }}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 transition-colors"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-red-600 hover:bg-gray-50 rounded-lg transition-colors"
                 title="Abmelden"
               >
                 <LogOut className="w-5 h-5" />
-                <span>Abmelden</span>
+                <span className="hidden lg:inline">Abmelden</span>
               </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -124,6 +151,9 @@ const Layout = ({ children }: LayoutProps) => {
           </p>
         </div>
       </footer>
+
+      {/* Global Vorschlag Button */}
+      <VorschlagButton />
     </div>
   );
 };

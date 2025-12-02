@@ -19,6 +19,9 @@ Die folgenden Collections müssen in Appwrite erstellt werden:
 5. **fahrzeuge** - Für Fahrzeuge (falls noch nicht vorhanden)
 6. **kreditoren** - Für die Kreditoren-Verwaltung (Glaubiger)
 7. **offene_rechnungen** - Für die Verwaltung offener Rechnungen
+8. **konkurrenten** - Für die Konkurrenten-Verwaltung und Lieferkosten-Analyse
+9. **tickets** - Für Verbesserungsvorschläge/Tickets
+10. **todos** - Für die TODO-Verwaltung
 
 ## Schritt-für-Schritt Anleitung
 
@@ -120,6 +123,45 @@ Für jede Collection führen Sie folgende Schritte aus:
 1. Klicken Sie auf **"Create Collection"**
 2. Collection ID: `offene_rechnungen`
 3. Name: `Offene Rechnungen`
+4. Klicken Sie auf **"Create"**
+5. Erstellen Sie ein Attribut:
+   - Typ: **String**
+   - Key: `data`
+   - Required: **Nein**
+   - Size: `100000`
+   - Klicken Sie auf **"Create"**
+
+#### Collection: `konkurrenten`
+
+1. Klicken Sie auf **"Create Collection"**
+2. Collection ID: `konkurrenten`
+3. Name: `Konkurrenten`
+4. Klicken Sie auf **"Create"**
+5. Erstellen Sie ein Attribut:
+   - Typ: **String**
+   - Key: `data`
+   - Required: **Nein**
+   - Size: `100000`
+   - Klicken Sie auf **"Create"**
+
+#### Collection: `tickets`
+
+1. Klicken Sie auf **"Create Collection"**
+2. Collection ID: `tickets`
+3. Name: `Tickets`
+4. Klicken Sie auf **"Create"**
+5. Erstellen Sie ein Attribut:
+   - Typ: **String**
+   - Key: `data`
+   - Required: **Nein**
+   - Size: `100000`
+   - Klicken Sie auf **"Create"**
+
+#### Collection: `todos`
+
+1. Klicken Sie auf **"Create Collection"**
+2. Collection ID: `todos`
+3. Name: `TODOs`
 4. Klicken Sie auf **"Create"**
 5. Erstellen Sie ein Attribut:
    - Typ: **String**

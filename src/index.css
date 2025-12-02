@@ -11,3 +11,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Scrollbar verstecken, aber Scrollen ermöglichen */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE und Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari und Opera */
+}
+

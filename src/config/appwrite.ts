@@ -11,6 +11,9 @@ export const KUNDEN_COLLECTION_ID = 'kunden';
 export const BESTELLUNGEN_COLLECTION_ID = 'bestellungen';
 export const KREDITOREN_COLLECTION_ID = 'kreditoren';
 export const OFFENE_RECHNUNGEN_COLLECTION_ID = 'offene_rechnungen';
+export const TICKETS_COLLECTION_ID = 'tickets';
+export const TODOS_COLLECTION_ID = 'todos';
+export const KONKURRENTEN_COLLECTION_ID = 'konkurrenten';
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';
