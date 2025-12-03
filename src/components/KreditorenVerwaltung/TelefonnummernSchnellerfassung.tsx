@@ -173,7 +173,6 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
       // Warte kurz und gehe zur nächsten
       await new Promise(resolve => setTimeout(resolve, 400));
       setSaving(false);
-      onUpdate();
       handleNext();
       
     } catch (error) {
@@ -205,7 +204,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
       setCurrentIndex(currentIndex + 1);
       setTelefonnummer('');
     } else {
-      onClose();
+      handleClose();
     }
   };
 
@@ -219,18 +218,28 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
     handleNext();
   };
 
+  const handleClose = () => {
+    // Beim Schließen: Update die Hauptansicht
+    onUpdate();
+    onClose();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       handleSave();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      e.stopPropagation();
+      handleClose();
     } else if (e.ctrlKey && e.key === 'ArrowRight') {
       e.preventDefault();
+      e.stopPropagation();
       handleSkip();
     } else if (e.ctrlKey && e.key === 'ArrowLeft') {
       e.preventDefault();
+      e.stopPropagation();
       handlePrevious();
     }
   };
@@ -240,10 +249,6 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
-
-  if (!currentRechnung) {
-    return null;
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -262,7 +267,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-white hover:bg-blue-800 rounded-lg p-2 transition-colors"
             >
               <X className="w-6 h-6" />
@@ -345,7 +350,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
                 Filter zurücksetzen
               </button>
             </div>
-          ) : (
+          ) : currentRechnung ? (
             <>
           {/* Kreditor Info */}
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
@@ -438,6 +443,11 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
             </button>
           </div>
             </>
+          ) : (
+            <div className="text-center py-12">
+              <Phone className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Lade Daten...</p>
+            </div>
           )}
         </div>
         </div>
