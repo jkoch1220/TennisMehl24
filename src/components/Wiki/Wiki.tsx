@@ -9,7 +9,6 @@ import {
   Search,
   ChevronRight,
   Clock,
-  GripVertical,
   Upload,
   File,
   Download,
