@@ -199,13 +199,12 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
     }
     
     // Keine weitere Rechnung ohne Telefon gefunden
-    // Prüfe ob wir am Ende sind oder einfach nur zur nächsten gehen sollen
+    // Gehe einfach zur nächsten (falls vorhanden)
     if (currentIndex < filteredRechnungen.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setTelefonnummer('');
-    } else {
-      handleClose();
     }
+    // Sonst: Bleibe bei aktueller Rechnung, MODAL BLEIBT OFFEN!
   };
 
   const handlePrevious = () => {
@@ -391,6 +390,13 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
                 </div>
               )}
             </div>
+            
+            {/* Hinweis am Ende */}
+            {currentIndex >= filteredRechnungen.length - 1 && (
+              <div className="mt-2 text-sm text-amber-600 flex items-center gap-2">
+                ℹ️ Letzte Rechnung erreicht. Drücke <kbd className="px-2 py-0.5 bg-gray-100 rounded border text-xs">ESC</kbd> zum Schließen.
+              </div>
+            )}
           </div>
 
           {/* Keyboard Shortcuts Hinweis */}
