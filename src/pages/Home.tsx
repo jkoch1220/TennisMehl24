@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users } from 'lucide-react';
+import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen } from 'lucide-react';
 
 const Home = () => {
   const tools = [
@@ -16,6 +16,13 @@ const Home = () => {
       href: '/kreditoren',
       icon: Receipt,
       color: 'from-red-600 to-red-800',
+    },
+    {
+      name: 'Wiki',
+      description: 'Dokumentation, Anleitungen und Wissenssammlung für das Team',
+      href: '/wiki',
+      icon: BookOpen,
+      color: 'from-amber-500 to-orange-600',
     },
     {
       name: 'Konkurrenten-Karte',
