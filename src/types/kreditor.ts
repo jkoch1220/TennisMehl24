@@ -6,7 +6,8 @@ export type RechnungsStatus =
   | 'in_bearbeitung'  // Rechnung wird bearbeitet/zur Zahlung vorbereitet
   | 'bezahlt'         // Rechnung wurde bezahlt
   | 'storniert'       // Rechnung wurde storniert
-  | 'verzug';         // Rechnung ist im Verzug
+  | 'verzug'          // Rechnung ist im Verzug
+  | 'inkasso';        // Rechnung im Inkasso
 
 // Mahnstufe
 export type Mahnstufe = 0 | 1 | 2 | 3 | 4 | 5; // 0 = keine Mahnung, 1-5 = Mahnstufen

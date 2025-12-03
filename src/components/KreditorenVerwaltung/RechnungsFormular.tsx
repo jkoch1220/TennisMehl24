@@ -114,6 +114,16 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     }
   }, [formData.mahnstufe]);
 
+  // Automatische Prioritätsanpassung bei Inkasso-Status
+  useEffect(() => {
+    if (formData.status === 'inkasso') {
+      // Bei Inkasso automatisch auf "kritisch" setzen
+      if (formData.prioritaet !== 'kritisch') {
+        setFormData(prev => ({ ...prev, prioritaet: 'kritisch' }));
+      }
+    }
+  }, [formData.status]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -371,6 +381,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
                 <option value="gemahnt">Gemahnt</option>
                 <option value="in_bearbeitung">In Bearbeitung</option>
                 <option value="verzug">Verzug</option>
+                <option value="inkasso">Inkasso</option>
                 <option value="bezahlt">Bezahlt</option>
                 <option value="storniert">Storniert</option>
               </select>

@@ -621,6 +621,7 @@ const StatusDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) => {
     gemahnt: 'Gemahnt',
     in_bearbeitung: 'In Bearbeitung',
     verzug: 'Verzug',
+    inkasso: 'Inkasso',
     bezahlt: 'Bezahlt',
     storniert: 'Storniert',
   };
@@ -631,6 +632,7 @@ const StatusDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) => {
     gemahnt: '#f97316',
     in_bearbeitung: '#a855f7',
     verzug: '#ef4444',
+    inkasso: '#dc2626',
     bezahlt: '#22c55e',
     storniert: '#6b7280',
   };

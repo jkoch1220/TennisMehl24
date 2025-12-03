@@ -374,7 +374,7 @@ export const kreditorService = {
       const jetzt = new Date();
 
       // Initialisiere Statistik-Struktur
-      const statusKeys: RechnungsStatus[] = ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'bezahlt', 'storniert', 'verzug'];
+      const statusKeys: RechnungsStatus[] = ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug', 'inkasso', 'bezahlt', 'storniert'];
       const mahnstufen: Mahnstufe[] = [0, 1, 2, 3, 4, 5];
       const kategorien: Rechnungskategorie[] = ['lieferanten', 'dienstleister', 'energie', 'miete', 'versicherung', 'steuern', 'sonstiges'];
       const unternehmen: Unternehmen[] = ['TennisMehl', 'Egner Bau'];
@@ -411,9 +411,9 @@ export const kreditorService = {
         const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
         const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
         
-        // Nur offene, fällige, gemahnte oder im Verzug befindliche Rechnungen zählen
+        // Nur offene, fällige, gemahnte, im Verzug oder Inkasso befindliche Rechnungen zählen
         // UND nur wenn noch ein offener Betrag vorhanden ist
-        if (['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug'].includes(rechnung.status) && offenerBetrag > 0) {
+        if (['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug', 'inkasso'].includes(rechnung.status) && offenerBetrag > 0) {
           gesamtOffen++;
           gesamtBetrag += offenerBetrag;
 

@@ -12,11 +12,11 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
   const heute = new Date();
   heute.setHours(0, 0, 0, 0);
 
-  // Filtere nur offene, fällige, gemahnte oder im Verzug befindliche Rechnungen
+  // Filtere nur offene, fällige, gemahnte, im Verzug oder Inkasso befindliche Rechnungen
   const relevanteRechnungen = useMemo(() => {
     return rechnungen.filter(
       (r) =>
-        ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug'].includes(r.status) &&
+        ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug', 'inkasso'].includes(r.status) &&
         new Date(r.faelligkeitsdatum) <= new Date(heute.getTime() + tageAnzeigen * 24 * 60 * 60 * 1000)
     );
   }, [rechnungen, tageAnzeigen]);
