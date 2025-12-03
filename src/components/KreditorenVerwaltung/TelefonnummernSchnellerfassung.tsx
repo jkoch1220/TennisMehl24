@@ -17,7 +17,27 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   const [filterKreditor, setFilterKreditor] = useState('');
   const [filterUnternehmen, setFilterUnternehmen] = useState<'alle' | 'TennisMehl' | 'Egner Bau'>('alle');
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [kreditorenMitTelefon, setKreditorenMitTelefon] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Lade alle Kreditoren mit Telefonnummer
+  useEffect(() => {
+    loadKreditorenMitTelefon();
+  }, []);
+
+  const loadKreditorenMitTelefon = async () => {
+    try {
+      const alleKreditoren = await kreditorService.loadAlleKreditoren();
+      const mitTelefon = new Set(
+        alleKreditoren
+          .filter(k => k.telefon || k.kontakt?.telefon)
+          .map(k => k.name.toLowerCase().trim())
+      );
+      setKreditorenMitTelefon(mitTelefon);
+    } catch (error) {
+      console.error('Fehler beim Laden der Kreditoren:', error);
+    }
+  };
 
   // Gefilterte Rechnungen
   const filteredRechnungen = rechnungen.filter(r => {
@@ -31,7 +51,13 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   });
 
   const currentRechnung = filteredRechnungen[currentIndex];
-  const progress = filteredRechnungen.length > 0 ? ((currentIndex + 1) / filteredRechnungen.length) * 100 : 0;
+  
+  // Progress basiert auf ALLEN Rechnungen, nicht nur gefilterten
+  const anzahlMitTelefon = rechnungen.filter(r => 
+    kreditorenMitTelefon.has(r.kreditorName.toLowerCase().trim())
+  ).length;
+  const gesamtAnzahl = rechnungen.length;
+  const progress = gesamtAnzahl > 0 ? (anzahlMitTelefon / gesamtAnzahl) * 100 : 0;
 
   // Reset Index beim Filtern
   useEffect(() => {
@@ -45,19 +71,26 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
 
   useEffect(() => {
     // Lade aktuelle Telefonnummer falls vorhanden
-    if (currentRechnung?.kreditorId) {
-      loadKreditorTelefon(currentRechnung.kreditorId);
+    if (currentRechnung) {
+      loadKreditorTelefon(currentRechnung.kreditorName);
     } else {
       setTelefonnummer('');
     }
   }, [currentRechnung]);
 
-  const loadKreditorTelefon = async (kreditorId: string) => {
+  const loadKreditorTelefon = async (kreditorName: string) => {
     try {
-      const kreditor = await kreditorService.loadKreditor(kreditorId);
-      // Prüfe beide Felder: direktes telefon oder kontakt.telefon
-      const existingTelefon = kreditor?.telefon || kreditor?.kontakt?.telefon || '';
-      setTelefonnummer(existingTelefon);
+      const alleKreditoren = await kreditorService.loadAlleKreditoren();
+      const kreditor = alleKreditoren.find(k => 
+        k.name.toLowerCase().trim() === kreditorName.toLowerCase().trim()
+      );
+      
+      if (kreditor) {
+        const existingTelefon = kreditor.telefon || kreditor.kontakt?.telefon || '';
+        setTelefonnummer(existingTelefon);
+      } else {
+        setTelefonnummer('');
+      }
     } catch (error) {
       console.error('Fehler beim Laden:', error);
       setTelefonnummer('');
@@ -126,6 +159,13 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
       
       console.log('=== ERFOLGREICH GESPEICHERT ===');
       
+      // Aktualisiere die Liste der Kreditoren mit Telefon
+      setKreditorenMitTelefon(prev => {
+        const updated = new Set(prev);
+        updated.add(currentRechnung.kreditorName.toLowerCase().trim());
+        return updated;
+      });
+      
       // Zeige Erfolgs-Feedback
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 1500);
@@ -144,6 +184,23 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   };
 
   const handleNext = () => {
+    // Suche nächste Rechnung OHNE Telefonnummer
+    let nextIndex = currentIndex + 1;
+    while (nextIndex < filteredRechnungen.length) {
+      const nextRechnung = filteredRechnungen[nextIndex];
+      const hatTelefon = kreditorenMitTelefon.has(nextRechnung.kreditorName.toLowerCase().trim());
+      
+      if (!hatTelefon) {
+        // Gefunden! Gehe zu dieser Rechnung
+        setCurrentIndex(nextIndex);
+        setTelefonnummer('');
+        return;
+      }
+      nextIndex++;
+    }
+    
+    // Keine weitere Rechnung ohne Telefon gefunden
+    // Prüfe ob wir am Ende sind oder einfach nur zur nächsten gehen sollen
     if (currentIndex < filteredRechnungen.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setTelefonnummer('');
@@ -199,12 +256,8 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
               <div>
                 <h2 className="text-xl font-bold">Telefonnummern-Schnellerfassung</h2>
                 <p className="text-blue-100 text-sm">
-                  {filteredRechnungen.length > 0 ? (
-                    `${currentIndex + 1} von ${filteredRechnungen.length} Rechnungen`
-                  ) : (
-                    'Keine Rechnungen gefunden'
-                  )}
-                  {filterKreditor && ` (Filter aktiv)`}
+                  {anzahlMitTelefon} von {gesamtAnzahl} haben Telefonnummer
+                  {(filterKreditor || filterUnternehmen !== 'alle') && ` • ${filteredRechnungen.length} gefiltert`}
                 </p>
               </div>
             </div>
