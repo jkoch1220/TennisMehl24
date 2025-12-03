@@ -170,9 +170,6 @@ const KreditorenVerwaltung = () => {
           </div>
         )}
 
-        {/* Timeline */}
-        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
-
         {/* Diagramme */}
         {statistik && (
           <div className="grid md:grid-cols-3 gap-6">
@@ -340,6 +337,9 @@ const KreditorenVerwaltung = () => {
             )}
           </div>
         </div>
+
+        {/* Timeline */}
+        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
 
         {/* Formular Modal */}
         {showFormular && (
