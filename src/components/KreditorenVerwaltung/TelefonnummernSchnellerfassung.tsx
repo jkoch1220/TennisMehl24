@@ -16,6 +16,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [filterKreditor, setFilterKreditor] = useState('');
   const [filterUnternehmen, setFilterUnternehmen] = useState<'alle' | 'TennisMehl' | 'Egner Bau'>('alle');
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Gefilterte Rechnungen
@@ -54,7 +55,9 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   const loadKreditorTelefon = async (kreditorId: string) => {
     try {
       const kreditor = await kreditorService.loadKreditor(kreditorId);
-      setTelefonnummer(kreditor?.telefon || '');
+      // Prüfe beide Felder: direktes telefon oder kontakt.telefon
+      const existingTelefon = kreditor?.telefon || kreditor?.kontakt?.telefon || '';
+      setTelefonnummer(existingTelefon);
     } catch (error) {
       console.error('Fehler beim Laden:', error);
       setTelefonnummer('');
@@ -62,30 +65,60 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   };
 
   const handleSave = async () => {
-    if (!currentRechnung?.kreditorId || !telefonnummer.trim()) {
+    if (!currentRechnung?.kreditorId) {
+      console.log('Kein Kreditor-ID, überspringe...');
+      handleNext();
+      return;
+    }
+
+    if (!telefonnummer.trim()) {
+      console.log('Keine Telefonnummer eingegeben, überspringe...');
       handleNext();
       return;
     }
 
     setSaving(true);
     try {
+      console.log('Speichere Telefonnummer:', telefonnummer.trim(), 'für Kreditor:', currentRechnung.kreditorId);
+      
       // Lade Kreditor
       const kreditor = await kreditorService.loadKreditor(currentRechnung.kreditorId);
       
-      if (kreditor) {
-        // Update mit Telefonnummer
-        await kreditorService.updateKreditor(kreditor.id, {
-          ...kreditor,
-          telefon: telefonnummer.trim(),
-        });
-        onUpdate();
+      if (!kreditor) {
+        console.error('Kreditor nicht gefunden!');
+        alert('Kreditor konnte nicht geladen werden');
+        setSaving(false);
+        return;
       }
 
-      // Weiter zur nächsten
-      handleNext();
+      console.log('Kreditor geladen:', kreditor);
+      
+      // Update mit Telefonnummer (sowohl in telefon als auch in kontakt.telefon)
+      const updatedKreditor = await kreditorService.updateKreditor(kreditor.id, {
+        ...kreditor,
+        telefon: telefonnummer.trim(),
+        kontakt: {
+          ...kreditor.kontakt,
+          telefon: telefonnummer.trim(),
+        },
+      });
+      
+      console.log('Telefonnummer gespeichert!', updatedKreditor);
+      
+      // Zeige Erfolgs-Feedback
+      setShowSaveSuccess(true);
+      setTimeout(() => setShowSaveSuccess(false), 1500);
+      
+      onUpdate();
+
+      // Warte kurz bevor zur nächsten gewechselt wird
+      setTimeout(() => {
+        handleNext();
+      }, 300);
     } catch (error) {
       console.error('Fehler beim Speichern:', error);
-      alert('Fehler beim Speichern der Telefonnummer');
+      alert('Fehler beim Speichern der Telefonnummer: ' + (error as Error).message);
+      setSaving(false);
     } finally {
       setSaving(false);
     }
@@ -263,16 +296,24 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Telefonnummer
             </label>
-            <input
-              ref={inputRef}
-              type="tel"
-              value={telefonnummer}
-              onChange={(e) => setTelefonnummer(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="z.B. 0171 1234567"
-              className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
+            <div className="relative">
+              <input
+                ref={inputRef}
+                type="tel"
+                value={telefonnummer}
+                onChange={(e) => setTelefonnummer(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="z.B. 0171 1234567"
+                className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                autoFocus
+              />
+              {showSaveSuccess && (
+                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+                  <CheckCheck className="w-5 h-5" />
+                  Gespeichert!
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Keyboard Shortcuts Hinweis */}
