@@ -14,6 +14,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
   const [error, setError] = useState<string | null>(null);
   const [duplikatWarnung, setDuplikatWarnung] = useState<{ existiert: boolean; kreditorName?: string } | null>(null);
   const [checkingDuplikat, setCheckingDuplikat] = useState(false);
+  const [keinKontakt, setKeinKontakt] = useState(false);
   
   const [formData, setFormData] = useState<Partial<NeueOffeneRechnung>>({
     rechnungsnummer: '',
@@ -59,6 +60,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         kommentar: rechnung.kommentar || '',
         zahlungsreferenz: rechnung.zahlungsreferenz || '',
       });
+      setKeinKontakt(!rechnung.letzterKontakt);
     }
   }, [rechnung]);
 
@@ -425,12 +427,34 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Letzter Kontakt
               </label>
-              <input
-                type="date"
-                value={formData.letzterKontakt || ''}
-                onChange={(e) => setFormData({ ...formData, letzterKontakt: e.target.value || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="keinKontakt"
+                    checked={keinKontakt}
+                    onChange={(e) => {
+                      setKeinKontakt(e.target.checked);
+                      if (e.target.checked) {
+                        setFormData({ ...formData, letzterKontakt: undefined });
+                      }
+                    }}
+                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                  <label htmlFor="keinKontakt" className="text-sm text-gray-600 cursor-pointer">
+                    Kein Kontakt bisher
+                  </label>
+                </div>
+                <input
+                  type="date"
+                  value={formData.letzterKontakt || ''}
+                  onChange={(e) => setFormData({ ...formData, letzterKontakt: e.target.value || undefined })}
+                  disabled={keinKontakt}
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${
+                    keinKontakt ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                  }`}
+                />
+              </div>
             </div>
 
             {/* Spätestens bearbeiten am */}
