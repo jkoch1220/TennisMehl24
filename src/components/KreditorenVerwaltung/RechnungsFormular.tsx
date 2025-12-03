@@ -104,6 +104,16 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     return () => clearTimeout(timer);
   }, [formData.rechnungsnummer, checkDuplikat]);
 
+  // Automatische Statusanpassung bei Mahnstufe
+  useEffect(() => {
+    if (formData.mahnstufe && formData.mahnstufe > 0) {
+      // Wenn Mahnstufe gesetzt ist, automatisch auf "gemahnt" setzen
+      if (formData.status !== 'gemahnt' && formData.status !== 'inkasso') {
+        setFormData(prev => ({ ...prev, status: 'gemahnt' }));
+      }
+    }
+  }, [formData.mahnstufe]);
+
   // Automatische Prioritätsanpassung basierend auf Mahnstufe
   useEffect(() => {
     if (formData.mahnstufe === 4) {
