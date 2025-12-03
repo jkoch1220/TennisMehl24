@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
-import { kreditorService } from '../../services/kreditorService';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
 
 interface RechnungsListeProps {
