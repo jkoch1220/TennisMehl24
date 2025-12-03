@@ -121,32 +121,6 @@ export const kreditorService = {
 
   // ========== RECHNUNGEN VERWALTUNG ==========
 
-  // Prüfe ob Rechnungsnummer bereits existiert
-  async pruefeRechnungsnummerDuplikat(
-    rechnungsnummer: string, 
-    excludeId?: string
-  ): Promise<{ existiert: boolean; rechnung?: OffeneRechnung }> {
-    if (!rechnungsnummer || rechnungsnummer.trim() === '') {
-      return { existiert: false };
-    }
-
-    try {
-      const alleRechnungen = await this.loadAlleRechnungen();
-      const duplikat = alleRechnungen.find(
-        r => r.rechnungsnummer?.toLowerCase().trim() === rechnungsnummer.toLowerCase().trim() 
-          && r.id !== excludeId
-      );
-
-      return {
-        existiert: !!duplikat,
-        rechnung: duplikat,
-      };
-    } catch (error) {
-      console.error('Fehler bei der Duplikat-Prüfung:', error);
-      return { existiert: false };
-    }
-  },
-
   // Lade alle Rechnungen
   async loadAlleRechnungen(): Promise<OffeneRechnung[]> {
     try {
@@ -358,6 +332,38 @@ export const kreditorService = {
     } catch (error) {
       console.error('Fehler beim Filtern der Rechnungen:', error);
       return [];
+    }
+  },
+
+  // Prüfe ob Rechnungsnummer bereits existiert
+  async pruefeRechnungsnummerDuplikat(
+    rechnungsnummer: string, 
+    ausschlussId?: string
+  ): Promise<{ existiert: boolean; rechnung?: OffeneRechnung }> {
+    try {
+      if (!rechnungsnummer || rechnungsnummer.trim() === '') {
+        return { existiert: false };
+      }
+
+      const alleRechnungen = await this.loadAlleRechnungen();
+      
+      // Suche nach Rechnung mit gleicher Nummer (case-insensitive)
+      const gefundeneRechnung = alleRechnungen.find(r => 
+        r.rechnungsnummer?.toLowerCase().trim() === rechnungsnummer.toLowerCase().trim() &&
+        r.id !== ausschlussId // Eigene ID bei Bearbeitung ausschließen
+      );
+
+      if (gefundeneRechnung) {
+        return {
+          existiert: true,
+          rechnung: gefundeneRechnung,
+        };
+      }
+
+      return { existiert: false };
+    } catch (error) {
+      console.error('Fehler bei Duplikat-Prüfung:', error);
+      return { existiert: false };
     }
   },
 

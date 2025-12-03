@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart } from 'lucide-react';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
@@ -14,6 +14,7 @@ const KreditorenVerwaltung = () => {
   const [loading, setLoading] = useState(true);
   const [showFormular, setShowFormular] = useState(false);
   const [selectedRechnung, setSelectedRechnung] = useState<OffeneRechnung | null>(null);
+  const [activeTab, setActiveTab] = useState<'offen' | 'bezahlt'>('offen');
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
@@ -85,6 +86,14 @@ const KreditorenVerwaltung = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
+
+  // Teile Rechnungen in offen und bezahlt auf
+  const offeneRechnungen = rechnungen.filter(r => 
+    r.status !== 'bezahlt' && r.status !== 'storniert'
+  );
+  const bezahlteRechnungen = rechnungen.filter(r => 
+    r.status === 'bezahlt' || r.status === 'storniert'
+  );
 
   if (loading) {
     return (
@@ -168,7 +177,7 @@ const KreditorenVerwaltung = () => {
         {statistik && (
           <div className="grid md:grid-cols-3 gap-6">
             {/* Status-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Status" icon={PieChart}>
+            <DiagrammKarte title="Verteilung nach Status" icon={PieChartIcon}>
               <StatusDiagramm statistik={statistik} />
             </DiagrammKarte>
 
@@ -273,14 +282,64 @@ const KreditorenVerwaltung = () => {
           </div>
         )}
 
-        {/* Rechnungsliste */}
-        <RechnungsListe
-          rechnungen={rechnungen}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onRefresh={loadData}
-          onOpenDetail={handleOpenDetail}
-        />
+        {/* Tabs für Offene/Bezahlte Rechnungen */}
+        <div className="bg-white rounded-lg shadow-lg">
+          <div className="border-b border-gray-200">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('offen')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'offen'
+                    ? 'text-red-600 border-b-2 border-red-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>Offene Rechnungen</span>
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold">
+                    {offeneRechnungen.length}
+                  </span>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('bezahlt')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'bezahlt'
+                    ? 'text-green-600 border-b-2 border-green-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>Bezahlte Rechnungen</span>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                    {bezahlteRechnungen.length}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Rechnungsliste */}
+          <div className="p-6">
+            {activeTab === 'offen' ? (
+              <RechnungsListe
+                rechnungen={offeneRechnungen}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={loadData}
+                onOpenDetail={handleOpenDetail}
+              />
+            ) : (
+              <RechnungsListe
+                rechnungen={bezahlteRechnungen}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={loadData}
+                onOpenDetail={handleOpenDetail}
+              />
+            )}
+          </div>
+        </div>
 
         {/* Formular Modal */}
         {showFormular && (
@@ -361,6 +420,199 @@ const DiagrammKarte = ({ title, icon: Icon, children }: DiagrammKarteProps) => {
   );
 };
 
+// Pie Chart Komponente
+interface PieChartProps {
+  data: Array<{
+    label: string;
+    value: number;
+    count: number;
+    color: string;
+  }>;
+}
+
+const PieChart = ({ data }: PieChartProps) => {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  
+  if (total === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+        Keine Daten verfügbar
+      </div>
+    );
+  }
+
+  // Auch bei nur einem Eintrag anzeigen
+  if (data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+        Keine Daten verfügbar
+      </div>
+    );
+  }
+
+  // Berechne Segmente
+  let currentAngle = -90; // Start bei 12 Uhr
+  const segments = data.map((item) => {
+    const percentage = (item.value / total) * 100;
+    const angle = (item.value / total) * 360;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angle;
+    currentAngle = endAngle;
+
+    return {
+      ...item,
+      percentage,
+      startAngle,
+      endAngle,
+      angle,
+    };
+  });
+
+  // SVG Path für Donut-Segment erstellen
+  const createArc = (startAngle: number, endAngle: number, outerRadius: number, innerRadius: number) => {
+    const start = polarToCartesian(100, 100, outerRadius, endAngle);
+    const end = polarToCartesian(100, 100, outerRadius, startAngle);
+    const innerStart = polarToCartesian(100, 100, innerRadius, endAngle);
+    const innerEnd = polarToCartesian(100, 100, innerRadius, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
+
+    return [
+      'M', start.x, start.y,
+      'A', outerRadius, outerRadius, 0, largeArcFlag, 0, end.x, end.y,
+      'L', innerEnd.x, innerEnd.y,
+      'A', innerRadius, innerRadius, 0, largeArcFlag, 1, innerStart.x, innerStart.y,
+      'Z'
+    ].join(' ');
+  };
+
+  const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+    const angleInRadians = (angleInDegrees * Math.PI) / 180.0;
+    return {
+      x: centerX + radius * Math.cos(angleInRadians),
+      y: centerY + radius * Math.sin(angleInRadians),
+    };
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+
+  const hoveredSegment = hoveredIndex !== null ? segments[hoveredIndex] : null;
+
+  return (
+    <div className="space-y-6">
+      {/* Donut Chart mit externem Tooltip */}
+      <div className="relative flex justify-center items-center">
+        <div className="relative">
+          <svg viewBox="0 0 200 200" className="w-56 h-56">
+            {segments.map((segment, index) => {
+              const isHovered = hoveredIndex === index;
+              const outerRadius = isHovered ? 82 : 80;
+              const innerRadius = 50;
+              
+              return (
+                <path
+                  key={index}
+                  d={createArc(segment.startAngle, segment.endAngle, outerRadius, innerRadius)}
+                  fill={segment.color}
+                  className="transition-all duration-300 cursor-pointer"
+                  style={{
+                    opacity: hoveredIndex === null || isHovered ? 1 : 0.4,
+                    filter: isHovered ? 'brightness(1.1) drop-shadow(0 2px 4px rgba(0,0,0,0.1))' : 'none',
+                  }}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+              );
+            })}
+            
+            {/* Mittig: Gesamt */}
+            <text
+              x="100"
+              y="95"
+              textAnchor="middle"
+              className="text-xs fill-gray-500 font-medium"
+            >
+              Gesamt
+            </text>
+            <text
+              x="100"
+              y="110"
+              textAnchor="middle"
+              className="text-sm fill-gray-900 font-bold"
+            >
+              {formatCurrency(total)}
+            </text>
+          </svg>
+          
+          {/* Externer Tooltip bei Hover */}
+          {hoveredSegment && (
+            <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 translate-y-full z-10 animate-in fade-in duration-200">
+              <div className="bg-gray-900 text-white px-4 py-3 rounded-lg shadow-xl min-w-[200px]">
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: hoveredSegment.color }}
+                  />
+                  <span className="text-sm font-semibold">{hoveredSegment.label}</span>
+                </div>
+                <div className="text-lg font-bold mb-1">
+                  {formatCurrency(hoveredSegment.value)}
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-300">
+                  <span>{hoveredSegment.percentage.toFixed(1)}% vom Gesamt</span>
+                  <span>{hoveredSegment.count} Rechnung{hoveredSegment.count !== 1 ? 'en' : ''}</span>
+                </div>
+              </div>
+              {/* Pfeil nach oben */}
+              <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-gray-900"></div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Kompakte Legende */}
+      <div className="space-y-1.5">
+        {segments.map((segment, index) => (
+          <div
+            key={index}
+            className={`flex items-center justify-between px-3 py-2 rounded-md transition-all duration-200 cursor-pointer ${
+              hoveredIndex === index 
+                ? 'bg-gray-100 shadow-sm scale-[1.02]' 
+                : 'hover:bg-gray-50'
+            }`}
+            onMouseEnter={() => setHoveredIndex(index)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <div
+                className="w-3 h-3 rounded-full flex-shrink-0 transition-transform duration-200"
+                style={{ 
+                  backgroundColor: segment.color,
+                  transform: hoveredIndex === index ? 'scale(1.2)' : 'scale(1)'
+                }}
+              />
+              <span className="text-sm font-medium text-gray-700 truncate">
+                {segment.label}
+              </span>
+              <span className="text-xs text-gray-400 flex-shrink-0">
+                {segment.percentage.toFixed(0)}%
+              </span>
+            </div>
+            <div className="text-right flex-shrink-0 ml-3">
+              <div className="text-sm font-semibold text-gray-900">
+                {formatCurrency(segment.value)}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // Status-Diagramm Komponente
 const StatusDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) => {
   const statusLabels: Record<string, string> = {
@@ -374,43 +626,25 @@ const StatusDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) => {
   };
 
   const statusColors: Record<string, string> = {
-    offen: 'bg-blue-500',
-    faellig: 'bg-yellow-500',
-    gemahnt: 'bg-orange-500',
-    in_bearbeitung: 'bg-purple-500',
-    verzug: 'bg-red-500',
-    bezahlt: 'bg-green-500',
-    storniert: 'bg-gray-500',
+    offen: '#3b82f6',
+    faellig: '#eab308',
+    gemahnt: '#f97316',
+    in_bearbeitung: '#a855f7',
+    verzug: '#ef4444',
+    bezahlt: '#22c55e',
+    storniert: '#6b7280',
   };
 
-  const maxBetrag = Math.max(...Object.values(statistik.nachStatus).map(s => s.betrag));
+  const data = Object.entries(statistik.nachStatus)
+    .filter(([_, data]) => data.anzahl > 0)
+    .map(([status, data]) => ({
+      label: statusLabels[status],
+      value: data.betrag,
+      count: data.anzahl,
+      color: statusColors[status],
+    }));
 
-  return (
-    <div className="space-y-4">
-      {Object.entries(statistik.nachStatus)
-        .filter(([_, data]) => data.anzahl > 0)
-        .map(([status, data]) => {
-          const prozent = maxBetrag > 0 ? (data.betrag / maxBetrag) * 100 : 0;
-          return (
-            <div key={status}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-gray-700">{statusLabels[status]}</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.betrag)}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4">
-                <div
-                  className={`${statusColors[status]} h-4 rounded-full transition-all`}
-                  style={{ width: `${prozent}%` }}
-                ></div>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{data.anzahl} Rechnungen</div>
-            </div>
-          );
-        })}
-    </div>
-  );
+  return <PieChart data={data} />;
 };
 
 // Kategorie-Diagramm Komponente
@@ -426,43 +660,25 @@ const KategorieDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) =>
   };
 
   const kategorieColors: Record<string, string> = {
-    lieferanten: 'bg-blue-500',
-    dienstleister: 'bg-purple-500',
-    energie: 'bg-yellow-500',
-    miete: 'bg-green-500',
-    versicherung: 'bg-indigo-500',
-    steuern: 'bg-red-500',
-    sonstiges: 'bg-gray-500',
+    lieferanten: '#3b82f6',
+    dienstleister: '#a855f7',
+    energie: '#eab308',
+    miete: '#22c55e',
+    versicherung: '#6366f1',
+    steuern: '#ef4444',
+    sonstiges: '#6b7280',
   };
 
-  const maxBetrag = Math.max(...Object.values(statistik.nachKategorie).map(s => s.betrag));
+  const data = Object.entries(statistik.nachKategorie)
+    .filter(([_, data]) => data.anzahl > 0)
+    .map(([kategorie, data]) => ({
+      label: kategorieLabels[kategorie],
+      value: data.betrag,
+      count: data.anzahl,
+      color: kategorieColors[kategorie],
+    }));
 
-  return (
-    <div className="space-y-4">
-      {Object.entries(statistik.nachKategorie)
-        .filter(([_, data]) => data.anzahl > 0)
-        .map(([kategorie, data]) => {
-          const prozent = maxBetrag > 0 ? (data.betrag / maxBetrag) * 100 : 0;
-          return (
-            <div key={kategorie}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-gray-700">{kategorieLabels[kategorie]}</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.betrag)}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4">
-                <div
-                  className={`${kategorieColors[kategorie]} h-4 rounded-full transition-all`}
-                  style={{ width: `${prozent}%` }}
-                ></div>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{data.anzahl} Rechnungen</div>
-            </div>
-          );
-        })}
-    </div>
-  );
+  return <PieChart data={data} />;
 };
 
 // Unternehmen-Diagramm Komponente
@@ -473,38 +689,20 @@ const UnternehmenDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) 
   };
 
   const unternehmenColors: Record<string, string> = {
-    TennisMehl: 'bg-red-500',
-    'Egner Bau': 'bg-blue-500',
+    TennisMehl: '#dc2626',
+    'Egner Bau': '#2563eb',
   };
 
-  const maxBetrag = Math.max(...Object.values(statistik.nachUnternehmen).map(s => s.betrag));
+  const data = Object.entries(statistik.nachUnternehmen)
+    .filter(([_, data]) => data.anzahl > 0)
+    .map(([unternehmen, data]) => ({
+      label: unternehmenLabels[unternehmen],
+      value: data.betrag,
+      count: data.anzahl,
+      color: unternehmenColors[unternehmen],
+    }));
 
-  return (
-    <div className="space-y-4">
-      {Object.entries(statistik.nachUnternehmen)
-        .filter(([_, data]) => data.anzahl > 0)
-        .map(([unternehmen, data]) => {
-          const prozent = maxBetrag > 0 ? (data.betrag / maxBetrag) * 100 : 0;
-          return (
-            <div key={unternehmen}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-gray-700">{unternehmenLabels[unternehmen]}</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(data.betrag)}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4">
-                <div
-                  className={`${unternehmenColors[unternehmen]} h-4 rounded-full transition-all`}
-                  style={{ width: `${prozent}%` }}
-                ></div>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{data.anzahl} Rechnungen</div>
-            </div>
-          );
-        })}
-    </div>
-  );
+  return <PieChart data={data} />;
 };
 
 export default KreditorenVerwaltung;

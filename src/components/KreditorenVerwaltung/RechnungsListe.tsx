@@ -25,10 +25,102 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
     applyFilters();
   }, [rechnungen, filter, sortFeld, sortRichtung, suche]);
 
-  const applyFilters = async () => {
+  const applyFilters = () => {
     try {
-      const filterMitSuche = { ...filter, suche: suche || undefined };
-      const gefiltert = await kreditorService.filterRechnungen(filterMitSuche, sortFeld, sortRichtung);
+      let gefiltert = [...rechnungen];
+
+      // Filter anwenden
+      if (filter.status && filter.status.length > 0) {
+        gefiltert = gefiltert.filter(r => filter.status!.includes(r.status));
+      }
+
+      if (filter.mahnstufe && filter.mahnstufe.length > 0) {
+        gefiltert = gefiltert.filter(r => filter.mahnstufe!.includes(r.mahnstufe));
+      }
+
+      if (filter.kategorie && filter.kategorie.length > 0) {
+        gefiltert = gefiltert.filter(r => filter.kategorie!.includes(r.kategorie));
+      }
+
+      if (filter.anUnternehmen && filter.anUnternehmen.length > 0) {
+        gefiltert = gefiltert.filter(r => filter.anUnternehmen!.includes(r.anUnternehmen));
+      }
+
+      if (filter.prioritaet && filter.prioritaet.length > 0) {
+        gefiltert = gefiltert.filter(r => filter.prioritaet!.includes(r.prioritaet));
+      }
+
+      if (filter.faelligVon) {
+        gefiltert = gefiltert.filter(r => r.faelligkeitsdatum >= filter.faelligVon!);
+      }
+
+      if (filter.faelligBis) {
+        gefiltert = gefiltert.filter(r => r.faelligkeitsdatum <= filter.faelligBis!);
+      }
+
+      if (filter.betragMin !== undefined) {
+        gefiltert = gefiltert.filter(r => r.summe >= filter.betragMin!);
+      }
+
+      if (filter.betragMax !== undefined) {
+        gefiltert = gefiltert.filter(r => r.summe <= filter.betragMax!);
+      }
+
+      // Suche
+      if (suche) {
+        const sucheLower = suche.toLowerCase();
+        gefiltert = gefiltert.filter(r =>
+          r.rechnungsnummer?.toLowerCase().includes(sucheLower) ||
+          r.betreff?.toLowerCase().includes(sucheLower) ||
+          r.kreditorName.toLowerCase().includes(sucheLower) ||
+          r.kommentar?.toLowerCase().includes(sucheLower)
+        );
+      }
+
+      // Sortierung anwenden
+      gefiltert.sort((a, b) => {
+        let aVal: any;
+        let bVal: any;
+
+        switch (sortFeld) {
+          case 'faelligkeitsdatum':
+            aVal = new Date(a.faelligkeitsdatum).getTime();
+            bVal = new Date(b.faelligkeitsdatum).getTime();
+            break;
+          case 'summe':
+            aVal = a.summe;
+            bVal = b.summe;
+            break;
+          case 'status':
+            aVal = a.status;
+            bVal = b.status;
+            break;
+          case 'mahnstufe':
+            aVal = a.mahnstufe;
+            bVal = b.mahnstufe;
+            break;
+          case 'prioritaet':
+            const prioritaetOrder = { kritisch: 0, hoch: 1, normal: 2, niedrig: 3 };
+            aVal = prioritaetOrder[a.prioritaet];
+            bVal = prioritaetOrder[b.prioritaet];
+            break;
+          case 'erstelltAm':
+            aVal = new Date(a.erstelltAm).getTime();
+            bVal = new Date(b.erstelltAm).getTime();
+            break;
+          case 'kreditorName':
+            aVal = a.kreditorName.toLowerCase();
+            bVal = b.kreditorName.toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        if (aVal < bVal) return sortRichtung === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortRichtung === 'asc' ? 1 : -1;
+        return 0;
+      });
+
       setFilteredRechnungen(gefiltert);
     } catch (error) {
       console.error('Fehler beim Filtern:', error);
