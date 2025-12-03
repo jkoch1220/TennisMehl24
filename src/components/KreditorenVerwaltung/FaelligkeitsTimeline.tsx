@@ -5,9 +5,10 @@ import { OffeneRechnung } from '../../types/kreditor';
 interface FaelligkeitsTimelineProps {
   rechnungen: OffeneRechnung[];
   tageAnzeigen?: number; // Anzahl der Tage die angezeigt werden sollen (Standard: 60)
+  onOpenDetail?: (rechnung: OffeneRechnung) => void;
 }
 
-const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60 }: FaelligkeitsTimelineProps) => {
+const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: FaelligkeitsTimelineProps) => {
   const heute = new Date();
   heute.setHours(0, 0, 0, 0);
 
@@ -147,7 +148,8 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60 }: FaelligkeitsTim
                   return (
                     <div
                       key={rechnung.id}
-                      className="bg-white rounded-lg p-3 flex justify-between items-center hover:shadow-md transition-shadow"
+                      onClick={() => onOpenDetail?.(rechnung)}
+                      className="bg-white rounded-lg p-3 flex justify-between items-center hover:shadow-md transition-all cursor-pointer hover:scale-[1.01]"
                     >
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">{rechnung.kreditorName}</div>

@@ -171,7 +171,7 @@ const KreditorenVerwaltung = () => {
         )}
 
         {/* Timeline */}
-        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} />
+        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
 
         {/* Diagramme */}
         {statistik && (
