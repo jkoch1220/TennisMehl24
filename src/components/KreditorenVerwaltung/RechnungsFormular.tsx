@@ -32,7 +32,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     spaetestensBearbeitenAm: undefined,
     prioritaet: 'normal',
     kategorie: 'sonstiges',
-    anUnternehmen: 'TennisMehl',
+    anUnternehmen: 'Egner Bau',
     kommentar: '',
     zahlungsreferenz: '',
   });
@@ -151,7 +151,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         spaetestensBearbeitenAm: formData.spaetestensBearbeitenAm ? new Date(formData.spaetestensBearbeitenAm).toISOString() : undefined,
         prioritaet: formData.prioritaet || 'normal',
         kategorie: formData.kategorie || 'sonstiges',
-        anUnternehmen: formData.anUnternehmen || 'TennisMehl',
+        anUnternehmen: formData.anUnternehmen || 'Egner Bau',
         kommentar: formData.kommentar || undefined,
         zahlungsreferenz: formData.zahlungsreferenz || undefined,
       };
