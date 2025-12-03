@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, TICKETS_COLLECTION_ID } from '../config/appwrite';
 import { Ticket, NeuesTicket } from '../types/ticket';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const ticketService = {
   // Lade alle Tickets
@@ -8,7 +8,10 @@ export const ticketService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        TICKETS_COLLECTION_ID
+        TICKETS_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseTicketDocument(doc));

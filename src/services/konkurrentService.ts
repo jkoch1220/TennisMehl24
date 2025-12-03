@@ -5,7 +5,7 @@ import {
   LieferkostenBerechnung,
   PLZLieferkostenZone
 } from '../types/konkurrent';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 import { geocodePLZ, geocodeAdresse } from '../utils/geocoding';
 
 export const konkurrentService = {
@@ -16,7 +16,10 @@ export const konkurrentService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        KONKURRENTEN_COLLECTION_ID
+        KONKURRENTEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseKonkurrentDocument(doc));

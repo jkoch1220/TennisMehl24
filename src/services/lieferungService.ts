@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, LIEFERUNGEN_COLLECTION_ID } from '../config/appwrite';
 import { Lieferung, NeueLieferung } from '../types/dispo';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const lieferungService = {
   // Lade alle Lieferungen
@@ -8,7 +8,10 @@ export const lieferungService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        LIEFERUNGEN_COLLECTION_ID
+        LIEFERUNGEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseDocument(doc));
@@ -25,12 +28,17 @@ export const lieferungService = {
         DATABASE_ID,
         LIEFERUNGEN_COLLECTION_ID,
         [
-          `zeitfenster.gewuenscht >= ${von.toISOString()}`,
-          `zeitfenster.gewuenscht <= ${bis.toISOString()}`,
+          Query.limit(5000)
         ]
       );
       
-      return response.documents.map(doc => this.parseDocument(doc));
+      const alleLieferungen = response.documents.map(doc => this.parseDocument(doc));
+      
+      // Client-seitige Filterung nach Zeitraum
+      return alleLieferungen.filter(lieferung => {
+        const gewuenscht = new Date(lieferung.zeitfenster.gewuenscht);
+        return gewuenscht >= von && gewuenscht <= bis;
+      });
     } catch (error) {
       console.error('Fehler beim Laden der Lieferungen:', error);
       return [];

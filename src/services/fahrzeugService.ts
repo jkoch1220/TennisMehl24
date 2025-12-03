@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, FAHRZEUGE_COLLECTION_ID } from '../config/appwrite';
 import { Fahrzeug, NeuesFahrzeug } from '../types/dispo';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const fahrzeugService = {
   // Lade alle Fahrzeuge
@@ -8,7 +8,10 @@ export const fahrzeugService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        FAHRZEUGE_COLLECTION_ID
+        FAHRZEUGE_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseDocument(doc));

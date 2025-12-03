@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appwrite Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .success {
+      color: #22c55e;
+      font-weight: bold;
+    }
+    .error {
+      color: #ef4444;
+      font-weight: bold;
+    }
+    pre {
+      background: #1f2937;
+      color: #10b981;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Appwrite Connection Test</h1>
+  
+  <div class="test-box">
+    <h2>Test 1: Verbindung prüfen</h2>
+    <button onclick="testConnection()">Verbindung testen</button>
+    <div id="connection-result"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>Test 2: Rechnungen abrufen</h2>
+    <button onclick="testListDocuments()">Rechnungen laden</button>
+    <div id="list-result"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>Test 3: Test-Rechnung erstellen</h2>
+    <button onclick="testCreateDocument()">Test-Rechnung erstellen</button>
+    <div id="create-result"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>Test 4: Storage Quota prüfen</h2>
+    <button onclick="checkStorage()">Storage prüfen</button>
+    <div id="storage-result"></div>
+  </div>
+
+  <script>
+    const { Client, Databases, ID } = Appwrite;
+
+    const client = new Client();
+    const databases = new Databases(client);
+
+    // Konfiguration
+    const endpoint = 'https://fra.cloud.appwrite.io/v1';
+    const projectId = 'tennismehl24';
+    const databaseId = 'tennismehl24_db';
+    const collectionId = 'offene_rechnungen';
+
+    client
+      .setEndpoint(endpoint)
+      .setProject(projectId);
+
+    console.log('✅ Appwrite Client initialisiert');
+
+    async function testConnection() {
+      const result = document.getElementById('connection-result');
+      result.innerHTML = '<p>⏳ Teste Verbindung...</p>';
+      
+      try {
+        const response = await databases.listDocuments(
+          databaseId,
+          collectionId
+        );
+        
+        result.innerHTML = `
+          <p class="success">✅ Verbindung erfolgreich!</p>
+          <pre>
+Dokumente: ${response.total}
+Collection: ${collectionId}
+Database: ${databaseId}
+          </pre>
+        `;
+      } catch (error) {
+        result.innerHTML = `
+          <p class="error">❌ Verbindungsfehler</p>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+
+    async function testListDocuments() {
+      const result = document.getElementById('list-result');
+      result.innerHTML = '<p>⏳ Lade Rechnungen...</p>';
+      
+      try {
+        const response = await databases.listDocuments(
+          databaseId,
+          collectionId
+        );
+        
+        result.innerHTML = `
+          <p class="success">✅ ${response.total} Rechnungen gefunden</p>
+          <pre>${JSON.stringify(response.documents.map(d => ({
+            id: d.$id,
+            created: d.$createdAt
+          })), null, 2)}</pre>
+        `;
+      } catch (error) {
+        result.innerHTML = `
+          <p class="error">❌ Fehler beim Laden</p>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+
+    async function testCreateDocument() {
+      const result = document.getElementById('create-result');
+      result.innerHTML = '<p>⏳ Erstelle Test-Rechnung...</p>';
+      
+      try {
+        const testData = {
+          rechnungsnummer: 'TEST-' + Date.now(),
+          kreditorName: 'Test Kreditor',
+          status: 'offen',
+          summe: 100,
+          faelligkeitsdatum: new Date().toISOString(),
+          mahnstufe: 0,
+          prioritaet: 'normal',
+          kategorie: 'sonstiges',
+          anUnternehmen: 'TennisMehl',
+          erstelltAm: new Date().toISOString(),
+          geaendertAm: new Date().toISOString()
+        };
+
+        const document = await databases.createDocument(
+          databaseId,
+          collectionId,
+          ID.unique(),
+          {
+            data: JSON.stringify(testData)
+          }
+        );
+        
+        result.innerHTML = `
+          <p class="success">✅ Test-Rechnung erstellt!</p>
+          <pre>ID: ${document.$id}
+Created: ${document.$createdAt}</pre>
+          <button onclick="deleteTestDocument('${document.$id}')">Test-Rechnung löschen</button>
+        `;
+      } catch (error) {
+        result.innerHTML = `
+          <p class="error">❌ Fehler beim Erstellen</p>
+          <pre>${error.message}
+          
+Mögliche Ursachen:
+- Quota/Limit erreicht
+- Keine Schreibrechte
+- Collection nicht gefunden</pre>
+        `;
+      }
+    }
+
+    async function deleteTestDocument(docId) {
+      try {
+        await databases.deleteDocument(databaseId, collectionId, docId);
+        document.getElementById('create-result').innerHTML += `
+          <p class="success">✅ Test-Rechnung gelöscht</p>
+        `;
+      } catch (error) {
+        alert('Fehler beim Löschen: ' + error.message);
+      }
+    }
+
+    async function checkStorage() {
+      const result = document.getElementById('storage-result');
+      result.innerHTML = '<p>⏳ Prüfe Storage...</p>';
+      
+      try {
+        const response = await databases.listDocuments(
+          databaseId,
+          collectionId
+        );
+        
+        // Berechne ungefähre Datengröße
+        const dataSize = JSON.stringify(response.documents).length;
+        const sizeInKB = (dataSize / 1024).toFixed(2);
+        const sizeInMB = (dataSize / 1024 / 1024).toFixed(2);
+        
+        result.innerHTML = `
+          <p class="success">✅ Storage-Info</p>
+          <pre>
+Dokumente: ${response.total}
+Ungefähre Größe: ${sizeInKB} KB (${sizeInMB} MB)
+
+Appwrite Free Plan:
+- Max. 75k Dokumente
+- Max. 1 GB Storage
+- Max. 75k API Calls/Monat
+
+Status: ${response.total < 75000 ? '✅ OK' : '⚠️ Limit erreicht'}
+          </pre>
+        `;
+      } catch (error) {
+        result.innerHTML = `
+          <p class="error">❌ Fehler</p>
+          <pre>${error.message}</pre>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

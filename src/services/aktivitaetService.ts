@@ -6,7 +6,7 @@ import {
   RECHNUNGS_DATEIEN_BUCKET_ID 
 } from '../config/appwrite';
 import { RechnungsAktivitaet, NeueRechnungsAktivitaet, AktivitaetsTyp } from '../types/kreditor';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const aktivitaetService = {
   // ========== AKTIVITÄTEN VERWALTUNG ==========
@@ -16,7 +16,10 @@ export const aktivitaetService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID
+        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       const alleAktivitaeten = response.documents.map(doc => this.parseAktivitaetDocument(doc));
@@ -63,7 +66,10 @@ export const aktivitaetService = {
       // Erst die Aktivität laden, um zu prüfen ob eine Datei gelöscht werden muss
       const aktivitaeten = await databases.listDocuments(
         DATABASE_ID,
-        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID
+        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       const aktivitaet = aktivitaeten.documents

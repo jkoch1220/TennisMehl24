@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite';
 import { Kunde, NeuerKunde } from '../types/dispo';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const kundenService = {
   // Lade alle Kunden
@@ -8,7 +8,10 @@ export const kundenService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        KUNDEN_COLLECTION_ID
+        KUNDEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseDocument(doc));

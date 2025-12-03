@@ -1,4 +1,5 @@
 import { databases, DATABASE_ID, KREDITOREN_COLLECTION_ID, OFFENE_RECHNUNGEN_COLLECTION_ID } from '../config/appwrite';
+import { Query } from 'appwrite';
 import { 
   Kreditor, 
   NeuerKreditor, 
@@ -23,7 +24,10 @@ export const kreditorService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        KREDITOREN_COLLECTION_ID
+        KREDITOREN_COLLECTION_ID,
+        [
+          Query.limit(5000) // Erhöhe Limit von 25 auf 5000
+        ]
       );
       
       return response.documents.map(doc => this.parseKreditorDocument(doc));
@@ -126,7 +130,10 @@ export const kreditorService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        OFFENE_RECHNUNGEN_COLLECTION_ID
+        OFFENE_RECHNUNGEN_COLLECTION_ID,
+        [
+          Query.limit(5000) // Erhöhe Limit von 25 auf 5000
+        ]
       );
       
       return response.documents.map(doc => this.parseRechnungsDocument(doc));

@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, ROUTEN_COLLECTION_ID } from '../config/appwrite';
 import { Route, NeueRoute } from '../types/dispo';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const routeService = {
   // Lade alle Routen
@@ -8,7 +8,10 @@ export const routeService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        ROUTEN_COLLECTION_ID
+        ROUTEN_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseDocument(doc));
@@ -30,12 +33,17 @@ export const routeService = {
         DATABASE_ID,
         ROUTEN_COLLECTION_ID,
         [
-          `datum >= ${tagStart.toISOString()}`,
-          `datum <= ${tagEnd.toISOString()}`,
+          Query.limit(5000)
         ]
       );
       
-      return response.documents.map(doc => this.parseDocument(doc));
+      const alleRouten = response.documents.map(doc => this.parseDocument(doc));
+      
+      // Client-seitige Filterung nach Datum
+      return alleRouten.filter(route => {
+        const routeDatum = new Date(route.datum);
+        return routeDatum >= tagStart && routeDatum <= tagEnd;
+      });
     } catch (error) {
       console.error('Fehler beim Laden der Routen:', error);
       return [];

@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, TODOS_COLLECTION_ID } from '../config/appwrite';
 import { Todo, NeuesTodo, TodoStatus } from '../types/todo';
-import { ID } from 'appwrite';
+import { ID, Query } from 'appwrite';
 
 export const todoService = {
   // Lade alle TODOs
@@ -8,7 +8,10 @@ export const todoService = {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        TODOS_COLLECTION_ID
+        TODOS_COLLECTION_ID,
+        [
+          Query.limit(5000)
+        ]
       );
       
       return response.documents.map(doc => this.parseTodoDocument(doc));
