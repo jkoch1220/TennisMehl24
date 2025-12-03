@@ -195,29 +195,6 @@ const KreditorenVerwaltung = () => {
           </div>
         )}
 
-        {/* Timeline */}
-        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
-
-        {/* Diagramme */}
-        {statistik && (
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Status-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Status" icon={PieChartIcon}>
-              <StatusDiagramm statistik={statistik} />
-            </DiagrammKarte>
-
-            {/* Kategorie-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Kategorie" icon={BarChart3}>
-              <KategorieDiagramm statistik={statistik} />
-            </DiagrammKarte>
-
-            {/* Unternehmen-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Unternehmen" icon={BarChart3}>
-              <UnternehmenDiagramm statistik={statistik} />
-            </DiagrammKarte>
-          </div>
-        )}
-
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -365,6 +342,29 @@ const KreditorenVerwaltung = () => {
             )}
           </div>
         </div>
+
+        {/* Timeline */}
+        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
+
+        {/* Diagramme */}
+        {statistik && (
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Status-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Status" icon={PieChartIcon}>
+              <StatusDiagramm statistik={statistik} />
+            </DiagrammKarte>
+
+            {/* Kategorie-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Kategorie" icon={BarChart3}>
+              <KategorieDiagramm statistik={statistik} />
+            </DiagrammKarte>
+
+            {/* Unternehmen-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Unternehmen" icon={BarChart3}>
+              <UnternehmenDiagramm statistik={statistik} />
+            </DiagrammKarte>
+          </div>
+        )}
 
         {/* Formular Modal */}
         {showFormular && (

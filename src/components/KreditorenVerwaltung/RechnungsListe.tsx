@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
 
@@ -19,9 +19,12 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
   const [showFilter, setShowFilter] = useState(false);
   const [suche, setSuche] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   useEffect(() => {
     applyFilters();
+    setCurrentPage(1); // Reset auf Seite 1 bei Filter-Änderung
   }, [rechnungen, filter, sortFeld, sortRichtung, suche]);
 
   const applyFilters = () => {
@@ -200,6 +203,20 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
     );
   };
 
+  // Paging: Nur anwenden wenn nicht gesucht wird
+  const hasActiveSearch = suche.trim() !== '' || 
+                          (filter.status && filter.status.length > 0) ||
+                          (filter.mahnstufe && filter.mahnstufe.length > 0) ||
+                          (filter.kategorie && filter.kategorie.length > 0) ||
+                          (filter.anUnternehmen && filter.anUnternehmen.length > 0) ||
+                          (filter.prioritaet && filter.prioritaet.length > 0);
+
+  const displayedRechnungen = hasActiveSearch 
+    ? filteredRechnungen 
+    : filteredRechnungen.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const totalPages = Math.ceil(filteredRechnungen.length / itemsPerPage);
+
   return (
     <div className="space-y-4">
       {/* Filter und Suche */}
@@ -374,14 +391,14 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRechnungen.length === 0 ? (
+              {displayedRechnungen.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                     Keine Rechnungen gefunden
                   </td>
                 </tr>
               ) : (
-                filteredRechnungen.map((rechnung) => {
+                displayedRechnungen.map((rechnung) => {
                   const tageBisFaellig = getTageBisFaellig(rechnung.faelligkeitsdatum);
                   const istUeberfaellig = tageBisFaellig < 0;
                   
@@ -564,6 +581,41 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             )}
           </div>
         </div>
+
+        {/* Pagination - nur anzeigen wenn kein aktiver Filter/Suche */}
+        {!hasActiveSearch && totalPages > 1 && (
+          <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Seite {currentPage} von {totalPages} ({filteredRechnungen.length} Rechnungen)
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-2 rounded-lg flex items-center gap-1 transition-colors ${
+                  currentPage === 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Zurück
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-2 rounded-lg flex items-center gap-1 transition-colors ${
+                  currentPage === totalPages
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Weiter
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
