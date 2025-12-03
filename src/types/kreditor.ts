@@ -10,7 +10,7 @@ export type RechnungsStatus =
   | 'inkasso';        // Rechnung im Inkasso
 
 // Mahnstufe
-export type Mahnstufe = 0 | 1 | 2 | 3 | 4 | 5; // 0 = keine Mahnung, 1-5 = Mahnstufen
+export type Mahnstufe = 0 | 1 | 2 | 3 | 4; // 0 = keine Mahnung, 1-3 = Mahnstufen, 4 = gerichtliches Mahnverfahren
 
 // Priorität für Bearbeitung
 export type Prioritaet = 'kritisch' | 'hoch' | 'normal' | 'niedrig';

@@ -106,8 +106,13 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
 
   // Automatische Prioritätsanpassung basierend auf Mahnstufe
   useEffect(() => {
-    if (formData.mahnstufe && formData.mahnstufe >= 3) {
-      // Ab Mahnstufe 3 automatisch auf "hoch" setzen, falls nicht schon "kritisch"
+    if (formData.mahnstufe === 4) {
+      // Gerichtliches Mahnverfahren (Mahnstufe 4) automatisch auf "kritisch" setzen
+      if (formData.prioritaet !== 'kritisch') {
+        setFormData(prev => ({ ...prev, prioritaet: 'kritisch' }));
+      }
+    } else if (formData.mahnstufe === 3) {
+      // 3. Mahnung automatisch auf "hoch" setzen, falls nicht schon "kritisch"
       if (formData.prioritaet !== 'kritisch' && formData.prioritaet !== 'hoch') {
         setFormData(prev => ({ ...prev, prioritaet: 'hoch' }));
       }
@@ -401,8 +406,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
                 <option value="1">1. Mahnung</option>
                 <option value="2">2. Mahnung</option>
                 <option value="3">3. Mahnung</option>
-                <option value="4">4. Mahnung</option>
-                <option value="5">5. Mahnung</option>
+                <option value="4">Gerichtliches Mahnverfahren</option>
               </select>
             </div>
 

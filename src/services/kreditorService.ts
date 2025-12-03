@@ -375,7 +375,7 @@ export const kreditorService = {
 
       // Initialisiere Statistik-Struktur
       const statusKeys: RechnungsStatus[] = ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug', 'inkasso', 'bezahlt', 'storniert'];
-      const mahnstufen: Mahnstufe[] = [0, 1, 2, 3, 4, 5];
+      const mahnstufen: Mahnstufe[] = [0, 1, 2, 3, 4];
       const kategorien: Rechnungskategorie[] = ['lieferanten', 'dienstleister', 'energie', 'miete', 'versicherung', 'steuern', 'sonstiges'];
       const unternehmen: Unternehmen[] = ['TennisMehl', 'Egner Bau'];
 

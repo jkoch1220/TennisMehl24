@@ -460,7 +460,11 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {rechnung.mahnstufe > 0 ? (
+                          {rechnung.mahnstufe === 4 ? (
+                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white">
+                              Gerichtlich
+                            </span>
+                          ) : rechnung.mahnstufe > 0 ? (
                             <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
                               {rechnung.mahnstufe}. Mahnung
                             </span>
