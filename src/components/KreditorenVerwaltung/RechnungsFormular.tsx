@@ -5,11 +5,12 @@ import { kreditorService } from '../../services/kreditorService';
 
 interface RechnungsFormularProps {
   rechnung?: OffeneRechnung | null;
+  defaultFirma?: Unternehmen;
   onSave: () => void;
   onCancel: () => void;
 }
 
-const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProps) => {
+const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCancel }: RechnungsFormularProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplikatWarnung, setDuplikatWarnung] = useState<{ existiert: boolean; kreditorName?: string } | null>(null);
@@ -36,6 +37,16 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     kommentar: '',
     zahlungsreferenz: '',
   });
+
+  // Setze Default-Firma wenn neue Rechnung erstellt wird
+  useEffect(() => {
+    if (!rechnung) {
+      setFormData(prev => ({
+        ...prev,
+        anUnternehmen: defaultFirma
+      }));
+    }
+  }, [rechnung, defaultFirma]);
 
   useEffect(() => {
     if (rechnung) {
@@ -186,7 +197,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         spaetestensBearbeitenAm: formData.spaetestensBearbeitenAm ? new Date(formData.spaetestensBearbeitenAm).toISOString() : undefined,
         prioritaet: formData.prioritaet || 'normal',
         kategorie: formData.kategorie || 'sonstiges',
-        anUnternehmen: formData.anUnternehmen || 'Egner Bau',
+        anUnternehmen: formData.anUnternehmen || defaultFirma,
         kommentar: formData.kommentar || undefined,
         zahlungsreferenz: formData.zahlungsreferenz || undefined,
       };

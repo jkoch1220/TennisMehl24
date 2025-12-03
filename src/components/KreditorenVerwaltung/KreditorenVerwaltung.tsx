@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon } from 'lucide-react';
-import { OffeneRechnung, KreditorenStatistik } from '../../types/kreditor';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2 } from 'lucide-react';
+import { OffeneRechnung, KreditorenStatistik, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
 import RechnungsFormular from './RechnungsFormular';
@@ -16,10 +16,21 @@ const KreditorenVerwaltung = () => {
   const [selectedRechnung, setSelectedRechnung] = useState<OffeneRechnung | null>(null);
   const [activeTab, setActiveTab] = useState<'offen' | 'bezahlt'>('offen');
   const [showDetail, setShowDetail] = useState(false);
+  
+  // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
+  const [defaultFirma, setDefaultFirma] = useState<Unternehmen>(() => {
+    const saved = localStorage.getItem('kreditor_default_firma');
+    return (saved as Unternehmen) || 'Egner Bau';
+  });
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Speichere Default-Firma in localStorage
+  useEffect(() => {
+    localStorage.setItem('kreditor_default_firma', defaultFirma);
+  }, [defaultFirma]);
 
   const loadData = async () => {
     setLoading(true);
@@ -115,7 +126,21 @@ const KreditorenVerwaltung = () => {
             <h1 className="text-3xl font-bold text-gray-900">Kreditoren-Verwaltung</h1>
             <p className="text-gray-600 mt-1">Verwaltung offener Rechnungen und Kreditoren</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center flex-wrap">
+            {/* Default-Firma Auswahl */}
+            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2">
+              <Building2 className="w-5 h-5 text-gray-500" />
+              <label className="text-sm font-medium text-gray-700">Standard:</label>
+              <select
+                value={defaultFirma}
+                onChange={(e) => setDefaultFirma(e.target.value as Unternehmen)}
+                className="border-none bg-transparent text-sm font-semibold text-gray-900 focus:outline-none cursor-pointer"
+              >
+                <option value="Egner Bau">Egner Bau</option>
+                <option value="TennisMehl">TennisMehl</option>
+              </select>
+            </div>
+            
             <button
               onClick={loadData}
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -169,6 +194,9 @@ const KreditorenVerwaltung = () => {
             />
           </div>
         )}
+
+        {/* Timeline */}
+        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
 
         {/* Diagramme */}
         {statistik && (
@@ -338,13 +366,11 @@ const KreditorenVerwaltung = () => {
           </div>
         </div>
 
-        {/* Timeline */}
-        <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
-
         {/* Formular Modal */}
         {showFormular && (
           <RechnungsFormular
             rechnung={selectedRechnung}
+            defaultFirma={defaultFirma}
             onSave={handleSave}
             onCancel={() => {
               setShowFormular(false);
