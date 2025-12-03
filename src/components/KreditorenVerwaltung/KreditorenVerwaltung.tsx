@@ -684,6 +684,7 @@ const KategorieDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) =>
     miete: 'Miete',
     versicherung: 'Versicherung',
     steuern: 'Steuern',
+    darlehen: 'Darlehen',
     sonstiges: 'Sonstiges',
   };
 
@@ -694,6 +695,7 @@ const KategorieDiagramm = ({ statistik }: { statistik: KreditorenStatistik }) =>
     miete: '#22c55e',
     versicherung: '#6366f1',
     steuern: '#ef4444',
+    darlehen: '#f97316',
     sonstiges: '#6b7280',
   };
 

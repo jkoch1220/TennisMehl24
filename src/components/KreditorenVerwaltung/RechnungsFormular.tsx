@@ -464,6 +464,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 <option value="miete">Miete</option>
                 <option value="versicherung">Versicherung</option>
                 <option value="steuern">Steuern</option>
+                <option value="darlehen">Darlehen</option>
                 <option value="sonstiges">Sonstiges</option>
               </select>
             </div>

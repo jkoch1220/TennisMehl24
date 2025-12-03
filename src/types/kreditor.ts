@@ -35,6 +35,7 @@ export type Rechnungskategorie =
   | 'miete'
   | 'versicherung'
   | 'steuern'
+  | 'darlehen'
   | 'sonstiges';
 
 // Kreditor/Glaubiger Interface
