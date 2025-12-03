@@ -38,6 +38,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   const [aktivitaetBeschreibung, setAktivitaetBeschreibung] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [telefonnummer, setTelefonnummer] = useState<string | null>(null);
 
   // Tilgung States
   const [showAddZahlung, setShowAddZahlung] = useState(false);
@@ -51,7 +52,25 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
   useEffect(() => {
     loadAktivitaeten();
+    loadKreditorTelefon();
   }, [rechnung.id]);
+
+  const loadKreditorTelefon = async () => {
+    try {
+      // Suche Kreditor anhand des Namens
+      const alleKreditoren = await kreditorService.loadAlleKreditoren();
+      const kreditor = alleKreditoren.find(k => 
+        k.name.toLowerCase().trim() === rechnung.kreditorName.toLowerCase().trim()
+      );
+      
+      if (kreditor) {
+        const tel = kreditor.telefon || kreditor.kontakt?.telefon;
+        setTelefonnummer(tel || null);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Telefonnummer:', error);
+    }
+  };
 
   const loadAktivitaeten = async () => {
     setLoading(true);
@@ -271,6 +290,24 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
               <p className="text-white/80 text-sm">
                 {rechnung.rechnungsnummer || 'Keine Rechnungsnummer'} • {rechnung.betreff || 'Kein Betreff'}
               </p>
+              {telefonnummer && (
+                <div className="flex items-center gap-2 mt-1">
+                  <Phone className="w-4 h-4 text-white/60" />
+                  <a 
+                    href={`tel:${telefonnummer}`}
+                    className="text-white/80 text-sm hover:text-white transition-colors"
+                  >
+                    {telefonnummer}
+                  </a>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(telefonnummer)}
+                    className="text-white/60 hover:text-white transition-colors text-xs"
+                    title="Kopieren"
+                  >
+                    📋
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">

@@ -64,11 +64,11 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
     }
   };
 
-  const handleSave = async () => {
-    if (!currentRechnung?.kreditorId) {
-      console.log('Kein Kreditor-ID, überspringe...');
-      handleNext();
-      return;
+  const handleSave = async (e?: React.FormEvent) => {
+    // Verhindere Form-Submit und Event-Bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
 
     if (!telefonnummer.trim()) {
@@ -77,49 +77,68 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
       return;
     }
 
+    if (!currentRechnung) {
+      console.error('Keine Rechnung vorhanden');
+      return;
+    }
+
     setSaving(true);
     try {
-      console.log('Speichere Telefonnummer:', telefonnummer.trim(), 'für Kreditor:', currentRechnung.kreditorId);
+      console.log('=== START SPEICHERN ===');
+      console.log('Kreditorname aus Rechnung:', currentRechnung.kreditorName);
+      console.log('Telefonnummer:', telefonnummer.trim());
       
-      // Lade Kreditor
-      const kreditor = await kreditorService.loadKreditor(currentRechnung.kreditorId);
+      // Suche oder erstelle Kreditor mit dem Namen aus der Rechnung
+      const alleKreditoren = await kreditorService.loadAlleKreditoren();
+      let kreditor = alleKreditoren.find(k => 
+        k.name.toLowerCase().trim() === currentRechnung.kreditorName.toLowerCase().trim()
+      );
       
       if (!kreditor) {
-        console.error('Kreditor nicht gefunden!');
-        alert('Kreditor konnte nicht geladen werden');
-        setSaving(false);
-        return;
-      }
-
-      console.log('Kreditor geladen:', kreditor);
-      
-      // Update mit Telefonnummer (sowohl in telefon als auch in kontakt.telefon)
-      const updatedKreditor = await kreditorService.updateKreditor(kreditor.id, {
-        ...kreditor,
-        telefon: telefonnummer.trim(),
-        kontakt: {
-          ...kreditor.kontakt,
+        // Erstelle neuen Kreditor mit Namen aus Rechnung
+        console.log('Erstelle neuen Kreditor:', currentRechnung.kreditorName);
+        kreditor = await kreditorService.createKreditor({
+          name: currentRechnung.kreditorName,
           telefon: telefonnummer.trim(),
-        },
-      });
+          kontakt: {
+            telefon: telefonnummer.trim(),
+          },
+        });
+        console.log('Neuer Kreditor erstellt:', kreditor.id);
+        
+        // Verknüpfe Rechnung mit Kreditor
+        await kreditorService.updateRechnung(currentRechnung.id, {
+          kreditorId: kreditor.id,
+        });
+      } else {
+        // Update existierenden Kreditor
+        console.log('Kreditor gefunden, aktualisiere:', kreditor.id);
+        await kreditorService.updateKreditor(kreditor.id, {
+          ...kreditor,
+          telefon: telefonnummer.trim(),
+          kontakt: {
+            ...kreditor.kontakt,
+            telefon: telefonnummer.trim(),
+          },
+        });
+        console.log('Kreditor aktualisiert');
+      }
       
-      console.log('Telefonnummer gespeichert!', updatedKreditor);
+      console.log('=== ERFOLGREICH GESPEICHERT ===');
       
       // Zeige Erfolgs-Feedback
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 1500);
       
-      onUpdate();
-
-      // Warte kurz bevor zur nächsten gewechselt wird
-      setTimeout(() => {
-        handleNext();
-      }, 300);
-    } catch (error) {
-      console.error('Fehler beim Speichern:', error);
-      alert('Fehler beim Speichern der Telefonnummer: ' + (error as Error).message);
+      // Warte kurz und gehe zur nächsten
+      await new Promise(resolve => setTimeout(resolve, 400));
       setSaving(false);
-    } finally {
+      onUpdate();
+      handleNext();
+      
+    } catch (error) {
+      console.error('=== FEHLER BEIM SPEICHERN ===', error);
+      alert('Fehler beim Speichern der Telefonnummer: ' + (error as Error).message);
       setSaving(false);
     }
   };
