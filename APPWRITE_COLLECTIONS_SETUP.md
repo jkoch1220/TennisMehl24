@@ -22,6 +22,8 @@ Die folgenden Collections müssen in Appwrite erstellt werden:
 8. **konkurrenten** - Für die Konkurrenten-Verwaltung und Lieferkosten-Analyse
 9. **tickets** - Für Verbesserungsvorschläge/Tickets
 10. **todos** - Für die TODO-Verwaltung
+11. **wiki_pages** - Für Wiki-Seiten
+12. **wiki_files** - Für Wiki-Dateianhänge
 
 ## Schritt-für-Schritt Anleitung
 
@@ -169,6 +171,66 @@ Für jede Collection führen Sie folgende Schritte aus:
    - Required: **Nein**
    - Size: `100000`
    - Klicken Sie auf **"Create"**
+
+#### Collection: `wiki_pages`
+
+1. Klicken Sie auf **"Create Collection"**
+2. Collection ID: `wiki_pages`
+3. Name: `Wiki Seiten`
+4. Klicken Sie auf **"Create"**
+5. Erstellen Sie folgende Attribute:
+
+| Key | Typ | Size | Required | Default |
+|-----|-----|------|----------|---------|
+| `title` | String | 500 | Ja | - |
+| `slug` | String | 500 | Ja | - |
+| `content` | String | 1000000 | Nein | - |
+| `description` | String | 1000 | Nein | - |
+| `icon` | String | 10 | Nein | 📄 |
+| `sortOrder` | Integer | - | Nein | 0 |
+| `isPublished` | Boolean | - | Nein | true |
+| `parentId` | String | 100 | Nein | - |
+| `createdBy` | String | 100 | Nein | - |
+| `lastEditedBy` | String | 100 | Nein | - |
+
+6. **Index erstellen** für schnelle Suche:
+   - Klicken Sie auf **"Indexes"**
+   - Erstellen Sie einen Index auf `slug` (Unique)
+   - Erstellen Sie einen Index auf `sortOrder`
+
+#### Collection: `wiki_files`
+
+1. Klicken Sie auf **"Create Collection"**
+2. Collection ID: `wiki_files`
+3. Name: `Wiki Dateien`
+4. Klicken Sie auf **"Create"**
+5. Erstellen Sie folgende Attribute:
+
+| Key | Typ | Size | Required |
+|-----|-----|------|----------|
+| `pageId` | String | 100 | Ja |
+| `fileName` | String | 500 | Ja |
+| `fileId` | String | 100 | Ja |
+| `mimeType` | String | 100 | Ja |
+| `size` | Integer | - | Ja |
+
+6. **Index erstellen**:
+   - Erstellen Sie einen Index auf `pageId`
+
+### Storage Bucket für Wiki-Dateien erstellen
+
+1. Gehen Sie zu **"Storage"** im linken Menü
+2. Klicken Sie auf **"Create Bucket"**
+3. Bucket ID: `wiki-dateien`
+4. Name: `Wiki Dateien`
+5. Maximale Dateigröße: `50000000` (50 MB)
+6. Erlaubte Dateierweiterungen: `pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,jpg,jpeg,png,gif,webp,svg,zip,rar`
+7. Aktivieren Sie **File security**
+8. Setzen Sie die Berechtigungen:
+   - Read: `users` oder `any`
+   - Create: `users`
+   - Update: `users`
+   - Delete: `users`
 
 ## Berechtigungen setzen
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
 import VorschlagButton from './Tickets/VorschlagButton';
@@ -16,6 +16,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'Startseite', href: '/', icon: Home },
     { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
     { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
+    { name: 'Wiki', href: '/wiki', icon: BookOpen },
     { name: 'Konkurrenten-Karte', href: '/konkurrenten', icon: MapPin },
     { name: 'Kunden-Karte', href: '/kunden-karte', icon: Users },
     { name: 'Vorschläge', href: '/vorschlaege', icon: MessageSquare },
@@ -153,8 +154,8 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       </footer>
 
-      {/* Global Vorschlag Button */}
-      <VorschlagButton />
+      {/* Global Vorschlag Button - nicht auf TODOs-Seite anzeigen */}
+      {location.pathname !== '/todos' && <VorschlagButton />}
     </div>
   );
 };

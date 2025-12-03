@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
@@ -9,9 +9,10 @@ interface RechnungsListeProps {
   onEdit: (rechnung: OffeneRechnung) => void;
   onDelete: (id: string) => void;
   onRefresh: () => void;
+  onOpenDetail?: (rechnung: OffeneRechnung) => void;
 }
 
-const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsListeProps) => {
+const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail }: RechnungsListeProps) => {
   const [filteredRechnungen, setFilteredRechnungen] = useState<OffeneRechnung[]>([]);
   const [filter, setFilter] = useState<RechnungsFilter>({});
   const [sortFeld, setSortFeld] = useState<SortierFeld>('faelligkeitsdatum');
@@ -296,9 +297,10 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsLi
                     <>
                       <tr
                         key={rechnung.id}
-                        className={`hover:bg-gray-50 ${
+                        onClick={() => onOpenDetail?.(rechnung)}
+                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
                           istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
-                            ? 'bg-red-50'
+                            ? 'bg-red-50 hover:bg-red-100'
                             : ''
                         }`}
                       >
@@ -384,6 +386,16 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsLi
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                onOpenDetail?.(rechnung);
+                              }}
+                              className="text-purple-600 hover:text-purple-900 hover:bg-purple-100 p-1.5 rounded transition-colors"
+                              title="Details anzeigen"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const newExpanded = new Set(expandedRows);
                                 if (newExpanded.has(rechnung.id)) {
                                   newExpanded.delete(rechnung.id);
@@ -393,7 +405,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsLi
                                 setExpandedRows(newExpanded);
                               }}
                               className="text-green-700 hover:text-green-900 hover:bg-green-100 p-1.5 rounded transition-colors border border-green-200 hover:border-green-300"
-                              title="Zahlung hinzufügen"
+                              title="Schnelle Zahlung"
                             >
                               {expandedRows.has(rechnung.id) ? (
                                 <ChevronUp className="w-5 h-5 stroke-2" />
@@ -406,7 +418,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsLi
                                 e.stopPropagation();
                                 onEdit(rechnung);
                               }}
-                              className="text-blue-600 hover:text-blue-900 transition-colors"
+                              className="text-blue-600 hover:text-blue-900 hover:bg-blue-100 p-1.5 rounded transition-colors"
                               title="Bearbeiten"
                             >
                               <Edit className="w-5 h-5" />
@@ -414,11 +426,11 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh }: RechnungsLi
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (window.confirm('Möchten Sie diese Rechnung wirklich löschen?')) {
+                                if (window.confirm('Möchten Sie diese Rechnung wirklich löschen? Alle Aktivitäten und hochgeladenen Dateien werden ebenfalls gelöscht.')) {
                                   onDelete(rechnung.id);
                                 }
                               }}
-                              className="text-red-600 hover:text-red-900 transition-colors"
+                              className="text-red-600 hover:text-red-900 hover:bg-red-100 p-1.5 rounded transition-colors"
                               title="Löschen"
                             >
                               <Trash2 className="w-5 h-5" />

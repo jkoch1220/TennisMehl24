@@ -121,6 +121,32 @@ export const kreditorService = {
 
   // ========== RECHNUNGEN VERWALTUNG ==========
 
+  // Prüfe ob Rechnungsnummer bereits existiert
+  async pruefeRechnungsnummerDuplikat(
+    rechnungsnummer: string, 
+    excludeId?: string
+  ): Promise<{ existiert: boolean; rechnung?: OffeneRechnung }> {
+    if (!rechnungsnummer || rechnungsnummer.trim() === '') {
+      return { existiert: false };
+    }
+
+    try {
+      const alleRechnungen = await this.loadAlleRechnungen();
+      const duplikat = alleRechnungen.find(
+        r => r.rechnungsnummer?.toLowerCase().trim() === rechnungsnummer.toLowerCase().trim() 
+          && r.id !== excludeId
+      );
+
+      return {
+        existiert: !!duplikat,
+        rechnung: duplikat,
+      };
+    } catch (error) {
+      console.error('Fehler bei der Duplikat-Prüfung:', error);
+      return { existiert: false };
+    }
+  },
+
   // Lade alle Rechnungen
   async loadAlleRechnungen(): Promise<OffeneRechnung[]> {
     try {

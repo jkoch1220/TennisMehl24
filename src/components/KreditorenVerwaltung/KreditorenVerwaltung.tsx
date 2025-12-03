@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
+import { aktivitaetService } from '../../services/aktivitaetService';
 import RechnungsFormular from './RechnungsFormular';
 import RechnungsListe from './RechnungsListe';
+import RechnungsDetail from './RechnungsDetail';
 import FaelligkeitsTimeline from './FaelligkeitsTimeline';
 
 const KreditorenVerwaltung = () => {
@@ -12,6 +14,7 @@ const KreditorenVerwaltung = () => {
   const [loading, setLoading] = useState(true);
   const [showFormular, setShowFormular] = useState(false);
   const [selectedRechnung, setSelectedRechnung] = useState<OffeneRechnung | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -42,10 +45,35 @@ const KreditorenVerwaltung = () => {
   const handleEdit = (rechnung: OffeneRechnung) => {
     setSelectedRechnung(rechnung);
     setShowFormular(true);
+    setShowDetail(false);
+  };
+
+  const handleOpenDetail = (rechnung: OffeneRechnung) => {
+    setSelectedRechnung(rechnung);
+    setShowDetail(true);
+  };
+
+  const handleCloseDetail = () => {
+    setShowDetail(false);
+    setSelectedRechnung(null);
+  };
+
+  const handleDetailUpdate = async () => {
+    // Rechnung neu laden für aktualisierte Daten
+    if (selectedRechnung) {
+      const updated = await kreditorService.loadRechnung(selectedRechnung.id);
+      if (updated) {
+        setSelectedRechnung(updated);
+      }
+    }
+    loadData();
   };
 
   const handleDelete = async (id: string) => {
     try {
+      // Erst alle Aktivitäten löschen
+      await aktivitaetService.deleteAktivitaetenFuerRechnung(id);
+      // Dann die Rechnung löschen
       await kreditorService.deleteRechnung(id);
       loadData();
     } catch (error) {
@@ -171,7 +199,7 @@ const KreditorenVerwaltung = () => {
                   <div
                     key={rechnung.id}
                     className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => handleEdit(rechnung)}
+                    onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
                       <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
@@ -251,6 +279,7 @@ const KreditorenVerwaltung = () => {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onRefresh={loadData}
+          onOpenDetail={handleOpenDetail}
         />
 
         {/* Formular Modal */}
@@ -262,6 +291,16 @@ const KreditorenVerwaltung = () => {
               setShowFormular(false);
               setSelectedRechnung(null);
             }}
+          />
+        )}
+
+        {/* Detail Modal */}
+        {showDetail && selectedRechnung && (
+          <RechnungsDetail
+            rechnung={selectedRechnung}
+            onClose={handleCloseDetail}
+            onEdit={() => handleEdit(selectedRechnung)}
+            onUpdate={handleDetailUpdate}
           />
         )}
       </div>

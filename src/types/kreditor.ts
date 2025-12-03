@@ -144,3 +144,34 @@ export type SortierFeld =
   | 'kreditorName';
 
 export type SortierRichtung = 'asc' | 'desc';
+
+// Aktivitäts-Typen für den Verlauf (wie Salesforce)
+export type AktivitaetsTyp = 
+  | 'email'             // E-Mail-Verkehr
+  | 'telefonat'         // Telefonat
+  | 'kommentar'         // Kommentar/Notiz
+  | 'datei'             // Datei hochgeladen
+  | 'zahlung'           // Zahlung/Tilgung
+  | 'status_aenderung'  // Status geändert
+  | 'mahnung'           // Mahnung erhalten/gesendet
+  | 'rate_anpassung';   // Monatliche Rate angepasst
+
+// Aktivität für den Rechnungsverlauf
+export interface RechnungsAktivitaet {
+  id: string;
+  rechnungId: string;              // Referenz zur Rechnung
+  typ: AktivitaetsTyp;
+  titel: string;                   // z.B. "E-Mail gesendet", "Telefonat mit Hr. Müller"
+  beschreibung?: string;           // Detaillierte Beschreibung
+  dateiId?: string;                // Referenz zur Datei im Storage (falls Datei)
+  dateiName?: string;              // Original-Dateiname
+  dateiTyp?: string;               // MIME-Type
+  dateiGroesse?: number;           // Dateigröße in Bytes
+  erstelltAm: string;              // ISO Date String
+  erstelltVon?: string;            // Wer hat die Aktivität erstellt
+}
+
+// Neue Aktivität (ohne ID für Erstellung)
+export type NeueRechnungsAktivitaet = Omit<RechnungsAktivitaet, 'id' | 'erstelltAm'> & {
+  erstelltAm?: string;
+};

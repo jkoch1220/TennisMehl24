@@ -11,6 +11,7 @@ import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVe
 import KonkurrentenVerwaltung from './components/KonkurrentenKarte/KonkurrentenVerwaltung';
 import Vorschlaege from './components/Tickets/Vorschlaege';
 import Todos from './components/Todos/Todos';
+import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
@@ -68,6 +69,7 @@ function App() {
           <Route path="/kunden-karte" element={<KundenKarte />} />
           <Route path="/vorschlaege" element={<Vorschlaege />} />
           <Route path="/todos" element={<Todos />} />
+          <Route path="/wiki" element={<Wiki />} />
           {/* Legacy route redirect */}
           <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
         </Routes>

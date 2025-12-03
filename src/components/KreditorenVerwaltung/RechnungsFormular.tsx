@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Save, AlertCircle, AlertTriangle } from 'lucide-react';
 import { OffeneRechnung, NeueOffeneRechnung, RechnungsStatus, Rechnungskategorie, Prioritaet, Mahnstufe, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 
@@ -12,6 +12,8 @@ interface RechnungsFormularProps {
 const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplikatWarnung, setDuplikatWarnung] = useState<{ existiert: boolean; kreditorName?: string } | null>(null);
+  const [checkingDuplikat, setCheckingDuplikat] = useState(false);
   
   const [formData, setFormData] = useState<Partial<NeueOffeneRechnung>>({
     rechnungsnummer: '',
@@ -60,6 +62,46 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     }
   }, [rechnung]);
 
+  // Duplikat-Prüfung mit Debounce
+  const checkDuplikat = useCallback(async (rechnungsnummer: string) => {
+    if (!rechnungsnummer || rechnungsnummer.trim() === '') {
+      setDuplikatWarnung(null);
+      return;
+    }
+
+    setCheckingDuplikat(true);
+    try {
+      const result = await kreditorService.pruefeRechnungsnummerDuplikat(
+        rechnungsnummer,
+        rechnung?.id // Bei Bearbeitung die eigene ID ausschließen
+      );
+      
+      if (result.existiert && result.rechnung) {
+        setDuplikatWarnung({
+          existiert: true,
+          kreditorName: result.rechnung.kreditorName,
+        });
+      } else {
+        setDuplikatWarnung(null);
+      }
+    } catch (err) {
+      console.error('Fehler bei Duplikat-Prüfung:', err);
+    } finally {
+      setCheckingDuplikat(false);
+    }
+  }, [rechnung?.id]);
+
+  // Debounced Duplikat-Prüfung
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.rechnungsnummer) {
+        checkDuplikat(formData.rechnungsnummer);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.rechnungsnummer, checkDuplikat]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -76,6 +118,18 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
 
       if (!formData.faelligkeitsdatum) {
         throw new Error('Bitte geben Sie ein Fälligkeitsdatum ein');
+      }
+
+      // Duplikat-Prüfung vor dem Speichern
+      if (formData.rechnungsnummer && formData.rechnungsnummer.trim() !== '') {
+        const duplikatCheck = await kreditorService.pruefeRechnungsnummerDuplikat(
+          formData.rechnungsnummer,
+          rechnung?.id
+        );
+        
+        if (duplikatCheck.existiert) {
+          throw new Error(`Diese Rechnungsnummer existiert bereits bei "${duplikatCheck.rechnung?.kreditorName}". Bitte verwenden Sie eine andere Rechnungsnummer.`);
+        }
       }
 
       const rechnungsDaten: NeueOffeneRechnung = {
@@ -174,13 +228,32 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Rechnungsnummer
               </label>
-              <input
-                type="text"
-                value={formData.rechnungsnummer || ''}
-                onChange={(e) => setFormData({ ...formData, rechnungsnummer: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                placeholder="z.B. RE-2025-001"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.rechnungsnummer || ''}
+                  onChange={(e) => setFormData({ ...formData, rechnungsnummer: e.target.value })}
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${
+                    duplikatWarnung?.existiert 
+                      ? 'border-orange-400 bg-orange-50' 
+                      : 'border-gray-300'
+                  }`}
+                  placeholder="z.B. RE-2025-001"
+                />
+                {checkingDuplikat && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                  </div>
+                )}
+              </div>
+              {duplikatWarnung?.existiert && (
+                <div className="mt-2 flex items-center gap-2 text-orange-600 text-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>
+                    Diese Rechnungsnummer existiert bereits bei "{duplikatWarnung.kreditorName}"
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Betreff */}
