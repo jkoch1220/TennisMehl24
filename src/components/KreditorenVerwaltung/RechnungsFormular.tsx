@@ -104,6 +104,16 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
     return () => clearTimeout(timer);
   }, [formData.rechnungsnummer, checkDuplikat]);
 
+  // Automatische Prioritätsanpassung basierend auf Mahnstufe
+  useEffect(() => {
+    if (formData.mahnstufe && formData.mahnstufe >= 3) {
+      // Ab Mahnstufe 3 automatisch auf "hoch" setzen, falls nicht schon "kritisch"
+      if (formData.prioritaet !== 'kritisch' && formData.prioritaet !== 'hoch') {
+        setFormData(prev => ({ ...prev, prioritaet: 'hoch' }));
+      }
+    }
+  }, [formData.mahnstufe]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
