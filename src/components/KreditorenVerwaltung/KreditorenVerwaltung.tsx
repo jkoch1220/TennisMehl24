@@ -195,6 +195,26 @@ const KreditorenVerwaltung = () => {
           </div>
         )}
 
+        {/* Diagramme */}
+        {statistik && (
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Status-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Status" icon={PieChartIcon}>
+              <StatusDiagramm statistik={statistik} />
+            </DiagrammKarte>
+
+            {/* Kategorie-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Kategorie" icon={BarChart3}>
+              <KategorieDiagramm statistik={statistik} />
+            </DiagrammKarte>
+
+            {/* Unternehmen-Verteilung */}
+            <DiagrammKarte title="Verteilung nach Unternehmen" icon={BarChart3}>
+              <UnternehmenDiagramm statistik={statistik} />
+            </DiagrammKarte>
+          </div>
+        )}
+
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -235,6 +255,65 @@ const KreditorenVerwaltung = () => {
             </div>
           </div>
         )}
+
+        {/* Tabs für Offene/Bezahlte Rechnungen */}
+        <div className="bg-white rounded-lg shadow-lg">
+          <div className="border-b border-gray-200">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('offen')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'offen'
+                    ? 'text-red-600 border-b-2 border-red-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>Offene Rechnungen</span>
+                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold">
+                    {offeneRechnungen.length}
+                  </span>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('bezahlt')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'bezahlt'
+                    ? 'text-green-600 border-b-2 border-green-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span>Bezahlte Rechnungen</span>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                    {bezahlteRechnungen.length}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Rechnungsliste */}
+          <div className="p-6">
+            {activeTab === 'offen' ? (
+              <RechnungsListe
+                rechnungen={offeneRechnungen}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={loadData}
+                onOpenDetail={handleOpenDetail}
+              />
+            ) : (
+              <RechnungsListe
+                rechnungen={bezahlteRechnungen}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={loadData}
+                onOpenDetail={handleOpenDetail}
+              />
+            )}
+          </div>
+        </div>
 
         {/* Nächste Fälligkeiten */}
         {statistik && statistik.naechsteFaelligkeiten.length > 0 && (
@@ -345,26 +424,6 @@ const KreditorenVerwaltung = () => {
 
         {/* Timeline */}
         <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
-
-        {/* Diagramme */}
-        {statistik && (
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Status-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Status" icon={PieChartIcon}>
-              <StatusDiagramm statistik={statistik} />
-            </DiagrammKarte>
-
-            {/* Kategorie-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Kategorie" icon={BarChart3}>
-              <KategorieDiagramm statistik={statistik} />
-            </DiagrammKarte>
-
-            {/* Unternehmen-Verteilung */}
-            <DiagrammKarte title="Verteilung nach Unternehmen" icon={BarChart3}>
-              <UnternehmenDiagramm statistik={statistik} />
-            </DiagrammKarte>
-          </div>
-        )}
 
         {/* Formular Modal */}
         {showFormular && (
