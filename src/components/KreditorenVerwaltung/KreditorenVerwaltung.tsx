@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2 } from 'lucide-react';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2, Phone } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
@@ -7,6 +7,7 @@ import RechnungsFormular from './RechnungsFormular';
 import RechnungsListe from './RechnungsListe';
 import RechnungsDetail from './RechnungsDetail';
 import FaelligkeitsTimeline from './FaelligkeitsTimeline';
+import TelefonnummernSchnellerfassung from './TelefonnummernSchnellerfassung';
 
 const KreditorenVerwaltung = () => {
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -16,6 +17,7 @@ const KreditorenVerwaltung = () => {
   const [selectedRechnung, setSelectedRechnung] = useState<OffeneRechnung | null>(null);
   const [activeTab, setActiveTab] = useState<'offen' | 'bezahlt'>('offen');
   const [showDetail, setShowDetail] = useState(false);
+  const [showTelefonErfassung, setShowTelefonErfassung] = useState(false);
   
   // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
   const [defaultFirma, setDefaultFirma] = useState<Unternehmen>(() => {
@@ -147,6 +149,14 @@ const KreditorenVerwaltung = () => {
             >
               <RefreshCw className="w-5 h-5" />
               Aktualisieren
+            </button>
+            <button
+              onClick={() => setShowTelefonErfassung(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              title="Telefonnummern schnell erfassen"
+            >
+              <Phone className="w-5 h-5" />
+              📞 Telefon-Erfassung
             </button>
             <button
               onClick={() => {
@@ -386,6 +396,15 @@ const KreditorenVerwaltung = () => {
             onClose={handleCloseDetail}
             onEdit={() => handleEdit(selectedRechnung)}
             onUpdate={handleDetailUpdate}
+          />
+        )}
+
+        {/* Telefonnummern-Schnellerfassung */}
+        {showTelefonErfassung && (
+          <TelefonnummernSchnellerfassung
+            rechnungen={offeneRechnungen}
+            onClose={() => setShowTelefonErfassung(false)}
+            onUpdate={loadData}
           />
         )}
       </div>

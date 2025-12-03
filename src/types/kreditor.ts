@@ -43,6 +43,7 @@ export interface Kreditor {
   id: string;
   name: string;
   kreditorennummer?: string;
+  telefon?: string; // Direkte Telefonnummer für schnelle Erfassung
   kontakt?: {
     ansprechpartner?: string;
     telefon?: string;
