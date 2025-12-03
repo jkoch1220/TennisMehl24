@@ -112,7 +112,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         setFormData(prev => ({ ...prev, status: 'gemahnt' }));
       }
     }
-  }, [formData.mahnstufe]);
+  }, [formData.mahnstufe, formData.status]);
 
   // Automatische Prioritätsanpassung basierend auf Mahnstufe
   useEffect(() => {
@@ -127,7 +127,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         setFormData(prev => ({ ...prev, prioritaet: 'hoch' }));
       }
     }
-  }, [formData.mahnstufe]);
+  }, [formData.mahnstufe, formData.prioritaet]);
 
   // Automatische Prioritätsanpassung bei Inkasso-Status
   useEffect(() => {
@@ -137,7 +137,7 @@ const RechnungsFormular = ({ rechnung, onSave, onCancel }: RechnungsFormularProp
         setFormData(prev => ({ ...prev, prioritaet: 'kritisch' }));
       }
     }
-  }, [formData.status]);
+  }, [formData.status, formData.prioritaet]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
