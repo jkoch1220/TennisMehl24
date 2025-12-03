@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Phone, ChevronRight, ChevronLeft, Check, Copy, CheckCheck } from 'lucide-react';
+import { X, Phone, ChevronRight, ChevronLeft, Check, Copy, CheckCheck, Search, Filter as FilterIcon } from 'lucide-react';
 import { OffeneRechnung } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 
@@ -14,10 +14,28 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   const [telefonnummer, setTelefonnummer] = useState('');
   const [saving, setSaving] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [filterKreditor, setFilterKreditor] = useState('');
+  const [filterUnternehmen, setFilterUnternehmen] = useState<'alle' | 'TennisMehl' | 'Egner Bau'>('alle');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const currentRechnung = rechnungen[currentIndex];
-  const progress = ((currentIndex + 1) / rechnungen.length) * 100;
+  // Gefilterte Rechnungen
+  const filteredRechnungen = rechnungen.filter(r => {
+    const matchKreditor = !filterKreditor || 
+      r.kreditorName.toLowerCase().includes(filterKreditor.toLowerCase()) ||
+      r.rechnungsnummer?.toLowerCase().includes(filterKreditor.toLowerCase());
+    
+    const matchUnternehmen = filterUnternehmen === 'alle' || r.anUnternehmen === filterUnternehmen;
+    
+    return matchKreditor && matchUnternehmen;
+  });
+
+  const currentRechnung = filteredRechnungen[currentIndex];
+  const progress = filteredRechnungen.length > 0 ? ((currentIndex + 1) / filteredRechnungen.length) * 100 : 0;
+
+  // Reset Index beim Filtern
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [filterKreditor, filterUnternehmen]);
 
   useEffect(() => {
     // Auto-focus auf Input
@@ -74,7 +92,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
   };
 
   const handleNext = () => {
-    if (currentIndex < rechnungen.length - 1) {
+    if (currentIndex < filteredRechnungen.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setTelefonnummer('');
     } else {
@@ -120,7 +138,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header mit Progress */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-xl">
           <div className="flex justify-between items-center mb-3">
@@ -129,7 +147,12 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
               <div>
                 <h2 className="text-xl font-bold">Telefonnummern-Schnellerfassung</h2>
                 <p className="text-blue-100 text-sm">
-                  {currentIndex + 1} von {rechnungen.length} Rechnungen
+                  {filteredRechnungen.length > 0 ? (
+                    `${currentIndex + 1} von ${filteredRechnungen.length} Rechnungen`
+                  ) : (
+                    'Keine Rechnungen gefunden'
+                  )}
+                  {filterKreditor && ` (Filter aktiv)`}
                 </p>
               </div>
             </div>
@@ -150,8 +173,75 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
           </div>
         </div>
 
+        {/* Filter */}
+        <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center gap-3 mb-3">
+            <FilterIcon className="w-5 h-5 text-gray-600" />
+            <span className="text-sm font-semibold text-gray-700">Filter</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Kreditor-Suche */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                value={filterKreditor}
+                onChange={(e) => setFilterKreditor(e.target.value)}
+                placeholder="Nach Kreditor suchen..."
+                className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            {/* Unternehmen Filter */}
+            <select
+              value={filterUnternehmen}
+              onChange={(e) => setFilterUnternehmen(e.target.value as any)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="alle">Alle Unternehmen</option>
+              <option value="TennisMehl">TennisMehl</option>
+              <option value="Egner Bau">Egner Bau</option>
+            </select>
+          </div>
+          
+          {/* Filter Reset */}
+          {(filterKreditor || filterUnternehmen !== 'alle') && (
+            <button
+              onClick={() => {
+                setFilterKreditor('');
+                setFilterUnternehmen('alle');
+              }}
+              className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              ✕ Filter zurücksetzen
+            </button>
+          )}
+        </div>
+
         {/* Content */}
+        <div className="flex-1 overflow-y-auto">
         <div className="p-8">
+          {filteredRechnungen.length === 0 ? (
+            <div className="text-center py-12">
+              <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                Keine Rechnungen gefunden
+              </h3>
+              <p className="text-gray-500 mb-4">
+                Passe deine Filterkriterien an oder setze sie zurück.
+              </p>
+              <button
+                onClick={() => {
+                  setFilterKreditor('');
+                  setFilterUnternehmen('alle');
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Filter zurücksetzen
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Kreditor Info */}
           <div className="bg-gray-50 rounded-lg p-6 mb-6">
             <div className="text-sm text-gray-600 mb-1">Kreditor</div>
@@ -234,6 +324,9 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
               )}
             </button>
           </div>
+            </>
+          )}
+        </div>
         </div>
 
         {/* Bereits erfasste Telefonnummern */}
@@ -242,13 +335,8 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
             📞 Bereits erfasste Nummern:
           </div>
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-            {rechnungen
+            {filteredRechnungen
               .slice(0, currentIndex)
-              .filter((r) => {
-                // Zeige nur die mit Telefonnummer
-                const idx = rechnungen.findIndex(rech => rech.id === r.id);
-                return idx < currentIndex;
-              })
               .slice(-10) // Nur die letzten 10
               .map((rechnung, idx) => (
                 <div
