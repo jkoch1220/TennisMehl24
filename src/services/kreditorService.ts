@@ -379,6 +379,7 @@ export const kreditorService = {
     try {
       const rechnungen = await this.loadAlleRechnungen();
       const jetzt = new Date();
+      jetzt.setHours(0, 0, 0, 0); // Setze auf Mitternacht für Datumsvergleiche
 
       // Initialisiere Statistik-Struktur
       const statusKeys: RechnungsStatus[] = ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'in_ratenzahlung', 'verzug', 'inkasso', 'bezahlt', 'storniert'];
@@ -450,6 +451,7 @@ export const kreditorService = {
           const faelligDatum = (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm) 
             ? new Date(rechnung.rateFaelligAm)
             : new Date(rechnung.faelligkeitsdatum);
+          faelligDatum.setHours(0, 0, 0, 0); // Normalisiere auf Mitternacht
             
           if (faelligDatum <= jetzt && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Fällig: Bei Ratenzahlung nur die Rate, sonst Restbetrag
