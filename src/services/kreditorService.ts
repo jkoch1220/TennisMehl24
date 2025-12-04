@@ -452,15 +452,18 @@ export const kreditorService = {
             ? new Date(rechnung.rateFaelligAm)
             : new Date(rechnung.faelligkeitsdatum);
           faelligDatum.setHours(0, 0, 0, 0); // Normalisiere auf Mitternacht
-            
-          if (faelligDatum <= jetzt && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
+          
+          // Berechne Tage bis/seit Fälligkeit
+          const tageBisFaellig = Math.floor((faelligDatum.getTime() - jetzt.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Fällig: Alles in den nächsten 7 Tagen (inkl. überfällige)
+          if (tageBisFaellig <= 7 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Fällig: Bei Ratenzahlung nur die Rate, sonst Restbetrag
             faelligBetrag += faelligerBetrag;
           }
 
-          // Verzug
-          const tageUeberfaellig = Math.floor((jetzt.getTime() - faelligDatum.getTime()) / (1000 * 60 * 60 * 24));
-          if (tageUeberfaellig > 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
+          // Verzug: Nur überfällige (Vergangenheit)
+          if (tageBisFaellig < 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Verzug: Bei Ratenzahlung nur die Rate, sonst Restbetrag
             verzugBetrag += faelligerBetrag;
           }
@@ -471,13 +474,12 @@ export const kreditorService = {
             gemahntBetrag += faelligerBetrag;
           }
 
-          // Kritische Rechnungen (hohe Priorität oder im Verzug)
-          if (rechnung.prioritaet === 'kritisch' || rechnung.status === 'verzug' || tageUeberfaellig > 30) {
+          // Kritische Rechnungen (hohe Priorität oder länger als 30 Tage im Verzug)
+          if (rechnung.prioritaet === 'kritisch' || rechnung.status === 'verzug' || tageBisFaellig < -30) {
             kritischeRechnungen.push(rechnung);
           }
 
-          // Nächste Fälligkeiten (in den nächsten 7 Tagen)
-          const tageBisFaellig = Math.floor((faelligDatum.getTime() - jetzt.getTime()) / (1000 * 60 * 60 * 24));
+          // Nächste Fälligkeiten (in den nächsten 7 Tagen, aber noch nicht überfällig)
           if (tageBisFaellig >= 0 && tageBisFaellig <= 7 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             naechsteFaelligkeiten.push(rechnung);
           }
