@@ -409,8 +409,8 @@ export const kreditorService = {
       let gesamtOffen = 0;
       let gesamtBetrag = 0;
       let faelligBetrag = 0;
+      let heuteBetrag = 0;
       let verzugBetrag = 0;
-      let gemahntBetrag = 0;
       const kritischeRechnungen: OffeneRechnung[] = [];
       const naechsteFaelligkeiten: OffeneRechnung[] = [];
 
@@ -462,16 +462,16 @@ export const kreditorService = {
             faelligBetrag += faelligerBetrag;
           }
 
+          // Heute fällig
+          if (tageBisFaellig === 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
+            // Heute: Bei Ratenzahlung nur die Rate, sonst Restbetrag
+            heuteBetrag += faelligerBetrag;
+          }
+
           // Verzug: Nur überfällige (Vergangenheit)
           if (tageBisFaellig < 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Verzug: Bei Ratenzahlung nur die Rate, sonst Restbetrag
             verzugBetrag += faelligerBetrag;
-          }
-
-          // Gemahnt
-          if (rechnung.mahnstufe > 0) {
-            // Gemahnt: Bei Ratenzahlung nur die Rate, sonst Restbetrag
-            gemahntBetrag += faelligerBetrag;
           }
 
           // Kritische Rechnungen (hohe Priorität oder länger als 30 Tage im Verzug)
@@ -504,8 +504,8 @@ export const kreditorService = {
         gesamtOffen,
         gesamtBetrag,
         faelligBetrag,
+        heuteBetrag,
         verzugBetrag,
-        gemahntBetrag,
         nachStatus,
         nachMahnstufe,
         nachKategorie,

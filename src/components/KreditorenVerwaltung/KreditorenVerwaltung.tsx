@@ -209,11 +209,18 @@ const KreditorenVerwaltung = () => {
               color="blue"
             />
             <StatistikKarte
-              title="Fällig"
+              title="Fällig (7 Tage)"
               value={formatCurrency(statistik.faelligBetrag)}
-              subtitle="Fällige Rechnungen"
+              subtitle="Nächste 7 Tage"
               icon={Clock}
               color="yellow"
+            />
+            <StatistikKarte
+              title="Heute"
+              value={formatCurrency(statistik.heuteBetrag)}
+              subtitle="Heute fällig"
+              icon={TrendingUp}
+              color="orange"
             />
             <StatistikKarte
               title="Im Verzug"
@@ -221,13 +228,6 @@ const KreditorenVerwaltung = () => {
               subtitle="Überfällige Rechnungen"
               icon={AlertTriangle}
               color="red"
-            />
-            <StatistikKarte
-              title="Gemahnt"
-              value={formatCurrency(statistik.gemahntBetrag)}
-              subtitle="Gemahnte Rechnungen"
-              icon={TrendingUp}
-              color="orange"
             />
           </div>
         )}

@@ -116,9 +116,9 @@ export type NeuerKreditor = Omit<Kreditor, 'id' | 'erstelltAm'> & {
 export interface KreditorenStatistik {
   gesamtOffen: number; // Anzahl offener Rechnungen
   gesamtBetrag: number; // Summe aller offenen Rechnungen
-  faelligBetrag: number; // Summe fälliger Rechnungen
+  faelligBetrag: number; // Summe fälliger Rechnungen (nächste 7 Tage)
+  heuteBetrag: number; // Summe heute fälliger Rechnungen
   verzugBetrag: number; // Summe im Verzug
-  gemahntBetrag: number; // Summe gemahnter Rechnungen
   nachStatus: Record<RechnungsStatus, { anzahl: number; betrag: number }>;
   nachMahnstufe: Record<Mahnstufe, { anzahl: number; betrag: number }>;
   nachKategorie: Record<Rechnungskategorie, { anzahl: number; betrag: number }>;
