@@ -59,12 +59,13 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
   };
 
   const getTageLabel = (tage: number) => {
-    if (tage < 0) {
+    // Bei kleinen Unterschieden durch Zeitzonen/Rundung: Heute anzeigen
+    if (tage === 0 || tage === -1) {
+      return 'Heute';
+    } else if (tage < 0) {
       return `${Math.abs(tage)} Tag${Math.abs(tage) === 1 ? '' : 'e'} überfällig`;
-    } else if (tage === 0) {
-      return 'Heute fällig';
     } else if (tage === 1) {
-      return 'Morgen fällig';
+      return 'Morgen';
     } else {
       return `in ${tage} Tagen`;
     }
