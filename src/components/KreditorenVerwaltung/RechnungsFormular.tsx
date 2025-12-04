@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Save, AlertCircle, AlertTriangle } from 'lucide-react';
-import { OffeneRechnung, NeueOffeneRechnung, RechnungsStatus, Rechnungskategorie, Prioritaet, Mahnstufe, Unternehmen } from '../../types/kreditor';
+import { OffeneRechnung, NeueOffeneRechnung, RechnungsStatus, Rechnungskategorie, Prioritaet, Mahnstufe, Unternehmen, RatenzahlungInterval } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 
 interface RechnungsFormularProps {
@@ -20,6 +20,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
   const [formData, setFormData] = useState<Partial<NeueOffeneRechnung>>({
     rechnungsnummer: '',
     betreff: '',
+    kreditorId: undefined,
     kreditorName: '',
     status: 'offen',
     summe: 0,
@@ -27,6 +28,8 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
     bruttoSumme: undefined,
     monatlicheRate: undefined,
     faelligkeitsdatum: new Date().toISOString().split('T')[0],
+    rateFaelligAm: undefined,
+    ratenzahlungInterval: undefined,
     rechnungsdatum: new Date().toISOString().split('T')[0],
     mahnstufe: 0,
     letzterKontakt: undefined,
@@ -61,6 +64,8 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
         bruttoSumme: rechnung.bruttoSumme,
         monatlicheRate: rechnung.monatlicheRate,
         faelligkeitsdatum: rechnung.faelligkeitsdatum.split('T')[0],
+        rateFaelligAm: rechnung.rateFaelligAm?.split('T')[0],
+        ratenzahlungInterval: rechnung.ratenzahlungInterval,
         rechnungsdatum: rechnung.rechnungsdatum?.split('T')[0] || new Date().toISOString().split('T')[0],
         mahnstufe: rechnung.mahnstufe,
         letzterKontakt: rechnung.letzterKontakt?.split('T')[0],
@@ -150,6 +155,16 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
     }
   }, [formData.status, formData.prioritaet]);
 
+  // Automatische Statusanpassung bei Ratenzahlung
+  useEffect(() => {
+    if (formData.monatlicheRate && formData.monatlicheRate > 0 && formData.rateFaelligAm) {
+      // Wenn monatliche Rate und Fälligkeitsdatum gesetzt sind, automatisch auf "in_ratenzahlung" setzen
+      if (formData.status !== 'in_ratenzahlung' && formData.status !== 'bezahlt' && formData.status !== 'storniert') {
+        setFormData(prev => ({ ...prev, status: 'in_ratenzahlung' }));
+      }
+    }
+  }, [formData.monatlicheRate, formData.rateFaelligAm, formData.status]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -191,6 +206,8 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
         bruttoSumme: formData.bruttoSumme,
         monatlicheRate: formData.monatlicheRate,
         faelligkeitsdatum: new Date(formData.faelligkeitsdatum!).toISOString(),
+        rateFaelligAm: formData.rateFaelligAm ? new Date(formData.rateFaelligAm).toISOString() : undefined,
+        ratenzahlungInterval: formData.ratenzahlungInterval,
         rechnungsdatum: formData.rechnungsdatum ? new Date(formData.rechnungsdatum).toISOString() : undefined,
         mahnstufe: formData.mahnstufe || 0,
         letzterKontakt: formData.letzterKontakt ? new Date(formData.letzterKontakt).toISOString() : undefined,
@@ -252,6 +269,20 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="z.B. Bauhaus GmbH"
                 required
+              />
+            </div>
+
+            {/* Kreditor-ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Kreditor-ID
+              </label>
+              <input
+                type="text"
+                value={formData.kreditorId || ''}
+                onChange={(e) => setFormData({ ...formData, kreditorId: e.target.value || undefined })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Optional: Interne ID"
               />
             </div>
 
@@ -349,6 +380,22 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
               />
             </div>
 
+            {/* Brutto-Summe */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Brutto-Summe (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.bruttoSumme || ''}
+                onChange={(e) => setFormData({ ...formData, bruttoSumme: parseFloat(e.target.value) || undefined })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Summe inkl. MwSt"
+              />
+            </div>
+
             {/* Monatliche Rate */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -363,6 +410,42 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Für Ratenzahlungen"
               />
+            </div>
+
+            {/* Ratenzahlung Interval */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ratenzahlung Intervall
+              </label>
+              <select
+                value={formData.ratenzahlungInterval || ''}
+                onChange={(e) => setFormData({ ...formData, ratenzahlungInterval: e.target.value ? e.target.value as RatenzahlungInterval : undefined })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                disabled={!formData.monatlicheRate}
+              >
+                <option value="">Kein Intervall</option>
+                <option value="monatlich">Monatlich</option>
+                <option value="woechentlich">Wöchentlich</option>
+              </select>
+            </div>
+
+            {/* Rate fällig am */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rate fällig am
+              </label>
+              <input
+                type="date"
+                value={formData.rateFaelligAm || ''}
+                onChange={(e) => setFormData({ ...formData, rateFaelligAm: e.target.value || undefined })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                disabled={!formData.monatlicheRate}
+              />
+              {formData.monatlicheRate && !formData.rateFaelligAm && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Wird bei Ratenzahlung verwendet
+                </p>
+              )}
             </div>
 
             {/* Fälligkeitsdatum */}
