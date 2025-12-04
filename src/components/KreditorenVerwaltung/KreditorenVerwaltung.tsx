@@ -9,6 +9,7 @@ import RechnungsDetail from './RechnungsDetail';
 import FaelligkeitsTimeline from './FaelligkeitsTimeline';
 import TelefonnummernSchnellerfassung from './TelefonnummernSchnellerfassung';
 import RatenzahlungsVereinbarung from './RatenzahlungsVereinbarung';
+import UeberfaelligeRatenWarnung from './UeberfaelligeRatenWarnung';
 
 const KreditorenVerwaltung = () => {
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -19,6 +20,7 @@ const KreditorenVerwaltung = () => {
   const [activeTab, setActiveTab] = useState<'offen' | 'bezahlt'>('offen');
   const [showDetail, setShowDetail] = useState(false);
   const [showTelefonErfassung, setShowTelefonErfassung] = useState(false);
+  const [showUeberfaelligeRatenWarnung, setShowUeberfaelligeRatenWarnung] = useState(false);
   
   // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
   const [defaultFirma, setDefaultFirma] = useState<Unternehmen>(() => {
@@ -29,6 +31,22 @@ const KreditorenVerwaltung = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Prüfe überfällige Raten nach dem Laden
+  useEffect(() => {
+    if (!loading && rechnungen.length > 0) {
+      // Importiere die Funktion dynamisch
+      import('../../utils/ratenzahlungCalculations').then(({ istRateUeberfaellig }) => {
+        const hatUeberfaelligeRaten = rechnungen.some(r => istRateUeberfaellig(r));
+        if (hatUeberfaelligeRaten) {
+          // Verzögere Popup um 500ms damit die Seite vollständig geladen ist
+          setTimeout(() => {
+            setShowUeberfaelligeRatenWarnung(true);
+          }, 500);
+        }
+      });
+    }
+  }, [loading, rechnungen]);
 
   // Speichere Default-Firma in localStorage
   useEffect(() => {
@@ -94,6 +112,14 @@ const KreditorenVerwaltung = () => {
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       alert('Fehler beim Löschen der Rechnung');
+    }
+  };
+
+  const handleRateBezahlen = (_rechnung: OffeneRechnung) => {
+    // Öffne RatenzahlungsVereinbarung Bereich (scrolle dorthin)
+    const element = document.getElementById('ratenzahlungsvereinbarung');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -227,10 +253,12 @@ const KreditorenVerwaltung = () => {
         )}
 
         {/* Ratenzahlungsvereinbarungen */}
-        <RatenzahlungsVereinbarung 
-          rechnungen={rechnungen}
-          onUpdate={loadData}
-        />
+        <div id="ratenzahlungsvereinbarung">
+          <RatenzahlungsVereinbarung 
+            rechnungen={rechnungen}
+            onUpdate={loadData}
+          />
+        </div>
 
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (
@@ -412,6 +440,15 @@ const KreditorenVerwaltung = () => {
             rechnungen={offeneRechnungen}
             onClose={() => setShowTelefonErfassung(false)}
             onUpdate={loadData}
+          />
+        )}
+
+        {/* Überfällige Raten Warnung */}
+        {showUeberfaelligeRatenWarnung && (
+          <UeberfaelligeRatenWarnung
+            rechnungen={rechnungen}
+            onClose={() => setShowUeberfaelligeRatenWarnung(false)}
+            onRateBezahlen={handleRateBezahlen}
           />
         )}
       </div>

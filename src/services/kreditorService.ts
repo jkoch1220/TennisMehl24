@@ -446,8 +446,8 @@ export const kreditorService = {
           nachUnternehmen[rechnung.anUnternehmen].betrag += relevanteBetrag;
 
           // Fällige Rechnungen - nutze relevantes Fälligkeitsdatum
-          const faelligDatum = (rechnung.status === 'in_ratenzahlung' && rechnung.naechsteRateFaelligAm) 
-            ? new Date(rechnung.naechsteRateFaelligAm)
+          const faelligDatum = (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm) 
+            ? new Date(rechnung.rateFaelligAm)
             : new Date(rechnung.faelligkeitsdatum);
             
           if (faelligDatum <= jetzt && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {

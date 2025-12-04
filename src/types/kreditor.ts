@@ -83,9 +83,8 @@ export interface OffeneRechnung {
   bruttoSumme?: number; // Summe inkl. MwSt (optional)
   monatlicheRate?: number; // Monatliche Rate für Ratenzahlungen (optional)
   faelligkeitsdatum: string; // ISO Date String
-  faelligErsteMonatsrateAm?: string; // ISO Date String - Datum der ersten Monatsrate (für Ratenzahlung)
+  rateFaelligAm?: string; // ISO Date String - Fälligkeit der Rate (erste oder nächste Rate)
   ratenzahlungInterval?: RatenzahlungInterval; // Intervall für Ratenzahlung
-  naechsteRateFaelligAm?: string; // ISO Date String - Automatisch berechnetes Datum der nächsten Rate
   rechnungsdatum?: string; // ISO Date String (wann wurde die Rechnung ausgestellt)
   mahnstufe: Mahnstufe;
   letzterKontakt?: string; // ISO Date String

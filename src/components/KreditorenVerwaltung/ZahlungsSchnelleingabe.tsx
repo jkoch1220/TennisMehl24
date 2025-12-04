@@ -64,13 +64,13 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
       }
 
       // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
-      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && rechnung.ratenzahlungInterval) {
         const tempRechnung: OffeneRechnung = {
           ...rechnung,
           zahlungen: aktualisierteZahlungen,
         };
         const naechsteRate = berechneNaechsteRate(tempRechnung);
-        updateData.naechsteRateFaelligAm = naechsteRate;
+        updateData.rateFaelligAm = naechsteRate;
       }
 
       await kreditorService.updateRechnung(rechnung.id, updateData);

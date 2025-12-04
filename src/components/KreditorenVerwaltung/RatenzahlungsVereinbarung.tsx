@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { CreditCard, CheckCircle, Calendar, Euro, TrendingDown } from 'lucide-react';
+import { CreditCard, CheckCircle, Calendar, Euro, TrendingDown, AlertTriangle } from 'lucide-react';
 import { OffeneRechnung } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
-import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
+import { berechneNaechsteRate, istRateUeberfaellig } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
 
 interface RatenzahlungsVereinbarungProps {
@@ -68,7 +68,7 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
 
       const updateData: Partial<OffeneRechnung> = {
         zahlungen: aktualisierteZahlungen,
-        naechsteRateFaelligAm: naechsteRate,
+        rateFaelligAm: naechsteRate,
       };
 
       // Wenn vollständig bezahlt, Status ändern
@@ -84,7 +84,7 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
       await aktivitaetService.logZahlung(
         rechnung.id, 
         rechnung.monatlicheRate, 
-        `Rate ${rechnung.ratenzahlungInterval || 'monatlich'} bezahlt${naechsteRate ? `, Nächste Rate: ${formatDate(naechsteRate)}` : ''}`
+        `Rate ${rechnung.ratenzahlungInterval || 'monatlich'} bezahlt${naechsteRate ? `. Nächste Rate: ${formatDate(naechsteRate)}` : ''}`
       );
 
       onUpdate();
@@ -126,16 +126,29 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
           const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + z.betrag, 0) || 0;
           const restbetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
           const prozentBezahlt = rechnung.summe > 0 ? (gesamtBezahlt / rechnung.summe) * 100 : 0;
+          const istUeberfaellig = istRateUeberfaellig(rechnung);
 
           return (
             <div
               key={rechnung.id}
-              className="border-2 border-indigo-200 rounded-lg p-4 hover:border-indigo-400 transition-all"
+              className={`border-2 rounded-lg p-4 transition-all ${
+                istUeberfaellig 
+                  ? 'border-red-500 bg-red-50 shadow-lg shadow-red-200 animate-pulse' 
+                  : 'border-indigo-200 hover:border-indigo-400'
+              }`}
             >
               <div className="flex items-center justify-between gap-4">
                 {/* Kreditor */}
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-gray-900 truncate">{rechnung.kreditorName}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold text-gray-900 truncate">{rechnung.kreditorName}</h4>
+                    {istUeberfaellig && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
+                        <AlertTriangle className="w-3 h-3" />
+                        ÜBERFÄLLIG
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500 truncate">
                     {rechnung.betreff || rechnung.rechnungsnummer || 'Keine Beschreibung'}
                   </p>
@@ -157,17 +170,20 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
 
                 {/* Ratenfälligkeit */}
                 <div className="text-center px-4 border-l border-gray-200">
-                  <div className="flex items-center gap-1 text-orange-600 mb-1">
-                    <Calendar className="w-4 h-4" />
-                    <span className="text-xs font-medium">Nächste Rate</span>
+                  <div className={`flex items-center gap-1 mb-1 ${istUeberfaellig ? 'text-red-600' : 'text-orange-600'}`}>
+                    {istUeberfaellig ? <AlertTriangle className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
+                    <span className="text-xs font-medium">Rate fällig</span>
                   </div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {rechnung.naechsteRateFaelligAm 
-                      ? formatDate(rechnung.naechsteRateFaelligAm)
-                      : rechnung.faelligErsteMonatsrateAm 
-                        ? formatDate(rechnung.faelligErsteMonatsrateAm)
-                        : '—'}
+                  <div className={`text-sm font-semibold ${istUeberfaellig ? 'text-red-700' : 'text-gray-900'}`}>
+                    {rechnung.rateFaelligAm 
+                      ? formatDate(rechnung.rateFaelligAm)
+                      : '—'}
                   </div>
+                  {istUeberfaellig && (
+                    <div className="text-xs text-red-600 font-bold mt-1">
+                      ÜBERFÄLLIG!
+                    </div>
+                  )}
                 </div>
 
                 {/* Restbetrag */}

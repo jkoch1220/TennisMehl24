@@ -468,9 +468,9 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                           <div className="text-sm text-gray-900">
                             {formatDate(relevanteFaelligkeit)}
                           </div>
-                          {rechnung.status === 'in_ratenzahlung' && rechnung.naechsteRateFaelligAm && (
+                          {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && (
                             <div className="text-xs text-indigo-600">
-                              Nächste Rate ({rechnung.ratenzahlungInterval || 'monatlich'})
+                              Rate ({rechnung.ratenzahlungInterval || 'monatlich'})
                             </div>
                           )}
                           {istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (

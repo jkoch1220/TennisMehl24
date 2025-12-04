@@ -2,35 +2,22 @@ import { OffeneRechnung, RatenzahlungInterval } from '../types/kreditor';
 
 /**
  * Berechnet das Datum der nächsten fälligen Rate basierend auf:
- * - Datum der ersten Rate
+ * - Aktuellem Fälligkeitsdatum
  * - Intervall (monatlich oder wöchentlich)
  */
 export function berechneNaechsteRateFaelligkeit(
-  faelligErsteMonatsrateAm: string,
+  aktuelleRateFaelligAm: string,
   ratenzahlungInterval: RatenzahlungInterval
 ): string {
-  const ersteDatum = new Date(faelligErsteMonatsrateAm);
-  const heute = new Date();
-  heute.setHours(0, 0, 0, 0);
+  const aktuellesDatum = new Date(aktuelleRateFaelligAm);
+  const naechstesDatum = new Date(aktuellesDatum);
   
-  // Startpunkt ist die erste Rate
-  let naechstesDatum = new Date(ersteDatum);
-  
-  // Iteriere durch alle Raten bis wir eine finden, die in der Zukunft liegt
-  let ratenNummer = 0;
-  
-  while (naechstesDatum <= heute) {
-    ratenNummer++;
-    
-    if (ratenzahlungInterval === 'monatlich') {
-      // Füge einen Monat hinzu
-      naechstesDatum = new Date(ersteDatum);
-      naechstesDatum.setMonth(ersteDatum.getMonth() + ratenNummer);
-    } else if (ratenzahlungInterval === 'woechentlich') {
-      // Füge eine Woche (7 Tage) hinzu
-      naechstesDatum = new Date(ersteDatum);
-      naechstesDatum.setDate(ersteDatum.getDate() + (ratenNummer * 7));
-    }
+  if (ratenzahlungInterval === 'monatlich') {
+    // Füge einen Monat hinzu
+    naechstesDatum.setMonth(naechstesDatum.getMonth() + 1);
+  } else if (ratenzahlungInterval === 'woechentlich') {
+    // Füge eine Woche (7 Tage) hinzu
+    naechstesDatum.setDate(naechstesDatum.getDate() + 7);
   }
   
   return naechstesDatum.toISOString();
@@ -40,38 +27,41 @@ export function berechneNaechsteRateFaelligkeit(
  * Berechnet die nächste Rate für eine Rechnung basierend auf deren Daten
  */
 export function berechneNaechsteRate(rechnung: OffeneRechnung): string | undefined {
-  if (!rechnung.faelligErsteMonatsrateAm || !rechnung.ratenzahlungInterval) {
+  if (!rechnung.rateFaelligAm || !rechnung.ratenzahlungInterval) {
     return undefined;
   }
   
   return berechneNaechsteRateFaelligkeit(
-    rechnung.faelligErsteMonatsrateAm,
+    rechnung.rateFaelligAm,
     rechnung.ratenzahlungInterval
   );
 }
 
 /**
- * Aktualisiert eine Rechnung mit der berechneten nächsten Rate
- */
-export function aktualisiereNaechsteRate(rechnung: OffeneRechnung): Partial<OffeneRechnung> {
-  const naechsteRate = berechneNaechsteRate(rechnung);
-  
-  return {
-    naechsteRateFaelligAm: naechsteRate,
-  };
-}
-
-/**
  * Gibt das relevante Fälligkeitsdatum für eine Rechnung zurück
- * Bei Ratenzahlung: die nächste fällige Rate
+ * Bei Ratenzahlung: rateFaelligAm
  * Sonst: das normale Fälligkeitsdatum
  */
 export function getRelevanteFaelligkeit(rechnung: OffeneRechnung): string {
-  if (rechnung.status === 'in_ratenzahlung' && rechnung.naechsteRateFaelligAm) {
-    return rechnung.naechsteRateFaelligAm;
-  }
-  if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm) {
-    return rechnung.faelligErsteMonatsrateAm;
+  if (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm) {
+    return rechnung.rateFaelligAm;
   }
   return rechnung.faelligkeitsdatum;
+}
+
+/**
+ * Prüft ob eine Rate überfällig ist
+ */
+export function istRateUeberfaellig(rechnung: OffeneRechnung): boolean {
+  if (rechnung.status !== 'in_ratenzahlung') {
+    return false;
+  }
+  
+  const relevanteDatum = getRelevanteFaelligkeit(rechnung);
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const faellig = new Date(relevanteDatum);
+  faellig.setHours(0, 0, 0, 0);
+  
+  return faellig < heute;
 }

@@ -53,8 +53,8 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
   // Ratenzahlung States
   const [showRatenzahlungEdit, setShowRatenzahlungEdit] = useState(false);
-  const [faelligErsteMonatsrateAm, setFaelligErsteMonatsrateAm] = useState(
-    rechnung.faelligErsteMonatsrateAm ? new Date(rechnung.faelligErsteMonatsrateAm).toISOString().split('T')[0] : ''
+  const [rateFaelligAm, setRateFaelligAm] = useState(
+    rechnung.rateFaelligAm ? new Date(rechnung.rateFaelligAm).toISOString().split('T')[0] : ''
   );
   const [ratenzahlungInterval, setRatenzahlungInterval] = useState<'monatlich' | 'woechentlich'>(
     rechnung.ratenzahlungInterval || 'monatlich'
@@ -213,13 +213,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
       };
 
       // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
-      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && rechnung.ratenzahlungInterval) {
         const tempRechnung: OffeneRechnung = {
           ...rechnung,
           zahlungen: [...aktuelleZahlungen, neueZahlung],
         };
         const naechsteRate = berechneNaechsteRate(tempRechnung);
-        updateData.naechsteRateFaelligAm = naechsteRate;
+        updateData.rateFaelligAm = naechsteRate;
       }
 
       await kreditorService.updateRechnung(rechnung.id, updateData);
@@ -251,13 +251,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
       };
 
       // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
-      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && rechnung.ratenzahlungInterval) {
         const tempRechnung: OffeneRechnung = {
           ...rechnung,
           zahlungen: aktuelleZahlungen.filter(z => z.id !== zahlungId),
         };
         const naechsteRate = berechneNaechsteRate(tempRechnung);
-        updateData.naechsteRateFaelligAm = naechsteRate;
+        updateData.rateFaelligAm = naechsteRate;
       }
 
       await kreditorService.updateRechnung(rechnung.id, updateData);
@@ -296,27 +296,15 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
   // Ratenzahlung aktualisieren
   const handleUpdateRatenzahlung = async () => {
-    if (!faelligErsteMonatsrateAm) {
-      alert('Bitte geben Sie ein Datum für die erste Monatsrate ein');
+    if (!rateFaelligAm) {
+      alert('Bitte geben Sie ein Datum für die Rate ein');
       return;
     }
 
     try {
-      // Erstelle temporäres Rechnungsobjekt für Berechnung
-      const tempRechnung: OffeneRechnung = {
-        ...rechnung,
-        faelligErsteMonatsrateAm: new Date(faelligErsteMonatsrateAm).toISOString(),
-        ratenzahlungInterval,
-        status: 'in_ratenzahlung',
-      };
-
-      // Berechne nächste Rate
-      const naechsteRate = berechneNaechsteRate(tempRechnung);
-
       const updateData: Partial<OffeneRechnung> = {
-        faelligErsteMonatsrateAm: new Date(faelligErsteMonatsrateAm).toISOString(),
+        rateFaelligAm: new Date(rateFaelligAm).toISOString(),
         ratenzahlungInterval,
-        naechsteRateFaelligAm: naechsteRate,
         status: 'in_ratenzahlung', // Status automatisch auf "in_ratenzahlung" setzen
       };
 
@@ -325,7 +313,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
       // Aktivität loggen
       await aktivitaetService.addKommentar(
         rechnung.id, 
-        `Ratenzahlung eingerichtet: Erste Rate fällig am ${formatDate(faelligErsteMonatsrateAm)}, Intervall: ${ratenzahlungInterval}${naechsteRate ? `, Nächste Rate: ${formatDate(naechsteRate)}` : ''}`
+        `Ratenzahlung eingerichtet: Rate fällig am ${formatDate(rateFaelligAm)}, Intervall: ${ratenzahlungInterval}`
       );
 
       setShowRatenzahlungEdit(false);
@@ -492,11 +480,11 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                   {showRatenzahlungEdit ? (
                     <div className="mt-2 space-y-2">
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">Fällig Erste Monatsrate am</label>
+                        <label className="block text-xs text-gray-500 mb-1">Rate fällig am</label>
                         <input
                           type="date"
-                          value={faelligErsteMonatsrateAm}
-                          onChange={(e) => setFaelligErsteMonatsrateAm(e.target.value)}
+                          value={rateFaelligAm}
+                          onChange={(e) => setRateFaelligAm(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         />
                       </div>
@@ -520,22 +508,14 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                     </div>
                   ) : (
                     <>
-                      {rechnung.faelligErsteMonatsrateAm ? (
+                      {rechnung.rateFaelligAm ? (
                         <div className="mt-1 space-y-1">
-                          <p className="text-sm font-medium text-gray-900">
-                            Erste Rate: {formatDate(rechnung.faelligErsteMonatsrateAm)}
+                          <p className="text-sm font-medium text-indigo-700">
+                            Rate fällig: {formatDate(rechnung.rateFaelligAm)}
                           </p>
                           <p className="text-xs text-gray-500 capitalize">
                             Intervall: {rechnung.ratenzahlungInterval || 'monatlich'}
                           </p>
-                          {rechnung.naechsteRateFaelligAm && (
-                            <div className="pt-2 border-t border-gray-200">
-                              <p className="text-xs text-gray-500">Nächste Rate fällig am</p>
-                              <p className="text-sm font-semibold text-indigo-700">
-                                {formatDate(rechnung.naechsteRateFaelligAm)}
-                              </p>
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <p className="text-sm text-gray-500 mt-1">Keine Ratenzahlung eingerichtet</p>
@@ -558,16 +538,16 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-500">
-                      {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm 
-                        ? 'Fällig Erste Monatsrate am' 
+                      {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm 
+                        ? 'Rate fällig am' 
                         : 'Fälligkeitsdatum'}
                     </p>
                     <p className="font-medium">
-                      {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm
-                        ? formatDate(rechnung.faelligErsteMonatsrateAm)
+                      {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm
+                        ? formatDate(rechnung.rateFaelligAm)
                         : formatDate(rechnung.faelligkeitsdatum)}
                     </p>
-                    {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && (
+                    {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && (
                       <p className="text-xs text-gray-400">
                         (Original: {formatDate(rechnung.faelligkeitsdatum)})
                       </p>
