@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
+import { getRelevanteFaelligkeit } from '../../utils/ratenzahlungCalculations';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
 
 interface RechnungsListeProps {
@@ -145,6 +146,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
       faellig: 'bg-yellow-100 text-yellow-800',
       gemahnt: 'bg-orange-100 text-orange-800',
       in_bearbeitung: 'bg-purple-100 text-purple-800',
+      in_ratenzahlung: 'bg-indigo-100 text-indigo-800',
       verzug: 'bg-red-100 text-red-800',
       inkasso: 'bg-red-600 text-white',
       bezahlt: 'bg-green-100 text-green-800',
@@ -179,6 +181,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
     const diff = Math.floor((faellig.getTime() - heute.getTime()) / (1000 * 60 * 60 * 24));
     return diff;
   };
+
 
   const SortButton = ({ feld, children }: { feld: SortierFeld; children: React.ReactNode }) => {
     const isActive = sortFeld === feld;
@@ -273,6 +276,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                 <option value="gemahnt">Gemahnt</option>
                 <option value="verzug">Verzug</option>
                 <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="in_ratenzahlung">In Ratenzahlung</option>
                 <option value="bezahlt">Bezahlt</option>
                 <option value="storniert">Storniert</option>
               </select>
@@ -400,7 +404,8 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                 </tr>
               ) : (
                 displayedRechnungen.map((rechnung) => {
-                  const tageBisFaellig = getTageBisFaellig(rechnung.faelligkeitsdatum);
+                  const relevanteFaelligkeit = getRelevanteFaelligkeit(rechnung);
+                  const tageBisFaellig = getTageBisFaellig(relevanteFaelligkeit);
                   const istUeberfaellig = tageBisFaellig < 0;
                   
                   return (
@@ -460,7 +465,14 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{formatDate(rechnung.faelligkeitsdatum)}</div>
+                          <div className="text-sm text-gray-900">
+                            {formatDate(relevanteFaelligkeit)}
+                          </div>
+                          {rechnung.status === 'in_ratenzahlung' && rechnung.naechsteRateFaelligAm && (
+                            <div className="text-xs text-indigo-600">
+                              Nächste Rate ({rechnung.ratenzahlungInterval || 'monatlich'})
+                            </div>
+                          )}
                           {istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (
                             <div className="text-xs text-red-600 font-medium">
                               {Math.abs(tageBisFaellig)} Tage überfällig

@@ -406,6 +406,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 <option value="faellig">Fällig</option>
                 <option value="gemahnt">Gemahnt</option>
                 <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="in_ratenzahlung">In Ratenzahlung</option>
                 <option value="verzug">Verzug</option>
                 <option value="inkasso">Inkasso</option>
                 <option value="bezahlt">Bezahlt</option>

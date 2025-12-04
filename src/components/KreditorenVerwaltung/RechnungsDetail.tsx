@@ -20,6 +20,7 @@ import {
 import { OffeneRechnung, RechnungsAktivitaet, Zahlung, AktivitaetsTyp } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
+import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
 
 interface RechnungsDetailProps {
@@ -49,6 +50,15 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   // Monatliche Rate State
   const [showRateEdit, setShowRateEdit] = useState(false);
   const [neueRate, setNeueRate] = useState(rechnung.monatlicheRate?.toString() || '');
+
+  // Ratenzahlung States
+  const [showRatenzahlungEdit, setShowRatenzahlungEdit] = useState(false);
+  const [faelligErsteMonatsrateAm, setFaelligErsteMonatsrateAm] = useState(
+    rechnung.faelligErsteMonatsrateAm ? new Date(rechnung.faelligErsteMonatsrateAm).toISOString().split('T')[0] : ''
+  );
+  const [ratenzahlungInterval, setRatenzahlungInterval] = useState<'monatlich' | 'woechentlich'>(
+    rechnung.ratenzahlungInterval || 'monatlich'
+  );
 
   useEffect(() => {
     loadAktivitaeten();
@@ -198,9 +208,21 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
       };
 
       const aktuelleZahlungen = rechnung.zahlungen || [];
-      await kreditorService.updateRechnung(rechnung.id, {
+      const updateData: Partial<OffeneRechnung> = {
         zahlungen: [...aktuelleZahlungen, neueZahlung],
-      });
+      };
+
+      // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+        const tempRechnung: OffeneRechnung = {
+          ...rechnung,
+          zahlungen: [...aktuelleZahlungen, neueZahlung],
+        };
+        const naechsteRate = berechneNaechsteRate(tempRechnung);
+        updateData.naechsteRateFaelligAm = naechsteRate;
+      }
+
+      await kreditorService.updateRechnung(rechnung.id, updateData);
 
       // Aktivität loggen
       await aktivitaetService.logZahlung(rechnung.id, betrag, zahlungNotiz);
@@ -224,9 +246,21 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
     try {
       const aktuelleZahlungen = rechnung.zahlungen || [];
-      await kreditorService.updateRechnung(rechnung.id, {
+      const updateData: Partial<OffeneRechnung> = {
         zahlungen: aktuelleZahlungen.filter(z => z.id !== zahlungId),
-      });
+      };
+
+      // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+        const tempRechnung: OffeneRechnung = {
+          ...rechnung,
+          zahlungen: aktuelleZahlungen.filter(z => z.id !== zahlungId),
+        };
+        const naechsteRate = berechneNaechsteRate(tempRechnung);
+        updateData.naechsteRateFaelligAm = naechsteRate;
+      }
+
+      await kreditorService.updateRechnung(rechnung.id, updateData);
       
       onUpdate();
     } catch (error) {
@@ -260,12 +294,56 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
     }
   };
 
+  // Ratenzahlung aktualisieren
+  const handleUpdateRatenzahlung = async () => {
+    if (!faelligErsteMonatsrateAm) {
+      alert('Bitte geben Sie ein Datum für die erste Monatsrate ein');
+      return;
+    }
+
+    try {
+      // Erstelle temporäres Rechnungsobjekt für Berechnung
+      const tempRechnung: OffeneRechnung = {
+        ...rechnung,
+        faelligErsteMonatsrateAm: new Date(faelligErsteMonatsrateAm).toISOString(),
+        ratenzahlungInterval,
+        status: 'in_ratenzahlung',
+      };
+
+      // Berechne nächste Rate
+      const naechsteRate = berechneNaechsteRate(tempRechnung);
+
+      const updateData: Partial<OffeneRechnung> = {
+        faelligErsteMonatsrateAm: new Date(faelligErsteMonatsrateAm).toISOString(),
+        ratenzahlungInterval,
+        naechsteRateFaelligAm: naechsteRate,
+        status: 'in_ratenzahlung', // Status automatisch auf "in_ratenzahlung" setzen
+      };
+
+      await kreditorService.updateRechnung(rechnung.id, updateData);
+
+      // Aktivität loggen
+      await aktivitaetService.addKommentar(
+        rechnung.id, 
+        `Ratenzahlung eingerichtet: Erste Rate fällig am ${formatDate(faelligErsteMonatsrateAm)}, Intervall: ${ratenzahlungInterval}${naechsteRate ? `, Nächste Rate: ${formatDate(naechsteRate)}` : ''}`
+      );
+
+      setShowRatenzahlungEdit(false);
+      onUpdate();
+      loadAktivitaeten();
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Ratenzahlung:', error);
+      alert('Fehler beim Aktualisieren der Ratenzahlung');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       offen: 'bg-blue-100 text-blue-800',
       faellig: 'bg-yellow-100 text-yellow-800',
       gemahnt: 'bg-orange-100 text-orange-800',
       in_bearbeitung: 'bg-purple-100 text-purple-800',
+      in_ratenzahlung: 'bg-indigo-100 text-indigo-800',
       verzug: 'bg-red-100 text-red-800',
       bezahlt: 'bg-green-100 text-green-800',
       storniert: 'bg-gray-100 text-gray-800',
@@ -399,6 +477,72 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                     </p>
                   )}
                 </div>
+
+                {/* Ratenzahlung */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-600">Ratenzahlung</p>
+                    <button
+                      onClick={() => setShowRatenzahlungEdit(!showRatenzahlungEdit)}
+                      className="text-indigo-600 hover:text-indigo-700 text-sm"
+                    >
+                      {showRatenzahlungEdit ? 'Abbrechen' : 'Einrichten'}
+                    </button>
+                  </div>
+                  {showRatenzahlungEdit ? (
+                    <div className="mt-2 space-y-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Fällig Erste Monatsrate am</label>
+                        <input
+                          type="date"
+                          value={faelligErsteMonatsrateAm}
+                          onChange={(e) => setFaelligErsteMonatsrateAm(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Ratenzahlung Intervall</label>
+                        <select
+                          value={ratenzahlungInterval}
+                          onChange={(e) => setRatenzahlungInterval(e.target.value as 'monatlich' | 'woechentlich')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                          <option value="monatlich">Monatlich</option>
+                          <option value="woechentlich">Wöchentlich</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={handleUpdateRatenzahlung}
+                        className="w-full px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+                      >
+                        Ratenzahlung einrichten
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {rechnung.faelligErsteMonatsrateAm ? (
+                        <div className="mt-1 space-y-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            Erste Rate: {formatDate(rechnung.faelligErsteMonatsrateAm)}
+                          </p>
+                          <p className="text-xs text-gray-500 capitalize">
+                            Intervall: {rechnung.ratenzahlungInterval || 'monatlich'}
+                          </p>
+                          {rechnung.naechsteRateFaelligAm && (
+                            <div className="pt-2 border-t border-gray-200">
+                              <p className="text-xs text-gray-500">Nächste Rate fällig am</p>
+                              <p className="text-sm font-semibold text-indigo-700">
+                                {formatDate(rechnung.naechsteRateFaelligAm)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-1">Keine Ratenzahlung eingerichtet</p>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Infos */}
@@ -413,8 +557,21 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-500">Fälligkeitsdatum</p>
-                    <p className="font-medium">{formatDate(rechnung.faelligkeitsdatum)}</p>
+                    <p className="text-xs text-gray-500">
+                      {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm 
+                        ? 'Fällig Erste Monatsrate am' 
+                        : 'Fälligkeitsdatum'}
+                    </p>
+                    <p className="font-medium">
+                      {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm
+                        ? formatDate(rechnung.faelligErsteMonatsrateAm)
+                        : formatDate(rechnung.faelligkeitsdatum)}
+                    </p>
+                    {rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && (
+                      <p className="text-xs text-gray-400">
+                        (Original: {formatDate(rechnung.faelligkeitsdatum)})
+                      </p>
+                    )}
                   </div>
                 </div>
                 {rechnung.rechnungsdatum && (

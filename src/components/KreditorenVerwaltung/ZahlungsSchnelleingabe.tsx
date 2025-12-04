@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, X, Euro, Calendar } from 'lucide-react';
 import { OffeneRechnung, Zahlung } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
+import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
 
 interface ZahlungsSchnelleingabeProps {
@@ -60,6 +61,16 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
         updateData.status = 'bezahlt';
         updateData.bezahltAm = new Date().toISOString();
         updateData.bezahlbetrag = neuerGesamtbetrag;
+      }
+
+      // Wenn Ratenzahlung aktiv, berechne nächste Rate neu
+      if (rechnung.status === 'in_ratenzahlung' && rechnung.faelligErsteMonatsrateAm && rechnung.ratenzahlungInterval) {
+        const tempRechnung: OffeneRechnung = {
+          ...rechnung,
+          zahlungen: aktualisierteZahlungen,
+        };
+        const naechsteRate = berechneNaechsteRate(tempRechnung);
+        updateData.naechsteRateFaelligAm = naechsteRate;
       }
 
       await kreditorService.updateRechnung(rechnung.id, updateData);

@@ -4,6 +4,7 @@ export type RechnungsStatus =
   | 'faellig'         // Rechnung ist fällig
   | 'gemahnt'         // Rechnung wurde gemahnt
   | 'in_bearbeitung'  // Rechnung wird bearbeitet/zur Zahlung vorbereitet
+  | 'in_ratenzahlung' // Rechnung wird in Raten bezahlt
   | 'bezahlt'         // Rechnung wurde bezahlt
   | 'storniert'       // Rechnung wurde storniert
   | 'verzug'          // Rechnung ist im Verzug
@@ -65,6 +66,9 @@ export interface Kreditor {
   erstelltAm: string; // ISO Date String
 }
 
+// Ratenzahlung Interval
+export type RatenzahlungInterval = 'monatlich' | 'woechentlich';
+
 // Offene Rechnung Interface
 export interface OffeneRechnung {
   id: string;
@@ -79,6 +83,9 @@ export interface OffeneRechnung {
   bruttoSumme?: number; // Summe inkl. MwSt (optional)
   monatlicheRate?: number; // Monatliche Rate für Ratenzahlungen (optional)
   faelligkeitsdatum: string; // ISO Date String
+  faelligErsteMonatsrateAm?: string; // ISO Date String - Datum der ersten Monatsrate (für Ratenzahlung)
+  ratenzahlungInterval?: RatenzahlungInterval; // Intervall für Ratenzahlung
+  naechsteRateFaelligAm?: string; // ISO Date String - Automatisch berechnetes Datum der nächsten Rate
   rechnungsdatum?: string; // ISO Date String (wann wurde die Rechnung ausgestellt)
   mahnstufe: Mahnstufe;
   letzterKontakt?: string; // ISO Date String

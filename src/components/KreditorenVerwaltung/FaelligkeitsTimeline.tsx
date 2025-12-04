@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Calendar, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { OffeneRechnung } from '../../types/kreditor';
+import { getRelevanteFaelligkeit } from '../../utils/ratenzahlungCalculations';
 
 interface FaelligkeitsTimelineProps {
   rechnungen: OffeneRechnung[];
@@ -12,12 +13,16 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
   const heute = new Date();
   heute.setHours(0, 0, 0, 0);
 
-  // Filtere nur offene, fällige, gemahnte, im Verzug oder Inkasso befindliche Rechnungen
+  // Filtere nur offene, fällige, gemahnte, in Ratenzahlung, im Verzug oder Inkasso befindliche Rechnungen
   const relevanteRechnungen = useMemo(() => {
     return rechnungen.filter(
-      (r) =>
-        ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'verzug', 'inkasso'].includes(r.status) &&
-        new Date(r.faelligkeitsdatum) <= new Date(heute.getTime() + tageAnzeigen * 24 * 60 * 60 * 1000)
+      (r) => {
+        const relevanteFaelligkeit = getRelevanteFaelligkeit(r);
+        return (
+          ['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'in_ratenzahlung', 'verzug', 'inkasso'].includes(r.status) &&
+          new Date(relevanteFaelligkeit) <= new Date(heute.getTime() + tageAnzeigen * 24 * 60 * 60 * 1000)
+        );
+      }
     );
   }, [rechnungen, tageAnzeigen]);
 
@@ -26,7 +31,8 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
     const gruppiert: Record<number, OffeneRechnung[]> = {};
 
     relevanteRechnungen.forEach((rechnung) => {
-      const faelligDatum = new Date(rechnung.faelligkeitsdatum);
+      const relevanteFaelligkeit = getRelevanteFaelligkeit(rechnung);
+      const faelligDatum = new Date(relevanteFaelligkeit);
       faelligDatum.setHours(0, 0, 0, 0);
       const tageBisFaellig = Math.floor((faelligDatum.getTime() - heute.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -127,7 +133,7 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                   <div>
                     <div className="font-semibold text-gray-900">{getTageLabel(tage)}</div>
                     <div className="text-sm text-gray-600">
-                      {formatDate(rechnungenFuerTag[0].faelligkeitsdatum)}
+                      {formatDate(getRelevanteFaelligkeit(rechnungenFuerTag[0]))}
                     </div>
                   </div>
                 </div>
@@ -190,6 +196,8 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                                 ? 'bg-orange-100 text-orange-800'
                                 : rechnung.status === 'gemahnt'
                                 ? 'bg-yellow-100 text-yellow-800'
+                                : rechnung.status === 'in_ratenzahlung'
+                                ? 'bg-indigo-100 text-indigo-800'
                                 : rechnung.status === 'bezahlt'
                                 ? 'bg-green-100 text-green-800'
                                 : 'bg-blue-100 text-blue-800'
