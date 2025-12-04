@@ -450,30 +450,34 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(rechnung.summe)}
-                          </div>
-                          {rechnung.monatlicheRate && (
-                            <div className="text-xs text-blue-600 mt-1">
-                              Rate: {formatCurrency(rechnung.monatlicheRate)}/Monat
-                            </div>
-                          )}
-                        {rechnung.zahlungen && rechnung.zahlungen.length > 0 && (() => {
-                          const gesamtBezahlt = rechnung.zahlungen.reduce((sum, z) => sum + (z.betrag || 0), 0);
-                          const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
-                          return (
-                            <>
-                              <div className="text-xs text-green-600 mt-1">
-                                Bezahlt: {formatCurrency(gesamtBezahlt)}
-                              </div>
-                              {offenerBetrag > 0 && (
-                                <div className="text-xs text-red-600 mt-1">
-                                  Offen: {formatCurrency(offenerBetrag)}
+                          {(() => {
+                            const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
+                            const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
+                            const hatZahlungen = gesamtBezahlt > 0;
+                            
+                            return (
+                              <>
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(offenerBetrag)}
                                 </div>
-                              )}
-                            </>
-                          );
-                        })()}
+                                {hatZahlungen && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    von {formatCurrency(rechnung.summe)}
+                                  </div>
+                                )}
+                                {rechnung.monatlicheRate && (
+                                  <div className="text-xs text-blue-600 mt-1">
+                                    Rate: {formatCurrency(rechnung.monatlicheRate)}
+                                  </div>
+                                )}
+                                {hatZahlungen && (
+                                  <div className="text-xs text-green-600 mt-1">
+                                    Bezahlt: {formatCurrency(gesamtBezahlt)}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className={`text-sm font-medium ${
