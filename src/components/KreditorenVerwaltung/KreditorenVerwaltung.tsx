@@ -257,6 +257,7 @@ const KreditorenVerwaltung = () => {
           <RatenzahlungsVereinbarung 
             rechnungen={rechnungen}
             onUpdate={loadData}
+            onOpenDetail={handleOpenDetail}
           />
         </div>
 

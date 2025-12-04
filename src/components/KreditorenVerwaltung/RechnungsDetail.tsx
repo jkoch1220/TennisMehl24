@@ -15,8 +15,10 @@ import {
   DollarSign,
   Calendar,
   Building2,
-  Send
+  Send,
+  PartyPopper
 } from 'lucide-react';
+import Confetti from 'react-confetti';
 import { OffeneRechnung, RechnungsAktivitaet, Zahlung, AktivitaetsTyp } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
@@ -51,6 +53,10 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   const [showRateEdit, setShowRateEdit] = useState(false);
   const [neueRate, setNeueRate] = useState(rechnung.monatlicheRate?.toString() || '');
 
+  // Konfetti State
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
   // Ratenzahlung States
   const [showRatenzahlungEdit, setShowRatenzahlungEdit] = useState(false);
   const [rateFaelligAm, setRateFaelligAm] = useState(
@@ -64,6 +70,15 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
     loadAktivitaeten();
     loadKreditorTelefon();
   }, [rechnung.id]);
+
+  // Window Resize für Konfetti
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadKreditorTelefon = async () => {
     try {
@@ -294,6 +309,55 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
     }
   };
 
+  // Komplett bezahlen mit Konfetti 🎉
+  const handleKomplettBezahlt = async () => {
+    const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
+    const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
+
+    if (offenerBetrag === 0) {
+      alert('Diese Rechnung ist bereits vollständig bezahlt!');
+      return;
+    }
+
+    if (!confirm(`Möchten Sie die Rechnung wirklich als komplett bezahlt markieren?\n\nOffener Betrag: ${formatCurrency(offenerBetrag)}`)) {
+      return;
+    }
+
+    try {
+      // Erstelle finale Zahlung für den Restbetrag
+      const finaleZahlung: Zahlung = {
+        id: ID.unique(),
+        betrag: offenerBetrag,
+        datum: new Date().toISOString(),
+        notiz: 'Komplettbezahlung',
+        erstelltAm: new Date().toISOString(),
+      };
+
+      const aktuelleZahlungen = rechnung.zahlungen || [];
+      await kreditorService.updateRechnung(rechnung.id, {
+        zahlungen: [...aktuelleZahlungen, finaleZahlung],
+        status: 'bezahlt',
+        bezahltAm: new Date().toISOString(),
+        bezahlbetrag: rechnung.summe,
+      });
+
+      // Aktivität loggen
+      await aktivitaetService.logZahlung(rechnung.id, offenerBetrag, 'Rechnung komplett bezahlt! 🎉');
+
+      // KONFETTI! 🎉🎊
+      setShowConfetti(true);
+      setTimeout(() => {
+        setShowConfetti(false);
+        onUpdate();
+        onClose();
+      }, 5000); // 5 Sekunden Konfetti
+
+    } catch (error) {
+      console.error('Fehler beim Komplett-Bezahlen:', error);
+      alert('Fehler beim Bezahlen der Rechnung');
+    }
+  };
+
   // Ratenzahlung aktualisieren
   const handleUpdateRatenzahlung = async () => {
     if (!rateFaelligAm) {
@@ -349,8 +413,18 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+    <>
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={true}
+          numberOfPieces={500}
+          gravity={0.3}
+        />
+      )}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={`${getUnternehmenHeaderKlasse(rechnung.anUnternehmen)} text-white px-6 py-4 flex justify-between items-center`}>
           <div className="flex items-center gap-4">
@@ -386,6 +460,16 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {offenerBetrag > 0 && (
+              <button
+                onClick={handleKomplettBezahlt}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-lg transition-colors flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl"
+                title="Rechnung als komplett bezahlt markieren"
+              >
+                <PartyPopper className="w-4 h-4" />
+                Komplett bezahlt
+              </button>
+            )}
             <button
               onClick={onEdit}
               className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
@@ -827,8 +911,9 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             </div>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

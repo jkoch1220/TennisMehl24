@@ -9,9 +9,10 @@ import { ID } from 'appwrite';
 interface RatenzahlungsVereinbarungProps {
   rechnungen: OffeneRechnung[];
   onUpdate: () => void;
+  onOpenDetail?: (rechnung: OffeneRechnung) => void;
 }
 
-const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVereinbarungProps) => {
+const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: RatenzahlungsVereinbarungProps) => {
   const [processing, setProcessing] = useState<string | null>(null);
 
   // Filtere nur Rechnungen mit aktiver Ratenzahlung
@@ -132,12 +133,13 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
           return (
             <div
               key={rechnung.id}
-              className={`border-2 rounded-lg p-4 transition-all ${
+              onClick={() => onOpenDetail?.(rechnung)}
+              className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
                 istUeberfaellig 
-                  ? 'border-red-500 bg-red-50 shadow-lg shadow-red-200 animate-pulse' 
+                  ? 'border-red-500 bg-red-50 shadow-lg shadow-red-200 animate-pulse hover:shadow-xl' 
                   : istHeute
-                  ? 'border-orange-400 bg-orange-50 shadow-md shadow-orange-100'
-                  : 'border-indigo-200 hover:border-indigo-400'
+                  ? 'border-orange-400 bg-orange-50 shadow-md shadow-orange-100 hover:shadow-lg'
+                  : 'border-indigo-200 hover:border-indigo-400 hover:shadow-md'
               }`}
             >
               <div className="flex items-center justify-between gap-4">
@@ -241,11 +243,14 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate }: RatenzahlungsVerein
 
                 {/* Button */}
                 <div className="pl-4 border-l border-gray-200">
-                  <button
-                    onClick={() => handleRateBezahlt(rechnung)}
-                    disabled={processing === rechnung.id}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRateBezahlt(rechnung);
+                      }}
+                      disabled={processing === rechnung.id}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                    >
                     {processing === rechnung.id ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
