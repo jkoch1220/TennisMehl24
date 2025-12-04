@@ -395,11 +395,11 @@ const KreditorenVerwaltung = () => {
                     <div className="text-right">
                       <div className="font-bold text-gray-900">{formatCurrency(offenerBetrag)}</div>
                       <div className="text-sm text-yellow-600 font-medium">
-                        {tageBisFaellig === 0
+                        {tageBisFaellig === -1
                           ? 'Heute fällig'
-                          : tageBisFaellig === 1
+                          : tageBisFaellig === 0
                           ? 'Morgen fällig'
-                          : `in ${tageBisFaellig} Tagen`}
+                          : `in ${tageBisFaellig + 1} Tagen`}
                       </div>
                     </div>
                   </div>
