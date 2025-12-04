@@ -414,15 +414,6 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
   return (
     <>
-      {showConfetti && (
-        <Confetti
-          width={windowSize.width}
-          height={windowSize.height}
-          recycle={true}
-          numberOfPieces={500}
-          gravity={0.3}
-        />
-      )}
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -913,6 +904,21 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
         </div>
         </div>
       </div>
+      
+      {/* Konfetti über allem! 🎉🎊 */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-[9999]">
+          <Confetti
+            width={windowSize.width}
+            height={windowSize.height}
+            recycle={false}
+            numberOfPieces={1000}
+            gravity={0.2}
+            colors={['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739']}
+            tweenDuration={5000}
+          />
+        </div>
+      )}
     </>
   );
 };
