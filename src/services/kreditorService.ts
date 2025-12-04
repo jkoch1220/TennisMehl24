@@ -418,8 +418,8 @@ export const kreditorService = {
         const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
         const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
         
-        // Bei Ratenzahlung: Nutze nur die Rate für Berechnungen, nicht den Gesamtbetrag
-        const relevanteBetrag = (rechnung.status === 'in_ratenzahlung' && rechnung.monatlicheRate) 
+        // Für Fälligkeitsberechnungen: Bei Ratenzahlung nur die Rate, sonst kompletter Restbetrag
+        const faelligerBetrag = (rechnung.status === 'in_ratenzahlung' && rechnung.monatlicheRate) 
           ? rechnung.monatlicheRate 
           : offenerBetrag;
         
@@ -427,23 +427,24 @@ export const kreditorService = {
         // UND nur wenn noch ein offener Betrag vorhanden ist
         if (['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'in_ratenzahlung', 'verzug', 'inkasso'].includes(rechnung.status) && offenerBetrag > 0) {
           gesamtOffen++;
-          gesamtBetrag += relevanteBetrag;
+          // Gesamt Offen: IMMER der komplette Restbetrag!
+          gesamtBetrag += offenerBetrag;
 
-          // Status-Statistik
+          // Status-Statistik: Kompletter Restbetrag
           nachStatus[rechnung.status].anzahl++;
-          nachStatus[rechnung.status].betrag += relevanteBetrag;
+          nachStatus[rechnung.status].betrag += offenerBetrag;
 
-          // Mahnstufe-Statistik
+          // Mahnstufe-Statistik: Kompletter Restbetrag
           nachMahnstufe[rechnung.mahnstufe].anzahl++;
-          nachMahnstufe[rechnung.mahnstufe].betrag += relevanteBetrag;
+          nachMahnstufe[rechnung.mahnstufe].betrag += offenerBetrag;
 
-          // Kategorie-Statistik
+          // Kategorie-Statistik: Kompletter Restbetrag
           nachKategorie[rechnung.kategorie].anzahl++;
-          nachKategorie[rechnung.kategorie].betrag += relevanteBetrag;
+          nachKategorie[rechnung.kategorie].betrag += offenerBetrag;
 
-          // Unternehmen-Statistik
+          // Unternehmen-Statistik: Kompletter Restbetrag
           nachUnternehmen[rechnung.anUnternehmen].anzahl++;
-          nachUnternehmen[rechnung.anUnternehmen].betrag += relevanteBetrag;
+          nachUnternehmen[rechnung.anUnternehmen].betrag += offenerBetrag;
 
           // Fällige Rechnungen - nutze relevantes Fälligkeitsdatum
           const faelligDatum = (rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm) 
@@ -451,18 +452,21 @@ export const kreditorService = {
             : new Date(rechnung.faelligkeitsdatum);
             
           if (faelligDatum <= jetzt && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
-            faelligBetrag += relevanteBetrag;
+            // Fällig: Bei Ratenzahlung nur die Rate, sonst Restbetrag
+            faelligBetrag += faelligerBetrag;
           }
 
           // Verzug
           const tageUeberfaellig = Math.floor((jetzt.getTime() - faelligDatum.getTime()) / (1000 * 60 * 60 * 24));
           if (tageUeberfaellig > 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
-            verzugBetrag += relevanteBetrag;
+            // Verzug: Bei Ratenzahlung nur die Rate, sonst Restbetrag
+            verzugBetrag += faelligerBetrag;
           }
 
           // Gemahnt
           if (rechnung.mahnstufe > 0) {
-            gemahntBetrag += relevanteBetrag;
+            // Gemahnt: Bei Ratenzahlung nur die Rate, sonst Restbetrag
+            gemahntBetrag += faelligerBetrag;
           }
 
           // Kritische Rechnungen (hohe Priorität oder im Verzug)
