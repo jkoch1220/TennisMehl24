@@ -456,8 +456,8 @@ export const kreditorService = {
           // Berechne Tage bis/seit Fälligkeit
           const tageBisFaellig = Math.floor((faelligDatum.getTime() - jetzt.getTime()) / (1000 * 60 * 60 * 24));
           
-          // Fällig: Alles in den nächsten 7 Tagen (inkl. überfällige)
-          if (tageBisFaellig <= 7 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
+          // Fällig: NUR die nächsten 7 Tage (0 bis 7, NICHT überfällig!)
+          if (tageBisFaellig >= 0 && tageBisFaellig <= 7 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Fällig: Bei Ratenzahlung nur die Rate, sonst Restbetrag
             faelligBetrag += faelligerBetrag;
           }
@@ -468,7 +468,7 @@ export const kreditorService = {
             heuteBetrag += faelligerBetrag;
           }
 
-          // Verzug: Nur überfällige (Vergangenheit)
+          // Verzug: Nur überfällige (Vergangenheit, negative Werte)
           if (tageBisFaellig < 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
             // Verzug: Bei Ratenzahlung nur die Rate, sonst Restbetrag
             verzugBetrag += faelligerBetrag;
