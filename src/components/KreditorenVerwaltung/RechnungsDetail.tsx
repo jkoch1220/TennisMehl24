@@ -339,11 +339,20 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const getUnternehmenHeaderKlasse = (unternehmen: string) => {
+    if (unternehmen === 'TennisMehl') {
+      return 'bg-gradient-to-r from-blue-600 to-blue-700';
+    } else if (unternehmen === 'Egner Bau') {
+      return 'bg-gradient-to-r from-amber-600 to-amber-700';
+    }
+    return 'bg-gradient-to-r from-red-600 to-red-700';
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-4 flex justify-between items-center">
+        <div className={`${getUnternehmenHeaderKlasse(rechnung.anUnternehmen)} text-white px-6 py-4 flex justify-between items-center`}>
           <div className="flex items-center gap-4">
             <button
               onClick={onClose}

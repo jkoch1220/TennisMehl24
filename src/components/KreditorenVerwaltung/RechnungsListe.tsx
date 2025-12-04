@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
-import { getRelevanteFaelligkeit } from '../../utils/ratenzahlungCalculations';
+import { getRelevanteFaelligkeit, istRechnungHeuteFaellig } from '../../utils/ratenzahlungCalculations';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
 
 interface RechnungsListeProps {
@@ -163,6 +163,14 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
       niedrig: 'bg-gray-400 text-white',
     };
     return styles[prioritaet] || 'bg-gray-400 text-white';
+  };
+
+  const getUnternehmenHintergrund = (unternehmen: Unternehmen) => {
+    const styles: Record<Unternehmen, string> = {
+      'TennisMehl': 'bg-blue-50',
+      'Egner Bau': 'bg-amber-50',
+    };
+    return styles[unternehmen] || 'bg-white';
   };
 
   const formatCurrency = (amount: number) => {
@@ -407,16 +415,19 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   const relevanteFaelligkeit = getRelevanteFaelligkeit(rechnung);
                   const tageBisFaellig = getTageBisFaellig(relevanteFaelligkeit);
                   const istUeberfaellig = tageBisFaellig < 0;
+                  const istHeute = istRechnungHeuteFaellig(rechnung);
                   
                   return (
                     <>
                       <tr
                         key={rechnung.id}
                         onClick={() => onOpenDetail?.(rechnung)}
-                        className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                        className={`cursor-pointer transition-colors ${
                           istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
                             ? 'bg-red-50 hover:bg-red-100'
-                            : ''
+                            : istHeute && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
+                            ? 'bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400'
+                            : `${getUnternehmenHintergrund(rechnung.anUnternehmen)} hover:brightness-95`
                         }`}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -465,7 +476,13 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
+                          <div className={`text-sm font-medium ${
+                            istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
+                              ? 'text-red-700'
+                              : istHeute && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
+                              ? 'text-orange-700'
+                              : 'text-gray-900'
+                          }`}>
                             {formatDate(relevanteFaelligkeit)}
                           </div>
                           {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && (
@@ -474,13 +491,18 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                             </div>
                           )}
                           {istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (
-                            <div className="text-xs text-red-600 font-medium">
+                            <div className="text-xs text-red-600 font-bold">
                               {Math.abs(tageBisFaellig)} Tage überfällig
                             </div>
                           )}
-                          {!istUeberfaellig && tageBisFaellig <= 7 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (
+                          {!istUeberfaellig && istHeute && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (
+                            <div className="text-xs text-orange-600 font-bold">
+                              🕐 Heute fällig!
+                            </div>
+                          )}
+                          {!istUeberfaellig && !istHeute && tageBisFaellig <= 7 && tageBisFaellig > 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert' && (
                             <div className="text-xs text-yellow-600 font-medium">
-                              {tageBisFaellig === 0 ? 'Heute fällig' : `in ${tageBisFaellig} Tagen`}
+                              in {tageBisFaellig} Tagen
                             </div>
                           )}
                         </td>
@@ -565,8 +587,8 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         </td>
                       </tr>
                       {expandedRows.has(rechnung.id) && (
-                        <tr key={`${rechnung.id}-expanded`}>
-                          <td colSpan={10} className="px-6 py-4 bg-gray-50">
+                        <tr key={`${rechnung.id}-expanded`} className={getUnternehmenHintergrund(rechnung.anUnternehmen)}>
+                          <td colSpan={10} className="px-6 py-4 bg-opacity-60">
                             <ZahlungsSchnelleingabe rechnung={rechnung} onUpdate={onRefresh} />
                           </td>
                         </tr>

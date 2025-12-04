@@ -65,3 +65,54 @@ export function istRateUeberfaellig(rechnung: OffeneRechnung): boolean {
   
   return faellig < heute;
 }
+
+/**
+ * Prüft ob eine Rate heute fällig ist
+ */
+export function istRateHeuteFaellig(rechnung: OffeneRechnung): boolean {
+  if (rechnung.status !== 'in_ratenzahlung') {
+    return false;
+  }
+  
+  const relevanteDatum = getRelevanteFaelligkeit(rechnung);
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const faellig = new Date(relevanteDatum);
+  faellig.setHours(0, 0, 0, 0);
+  
+  return faellig.getTime() === heute.getTime();
+}
+
+/**
+ * Prüft ob eine normale Rechnung überfällig ist
+ */
+export function istRechnungUeberfaellig(rechnung: OffeneRechnung): boolean {
+  if (rechnung.status === 'bezahlt' || rechnung.status === 'storniert') {
+    return false;
+  }
+  
+  const relevanteDatum = getRelevanteFaelligkeit(rechnung);
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const faellig = new Date(relevanteDatum);
+  faellig.setHours(0, 0, 0, 0);
+  
+  return faellig < heute;
+}
+
+/**
+ * Prüft ob eine normale Rechnung heute fällig ist
+ */
+export function istRechnungHeuteFaellig(rechnung: OffeneRechnung): boolean {
+  if (rechnung.status === 'bezahlt' || rechnung.status === 'storniert') {
+    return false;
+  }
+  
+  const relevanteDatum = getRelevanteFaelligkeit(rechnung);
+  const heute = new Date();
+  heute.setHours(0, 0, 0, 0);
+  const faellig = new Date(relevanteDatum);
+  faellig.setHours(0, 0, 0, 0);
+  
+  return faellig.getTime() === heute.getTime();
+}
