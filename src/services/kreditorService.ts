@@ -418,43 +418,51 @@ export const kreditorService = {
         const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
         const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
         
+        // Bei Ratenzahlung: Nutze nur die Rate für Berechnungen, nicht den Gesamtbetrag
+        const relevanteBetrag = (rechnung.status === 'in_ratenzahlung' && rechnung.monatlicheRate) 
+          ? rechnung.monatlicheRate 
+          : offenerBetrag;
+        
         // Nur offene, fällige, gemahnte, in Ratenzahlung, im Verzug oder Inkasso befindliche Rechnungen zählen
         // UND nur wenn noch ein offener Betrag vorhanden ist
         if (['offen', 'faellig', 'gemahnt', 'in_bearbeitung', 'in_ratenzahlung', 'verzug', 'inkasso'].includes(rechnung.status) && offenerBetrag > 0) {
           gesamtOffen++;
-          gesamtBetrag += offenerBetrag;
+          gesamtBetrag += relevanteBetrag;
 
           // Status-Statistik
           nachStatus[rechnung.status].anzahl++;
-          nachStatus[rechnung.status].betrag += offenerBetrag;
+          nachStatus[rechnung.status].betrag += relevanteBetrag;
 
           // Mahnstufe-Statistik
           nachMahnstufe[rechnung.mahnstufe].anzahl++;
-          nachMahnstufe[rechnung.mahnstufe].betrag += offenerBetrag;
+          nachMahnstufe[rechnung.mahnstufe].betrag += relevanteBetrag;
 
           // Kategorie-Statistik
           nachKategorie[rechnung.kategorie].anzahl++;
-          nachKategorie[rechnung.kategorie].betrag += offenerBetrag;
+          nachKategorie[rechnung.kategorie].betrag += relevanteBetrag;
 
           // Unternehmen-Statistik
           nachUnternehmen[rechnung.anUnternehmen].anzahl++;
-          nachUnternehmen[rechnung.anUnternehmen].betrag += offenerBetrag;
+          nachUnternehmen[rechnung.anUnternehmen].betrag += relevanteBetrag;
 
-          // Fällige Rechnungen
-          const faelligDatum = new Date(rechnung.faelligkeitsdatum);
+          // Fällige Rechnungen - nutze relevantes Fälligkeitsdatum
+          const faelligDatum = (rechnung.status === 'in_ratenzahlung' && rechnung.naechsteRateFaelligAm) 
+            ? new Date(rechnung.naechsteRateFaelligAm)
+            : new Date(rechnung.faelligkeitsdatum);
+            
           if (faelligDatum <= jetzt && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
-            faelligBetrag += offenerBetrag;
+            faelligBetrag += relevanteBetrag;
           }
 
           // Verzug
           const tageUeberfaellig = Math.floor((jetzt.getTime() - faelligDatum.getTime()) / (1000 * 60 * 60 * 24));
           if (tageUeberfaellig > 0 && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert') {
-            verzugBetrag += offenerBetrag;
+            verzugBetrag += relevanteBetrag;
           }
 
           // Gemahnt
           if (rechnung.mahnstufe > 0) {
-            gemahntBetrag += offenerBetrag;
+            gemahntBetrag += relevanteBetrag;
           }
 
           // Kritische Rechnungen (hohe Priorität oder im Verzug)

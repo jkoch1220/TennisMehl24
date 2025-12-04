@@ -410,3 +410,4 @@ src/
 4. **MVP implementieren** - Schritt für Schritt
 5. **Testing & Feedback** - Iterative Verbesserung
 
+

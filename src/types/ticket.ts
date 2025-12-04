@@ -18,3 +18,4 @@ export interface NeuesTicket {
   prioritaet?: TicketPrioritaet;
   erstelltVon?: string;
 }
+

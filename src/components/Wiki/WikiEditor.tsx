@@ -359,3 +359,4 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
 };
 
 export default WikiEditor;
+

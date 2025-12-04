@@ -25,3 +25,4 @@ export interface NeuesTodo {
   faelligkeitsdatum?: string;
   erstelltVon?: string;
 }
+

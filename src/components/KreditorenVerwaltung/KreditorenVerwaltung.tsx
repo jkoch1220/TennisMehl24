@@ -8,6 +8,7 @@ import RechnungsListe from './RechnungsListe';
 import RechnungsDetail from './RechnungsDetail';
 import FaelligkeitsTimeline from './FaelligkeitsTimeline';
 import TelefonnummernSchnellerfassung from './TelefonnummernSchnellerfassung';
+import RatenzahlungsVereinbarung from './RatenzahlungsVereinbarung';
 
 const KreditorenVerwaltung = () => {
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -224,6 +225,12 @@ const KreditorenVerwaltung = () => {
             </DiagrammKarte>
           </div>
         )}
+
+        {/* Ratenzahlungsvereinbarungen */}
+        <RatenzahlungsVereinbarung 
+          rechnungen={rechnungen}
+          onUpdate={loadData}
+        />
 
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (

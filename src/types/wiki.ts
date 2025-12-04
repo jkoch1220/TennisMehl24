@@ -57,3 +57,4 @@ export type CreateWikiPage = Omit<WikiPage, '$id' | '$createdAt' | '$updatedAt'>
 
 // Für das Aktualisieren einer Seite
 export type UpdateWikiPage = Partial<CreateWikiPage>;
+
