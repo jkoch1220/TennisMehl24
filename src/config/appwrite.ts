@@ -17,6 +17,7 @@ export const TODOS_COLLECTION_ID = 'todos';
 export const KONKURRENTEN_COLLECTION_ID = 'konkurrenten';
 export const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 export const WIKI_FILES_COLLECTION_ID = 'wiki_files';
+export const LAGER_COLLECTION_ID = 'lager_bestand';
 
 // Storage Bucket IDs
 export const RECHNUNGS_DATEIEN_BUCKET_ID = 'rechnungs-dateien';

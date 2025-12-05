@@ -12,6 +12,7 @@ import {
   FAHRZEUGE_COLLECTION_ID,
   KUNDEN_COLLECTION_ID,
   BESTELLUNGEN_COLLECTION_ID,
+  LAGER_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -67,6 +68,7 @@ const variableKostenFields = [
   { key: 'verkaufspreis3_preisProTonne', type: 'double' },
   { key: 'geplanterUmsatz', type: 'double' },
 ];
+
 
 async function createFieldViaAPI(collectionId: string, field: { key: string; type: string }) {
   if (!apiKey) {
@@ -136,16 +138,17 @@ export async function setupAppwriteFields() {
       await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
     }
 
-    // Setup Dispo-Collections (nur data-Feld für JSON-Strings)
-    const dispoCollections = [
+    // Setup Collections mit JSON-String im data-Feld
+    const dataCollections = [
       LIEFERUNGEN_COLLECTION_ID,
       ROUTEN_COLLECTION_ID,
       FAHRZEUGE_COLLECTION_ID,
       KUNDEN_COLLECTION_ID,
       BESTELLUNGEN_COLLECTION_ID,
+      LAGER_COLLECTION_ID, // Dashboard Collection
     ];
 
-    for (const collectionId of dispoCollections) {
+    for (const collectionId of dataCollections) {
       await createFieldViaAPI(collectionId, { key: 'data', type: 'string' });
       await new Promise(resolve => setTimeout(resolve, 200)); // Rate limiting
     }

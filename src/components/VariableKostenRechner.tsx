@@ -10,12 +10,13 @@ import { NumberInput } from './NumberInput';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-// Formatierung für Zahlen mit Tausendertrennzeichen
+// Formatierung für Zahlen mit Tausendertrennzeichen (mit Leerzeichen)
 const formatNumber = (value: number): string => {
   return new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+    useGrouping: true
+  }).format(value).replace(/\./g, ' '); // Punkt durch Leerzeichen ersetzen für Tausendertrenner
 };
 
 const VariableKostenRechner = () => {
@@ -269,29 +270,34 @@ const VariableKostenRechner = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6">
+        <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.16)] transition-all duration-300 p-6 md:p-8 mb-6">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-            <Calculator className="w-10 h-10 text-blue-600" />
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-              Variable Kosten Rechner - Ziegelmehl Herstellung 2025
-            </h1>
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-3 rounded-2xl shadow-lg">
+                <Calculator className="w-10 h-10 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                  Variable Kosten Rechner
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">Ziegelmehl Herstellung 2025</p>
+              </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {isSaving && (
-                <div className="text-sm text-gray-500 flex items-center gap-2">
+                <div className="text-sm text-gray-500 flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full shadow-sm">
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                   Speichere...
                 </div>
               )}
               {!isSaving && !isLoading && saveSuccess && (
-                <div className="text-sm text-green-600 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                <div className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full shadow-sm animate-in fade-in duration-300">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                   Gespeichert
                 </div>
               )}
               {saveError && (
-                <div className="text-sm text-red-600 flex items-center gap-2">
+                <div className="text-sm text-red-600 flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full shadow-sm">
                   <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   Fehler: {saveError}
                 </div>
@@ -300,40 +306,42 @@ const VariableKostenRechner = () => {
           </div>
 
           {/* Ergebnis Highlight */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-xl text-white mb-8">
-            <div className="grid md:grid-cols-4 gap-6">
+          <div className="relative bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 p-8 rounded-2xl text-white mb-8 shadow-[0_10px_40px_-10px_rgba(59,130,246,0.5)] hover:shadow-[0_15px_50px_-10px_rgba(59,130,246,0.6)] transition-all duration-300 overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+            <div className="relative grid md:grid-cols-4 gap-6">
               <div>
-                <p className="text-sm opacity-90 mb-2">Variable Kosten je t</p>
-                <p className="text-4xl font-bold">{ergebnis.veraenderlicheKostenJeTonne.toFixed(2)} €/t</p>
+                <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Variable Kosten je t</p>
+                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.veraenderlicheKostenJeTonne)} €/t</p>
               </div>
               <div>
-                <p className="text-sm opacity-90 mb-2">Fixkosten je t</p>
-                <p className="text-4xl font-bold">{fixkostenJeTonne.toFixed(2)} €/t</p>
+                <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Fixkosten je t</p>
+                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(fixkostenJeTonne)} €/t</p>
                 <p className="text-xs opacity-75 mt-1">
-                  ({fixkostenProJahr.toFixed(2)} € ÷ {geplanterUmsatz.toFixed(0)} t)
+                  ({formatNumber(fixkostenProJahr)} € ÷ {geplanterUmsatz.toFixed(0)} t)
                 </p>
               </div>
               <div>
-                <p className="text-sm opacity-90 mb-2">Herstellkosten je t</p>
-                <p className="text-4xl font-bold">{ergebnis.herstellkostenJeTonne.toFixed(2)} €/t</p>
+                <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Herstellkosten je t</p>
+                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.herstellkostenJeTonne)} €/t</p>
               </div>
               <div>
-                <p className="text-sm opacity-90 mb-2">Jahresgewinn</p>
-                <p className="text-4xl font-bold">{formatNumber(ergebnis.jahresgewinn)} €</p>
+                <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Jahresgewinn</p>
+                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.jahresgewinn)} €</p>
                 <p className="text-sm opacity-90 mt-2">Umsatz: {formatNumber(jahresumsatz)} €</p>
               </div>
             </div>
           </div>
 
           {/* Jahresfixkosten Input - Automatisch vom Fixkosten-Rechner übernommen */}
-          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-xl border-2 border-yellow-300 mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-semibold text-gray-700">
+          <div className="bg-gradient-to-r from-yellow-50 via-orange-50 to-amber-50 p-5 rounded-2xl border border-yellow-300 shadow-[0_4px_20px_rgba(251,191,36,0.15)] hover:shadow-[0_6px_30px_rgba(251,191,36,0.2)] transition-all duration-300 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 Jahresfixkosten (automatisch übernommen)
               </label>
               <Link
                 to="/fixkosten"
-                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
               >
                 <RefreshCw className="w-3 h-3" />
                 Zum Fixkosten-Rechner
@@ -343,19 +351,19 @@ const VariableKostenRechner = () => {
               <NumberInput
                 value={fixkostenProJahr}
                 onChange={(value) => setFixkostenProJahr(value)}
-                className="w-full p-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-400 focus:outline-none bg-white"
+                className="w-full p-3 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none bg-white shadow-sm"
                 step={0.01}
                 readOnly
                 title="Dieser Wert wird automatisch vom Fixkosten-Rechner übernommen"
               />
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded">
+                <span className="text-xs bg-yellow-200 text-yellow-800 px-2.5 py-1 rounded-full font-semibold shadow-sm">
                   Auto
                 </span>
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-2 flex items-center gap-1">
-              <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+            <p className="text-xs text-gray-600 mt-3 flex items-center gap-1.5 bg-white/50 p-2 rounded-lg">
+              <span className="inline-block w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
               Diese Jahresfixkosten werden automatisch vom{' '}
               <Link to="/fixkosten" className="text-blue-600 hover:underline font-semibold">
                 Fixkosten-Rechner
@@ -366,114 +374,178 @@ const VariableKostenRechner = () => {
 
           {/* Diagramme */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
-                Einkauf-Verteilung
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieDataEinkauf}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {pieDataEinkauf.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => `${value.toFixed(2)} €`} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <ShoppingCart className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  Einkauf-Verteilung
+                </h3>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-inner">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={pieDataEinkauf}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieDataEinkauf.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => `${formatNumber(value)} €`}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        padding: '12px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5" />
-                Verschleißteile-Verteilung
-              </h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieDataVerschleiss}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {pieDataVerschleiss.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => `${value.toFixed(2)} €`} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Settings className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  Verschleißteile-Verteilung
+                </h3>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-inner">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={pieDataVerschleiss}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieDataVerschleiss.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => `${formatNumber(value)} €`}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        padding: '12px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Jahreskosten-Verteilung
-              </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => `${value.toFixed(2)} €`} />
-                  <Legend />
-                  <Bar dataKey="Wert" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <TrendingUp className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  Jahreskosten-Verteilung
+                </h3>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-inner">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={barData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value: number) => `${formatNumber(value)} €`}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        padding: '12px'
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="Wert" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Euro className="w-5 h-5" />
-                Kosten je Tonne
-              </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={kostenProTonneData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => `${value.toFixed(2)} €/t`} />
-                  <Legend />
-                  <Bar dataKey="Wert" fill="#10b981" />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-gradient-to-br from-green-500 to-teal-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Euro className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  Kosten je Tonne
+                </h3>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-inner">
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={kostenProTonneData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value: number) => `${formatNumber(value)} €/t`}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        padding: '12px'
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="Wert" fill="#10b981" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
           {/* Eingabefelder */}
           <div className="space-y-6">
             {/* Lohnkosten */}
-            <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Users className="w-6 h-6" />
-                Lohnkosten
-              </h2>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-6 rounded-2xl border border-blue-200 shadow-[0_4px_20px_rgba(59,130,246,0.15)] hover:shadow-[0_6px_30px_rgba(59,130,246,0.2)] transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Users className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Lohnkosten
+                </h2>
+              </div>
               
               {/* Eingabefelder */}
               <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Lohn Helfer (€/Std)
                   </label>
                   <NumberInput
                     value={input.lohnkosten.stundenlohnHelfer}
                     onChange={(value) => updateLohnkosten('stundenlohnHelfer', value)}
-                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -482,13 +554,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Lohn Facharbeiter (€/Std)
                   </label>
                   <NumberInput
                     value={input.lohnkosten.stundenlohnFacharbeiter}
                     onChange={(value) => updateLohnkosten('stundenlohnFacharbeiter', value)}
-                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -497,13 +569,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Produzierte Tonnen pro Arbeitsstunde
                   </label>
                   <NumberInput
                     value={input.lohnkosten.tonnenProArbeitsstunde}
                     onChange={(value) => updateLohnkosten('tonnenProArbeitsstunde', value)}
-                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -512,13 +584,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Verhältnis Helfer zu Facharbeiter
                   </label>
                   <NumberInput
                     value={input.lohnkosten.verhaeltnisHelferZuFacharbeiter}
                     onChange={(value) => updateLohnkosten('verhaeltnisHelferZuFacharbeiter', value)}
-                    className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.1}
                     min={0}
                   />
@@ -529,7 +601,7 @@ const VariableKostenRechner = () => {
               </div>
 
               {/* Berechnete Ergebnisse */}
-              <div className="mt-4 p-4 bg-blue-100 rounded-lg">
+              <div className="mt-6 p-5 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-inner border border-blue-200">
                 <div className="grid md:grid-cols-3 gap-4 mb-3">
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Benötigte Arbeitsstunden</p>
@@ -547,7 +619,7 @@ const VariableKostenRechner = () => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilHelfer = verhaeltnis / (1 + verhaeltnis);
                         const stundenHelfer = ergebnis.benoetigteArbeitsstunden * anteilHelfer;
-                        return (stundenHelfer * input.lohnkosten.stundenlohnHelfer).toFixed(2);
+                        return formatNumber(stundenHelfer * input.lohnkosten.stundenlohnHelfer);
                       })()} €
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
@@ -555,7 +627,7 @@ const VariableKostenRechner = () => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilHelfer = verhaeltnis / (1 + verhaeltnis);
                         const stundenHelfer = ergebnis.benoetigteArbeitsstunden * anteilHelfer;
-                        return `${stundenHelfer.toFixed(1)} Std × ${input.lohnkosten.stundenlohnHelfer.toFixed(2)} €/Std`;
+                        return `${stundenHelfer.toFixed(1)} Std × ${formatNumber(input.lohnkosten.stundenlohnHelfer)} €/Std`;
                       })()}
                     </p>
                   </div>
@@ -566,7 +638,7 @@ const VariableKostenRechner = () => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilFacharbeiter = 1 / (1 + verhaeltnis);
                         const stundenFacharbeiter = ergebnis.benoetigteArbeitsstunden * anteilFacharbeiter;
-                        return (stundenFacharbeiter * input.lohnkosten.stundenlohnFacharbeiter).toFixed(2);
+                        return formatNumber(stundenFacharbeiter * input.lohnkosten.stundenlohnFacharbeiter);
                       })()} €
                     </p>
                     <p className="text-xs text-gray-600 mt-1">
@@ -574,50 +646,54 @@ const VariableKostenRechner = () => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilFacharbeiter = 1 / (1 + verhaeltnis);
                         const stundenFacharbeiter = ergebnis.benoetigteArbeitsstunden * anteilFacharbeiter;
-                        return `${stundenFacharbeiter.toFixed(1)} Std × ${input.lohnkosten.stundenlohnFacharbeiter.toFixed(2)} €/Std`;
+                        return `${stundenFacharbeiter.toFixed(1)} Std × ${formatNumber(input.lohnkosten.stundenlohnFacharbeiter)} €/Std`;
                       })()}
                     </p>
                   </div>
                 </div>
                 <div className="pt-3 border-t-2 border-blue-200">
-                  <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn gesamt</p>
-                  <p className="text-xl font-bold text-blue-800">
-                    {ergebnis.jahreskostenLohn.toFixed(2)} €
+                  <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                    <span>Jahreskosten Lohn gesamt:</span>
+                    <span className="text-xl font-bold text-blue-800">{formatNumber(ergebnis.jahreskostenLohn)} €</span>
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Einkauf */}
-            <div className="bg-green-50 p-6 rounded-xl border-2 border-green-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <ShoppingCart className="w-6 h-6" />
-                Einkauf / Verbrauchsmaterial
-              </h2>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-6 rounded-2xl border border-green-200 shadow-[0_4px_20px_rgba(34,197,94,0.15)] hover:shadow-[0_6px_30px_rgba(34,197,94,0.2)] transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <ShoppingCart className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Einkauf / Verbrauchsmaterial
+                </h2>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Diesel Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.dieselKostenProTonne}
                     onChange={(value) => updateEinkauf('dieselKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.einkauf.dieselKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.einkauf.dieselKostenProTonne)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Ziegelbruch Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.ziegelbruchKostenProTonne}
                     onChange={(value) => updateEinkauf('ziegelbruchKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -625,77 +701,82 @@ const VariableKostenRechner = () => {
                     Benötigte Menge: {ergebnis.benoetigteMengeZiegelbruch.toFixed(1)} t ({input.geplanterUmsatz} t Output × 0.75)
                   </p>
                   <p className="text-xs font-semibold text-green-700 mt-1">
-                    Jahreskosten Ziegelbruch: {ergebnis.jahreskostenZiegelbruch.toFixed(2)} €
+                    Jahreskosten Ziegelbruch: {formatNumber(ergebnis.jahreskostenZiegelbruch)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Strom Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.stromKostenProTonne}
                     onChange={(value) => updateEinkauf('stromKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.einkauf.stromKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.einkauf.stromKostenProTonne)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Entsorgung Container Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.entsorgungContainerKostenProTonne}
                     onChange={(value) => updateEinkauf('entsorgungContainerKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.einkauf.entsorgungContainerKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.einkauf.entsorgungContainerKostenProTonne)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Gasflaschen Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.gasflaschenKostenProTonne}
                     onChange={(value) => updateEinkauf('gasflaschenKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-green-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.einkauf.gasflaschenKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.einkauf.gasflaschenKostenProTonne)} €
                   </p>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-green-100 rounded-lg">
-                <p className="text-sm font-semibold text-gray-700">
-                  Jahreskosten Verbrauchsmaterial: <span className="text-green-700">{ergebnis.jahreskostenVerbrauchsmaterial.toFixed(2)} €</span>
+              <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl shadow-inner border border-green-200">
+                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                  <span>Jahreskosten Verbrauchsmaterial:</span>
+                  <span className="text-lg text-green-700 font-bold">{formatNumber(ergebnis.jahreskostenVerbrauchsmaterial)} €</span>
                 </p>
               </div>
             </div>
 
             {/* Verschleißteile */}
-            <div className="bg-yellow-50 p-6 rounded-xl border-2 border-yellow-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Settings className="w-6 h-6" />
-                Verschleißteile
-              </h2>
+            <div className="bg-gradient-to-br from-yellow-50 to-amber-50/50 p-6 rounded-2xl border border-yellow-200 shadow-[0_4px_20px_rgba(251,191,36,0.15)] hover:shadow-[0_6px_30px_rgba(251,191,36,0.2)] transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-yellow-500 to-amber-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Settings className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Verschleißteile
+                </h2>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Preis pro Hammer (€/Stück)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.preisProHammer}
                     onChange={(value) => updateVerschleiss('preisProHammer', value)}
-                    className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -704,13 +785,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Verbrauch Hämmer pro Tonne
                   </label>
                   <NumberInput
                     value={input.verschleissteile.verbrauchHaemmerProTonne}
                     onChange={(value) => updateVerschleiss('verbrauchHaemmerProTonne', value)}
-                    className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
@@ -718,68 +799,73 @@ const VariableKostenRechner = () => {
                     Benötigte Hämmer: {ergebnis.benoetigteHaemmer.toFixed(0)} Stück ({input.geplanterUmsatz} t × {input.verschleissteile.verbrauchHaemmerProTonne})
                   </p>
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
-                    Jahreskosten Hämmer: {ergebnis.jahreskostenHaemmer.toFixed(2)} €
+                    Jahreskosten Hämmer: {formatNumber(ergebnis.jahreskostenHaemmer)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Siebkörbe Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.siebkoerbeKostenProTonne}
                     onChange={(value) => updateVerschleiss('siebkoerbeKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.siebkoerbeKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.verschleissteile.siebkoerbeKostenProTonne)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Verschleißbleche Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.verschleissblecheKostenProTonne}
                     onChange={(value) => updateVerschleiss('verschleissblecheKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.verschleissblecheKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.verschleissteile.verschleissblecheKostenProTonne)} €
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Wellenlager Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.wellenlagerKostenProTonne}
                     onChange={(value) => updateVerschleiss('wellenlagerKostenProTonne', value)}
-                    className="w-full p-2 border-2 border-yellow-200 rounded-lg focus:border-yellow-400 focus:outline-none"
+                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
                     step={0.01}
                     min={0}
                   />
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
-                    Jahreskosten: {(input.geplanterUmsatz * input.verschleissteile.wellenlagerKostenProTonne).toFixed(2)} €
+                    Jahreskosten: {formatNumber(input.geplanterUmsatz * input.verschleissteile.wellenlagerKostenProTonne)} €
                   </p>
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-yellow-100 rounded-lg">
-                <p className="text-sm font-semibold text-gray-700">
-                  Jahreskosten Verschleiß: <span className="text-yellow-700">{ergebnis.jahreskostenVerschleiss.toFixed(2)} €</span>
+              <div className="mt-6 p-4 bg-gradient-to-r from-yellow-100 to-amber-100 rounded-xl shadow-inner border border-yellow-200">
+                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                  <span>Jahreskosten Verschleiß:</span>
+                  <span className="text-lg text-yellow-700 font-bold">{formatNumber(ergebnis.jahreskostenVerschleiss)} €</span>
                 </p>
               </div>
             </div>
 
             {/* Sackware */}
-            <div className="bg-purple-50 p-6 rounded-xl border-2 border-purple-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Settings className="w-6 h-6" />
-                Nur für Sackware
-              </h2>
+            <div className="bg-gradient-to-br from-purple-50 to-violet-50/50 p-6 rounded-2xl border border-purple-200 shadow-[0_4px_20px_rgba(139,92,246,0.15)] hover:shadow-[0_6px_30px_rgba(139,92,246,0.2)] transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Settings className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Nur für Sackware
+                </h2>
+              </div>
               <div className="mb-4 p-3 bg-purple-100 rounded-lg">
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Paletten pro Tonne
@@ -919,22 +1005,28 @@ const VariableKostenRechner = () => {
                   Gesamtkosten Sackware / Geplanter Umsatz
                 </p>
               </div>
-              <div className="mt-4 p-3 bg-purple-100 rounded-lg">
+              <div className="mt-6 p-4 bg-gradient-to-r from-purple-100 to-violet-100 rounded-xl shadow-inner border border-purple-200">
                 <p className="text-sm font-semibold text-gray-700">
                   Anzahl Paletten: <span className="text-purple-700">{ergebnis.anzahlPaletten.toFixed(0)}</span> ({geplanterUmsatz.toFixed(0)} t × {input.sackware.palettenProTonne} Paletten/t)
                 </p>
                 <p className="text-sm font-semibold text-gray-700 mt-1">
                   Anzahl Säcke: <span className="text-purple-700">{(ergebnis.anzahlPaletten * input.sackware.saeckeProPalette).toFixed(0)}</span> ({ergebnis.anzahlPaletten.toFixed(0)} Paletten × {input.sackware.saeckeProPalette} Säcke/Palette)
                 </p>
-                <p className="text-sm font-semibold text-gray-700 mt-1">
-                  Jahreskosten Sackware: <span className="text-purple-700">{ergebnis.jahreskostenSackware.toFixed(2)} €</span>
+                <p className="text-sm font-semibold text-gray-700 mt-3 flex items-center justify-between border-t border-purple-200 pt-3">
+                  <span>Jahreskosten Sackware:</span>
+                  <span className="text-lg text-purple-700 font-bold">{formatNumber(ergebnis.jahreskostenSackware)} €</span>
                 </p>
               </div>
             </div>
 
             {/* Verkaufspreise und Umlage */}
-            <div className="bg-red-50 p-6 rounded-xl border-2 border-red-200">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Verkaufspreise und Umlage auf hergestelltes Ziegelmehl</h2>
+            <div className="bg-gradient-to-br from-red-50 to-orange-50/50 p-6 rounded-2xl border border-red-200 shadow-[0_4px_20px_rgba(239,68,68,0.15)] hover:shadow-[0_6px_30px_rgba(239,68,68,0.2)] transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-gradient-to-br from-red-500 to-orange-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                  <Euro className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Verkaufspreise und Umlage auf hergestelltes Ziegelmehl</h2>
+              </div>
               
               {/* Berechnete Felder */}
               <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -1009,9 +1101,10 @@ const VariableKostenRechner = () => {
                 ))}
               </div>
 
-              <div className="mt-4 p-3 bg-red-100 rounded-lg">
-                <p className="text-sm font-semibold text-gray-700">
-                  Jahreskosten veränderlich ohne Sackware: <span className="text-red-700">{ergebnis.jahreskostenVeraenderlichOhneSackware.toFixed(2)} €</span>
+              <div className="mt-6 p-4 bg-gradient-to-r from-red-100 to-orange-100 rounded-xl shadow-inner border border-red-200">
+                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                  <span>Jahreskosten veränderlich ohne Sackware:</span>
+                  <span className="text-lg text-red-700 font-bold">{formatNumber(ergebnis.jahreskostenVeraenderlichOhneSackware)} €</span>
                 </p>
               </div>
             </div>

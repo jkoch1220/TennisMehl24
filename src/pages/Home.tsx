@@ -4,6 +4,13 @@ import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, Me
 const Home = () => {
   const tools = [
     {
+      name: 'Dashboard',
+      description: 'Unternehmenskennzahlen: Lagerbestände, anstehende Auslieferungen und mehr',
+      href: '/dashboard',
+      icon: BarChart3,
+      color: 'from-indigo-500 to-purple-500',
+    },
+    {
       name: 'Dispo-Planung',
       description: 'Planung und Verwaltung von Lieferungen, Routen und Fahrzeugen',
       href: '/dispo-planung',

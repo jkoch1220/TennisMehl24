@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import Home from './pages/Home';
+import Dashboard from './components/Dashboard/Dashboard';
 import SpeditionskostenRechner from './components/SpeditionskostenRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
@@ -60,6 +61,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
           <Route path="/fixkosten" element={<FixkostenRechner />} />
           <Route path="/variable-kosten" element={<VariableKostenRechner />} />

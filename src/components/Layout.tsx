@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen } from 'lucide-react';
+import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
 import VorschlagButton from './Tickets/VorschlagButton';
@@ -14,6 +14,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navigation = [
     { name: 'Startseite', href: '/', icon: Home },
+    { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
     { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
     { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
     { name: 'Wiki', href: '/wiki', icon: BookOpen },
@@ -34,9 +35,11 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="flex justify-between items-center min-h-[72px] py-3">
             <div className="flex items-center flex-1 min-w-0">
               <div className="flex-shrink-0 flex items-center mr-6 lg:mr-8">
-                <h1 className="text-2xl font-bold text-red-600 whitespace-nowrap">
-                  TennisMehl24
-                </h1>
+                <Link to="/">
+                  <h1 className="text-2xl font-bold text-red-600 whitespace-nowrap cursor-pointer hover:text-red-700 transition-colors">
+                    TennisMehl24
+                  </h1>
+                </Link>
               </div>
               <div className="hidden lg:flex items-center flex-1 overflow-x-auto scrollbar-hide -mx-2 px-2">
                 <div className="flex items-center gap-1 xl:gap-2">
@@ -145,17 +148,19 @@ const Layout = ({ children }: LayoutProps) => {
       {/* Main Content */}
       <main>{children}</main>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
-            © 2025 TennisMehl24 - Kalkulationstools
-          </p>
-        </div>
-      </footer>
+      {/* Footer - nicht auf Dashboard-Seite anzeigen */}
+      {location.pathname !== '/dashboard' && (
+        <footer className="bg-white border-t border-gray-200 mt-12">
+          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-sm text-gray-500">
+              © 2025 TennisMehl24 - Kalkulationstools
+            </p>
+          </div>
+        </footer>
+      )}
 
-      {/* Global Vorschlag Button - nicht auf TODOs-Seite anzeigen */}
-      {location.pathname !== '/todos' && <VorschlagButton />}
+      {/* Global Vorschlag Button - nicht auf TODOs und Dashboard-Seite anzeigen */}
+      {location.pathname !== '/todos' && location.pathname !== '/dashboard' && <VorschlagButton />}
     </div>
   );
 };
