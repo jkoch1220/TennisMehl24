@@ -1,7 +1,6 @@
 import { databases } from '../config/appwrite';
-import { DATABASE_ID, BESTELLUNGEN_COLLECTION_ID } from '../config/appwrite';
+import { DATABASE_ID } from '../config/appwrite';
 import type { LagerBestand, DashboardStats } from '../types/dashboard';
-import { Query } from 'appwrite';
 
 export const LAGER_COLLECTION_ID = 'lager_bestand';
 export const LAGER_DOCUMENT_ID = 'lager_data';
