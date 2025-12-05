@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calculator, Home, Menu, Euro, TrendingUp, LogOut, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen, BarChart3 } from 'lucide-react';
+import { Home, Menu, LogOut, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { clearSession } from '../utils/auth';
 import VorschlagButton from './Tickets/VorschlagButton';
+import { ALL_TOOLS } from '../constants/tools';
+import { useToolSettings } from '../hooks/useToolSettings';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,20 +13,17 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { visibility, enabledTools, setToolVisibility, resetVisibility } = useToolSettings();
 
   const navigation = [
     { name: 'Startseite', href: '/', icon: Home },
-    { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-    { name: 'Dispo-Planung', href: '/dispo-planung', icon: Calendar },
-    { name: 'Kreditoren-Verwaltung', href: '/kreditoren', icon: Receipt },
-    { name: 'Wiki', href: '/wiki', icon: BookOpen },
-    { name: 'Konkurrenten-Karte', href: '/konkurrenten', icon: MapPin },
-    { name: 'Kunden-Karte', href: '/kunden-karte', icon: Users },
-    { name: 'Vorschläge', href: '/vorschlaege', icon: MessageSquare },
-    { name: 'TODOs', href: '/todos', icon: CheckSquare },
-    { name: 'Fixkosten Rechner', href: '/fixkosten', icon: Euro },
-    { name: 'Variable Kosten', href: '/variable-kosten', icon: TrendingUp },
-    { name: 'Speditionskosten Rechner', href: '/speditionskosten', icon: Calculator },
+    ...enabledTools.map((tool) => ({
+      name: tool.name,
+      href: tool.href,
+      icon: tool.icon,
+      id: tool.id,
+    })),
   ];
 
   return (
@@ -86,6 +85,14 @@ const Layout = ({ children }: LayoutProps) => {
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-red-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-5 h-5" />
+                <span className="hidden lg:inline">Settings</span>
+              </button>
               <button
                 onClick={() => {
                   clearSession();
@@ -161,6 +168,87 @@ const Layout = ({ children }: LayoutProps) => {
 
       {/* Global Vorschlag Button - nicht auf TODOs und Dashboard-Seite anzeigen */}
       {location.pathname !== '/todos' && location.pathname !== '/dashboard' && <VorschlagButton />}
+
+      {/* Settings Modal */}
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+          <div
+            className="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm"
+            onClick={() => setSettingsOpen(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 sm:p-8">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Tools pro Nutzer ein- und ausblenden (wird im Browser gespeichert)
+                </p>
+              </div>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Schließen"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {ALL_TOOLS.map((tool) => {
+                const Icon = tool.icon;
+                const checked = visibility[tool.id] ?? true;
+                return (
+                  <label
+                    key={tool.id}
+                    className="flex items-center justify-between gap-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-xl px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg bg-gradient-to-br ${tool.color} text-white`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">{tool.name}</div>
+                        <div className="text-sm text-gray-600">{tool.description}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600 hidden sm:inline">
+                        {checked ? 'Aktiv' : 'Ausgeblendet'}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={checked}
+                          onChange={(e) => setToolVisibility(tool.id, e.target.checked)}
+                        />
+                        <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500" />
+                      </label>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-between items-center mt-6">
+              <button
+                onClick={resetVisibility}
+                className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Alle anzeigen
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSettingsOpen(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

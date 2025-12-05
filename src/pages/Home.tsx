@@ -1,86 +1,9 @@
 import { Link } from 'react-router-dom';
-import { Calculator, TrendingUp, Package, BarChart3, Euro, Calendar, Receipt, MessageSquare, CheckSquare, MapPin, Users, BookOpen } from 'lucide-react';
+import { Package, BarChart3, TrendingUp } from 'lucide-react';
+import { useToolSettings } from '../hooks/useToolSettings';
 
 const Home = () => {
-  const tools = [
-    {
-      name: 'Dashboard',
-      description: 'Unternehmenskennzahlen: Lagerbestände, anstehende Auslieferungen und mehr',
-      href: '/dashboard',
-      icon: BarChart3,
-      color: 'from-indigo-500 to-purple-500',
-    },
-    {
-      name: 'Dispo-Planung',
-      description: 'Planung und Verwaltung von Lieferungen, Routen und Fahrzeugen',
-      href: '/dispo-planung',
-      icon: Calendar,
-      color: 'from-purple-500 to-pink-500',
-    },
-    {
-      name: 'Kreditoren-Verwaltung',
-      description: 'Verwaltung offener Rechnungen und Kreditoren mit Übersicht und Statistiken',
-      href: '/kreditoren',
-      icon: Receipt,
-      color: 'from-red-600 to-red-800',
-    },
-    {
-      name: 'Wiki',
-      description: 'Dokumentation, Anleitungen und Wissenssammlung für das Team',
-      href: '/wiki',
-      icon: BookOpen,
-      color: 'from-amber-500 to-orange-600',
-    },
-    {
-      name: 'Konkurrenten-Karte',
-      description: 'Übersicht aller Konkurrenten und Lieferkosten-Analyse nach Postleitzahl',
-      href: '/konkurrenten',
-      icon: MapPin,
-      color: 'from-blue-600 to-indigo-600',
-    },
-    {
-      name: 'Kunden-Karte',
-      description: 'Google Maps-Karte mit allen Kundenstandorten',
-      href: '/kunden-karte',
-      icon: Users,
-      color: 'from-green-600 to-emerald-600',
-    },
-    {
-      name: 'Speditionskosten Rechner',
-      description: 'Preisberechnung für Ziegelmehl mit Spedition oder Eigenlieferung',
-      href: '/speditionskosten',
-      icon: Calculator,
-      color: 'from-red-500 to-orange-500',
-    },
-    {
-      name: 'Fixkosten Rechner',
-      description: 'Berechnung der Fixkosten für die Ziegelmehl-Herstellung',
-      href: '/fixkosten',
-      icon: Euro,
-      color: 'from-orange-500 to-red-500',
-    },
-    {
-      name: 'Variable Kosten Rechner',
-      description: 'Berechnung der variablen Kosten und Gesamtherstellkosten',
-      href: '/variable-kosten',
-      icon: TrendingUp,
-      color: 'from-blue-500 to-indigo-500',
-    },
-    {
-      name: 'Verbesserungsvorschläge',
-      description: 'Vorschläge zur Verbesserung des Online-Tools anlegen und verwalten',
-      href: '/vorschlaege',
-      icon: MessageSquare,
-      color: 'from-green-500 to-emerald-500',
-    },
-    {
-      name: 'TODO-Verwaltung',
-      description: 'Aufgaben im Kanban-Board verwalten und bearbeiten',
-      href: '/todos',
-      icon: CheckSquare,
-      color: 'from-purple-500 to-violet-500',
-    },
-  ];
+  const { enabledTools } = useToolSettings();
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -98,7 +21,7 @@ const Home = () => {
 
         {/* Tools Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {tools.map((tool) => {
+          {enabledTools.map((tool) => {
             const Icon = tool.icon;
             const content = (
               <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105">
