@@ -19,6 +19,12 @@ export const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 export const WIKI_FILES_COLLECTION_ID = 'wiki_files';
 export const LAGER_COLLECTION_ID = 'lager_bestand';
 export const KUNDEN_AKTIVITAETEN_COLLECTION_ID = 'kunden_aktivitaeten';
+// Saisonplanung Collections
+export const SAISON_KUNDEN_COLLECTION_ID = 'saison_kunden';
+export const SAISON_ANSPRECHPARTNER_COLLECTION_ID = 'saison_ansprechpartner';
+export const SAISON_DATEN_COLLECTION_ID = 'saison_daten';
+export const SAISON_BEZIEHUNGEN_COLLECTION_ID = 'saison_beziehungen';
+export const SAISON_AKTIVITAETEN_COLLECTION_ID = 'saison_aktivitaeten';
 
 // Storage Bucket IDs
 export const RECHNUNGS_DATEIEN_BUCKET_ID = 'rechnungs-dateien';

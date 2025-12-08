@@ -8,6 +8,7 @@ import SpeditionskostenRechner from './components/SpeditionskostenRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import DispoPlanung from './components/DispoPlanung/DispoPlanung';
+import Saisonplanung from './components/Saisonplanung/Saisonplanung';
 import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVerwaltung';
 import KonkurrentenVerwaltung from './components/KonkurrentenKarte/KonkurrentenVerwaltung';
 import Vorschlaege from './components/Tickets/Vorschlaege';
@@ -73,6 +74,7 @@ function App() {
           <Route path="/fixkosten" element={<FixkostenRechner />} />
           <Route path="/variable-kosten" element={<VariableKostenRechner />} />
           <Route path="/dispo-planung" element={<DispoPlanung />} />
+          <Route path="/saisonplanung" element={<Saisonplanung />} />
           <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
           <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
           <Route path="/kunden-karte" element={<KundenKarte />} />

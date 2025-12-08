@@ -3,14 +3,12 @@ import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clo
 import {
   SaisonKundeMitDaten,
   SaisonplanungStatistik,
-  GespraechsStatus,
-  KundenTyp,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import KundenFormular from './KundenFormular';
 import CallListe from './CallListe';
 import KundenDetail from './KundenDetail';
-import BeziehungsUebersicht from './BeziehungsUebersicht';
+import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
 
 const Saisonplanung = () => {
   const [kunden, setKunden] = useState<SaisonKundeMitDaten[]>([]);
@@ -78,6 +76,16 @@ const Saisonplanung = () => {
     loadData();
   };
 
+  const handleNeueSaison = async () => {
+    try {
+      await saisonplanungService.erstelleNeueSaison(saisonjahr);
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Anlegen der neuen Saison:', error);
+      alert('Neue Saison konnte nicht angelegt werden.');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Möchten Sie diesen Kunden wirklich löschen?')) return;
     try {
@@ -116,6 +124,13 @@ const Saisonplanung = () => {
             >
               <RefreshCw className="w-5 h-5" />
               Aktualisieren
+            </button>
+            <button
+              onClick={handleNeueSaison}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              <Clock className="w-5 h-5" />
+              Neue Saison anlegen
             </button>
             <button
               onClick={() => setShowBeziehungen(true)}
@@ -175,6 +190,20 @@ const Saisonplanung = () => {
               icon={TrendingUp}
               color="orange"
             />
+            <StatistikKarte
+              title="Bezugsweg direkt"
+              value={statistik.nachBezugsweg.direkt.toString()}
+              subtitle="Direkt beliefert"
+              icon={Building2}
+              color="blue"
+            />
+            <StatistikKarte
+              title="Über Platzbauer"
+              value={statistik.nachBezugsweg.ueber_platzbauer.toString()}
+              subtitle="Über Partner"
+              icon={Filter}
+              color="yellow"
+            />
           </div>
         )}
 
@@ -217,7 +246,6 @@ const Saisonplanung = () => {
         {showFormular && (
           <KundenFormular
             kunde={selectedKunde}
-            saisonjahr={saisonjahr}
             onSave={handleSave}
             onCancel={() => {
               setShowFormular(false);
@@ -339,6 +367,9 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
             <p>
               {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
             </p>
+            {kunde.kunde.adresse.bundesland && (
+              <p className="text-xs text-gray-500">{kunde.kunde.adresse.bundesland}</p>
+            )}
             {kunde.ansprechpartner.length > 0 && (
               <p className="text-xs text-gray-500">
                 {kunde.ansprechpartner.length} Ansprechpartner
@@ -351,6 +382,18 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
             )}
             {preis && (
               <p className="text-xs text-gray-500">Preis: {preis.toFixed(2)} €/t</p>
+            )}
+            {(kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg) && (
+              <p className="text-xs text-gray-500">
+                Bezugsweg:{' '}
+                {kunde.aktuelleSaison?.bezugsweg
+                  ? kunde.aktuelleSaison.bezugsweg === 'direkt'
+                    ? 'Direkt'
+                    : 'Über Platzbauer'
+                  : kunde.kunde.standardBezugsweg === 'direkt'
+                  ? 'Direkt (Standard)'
+                  : 'Über Platzbauer (Standard)'}
+              </p>
             )}
           </div>
         </div>

@@ -12,6 +12,7 @@ export interface Adresse {
   strasse: string;
   plz: string;
   ort: string;
+  bundesland?: string;
   koordinaten?: [number, number]; // [lon, lat]
 }
 

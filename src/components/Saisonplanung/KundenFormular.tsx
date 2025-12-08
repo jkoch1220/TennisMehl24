@@ -6,18 +6,19 @@ import {
   NeuerAnsprechpartner,
   Telefonnummer,
   KundenTyp,
+  Bezugsweg,
+  SaisonKunde,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
-import AdressAutocomplete from './AdressAutocomplete';
+import AdressAutocomplete from './AdressAutocomplete.tsx';
 
 interface KundenFormularProps {
   kunde?: SaisonKundeMitDaten | null;
-  saisonjahr: number;
   onSave: () => void;
   onCancel: () => void;
 }
 
-const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularProps) => {
+const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,10 +30,14 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
       strasse: '',
       plz: '',
       ort: '',
+      bundesland: '',
     },
     email: '',
     notizen: '',
     aktiv: true,
+    standardBezugsweg: 'direkt',
+    standardPlatzbauerId: '',
+    zuletztGezahlterPreis: undefined,
   });
 
   const [ansprechpartner, setAnsprechpartner] = useState<NeuerAnsprechpartner[]>([]);
@@ -45,6 +50,8 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
     notizen: '',
     aktiv: true,
   });
+  const [platzbauer, setPlatzbauer] = useState<SaisonKunde[]>([]);
+  const [zugeordnetePlatzbauer, setZugeordnetePlatzbauer] = useState<string[]>([]);
 
   useEffect(() => {
     if (kunde) {
@@ -56,6 +63,9 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
         email: kunde.kunde.email || '',
         notizen: kunde.kunde.notizen || '',
         aktiv: kunde.kunde.aktiv,
+        standardBezugsweg: kunde.kunde.standardBezugsweg,
+        standardPlatzbauerId: kunde.kunde.standardPlatzbauerId,
+        zuletztGezahlterPreis: kunde.kunde.zuletztGezahlterPreis,
       });
       setAnsprechpartner(
         kunde.ansprechpartner.map((ap) => ({
@@ -63,20 +73,50 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
           kundeId: kunde.kunde.id,
         }))
       );
+      setZugeordnetePlatzbauer(
+        kunde.beziehungenAlsVerein?.map((b) => b.platzbauerId) || []
+      );
     } else {
       // Reset für neuen Kunden
       setFormData({
         typ: 'verein',
         name: '',
         kundennummer: '',
-        adresse: { strasse: '', plz: '', ort: '' },
+        adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
         email: '',
         notizen: '',
         aktiv: true,
+        standardBezugsweg: 'direkt',
+        standardPlatzbauerId: '',
+        zuletztGezahlterPreis: undefined,
       });
       setAnsprechpartner([]);
+      setZugeordnetePlatzbauer([]);
     }
   }, [kunde]);
+
+  useEffect(() => {
+    const ladePlatzbauer = async () => {
+      const alle = await saisonplanungService.loadAlleKunden();
+      setPlatzbauer(alle.filter((k) => k.typ === 'platzbauer'));
+    };
+    ladePlatzbauer();
+  }, []);
+
+  useEffect(() => {
+    if (formData.typ === 'platzbauer') {
+      if (zugeordnetePlatzbauer.length > 0) {
+        setZugeordnetePlatzbauer([]);
+      }
+      if (formData.standardBezugsweg) {
+        setFormData((prev) => ({
+          ...prev,
+          standardBezugsweg: undefined,
+          standardPlatzbauerId: '',
+        }));
+      }
+    }
+  }, [formData.typ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,14 +137,22 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
         // Update bestehender Kunde
         const updated = await saisonplanungService.updateKunde(kunde.kunde.id, {
           ...formData,
-          adresse: formData.adresse || { strasse: '', plz: '', ort: '' },
+          adresse: formData.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          standardPlatzbauerId:
+            formData.standardBezugsweg === 'ueber_platzbauer'
+              ? formData.standardPlatzbauerId
+              : '',
         } as Partial<NeuerSaisonKunde>);
         kundeId = updated.id;
       } else {
         // Erstelle neuen Kunden
         const created = await saisonplanungService.createKunde({
           ...formData,
-          adresse: formData.adresse || { strasse: '', plz: '', ort: '' },
+          adresse: formData.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          standardPlatzbauerId:
+            formData.standardBezugsweg === 'ueber_platzbauer'
+              ? formData.standardPlatzbauerId
+              : '',
         } as NeuerSaisonKunde);
         kundeId = created.id;
       }
@@ -133,6 +181,29 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
             kundeId,
           });
         }
+      }
+
+      // Beziehungen Verein ↔ Platzbauer (nur für Vereine)
+      if ((formData.typ || kunde?.kunde.typ) === 'verein') {
+        const bestehendeBeziehungen = kunde?.beziehungenAlsVerein || [];
+        const zuLoeschende = bestehendeBeziehungen.filter(
+          (b) => !zugeordnetePlatzbauer.includes(b.platzbauerId)
+        );
+        const zuErstellende = zugeordnetePlatzbauer.filter(
+          (platzbauerId) =>
+            !bestehendeBeziehungen.some((b) => b.platzbauerId === platzbauerId)
+        );
+
+        await Promise.all([
+          ...zuLoeschende.map((b) => saisonplanungService.deleteBeziehung(b.id)),
+          ...zuErstellende.map((platzbauerId) =>
+            saisonplanungService.createBeziehung({
+              vereinId: kundeId,
+              platzbauerId,
+              status: 'aktiv',
+            })
+          ),
+        ]);
       }
 
       onSave();
@@ -281,6 +352,37 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Zuletzt gezahlter Preis (€/t)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.zuletztGezahlterPreis ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      zuletztGezahlterPreis: e.target.value ? parseFloat(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="aktiv"
+                  type="checkbox"
+                  checked={formData.aktiv ?? true}
+                  onChange={(e) => setFormData({ ...formData, aktiv: e.target.checked })}
+                  className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                />
+                <label htmlFor="aktiv" className="text-sm font-medium text-gray-700">
+                  Aktiv
+                </label>
+              </div>
             </div>
 
             {/* Adresse mit Autovervollständigung */}
@@ -290,7 +392,8 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
                 strasse={formData.adresse?.strasse || ''}
                 plz={formData.adresse?.plz || ''}
                 ort={formData.adresse?.ort || ''}
-                onAdresseChange={(adresse) =>
+                bundesland={formData.adresse?.bundesland || ''}
+                onAdresseChange={(adresse: { strasse: string; plz: string; ort: string; bundesland?: string }) =>
                   setFormData({
                     ...formData,
                     adresse,
@@ -298,6 +401,55 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
                 }
               />
             </div>
+
+            {/* Standard-Bezugsweg für Vereine */}
+            {formData.typ === 'verein' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Standard Bezugsweg
+                  </label>
+                  <select
+                    value={formData.standardBezugsweg || 'direkt'}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        standardBezugsweg: e.target.value as Bezugsweg,
+                        standardPlatzbauerId:
+                          e.target.value === 'ueber_platzbauer'
+                            ? formData.standardPlatzbauerId
+                            : '',
+                      })
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="direkt">Direkt</option>
+                    <option value="ueber_platzbauer">Über Platzbauer</option>
+                  </select>
+                </div>
+                {formData.standardBezugsweg === 'ueber_platzbauer' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Standard Platzbauer
+                    </label>
+                    <select
+                      value={formData.standardPlatzbauerId || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, standardPlatzbauerId: e.target.value })
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      <option value="">Bitte wählen</option>
+                      {platzbauer.map((pb) => (
+                        <option key={pb.id} value={pb.id}>
+                          {pb.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
@@ -309,6 +461,40 @@ const KundenFormular = ({ kunde, saisonjahr, onSave, onCancel }: KundenFormularP
               />
             </div>
           </div>
+
+          {/* Beziehungen Verein ↔ Platzbauer */}
+          {formData.typ === 'verein' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Platzbauer-Zuordnung</h3>
+                <span className="text-xs text-gray-500">Mehrfachauswahl möglich</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {platzbauer.map((pb) => (
+                  <label
+                    key={pb.id}
+                    className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={zugeordnetePlatzbauer.includes(pb.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setZugeordnetePlatzbauer([...zugeordnetePlatzbauer, pb.id]);
+                        } else {
+                          setZugeordnetePlatzbauer(
+                            zugeordnetePlatzbauer.filter((id) => id !== pb.id)
+                          );
+                        }
+                      }}
+                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">{pb.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Ansprechpartner */}
           <div className="space-y-4">

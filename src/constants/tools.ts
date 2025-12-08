@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Calendar,
+  CalendarDays,
   Receipt,
   BookOpen,
   MapPin,
@@ -38,6 +39,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/dispo-planung',
     icon: Calendar,
     color: 'from-purple-500 to-pink-500',
+  },
+  {
+    id: 'saisonplanung',
+    name: 'Saisonplanung',
+    description: 'Call-Liste, Saisonmengen, Platzbauer-Beziehungen und Preise pflegen',
+    href: '/saisonplanung',
+    icon: CalendarDays,
+    color: 'from-amber-500 to-red-500',
   },
   {
     id: 'kreditoren',

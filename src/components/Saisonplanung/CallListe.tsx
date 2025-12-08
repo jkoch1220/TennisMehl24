@@ -6,6 +6,7 @@ import {
   Bestellabsicht,
   Bezugsweg,
   NeueSaisonDaten,
+  CallListeFilter,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 
@@ -20,21 +21,59 @@ interface CallListeProps {
 const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: CallListeProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [offeneKunden, setOffeneKunden] = useState<SaisonKundeMitDaten[]>([]);
+  const [filter, setFilter] = useState<CallListeFilter>({});
+  const [formData, setFormData] = useState<Partial<NeueSaisonDaten>>({});
+
+  const matchesFilter = (k: SaisonKundeMitDaten) => {
+    if (filter.typ && filter.typ.length > 0 && !filter.typ.includes(k.kunde.typ)) return false;
+    if (filter.status && filter.status.length > 0) {
+      const status = k.aktuelleSaison?.gespraechsstatus || 'offen';
+      if (!filter.status.includes(status)) return false;
+    }
+    if (filter.bezugsweg && filter.bezugsweg.length > 0) {
+      const bezug = k.aktuelleSaison?.bezugsweg || 'direkt';
+      if (!filter.bezugsweg.includes(bezug)) return false;
+    }
+    if (filter.bundesland && filter.bundesland.length > 0) {
+      const bl = (k.kunde.adresse.bundesland || '').toLowerCase();
+      if (!filter.bundesland.some((b) => b.toLowerCase() === bl)) return false;
+    }
+    if (filter.platzbauerId) {
+      const matchPlatzbauer =
+        k.aktuelleSaison?.platzbauerId === filter.platzbauerId ||
+        k.beziehungenAlsVerein?.some((b) => b.platzbauerId === filter.platzbauerId);
+      if (!matchPlatzbauer) return false;
+    }
+    if (filter.suche) {
+      const s = filter.suche.toLowerCase();
+      if (
+        !(
+          k.kunde.name.toLowerCase().includes(s) ||
+          k.kunde.adresse.ort.toLowerCase().includes(s) ||
+          k.kunde.adresse.plz.toLowerCase().includes(s)
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   useEffect(() => {
-    // Filtere nur offene Kunden
-    const offen = kunden.filter(
+    const gefiltert = kunden.filter(matchesFilter);
+    const offen = gefiltert.filter(
       (k) => !k.aktuelleSaison || k.aktuelleSaison.gespraechsstatus !== 'erledigt'
     );
     setOffeneKunden(offen);
-    // Setze Index auf ersten offenen Kunden
     if (offen.length > 0) {
       setCurrentIndex(0);
+    } else {
+      setCurrentIndex(0);
+      setFormData({});
     }
-  }, [kunden]);
+  }, [kunden, filter]);
 
   const currentKunde = offeneKunden[currentIndex];
-  const [formData, setFormData] = useState<Partial<NeueSaisonDaten>>({});
 
   useEffect(() => {
     if (currentKunde?.aktuelleSaison) {
@@ -58,19 +97,20 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
     }
   }, [currentKunde]);
 
-  const handleSave = async () => {
+  const handleSave = async (override?: Partial<NeueSaisonDaten>) => {
     if (!currentKunde) return;
+    const payload: Partial<NeueSaisonDaten> = { ...formData, ...override };
 
     try {
       if (currentKunde.aktuelleSaison) {
         // Update bestehende Saison-Daten
         await saisonplanungService.updateSaisonDaten(currentKunde.aktuelleSaison.id, {
-          ...formData,
-          lieferfensterFrueh: formData.lieferfensterFrueh
-            ? new Date(formData.lieferfensterFrueh).toISOString()
+          ...payload,
+          lieferfensterFrueh: payload.lieferfensterFrueh
+            ? new Date(payload.lieferfensterFrueh).toISOString()
             : undefined,
-          lieferfensterSpaet: formData.lieferfensterSpaet
-            ? new Date(formData.lieferfensterSpaet).toISOString()
+          lieferfensterSpaet: payload.lieferfensterSpaet
+            ? new Date(payload.lieferfensterSpaet).toISOString()
             : undefined,
         } as Partial<NeueSaisonDaten>);
       } else {
@@ -78,12 +118,12 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
         await saisonplanungService.createSaisonDaten({
           kundeId: currentKunde.kunde.id,
           saisonjahr,
-          ...formData,
-          lieferfensterFrueh: formData.lieferfensterFrueh
-            ? new Date(formData.lieferfensterFrueh).toISOString()
+          ...payload,
+          lieferfensterFrueh: payload.lieferfensterFrueh
+            ? new Date(payload.lieferfensterFrueh).toISOString()
             : undefined,
-          lieferfensterSpaet: formData.lieferfensterSpaet
-            ? new Date(formData.lieferfensterSpaet).toISOString()
+          lieferfensterSpaet: payload.lieferfensterSpaet
+            ? new Date(payload.lieferfensterSpaet).toISOString()
             : undefined,
         } as NeueSaisonDaten);
       }
@@ -93,7 +133,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
         kundeId: currentKunde.kunde.id,
         typ: 'telefonat',
         titel: 'Telefonat geführt',
-        beschreibung: `Gesprächsstatus: ${formData.gespraechsstatus}`,
+        beschreibung: `Gesprächsstatus: ${payload.gespraechsstatus}`,
       });
 
       onUpdate();
@@ -106,10 +146,8 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
   const handleErledigt = async () => {
     if (!currentKunde) return;
 
-    setFormData({ ...formData, gespraechsstatus: 'erledigt' });
-    
     try {
-      await handleSave();
+      await handleSave({ gespraechsstatus: 'erledigt' });
       // Springe zum nächsten offenen Kunden
       const naechsteOffene = offeneKunden.findIndex(
         (k, idx) => idx > currentIndex && k.aktuelleSaison?.gespraechsstatus !== 'erledigt'
@@ -158,6 +196,13 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
   }
 
   const platzbauerKunden = kunden.filter((k) => k.kunde.typ === 'platzbauer');
+  const bundeslaender = Array.from(
+    new Set(
+      kunden
+        .map((k) => k.kunde.adresse.bundesland)
+        .filter((b): b is string => !!b && b.trim().length > 0)
+    )
+  );
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -172,6 +217,114 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
           </button>
+        </div>
+
+        {/* Filter */}
+        <div className="p-6 border-b border-gray-200 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Suche</label>
+              <input
+                type="text"
+                value={filter.suche || ''}
+                onChange={(e) => setFilter({ ...filter, suche: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Name, Ort, PLZ"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Typ</label>
+              <select
+                value={filter.typ?.[0] || ''}
+                onChange={(e) =>
+                  setFilter({ ...filter, typ: e.target.value ? [e.target.value as any] : undefined })
+                }
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Alle</option>
+                <option value="verein">Verein</option>
+                <option value="platzbauer">Platzbauer</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filter.status?.[0] || ''}
+                onChange={(e) =>
+                  setFilter({
+                    ...filter,
+                    status: e.target.value ? [e.target.value as GespraechsStatus] : undefined,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Alle</option>
+                <option value="offen">Offen</option>
+                <option value="in_bearbeitung">In Bearbeitung</option>
+                <option value="erledigt">Erledigt</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bezugsweg</label>
+              <select
+                value={filter.bezugsweg?.[0] || ''}
+                onChange={(e) =>
+                  setFilter({
+                    ...filter,
+                    bezugsweg: e.target.value ? [e.target.value as Bezugsweg] : undefined,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Alle</option>
+                <option value="direkt">Direkt</option>
+                <option value="ueber_platzbauer">Über Platzbauer</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bundesland</label>
+              <select
+                value={filter.bundesland?.[0] || ''}
+                onChange={(e) =>
+                  setFilter({
+                    ...filter,
+                    bundesland: e.target.value ? [e.target.value] : undefined,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Alle</option>
+                {bundeslaender.map((bl) => (
+                  <option key={bl} value={bl}>
+                    {bl}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Platzbauer</label>
+              <select
+                value={filter.platzbauerId || ''}
+                onChange={(e) =>
+                  setFilter({
+                    ...filter,
+                    platzbauerId: e.target.value || undefined,
+                  })
+                }
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Alle</option>
+                {platzbauerKunden.map((pb) => (
+                  <option key={pb.kunde.id} value={pb.kunde.id}>
+                    {pb.kunde.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {currentKunde && (
@@ -258,6 +411,26 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
                     <option value="bestellt">Bestellt</option>
                     <option value="bestellt_nicht">Bestellt nicht</option>
                     <option value="unklar">Unklar</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gesprächsstatus
+                  </label>
+                  <select
+                    value={formData.gespraechsstatus || 'offen'}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        gespraechsstatus: e.target.value as GespraechsStatus,
+                      })
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="offen">Offen</option>
+                    <option value="in_bearbeitung">In Bearbeitung</option>
+                    <option value="erledigt">Erledigt</option>
                   </select>
                 </div>
 

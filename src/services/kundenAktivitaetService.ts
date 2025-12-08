@@ -64,7 +64,11 @@ export const kundenAktivitaetService = {
         Query.limit(500),
       ]);
       return response.documents.map((doc) => parseAktivitaetDocument(doc));
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 404) {
+        console.warn('⚠️ Collection kunden_aktivitaeten fehlt. Bitte Appwrite Setup ausführen.');
+        return [];
+      }
       console.error('Fehler beim Laden der Kunden-Aktivitäten:', error);
       return [];
     }

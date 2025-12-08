@@ -73,6 +73,12 @@ export type NeueSaisonDaten = Omit<SaisonDaten, 'id' | 'erstelltAm' | 'geaendert
   id?: string;
 };
 
+export interface PreisHistorienEintrag {
+  saisonjahr: number;
+  preisProTonne: number;
+  geaendertAm: string;
+}
+
 // Beziehung Verein ↔ Platzbauer
 export interface VereinPlatzbauerBeziehung {
   id: string;
@@ -116,6 +122,9 @@ export interface SaisonKunde {
   aktiv: boolean;
   // Zuletzt gezahlter Preis (aus letzter Saison)
   zuletztGezahlterPreis?: number;
+  preisHistorie?: PreisHistorienEintrag[];
+  standardBezugsweg?: Bezugsweg;
+  standardPlatzbauerId?: string;
   erstelltAm: string;
   geaendertAm: string;
 }

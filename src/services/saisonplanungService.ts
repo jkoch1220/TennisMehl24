@@ -53,6 +53,52 @@ function toPayload<T>(obj: T): { data: string; name?: string } {
   return payload;
 }
 
+async function updatePreisHistorie(
+  kundeId: string,
+  preisProTonne: number | undefined,
+  saisonjahr: number,
+  updateKundeFn: (id: string, kunde: Partial<SaisonKunde>) => Promise<SaisonKunde>,
+  loadKundeFn: (id: string) => Promise<SaisonKunde | null>
+) {
+  if (preisProTonne === undefined) return;
+  const kunde = await loadKundeFn(kundeId);
+  if (!kunde) return;
+
+  const preisHistorie = kunde.preisHistorie ? [...kunde.preisHistorie] : [];
+  const existierendIndex = preisHistorie.findIndex((p) => p.saisonjahr === saisonjahr);
+
+  const eintrag = {
+    saisonjahr,
+    preisProTonne,
+    geaendertAm: new Date().toISOString(),
+  };
+
+  if (existierendIndex >= 0) {
+    preisHistorie[existierendIndex] = eintrag;
+  } else {
+    preisHistorie.push(eintrag);
+  }
+
+  await updateKundeFn(kundeId, {
+    zuletztGezahlterPreis: preisProTonne,
+    preisHistorie,
+  });
+}
+
+async function setzeReferenzmengeFolgejahr(
+  kundeId: string,
+  saisonjahr: number,
+  tatsaechlicheMenge: number | undefined,
+  loadAktuelleSaisonFn: (kundeId: string, saisonjahr: number) => Promise<SaisonDaten | null>,
+  updateSaisonFn: (id: string, daten: Partial<SaisonDaten>) => Promise<SaisonDaten>
+) {
+  if (tatsaechlicheMenge === undefined) return;
+  const naechsteSaison = await loadAktuelleSaisonFn(kundeId, saisonjahr + 1);
+  if (naechsteSaison) {
+    await updateSaisonFn(naechsteSaison.id, { referenzmenge: tatsaechlicheMenge });
+  }
+}
+
 export const saisonplanungService = {
   // ========== KUNDEN ==========
 
@@ -68,7 +114,7 @@ export const saisonplanungService = {
           id: doc.$id,
           typ: 'verein',
           name: '',
-          adresse: { strasse: '', plz: '', ort: '' },
+          adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
           aktiv: true,
           erstelltAm: doc.$createdAt,
           geaendertAm: doc.$updatedAt || doc.$createdAt,
@@ -91,7 +137,7 @@ export const saisonplanungService = {
         id: doc.$id,
         typ: 'verein',
         name: '',
-        adresse: { strasse: '', plz: '', ort: '' },
+        adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
         aktiv: true,
         erstelltAm: doc.$createdAt,
         geaendertAm: doc.$updatedAt || doc.$createdAt,
@@ -107,6 +153,12 @@ export const saisonplanungService = {
     const neuerKunde: SaisonKunde = {
       ...kunde,
       id: kunde.id || ID.unique(),
+      adresse: {
+        strasse: kunde.adresse?.strasse || '',
+        plz: kunde.adresse?.plz || '',
+        ort: kunde.adresse?.ort || '',
+        bundesland: kunde.adresse?.bundesland || '',
+      },
       aktiv: kunde.aktiv !== undefined ? kunde.aktiv : true,
       erstelltAm: jetzt,
       geaendertAm: jetzt,
@@ -136,6 +188,15 @@ export const saisonplanungService = {
       ...aktuell,
       ...kunde,
       id,
+      adresse: {
+        strasse: kunde.adresse?.strasse || aktuell.adresse.strasse,
+        plz: kunde.adresse?.plz || aktuell.adresse.plz,
+        ort: kunde.adresse?.ort || aktuell.adresse.ort,
+        bundesland:
+          kunde.adresse?.bundesland !== undefined
+            ? kunde.adresse?.bundesland
+            : aktuell.adresse.bundesland,
+      },
       geaendertAm: new Date().toISOString(),
     };
 
@@ -334,7 +395,15 @@ export const saisonplanungService = {
         neueSaisonDaten.id,
         toPayload(neueSaisonDaten)
       );
-      return parseDocument<SaisonDaten>(doc, neueSaisonDaten);
+      const parsed = parseDocument<SaisonDaten>(doc, neueSaisonDaten);
+      await updatePreisHistorie(
+        parsed.kundeId,
+        parsed.preisProTonne,
+        parsed.saisonjahr,
+        this.updateKunde.bind(this),
+        this.loadKunde.bind(this)
+      );
+      return parsed;
     } catch (error) {
       console.error('Fehler beim Erstellen der Saison-Daten:', error);
       throw error;
@@ -370,7 +439,22 @@ export const saisonplanungService = {
         id,
         toPayload(aktualisiert)
       );
-      return parseDocument<SaisonDaten>(updatedDoc, aktualisiert);
+      const parsed = parseDocument<SaisonDaten>(updatedDoc, aktualisiert);
+      await updatePreisHistorie(
+        parsed.kundeId,
+        parsed.preisProTonne,
+        parsed.saisonjahr,
+        this.updateKunde.bind(this),
+        this.loadKunde.bind(this)
+      );
+      await setzeReferenzmengeFolgejahr(
+        parsed.kundeId,
+        parsed.saisonjahr,
+        parsed.tatsaechlicheMenge,
+        this.loadAktuelleSaisonDaten.bind(this),
+        this.updateSaisonDaten.bind(this)
+      );
+      return parsed;
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Saison-Daten:', error);
       throw error;
@@ -616,6 +700,15 @@ export const saisonplanungService = {
       gefilterteKunden = gefilterteKunden.filter((k) => filter.typ!.includes(k.typ));
     }
 
+    if (filter.bundesland && filter.bundesland.length > 0) {
+      gefilterteKunden = gefilterteKunden.filter((k) =>
+        filter.bundesland!.some(
+          (bundesland) =>
+            (k.adresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
+        )
+      );
+    }
+
     if (filter.suche) {
       const suche = filter.suche.toLowerCase();
       gefilterteKunden = gefilterteKunden.filter(
@@ -636,7 +729,8 @@ export const saisonplanungService = {
     // Weitere Filter
     if (filter.status && filter.status.length > 0) {
       result = result.filter(
-        (k) => k.aktuelleSaison && filter.status!.includes(k.aktuelleSaison.gespraechsstatus)
+        (k) =>
+          filter.status!.includes(k.aktuelleSaison?.gespraechsstatus || ('offen' as GespraechsStatus))
       );
     }
 

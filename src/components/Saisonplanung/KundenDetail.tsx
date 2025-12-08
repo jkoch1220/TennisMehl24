@@ -109,6 +109,12 @@ const KundenDetail = ({ kunde, saisonjahr, onClose, onEdit, onUpdate }: KundenDe
                   {kunde.kunde.typ === 'verein' ? 'Verein' : 'Platzbauer'}
                 </span>
               </div>
+              {kunde.kunde.adresse.bundesland && (
+                <div>
+                  <span className="font-medium text-gray-700">Bundesland:</span>{' '}
+                  <span className="text-gray-900">{kunde.kunde.adresse.bundesland}</span>
+                </div>
+              )}
               {kunde.kunde.kundennummer && (
                 <div>
                   <span className="font-medium text-gray-700">Kundennummer:</span>{' '}
@@ -133,6 +139,14 @@ const KundenDetail = ({ kunde, saisonjahr, onClose, onEdit, onUpdate }: KundenDe
                 <div className="md:col-span-2">
                   <span className="font-medium text-gray-700">Notizen:</span>{' '}
                   <span className="text-gray-900">{kunde.kunde.notizen}</span>
+                </div>
+              )}
+              {kunde.kunde.standardBezugsweg && (
+                <div>
+                  <span className="font-medium text-gray-700">Standard Bezugsweg:</span>{' '}
+                  <span className="text-gray-900">
+                    {kunde.kunde.standardBezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                  </span>
                 </div>
               )}
             </div>
@@ -171,6 +185,38 @@ const KundenDetail = ({ kunde, saisonjahr, onClose, onEdit, onUpdate }: KundenDe
               </div>
             </div>
           )}
+
+          {/* Beziehungen */}
+          {kunde.kunde.typ === 'verein' && (kunde.beziehungenAlsVerein?.length || 0) > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Platzbauer</h3>
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                {kunde.beziehungenAlsVerein?.map((b) => (
+                  <li key={b.id}>
+                    {b.platzbauerId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
+                    {b.status === 'inaktiv' && <span className="text-xs text-gray-500">(inaktiv)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {kunde.kunde.typ === 'platzbauer' &&
+            (kunde.beziehungenAlsPlatzbauer?.length || 0) > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Vereine</h3>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                  {kunde.beziehungenAlsPlatzbauer?.map((b) => (
+                    <li key={b.id}>
+                      {b.vereinId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
+                      {b.status === 'inaktiv' && (
+                        <span className="text-xs text-gray-500">(inaktiv)</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
           {/* Aktuelle Saison */}
           {kunde.aktuelleSaison && (

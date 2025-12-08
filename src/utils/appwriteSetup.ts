@@ -14,6 +14,11 @@ import {
   BESTELLUNGEN_COLLECTION_ID,
   LAGER_COLLECTION_ID,
   KUNDEN_AKTIVITAETEN_COLLECTION_ID,
+  SAISON_KUNDEN_COLLECTION_ID,
+  SAISON_ANSPRECHPARTNER_COLLECTION_ID,
+  SAISON_DATEN_COLLECTION_ID,
+  SAISON_BEZIEHUNGEN_COLLECTION_ID,
+  SAISON_AKTIVITAETEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -21,7 +26,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '4';
+const APPWRITE_SETUP_VERSION = '6';
 
 type FieldConfig = {
   key: string;
@@ -122,6 +127,74 @@ const kundenAktivitaetenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },
 ];
 
+// Saisonplanung Collections (Minimalfelder für Filter)
+const saisonKundenFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const saisonAnsprechpartnerFields: FieldConfig[] = [
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const saisonDatenFields: FieldConfig[] = [
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const saisonBeziehungenFields: FieldConfig[] = [
+  { key: 'vereinId', type: 'string', size: 100, required: true },
+  { key: 'platzbauerId', type: 'string', size: 100, required: true },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const saisonAktivitaetenFields: FieldConfig[] = [
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+async function ensureCollection(collectionId: string, name: string) {
+  if (!apiKey) return;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId!,
+    'X-Appwrite-Key': apiKey!,
+  };
+
+  const res = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}`,
+    { method: 'GET', headers }
+  );
+  if (res.ok) return;
+  if (res.status !== 404) {
+    console.warn(`⚠️ Konnte Collection ${collectionId} nicht prüfen (${res.status}).`);
+    return;
+  }
+
+  console.log(`📦 Erstelle fehlende Collection ${collectionId} (${name}) ...`);
+  const createRes = await fetch(`${endpoint}/databases/${DATABASE_ID}/collections`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      collectionId,
+      name,
+      documentSecurity: true,
+      permissions: [],
+    }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.error(
+      `❌ Collection ${collectionId} konnte nicht angelegt werden:`,
+      err.message || createRes.status
+    );
+    return;
+  }
+  console.log(`✅ Collection erstellt: ${collectionId}`);
+}
 
 async function createFieldViaAPI(collectionId: string, field: FieldConfig) {
   if (!apiKey) {
@@ -197,23 +270,29 @@ export async function setupAppwriteFields() {
 
   try {
     // Nur Kunden-relevante Felder anlegen, um 404-Schleifen zu vermeiden
-    const kundenCollections: Array<{ id: string; fields: FieldConfig[] }> = [
-      { id: KUNDEN_COLLECTION_ID, fields: kundenFields },
-      { id: KUNDEN_AKTIVITAETEN_COLLECTION_ID, fields: kundenAktivitaetenFields },
+    const kundenCollections: Array<{ id: string; name: string; fields: FieldConfig[] }> = [
+      { id: KUNDEN_COLLECTION_ID, name: 'Kunden', fields: kundenFields },
+      { id: KUNDEN_AKTIVITAETEN_COLLECTION_ID, name: 'Kunden Aktivitäten', fields: kundenAktivitaetenFields },
+      { id: SAISON_KUNDEN_COLLECTION_ID, name: 'Saison Kunden', fields: saisonKundenFields },
+      {
+        id: SAISON_ANSPRECHPARTNER_COLLECTION_ID,
+        name: 'Saison Ansprechpartner',
+        fields: saisonAnsprechpartnerFields,
+      },
+      { id: SAISON_DATEN_COLLECTION_ID, name: 'Saison Daten', fields: saisonDatenFields },
+      { id: SAISON_BEZIEHUNGEN_COLLECTION_ID, name: 'Saison Beziehungen', fields: saisonBeziehungenFields },
+      { id: SAISON_AKTIVITAETEN_COLLECTION_ID, name: 'Saison Aktivitäten', fields: saisonAktivitaetenFields },
     ];
 
-    for (const { id, fields } of kundenCollections) {
+    for (const { id, name, fields } of kundenCollections) {
+      await ensureCollection(id, name);
       for (const field of fields) {
         await createFieldViaAPI(id, field);
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
 
-    // Nur das Pflicht-data-Feld noch für Kunden ergänzen (falls fehlt)
-    await createFieldViaAPI(KUNDEN_COLLECTION_ID, { key: 'data', type: 'string' });
-    await createFieldViaAPI(KUNDEN_AKTIVITAETEN_COLLECTION_ID, { key: 'data', type: 'string' });
-
-    console.log('✅ Appwrite Field Setup (Kunden) abgeschlossen!');
+    console.log('✅ Appwrite Field Setup (Kunden + Saison) abgeschlossen!');
   } catch (error) {
     console.error('❌ Fehler beim Appwrite Setup:', error);
   }
