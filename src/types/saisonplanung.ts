@@ -125,6 +125,8 @@ export interface SaisonKunde {
   preisHistorie?: PreisHistorienEintrag[];
   standardBezugsweg?: Bezugsweg;
   standardPlatzbauerId?: string;
+  // Falls Verein: bezieht über Platzbauer, die von uns gestellt werden
+  beziehtUeberUnsPlatzbauer?: boolean;
   erstelltAm: string;
   geaendertAm: string;
 }

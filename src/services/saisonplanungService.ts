@@ -161,6 +161,7 @@ export const saisonplanungService = {
         bundesland: kunde.adresse?.bundesland || '',
       },
       aktiv: kunde.aktiv !== undefined ? kunde.aktiv : true,
+      beziehtUeberUnsPlatzbauer: kunde.beziehtUeberUnsPlatzbauer ?? false,
       erstelltAm: jetzt,
       geaendertAm: jetzt,
     };
@@ -198,6 +199,10 @@ export const saisonplanungService = {
             ? kunde.adresse?.bundesland
             : aktuell.adresse.bundesland,
       },
+      beziehtUeberUnsPlatzbauer:
+        kunde.beziehtUeberUnsPlatzbauer !== undefined
+          ? kunde.beziehtUeberUnsPlatzbauer
+          : aktuell.beziehtUeberUnsPlatzbauer,
       geaendertAm: new Date().toISOString(),
     };
 

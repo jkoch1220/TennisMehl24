@@ -108,6 +108,14 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   {kunde.kunde.typ === 'verein' ? 'Verein' : 'Platzbauer'}
                 </span>
               </div>
+              {kunde.kunde.typ === 'verein' && (
+                <div>
+                  <span className="font-medium text-gray-700">Bezug Platzbauer über uns:</span>{' '}
+                  <span className="text-gray-900">
+                    {kunde.kunde.beziehtUeberUnsPlatzbauer ? 'Ja' : 'Nein'}
+                  </span>
+                </div>
+              )}
               {kunde.kunde.adresse.bundesland && (
                 <div>
                   <span className="font-medium text-gray-700">Bundesland:</span>{' '}
