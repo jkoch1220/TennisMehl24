@@ -28,9 +28,10 @@ import {
 
 // Helper: Parse Document mit data-Feld
 function parseDocument<T>(doc: Models.Document, fallback: T): T {
-  if (doc?.data && typeof doc.data === 'string') {
+  const anyDoc = doc as any;
+  if (anyDoc?.data && typeof anyDoc.data === 'string') {
     try {
-      const parsed = JSON.parse(doc.data) as T;
+      const parsed = JSON.parse(anyDoc.data) as T;
       return {
         ...parsed,
         id: (parsed as any).id || doc.$id,
@@ -43,7 +44,7 @@ function parseDocument<T>(doc: Models.Document, fallback: T): T {
 }
 
 // Helper: To Payload für Appwrite
-function toPayload<T>(obj: T): { data: string; name?: string } {
+function toPayload<T extends Record<string, any>>(obj: T): { data: string; name?: string } {
   const payload: { data: string; name?: string } = {
     data: JSON.stringify(obj),
   };

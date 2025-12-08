@@ -30,14 +30,16 @@ function toPayload(entry: KundenListenEintrag) {
 }
 
 function parseDocument(doc: Models.Document): KundenListenEintrag {
-  if (doc?.data && typeof doc.data === 'string') {
+  const anyDoc = doc as any;
+  if (anyDoc?.data && typeof anyDoc.data === 'string') {
     try {
-      const parsed = JSON.parse(doc.data) as KundenListenEintrag;
+      const parsed = JSON.parse(anyDoc.data) as KundenListenEintrag;
       return {
         ...parsed,
         id: parsed.id || doc.$id,
-        erstelltAm: parsed.erstelltAm || doc.erstelltAm || doc.$createdAt,
-        aktualisiertAm: parsed.aktualisiertAm || doc.aktualisiertAm || doc.$updatedAt || parsed.erstelltAm,
+        erstelltAm: parsed.erstelltAm || anyDoc.erstelltAm || doc.$createdAt,
+        aktualisiertAm:
+          parsed.aktualisiertAm || anyDoc.aktualisiertAm || doc.$updatedAt || parsed.erstelltAm,
       };
     } catch (error) {
       console.warn('⚠️ Konnte Kunden-Dokument nicht parsen, verwende Felder:', error);
@@ -47,7 +49,7 @@ function parseDocument(doc: Models.Document): KundenListenEintrag {
   const raw = doc as Models.Document & Partial<KundenListenEintrag> & Record<string, unknown>;
 
   return {
-    id: doc?.$id || doc?.id,
+    id: doc?.$id,
     name: (raw.name as string) || '',
     kundenTyp: (raw.kundenTyp as KundenListenEintrag['kundenTyp']) || 'sonstige',
     bestelltDirekt: Boolean(raw.bestelltDirekt),
@@ -114,8 +116,8 @@ export const kundenListeService = {
       bestelltUeberIds: payload.bestelltUeberIds || [],
       tennisplatzAnzahl: payload.tennisplatzAnzahl ?? 0,
       tonnenProJahr: payload.tonnenProJahr ?? 0,
-      erstelltAm: payload.erstelltAm || jetzt,
-      aktualisiertAm: payload.aktualisiertAm || jetzt,
+      erstelltAm: jetzt,
+      aktualisiertAm: jetzt,
       bemerkungen: payload.bemerkungen || '',
     };
 

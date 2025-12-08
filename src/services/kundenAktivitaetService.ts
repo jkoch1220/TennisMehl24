@@ -9,9 +9,10 @@ import {
 import { KundenAktivitaet, KundenAktivitaetsTyp, NeueKundenAktivitaet } from '../types/kundenAktivitaet';
 
 function parseAktivitaetDocument(doc: Models.Document): KundenAktivitaet {
-  if (doc?.data && typeof doc.data === 'string') {
+  const anyDoc = doc as any;
+  if (anyDoc?.data && typeof anyDoc.data === 'string') {
     try {
-      const parsed = JSON.parse(doc.data) as KundenAktivitaet;
+      const parsed = JSON.parse(anyDoc.data) as KundenAktivitaet;
       return {
         ...parsed,
         id: parsed.id || doc.$id,

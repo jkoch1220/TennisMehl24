@@ -10,13 +10,12 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 
 interface KundenDetailProps {
   kunde: SaisonKundeMitDaten;
-  saisonjahr: number;
   onClose: () => void;
   onEdit: () => void;
   onUpdate: () => void;
 }
 
-const KundenDetail = ({ kunde, saisonjahr, onClose, onEdit, onUpdate }: KundenDetailProps) => {
+const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) => {
   const [aktivitaeten, setAktivitaeten] = useState<SaisonAktivitaet[]>(kunde.aktivitaeten);
   const [showAddAktivitaet, setShowAddAktivitaet] = useState(false);
   const [aktivitaetTyp, setAktivitaetTyp] = useState<AktivitaetsTyp>('kommentar');

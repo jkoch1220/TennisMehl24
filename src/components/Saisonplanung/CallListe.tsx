@@ -15,10 +15,9 @@ interface CallListeProps {
   saisonjahr: number;
   onClose: () => void;
   onUpdate: () => void;
-  onOpenDetail: (kunde: SaisonKundeMitDaten) => void;
 }
 
-const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: CallListeProps) => {
+const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [offeneKunden, setOffeneKunden] = useState<SaisonKundeMitDaten[]>([]);
   const [filter, setFilter] = useState<CallListeFilter>({});
@@ -542,7 +541,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate, onOpenDetail }: Call
 
               <div className="flex gap-2">
                 <button
-                  onClick={handleSave}
+                  onClick={() => handleSave()}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
                   <Phone className="w-5 h-5" />

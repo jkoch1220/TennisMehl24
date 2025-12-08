@@ -493,7 +493,12 @@ const KundenListe = () => {
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            adresse: { ...formData.adresse, plz: e.target.value },
+                          adresse: {
+                            strasse: formData.adresse?.strasse || '',
+                            plz: e.target.value || '',
+                            ort: formData.adresse?.ort || '',
+                            bundesland: formData.adresse?.bundesland,
+                          },
                           })
                         }
                         placeholder="PLZ"
@@ -505,7 +510,12 @@ const KundenListe = () => {
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            adresse: { ...formData.adresse, ort: e.target.value },
+                          adresse: {
+                            strasse: formData.adresse?.strasse || '',
+                            plz: formData.adresse?.plz || '',
+                            ort: e.target.value || '',
+                            bundesland: formData.adresse?.bundesland,
+                          },
                           })
                         }
                         placeholder="Ort"
@@ -527,7 +537,12 @@ const KundenListe = () => {
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          lieferadresse: { ...formData.lieferadresse, strasse: e.target.value },
+                          lieferadresse: {
+                            strasse: e.target.value || '',
+                            plz: formData.lieferadresse?.plz || '',
+                            ort: formData.lieferadresse?.ort || '',
+                            bundesland: formData.lieferadresse?.bundesland,
+                          },
                         })
                       }
                       placeholder="Straße"
@@ -540,7 +555,12 @@ const KundenListe = () => {
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            lieferadresse: { ...formData.lieferadresse, plz: e.target.value },
+                          lieferadresse: {
+                            strasse: formData.lieferadresse?.strasse || '',
+                            plz: e.target.value || '',
+                            ort: formData.lieferadresse?.ort || '',
+                            bundesland: formData.lieferadresse?.bundesland,
+                          },
                           })
                         }
                         placeholder="PLZ"
@@ -552,7 +572,12 @@ const KundenListe = () => {
                         onChange={(e) =>
                           setFormData({
                             ...formData,
-                            lieferadresse: { ...formData.lieferadresse, ort: e.target.value },
+                          lieferadresse: {
+                            strasse: formData.lieferadresse?.strasse || '',
+                            plz: formData.lieferadresse?.plz || '',
+                            ort: e.target.value || '',
+                            bundesland: formData.lieferadresse?.bundesland,
+                          },
                           })
                         }
                         placeholder="Ort"

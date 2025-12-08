@@ -5,14 +5,7 @@
 
 import {
   DATABASE_ID,
-  FIXKOSTEN_COLLECTION_ID,
-  VARIABLE_KOSTEN_COLLECTION_ID,
-  LIEFERUNGEN_COLLECTION_ID,
-  ROUTEN_COLLECTION_ID,
-  FAHRZEUGE_COLLECTION_ID,
   KUNDEN_COLLECTION_ID,
-  BESTELLUNGEN_COLLECTION_ID,
-  LAGER_COLLECTION_ID,
   KUNDEN_AKTIVITAETEN_COLLECTION_ID,
   SAISON_KUNDEN_COLLECTION_ID,
   SAISON_ANSPRECHPARTNER_COLLECTION_ID,
@@ -37,55 +30,6 @@ type FieldConfig = {
   array?: boolean;
   elements?: string[];
 };
-
-// Felder für fixkosten Collection
-const fixkostenFields = [
-  { key: 'grundstueck_pacht', type: 'double' },
-  { key: 'grundstueck_steuer', type: 'double' },
-  { key: 'grundstueck_pflege', type: 'double' },
-  { key: 'grundstueck_buerocontainer', type: 'double' },
-  { key: 'maschinen_wartungRadlader', type: 'double' },
-  { key: 'maschinen_wartungStapler', type: 'double' },
-  { key: 'maschinen_wartungMuehle', type: 'double' },
-  { key: 'maschinen_wartungSiebanlage', type: 'double' },
-  { key: 'maschinen_wartungAbsackanlage', type: 'double' },
-  { key: 'maschinen_sonstigeWartung', type: 'double' },
-  { key: 'maschinen_grundkostenMaschinen', type: 'double' },
-  { key: 'ruecklagenErsatzkauf', type: 'double' },
-  { key: 'sonstiges', type: 'double' },
-  { key: 'verwaltung_sigleKuhn', type: 'double' },
-  { key: 'verwaltung_brzSteuerberater', type: 'double' },
-  { key: 'verwaltung_kostenVorndran', type: 'double' },
-  { key: 'verwaltung_telefonCloudServer', type: 'double' },
-  { key: 'verwaltung_gewerbesteuer', type: 'double' },
-];
-
-// Felder für variable_kosten Collection
-const variableKostenFields = [
-  { key: 'lohnkosten_stundenlohn', type: 'double' },
-  { key: 'lohnkosten_tonnenProArbeitsstunde', type: 'double' },
-  { key: 'einkauf_dieselKostenProTonne', type: 'double' },
-  { key: 'einkauf_ziegelbruchKostenProTonne', type: 'double' },
-  { key: 'einkauf_stromKostenProTonne', type: 'double' },
-  { key: 'einkauf_entsorgungContainerKostenProTonne', type: 'double' },
-  { key: 'einkauf_gasflaschenKostenProTonne', type: 'double' },
-  { key: 'verschleissteile_preisProHammer', type: 'double' },
-  { key: 'verschleissteile_verbrauchHaemmerProTonne', type: 'double' },
-  { key: 'verschleissteile_siebkoerbeKostenProTonne', type: 'double' },
-  { key: 'verschleissteile_verschleissblecheKostenProTonne', type: 'double' },
-  { key: 'verschleissteile_wellenlagerKostenProTonne', type: 'double' },
-  { key: 'sackware_palettenKostenProPalette', type: 'double' },
-  { key: 'sackware_saeckeKostenProPalette', type: 'double' },
-  { key: 'sackware_schrumpfhaubenKostenProPalette', type: 'double' },
-  { key: 'sackware_palettenProTonne', type: 'double' },
-  { key: 'verkaufspreis1_tonnen', type: 'double' },
-  { key: 'verkaufspreis1_preisProTonne', type: 'double' },
-  { key: 'verkaufspreis2_tonnen', type: 'double' },
-  { key: 'verkaufspreis2_preisProTonne', type: 'double' },
-  { key: 'verkaufspreis3_tonnen', type: 'double' },
-  { key: 'verkaufspreis3_preisProTonne', type: 'double' },
-  { key: 'geplanterUmsatz', type: 'double' },
-];
 
 // Felder für Kunden-Liste Collection
 const kundenFields: FieldConfig[] = [

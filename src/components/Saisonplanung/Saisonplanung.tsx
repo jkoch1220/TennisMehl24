@@ -3,6 +3,8 @@ import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clo
 import {
   SaisonKundeMitDaten,
   SaisonplanungStatistik,
+  GespraechsStatus,
+  KundenTyp,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import KundenFormular from './KundenFormular';
@@ -261,7 +263,6 @@ const Saisonplanung = () => {
             saisonjahr={saisonjahr}
             onClose={() => setShowCallListe(false)}
             onUpdate={loadData}
-            onOpenDetail={handleOpenDetail}
           />
         )}
 
@@ -278,7 +279,6 @@ const Saisonplanung = () => {
         {showDetail && selectedKunde && (
           <KundenDetail
             kunde={selectedKunde}
-            saisonjahr={saisonjahr}
             onClose={handleCloseDetail}
             onEdit={() => handleEdit(selectedKunde)}
             onUpdate={handleDetailUpdate}
