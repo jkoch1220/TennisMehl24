@@ -14,6 +14,7 @@ import Vorschlaege from './components/Tickets/Vorschlaege';
 import Todos from './components/Todos/Todos';
 import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
+import KundenListe from './components/KundenListe/KundenListe';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
@@ -31,8 +32,14 @@ function App() {
 
     checkAuth();
     
-    // Versuche Appwrite-Felder automatisch zu erstellen (nur wenn API Key vorhanden)
-    if (import.meta.env.VITE_APPWRITE_API_KEY) {
+    // Appwrite Auto-Setup nur wenn explizit aktiviert und einmal pro Tab
+    if (
+      import.meta.env.VITE_APPWRITE_API_KEY &&
+      import.meta.env.VITE_APPWRITE_AUTO_SETUP === 'true' &&
+      typeof window !== 'undefined' &&
+      !sessionStorage.getItem('appwrite_setup_run')
+    ) {
+      sessionStorage.setItem('appwrite_setup_run', 'true');
       setupAppwriteFields().catch(console.error);
     }
   }, []);
@@ -69,6 +76,7 @@ function App() {
           <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
           <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
           <Route path="/kunden-karte" element={<KundenKarte />} />
+          <Route path="/kunden-liste" element={<KundenListe />} />
           <Route path="/vorschlaege" element={<Vorschlaege />} />
           <Route path="/todos" element={<Todos />} />
           <Route path="/wiki" element={<Wiki />} />

@@ -59,3 +59,4 @@ export type CreateWikiPage = Omit<WikiPage, '$id' | '$createdAt' | '$updatedAt'>
 export type UpdateWikiPage = Partial<CreateWikiPage>;
 
 
+

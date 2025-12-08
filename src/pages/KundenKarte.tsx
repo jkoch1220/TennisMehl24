@@ -56,3 +56,4 @@ const KundenKarte = () => {
 export default KundenKarte;
 
 
+
