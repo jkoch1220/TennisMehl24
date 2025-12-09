@@ -43,15 +43,11 @@ function parseDocument<T>(doc: Models.Document, fallback: T): T {
   return fallback;
 }
 
-// Helper: To Payload für Appwrite
-function toPayload<T extends Record<string, any>>(obj: T): { data: string; name?: string } {
-  const payload: { data: string; name?: string } = {
+// Helper: To Payload für Appwrite (nur data-Field nutzen)
+function toPayload<T extends Record<string, any>>(obj: T): { data: string } {
+  return {
     data: JSON.stringify(obj),
   };
-  if ('name' in obj && typeof (obj as any).name === 'string') {
-    payload.name = (obj as any).name;
-  }
-  return payload;
 }
 
 async function updatePreisHistorie(
