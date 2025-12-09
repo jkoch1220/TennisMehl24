@@ -21,7 +21,6 @@ export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
   
   // Farben
   const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
-  const lightGray: [number, number, number] = [240, 240, 240];
   
   let yPos = 15;
   
