@@ -17,6 +17,7 @@ import Todos from './components/Todos/Todos';
 import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
 import KundenListe from './components/KundenListe/KundenListe';
+import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
@@ -81,6 +82,7 @@ function App() {
               <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
               <Route path="/kunden-karte" element={<KundenKarte />} />
               <Route path="/kunden-liste" element={<KundenListe />} />
+              <Route path="/bestellabwicklung" element={<Bestellabwicklung />} />
               <Route path="/vorschlaege" element={<Vorschlaege />} />
               <Route path="/todos" element={<Todos />} />
               <Route path="/wiki" element={<Wiki />} />

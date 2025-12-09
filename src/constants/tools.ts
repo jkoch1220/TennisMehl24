@@ -12,6 +12,7 @@ import {
   MessageSquare,
   CheckSquare,
   ListChecks,
+  FileText,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -47,6 +48,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/saisonplanung',
     icon: CalendarDays,
     color: 'from-amber-500 to-red-500',
+  },
+  {
+    id: 'bestellabwicklung',
+    name: 'Bestellabwicklung',
+    description: 'Rechnungen, Angebote und Lieferscheine erstellen und verwalten',
+    href: '/bestellabwicklung',
+    icon: FileText,
+    color: 'from-red-600 to-orange-600',
   },
   {
     id: 'kreditoren',
