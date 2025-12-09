@@ -271,7 +271,19 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_ANSPRECHPARTNER_COLLECTION_ID,
         neuerAnsprechpartner.id,
-        toPayload(neuerAnsprechpartner)
+        {
+          kundeId: neuerAnsprechpartner.kundeId,
+          name: neuerAnsprechpartner.name,
+          rolle: neuerAnsprechpartner.rolle || '',
+          email: neuerAnsprechpartner.email || '',
+          telefonnummern: neuerAnsprechpartner.telefonnummern || [],
+          bevorzugterKontaktweg: neuerAnsprechpartner.bevorzugterKontaktweg || 'telefon',
+          notizen: neuerAnsprechpartner.notizen || '',
+          aktiv: neuerAnsprechpartner.aktiv,
+          erstelltAm: neuerAnsprechpartner.erstelltAm,
+          geaendertAm: neuerAnsprechpartner.geaendertAm,
+          data: JSON.stringify(neuerAnsprechpartner),
+        }
       );
       return parseDocument<Ansprechpartner>(doc, neuerAnsprechpartner);
     } catch (error) {
@@ -311,7 +323,19 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_ANSPRECHPARTNER_COLLECTION_ID,
         id,
-        toPayload(aktualisiert)
+        {
+          kundeId: aktualisiert.kundeId,
+          name: aktualisiert.name,
+          rolle: aktualisiert.rolle || '',
+          email: aktualisiert.email || '',
+          telefonnummern: aktualisiert.telefonnummern || [],
+          bevorzugterKontaktweg: aktualisiert.bevorzugterKontaktweg || 'telefon',
+          notizen: aktualisiert.notizen || '',
+          aktiv: aktualisiert.aktiv,
+          erstelltAm: aktualisiert.erstelltAm,
+          geaendertAm: aktualisiert.geaendertAm,
+          data: JSON.stringify(aktualisiert),
+        }
       );
       return parseDocument<Ansprechpartner>(updatedDoc, aktualisiert);
     } catch (error) {
