@@ -46,7 +46,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     name: '',
     rolle: '',
     email: '',
-    telefonnummern: [],
+    telefonnummern: [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
     bevorzugterKontaktweg: 'telefon',
     notizen: '',
     aktiv: true,
@@ -73,6 +73,10 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         kunde.ansprechpartner.map((ap) => ({
           ...ap,
           kundeId: kunde.kunde.id,
+          telefonnummern:
+            ap.telefonnummern && ap.telefonnummern.length > 0
+              ? ap.telefonnummern
+              : [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
         }))
       );
       setZugeordnetePlatzbauer(
@@ -223,12 +227,21 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
       alert('Bitte geben Sie einen Namen ein');
       return;
     }
-    setAnsprechpartner([...ansprechpartner, neuerAnsprechpartner as NeuerAnsprechpartner]);
+    setAnsprechpartner([
+      ...ansprechpartner,
+      {
+        ...(neuerAnsprechpartner as NeuerAnsprechpartner),
+        telefonnummern:
+          neuerAnsprechpartner.telefonnummern && neuerAnsprechpartner.telefonnummern.length > 0
+            ? neuerAnsprechpartner.telefonnummern
+            : [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
+      },
+    ]);
     setNeuerAnsprechpartner({
       name: '',
       rolle: '',
       email: '',
-      telefonnummern: [],
+      telefonnummern: [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
       bevorzugterKontaktweg: 'telefon',
       notizen: '',
       aktiv: true,
