@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   GripVertical,
   AlertCircle,
+  FileCheck,
 } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
@@ -29,6 +30,9 @@ import {
   Bezugsweg,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { projektService } from '../../services/projektService';
+import { NeuesProjekt } from '../../types/projekt';
+import { useNavigate } from 'react-router-dom';
 
 interface CallListeV2Props {
   saisonjahr: number;
@@ -44,6 +48,7 @@ const TABS: { id: AnrufStatus; label: string; icon: React.ComponentType<any>; co
 ];
 
 const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
+  const navigate = useNavigate();
   const [kundenGruppiert, setKundenGruppiert] = useState<{
     anrufen: SaisonKundeMitDaten[];
     nichtErreicht: SaisonKundeMitDaten[];
@@ -61,6 +66,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
   const [suche, setSuche] = useState('');
   const [draggedKunde, setDraggedKunde] = useState<SaisonKundeMitDaten | null>(null);
   const [dragOverTab, setDragOverTab] = useState<AnrufStatus | null>(null);
+  const [kundenMitProjekt, setKundenMitProjekt] = useState<Set<string>>(new Set());
   
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -83,6 +89,11 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       ]);
       setKundenGruppiert(gruppiert);
       setAllePlatzbauerKunden(alleKunden.filter(k => k.kunde.typ === 'platzbauer'));
+      
+      // Lade alle Projekte für dieses Jahr und markiere Kunden mit Projekt
+      const projekte = await projektService.getAllProjekte(saisonjahr);
+      const kundenIdsSet = new Set(projekte.map(p => p.kundeId));
+      setKundenMitProjekt(kundenIdsSet);
     } catch (error) {
       console.error('Fehler beim Laden:', error);
     } finally {
@@ -204,6 +215,55 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
   // Nicht Erreicht Button Handler
   const handleNichtErreichtClick = async (kunde: SaisonKundeMitDaten) => {
     await updateStatus(kunde, 'nicht_erreicht');
+  };
+
+  // Angebot erstellen Button Handler
+  const handleAngebotErstellenClick = async (kunde: SaisonKundeMitDaten) => {
+    try {
+      setSaving(true);
+      
+      // Prüfe ob bereits ein Projekt für diesen Kunden existiert
+      const bestehendesProjekt = await projektService.getProjektFuerKunde(kunde.kunde.id, saisonjahr);
+      
+      if (bestehendesProjekt) {
+        // Projekt existiert bereits, direkt zur Projektverwaltung navigieren
+        navigate('/projekt-verwaltung', { 
+          state: { 
+            selectedProjektId: bestehendesProjekt.id
+          } 
+        });
+      } else {
+        // Neues Projekt erstellen
+        const neuesProjekt: NeuesProjekt = {
+          kundeId: kunde.kunde.id,
+          kundennummer: kunde.kunde.kundennummer,
+          kundenname: kunde.kunde.name,
+          kundenstrasse: kunde.kunde.adresse.strasse || '',
+          kundenPlzOrt: `${kunde.kunde.adresse.plz} ${kunde.kunde.adresse.ort}`,
+          saisonjahr: saisonjahr,
+          status: 'angebot',
+          angefragteMenge: kunde.aktuelleSaison?.angefragteMenge,
+          preisProTonne: kunde.aktuelleSaison?.preisProTonne,
+          bezugsweg: kunde.aktuelleSaison?.bezugsweg,
+          platzbauerId: kunde.aktuelleSaison?.platzbauerId,
+          notizen: kunde.aktuelleSaison?.gespraechsnotizen,
+        };
+        
+        const erstelltesProjekt = await projektService.createProjekt(neuesProjekt);
+        
+        // Zur Projektverwaltung navigieren
+        navigate('/projekt-verwaltung', { 
+          state: { 
+            selectedProjektId: erstelltesProjekt.id
+          } 
+        });
+      }
+    } catch (error) {
+      console.error('Fehler beim Erstellen des Projekts:', error);
+      alert('Fehler beim Erstellen des Projekts. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Modal speichern
@@ -344,7 +404,9 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
                       onDragEnd={handleDragEnd}
                       onErreicht={() => handleErreichtClick(kunde)}
                       onNichtErreicht={() => handleNichtErreichtClick(kunde)}
+                      onAngebotErstellen={() => handleAngebotErstellenClick(kunde)}
                       saving={saving}
+                      hatProjekt={kundenMitProjekt.has(kunde.kunde.id)}
                     />
                   ))
                 )}
@@ -392,10 +454,12 @@ interface KundenCardProps {
   onDragEnd: () => void;
   onErreicht: () => void;
   onNichtErreicht: () => void;
+  onAngebotErstellen: () => void;
   saving: boolean;
+  hatProjekt: boolean;
 }
 
-const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNichtErreicht, saving }: KundenCardProps) => {
+const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNichtErreicht, onAngebotErstellen, saving, hatProjekt }: KundenCardProps) => {
   const [copiedTel, setCopiedTel] = useState<string | null>(null);
 
   // Telefonnummer kopieren
@@ -556,6 +620,27 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             Erreicht ✓
+          </button>
+        </div>
+      )}
+      
+      {/* Angebot erstellen / Zum Projekt Button - nur bei Status "erreicht" */}
+      {status === 'erreicht' && (
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAngebotErstellen();
+            }}
+            disabled={saving}
+            className={`w-full px-2 py-2 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm ${
+              hatProjekt
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
+            }`}
+          >
+            <FileCheck className="w-4 h-4" />
+            {hatProjekt ? 'Zum Projekt' : 'Angebot erstellen'}
           </button>
         </div>
       )}

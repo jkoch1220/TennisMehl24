@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { RechnungsDaten, DokumentBerechnung, Position } from '../types/bestellabwicklung';
+import { Stammdaten } from '../types/stammdaten';
+import { getStammdatenOderDefault } from './stammdatenService';
 
 // Gemeinsame Berechnungsfunktion
 export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnung => {
@@ -20,7 +22,16 @@ export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnu
 // Legacy-Support
 export const berechneRechnungsSummen = berechneDokumentSummen;
 
-export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
+/**
+ * Generiert eine Rechnung als PDF
+ * Optional können Stammdaten übergeben werden, sonst werden diese aus der DB geladen
+ */
+export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: Stammdaten): Promise<jsPDF> => {
+  // Lade Stammdaten falls nicht übergeben
+  if (!stammdaten) {
+    stammdaten = await getStammdatenOderDefault();
+  }
+  
   const doc = new jsPDF();
   
   // Farben
@@ -89,33 +100,33 @@ export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
       if (infoText) infoText += '  |  ';
       infoText += `Projektnr.: ${daten.projektnummer}`;
     }
-    doc.text(infoText, 20, yPos);
+    doc.text(infoText, 15, yPos);
     yPos += 5;
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
   
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 20, yPos);
+  doc.text(daten.kundenname, 15, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 20, yPos);
+  doc.text(daten.kundenstrasse, 15, yPos);
   yPos += 5;
-  doc.text(daten.kundenPlzOrt, 20, yPos);
+  doc.text(daten.kundenPlzOrt, 15, yPos);
   
   // Ansprechpartner
   if (daten.ansprechpartner) {
     yPos += 6;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Ihr Ansprechpartner: ${daten.ansprechpartner}`, 20, yPos);
+    doc.text(`Ihr Ansprechpartner: ${daten.ansprechpartner}`, 15, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
   
   // === Lieferadresse (falls abweichend) - Rechts ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 55;
+    let lieferYPos = 95;
     const lieferX = 120;
     
     doc.setFontSize(9);
@@ -283,7 +294,7 @@ export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
     doc.text(bemerkungLines, 20, summenY);
   }
   
-  // === Footer ===
+  // === Footer mit Stammdaten ===
   const pageHeight = doc.internal.pageSize.height;
   const footerY = pageHeight - 20;
   
@@ -300,54 +311,59 @@ export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
   doc.setFont('helvetica', 'bold');
   doc.text('Verwaltung:', col1X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text('TENNISMEHL GmbH', col1X, footerY + 4);
-  doc.text('Wertheimer Str. 13', col1X, footerY + 8);
-  doc.text('97959 Großrinderfeld', col1X, footerY + 12);
+  doc.text(stammdaten.firmenname, col1X, footerY + 4);
+  doc.text(stammdaten.firmenstrasse, col1X, footerY + 8);
+  doc.text(`${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, col1X, footerY + 12);
   
   // Spalte 2: Geschäftsführer
   let col2X = 40;
   doc.setFont('helvetica', 'bold');
-  doc.text('Geschäftsführer:', col2X, footerY);
+  const gfLabel = stammdaten.geschaeftsfuehrer.length > 1 ? 'Geschäftsführer:' : 'Geschäftsführer:';
+  doc.text(gfLabel, col2X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text('Stefan Egner', col2X, footerY + 4);
+  const geschaeftsfuehrerText = stammdaten.geschaeftsfuehrer.join(', ');
+  doc.text(geschaeftsfuehrerText, col2X, footerY + 4);
   doc.text('Sitz d. Gesellschaft:', col2X, footerY + 8);
-  doc.text('Großrinderfeld', col2X, footerY + 12);
+  doc.text(stammdaten.sitzGesellschaft, col2X, footerY + 12);
   
   // Spalte 3: Registergericht
   let col3X = 70;
   doc.setFont('helvetica', 'bold');
   doc.text('Registergericht:', col3X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text('Würzburg HRB 731653', col3X, footerY + 4);
+  doc.text(stammdaten.handelsregister, col3X, footerY + 4);
   doc.text('USt-ID:', col3X, footerY + 8);
-  doc.text('DE 320 029 255', col3X, footerY + 12);
+  doc.text(stammdaten.ustIdNr, col3X, footerY + 12);
   
-  // Spalte 4: Werk/Verkauf
+  // Spalte 4: Werk/Verkauf (falls vorhanden)
   let col4X = 100;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Werk/Verkauf:', col4X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text('TENNISMEHL GmbH', col4X, footerY + 4);
-  doc.text('Wertheimer Str. 3a', col4X, footerY + 8);
-  doc.text('97828 Marktheidenfeld', col4X, footerY + 12);
+  if (stammdaten.werkName && stammdaten.werkStrasse && stammdaten.werkPlz && stammdaten.werkOrt) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Werk/Verkauf:', col4X, footerY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(stammdaten.werkName, col4X, footerY + 4);
+    doc.text(stammdaten.werkStrasse, col4X, footerY + 8);
+    doc.text(`${stammdaten.werkPlz} ${stammdaten.werkOrt}`, col4X, footerY + 12);
+  }
 
-  // Telefon
+  // Spalte 5: Kontakt
   let col5X = 130;
   doc.setFont('helvetica', 'bold');
-  doc.text('Telefon 09391 9870-0', col5X, footerY);
+  doc.text(`Telefon ${stammdaten.firmenTelefon}`, col5X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text('Telefax 09391 9870-26', col5X, footerY + 4);
-  doc.text('info@tennismehl.com', col5X, footerY + 8);
-  doc.text('www.tennismehl.com', col5X, footerY + 12);
+  doc.text(stammdaten.firmenEmail, col5X, footerY + 4);
+  if (stammdaten.firmenWebsite) {
+    doc.text(stammdaten.firmenWebsite, col5X, footerY + 8);
+  }
   
-  // Bankverbindung
+  // Spalte 6: Bankverbindung
   let col6X = 160;
   doc.setFont('helvetica', 'bold');
   doc.text('Bankverbindung:', col6X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text('Sparkasse Tauberfranken', col6X, footerY + 4);
-  doc.text('IBAN: DE49 6735 0130 0000254019', col6X, footerY + 8);
-  doc.text('BIC: SOLADES1TBB', col6X, footerY + 12);
+  doc.text(stammdaten.bankname, col6X, footerY + 4);
+  doc.text(`IBAN: ${stammdaten.iban}`, col6X, footerY + 8);
+  doc.text(`BIC: ${stammdaten.bic}`, col6X, footerY + 12);
   
   return doc;
 };

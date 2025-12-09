@@ -12,7 +12,8 @@ import {
   MessageSquare,
   CheckSquare,
   ListChecks,
-  FileText,
+  Layers,
+  Database,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -50,12 +51,12 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-amber-500 to-red-500',
   },
   {
-    id: 'bestellabwicklung',
-    name: 'Bestellabwicklung',
-    description: 'Rechnungen, Angebote und Lieferscheine erstellen und verwalten',
-    href: '/bestellabwicklung',
-    icon: FileText,
-    color: 'from-red-600 to-orange-600',
+    id: 'projekt-verwaltung',
+    name: 'Projekt-Verwaltung',
+    description: 'Überblick über alle Projekte von Angebot bis Bezahlung',
+    href: '/projekt-verwaltung',
+    icon: Layers,
+    color: 'from-purple-500 to-indigo-600',
   },
   {
     id: 'kreditoren',
@@ -136,6 +137,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/todos',
     icon: CheckSquare,
     color: 'from-purple-500 to-violet-500',
+  },
+  {
+    id: 'stammdaten',
+    name: 'Stammdaten',
+    description: 'Firmendaten, Artikel und zentrale Stammdaten verwalten',
+    href: '/stammdaten',
+    icon: Database,
+    color: 'from-blue-500 to-cyan-600',
   },
 ];
 

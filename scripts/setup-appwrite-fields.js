@@ -9,7 +9,6 @@
  * Für Netlify: Setze diese als Umgebungsvariablen im Dashboard
  */
 
-import { Client, Databases } from 'appwrite';
 import dotenv from 'dotenv';
 
 // Lade Umgebungsvariablen aus .env (für lokale Entwicklung)
@@ -34,15 +33,14 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const client = new Client();
-client.setEndpoint(endpoint).setProject(projectId).setKey(apiKey);
-
-const databases = new Databases(client);
 const DATABASE_ID = 'tennismehl24_db';
 const FIXKOSTEN_COLLECTION_ID = 'fixkosten';
 const VARIABLE_KOSTEN_COLLECTION_ID = 'variable_kosten';
 const KUNDEN_COLLECTION_ID = 'kunden';
 const KUNDEN_AKTIVITAETEN_COLLECTION_ID = 'kunden_aktivitaeten';
+const PROJEKTE_COLLECTION_ID = 'projekte';
+const ARTIKEL_COLLECTION_ID = 'artikel';
+const STAMMDATEN_COLLECTION_ID = 'stammdaten';
 
 const fixkostenFields = [
   { key: 'grundstueck_pacht', type: 'double' },
@@ -132,66 +130,147 @@ const kundenAktivitaetenFields = [
   { key: 'data', type: 'string', size: 10000 },
 ];
 
+const projekteFields = [
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'kundennummer', type: 'string', size: 100 },
+  { key: 'kundenname', type: 'string', size: 500, required: true },
+  { key: 'kundenstrasse', type: 'string', size: 500 },
+  { key: 'kundenPlzOrt', type: 'string', size: 200 },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'status', type: 'string', size: 50, required: true },
+  
+  // Angebot
+  { key: 'angebotId', type: 'string', size: 100 },
+  { key: 'angebotsnummer', type: 'string', size: 100 },
+  { key: 'angebotsdatum', type: 'string', size: 50 },
+  
+  // Lieferschein
+  { key: 'lieferscheinId', type: 'string', size: 100 },
+  { key: 'lieferscheinnummer', type: 'string', size: 100 },
+  { key: 'lieferdatum', type: 'string', size: 50 },
+  
+  // Rechnung
+  { key: 'rechnungId', type: 'string', size: 100 },
+  { key: 'rechnungsnummer', type: 'string', size: 100 },
+  { key: 'rechnungsdatum', type: 'string', size: 50 },
+  
+  { key: 'bezahltAm', type: 'string', size: 50 },
+  
+  // Mengen und Preise
+  { key: 'angefragteMenge', type: 'double' },
+  { key: 'preisProTonne', type: 'double' },
+  { key: 'bezugsweg', type: 'string', size: 100 },
+  { key: 'platzbauerId', type: 'string', size: 100 },
+  
+  { key: 'notizen', type: 'string', size: 2000 },
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  { key: 'erstelltVon', type: 'string', size: 100 },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const artikelFields = [
+  { key: 'artikelnummer', type: 'string', size: 100, required: true },
+  { key: 'bezeichnung', type: 'string', size: 500, required: true },
+  { key: 'beschreibung', type: 'string', size: 2000 },
+  { key: 'einheit', type: 'string', size: 50, required: true },
+  { key: 'einzelpreis', type: 'double', required: false }, // Optional - für Preise auf Anfrage
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'aktualisiertAm', type: 'string', size: 50 },
+];
+
+const stammdatenFields = [
+  // Firmendaten (keine Pflichtfelder, damit flexibles Speichern möglich ist)
+  { key: 'firmenname', type: 'string', size: 500, required: false },
+  { key: 'firmenstrasse', type: 'string', size: 500, required: false },
+  { key: 'firmenPlz', type: 'string', size: 20, required: false },
+  { key: 'firmenOrt', type: 'string', size: 200, required: false },
+  { key: 'firmenTelefon', type: 'string', size: 100, required: false },
+  { key: 'firmenEmail', type: 'string', size: 320, required: false },
+  { key: 'firmenWebsite', type: 'string', size: 500 },
+  
+  // Geschäftsführung (Array für mehrere Geschäftsführer)
+  { key: 'geschaeftsfuehrer', type: 'string', size: 500, required: false, array: true },
+  
+  // Handelsregister
+  { key: 'handelsregister', type: 'string', size: 200, required: false },
+  { key: 'sitzGesellschaft', type: 'string', size: 200, required: false },
+  
+  // Steuerdaten
+  { key: 'steuernummer', type: 'string', size: 100 },
+  { key: 'ustIdNr', type: 'string', size: 100, required: false },
+  
+  // Bankdaten
+  { key: 'bankname', type: 'string', size: 500, required: false },
+  { key: 'iban', type: 'string', size: 100, required: false },
+  { key: 'bic', type: 'string', size: 100, required: false },
+  
+  // Werk/Verkauf (optional)
+  { key: 'werkName', type: 'string', size: 500 },
+  { key: 'werkStrasse', type: 'string', size: 500 },
+  { key: 'werkPlz', type: 'string', size: 20 },
+  { key: 'werkOrt', type: 'string', size: 200 },
+  
+  // WICHTIG: Dokumentnummern-Zähler für Nummerierungssystem
+  // Diese Felder werden verwendet, um eindeutige, fortlaufende Nummern zu generieren
+  { key: 'angebotZaehler', type: 'integer', default: 0 },
+  { key: 'auftragsbestaetigungZaehler', type: 'integer', default: 0 },
+  { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
+  { key: 'rechnungZaehler', type: 'integer', default: 0 },
+  { key: 'jahr', type: 'integer', default: 2025 },
+  
+  // Metadaten
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'aktualisiertAm', type: 'string', size: 50 },
+];
+
 async function createField(collectionId, field) {
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Appwrite-Project': projectId,
+      'X-Appwrite-Key': apiKey,
+    };
+
+    let body = {
+      key: field.key,
+      required: field.required || false,
+      default: field.default ?? null,
+      array: field.array || false,
+    };
+
     if (field.type === 'string') {
-      await databases.createStringAttribute(
-        DATABASE_ID,
-        collectionId,
-        field.key,
-        field.size || 500,
-        field.required || false,
-        field.default ?? null,
-        field.array || false
-      );
-    } else if (field.type === 'double') {
-      await databases.createFloatAttribute(
-        DATABASE_ID,
-        collectionId,
-        field.key,
-        field.required || false,
-        field.default ?? null,
-        field.array || false
-      );
-    } else if (field.type === 'integer') {
-      await databases.createIntegerAttribute(
-        DATABASE_ID,
-        collectionId,
-        field.key,
-        field.required || false,
-        field.default ?? null,
-        field.array || false
-      );
-    } else if (field.type === 'boolean') {
-      await databases.createBooleanAttribute(
-        DATABASE_ID,
-        collectionId,
-        field.key,
-        field.required || false,
-        field.default ?? null,
-        field.array || false
-      );
-    } else {
-      await databases.createAttribute(
-        DATABASE_ID,
-        collectionId,
-        field.key,
-        field.type,
-        field.required || false
-      );
+      body.size = field.size || 500;
     }
-    console.log(`✅ Feld erstellt: ${field.key}`);
-    // Warte auf die Verarbeitung durch Appwrite
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return true;
-  } catch (error) {
-    if (error.code === 409 || error.message?.includes('already exists')) {
+
+    // Appwrite verwendet 'float' statt 'double' in der API
+    const apiType = field.type === 'double' ? 'float' : field.type;
+
+    const response = await fetch(
+      `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/attributes/${apiType}`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (response.ok) {
+      console.log(`✅ Feld erstellt: ${field.key}`);
+      // Warte auf die Verarbeitung durch Appwrite
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return true;
+    } else if (response.status === 409) {
       console.log(`⏭️  Feld existiert bereits: ${field.key}`);
       return false;
     } else {
+      const error = await response.json();
       console.error(`❌ Fehler beim Erstellen von ${field.key}:`, error.message || error);
       return false;
     }
+  } catch (error) {
+    console.error(`❌ Fehler beim Erstellen von ${field.key}:`, error.message || error);
+    return false;
   }
 }
 
@@ -206,20 +285,86 @@ async function setupCollection(collectionId, collectionName, fields) {
   }
 }
 
+async function ensureCollection(collectionId, name) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId,
+    'X-Appwrite-Key': apiKey,
+  };
+
+  // Prüfe ob Collection existiert
+  const checkRes = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}`,
+    { method: 'GET', headers }
+  );
+
+  if (checkRes.ok) {
+    console.log(`✓ Collection existiert bereits: ${collectionId}`);
+    return;
+  }
+
+  if (checkRes.status !== 404) {
+    console.warn(`⚠️ Konnte Collection ${collectionId} nicht prüfen (${checkRes.status}).`);
+    return;
+  }
+
+  // Collection existiert nicht, erstelle sie
+  console.log(`📦 Erstelle fehlende Collection ${collectionId} (${name}) ...`);
+  const createRes = await fetch(`${endpoint}/databases/${DATABASE_ID}/collections`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      collectionId,
+      name,
+      documentSecurity: true,
+      permissions: [],
+    }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.error(
+      `❌ Collection ${collectionId} konnte nicht angelegt werden:`,
+      err.message || createRes.status
+    );
+    return;
+  }
+  console.log(`✅ Collection erstellt: ${collectionId}`);
+  // Warte kurz nach dem Erstellen
+  await new Promise(resolve => setTimeout(resolve, 1000));
+}
+
 async function main() {
   console.log('🚀 Starte Appwrite Field Setup...\n');
   console.log(`Endpoint: ${endpoint}`);
   console.log(`Project ID: ${projectId}\n`);
 
   try {
+    // Erstelle Collections falls sie nicht existieren
+    await ensureCollection(FIXKOSTEN_COLLECTION_ID, 'Fixkosten');
+    await ensureCollection(VARIABLE_KOSTEN_COLLECTION_ID, 'Variable Kosten');
+    await ensureCollection(KUNDEN_COLLECTION_ID, 'Kunden');
+    await ensureCollection(KUNDEN_AKTIVITAETEN_COLLECTION_ID, 'Kunden Aktivitäten');
+    await ensureCollection(PROJEKTE_COLLECTION_ID, 'Projekte');
+    await ensureCollection(ARTIKEL_COLLECTION_ID, 'Artikel');
+    await ensureCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten');
+
+    console.log('\n📝 Erstelle Felder...\n');
+
+    // Erstelle Felder
     await setupCollection(FIXKOSTEN_COLLECTION_ID, 'Fixkosten', fixkostenFields);
     await setupCollection(VARIABLE_KOSTEN_COLLECTION_ID, 'Variable Kosten', variableKostenFields);
     await setupCollection(KUNDEN_COLLECTION_ID, 'Kunden', kundenFields);
     await setupCollection(KUNDEN_AKTIVITAETEN_COLLECTION_ID, 'Kunden Aktivitäten', kundenAktivitaetenFields);
+    await setupCollection(PROJEKTE_COLLECTION_ID, 'Projekte', projekteFields);
+    await setupCollection(ARTIKEL_COLLECTION_ID, 'Artikel', artikelFields);
+    await setupCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten', stammdatenFields);
 
     console.log('\n✨ Setup abgeschlossen!');
     console.log('\n⚠️  WICHTIG: Warte einige Sekunden, bis Appwrite die Felder vollständig erstellt hat.');
     console.log('   Danach kannst du die App verwenden.\n');
+    console.log('📊 HINWEIS: Die Stammdaten-Collection enthält jetzt Zähler für die Dokumentnummerierung.');
+    console.log('   Diese sorgen dafür, dass Angebots-, Lieferschein- und Rechnungsnummern eindeutig sind.\n');
   } catch (error) {
     console.error('\n❌ Fehler beim Setup:', error);
     process.exit(1);

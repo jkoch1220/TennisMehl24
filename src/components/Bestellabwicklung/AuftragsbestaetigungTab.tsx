@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Download, Package } from 'lucide-react';
-import { AngebotsDaten, Position } from '../../types/bestellabwicklung';
-import { generiereAngebotPDF } from '../../services/dokumentService';
+import { AuftragsbestaetigungsDaten, Position } from '../../types/bestellabwicklung';
+import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 
-interface AngebotTabProps {
+interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
   kundeInfo?: {
     kundennummer?: string;
@@ -22,9 +22,8 @@ interface AngebotTabProps {
   };
 }
 
-const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
-  // Initialisiere mit leeren Daten
-  const [angebotsDaten, setAngebotsDaten] = useState<AngebotsDaten>({
+const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTabProps) => {
+  const [auftragsbestaetigungsDaten, setAuftragsbestaetigungsDaten] = useState<AuftragsbestaetigungsDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
     firmenPlzOrt: '12345 Musterstadt',
@@ -36,13 +35,13 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     kundenstrasse: '',
     kundenPlzOrt: '',
     
-    angebotsnummer: '',
-    angebotsdatum: new Date().toISOString().split('T')[0],
-    gueltigBis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    auftragsbestaetigungsnummer: '',
+    auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
     
     positionen: [],
     zahlungsziel: '14 Tage',
   });
+  
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
   
@@ -58,20 +57,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     };
     ladeArtikel();
   }, []);
-  
-  // Angebotsnummer generieren (nur wenn noch keine vorhanden ist)
+
+  // Auftragsbestätigungsnummer generieren (nur wenn noch keine vorhanden ist)
   useEffect(() => {
     const generiereNummer = async () => {
-      if (!angebotsDaten.angebotsnummer && !projekt?.angebotsnummer) {
+      if (!auftragsbestaetigungsDaten.auftragsbestaetigungsnummer && !projekt?.auftragsbestaetigungsnummer) {
         try {
-          const neueNummer = await generiereNaechsteDokumentnummer('angebot');
-          setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
+          const neueNummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
+          setAuftragsbestaetigungsDaten(prev => ({ ...prev, auftragsbestaetigungsnummer: neueNummer }));
         } catch (error) {
-          console.error('Fehler beim Generieren der Angebotsnummer:', error);
-          // Fallback
-          setAngebotsDaten(prev => ({ 
+          console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
+          setAuftragsbestaetigungsDaten(prev => ({ 
             ...prev, 
-            angebotsnummer: `ANG-${new Date().getFullYear()}-TEMP` 
+            auftragsbestaetigungsnummer: `AB-${new Date().getFullYear()}-TEMP` 
           }));
         }
       }
@@ -85,8 +83,6 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
-        const gueltigBis = new Date(heute);
-        gueltigBis.setDate(gueltigBis.getDate() + 30);
         
         const initialePositionen: Position[] = [];
         const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
@@ -104,18 +100,18 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           });
         }
         
-        // Angebotsnummer generieren, falls nicht vorhanden
-        let angebotsnummer = projekt?.angebotsnummer;
-        if (!angebotsnummer) {
+        // Auftragsbestätigungsnummer generieren, falls nicht vorhanden
+        let auftragsbestaetigungsnummer = projekt?.auftragsbestaetigungsnummer;
+        if (!auftragsbestaetigungsnummer) {
           try {
-            angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
+            auftragsbestaetigungsnummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
           } catch (error) {
-            console.error('Fehler beim Generieren der Angebotsnummer:', error);
-            angebotsnummer = `ANG-${new Date().getFullYear()}-TEMP`;
+            console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
+            auftragsbestaetigungsnummer = `AB-${new Date().getFullYear()}-TEMP`;
           }
         }
         
-        setAngebotsDaten(prev => ({
+        setAuftragsbestaetigungsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
@@ -123,9 +119,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
           ansprechpartner: kundeInfo?.ansprechpartner,
           projektnummer: projekt?.id,
-          angebotsnummer: angebotsnummer,
-          angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
-          gueltigBis: gueltigBis.toISOString().split('T')[0],
+          auftragsbestaetigungsnummer: auftragsbestaetigungsnummer,
+          auftragsbestaetigungsdatum: projekt?.auftragsbestaetigungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
           bemerkung: projekt?.notizen || kundeInfo?.notizen || prev.bemerkung,
         }));
@@ -134,12 +129,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     ladeDaten();
   }, [projekt, kundeInfo]);
 
-  const handleInputChange = (field: keyof AngebotsDaten, value: any) => {
-    setAngebotsDaten(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: keyof AuftragsbestaetigungsDaten, value: any) => {
+    setAuftragsbestaetigungsDaten(prev => ({ ...prev, [field]: value }));
   };
 
   const handlePositionChange = (index: number, field: keyof Position, value: any) => {
-    const neuePositionen = [...angebotsDaten.positionen];
+    const neuePositionen = [...auftragsbestaetigungsDaten.positionen];
     neuePositionen[index] = {
       ...neuePositionen[index],
       [field]: value
@@ -150,7 +145,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
     
-    setAngebotsDaten(prev => ({ ...prev, positionen: neuePositionen }));
+    setAuftragsbestaetigungsDaten(prev => ({ ...prev, positionen: neuePositionen }));
   };
 
   const addPosition = () => {
@@ -163,7 +158,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       gesamtpreis: 0
     };
     
-    setAngebotsDaten(prev => ({
+    setAuftragsbestaetigungsDaten(prev => ({
       ...prev,
       positionen: [...prev.positionen, neuePosition]
     }));
@@ -173,7 +168,6 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     const selectedArtikel = artikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    // Verwende den Einzelpreis des Artikels, falls vorhanden, sonst 0
     const preis = selectedArtikel.einzelpreis ?? 0;
 
     const neuePosition: Position = {
@@ -186,7 +180,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       gesamtpreis: preis,
     };
     
-    setAngebotsDaten(prev => ({
+    setAuftragsbestaetigungsDaten(prev => ({
       ...prev,
       positionen: [...prev.positionen, neuePosition]
     }));
@@ -195,26 +189,26 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   };
 
   const removePosition = (index: number) => {
-    setAngebotsDaten(prev => ({
+    setAuftragsbestaetigungsDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
     }));
   };
 
-  const generiereUndLadeAngebot = async () => {
+  const generiereUndLadeAuftragsbestaetigung = async () => {
     try {
-      console.log('Generiere Angebot...', angebotsDaten);
-      const pdf = await generiereAngebotPDF(angebotsDaten);
-      pdf.save(`Angebot_${angebotsDaten.angebotsnummer}.pdf`);
-      console.log('Angebot erfolgreich generiert!');
+      console.log('Generiere Auftragsbestätigung...', auftragsbestaetigungsDaten);
+      const pdf = await generiereAuftragsbestaetigungPDF(auftragsbestaetigungsDaten);
+      pdf.save(`Auftragsbestaetigung_${auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}.pdf`);
+      console.log('Auftragsbestätigung erfolgreich generiert!');
     } catch (error) {
-      console.error('Fehler beim Generieren des Angebots:', error);
-      alert('Fehler beim Generieren des Angebots: ' + (error as Error).message);
+      console.error('Fehler beim Generieren der Auftragsbestätigung:', error);
+      alert('Fehler beim Generieren der Auftragsbestätigung: ' + (error as Error).message);
     }
   };
 
-  const berechnung = berechneDokumentSummen(angebotsDaten.positionen);
-  const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
+  const berechnung = berechneDokumentSummen(auftragsbestaetigungsDaten.positionen);
+  const frachtUndVerpackung = (auftragsbestaetigungsDaten.frachtkosten || 0) + (auftragsbestaetigungsDaten.verpackungskosten || 0);
   const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
 
   return (
@@ -222,35 +216,36 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       {/* Linke Spalte - Formular */}
       <div className="lg:col-span-3 space-y-6">
         
-        {/* Angebotsinformationen */}
+        {/* Auftragsbestätigungsinformationen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Angebotsinformationen</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Auftragsbestätigungsinformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Angebotsnummer</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Auftragsbestätigungsnummer</label>
               <input
                 type="text"
-                value={angebotsDaten.angebotsnummer}
-                onChange={(e) => handleInputChange('angebotsnummer', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
+                onChange={(e) => handleInputChange('auftragsbestaetigungsnummer', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Angebotsdatum</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Datum</label>
               <input
                 type="date"
-                value={angebotsDaten.angebotsdatum}
-                onChange={(e) => handleInputChange('angebotsdatum', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={auftragsbestaetigungsDaten.auftragsbestaetigungsdatum}
+                onChange={(e) => handleInputChange('auftragsbestaetigungsdatum', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gültig bis</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ihre Bestellnummer (optional)</label>
               <input
-                type="date"
-                value={angebotsDaten.gueltigBis}
-                onChange={(e) => handleInputChange('gueltigBis', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                type="text"
+                value={auftragsbestaetigungsDaten.kundennummerExtern || ''}
+                onChange={(e) => handleInputChange('kundennummerExtern', e.target.value)}
+                placeholder="z.B. BEST-2024-123"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -265,30 +260,30 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kundennummer</label>
                 <input
                   type="text"
-                  value={angebotsDaten.kundennummer || ''}
+                  value={auftragsbestaetigungsDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Projektnummer (optional)</label>
                 <input
                   type="text"
-                  value={angebotsDaten.projektnummer || ''}
+                  value={auftragsbestaetigungsDaten.projektnummer || ''}
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner</label>
                 <input
                   type="text"
-                  value={angebotsDaten.ansprechpartner || ''}
+                  value={auftragsbestaetigungsDaten.ansprechpartner || ''}
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -296,27 +291,27 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Kundenname</label>
               <input
                 type="text"
-                value={angebotsDaten.kundenname}
+                value={auftragsbestaetigungsDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Straße</label>
               <input
                 type="text"
-                value={angebotsDaten.kundenstrasse}
+                value={auftragsbestaetigungsDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">PLZ & Ort</label>
               <input
                 type="text"
-                value={angebotsDaten.kundenPlzOrt}
+                value={auftragsbestaetigungsDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -329,51 +324,51 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={angebotsDaten.lieferadresseAbweichend || false}
+                checked={auftragsbestaetigungsDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
               />
               <span className="text-sm text-gray-600">Abweichende Lieferadresse</span>
             </label>
           </div>
           
-          {angebotsDaten.lieferadresseAbweichend && (
+          {auftragsbestaetigungsDaten.lieferadresseAbweichend && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
                   type="text"
-                  value={angebotsDaten.lieferadresseName || ''}
+                  value={auftragsbestaetigungsDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Straße</label>
                 <input
                   type="text"
-                  value={angebotsDaten.lieferadresseStrasse || ''}
+                  value={auftragsbestaetigungsDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">PLZ & Ort</label>
                 <input
                   type="text"
-                  value={angebotsDaten.lieferadressePlzOrt || ''}
+                  value={auftragsbestaetigungsDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
             </div>
           )}
         </div>
 
-        {/* Angebotspositionen */}
+        {/* Positionen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Angebotspositionen</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Positionen</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowArtikelAuswahl(!showArtikelAuswahl)}
@@ -432,7 +427,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           )}
 
           <div className="space-y-4">
-            {angebotsDaten.positionen.map((position, index) => (
+            {auftragsbestaetigungsDaten.positionen.map((position, index) => (
               <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-start gap-4">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -443,7 +438,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         value={position.artikelnummer || ''}
                         onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                         placeholder="TM-001"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -452,7 +447,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         type="text"
                         value={position.bezeichnung}
                         onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -461,7 +456,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         type="number"
                         value={position.menge}
                         onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -470,7 +465,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         type="text"
                         value={position.einheit}
                         onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -480,7 +475,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         step="0.01"
                         value={position.einzelpreis}
                         onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -512,10 +507,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Lieferzeit</label>
               <input
                 type="text"
-                value={angebotsDaten.lieferzeit || ''}
+                value={auftragsbestaetigungsDaten.lieferzeit || ''}
                 onChange={(e) => handleInputChange('lieferzeit', e.target.value)}
                 placeholder="z.B. 2-3 Werktage"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -523,9 +518,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <input
                 type="number"
                 step="0.01"
-                value={angebotsDaten.frachtkosten || ''}
+                value={auftragsbestaetigungsDaten.frachtkosten || ''}
                 onChange={(e) => handleInputChange('frachtkosten', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -538,9 +533,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Zahlungsziel</label>
               <select
-                value={angebotsDaten.zahlungsziel}
+                value={auftragsbestaetigungsDaten.zahlungsziel}
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
                 <option value="Vorkasse">Vorkasse</option>
                 <option value="Sofort">Sofort</option>
@@ -554,38 +549,38 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <label className="flex items-center gap-2 cursor-pointer mb-3">
                 <input
                   type="checkbox"
-                  checked={angebotsDaten.skontoAktiviert || false}
+                  checked={auftragsbestaetigungsDaten.skontoAktiviert || false}
                   onChange={(e) => handleInputChange('skontoAktiviert', e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
                 />
                 <span className="text-sm font-medium text-gray-700">Skonto aktivieren</span>
               </label>
               
-              {angebotsDaten.skontoAktiviert && (
+              {auftragsbestaetigungsDaten.skontoAktiviert && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Skonto %</label>
                     <input
                       type="number"
                       step="0.01"
-                      value={angebotsDaten.skonto?.prozent || ''}
+                      value={auftragsbestaetigungsDaten.skonto?.prozent || ''}
                       onChange={(e) => handleInputChange('skonto', {
                         prozent: parseFloat(e.target.value) || 0,
-                        tage: angebotsDaten.skonto?.tage || 7
+                        tage: auftragsbestaetigungsDaten.skonto?.tage || 7
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tage</label>
                     <input
                       type="number"
-                      value={angebotsDaten.skonto?.tage || ''}
+                      value={auftragsbestaetigungsDaten.skonto?.tage || ''}
                       onChange={(e) => handleInputChange('skonto', {
-                        prozent: angebotsDaten.skonto?.prozent || 0,
+                        prozent: auftragsbestaetigungsDaten.skonto?.prozent || 0,
                         tage: parseInt(e.target.value) || 0
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -598,26 +593,26 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Bemerkung</h2>
           <textarea
-            value={angebotsDaten.bemerkung || ''}
+            value={auftragsbestaetigungsDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl shadow-sm border border-blue-200 p-8 sticky top-6">
+        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl shadow-sm border border-orange-200 p-8 sticky top-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Zusammenfassung</h2>
           
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Positionen:</span>
-              <span className="font-medium text-gray-900">{angebotsDaten.positionen.length}</span>
+              <span className="font-medium text-gray-900">{auftragsbestaetigungsDaten.positionen.length}</span>
             </div>
             
-            <div className="border-t border-blue-200 pt-3">
+            <div className="border-t border-orange-200 pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Nettobetrag:</span>
                 <span className="font-medium text-gray-900">{berechnung.nettobetrag.toFixed(2)} €</span>
@@ -637,40 +632,34 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 </span>
               </div>
               
-              <div className="border-t border-blue-200 pt-3 mt-3">
+              <div className="border-t border-orange-200 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-base font-semibold text-gray-900">Angebotssumme:</span>
-                  <span className="text-3xl font-bold text-blue-600 break-all">
+                  <span className="text-base font-semibold text-gray-900">Auftragssumme:</span>
+                  <span className="text-3xl font-bold text-orange-600 break-all">
                     {gesamtBrutto.toFixed(2)} €
                   </span>
                 </div>
               </div>
             </div>
             
-            {angebotsDaten.skontoAktiviert && angebotsDaten.skonto && angebotsDaten.skonto.prozent > 0 && (
-              <div className="border-t border-blue-200 pt-3 mt-3">
+            {auftragsbestaetigungsDaten.skontoAktiviert && auftragsbestaetigungsDaten.skonto && auftragsbestaetigungsDaten.skonto.prozent > 0 && (
+              <div className="border-t border-orange-200 pt-3 mt-3">
                 <div className="text-sm text-gray-600 mb-1">
-                  Bei Zahlung innerhalb von {angebotsDaten.skonto.tage} Tagen:
+                  Bei Zahlung innerhalb von {auftragsbestaetigungsDaten.skonto.tage} Tagen:
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Skonto ({angebotsDaten.skonto.prozent}%):</span>
+                  <span className="text-gray-600">Skonto ({auftragsbestaetigungsDaten.skonto.prozent}%):</span>
                   <span className="font-semibold text-green-600">
-                    {(gesamtBrutto * (1 - angebotsDaten.skonto.prozent / 100)).toFixed(2)} €
+                    {(gesamtBrutto * (1 - auftragsbestaetigungsDaten.skonto.prozent / 100)).toFixed(2)} €
                   </span>
                 </div>
               </div>
             )}
-            
-            <div className="border-t border-blue-200 pt-3">
-              <div className="text-sm text-gray-600 mb-1">
-                Gültig bis: {new Date(angebotsDaten.gueltigBis).toLocaleDateString('de-DE')}
-              </div>
-            </div>
           </div>
           
           <button
-            onClick={generiereUndLadeAngebot}
-            className="w-full mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl"
+            onClick={generiereUndLadeAuftragsbestaetigung}
+            className="w-full mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg hover:shadow-xl"
           >
             <Download className="h-5 w-5" />
             PDF Generieren
@@ -681,4 +670,4 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   );
 };
 
-export default AngebotTab;
+export default AuftragsbestaetigungTab;

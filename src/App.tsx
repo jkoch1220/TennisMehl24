@@ -18,6 +18,8 @@ import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
 import KundenListe from './components/KundenListe/KundenListe';
 import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
+import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
+import Stammdaten from './components/Stammdaten/Stammdaten';
 import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
@@ -82,10 +84,13 @@ function App() {
               <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
               <Route path="/kunden-karte" element={<KundenKarte />} />
               <Route path="/kunden-liste" element={<KundenListe />} />
+              {/* Bestellabwicklung nur noch über Projekte zugänglich */}
               <Route path="/bestellabwicklung" element={<Bestellabwicklung />} />
+              <Route path="/projekt-verwaltung" element={<ProjektVerwaltung />} />
               <Route path="/vorschlaege" element={<Vorschlaege />} />
               <Route path="/todos" element={<Todos />} />
               <Route path="/wiki" element={<Wiki />} />
+              <Route path="/stammdaten" element={<Stammdaten />} />
               {/* Legacy route redirect */}
               <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
             </Routes>

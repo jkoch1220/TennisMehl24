@@ -79,6 +79,36 @@ export interface AngebotsDaten extends BaseDokument {
   eigentumsVorbehalt?: string;
 }
 
+// AUFTRAGSBESTÄTIGUNG (ähnlich wie Angebot, aber als Bestätigung eines erteilten Auftrags)
+export interface AuftragsbestaetigungsDaten extends BaseDokument {
+  // Auftragsbestätigungsinformationen
+  auftragsbestaetigungsnummer: string;
+  auftragsbestaetigungsdatum: string;
+  kundennummerExtern?: string; // Bestellnummer/Referenznummer des Kunden
+  
+  // Positionen
+  positionen: Position[];
+  
+  // Zahlungsbedingungen
+  zahlungsziel: string;
+  zahlungsart?: string;
+  skontoAktiviert?: boolean;
+  skonto?: {
+    prozent: number;
+    tage: number;
+  };
+  
+  // Lieferbedingungen
+  lieferzeit?: string;
+  lieferdatum?: string;
+  frachtkosten?: number;
+  verpackungskosten?: number;
+  
+  // Optionale Klauseln
+  agbHinweis?: string;
+  eigentumsVorbehalt?: string;
+}
+
 // LIEFERSCHEIN
 export interface LieferscheinDaten extends BaseDokument {
   // Lieferscheininformationen
@@ -129,4 +159,4 @@ export interface DokumentBerechnung {
   bruttobetrag: number;
 }
 
-export type DokumentTyp = 'angebot' | 'lieferschein' | 'rechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';

@@ -12,6 +12,9 @@ import {
   SAISON_DATEN_COLLECTION_ID,
   SAISON_BEZIEHUNGEN_COLLECTION_ID,
   SAISON_AKTIVITAETEN_COLLECTION_ID,
+  PROJEKTE_COLLECTION_ID,
+  ARTIKEL_COLLECTION_ID,
+  STAMMDATEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -19,7 +22,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '7';
+const APPWRITE_SETUP_VERSION = '9';
 
 type FieldConfig = {
   key: string;
@@ -97,6 +100,70 @@ const saisonAktivitaetenFields: FieldConfig[] = [
   { key: 'kundeId', type: 'string', size: 100, required: true },
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'data', type: 'string', size: 10000 },
+];
+
+const projekteFields: FieldConfig[] = [
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'kundenname', type: 'string', size: 500, required: true },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'status', type: 'string', size: 50, required: true },
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'geaendertAm', type: 'string', size: 50 },
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+const artikelFields: FieldConfig[] = [
+  { key: 'artikelnummer', type: 'string', size: 100, required: true },
+  { key: 'bezeichnung', type: 'string', size: 500, required: true },
+  { key: 'beschreibung', type: 'string', size: 2000 },
+  { key: 'einheit', type: 'string', size: 50, required: true },
+  { key: 'einzelpreis', type: 'double', required: false }, // Optional - kann weggelassen werden
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'aktualisiertAm', type: 'string', size: 50 },
+];
+
+const stammdatenFields: FieldConfig[] = [
+  // Firmendaten - ALLE OPTIONAL
+  { key: 'firmenname', type: 'string', size: 500, required: false },
+  { key: 'firmenstrasse', type: 'string', size: 500, required: false },
+  { key: 'firmenPlz', type: 'string', size: 20, required: false },
+  { key: 'firmenOrt', type: 'string', size: 200, required: false },
+  { key: 'firmenTelefon', type: 'string', size: 100, required: false },
+  { key: 'firmenEmail', type: 'string', size: 320, required: false },
+  { key: 'firmenWebsite', type: 'string', size: 500 },
+  
+  // Geschäftsführung (Array für mehrere Geschäftsführer) - OPTIONAL
+  { key: 'geschaeftsfuehrer', type: 'string', size: 500, required: false, array: true },
+  
+  // Handelsregister - OPTIONAL
+  { key: 'handelsregister', type: 'string', size: 200, required: false },
+  { key: 'sitzGesellschaft', type: 'string', size: 200, required: false },
+  
+  // Steuerdaten - OPTIONAL
+  { key: 'steuernummer', type: 'string', size: 100 },
+  { key: 'ustIdNr', type: 'string', size: 100, required: false },
+  
+  // Bankdaten - OPTIONAL
+  { key: 'bankname', type: 'string', size: 500, required: false },
+  { key: 'iban', type: 'string', size: 100, required: false },
+  { key: 'bic', type: 'string', size: 100, required: false },
+  
+  // Werk/Verkauf (optional)
+  { key: 'werkName', type: 'string', size: 500 },
+  { key: 'werkStrasse', type: 'string', size: 500 },
+  { key: 'werkPlz', type: 'string', size: 20 },
+  { key: 'werkOrt', type: 'string', size: 200 },
+  
+  // Dokumentnummern-Zähler (für Angebote, Lieferscheine, Rechnungen)
+  { key: 'angebotZaehler', type: 'integer', default: 0 },
+  { key: 'auftragsbestaetigungZaehler', type: 'integer', default: 0 },
+  { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
+  { key: 'rechnungZaehler', type: 'integer', default: 0 },
+  { key: 'jahr', type: 'integer', default: 2025 },
+  
+  // Metadaten
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'aktualisiertAm', type: 'string', size: 50 },
 ];
 
 async function ensureCollection(collectionId: string, name: string) {
@@ -226,6 +293,9 @@ export async function setupAppwriteFields() {
       { id: SAISON_DATEN_COLLECTION_ID, name: 'Saison Daten', fields: saisonDatenFields },
       { id: SAISON_BEZIEHUNGEN_COLLECTION_ID, name: 'Saison Beziehungen', fields: saisonBeziehungenFields },
       { id: SAISON_AKTIVITAETEN_COLLECTION_ID, name: 'Saison Aktivitäten', fields: saisonAktivitaetenFields },
+      { id: PROJEKTE_COLLECTION_ID, name: 'Projekte', fields: projekteFields },
+      { id: ARTIKEL_COLLECTION_ID, name: 'Artikel', fields: artikelFields },
+      { id: STAMMDATEN_COLLECTION_ID, name: 'Stammdaten', fields: stammdatenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {

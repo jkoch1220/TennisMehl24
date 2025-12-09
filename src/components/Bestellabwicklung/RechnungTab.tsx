@@ -1,11 +1,120 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Download } from 'lucide-react';
 import { RechnungsDaten, Position } from '../../types/bestellabwicklung';
 import { generiereRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
-import { testRechnung } from './testdaten';
+import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import { Projekt } from '../../types/projekt';
 
-const RechnungTab = () => {
-  const [rechnungsDaten, setRechnungsDaten] = useState<RechnungsDaten>(testRechnung);
+interface RechnungTabProps {
+  projekt?: Projekt;
+  kundeInfo?: {
+    kundennummer?: string;
+    kundenname: string;
+    kundenstrasse: string;
+    kundenPlzOrt: string;
+    ansprechpartner?: string;
+    angefragteMenge?: number;
+    preisProTonne?: number;
+    notizen?: string;
+  };
+}
+
+const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
+  const [rechnungsDaten, setRechnungsDaten] = useState<RechnungsDaten>({
+    firmenname: 'Koch Dienste',
+    firmenstrasse: 'Musterstraße 1',
+    firmenPlzOrt: '12345 Musterstadt',
+    firmenTelefon: '+49 123 456789',
+    firmenEmail: 'info@kochdienste.de',
+    firmenWebsite: 'www.kochdienste.de',
+    
+    kundenname: '',
+    kundenstrasse: '',
+    kundenPlzOrt: '',
+    
+    bankname: 'Sparkasse Tauberfranken',
+    iban: 'DE49 6735 0130 0000254019',
+    bic: 'SOLADES1TBB',
+    
+    rechnungsnummer: '',
+    rechnungsdatum: new Date().toISOString().split('T')[0],
+    leistungsdatum: new Date().toISOString().split('T')[0],
+    
+    positionen: [],
+    zahlungsziel: '14 Tage',
+  });
+  
+  // Rechnungsnummer generieren (nur wenn noch keine vorhanden ist)
+  useEffect(() => {
+    const generiereNummer = async () => {
+      if (!rechnungsDaten.rechnungsnummer && !projekt?.rechnungsnummer) {
+        try {
+          const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
+          setRechnungsDaten(prev => ({ ...prev, rechnungsnummer: neueNummer }));
+        } catch (error) {
+          console.error('Fehler beim Generieren der Rechnungsnummer:', error);
+          setRechnungsDaten(prev => ({ 
+            ...prev, 
+            rechnungsnummer: `RE-${new Date().getFullYear()}-TEMP` 
+          }));
+        }
+      }
+    };
+    generiereNummer();
+  }, []);
+  
+  // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
+  useEffect(() => {
+    const ladeDaten = async () => {
+      const datenQuelle = projekt || kundeInfo;
+      if (datenQuelle) {
+        const heute = new Date();
+        
+        const initialePositionen: Position[] = [];
+        const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
+        const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
+        
+        if (angefragteMenge && preisProTonne) {
+          initialePositionen.push({
+            id: '1',
+            artikelnummer: 'TM-ZM',
+            bezeichnung: 'Tennismehl / Ziegelmehl',
+            menge: angefragteMenge,
+            einheit: 't',
+            einzelpreis: preisProTonne,
+            gesamtpreis: angefragteMenge * preisProTonne,
+          });
+        }
+        
+        // Rechnungsnummer generieren, falls nicht vorhanden
+        let rechnungsnummer = projekt?.rechnungsnummer;
+        if (!rechnungsnummer) {
+          try {
+            rechnungsnummer = await generiereNaechsteDokumentnummer('rechnung');
+          } catch (error) {
+            console.error('Fehler beim Generieren der Rechnungsnummer:', error);
+            rechnungsnummer = `RE-${new Date().getFullYear()}-TEMP`;
+          }
+        }
+        
+        setRechnungsDaten(prev => ({
+          ...prev,
+          kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
+          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
+          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
+          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          ansprechpartner: kundeInfo?.ansprechpartner,
+          projektnummer: projekt?.id,
+          rechnungsnummer: rechnungsnummer,
+          rechnungsdatum: projekt?.rechnungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
+          leistungsdatum: heute.toISOString().split('T')[0],
+          positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
+          bemerkung: projekt?.notizen || kundeInfo?.notizen || prev.bemerkung,
+        }));
+      }
+    };
+    ladeDaten();
+  }, [projekt, kundeInfo]);
 
   const handleInputChange = (field: keyof RechnungsDaten, value: any) => {
     setRechnungsDaten(prev => ({ ...prev, [field]: value }));
@@ -49,10 +158,10 @@ const RechnungTab = () => {
     }));
   };
 
-  const generiereUndLadeRechnung = () => {
+  const generiereUndLadeRechnung = async () => {
     try {
       console.log('Generiere Rechnung...', rechnungsDaten);
-      const pdf = generiereRechnungPDF(rechnungsDaten);
+      const pdf = await generiereRechnungPDF(rechnungsDaten);
       pdf.save(`Rechnung_${rechnungsDaten.rechnungsnummer}.pdf`);
       console.log('Rechnung erfolgreich generiert!');
     } catch (error) {

@@ -1,11 +1,109 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Download } from 'lucide-react';
 import { LieferscheinDaten, LieferscheinPosition } from '../../types/bestellabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
-import { testLieferschein } from './testdaten';
+import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import { Projekt } from '../../types/projekt';
 
-const LieferscheinTab = () => {
-  const [lieferscheinDaten, setLieferscheinDaten] = useState<LieferscheinDaten>(testLieferschein);
+interface LieferscheinTabProps {
+  projekt?: Projekt;
+  kundeInfo?: {
+    kundennummer?: string;
+    kundenname: string;
+    kundenstrasse: string;
+    kundenPlzOrt: string;
+    ansprechpartner?: string;
+    angefragteMenge?: number;
+    preisProTonne?: number;
+    notizen?: string;
+  };
+}
+
+const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
+  const [lieferscheinDaten, setLieferscheinDaten] = useState<LieferscheinDaten>({
+    firmenname: 'Koch Dienste',
+    firmenstrasse: 'Musterstraße 1',
+    firmenPlzOrt: '12345 Musterstadt',
+    firmenTelefon: '+49 123 456789',
+    firmenEmail: 'info@kochdienste.de',
+    firmenWebsite: 'www.kochdienste.de',
+    
+    kundenname: '',
+    kundenstrasse: '',
+    kundenPlzOrt: '',
+    
+    lieferscheinnummer: '',
+    lieferdatum: new Date().toISOString().split('T')[0],
+    
+    positionen: [],
+  });
+  
+  // Lieferscheinnummer generieren (nur wenn noch keine vorhanden ist)
+  useEffect(() => {
+    const generiereNummer = async () => {
+      if (!lieferscheinDaten.lieferscheinnummer && !projekt?.lieferscheinnummer) {
+        try {
+          const neueNummer = await generiereNaechsteDokumentnummer('lieferschein');
+          setLieferscheinDaten(prev => ({ ...prev, lieferscheinnummer: neueNummer }));
+        } catch (error) {
+          console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
+          setLieferscheinDaten(prev => ({ 
+            ...prev, 
+            lieferscheinnummer: `LS-${new Date().getFullYear()}-TEMP` 
+          }));
+        }
+      }
+    };
+    generiereNummer();
+  }, []);
+  
+  // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
+  useEffect(() => {
+    const ladeDaten = async () => {
+      const datenQuelle = projekt || kundeInfo;
+      if (datenQuelle) {
+        const heute = new Date();
+        
+        const initialePositionen: LieferscheinPosition[] = [];
+        const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
+        
+        if (angefragteMenge) {
+          initialePositionen.push({
+            id: '1',
+            artikel: 'Tennismehl / Ziegelmehl',
+            menge: angefragteMenge,
+            einheit: 't',
+          });
+        }
+        
+        // Lieferscheinnummer generieren, falls nicht vorhanden
+        let lieferscheinnummer = projekt?.lieferscheinnummer;
+        if (!lieferscheinnummer) {
+          try {
+            lieferscheinnummer = await generiereNaechsteDokumentnummer('lieferschein');
+          } catch (error) {
+            console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
+            lieferscheinnummer = `LS-${new Date().getFullYear()}-TEMP`;
+          }
+        }
+        
+        setLieferscheinDaten(prev => ({
+          ...prev,
+          kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
+          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
+          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
+          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          ansprechpartner: kundeInfo?.ansprechpartner,
+          projektnummer: projekt?.id,
+          lieferscheinnummer: lieferscheinnummer,
+          lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
+          positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
+          bemerkung: projekt?.notizen || kundeInfo?.notizen || prev.bemerkung,
+        }));
+      }
+    };
+    ladeDaten();
+  }, [projekt, kundeInfo]);
 
   const handleInputChange = (field: keyof LieferscheinDaten, value: any) => {
     setLieferscheinDaten(prev => ({ ...prev, [field]: value }));
@@ -42,10 +140,10 @@ const LieferscheinTab = () => {
     }));
   };
 
-  const generiereUndLadeLieferschein = () => {
+  const generiereUndLadeLieferschein = async () => {
     try {
       console.log('Generiere Lieferschein...', lieferscheinDaten);
-      const pdf = generiereLieferscheinPDF(lieferscheinDaten);
+      const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
       pdf.save(`Lieferschein_${lieferscheinDaten.lieferscheinnummer}.pdf`);
       console.log('Lieferschein erfolgreich generiert!');
     } catch (error) {
@@ -97,7 +195,7 @@ const LieferscheinTab = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Kundendaten</h2>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Kundennummer</label>
                 <input
@@ -105,6 +203,16 @@ const LieferscheinTab = () => {
                   value={lieferscheinDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   placeholder="z.B. K-2024-001"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Projektnummer (optional)</label>
+                <input
+                  type="text"
+                  value={lieferscheinDaten.projektnummer || ''}
+                  onChange={(e) => handleInputChange('projektnummer', e.target.value)}
+                  placeholder="z.B. P-2024-042"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>

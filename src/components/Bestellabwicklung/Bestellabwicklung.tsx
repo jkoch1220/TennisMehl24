@@ -1,15 +1,51 @@
-import { useState } from 'react';
-import { FileText, FileCheck, Truck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle } from 'lucide-react';
 import { DokumentTyp } from '../../types/bestellabwicklung';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AngebotTab from './AngebotTab';
+import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
 
 const Bestellabwicklung = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
+  
+  // State aus Navigation empfangen (von Callliste oder ProjektVerwaltung)
+  const { projekt, tab, kundeInfo } = location.state || {};
+  
+  useEffect(() => {
+    // Wenn ein Tab aus dem State übergeben wurde, wechsle zu diesem Tab
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
+
+  // Wenn kein Projekt übergeben wurde, zeige Hinweis
+  if (!projekt && !kundeInfo) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-8 text-center">
+          <AlertCircle className="h-16 w-16 text-orange-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Kein Projekt ausgewählt</h2>
+          <p className="text-gray-600 mb-6">
+            Die Bestellabwicklung kann nur über ein Projekt geöffnet werden.
+          </p>
+          <button
+            onClick={() => navigate('/projekt-verwaltung')}
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg"
+          >
+            Zur Projekt-Verwaltung
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: 'angebot' as DokumentTyp, label: 'Angebot', icon: FileCheck, color: 'from-blue-600 to-cyan-600' },
+    { id: 'auftragsbestaetigung' as DokumentTyp, label: 'Auftragsbestätigung', icon: FileSignature, color: 'from-orange-600 to-amber-600' },
     { id: 'lieferschein' as DokumentTyp, label: 'Lieferschein', icon: Truck, color: 'from-green-600 to-emerald-600' },
     { id: 'rechnung' as DokumentTyp, label: 'Rechnung', icon: FileText, color: 'from-red-600 to-orange-600' },
   ];
@@ -55,9 +91,10 @@ const Bestellabwicklung = () => {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'angebot' && <AngebotTab />}
-        {activeTab === 'lieferschein' && <LieferscheinTab />}
-        {activeTab === 'rechnung' && <RechnungTab />}
+        {activeTab === 'angebot' && <AngebotTab projekt={projekt} kundeInfo={kundeInfo} />}
+        {activeTab === 'auftragsbestaetigung' && <AuftragsbestaetigungTab projekt={projekt} kundeInfo={kundeInfo} />}
+        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} kundeInfo={kundeInfo} />}
+        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} kundeInfo={kundeInfo} />}
       </div>
     </div>
   );
