@@ -42,6 +42,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     zuletztGezahlterPreis: undefined,
     tonnenLetztesJahr: undefined,
     beziehtUeberUnsPlatzbauer: false,
+    abwerkspreis: false,
   });
 
   const [ansprechpartner, setAnsprechpartner] = useState<NeuerAnsprechpartner[]>([]);
@@ -72,6 +73,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         zuletztGezahlterPreis: kunde.kunde.zuletztGezahlterPreis,
         tonnenLetztesJahr: kunde.kunde.tonnenLetztesJahr,
         beziehtUeberUnsPlatzbauer: kunde.kunde.beziehtUeberUnsPlatzbauer,
+        abwerkspreis: kunde.kunde.abwerkspreis || false,
       });
       setAnsprechpartner(
         kunde.ansprechpartner.map((ap) => ({
@@ -101,6 +103,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         zuletztGezahlterPreis: undefined,
         tonnenLetztesJahr: undefined,
         beziehtUeberUnsPlatzbauer: false,
+        abwerkspreis: false,
       });
       setAnsprechpartner([]);
       setZugeordnetePlatzbauer([]);
@@ -426,17 +429,32 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 />
               </div>
 
-              <div className="flex items-center gap-3">
-                <input
-                  id="aktiv"
-                  type="checkbox"
-                  checked={formData.aktiv ?? true}
-                  onChange={(e) => setFormData({ ...formData, aktiv: e.target.checked })}
-                  className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                />
-                <label htmlFor="aktiv" className="text-sm font-medium text-gray-700">
-                  Aktiv
-                </label>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="aktiv"
+                    type="checkbox"
+                    checked={formData.aktiv ?? true}
+                    onChange={(e) => setFormData({ ...formData, aktiv: e.target.checked })}
+                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="aktiv" className="text-sm font-medium text-gray-700">
+                    Aktiv
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <input
+                    id="abwerkspreis"
+                    type="checkbox"
+                    checked={formData.abwerkspreis ?? false}
+                    onChange={(e) => setFormData({ ...formData, abwerkspreis: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="abwerkspreis" className="text-sm font-medium text-gray-700">
+                    Abwerkspreis
+                  </label>
+                </div>
               </div>
             </div>
 

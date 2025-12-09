@@ -140,6 +140,7 @@ export interface SaisonKunde {
   standardPlatzbauerId?: string;
   // Falls Verein: bezieht über Platzbauer, die von uns gestellt werden
   beziehtUeberUnsPlatzbauer?: boolean;
+  abwerkspreis?: boolean; // Kunde bekommt Abwerkspreis (Ja/Nein)
   erstelltAm: string;
   geaendertAm: string;
 }

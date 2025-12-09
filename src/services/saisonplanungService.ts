@@ -167,6 +167,7 @@ export const saisonplanungService = {
       },
       aktiv: kunde.aktiv !== undefined ? kunde.aktiv : true,
       beziehtUeberUnsPlatzbauer: kunde.beziehtUeberUnsPlatzbauer ?? false,
+      abwerkspreis: kunde.abwerkspreis ?? false,
       erstelltAm: jetzt,
       geaendertAm: jetzt,
     };
@@ -208,6 +209,10 @@ export const saisonplanungService = {
         kunde.beziehtUeberUnsPlatzbauer !== undefined
           ? kunde.beziehtUeberUnsPlatzbauer
           : aktuell.beziehtUeberUnsPlatzbauer,
+      abwerkspreis:
+        kunde.abwerkspreis !== undefined
+          ? kunde.abwerkspreis
+          : aktuell.abwerkspreis,
       geaendertAm: new Date().toISOString(),
     };
 

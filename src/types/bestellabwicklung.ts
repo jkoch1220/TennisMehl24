@@ -1,5 +1,7 @@
-export interface RechnungsPosition {
+// Gemeinsame Basis-Datentypen
+export interface Position {
   id: string;
+  artikelnummer?: string;
   bezeichnung: string;
   menge: number;
   einheit: string;
@@ -7,17 +9,16 @@ export interface RechnungsPosition {
   gesamtpreis: number;
 }
 
-export interface RechnungsDaten {
-  // Rechnungsinformationen
-  rechnungsnummer: string;
-  rechnungsdatum: string;
-  leistungsdatum?: string;
-  
-  // Kundeninformationen
-  kundenname: string;
-  kundenstrasse: string;
-  kundenPlzOrt: string;
-  
+export interface LieferscheinPosition {
+  id: string;
+  artikel: string;
+  menge: number;
+  einheit: string;
+  seriennummer?: string;
+  chargennummer?: string;
+}
+
+export interface BaseDokument {
   // Firmendaten (Absender)
   firmenname: string;
   firmenstrasse: string;
@@ -25,6 +26,79 @@ export interface RechnungsDaten {
   firmenTelefon: string;
   firmenEmail: string;
   firmenWebsite?: string;
+  
+  // Kundeninformationen (Empfänger)
+  kundennummer?: string;
+  kundenname: string;
+  kundenstrasse: string;
+  kundenPlzOrt: string;
+  
+  // Projektnummer (optional)
+  projektnummer?: string;
+  
+  // Lieferadresse (falls abweichend)
+  lieferadresseAbweichend?: boolean;
+  lieferadresseName?: string;
+  lieferadresseStrasse?: string;
+  lieferadressePlzOrt?: string;
+  
+  // Ansprechpartner
+  ansprechpartner?: string;
+  
+  // Bemerkungen
+  bemerkung?: string;
+}
+
+// ANGEBOT
+export interface AngebotsDaten extends BaseDokument {
+  // Angebotsinformationen
+  angebotsnummer: string;
+  angebotsdatum: string;
+  gueltigBis: string;
+  
+  // Positionen
+  positionen: Position[];
+  
+  // Zahlungsbedingungen
+  zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
+  zahlungsart?: string;
+  skontoAktiviert?: boolean;
+  skonto?: {
+    prozent: number;
+    tage: number;
+  };
+  
+  // Lieferbedingungen
+  lieferzeit?: string;
+  lieferdatum?: string;
+  frachtkosten?: number;
+  verpackungskosten?: number;
+  
+  // Optionale Klauseln
+  agbHinweis?: string;
+  eigentumsVorbehalt?: string;
+}
+
+// LIEFERSCHEIN
+export interface LieferscheinDaten extends BaseDokument {
+  // Lieferscheininformationen
+  lieferscheinnummer: string;
+  lieferdatum: string;
+  bestellnummer?: string;
+  
+  // Positionen (OHNE Preise!)
+  positionen: LieferscheinPosition[];
+  
+  // Empfangsbestätigung
+  empfangBestaetigt?: boolean;
+}
+
+// RECHNUNG
+export interface RechnungsDaten extends BaseDokument {
+  // Rechnungsinformationen
+  rechnungsnummer: string;
+  rechnungsdatum: string;
+  leistungsdatum?: string;
   
   // Bankdaten
   bankname: string;
@@ -36,22 +110,23 @@ export interface RechnungsDaten {
   ustIdNr?: string;
   
   // Positionen
-  positionen: RechnungsPosition[];
+  positionen: Position[];
   
   // Zahlungsbedingungen
-  zahlungsziel: number; // Tage
+  zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
+  skontoAktiviert?: boolean;
   skonto?: {
     prozent: number;
     tage: number;
   };
-  
-  // Bemerkungen
-  bemerkung?: string;
 }
 
-export interface RechnungsBerechnung {
+// Berechnungen
+export interface DokumentBerechnung {
   nettobetrag: number;
   umsatzsteuer: number;
   umsatzsteuersatz: number;
   bruttobetrag: number;
 }
+
+export type DokumentTyp = 'angebot' | 'lieferschein' | 'rechnung';
