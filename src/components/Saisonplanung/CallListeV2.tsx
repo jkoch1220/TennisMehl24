@@ -153,6 +153,9 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
         lieferfensterSpaet: draggedKunde.aktuelleSaison?.lieferfensterSpaet?.split('T')[0],
         rueckrufDatum: draggedKunde.aktuelleSaison?.rueckrufDatum?.split('T')[0],
         rueckrufNotiz: draggedKunde.aktuelleSaison?.rueckrufNotiz,
+        fruehjahresinstandsetzungUeberUns: draggedKunde.aktuelleSaison?.fruehjahresinstandsetzungUeberUns || false,
+        anzahlPlaetze: draggedKunde.aktuelleSaison?.anzahlPlaetze,
+        fruehjahresinstandsetzungPlatzbauerId: draggedKunde.aktuelleSaison?.fruehjahresinstandsetzungPlatzbauerId,
       });
       setShowModal(true);
     } else {
@@ -191,6 +194,9 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       platzbauerId: kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId,
       lieferfensterFrueh: kunde.aktuelleSaison?.lieferfensterFrueh?.split('T')[0],
       lieferfensterSpaet: kunde.aktuelleSaison?.lieferfensterSpaet?.split('T')[0],
+      fruehjahresinstandsetzungUeberUns: kunde.aktuelleSaison?.fruehjahresinstandsetzungUeberUns || false,
+      anzahlPlaetze: kunde.aktuelleSaison?.anzahlPlaetze,
+      fruehjahresinstandsetzungPlatzbauerId: kunde.aktuelleSaison?.fruehjahresinstandsetzungPlatzbauerId,
     });
     setShowModal(true);
   };
@@ -683,7 +689,23 @@ const ErgebnisModal = ({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
-            {/* Vorjahrespreis - nicht editierbar */}
+            {/* Tonnen letztes Jahr - nicht editierbar */}
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">
+                <Package className="w-4 h-4 inline mr-1" />
+                Tonnen letztes Jahr (Referenz)
+              </label>
+              <div className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-medium">
+                {kunde.kunde.tonnenLetztesJahr 
+                  ? `${kunde.kunde.tonnenLetztesJahr.toFixed(1)} t`
+                  : '– keine Angabe –'}
+              </div>
+            </div>
+          </div>
+
+          {/* Vorjahrespreis - nicht editierbar */}
+          <div className="grid grid-cols-2 gap-4">
+            <div></div>
             <div>
               <label className="block text-sm font-medium text-gray-500 mb-1">
                 <Euro className="w-4 h-4 inline mr-1" />
@@ -798,6 +820,70 @@ const ErgebnisModal = ({
               </div>
             )}
           </div>
+
+          {/* Frühjahresinstandsetzung */}
+          {kunde.kunde.typ === 'verein' && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="fis-checkbox"
+                  checked={formData.fruehjahresinstandsetzungUeberUns || false}
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    fruehjahresinstandsetzungUeberUns: e.target.checked,
+                    anzahlPlaetze: e.target.checked ? formData.anzahlPlaetze : undefined,
+                    fruehjahresinstandsetzungPlatzbauerId: e.target.checked ? formData.fruehjahresinstandsetzungPlatzbauerId : undefined
+                  })}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="fis-checkbox" className="font-medium text-blue-900 cursor-pointer select-none">
+                  Frühjahresinstandsetzung über uns
+                </label>
+              </div>
+
+              {formData.fruehjahresinstandsetzungUeberUns && (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Anzahl Plätze *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.anzahlPlaetze || ''}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        anzahlPlaetze: e.target.value ? parseInt(e.target.value) : undefined 
+                      })}
+                      placeholder="z.B. 4"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tennisbauer *
+                    </label>
+                    <select
+                      value={formData.fruehjahresinstandsetzungPlatzbauerId || ''}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        fruehjahresinstandsetzungPlatzbauerId: e.target.value || undefined 
+                      })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Bitte wählen</option>
+                      {platzbauerKunden.map((pb) => (
+                        <option key={pb.kunde.id} value={pb.kunde.id}>
+                          {pb.kunde.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Lieferfenster */}
           <div className="grid grid-cols-2 gap-4">

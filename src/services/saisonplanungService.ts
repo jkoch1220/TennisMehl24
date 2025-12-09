@@ -942,6 +942,15 @@ export const saisonplanungService = {
     if (ergebnis.rueckrufNotiz) {
       updateData.rueckrufNotiz = ergebnis.rueckrufNotiz;
     }
+    if (ergebnis.fruehjahresinstandsetzungUeberUns !== undefined) {
+      updateData.fruehjahresinstandsetzungUeberUns = ergebnis.fruehjahresinstandsetzungUeberUns;
+    }
+    if (ergebnis.anzahlPlaetze !== undefined) {
+      updateData.anzahlPlaetze = ergebnis.anzahlPlaetze;
+    }
+    if (ergebnis.fruehjahresinstandsetzungPlatzbauerId) {
+      updateData.fruehjahresinstandsetzungPlatzbauerId = ergebnis.fruehjahresinstandsetzungPlatzbauerId;
+    }
 
     let result: SaisonDaten;
     if (saisonDaten) {

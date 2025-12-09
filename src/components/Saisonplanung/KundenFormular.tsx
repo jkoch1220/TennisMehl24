@@ -40,6 +40,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     standardBezugsweg: 'direkt',
     standardPlatzbauerId: '',
     zuletztGezahlterPreis: undefined,
+    tonnenLetztesJahr: undefined,
     beziehtUeberUnsPlatzbauer: false,
   });
 
@@ -69,6 +70,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         standardBezugsweg: kunde.kunde.standardBezugsweg,
         standardPlatzbauerId: kunde.kunde.standardPlatzbauerId,
         zuletztGezahlterPreis: kunde.kunde.zuletztGezahlterPreis,
+        tonnenLetztesJahr: kunde.kunde.tonnenLetztesJahr,
         beziehtUeberUnsPlatzbauer: kunde.kunde.beziehtUeberUnsPlatzbauer,
       });
       setAnsprechpartner(
@@ -97,6 +99,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         standardBezugsweg: 'direkt',
         standardPlatzbauerId: '',
         zuletztGezahlterPreis: undefined,
+        tonnenLetztesJahr: undefined,
         beziehtUeberUnsPlatzbauer: false,
       });
       setAnsprechpartner([]);
@@ -399,6 +402,24 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     setFormData({
                       ...formData,
                       zuletztGezahlterPreis: e.target.value ? parseFloat(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tonnen abgenommen letztes Jahr
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.tonnenLetztesJahr ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      tonnenLetztesJahr: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"

@@ -75,6 +75,10 @@ export interface SaisonDaten {
   letztAngerufen?: string; // ISO Date String - wann zuletzt angerufen/erreicht
   rueckrufDatum?: string; // ISO Date String - geplanter Rückruftermin
   rueckrufNotiz?: string; // Notiz für Rückruf
+  // Frühjahresinstandsetzung
+  fruehjahresinstandsetzungUeberUns?: boolean; // Macht Verein FIS über uns?
+  anzahlPlaetze?: number; // Anzahl Tennis-Plätze
+  fruehjahresinstandsetzungPlatzbauerId?: string; // Welcher Platzbauer macht die FIS?
 }
 
 export type NeueSaisonDaten = Omit<SaisonDaten, 'id' | 'erstelltAm' | 'geaendertAm'> & {
@@ -130,6 +134,7 @@ export interface SaisonKunde {
   aktiv: boolean;
   // Zuletzt gezahlter Preis (aus letzter Saison)
   zuletztGezahlterPreis?: number;
+  tonnenLetztesJahr?: number; // Tonnen abgenommen im letzten Jahr
   preisHistorie?: PreisHistorienEintrag[];
   standardBezugsweg?: Bezugsweg;
   standardPlatzbauerId?: string;
@@ -185,6 +190,10 @@ export interface AnrufErgebnis {
   notizen?: string;
   rueckrufDatum?: string;
   rueckrufNotiz?: string;
+  // Frühjahresinstandsetzung
+  fruehjahresinstandsetzungUeberUns?: boolean;
+  anzahlPlaetze?: number;
+  fruehjahresinstandsetzungPlatzbauerId?: string;
 }
 
 // Statistik
