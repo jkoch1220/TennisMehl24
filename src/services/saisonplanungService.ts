@@ -273,15 +273,6 @@ export const saisonplanungService = {
         neuerAnsprechpartner.id,
         {
           kundeId: neuerAnsprechpartner.kundeId,
-          name: neuerAnsprechpartner.name,
-          rolle: neuerAnsprechpartner.rolle || '',
-          email: neuerAnsprechpartner.email || '',
-          telefonnummern: neuerAnsprechpartner.telefonnummern || [],
-          bevorzugterKontaktweg: neuerAnsprechpartner.bevorzugterKontaktweg || 'telefon',
-          notizen: neuerAnsprechpartner.notizen || '',
-          aktiv: neuerAnsprechpartner.aktiv,
-          erstelltAm: neuerAnsprechpartner.erstelltAm,
-          geaendertAm: neuerAnsprechpartner.geaendertAm,
           data: JSON.stringify(neuerAnsprechpartner),
         }
       );
@@ -325,15 +316,6 @@ export const saisonplanungService = {
         id,
         {
           kundeId: aktualisiert.kundeId,
-          name: aktualisiert.name,
-          rolle: aktualisiert.rolle || '',
-          email: aktualisiert.email || '',
-          telefonnummern: aktualisiert.telefonnummern || [],
-          bevorzugterKontaktweg: aktualisiert.bevorzugterKontaktweg || 'telefon',
-          notizen: aktualisiert.notizen || '',
-          aktiv: aktualisiert.aktiv,
-          erstelltAm: aktualisiert.erstelltAm,
-          geaendertAm: aktualisiert.geaendertAm,
           data: JSON.stringify(aktualisiert),
         }
       );
