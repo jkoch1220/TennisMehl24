@@ -33,13 +33,8 @@ function App() {
 
     checkAuth();
     
-    // Appwrite Auto-Setup nur wenn explizit aktiviert und einmal pro Tab
-    if (
-      import.meta.env.VITE_APPWRITE_API_KEY &&
-      import.meta.env.VITE_APPWRITE_AUTO_SETUP === 'true' &&
-      typeof window !== 'undefined' &&
-      !sessionStorage.getItem('appwrite_setup_run')
-    ) {
+    // Appwrite Auto-Setup (läuft einmal pro Tab, wenn API Key verfügbar)
+    if (import.meta.env.VITE_APPWRITE_API_KEY && typeof window !== 'undefined' && !sessionStorage.getItem('appwrite_setup_run')) {
       sessionStorage.setItem('appwrite_setup_run', 'true');
       setupAppwriteFields().catch(console.error);
     }

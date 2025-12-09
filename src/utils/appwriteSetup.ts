@@ -19,7 +19,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '6';
+const APPWRITE_SETUP_VERSION = '7';
 
 type FieldConfig = {
   key: string;
