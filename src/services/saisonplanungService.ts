@@ -639,7 +639,11 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_AKTIVITAETEN_COLLECTION_ID,
         neueAktivitaet.id,
-        toPayload(neueAktivitaet)
+        {
+          kundeId: neueAktivitaet.kundeId,
+          erstelltAm: neueAktivitaet.erstelltAm,
+          data: JSON.stringify(neueAktivitaet),
+        }
       );
       return parseDocument<SaisonAktivitaet>(doc, neueAktivitaet);
     } catch (error) {
