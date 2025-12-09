@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2 } from 'lucide-react';
+import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonAktivitaet,
@@ -7,6 +7,10 @@ import {
   AktivitaetsTyp,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { projektService } from '../../services/projektService';
+import { Projekt, NeuesProjekt } from '../../types/projekt';
+import { useNavigate } from 'react-router-dom';
+import ProjektDialog from '../Shared/ProjektDialog';
 
 interface KundenDetailProps {
   kunde: SaisonKundeMitDaten;
@@ -16,16 +20,22 @@ interface KundenDetailProps {
 }
 
 const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) => {
+  const navigate = useNavigate();
   const [aktivitaeten, setAktivitaeten] = useState<SaisonAktivitaet[]>(kunde.aktivitaeten);
   const [showAddAktivitaet, setShowAddAktivitaet] = useState(false);
   const [aktivitaetTyp, setAktivitaetTyp] = useState<AktivitaetsTyp>('kommentar');
   const [aktivitaetTitel, setAktivitaetTitel] = useState('');
   const [aktivitaetBeschreibung, setAktivitaetBeschreibung] = useState('');
   const [kundenNamen, setKundenNamen] = useState<Record<string, string>>({});
+  const [projekte, setProjekte] = useState<Projekt[]>([]);
+  const [loadingProjekte, setLoadingProjekte] = useState(false);
+  const [showProjektDialog, setShowProjektDialog] = useState(false);
+  const [savingProjekt, setSavingProjekt] = useState(false);
 
   useEffect(() => {
     loadAktivitaeten();
     resolveKundenNamen();
+    loadProjekte();
   }, [kunde.kunde.id, kunde.beziehungenAlsVerein, kunde.beziehungenAlsPlatzbauer]);
 
   const loadAktivitaeten = async () => {
@@ -35,6 +45,50 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
     } catch (error) {
       console.error('Fehler beim Laden der Aktivitäten:', error);
     }
+  };
+
+  const loadProjekte = async () => {
+    setLoadingProjekte(true);
+    try {
+      // Lade alle Projekte für diesen Kunden (alle Saisonjahre)
+      const alleProjekte = await projektService.loadProjekte({ suche: kunde.kunde.name });
+      // Filtere nach KundeId, da die Suche möglicherweise mehrere Kunden zurückgibt
+      const kundeProjekte = alleProjekte.filter(p => p.kundeId === kunde.kunde.id);
+      // Sortiere nach Saisonjahr (neueste zuerst)
+      kundeProjekte.sort((a, b) => b.saisonjahr - a.saisonjahr);
+      setProjekte(kundeProjekte);
+    } catch (error) {
+      console.error('Fehler beim Laden der Projekte:', error);
+    } finally {
+      setLoadingProjekte(false);
+    }
+  };
+
+  const handleNeuesProjekt = () => {
+    setShowProjektDialog(true);
+  };
+
+  const handleSaveProjekt = async (neuesProjekt: NeuesProjekt) => {
+    setSavingProjekt(true);
+    try {
+      await projektService.createProjekt(neuesProjekt);
+      
+      // Schließe Dialog
+      setShowProjektDialog(false);
+      
+      // Navigiere zur Projektverwaltung
+      navigate('/projektverwaltung');
+    } catch (error) {
+      console.error('Fehler beim Erstellen des Projekts:', error);
+      alert('Fehler beim Erstellen des Projekts');
+    } finally {
+      setSavingProjekt(false);
+    }
+  };
+
+  const handleProjektClick = (projekt: Projekt) => {
+    const projektId = (projekt as any).$id || projekt.id;
+    navigate(`/bestellabwicklung/${projektId}`);
   };
 
   const handleAddAktivitaet = async () => {
@@ -384,6 +438,125 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             </div>
           )}
 
+          {/* Projekte */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Layers className="w-5 h-5" />
+                Projekte
+              </h3>
+              <button
+                onClick={handleNeuesProjekt}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Neues Projekt
+              </button>
+            </div>
+
+            {loadingProjekte ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Lade Projekte...</p>
+              </div>
+            ) : projekte.length === 0 ? (
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <Layers className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p className="text-gray-600 mb-2">Noch keine Projekte vorhanden</p>
+                <p className="text-sm text-gray-500">
+                  Erstellen Sie ein neues Projekt, um mit der Bestellabwicklung zu beginnen.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {projekte.map((projekt) => (
+                  <div
+                    key={(projekt as any).$id || projekt.id}
+                    onClick={() => handleProjektClick(projekt)}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-green-300 transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-medium text-gray-900">Saison {projekt.saisonjahr}</span>
+                          <StatusBadge status={projekt.status} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          {projekt.angefragteMenge && (
+                            <div className="text-gray-600">
+                              Menge: <span className="font-medium text-gray-900">{projekt.angefragteMenge.toFixed(1)} t</span>
+                            </div>
+                          )}
+                          {projekt.preisProTonne && (
+                            <div className="text-gray-600">
+                              Preis: <span className="font-medium text-gray-900">{formatCurrency(projekt.preisProTonne)}/t</span>
+                            </div>
+                          )}
+                          {projekt.bezugsweg && (
+                            <div className="text-gray-600">
+                              Bezugsweg: <span className="font-medium text-gray-900">
+                                {projekt.bezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {projekt.angebotsnummer && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <FileCheck className="w-3 h-3 text-blue-500" />
+                              Angebot: {projekt.angebotsnummer}
+                              {projekt.angebotsdatum && (
+                                <span> • {new Date(projekt.angebotsdatum).toLocaleDateString('de-DE')}</span>
+                              )}
+                            </div>
+                          )}
+                          {projekt.auftragsbestaetigungsnummer && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <FileSignature className="w-3 h-3 text-orange-500" />
+                              AB: {projekt.auftragsbestaetigungsnummer}
+                              {projekt.auftragsbestaetigungsdatum && (
+                                <span> • {new Date(projekt.auftragsbestaetigungsdatum).toLocaleDateString('de-DE')}</span>
+                              )}
+                            </div>
+                          )}
+                          {projekt.lieferscheinnummer && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Truck className="w-3 h-3 text-green-500" />
+                              Lieferschein: {projekt.lieferscheinnummer}
+                              {projekt.lieferdatum && (
+                                <span> • {new Date(projekt.lieferdatum).toLocaleDateString('de-DE')}</span>
+                              )}
+                            </div>
+                          )}
+                          {projekt.rechnungsnummer && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <FileText className="w-3 h-3 text-red-500" />
+                              Rechnung: {projekt.rechnungsnummer}
+                              {projekt.rechnungsdatum && (
+                                <span> • {new Date(projekt.rechnungsdatum).toLocaleDateString('de-DE')}</span>
+                              )}
+                            </div>
+                          )}
+                          {projekt.status === 'bezahlt' && projekt.bezahltAm && (
+                            <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Bezahlt am {new Date(projekt.bezahltAm).toLocaleDateString('de-DE')}
+                            </div>
+                          )}
+                        </div>
+                        {projekt.notizen && (
+                          <div className="text-xs text-gray-400 mt-2 line-clamp-1 italic">
+                            "{projekt.notizen}"
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Aktivitätsverlauf */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -484,8 +657,48 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             </div>
           </div>
         </div>
+
+        {/* Projekt-Dialog */}
+        {showProjektDialog && (
+          <ProjektDialog
+            kundenname={kunde.kunde.name}
+            kundeId={kunde.kunde.id}
+            kundennummer={kunde.kunde.kundennummer}
+            kundenstrasse={kunde.kunde.adresse.strasse}
+            kundenPlzOrt={`${kunde.kunde.adresse.plz} ${kunde.kunde.adresse.ort}`}
+            angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
+            preisProTonne={kunde.aktuelleSaison?.preisProTonne || kunde.kunde.zuletztGezahlterPreis}
+            bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}
+            onSave={handleSaveProjekt}
+            onCancel={() => setShowProjektDialog(false)}
+            saving={savingProjekt}
+          />
+        )}
       </div>
     </div>
+  );
+};
+
+// Status Badge Komponente für Projekte
+interface StatusBadgeProps {
+  status: string;
+}
+
+const StatusBadge = ({ status }: StatusBadgeProps) => {
+  const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+    angebot: { label: 'Angebot', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+    auftragsbestaetigung: { label: 'Auftragsbestätigung', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+    lieferschein: { label: 'Lieferschein', color: 'text-green-700', bgColor: 'bg-green-100' },
+    rechnung: { label: 'Rechnung', color: 'text-red-700', bgColor: 'bg-red-100' },
+    bezahlt: { label: 'Bezahlt', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+  };
+
+  const config = statusConfig[status] || { label: status, color: 'text-gray-700', bgColor: 'bg-gray-100' };
+
+  return (
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${config.bgColor} ${config.color}`}>
+      {config.label}
+    </span>
   );
 };
 

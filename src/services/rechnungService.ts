@@ -37,7 +37,13 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   // Farben
   const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
   
-  let yPos = 15;
+  // === DIN 5008: FALZMARKEN ===
+  // Falzmarke 1 bei 87mm (für C6/5)
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.1);
+  doc.line(3, 87, 8, 87);
+  // Falzmarke 2 bei 192mm
+  doc.line(3, 192, 8, 192);
   
   // === LOGO BOX - Oben rechts ===
   const logoBoxX = 130;
@@ -54,7 +60,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.setFontSize(14);
   doc.setTextColor(...primaryColor);
   doc.setFont('helvetica', 'bold');
-  doc.text('TennisMehl', logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
+  doc.text(stammdaten.firmenname, logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
   
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
@@ -66,67 +72,89 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.text('Tennisplatzzubehör', logoBoxX + logoBoxWidth / 2, logoBoxY + 26, { align: 'center' });
   doc.text('Tennisplatzbau', logoBoxX + logoBoxWidth / 2, logoBoxY + 30, { align: 'center' });
   doc.text('Ziegelsplittprodukte', logoBoxX + logoBoxWidth / 2, logoBoxY + 34, { align: 'center' });
-
-  // === HEADER Links - Absenderzeile klein ===
-  yPos = 20;
+  
+  // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
+  let infoYPos = 55;
+  let yPos = 55;
+  const infoX = 130;
+  
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Rechnungsnummer:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(daten.rechnungsnummer, infoX, infoYPos + 4);
+  doc.setFont('helvetica', 'normal');
+  
+  infoYPos += 12;
+  doc.setTextColor(100, 100, 100);
+  doc.text('Rechnungsdatum:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.text(formatDatum(daten.rechnungsdatum), infoX, infoYPos + 4);
+  
+  if (daten.leistungsdatum) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Leistungsdatum:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatDatum(daten.leistungsdatum), infoX, infoYPos + 4);
+  }
+  
+  if (daten.kundennummer) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Kundennummer:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.kundennummer, infoX, infoYPos + 4);
+  }
+  
+  if (daten.projektnummer) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Projektnummer:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.projektnummer, infoX, infoYPos + 4);
+  }
+  
+  if (daten.ihreAnsprechpartner) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Ihr Ansprechpartner:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
+  }
+  
+  // === DIN 5008: ABSENDERZEILE (für Fensterkuvert) ===
+  yPos = 45;
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
-  doc.text(`${daten.firmenname} · ${daten.firmenstrasse} · ${daten.firmenPlzOrt}`, 20, yPos);
+  doc.text(`${stammdaten.firmenname} · ${stammdaten.firmenstrasse} · ${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, 25, yPos);
   
-  // === Kontaktdaten unter Logo ===
-  yPos = logoBoxY + logoBoxHeight + 5;
-  doc.setFontSize(8);
-  doc.setTextColor(60, 60, 60);
-  doc.text(`Tel: ${daten.firmenTelefon}`, logoBoxX + 2, yPos);
-  yPos += 4;
-  doc.text(`E-Mail: ${daten.firmenEmail}`, logoBoxX + 2, yPos);
-  if (daten.firmenWebsite) {
-    yPos += 4;
-    doc.text(`Web: ${daten.firmenWebsite}`, logoBoxX + 2, yPos);
-  }
-  
-  // === Empfängeradresse (Rechnungsadresse) - Links ===
-  yPos = 55;
+  // === DIN 5008: EMPFÄNGERADRESSE ===
+  yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
-  
-  // Kundennummer und Projektnummer
-  if (daten.kundennummer || daten.projektnummer) {
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    let infoText = '';
-    if (daten.kundennummer) infoText += `Kundennr.: ${daten.kundennummer}`;
-    if (daten.projektnummer) {
-      if (infoText) infoText += '  |  ';
-      infoText += `Projektnr.: ${daten.projektnummer}`;
-    }
-    doc.text(infoText, 15, yPos);
-    yPos += 5;
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-  }
-  
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 15, yPos);
+  doc.text(daten.kundenname, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 15, yPos);
+  doc.text(daten.kundenstrasse, 25, yPos);
   yPos += 5;
-  doc.text(daten.kundenPlzOrt, 15, yPos);
+  doc.text(daten.kundenPlzOrt, 25, yPos);
   
   // Ansprechpartner
   if (daten.ansprechpartner) {
     yPos += 6;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Ihr Ansprechpartner: ${daten.ansprechpartner}`, 15, yPos);
+    doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
   
-  // === Lieferadresse (falls abweichend) - Rechts ===
+  // === Lieferadresse (falls abweichend) - Rechts neben Empfängeradresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 95;
+    let lieferYPos = 50;
     const lieferX = 120;
     
     doc.setFontSize(9);
@@ -134,39 +162,39 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     doc.text('Lieferadresse:', lieferX, lieferYPos);
     lieferYPos += 5;
     
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.text(daten.lieferadresseName, lieferX, lieferYPos);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 6;
-    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
     lieferYPos += 5;
+    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
+    lieferYPos += 4;
     doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
   }
   
-  // === Betreff ===
-  yPos += 20;
-  doc.setFontSize(16);
-  doc.setTextColor(...primaryColor);
+  // === DIN 5008: BETREFF ===
+  yPos = 95; // DIN 5008: Betreff beginnt nach Empfängerfeld
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Rechnung ${daten.rechnungsnummer}`, 15, yPos);
+  doc.text(`Rechnung Nr. ${daten.rechnungsnummer}`, 25, yPos);
   doc.setFont('helvetica', 'normal');
   
-  // === Rechnungsinformationen unter Betreff ===
+  // === Anrede ===
+  yPos += 10;
   doc.setFontSize(10);
-  doc.setTextColor(60, 60, 60);
+  doc.setTextColor(0, 0, 0);
+  const anrede = daten.ansprechpartner ? `Sehr geehrte Damen und Herren,` : 'Sehr geehrte Damen und Herren,';
+  doc.text(anrede, 25, yPos);
   
-  yPos += 5;
-  doc.text(`Rechnungsdatum: ${formatDatum(daten.rechnungsdatum)}`, 15, yPos);
-  
-  if (daten.leistungsdatum) {
-    yPos += 5;
-    doc.text(`Leistungsdatum: ${formatDatum(daten.leistungsdatum)}`, 15, yPos);
-  }
+  // === Einleitungstext ===
+  yPos += 8;
+  doc.setFontSize(10);
+  doc.text('für die erbrachten Leistungen erlauben wir uns, Ihnen folgende Positionen in Rechnung zu stellen:', 25, yPos);
   
   // === Positionen Tabelle ===
-  yPos += 10;
+  yPos += 8;
   
   const tableData = daten.positionen.map(pos => [
     pos.artikelnummer || '',
@@ -179,6 +207,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   autoTable(doc, {
     startY: yPos,
+    margin: { left: 25, right: 25 },
     head: [['Artikel-Nr.', 'Leistungsbeschreibung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt']],
     body: tableData,
     theme: 'striped',
@@ -194,11 +223,11 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     },
     columnStyles: {
       0: { cellWidth: 25, halign: 'left' },
-      1: { cellWidth: 75, halign: 'left' },
+      1: { cellWidth: 70, halign: 'left' },
       2: { cellWidth: 18, halign: 'right' },
       3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 27, halign: 'right' },
-      5: { cellWidth: 27, halign: 'right' }
+      4: { cellWidth: 24, halign: 'right' },
+      5: { cellWidth: 24, halign: 'right' }
     }
   });
   
@@ -206,7 +235,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
   const berechnung = berechneRechnungsSummen(daten.positionen);
   
-  const summenX = 120;
+  const summenX = 125;
   let summenY = finalY + 10;
   
   doc.setFontSize(10);
@@ -214,100 +243,106 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // Nettobetrag
   doc.text('Nettobetrag:', summenX, summenY);
-  doc.text(formatWaehrung(berechnung.nettobetrag), 185, summenY, { align: 'right' });
+  doc.text(formatWaehrung(berechnung.nettobetrag), 180, summenY, { align: 'right' });
   
   summenY += 6;
   doc.text(`MwSt. (${berechnung.umsatzsteuersatz}%):`, summenX, summenY);
-  doc.text(formatWaehrung(berechnung.umsatzsteuer), 185, summenY, { align: 'right' });
+  doc.text(formatWaehrung(berechnung.umsatzsteuer), 180, summenY, { align: 'right' });
   
   // Trennlinie
   summenY += 2;
   doc.setLineWidth(0.5);
-  doc.line(summenX, summenY, 185, summenY);
+  doc.line(summenX, summenY, 180, summenY);
   
   // Bruttobetrag (fett)
   summenY += 6;
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('Gesamtbetrag:', summenX, summenY);
-  doc.text(formatWaehrung(berechnung.bruttobetrag), 185, summenY, { align: 'right' });
+  doc.text('Rechnungsbetrag:', summenX, summenY);
+  doc.text(formatWaehrung(berechnung.bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   
   // === Zahlungsbedingungen ===
   summenY += 15;
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Zahlungsbedingungen:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
   
-  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 20, summenY);
+  summenY += 5;
+  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
   
   // Skonto nur anzeigen wenn aktiviert
   if (daten.skontoAktiviert && daten.skonto) {
-    summenY += 5;
+    summenY += 4;
     const skontoBetrag = berechnung.bruttobetrag * (1 - daten.skonto.prozent / 100);
     doc.text(
       `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
-      20,
+      25,
       summenY
     );
   }
   
-  // === Zahlungshinweis ===
-  summenY += 10;
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  const hinweisText = 'Verwenden Sie für die Zahlung bitte die angegebene Rechnungs- und Kundennummer, damit wir Ihre Zahlung zuordnen können.';
-  const hinweisLines = doc.splitTextToSize(hinweisText, 170);
-  doc.text(hinweisLines, 20, summenY);
-  
   // === Bankdaten ===
-  summenY += 10;
+  summenY += 8;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Bankverbindung:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  
+  summenY += 5;
+  doc.text(`Bank: ${stammdaten.bankname}`, 25, summenY);
+  summenY += 4;
+  doc.text(`IBAN: ${stammdaten.iban}`, 25, summenY);
+  summenY += 4;
+  doc.text(`BIC: ${stammdaten.bic}`, 25, summenY);
+  
+  // === Zahlungshinweis ===
+  summenY += 8;
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
-  doc.text('Bankverbindung:', 20, summenY);
-  summenY += 5;
-  doc.text(`Bank: ${daten.bankname}`, 20, summenY);
-  summenY += 4;
-  doc.text(`IBAN: ${daten.iban}`, 20, summenY);
-  summenY += 4;
-  doc.text(`BIC: ${daten.bic}`, 20, summenY);
-  
-  // === Steuerdaten ===
-  if (daten.steuernummer || daten.ustIdNr) {
-    summenY += 8;
-    if (daten.steuernummer) {
-      doc.text(`Steuernummer: ${daten.steuernummer}`, 20, summenY);
-      summenY += 4;
-    }
-    if (daten.ustIdNr) {
-      doc.text(`USt-IdNr.: ${daten.ustIdNr}`, 20, summenY);
-    }
-  }
+  const hinweisText = 'Bitte verwenden Sie für die Zahlung die angegebene Rechnungsnummer als Verwendungszweck, damit wir Ihre Zahlung korrekt zuordnen können.';
+  const hinweisLines = doc.splitTextToSize(hinweisText, 160);
+  doc.text(hinweisLines, 25, summenY);
   
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-    doc.text('Bemerkung:', 20, summenY);
+    doc.text('Bemerkung:', 25, summenY);
     summenY += 5;
-    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 170);
-    doc.text(bemerkungLines, 20, summenY);
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    doc.text(bemerkungLines, 25, summenY);
   }
   
-  // === Footer mit Stammdaten ===
+  // === Grußformel ===
+  summenY += 12;
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  summenY += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.text(stammdaten.firmenname, 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  
+  // === DIN 5008: Footer mit Stammdaten ===
   const pageHeight = doc.internal.pageSize.height;
   const footerY = pageHeight - 20;
   
   // Trennlinie über Footer
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
-  doc.line(20, footerY - 6, 195, footerY - 6);
+  doc.line(25, footerY - 6, 185, footerY - 6);
   
   doc.setFontSize(7);
   doc.setTextColor(80, 80, 80);
   
   // Spalte 1: Verwaltung
-  let col1X = 10;
+  let col1X = 25;
   doc.setFont('helvetica', 'bold');
   doc.text('Verwaltung:', col1X, footerY);
   doc.setFont('helvetica', 'normal');
@@ -316,10 +351,9 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.text(`${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, col1X, footerY + 12);
   
   // Spalte 2: Geschäftsführer
-  let col2X = 40;
+  let col2X = 55;
   doc.setFont('helvetica', 'bold');
-  const gfLabel = stammdaten.geschaeftsfuehrer.length > 1 ? 'Geschäftsführer:' : 'Geschäftsführer:';
-  doc.text(gfLabel, col2X, footerY);
+  doc.text('Geschäftsführer:', col2X, footerY);
   doc.setFont('helvetica', 'normal');
   
   // Geschäftsführer untereinander schreiben
@@ -330,20 +364,21 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // Sitz d. Gesellschaft dynamisch positionieren
   const gfEndPos = gfYPos + (stammdaten.geschaeftsfuehrer.length * 3);
-  doc.text('Sitz d. Gesellschaft:', col2X, gfEndPos + 1);
-  doc.text(stammdaten.sitzGesellschaft, col2X, gfEndPos + 5);
+  doc.text('Sitz: ' + stammdaten.sitzGesellschaft, col2X, gfEndPos + 1);
   
-  // Spalte 3: Registergericht
-  let col3X = 70;
+  // Spalte 3: Registergericht & USt-ID
+  let col3X = 85;
   doc.setFont('helvetica', 'bold');
   doc.text('Registergericht:', col3X, footerY);
   doc.setFont('helvetica', 'normal');
   doc.text(stammdaten.handelsregister, col3X, footerY + 4);
+  doc.setFont('helvetica', 'bold');
   doc.text('USt-ID:', col3X, footerY + 8);
+  doc.setFont('helvetica', 'normal');
   doc.text(stammdaten.ustIdNr, col3X, footerY + 12);
   
   // Spalte 4: Werk/Verkauf (falls vorhanden)
-  let col4X = 100;
+  let col4X = 115;
   if (stammdaten.werkName && stammdaten.werkStrasse && stammdaten.werkPlz && stammdaten.werkOrt) {
     doc.setFont('helvetica', 'bold');
     doc.text('Werk/Verkauf:', col4X, footerY);
@@ -354,22 +389,24 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   }
 
   // Spalte 5: Kontakt
-  let col5X = 130;
+  let col5X = 145;
   doc.setFont('helvetica', 'bold');
-  doc.text(`Telefon ${stammdaten.firmenTelefon}`, col5X, footerY);
+  doc.text('Kontakt:', col5X, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.firmenEmail, col5X, footerY + 4);
+  doc.text(`Tel: ${stammdaten.firmenTelefon}`, col5X, footerY + 4);
+  doc.text(stammdaten.firmenEmail, col5X, footerY + 8);
   if (stammdaten.firmenWebsite) {
-    doc.text(stammdaten.firmenWebsite, col5X, footerY + 8);
+    doc.text(stammdaten.firmenWebsite, col5X, footerY + 12);
   }
   
   // Spalte 6: Bankverbindung
-  let col6X = 160;
+  let col6X = 170;
   doc.setFont('helvetica', 'bold');
-  doc.text('Bankverbindung:', col6X, footerY);
+  doc.text('Bank:', col6X, footerY);
   doc.setFont('helvetica', 'normal');
   doc.text(stammdaten.bankname, col6X, footerY + 4);
-  doc.text(`IBAN: ${stammdaten.iban}`, col6X, footerY + 8);
+  const ibanFormatted = stammdaten.iban.match(/.{1,4}/g)?.join(' ') || stammdaten.iban;
+  doc.text(ibanFormatted, col6X, footerY + 8);
   doc.text(`BIC: ${stammdaten.bic}`, col6X, footerY + 12);
   
   return doc;

@@ -243,7 +243,17 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner (optional)</label>
+                <input
+                  type="text"
+                  value={rechnungsDaten.ihreAnsprechpartner || ''}
+                  onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
+                  placeholder="z.B. Stefan Egner"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ansprechpartner beim Kunden (optional)</label>
                 <input
                   type="text"
                   value={rechnungsDaten.ansprechpartner || ''}

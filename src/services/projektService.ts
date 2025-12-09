@@ -139,6 +139,7 @@ class ProjektService {
       } as Projekt;
 
       const dokument = {
+        projektName: neuesProjekt.projektName,
         kundeId: neuesProjekt.kundeId,
         kundenname: neuesProjekt.kundenname,
         saisonjahr: neuesProjekt.saisonjahr,
@@ -182,6 +183,7 @@ class ProjektService {
       };
 
       const dokument = {
+        projektName: aktualisiert.projektName,
         kundeId: aktualisiert.kundeId,
         kundenname: aktualisiert.kundenname,
         saisonjahr: aktualisiert.saisonjahr,
@@ -234,9 +236,12 @@ class ProjektService {
   }
 
   // Projekt löschen
-  async deleteProjekt(projektId: string): Promise<void> {
+  async deleteProjekt(projekt: Projekt): Promise<void> {
     try {
-      await databases.deleteDocument(DATABASE_ID, this.collectionId, projektId);
+      // Verwende $id falls vorhanden, sonst id
+      const documentId = (projekt as any).$id || projekt.id;
+      console.log('Lösche Projekt mit documentId:', documentId);
+      await databases.deleteDocument(DATABASE_ID, this.collectionId, documentId);
     } catch (error) {
       console.error('Fehler beim Löschen des Projekts:', error);
       throw error;

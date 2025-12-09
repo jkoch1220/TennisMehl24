@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, Package } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search } from 'lucide-react';
 import { AuftragsbestaetigungsDaten, Position } from '../../types/bestellabwicklung';
 import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -44,6 +44,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
   
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  const [artikelSuchtext, setArtikelSuchtext] = useState('');
+  const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
   // Artikel laden
   useEffect(() => {
@@ -186,7 +188,32 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     }));
     
     setShowArtikelAuswahl(false);
+    setArtikelSuchtext(''); // Suche zurücksetzen
   };
+
+  // Gefilterte und sortierte Artikel für die Auswahl
+  const gefilterteArtikel = artikel
+    .filter(art => {
+      if (!artikelSuchtext.trim()) return true;
+      const suchtext = artikelSuchtext.toLowerCase();
+      return (
+        art.bezeichnung.toLowerCase().includes(suchtext) ||
+        art.artikelnummer.toLowerCase().includes(suchtext) ||
+        (art.beschreibung && art.beschreibung.toLowerCase().includes(suchtext))
+      );
+    })
+    .sort((a, b) => {
+      if (artikelSortierung === 'bezeichnung') {
+        return a.bezeichnung.localeCompare(b.bezeichnung);
+      } else if (artikelSortierung === 'artikelnummer') {
+        return a.artikelnummer.localeCompare(b.artikelnummer);
+      } else if (artikelSortierung === 'einzelpreis') {
+        const preisA = a.einzelpreis ?? 0;
+        const preisB = b.einzelpreis ?? 0;
+        return preisA - preisB;
+      }
+      return 0;
+    });
 
   const removePosition = (index: number) => {
     setAuftragsbestaetigungsDaten(prev => ({
@@ -277,7 +304,17 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner (optional)</label>
+                <input
+                  type="text"
+                  value={auftragsbestaetigungsDaten.ihreAnsprechpartner || ''}
+                  onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
+                  placeholder="z.B. Stefan Egner"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ansprechpartner beim Kunden (optional)</label>
                 <input
                   type="text"
                   value={auftragsbestaetigungsDaten.ansprechpartner || ''}
@@ -390,37 +427,120 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           {/* Artikel-Auswahl */}
           {showArtikelAuswahl && (
             <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Artikel auswählen</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Artikel auswählen</h3>
+                <button
+                  onClick={() => {
+                    setShowArtikelAuswahl(false);
+                    setArtikelSuchtext('');
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Schließen
+                </button>
+              </div>
+
               {artikel.length === 0 ? (
                 <p className="text-sm text-gray-600">
                   Keine Artikel vorhanden. Legen Sie zuerst Artikel in der Artikelverwaltung an.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {artikel.map((art) => (
-                    <button
-                      key={art.$id}
-                      onClick={() => addPositionAusArtikel(art.$id!)}
-                      className="text-left p-3 bg-white rounded-lg border border-gray-200 hover:border-purple-400 hover:bg-purple-50 transition-all"
+                <div className="space-y-3">
+                  {/* Suchfeld und Sortierung */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={artikelSuchtext}
+                        onChange={(e) => setArtikelSuchtext(e.target.value)}
+                        placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                      />
+                    </div>
+                    <select
+                      value={artikelSortierung}
+                      onChange={(e) => setArtikelSortierung(e.target.value as any)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                     >
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-sm font-semibold text-gray-900">{art.bezeichnung}</span>
-                        <span className="text-sm font-bold text-purple-600">
-                          {art.einzelpreis !== undefined && art.einzelpreis !== null 
-                            ? `${art.einzelpreis.toFixed(2)} €` 
-                            : <span className="text-gray-400 italic text-xs">auf Anfrage</span>
-                          }
-                        </span>
+                      <option value="bezeichnung">Sortierung: Bezeichnung</option>
+                      <option value="artikelnummer">Sortierung: Art.-Nr.</option>
+                      <option value="einzelpreis">Sortierung: Preis</option>
+                    </select>
+                  </div>
+
+                  {/* Artikel-Tabelle */}
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-96 overflow-y-auto">
+                    {gefilterteArtikel.length === 0 ? (
+                      <div className="p-4 text-center text-gray-600 text-sm">
+                        Keine Artikel gefunden
                       </div>
-                      <div className="flex gap-3 text-xs text-gray-600">
-                        <span>Art.-Nr.: {art.artikelnummer}</span>
-                        <span>Einheit: {art.einheit}</span>
-                      </div>
-                      {art.beschreibung && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-1">{art.beschreibung}</p>
-                      )}
-                    </button>
-                  ))}
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-purple-100 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
+                              Art.-Nr.
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
+                              Bezeichnung
+                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
+                              Beschreibung
+                            </th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">
+                              Einheit
+                            </th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700">
+                              Preis
+                            </th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">
+                              Aktion
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {gefilterteArtikel.map((art) => (
+                            <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                {art.artikelnummer}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {art.bezeichnung}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                <div className="line-clamp-2 max-w-xs">
+                                  {art.beschreibung || '-'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                                {art.einheit}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                                {art.einzelpreis !== undefined && art.einzelpreis !== null 
+                                  ? `${art.einzelpreis.toFixed(2)} €` 
+                                  : <span className="text-gray-400 italic text-xs">auf Anfrage</span>
+                                }
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => addPositionAusArtikel(art.$id!)}
+                                  className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                                >
+                                  Hinzufügen
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Info-Zeile */}
+                  <div className="text-xs text-gray-600 text-center">
+                    {gefilterteArtikel.length} von {artikel.length} Artikel{artikel.length !== 1 ? 'n' : ''} angezeigt
+                  </div>
                 </div>
               )}
             </div>

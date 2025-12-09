@@ -12,6 +12,9 @@ import {
   Package,
   GripVertical,
   Layers,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -47,6 +50,8 @@ const ProjektVerwaltung = () => {
   const [draggedProjekt, setDraggedProjekt] = useState<Projekt | null>(null);
   const [dragOverTab, setDragOverTab] = useState<ProjektStatus | null>(null);
   const [saisonjahr] = useState(new Date().getFullYear());
+  const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Lade Daten
   const loadData = useCallback(async () => {
@@ -127,18 +132,59 @@ const ProjektVerwaltung = () => {
 
   // Projekt-Klick Handler - Öffnet Formular
   const handleProjektClick = (projekt: Projekt) => {
-    // Je nach Status das entsprechende Formular öffnen
-    if (projekt.status === 'angebot') {
-      // Zur Bestellabwicklung navigieren und Angebot-Tab öffnen
-      navigate('/bestellabwicklung', { state: { projekt, tab: 'angebot' } });
-    } else if (projekt.status === 'auftragsbestaetigung') {
-      navigate('/bestellabwicklung', { state: { projekt, tab: 'auftragsbestaetigung' } });
-    } else if (projekt.status === 'lieferschein') {
-      navigate('/bestellabwicklung', { state: { projekt, tab: 'lieferschein' } });
-    } else if (projekt.status === 'rechnung') {
-      navigate('/bestellabwicklung', { state: { projekt, tab: 'rechnung' } });
+    // Verwende $id falls vorhanden, sonst id
+    const projektId = (projekt as any).$id || projekt.id;
+    // Zur Bestellabwicklung mit Projekt-ID in URL navigieren
+    navigate(`/bestellabwicklung/${projektId}`);
+  };
+
+  // Edit-Handler
+  const handleEdit = (e: React.MouseEvent, projekt: Projekt) => {
+    e.stopPropagation(); // Verhindert, dass der Card-onClick ausgelöst wird
+    setEditingProjekt(projekt);
+    setShowEditModal(true);
+  };
+
+  // Speichern der bearbeiteten Projektdaten
+  const handleSaveEdit = async (updatedProjekt: Partial<Projekt>) => {
+    if (!editingProjekt) return;
+    
+    setSaving(true);
+    try {
+      // Verwende $id falls vorhanden, sonst id
+      const projektId = (editingProjekt as any).$id || editingProjekt.id;
+      await projektService.updateProjekt(projektId, updatedProjekt);
+      setShowEditModal(false);
+      setEditingProjekt(null);
+      await loadData(); // Daten neu laden
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren:', error);
+      alert('Fehler beim Speichern des Projekts. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
     }
-    // Bei 'bezahlt' nichts tun, da abgeschlossen
+  };
+
+  // Delete-Handler
+  const handleDelete = async (e: React.MouseEvent, projekt: Projekt) => {
+    e.stopPropagation(); // Verhindert, dass der Card-onClick ausgelöst wird
+    
+    const bestaetigung = window.confirm(
+      `Möchtest du das Projekt "${projekt.kundenname}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`
+    );
+    
+    if (!bestaetigung) return;
+    
+    setSaving(true);
+    try {
+      await projektService.deleteProjekt(projekt);
+      await loadData(); // Daten neu laden
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      alert('Fehler beim Löschen des Projekts. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Berechne Gesamtzahlen
@@ -253,12 +299,14 @@ const ProjektVerwaltung = () => {
                 ) : (
                   projekte.map((projekt) => (
                     <ProjektCard
-                      key={projekt.id}
+                      key={(projekt as any).$id || projekt.id}
                       projekt={projekt}
                       status={tab.id}
                       onDragStart={(e) => handleDragStart(e, projekt)}
                       onDragEnd={handleDragEnd}
                       onClick={() => handleProjektClick(projekt)}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
                     />
                   ))
                 )}
@@ -277,6 +325,18 @@ const ProjektVerwaltung = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingProjekt && (
+        <ProjektEditModal
+          projekt={editingProjekt}
+          onSave={handleSaveEdit}
+          onCancel={() => {
+            setShowEditModal(false);
+            setEditingProjekt(null);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -288,9 +348,11 @@ interface ProjektCardProps {
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
+  onEdit: (e: React.MouseEvent, projekt: Projekt) => void;
+  onDelete: (e: React.MouseEvent, projekt: Projekt) => void;
 }
 
-const ProjektCard = ({ projekt, status, onDragStart, onDragEnd, onClick }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, onDragStart, onDragEnd, onClick, onEdit, onDelete }: ProjektCardProps) => {
   return (
     <div
       draggable
@@ -303,8 +365,9 @@ const ProjektCard = ({ projekt, status, onDragStart, onDragEnd, onClick }: Proje
       <div className="flex items-start gap-2 mb-2">
         <GripVertical className="w-4 h-4 text-gray-300 group-hover:text-gray-500 mt-1 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900 truncate">{projekt.kundenname}</h4>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
+          <h4 className="font-semibold text-gray-900 truncate">{projekt.projektName || projekt.kundenname}</h4>
+          <div className="text-xs text-gray-600 truncate">{projekt.kundenname}</div>
+          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
             <MapPin className="w-3 h-3" />
             <span className="truncate">{projekt.kundenPlzOrt}</span>
           </div>
@@ -313,6 +376,23 @@ const ProjektCard = ({ projekt, status, onDragStart, onDragEnd, onClick }: Proje
               Nr. {projekt.kundennummer}
             </span>
           )}
+        </div>
+        {/* Action Buttons */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => onEdit(e, projekt)}
+            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title="Projekt bearbeiten"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => onDelete(e, projekt)}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+            title="Projekt löschen"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -394,6 +474,205 @@ const ProjektCard = ({ projekt, status, onDragStart, onDragEnd, onClick }: Proje
           "{projekt.notizen}"
         </div>
       )}
+    </div>
+  );
+};
+
+// Projekt-Edit-Modal Komponente
+interface ProjektEditModalProps {
+  projekt: Projekt;
+  onSave: (updatedData: Partial<Projekt>) => void;
+  onCancel: () => void;
+}
+
+const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) => {
+  const [formData, setFormData] = useState({
+    projektName: projekt.projektName || projekt.kundenname,
+    kundenname: projekt.kundenname,
+    kundenstrasse: projekt.kundenstrasse,
+    kundenPlzOrt: projekt.kundenPlzOrt,
+    kundennummer: projekt.kundennummer || '',
+    angefragteMenge: projekt.angefragteMenge || 0,
+    preisProTonne: projekt.preisProTonne || 0,
+    bezugsweg: projekt.bezugsweg || '',
+    notizen: projekt.notizen || '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      projektName: formData.projektName,
+      kundenname: formData.kundenname,
+      kundenstrasse: formData.kundenstrasse,
+      kundenPlzOrt: formData.kundenPlzOrt,
+      kundennummer: formData.kundennummer || undefined,
+      angefragteMenge: formData.angefragteMenge || undefined,
+      preisProTonne: formData.preisProTonne || undefined,
+      bezugsweg: formData.bezugsweg || undefined,
+      notizen: formData.notizen || undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Projekt bearbeiten</h2>
+          <button
+            onClick={onCancel}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Projektname */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Projektname *
+            </label>
+            <input
+              type="text"
+              value={formData.projektName}
+              onChange={(e) => setFormData({ ...formData, projektName: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg font-medium"
+              required
+            />
+          </div>
+
+          {/* Kundenname */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Kundenname *
+            </label>
+            <input
+              type="text"
+              value={formData.kundenname}
+              onChange={(e) => setFormData({ ...formData, kundenname: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            />
+          </div>
+
+          {/* Kundennummer */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Kundennummer
+            </label>
+            <input
+              type="text"
+              value={formData.kundennummer}
+              onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Straße */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Straße
+            </label>
+            <input
+              type="text"
+              value={formData.kundenstrasse}
+              onChange={(e) => setFormData({ ...formData, kundenstrasse: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* PLZ & Ort */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              PLZ & Ort *
+            </label>
+            <input
+              type="text"
+              value={formData.kundenPlzOrt}
+              onChange={(e) => setFormData({ ...formData, kundenPlzOrt: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="12345 Musterstadt"
+              required
+            />
+          </div>
+
+          {/* Angefragte Menge */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Angefragte Menge (Tonnen)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.angefragteMenge}
+              onChange={(e) => setFormData({ ...formData, angefragteMenge: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Preis pro Tonne */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Preis pro Tonne (€)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.preisProTonne}
+              onChange={(e) => setFormData({ ...formData, preisProTonne: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Bezugsweg */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bezugsweg
+            </label>
+            <select
+              value={formData.bezugsweg}
+              onChange={(e) => setFormData({ ...formData, bezugsweg: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Bitte wählen</option>
+              <option value="direkt">Direkt</option>
+              <option value="ueber_platzbauer">Über Platzbauer</option>
+            </select>
+          </div>
+
+          {/* Notizen */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notizen
+            </label>
+            <textarea
+              value={formData.notizen}
+              onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              className="flex-1 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            >
+              Speichern
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Building2, Package, Database } from 'lucide-react';
+import { Building2, Package, Database, Hash } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
+import KundennummernTab from './KundennummernTab';
 
-type TabId = 'firmendaten' | 'artikel';
+type TabId = 'firmendaten' | 'artikel' | 'kundennummern';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -22,6 +23,13 @@ const Stammdaten = () => {
       icon: Package, 
       color: 'from-purple-600 to-pink-600',
       description: 'Standardartikel für Angebote'
+    },
+    { 
+      id: 'kundennummern' as TabId, 
+      label: 'Kundennummern', 
+      icon: Hash, 
+      color: 'from-green-600 to-emerald-600',
+      description: 'Kundennummern generieren'
     },
   ];
 
@@ -73,6 +81,7 @@ const Stammdaten = () => {
       <div>
         {activeTab === 'firmendaten' && <FirmendatenTab />}
         {activeTab === 'artikel' && <ArtikelVerwaltungTab />}
+        {activeTab === 'kundennummern' && <KundennummernTab />}
       </div>
 
       {/* Info-Box über Stammdaten */}
@@ -87,6 +96,10 @@ const Stammdaten = () => {
           <p>
             <strong>Artikelverwaltung:</strong> Standardartikel für die schnelle Angebotserstellung. 
             Die hier angelegten Artikel können bei der Erstellung von Angeboten direkt ausgewählt werden.
+          </p>
+          <p>
+            <strong>Kundennummern:</strong> Automatische Vergabe von eindeutigen Kundennummern für alle Kunden
+            in der Saisonplanung. Die Nummern beginnen bei 231 und werden fortlaufend vergeben.
           </p>
           <p className="text-blue-700 font-medium mt-4">
             💡 Tipp: Pflegen Sie Ihre Stammdaten sorgfältig, da diese zentral in vielen Bereichen verwendet werden.

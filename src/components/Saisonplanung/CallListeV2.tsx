@@ -33,6 +33,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
+import ProjektDialog from '../Shared/ProjektDialog';
 
 interface CallListeV2Props {
   saisonjahr: number;
@@ -72,6 +73,10 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
   const [showModal, setShowModal] = useState(false);
   const [modalKunde, setModalKunde] = useState<SaisonKundeMitDaten | null>(null);
   const [modalZielStatus, setModalZielStatus] = useState<AnrufStatus>('erreicht');
+  
+  // Projekt Dialog State
+  const [showProjektDialog, setShowProjektDialog] = useState(false);
+  const [projektKunde, setProjektKunde] = useState<SaisonKundeMitDaten | null>(null);
   
   // Form State für Modal
   const [formData, setFormData] = useState<AnrufErgebnis>({
@@ -227,47 +232,33 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
     await updateStatus(kunde, 'nicht_erreicht');
   };
 
-  // Angebot erstellen Button Handler
-  const handleAngebotErstellenClick = async (kunde: SaisonKundeMitDaten) => {
+  // Projekt erstellen Button Handler
+  const handleProjektErstellenClick = async (kunde: SaisonKundeMitDaten) => {
+    // Prüfe ob bereits ein Projekt für diesen Kunden existiert
+    const bestehendesProjekt = await projektService.getProjektFuerKunde(kunde.kunde.id, saisonjahr);
+    
+    if (bestehendesProjekt) {
+      // Projekt existiert bereits, direkt zur Bestellabwicklung navigieren
+      const projektId = (bestehendesProjekt as any).$id || bestehendesProjekt.id;
+      navigate(`/bestellabwicklung/${projektId}`);
+    } else {
+      // Dialog öffnen für neues Projekt
+      setProjektKunde(kunde);
+      setShowProjektDialog(true);
+    }
+  };
+
+  const handleSaveProjekt = async (neuesProjekt: NeuesProjekt) => {
+    setSaving(true);
     try {
-      setSaving(true);
+      await projektService.createProjekt(neuesProjekt);
       
-      // Prüfe ob bereits ein Projekt für diesen Kunden existiert
-      const bestehendesProjekt = await projektService.getProjektFuerKunde(kunde.kunde.id, saisonjahr);
+      // Dialog schließen
+      setShowProjektDialog(false);
+      setProjektKunde(null);
       
-      if (bestehendesProjekt) {
-        // Projekt existiert bereits, direkt zur Projektverwaltung navigieren
-        navigate('/projekt-verwaltung', { 
-          state: { 
-            selectedProjektId: bestehendesProjekt.id
-          } 
-        });
-      } else {
-        // Neues Projekt erstellen
-        const neuesProjekt: NeuesProjekt = {
-          kundeId: kunde.kunde.id,
-          kundennummer: kunde.kunde.kundennummer,
-          kundenname: kunde.kunde.name,
-          kundenstrasse: kunde.kunde.adresse.strasse || '',
-          kundenPlzOrt: `${kunde.kunde.adresse.plz} ${kunde.kunde.adresse.ort}`,
-          saisonjahr: saisonjahr,
-          status: 'angebot',
-          angefragteMenge: kunde.aktuelleSaison?.angefragteMenge,
-          preisProTonne: kunde.aktuelleSaison?.preisProTonne,
-          bezugsweg: kunde.aktuelleSaison?.bezugsweg,
-          platzbauerId: kunde.aktuelleSaison?.platzbauerId,
-          notizen: kunde.aktuelleSaison?.gespraechsnotizen,
-        };
-        
-        const erstelltesProjekt = await projektService.createProjekt(neuesProjekt);
-        
-        // Zur Projektverwaltung navigieren
-        navigate('/projekt-verwaltung', { 
-          state: { 
-            selectedProjektId: erstelltesProjekt.id
-          } 
-        });
-      }
+      // Zur Projektverwaltung navigieren
+      navigate('/projektverwaltung');
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       alert('Fehler beim Erstellen des Projekts. Bitte erneut versuchen.');
@@ -414,7 +405,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
                       onDragEnd={handleDragEnd}
                       onErreicht={() => handleErreichtClick(kunde)}
                       onNichtErreicht={() => handleNichtErreichtClick(kunde)}
-                      onAngebotErstellen={() => handleAngebotErstellenClick(kunde)}
+                      onProjektErstellen={() => handleProjektErstellenClick(kunde)}
                       saving={saving}
                       hatProjekt={kundenMitProjekt.has(kunde.kunde.id)}
                     />
@@ -443,6 +434,26 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
         />
       )}
 
+      {/* Projekt-Dialog */}
+      {showProjektDialog && projektKunde && (
+        <ProjektDialog
+          kundenname={projektKunde.kunde.name}
+          kundeId={projektKunde.kunde.id}
+          kundennummer={projektKunde.kunde.kundennummer}
+          kundenstrasse={projektKunde.kunde.adresse.strasse}
+          kundenPlzOrt={`${projektKunde.kunde.adresse.plz} ${projektKunde.kunde.adresse.ort}`}
+          angefragteMenge={projektKunde.aktuelleSaison?.angefragteMenge}
+          preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || projektKunde.kunde.zuletztGezahlterPreis}
+          bezugsweg={projektKunde.aktuelleSaison?.bezugsweg || projektKunde.kunde.standardBezugsweg}
+          onSave={handleSaveProjekt}
+          onCancel={() => {
+            setShowProjektDialog(false);
+            setProjektKunde(null);
+          }}
+          saving={saving}
+        />
+      )}
+
       {/* Saving Overlay */}
       {saving && (
         <div className="fixed inset-0 bg-black bg-opacity-30 z-[60] flex items-center justify-center">
@@ -464,12 +475,12 @@ interface KundenCardProps {
   onDragEnd: () => void;
   onErreicht: () => void;
   onNichtErreicht: () => void;
-  onAngebotErstellen: () => void;
+  onProjektErstellen: () => void;
   saving: boolean;
   hatProjekt: boolean;
 }
 
-const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNichtErreicht, onAngebotErstellen, saving, hatProjekt }: KundenCardProps) => {
+const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNichtErreicht, onProjektErstellen, saving, hatProjekt }: KundenCardProps) => {
   const [copiedTel, setCopiedTel] = useState<string | null>(null);
 
   // Telefonnummer kopieren
@@ -634,23 +645,23 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
         </div>
       )}
       
-      {/* Angebot erstellen / Zum Projekt Button - nur bei Status "erreicht" */}
+      {/* Projekt erstellen / Zum Projekt Button - nur bei Status "erreicht" */}
       {status === 'erreicht' && (
         <div className="mt-2 pt-2 border-t border-gray-100">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onAngebotErstellen();
+              onProjektErstellen();
             }}
             disabled={saving}
             className={`w-full px-2 py-2 text-xs font-medium text-white rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm ${
               hatProjekt
                 ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
-                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
+                : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
             }`}
           >
             <FileCheck className="w-4 h-4" />
-            {hatProjekt ? 'Zum Projekt' : 'Angebot erstellen'}
+            {hatProjekt ? 'Zum Projekt' : 'Projekt erstellen'}
           </button>
         </div>
       )}

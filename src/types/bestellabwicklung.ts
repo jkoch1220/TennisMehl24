@@ -36,13 +36,16 @@ export interface BaseDokument {
   // Projektnummer (optional)
   projektnummer?: string;
   
+  // Ihr Ansprechpartner (bei Tennismehl)
+  ihreAnsprechpartner?: string;
+  
   // Lieferadresse (falls abweichend)
   lieferadresseAbweichend?: boolean;
   lieferadresseName?: string;
   lieferadresseStrasse?: string;
   lieferadressePlzOrt?: string;
   
-  // Ansprechpartner
+  // Ansprechpartner (beim Kunden)
   ansprechpartner?: string;
   
   // Bemerkungen

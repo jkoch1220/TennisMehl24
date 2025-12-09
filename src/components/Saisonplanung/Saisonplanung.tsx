@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter } from 'lucide-react';
+import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonplanungStatistik,
@@ -22,6 +22,7 @@ const Saisonplanung = () => {
   const [selectedKunde, setSelectedKunde] = useState<SaisonKundeMitDaten | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [saisonjahr] = useState(new Date().getFullYear());
+  const [searchText, setSearchText] = useState('');
 
   // OPTIMIERT: useCallback verhindert unnötige Re-Renders
   const loadData = useCallback(async () => {
@@ -101,6 +102,20 @@ const Saisonplanung = () => {
       alert('Fehler beim Löschen des Kunden');
     }
   };
+
+  // Gefilterte Kunden basierend auf Suchtext
+  const filteredKunden = kunden.filter((kunde) => {
+    if (!searchText.trim()) return true;
+    
+    const search = searchText.toLowerCase();
+    return (
+      kunde.kunde.name.toLowerCase().includes(search) ||
+      kunde.kunde.adresse.ort.toLowerCase().includes(search) ||
+      kunde.kunde.adresse.plz.toLowerCase().includes(search) ||
+      kunde.kunde.adresse.bundesland?.toLowerCase().includes(search) ||
+      kunde.kunde.adresse.strasse?.toLowerCase().includes(search)
+    );
+  });
 
   if (loading) {
     return (
@@ -215,12 +230,32 @@ const Saisonplanung = () => {
         {/* Kundenliste */}
         <div className="bg-white rounded-lg shadow-lg">
           <div className="border-b border-gray-200 p-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">Kundenliste</h2>
               <div className="flex items-center gap-2 text-sm text-gray-600">
                 <Filter className="w-4 h-4" />
-                <span>{kunden.length} Kunden</span>
+                <span>{filteredKunden.length} von {kunden.length} Kunden</span>
               </div>
+            </div>
+            
+            {/* Suchfeld */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Kunde suchen (Name, Ort, PLZ, Bundesland...)"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -231,9 +266,15 @@ const Saisonplanung = () => {
                 <p className="text-lg font-medium">Keine Kunden gefunden</p>
                 <p className="text-sm mt-2">Erstellen Sie den ersten Kunden, um zu beginnen.</p>
               </div>
+            ) : filteredKunden.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Search className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg font-medium">Keine Kunden gefunden</p>
+                <p className="text-sm mt-2">Keine Kunden entsprechen Ihrer Suche "{searchText}"</p>
+              </div>
             ) : (
               <div className="space-y-3">
-                {kunden.map((kunde) => (
+                {filteredKunden.map((kunde) => (
                   <KundenKarte
                     key={kunde.kunde.id}
                     kunde={kunde}

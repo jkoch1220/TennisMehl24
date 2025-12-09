@@ -83,7 +83,7 @@ function App() {
               <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
               <Route path="/kunden-karte" element={<KundenKarte />} />
               {/* Bestellabwicklung nur noch über Projekte zugänglich */}
-              <Route path="/bestellabwicklung" element={<Bestellabwicklung />} />
+              <Route path="/bestellabwicklung/:projektId" element={<Bestellabwicklung />} />
               <Route path="/projekt-verwaltung" element={<ProjektVerwaltung />} />
               <Route path="/vorschlaege" element={<Vorschlaege />} />
               <Route path="/todos" element={<Todos />} />

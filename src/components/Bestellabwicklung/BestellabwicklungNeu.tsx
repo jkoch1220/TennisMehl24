@@ -1,12 +1,53 @@
-import { useState } from 'react';
-import { FileText, FileCheck, Truck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { FileText, FileCheck, Truck, ArrowLeft } from 'lucide-react';
 import { DokumentTyp } from '../../types/bestellabwicklung';
+import { Projekt } from '../../types/projekt';
+import { projektService } from '../../services/projektService';
 import AngebotTab from './AngebotTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
 
 const Bestellabwicklung = () => {
+  const { projektId } = useParams<{ projektId: string }>();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
+  const [projekt, setProjekt] = useState<Projekt | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Projekt laden
+  useEffect(() => {
+    const loadProjekt = async () => {
+      if (!projektId) {
+        alert('Keine Projekt-ID angegeben');
+        navigate('/projekt-verwaltung');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const loadedProjekt = await projektService.getProjekt(projektId);
+        setProjekt(loadedProjekt);
+        
+        // Tab basierend auf Projekt-Status setzen
+        if (loadedProjekt.status === 'angebot') {
+          setActiveTab('angebot');
+        } else if (loadedProjekt.status === 'lieferschein') {
+          setActiveTab('lieferschein');
+        } else if (loadedProjekt.status === 'rechnung') {
+          setActiveTab('rechnung');
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Projekts:', error);
+        alert('Fehler beim Laden des Projekts');
+        navigate('/projekt-verwaltung');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjekt();
+  }, [projektId, navigate]);
 
   const tabs = [
     { id: 'angebot' as DokumentTyp, label: 'Angebot', icon: FileCheck, color: 'from-blue-600 to-cyan-600' },
@@ -14,17 +55,53 @@ const Bestellabwicklung = () => {
     { id: 'rechnung' as DokumentTyp, label: 'Rechnung', icon: FileText, color: 'from-red-600 to-orange-600' },
   ];
 
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <p className="mt-4 text-xl text-gray-600">Lade Projekt...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!projekt) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="text-center py-12">
+          <p className="text-xl text-gray-600">Projekt nicht gefunden</p>
+          <button
+            onClick={() => navigate('/projekt-verwaltung')}
+            className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Zurück zur Projektverwaltung
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/projekt-verwaltung')}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Zurück zur Projektverwaltung"
+          >
+            <ArrowLeft className="h-6 w-6 text-gray-600" />
+          </button>
           <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg">
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Bestellabwicklung</h1>
-            <p className="text-gray-600 mt-1">Angebote, Lieferscheine und Rechnungen erstellen</p>
+            <p className="text-gray-600 mt-1">
+              {projekt.kundenname} • {projekt.kundenPlzOrt}
+            </p>
           </div>
         </div>
       </div>
@@ -55,9 +132,9 @@ const Bestellabwicklung = () => {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'angebot' && <AngebotTab />}
-        {activeTab === 'lieferschein' && <LieferscheinTab />}
-        {activeTab === 'rechnung' && <RechnungTab />}
+        {activeTab === 'angebot' && <AngebotTab projekt={projekt} />}
+        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} />}
+        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} />}
       </div>
     </div>
   );

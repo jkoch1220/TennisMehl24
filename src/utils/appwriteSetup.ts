@@ -22,7 +22,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '9';
+const APPWRITE_SETUP_VERSION = '10'; // Updated: Projekte data-Feld auf 100000 erhöht
 
 type FieldConfig = {
   key: string;
@@ -102,14 +102,16 @@ const saisonAktivitaetenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },
 ];
 
+// Projekte Collection - MINIMAL (nur 7 Felder wegen Appwrite-Limit!)
+// Alle anderen Daten werden im data-Feld als JSON gespeichert
 const projekteFields: FieldConfig[] = [
-  { key: 'kundeId', type: 'string', size: 100, required: true },
-  { key: 'kundenname', type: 'string', size: 500, required: true },
+  { key: 'kundeId', type: 'string', size: 255, required: true },
+  { key: 'kundenname', type: 'string', size: 255, required: true },
   { key: 'saisonjahr', type: 'integer', required: true },
   { key: 'status', type: 'string', size: 50, required: true },
-  { key: 'erstelltAm', type: 'string', size: 50 },
-  { key: 'geaendertAm', type: 'string', size: 50 },
-  { key: 'data', type: 'string', size: 10000 },
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Bestellabwicklungsdaten
 ];
 
 const artikelFields: FieldConfig[] = [

@@ -4,6 +4,7 @@ export type ProjektStatus = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' 
 // Projekt für Bestellabwicklung
 export interface Projekt {
   id: string;
+  projektName: string;
   kundeId: string;
   kundennummer?: string;
   kundenname: string;
@@ -39,6 +40,12 @@ export interface Projekt {
   
   // Notizen
   notizen?: string;
+  
+  // Bestellabwicklungsdaten (als JSON)
+  angebotsDaten?: string; // JSON-serialisierte AngebotsDaten
+  auftragsbestaetigungsDaten?: string; // JSON-serialisierte AuftragsbestaetigungsDaten
+  lieferscheinDaten?: string; // JSON-serialisierte LieferscheinDaten
+  rechnungsDaten?: string; // JSON-serialisierte RechnungsDaten
   
   // Timestamps
   erstelltAm: string;

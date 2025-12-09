@@ -130,7 +130,20 @@ const AdressAutocomplete = ({
         const mapped = data
           .map((item) => {
             const addr = item.address || {};
-            const str = `${addr.road ?? ''} ${addr.house_number ?? ''}`.trim();
+            
+            // Straße und Hausnummer zusammensetzen
+            let str = '';
+            if (addr.road) {
+              str = addr.road;
+              // Hausnummer nur anhängen wenn sie noch nicht in der Straße enthalten ist
+              if (addr.house_number && !addr.road.includes(addr.house_number)) {
+                str = `${addr.road} ${addr.house_number}`;
+              }
+            } else if (addr.house_number) {
+              str = addr.house_number;
+            }
+            str = str.trim();
+            
             const ortsteil = addr.city || addr.town || addr.village || addr.hamlet || '';
             const bundeslandName = addr.state;
             const plzCode = addr.postcode || '';

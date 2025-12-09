@@ -1,29 +1,69 @@
 import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Truck, FileSignature, AlertCircle } from 'lucide-react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft } from 'lucide-react';
 import { DokumentTyp } from '../../types/bestellabwicklung';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Projekt } from '../../types/projekt';
+import { projektService } from '../../services/projektService';
 import AngebotTab from './AngebotTab';
 import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
 
 const Bestellabwicklung = () => {
-  const location = useLocation();
+  const { projektId } = useParams<{ projektId: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
+  const [projekt, setProjekt] = useState<Projekt | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  // State aus Navigation empfangen (von Callliste oder ProjektVerwaltung)
-  const { projekt, tab, kundeInfo } = location.state || {};
-  
+  // Projekt laden
   useEffect(() => {
-    // Wenn ein Tab aus dem State übergeben wurde, wechsle zu diesem Tab
-    if (tab) {
-      setActiveTab(tab);
-    }
-  }, [tab]);
+    const loadProjekt = async () => {
+      if (!projektId) {
+        setLoading(false);
+        return;
+      }
 
-  // Wenn kein Projekt übergeben wurde, zeige Hinweis
-  if (!projekt && !kundeInfo) {
+      try {
+        setLoading(true);
+        const loadedProjekt = await projektService.getProjekt(projektId);
+        setProjekt(loadedProjekt);
+        
+        // Tab basierend auf Projekt-Status setzen
+        if (loadedProjekt.status === 'angebot') {
+          setActiveTab('angebot');
+        } else if (loadedProjekt.status === 'auftragsbestaetigung') {
+          setActiveTab('auftragsbestaetigung');
+        } else if (loadedProjekt.status === 'lieferschein') {
+          setActiveTab('lieferschein');
+        } else if (loadedProjekt.status === 'rechnung') {
+          setActiveTab('rechnung');
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden des Projekts:', error);
+        alert('Fehler beim Laden des Projekts');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjekt();
+  }, [projektId]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <p className="mt-4 text-xl text-gray-600">Lade Projekt...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Wenn kein Projekt vorhanden
+  if (!projekt) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-8 text-center">
@@ -55,12 +95,21 @@ const Bestellabwicklung = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/projekt-verwaltung')}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Zurück zur Projektverwaltung"
+          >
+            <ArrowLeft className="h-6 w-6 text-gray-600" />
+          </button>
           <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg">
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Bestellabwicklung</h1>
-            <p className="text-gray-600 mt-1">Angebote, Lieferscheine und Rechnungen erstellen</p>
+            <p className="text-gray-600 mt-1">
+              {projekt.kundenname} • {projekt.kundenPlzOrt}
+            </p>
           </div>
         </div>
       </div>
@@ -91,10 +140,10 @@ const Bestellabwicklung = () => {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'angebot' && <AngebotTab projekt={projekt} kundeInfo={kundeInfo} />}
-        {activeTab === 'auftragsbestaetigung' && <AuftragsbestaetigungTab projekt={projekt} kundeInfo={kundeInfo} />}
-        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} kundeInfo={kundeInfo} />}
-        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} kundeInfo={kundeInfo} />}
+        {activeTab === 'angebot' && <AngebotTab projekt={projekt} />}
+        {activeTab === 'auftragsbestaetigung' && <AuftragsbestaetigungTab projekt={projekt} />}
+        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} />}
+        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} />}
       </div>
     </div>
   );
