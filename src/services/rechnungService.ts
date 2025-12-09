@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { RechnungsDaten, AngebotsDaten, LieferscheinDaten, DokumentBerechnung, Position } from '../types/bestellabwicklung';
+import { RechnungsDaten, DokumentBerechnung, Position } from '../types/bestellabwicklung';
 
 // Gemeinsame Berechnungsfunktion
 export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnung => {
@@ -143,10 +143,8 @@ export const generiereRechnungPDF = (daten: RechnungsDaten): jsPDF => {
   doc.setFont('helvetica', 'normal');
   
   // === Rechnungsinformationen unter Betreff ===
-  yPos += 8;
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
-  doc.text(`Rechnungsnummer: ${daten.rechnungsnummer}`, 15, yPos);
   
   yPos += 5;
   doc.text(`Rechnungsdatum: ${formatDatum(daten.rechnungsdatum)}`, 15, yPos);

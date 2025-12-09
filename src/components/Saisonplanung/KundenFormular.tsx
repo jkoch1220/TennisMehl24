@@ -43,6 +43,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     tonnenLetztesJahr: undefined,
     beziehtUeberUnsPlatzbauer: false,
     abwerkspreis: false,
+    zahlungsziel: 14,
   });
 
   const [ansprechpartner, setAnsprechpartner] = useState<NeuerAnsprechpartner[]>([]);

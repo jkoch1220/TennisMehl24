@@ -141,6 +141,7 @@ export interface SaisonKunde {
   // Falls Verein: bezieht über Platzbauer, die von uns gestellt werden
   beziehtUeberUnsPlatzbauer?: boolean;
   abwerkspreis?: boolean; // Kunde bekommt Abwerkspreis (Ja/Nein)
+  zahlungsziel?: number; // Zahlungsziel in Tagen (z.B. 14, 30)
   erstelltAm: string;
   geaendertAm: string;
 }
