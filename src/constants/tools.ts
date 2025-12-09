@@ -11,7 +11,6 @@ import {
   TrendingUp,
   MessageSquare,
   CheckSquare,
-  ListChecks,
   Layers,
   Database,
 } from 'lucide-react';
@@ -89,14 +88,6 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/kunden-karte',
     icon: Users,
     color: 'from-green-600 to-emerald-600',
-  },
-  {
-    id: 'kunden-liste',
-    name: 'Kunden Liste',
-    description: 'Kunden anlegen und als Liste in Appwrite pflegen',
-    href: '/kunden-liste',
-    icon: ListChecks,
-    color: 'from-emerald-500 to-lime-500',
   },
   {
     id: 'speditionskosten',

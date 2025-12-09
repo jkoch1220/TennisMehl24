@@ -27,6 +27,7 @@ import {
   AnrufStatus,
   AnrufErgebnis,
 } from '../types/saisonplanung';
+import { cacheService } from './cacheService';
 
 // Helper: Parse Document mit data-Feld
 function parseDocument<T>(doc: Models.Document, fallback: T): T {
@@ -179,6 +180,12 @@ export const saisonplanungService = {
         neuerKunde.id,
         toPayload(neuerKunde) // Collection hat nur "data"
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('statistik');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<SaisonKunde>(doc, neuerKunde);
     } catch (error) {
       console.error('Fehler beim Erstellen des Kunden:', error);
@@ -223,6 +230,12 @@ export const saisonplanungService = {
         id,
         toPayload(aktualisiert) // Collection hat nur "data"
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('statistik');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<SaisonKunde>(doc, aktualisiert);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kunden:', error);
@@ -239,6 +252,11 @@ export const saisonplanungService = {
       this.deleteAktivitaetenFuerKunde(id),
     ]);
     await databases.deleteDocument(DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID, id);
+    
+    // Cache invalidieren
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('statistik');
+    cacheService.invalidate('dashboard');
   },
 
   // ========== ANSPRECHPARTNER ==========
@@ -290,6 +308,11 @@ export const saisonplanungService = {
           data: JSON.stringify(neuerAnsprechpartner),
         }
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<Ansprechpartner>(doc, neuerAnsprechpartner);
     } catch (error) {
       console.error('Fehler beim Erstellen des Ansprechpartners:', error);
@@ -333,6 +356,11 @@ export const saisonplanungService = {
           data: JSON.stringify(aktualisiert),
         }
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<Ansprechpartner>(updatedDoc, aktualisiert);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Ansprechpartners:', error);
@@ -346,6 +374,10 @@ export const saisonplanungService = {
       SAISON_ANSPRECHPARTNER_COLLECTION_ID,
       id
     );
+    
+    // Cache invalidieren
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('dashboard');
   },
 
   async deleteAnsprechpartnerFuerKunde(kundeId: string): Promise<void> {
@@ -425,6 +457,12 @@ export const saisonplanungService = {
         this.updateKunde.bind(this),
         this.loadKunde.bind(this)
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('statistik');
+      cacheService.invalidate('dashboard');
+      
       return parsed;
     } catch (error) {
       console.error('Fehler beim Erstellen der Saison-Daten:', error);
@@ -476,6 +514,12 @@ export const saisonplanungService = {
         this.loadAktuelleSaisonDaten.bind(this),
         this.updateSaisonDaten.bind(this)
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('statistik');
+      cacheService.invalidate('dashboard');
+      
       return parsed;
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Saison-Daten:', error);
@@ -559,6 +603,11 @@ export const saisonplanungService = {
         neueBeziehung.id,
         toPayload(neueBeziehung, ['vereinId', 'platzbauerId'])
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<VereinPlatzbauerBeziehung>(doc, neueBeziehung);
     } catch (error) {
       console.error('Fehler beim Erstellen der Beziehung:', error);
@@ -598,6 +647,11 @@ export const saisonplanungService = {
         id,
         toPayload(aktualisiert, ['vereinId', 'platzbauerId'])
       );
+      
+      // Cache invalidieren
+      cacheService.invalidate('callliste');
+      cacheService.invalidate('dashboard');
+      
       return parseDocument<VereinPlatzbauerBeziehung>(updatedDoc, aktualisiert);
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Beziehung:', error);
@@ -607,6 +661,10 @@ export const saisonplanungService = {
 
   async deleteBeziehung(id: string): Promise<void> {
     await databases.deleteDocument(DATABASE_ID, SAISON_BEZIEHUNGEN_COLLECTION_ID, id);
+    
+    // Cache invalidieren
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('dashboard');
   },
 
   async deleteBeziehungenFuerKunde(kundeId: string): Promise<void> {
@@ -681,6 +739,165 @@ export const saisonplanungService = {
     );
   },
 
+  // ========== BATCH-LOADING FUNKTIONEN (Performance-Optimierung) ==========
+
+  /**
+   * Lädt ALLE Ansprechpartner in einer Query und gruppiert sie nach kundeId
+   * Ersetzt hunderte einzelne Queries durch eine einzige
+   */
+  async loadAlleAnsprechpartner(): Promise<Map<string, Ansprechpartner[]>> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        SAISON_ANSPRECHPARTNER_COLLECTION_ID,
+        [Query.limit(5000)] // Lade alle Ansprechpartner
+      );
+
+      const ansprechpartnerMap = new Map<string, Ansprechpartner[]>();
+      
+      for (const doc of response.documents) {
+        const ansprechpartner = parseDocument<Ansprechpartner>(doc, {
+          id: doc.$id,
+          kundeId: '',
+          name: '',
+          telefonnummern: [],
+          aktiv: true,
+          erstelltAm: doc.$createdAt,
+          geaendertAm: doc.$updatedAt || doc.$createdAt,
+        });
+
+        if (!ansprechpartnerMap.has(ansprechpartner.kundeId)) {
+          ansprechpartnerMap.set(ansprechpartner.kundeId, []);
+        }
+        ansprechpartnerMap.get(ansprechpartner.kundeId)!.push(ansprechpartner);
+      }
+
+      return ansprechpartnerMap;
+    } catch (error) {
+      console.error('Fehler beim Batch-Laden der Ansprechpartner:', error);
+      return new Map();
+    }
+  },
+
+  /**
+   * Lädt ALLE Saison-Daten für ein bestimmtes Jahr in einer Query
+   * Gruppiert nach kundeId für schnellen Zugriff
+   */
+  async loadAlleSaisonDatenFuerJahr(saisonjahr: number): Promise<Map<string, SaisonDaten>> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        SAISON_DATEN_COLLECTION_ID,
+        [Query.equal('saisonjahr', saisonjahr), Query.limit(5000)]
+      );
+
+      const saisonDatenMap = new Map<string, SaisonDaten>();
+      
+      for (const doc of response.documents) {
+        const saisonDaten = parseDocument<SaisonDaten>(doc, {
+          id: doc.$id,
+          kundeId: '',
+          saisonjahr,
+          gespraechsstatus: 'offen',
+          erstelltAm: doc.$createdAt,
+          geaendertAm: doc.$updatedAt || doc.$createdAt,
+        });
+
+        saisonDatenMap.set(saisonDaten.kundeId, saisonDaten);
+      }
+
+      return saisonDatenMap;
+    } catch (error) {
+      console.error('Fehler beim Batch-Laden der Saison-Daten:', error);
+      return new Map();
+    }
+  },
+
+  /**
+   * Lädt ALLE Beziehungen in einer Query
+   * Gruppiert sowohl nach vereinId als auch platzbauerId
+   */
+  async loadAlleBeziehungen(): Promise<{
+    alsVerein: Map<string, VereinPlatzbauerBeziehung[]>;
+    alsPlatzbauer: Map<string, VereinPlatzbauerBeziehung[]>;
+  }> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        SAISON_BEZIEHUNGEN_COLLECTION_ID,
+        [Query.limit(5000)]
+      );
+
+      const alsVerein = new Map<string, VereinPlatzbauerBeziehung[]>();
+      const alsPlatzbauer = new Map<string, VereinPlatzbauerBeziehung[]>();
+      
+      for (const doc of response.documents) {
+        const beziehung = parseDocument<VereinPlatzbauerBeziehung>(doc, {
+          id: doc.$id,
+          vereinId: '',
+          platzbauerId: '',
+          status: 'aktiv',
+          erstelltAm: doc.$createdAt,
+          geaendertAm: doc.$updatedAt || doc.$createdAt,
+        });
+
+        // Gruppiere nach vereinId
+        if (!alsVerein.has(beziehung.vereinId)) {
+          alsVerein.set(beziehung.vereinId, []);
+        }
+        alsVerein.get(beziehung.vereinId)!.push(beziehung);
+
+        // Gruppiere nach platzbauerId
+        if (!alsPlatzbauer.has(beziehung.platzbauerId)) {
+          alsPlatzbauer.set(beziehung.platzbauerId, []);
+        }
+        alsPlatzbauer.get(beziehung.platzbauerId)!.push(beziehung);
+      }
+
+      return { alsVerein, alsPlatzbauer };
+    } catch (error) {
+      console.error('Fehler beim Batch-Laden der Beziehungen:', error);
+      return { alsVerein: new Map(), alsPlatzbauer: new Map() };
+    }
+  },
+
+  /**
+   * Lädt ALLE Saison-Historie-Daten in einer Query
+   * Gruppiert nach kundeId mit allen Jahren
+   */
+  async loadAlleSaisonHistorie(): Promise<Map<string, SaisonDaten[]>> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        SAISON_DATEN_COLLECTION_ID,
+        [Query.orderDesc('saisonjahr'), Query.limit(5000)]
+      );
+
+      const historieMap = new Map<string, SaisonDaten[]>();
+      
+      for (const doc of response.documents) {
+        const saisonDaten = parseDocument<SaisonDaten>(doc, {
+          id: doc.$id,
+          kundeId: '',
+          saisonjahr: new Date().getFullYear(),
+          gespraechsstatus: 'offen',
+          erstelltAm: doc.$createdAt,
+          geaendertAm: doc.$updatedAt || doc.$createdAt,
+        });
+
+        if (!historieMap.has(saisonDaten.kundeId)) {
+          historieMap.set(saisonDaten.kundeId, []);
+        }
+        historieMap.get(saisonDaten.kundeId)!.push(saisonDaten);
+      }
+
+      return historieMap;
+    } catch (error) {
+      console.error('Fehler beim Batch-Laden der Saison-Historie:', error);
+      return new Map();
+    }
+  },
+
   // ========== ERWEITERTE FUNKTIONEN ==========
 
   async loadKundeMitDaten(
@@ -717,15 +934,46 @@ export const saisonplanungService = {
     };
   },
 
+  /**
+   * OPTIMIERTE Version: Lädt Call-Liste mit Batch-Loading + Caching
+   * Reduziert von 1.200+ Queries auf nur 4-5 Queries!
+   * Mit Cache: Wiederholte Aufrufe innerhalb 2 Sekunden aus Cache
+   */
   async loadCallListe(filter: CallListeFilter = {}, saisonjahr: number): Promise<SaisonKundeMitDaten[]> {
-    const alleKunden = await this.loadAlleKunden();
+    // Cache-Key basierend auf Filter und Jahr
+    const cacheKey = `callliste_${saisonjahr}_${JSON.stringify(filter)}`;
+    
+    // Prüfe Cache
+    const cached = cacheService.get<SaisonKundeMitDaten[]>(cacheKey);
+    if (cached) {
+      if (import.meta.env.DEV) {
+        console.log('✨ Cache-Hit: loadCallListe', { saisonjahr, filter });
+      }
+      return cached;
+    }
+
+    // Schritt 1: Lade ALLE Basis-Daten parallel in nur 4 Queries
+    const [
+      alleKunden,
+      ansprechpartnerMap,
+      saisonDatenMap,
+      beziehungenMaps
+    ] = await Promise.all([
+      this.loadAlleKunden(),
+      this.loadAlleAnsprechpartner(),
+      this.loadAlleSaisonDatenFuerJahr(saisonjahr),
+      this.loadAlleBeziehungen()
+    ]);
+
+    // Schritt 2: Filter auf Kunden anwenden (im Speicher, keine DB-Queries)
     let gefilterteKunden = alleKunden.filter((k) => k.aktiv);
 
-    // Filter anwenden
+    // Typ-Filter
     if (filter.typ && filter.typ.length > 0) {
       gefilterteKunden = gefilterteKunden.filter((k) => filter.typ!.includes(k.typ));
     }
 
+    // Bundesland-Filter
     if (filter.bundesland && filter.bundesland.length > 0) {
       gefilterteKunden = gefilterteKunden.filter((k) =>
         filter.bundesland!.some(
@@ -735,6 +983,7 @@ export const saisonplanungService = {
       );
     }
 
+    // Such-Filter
     if (filter.suche) {
       const suche = filter.suche.toLowerCase();
       gefilterteKunden = gefilterteKunden.filter(
@@ -745,14 +994,34 @@ export const saisonplanungService = {
       );
     }
 
-    // Lade erweiterte Daten für jeden Kunden
-    const kundenMitDaten = await Promise.all(
-      gefilterteKunden.map((k) => this.loadKundeMitDaten(k.id, saisonjahr))
-    );
+    // Schritt 3: Kombiniere Daten im Speicher (keine DB-Queries!)
+    const kundenMitDaten: SaisonKundeMitDaten[] = gefilterteKunden.map((kunde) => {
+      const ansprechpartner = ansprechpartnerMap.get(kunde.id) || [];
+      const aktuelleSaison = saisonDatenMap.get(kunde.id);
+      
+      // Beziehungen basierend auf Typ
+      const beziehungenAlsVerein = kunde.typ === 'verein' 
+        ? beziehungenMaps.alsVerein.get(kunde.id) 
+        : undefined;
+      const beziehungenAlsPlatzbauer = kunde.typ === 'platzbauer' 
+        ? beziehungenMaps.alsPlatzbauer.get(kunde.id) 
+        : undefined;
 
-    let result = kundenMitDaten.filter((k): k is SaisonKundeMitDaten => k !== null);
+      return {
+        kunde,
+        ansprechpartner,
+        aktuelleSaison,
+        saisonHistorie: aktuelleSaison ? [aktuelleSaison] : [], // Nur aktuelles Jahr
+        aktivitaeten: [], // Lazy Loading - nur bei Bedarf laden
+        beziehungenAlsVerein,
+        beziehungenAlsPlatzbauer,
+      };
+    });
 
-    // Weitere Filter
+    // Schritt 4: Weitere Filter anwenden
+    let result = kundenMitDaten;
+
+    // Status-Filter
     if (filter.status && filter.status.length > 0) {
       result = result.filter(
         (k) =>
@@ -760,12 +1029,14 @@ export const saisonplanungService = {
       );
     }
 
+    // Bezugsweg-Filter
     if (filter.bezugsweg && filter.bezugsweg.length > 0) {
       result = result.filter(
         (k) => k.aktuelleSaison && filter.bezugsweg!.includes(k.aktuelleSaison.bezugsweg || 'direkt')
       );
     }
 
+    // Platzbauer-Filter
     if (filter.platzbauerId) {
       result = result.filter(
         (k) =>
@@ -774,11 +1045,36 @@ export const saisonplanungService = {
       );
     }
 
+    // Speichere im Cache
+    cacheService.set(cacheKey, result);
+
     return result;
   },
 
+  /**
+   * OPTIMIERTE Version: Berechnet Statistik mit Batch-Loading + Caching
+   * Reduziert von 300+ Queries auf nur 2 Queries!
+   * Mit Cache: Wiederholte Aufrufe innerhalb 2 Sekunden aus Cache
+   */
   async berechneStatistik(saisonjahr: number): Promise<SaisonplanungStatistik> {
-    const alleKunden = await this.loadAlleKunden();
+    // Cache-Key basierend auf Jahr
+    const cacheKey = `statistik_${saisonjahr}`;
+    
+    // Prüfe Cache
+    const cached = cacheService.get<SaisonplanungStatistik>(cacheKey);
+    if (cached) {
+      if (import.meta.env.DEV) {
+        console.log('✨ Cache-Hit: berechneStatistik', { saisonjahr });
+      }
+      return cached;
+    }
+
+    // Lade alle Daten parallel in nur 2 Queries
+    const [alleKunden, saisonDatenMap] = await Promise.all([
+      this.loadAlleKunden(),
+      this.loadAlleSaisonDatenFuerJahr(saisonjahr)
+    ]);
+
     const aktiveKunden = alleKunden.filter((k) => k.aktiv);
 
     let gesamtAngefragteMenge = 0;
@@ -797,10 +1093,11 @@ export const saisonplanungService = {
       ueber_platzbauer: 0,
     };
 
+    // Berechne Statistik im Speicher (keine DB-Queries mehr!)
     for (const kunde of aktiveKunden) {
       nachTyp[kunde.typ]++;
 
-      const saisonDaten = await this.loadAktuelleSaisonDaten(kunde.id, saisonjahr);
+      const saisonDaten = saisonDatenMap.get(kunde.id);
       if (saisonDaten) {
         if (saisonDaten.angefragteMenge) {
           gesamtAngefragteMenge += saisonDaten.angefragteMenge;
@@ -822,7 +1119,7 @@ export const saisonplanungService = {
       }
     }
 
-    return {
+    const statistik: SaisonplanungStatistik = {
       gesamtKunden: aktiveKunden.length,
       offeneKunden,
       erledigteKunden,
@@ -832,6 +1129,185 @@ export const saisonplanungService = {
       nachStatus,
       nachBezugsweg,
     };
+
+    // Speichere im Cache
+    cacheService.set(cacheKey, statistik);
+
+    return statistik;
+  },
+
+  /**
+   * SUPER-OPTIMIERT: Lädt Dashboard-Daten (CallListe + Statistik) in einem Durchgang
+   * Verwendet die gleichen Batch-Queries für beide, um doppelte Abfragen zu vermeiden
+   * Perfekt für die Saisonplanung-Übersichtsseite
+   */
+  async loadSaisonplanungDashboard(
+    filter: CallListeFilter = {},
+    saisonjahr: number
+  ): Promise<{
+    callListe: SaisonKundeMitDaten[];
+    statistik: SaisonplanungStatistik;
+  }> {
+    const cacheKey = `dashboard_${saisonjahr}_${JSON.stringify(filter)}`;
+    
+    // Prüfe Cache
+    const cached = cacheService.get<{ callListe: SaisonKundeMitDaten[]; statistik: SaisonplanungStatistik }>(cacheKey);
+    if (cached) {
+      if (import.meta.env.DEV) {
+        console.log('✨ Cache-Hit: loadSaisonplanungDashboard', { saisonjahr, filter });
+      }
+      return cached;
+    }
+
+    // Lade ALLE Daten in nur 4 Queries (statt 600+ Queries!)
+    const [
+      alleKunden,
+      ansprechpartnerMap,
+      saisonDatenMap,
+      beziehungenMaps
+    ] = await Promise.all([
+      this.loadAlleKunden(),
+      this.loadAlleAnsprechpartner(),
+      this.loadAlleSaisonDatenFuerJahr(saisonjahr),
+      this.loadAlleBeziehungen()
+    ]);
+
+    // === Berechne Statistik im Speicher ===
+    const aktiveKunden = alleKunden.filter((k) => k.aktiv);
+    let gesamtAngefragteMenge = 0;
+    let gesamtTatsaechlicheMenge = 0;
+    let offeneKunden = 0;
+    let erledigteKunden = 0;
+
+    const nachTyp: Record<KundenTyp, number> = { verein: 0, platzbauer: 0 };
+    const nachStatus: Record<GespraechsStatus, number> = {
+      offen: 0,
+      in_bearbeitung: 0,
+      erledigt: 0,
+    };
+    const nachBezugsweg: Record<'direkt' | 'ueber_platzbauer', number> = {
+      direkt: 0,
+      ueber_platzbauer: 0,
+    };
+
+    for (const kunde of aktiveKunden) {
+      nachTyp[kunde.typ]++;
+
+      const saisonDaten = saisonDatenMap.get(kunde.id);
+      if (saisonDaten) {
+        if (saisonDaten.angefragteMenge) {
+          gesamtAngefragteMenge += saisonDaten.angefragteMenge;
+        }
+        if (saisonDaten.tatsaechlicheMenge) {
+          gesamtTatsaechlicheMenge += saisonDaten.tatsaechlicheMenge;
+        }
+
+        nachStatus[saisonDaten.gespraechsstatus]++;
+        if (saisonDaten.gespraechsstatus === 'offen') offeneKunden++;
+        if (saisonDaten.gespraechsstatus === 'erledigt') erledigteKunden++;
+
+        if (saisonDaten.bezugsweg) {
+          nachBezugsweg[saisonDaten.bezugsweg]++;
+        }
+      } else {
+        nachStatus.offen++;
+        offeneKunden++;
+      }
+    }
+
+    const statistik: SaisonplanungStatistik = {
+      gesamtKunden: aktiveKunden.length,
+      offeneKunden,
+      erledigteKunden,
+      gesamtAngefragteMenge,
+      gesamtTatsaechlicheMenge,
+      nachTyp,
+      nachStatus,
+      nachBezugsweg,
+    };
+
+    // === Erstelle CallListe im Speicher ===
+    let gefilterteKunden = aktiveKunden;
+
+    // Typ-Filter
+    if (filter.typ && filter.typ.length > 0) {
+      gefilterteKunden = gefilterteKunden.filter((k) => filter.typ!.includes(k.typ));
+    }
+
+    // Bundesland-Filter
+    if (filter.bundesland && filter.bundesland.length > 0) {
+      gefilterteKunden = gefilterteKunden.filter((k) =>
+        filter.bundesland!.some(
+          (bundesland) =>
+            (k.adresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
+        )
+      );
+    }
+
+    // Such-Filter
+    if (filter.suche) {
+      const suche = filter.suche.toLowerCase();
+      gefilterteKunden = gefilterteKunden.filter(
+        (k) =>
+          k.name.toLowerCase().includes(suche) ||
+          k.adresse.ort.toLowerCase().includes(suche) ||
+          k.kundennummer?.toLowerCase().includes(suche)
+      );
+    }
+
+    // Kombiniere Daten
+    const kundenMitDaten: SaisonKundeMitDaten[] = gefilterteKunden.map((kunde) => {
+      const ansprechpartner = ansprechpartnerMap.get(kunde.id) || [];
+      const aktuelleSaison = saisonDatenMap.get(kunde.id);
+      
+      const beziehungenAlsVerein = kunde.typ === 'verein' 
+        ? beziehungenMaps.alsVerein.get(kunde.id) 
+        : undefined;
+      const beziehungenAlsPlatzbauer = kunde.typ === 'platzbauer' 
+        ? beziehungenMaps.alsPlatzbauer.get(kunde.id) 
+        : undefined;
+
+      return {
+        kunde,
+        ansprechpartner,
+        aktuelleSaison,
+        saisonHistorie: aktuelleSaison ? [aktuelleSaison] : [],
+        aktivitaeten: [], // Lazy Loading
+        beziehungenAlsVerein,
+        beziehungenAlsPlatzbauer,
+      };
+    });
+
+    // Weitere Filter
+    let callListe = kundenMitDaten;
+
+    if (filter.status && filter.status.length > 0) {
+      callListe = callListe.filter(
+        (k) =>
+          filter.status!.includes(k.aktuelleSaison?.gespraechsstatus || ('offen' as GespraechsStatus))
+      );
+    }
+
+    if (filter.bezugsweg && filter.bezugsweg.length > 0) {
+      callListe = callListe.filter(
+        (k) => k.aktuelleSaison && filter.bezugsweg!.includes(k.aktuelleSaison.bezugsweg || 'direkt')
+      );
+    }
+
+    if (filter.platzbauerId) {
+      callListe = callListe.filter(
+        (k) =>
+          k.aktuelleSaison?.platzbauerId === filter.platzbauerId ||
+          k.beziehungenAlsVerein?.some((b) => b.platzbauerId === filter.platzbauerId)
+      );
+    }
+
+    const result = { callListe, statistik };
+
+    // Speichere im Cache
+    cacheService.set(cacheKey, result);
+
+    return result;
   },
 
   // Erstelle neue Saison für alle Kunden
@@ -887,17 +1363,26 @@ export const saisonplanungService = {
       updateData.rueckrufNotiz = optionen.rueckrufNotiz;
     }
 
+    let result: SaisonDaten;
     if (saisonDaten) {
-      return this.updateSaisonDaten(saisonDaten.id, updateData);
+      result = await this.updateSaisonDaten(saisonDaten.id, updateData);
     } else {
       // Erstelle neue Saison-Daten wenn nicht vorhanden
-      return this.createSaisonDaten({
+      result = await this.createSaisonDaten({
         kundeId,
         saisonjahr,
         gespraechsstatus: 'offen',
         ...updateData,
       });
     }
+
+    // Cache invalidieren (zusätzlich zu dem bereits in update/create)
+    // Dies stellt sicher, dass auch gruppierte Listen aktualisiert werden
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('statistik');
+    cacheService.invalidate('dashboard');
+
+    return result;
   },
 
   /**
@@ -978,6 +1463,11 @@ export const saisonplanungService = {
       titel: statusText,
       beschreibung: `${statusText}${mengenText}${ergebnis.notizen ? '\n' + ergebnis.notizen : ''}`,
     });
+
+    // Cache invalidieren (zusätzlich zu dem bereits in update/create)
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('statistik');
+    cacheService.invalidate('dashboard');
 
     return result;
   },

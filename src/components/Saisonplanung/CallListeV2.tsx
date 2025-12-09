@@ -79,19 +79,29 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
     notizen: '',
   });
 
-  // Lade Daten
+  // OPTIMIERT: Lade Daten - nur eine Query statt zwei!
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [gruppiert, alleKunden] = await Promise.all([
+      // Nur noch eine Query - gruppierte Liste lädt alle Daten
+      const [gruppiert, projekte] = await Promise.all([
         saisonplanungService.loadCallListeGruppiert(saisonjahr),
-        saisonplanungService.loadCallListe({}, saisonjahr),
+        projektService.getAllProjekte(saisonjahr),
       ]);
-      setKundenGruppiert(gruppiert);
-      setAllePlatzbauerKunden(alleKunden.filter(k => k.kunde.typ === 'platzbauer'));
       
-      // Lade alle Projekte für dieses Jahr und markiere Kunden mit Projekt
-      const projekte = await projektService.getAllProjekte(saisonjahr);
+      setKundenGruppiert(gruppiert);
+      
+      // Extrahiere Platzbauer aus der gruppierten Liste (im Speicher, keine DB-Query!)
+      const allePlatzbauerAusGruppiert = [
+        ...gruppiert.anrufen,
+        ...gruppiert.nichtErreicht,
+        ...gruppiert.erreicht,
+        ...gruppiert.rueckruf,
+      ].filter(k => k.kunde.typ === 'platzbauer');
+      
+      setAllePlatzbauerKunden(allePlatzbauerAusGruppiert);
+      
+      // Markiere Kunden mit Projekt
       const kundenIdsSet = new Set(projekte.map(p => p.kundeId));
       setKundenMitProjekt(kundenIdsSet);
     } catch (error) {

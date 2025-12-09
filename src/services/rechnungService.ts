@@ -321,10 +321,17 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   const gfLabel = stammdaten.geschaeftsfuehrer.length > 1 ? 'Geschäftsführer:' : 'Geschäftsführer:';
   doc.text(gfLabel, col2X, footerY);
   doc.setFont('helvetica', 'normal');
-  const geschaeftsfuehrerText = stammdaten.geschaeftsfuehrer.join(', ');
-  doc.text(geschaeftsfuehrerText, col2X, footerY + 4);
-  doc.text('Sitz d. Gesellschaft:', col2X, footerY + 8);
-  doc.text(stammdaten.sitzGesellschaft, col2X, footerY + 12);
+  
+  // Geschäftsführer untereinander schreiben
+  let gfYPos = footerY + 4;
+  stammdaten.geschaeftsfuehrer.forEach((gf, index) => {
+    doc.text(gf, col2X, gfYPos + (index * 3));
+  });
+  
+  // Sitz d. Gesellschaft dynamisch positionieren
+  const gfEndPos = gfYPos + (stammdaten.geschaeftsfuehrer.length * 3);
+  doc.text('Sitz d. Gesellschaft:', col2X, gfEndPos + 1);
+  doc.text(stammdaten.sitzGesellschaft, col2X, gfEndPos + 5);
   
   // Spalte 3: Registergericht
   let col3X = 70;

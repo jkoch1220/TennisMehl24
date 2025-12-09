@@ -16,7 +16,6 @@ import Vorschlaege from './components/Tickets/Vorschlaege';
 import Todos from './components/Todos/Todos';
 import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
-import KundenListe from './components/KundenListe/KundenListe';
 import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
 import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
 import Stammdaten from './components/Stammdaten/Stammdaten';
@@ -83,7 +82,6 @@ function App() {
               <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
               <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
               <Route path="/kunden-karte" element={<KundenKarte />} />
-              <Route path="/kunden-liste" element={<KundenListe />} />
               {/* Bestellabwicklung nur noch über Projekte zugänglich */}
               <Route path="/bestellabwicklung" element={<Bestellabwicklung />} />
               <Route path="/projekt-verwaltung" element={<ProjektVerwaltung />} />
