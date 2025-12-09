@@ -21,10 +21,12 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const [aktivitaetTyp, setAktivitaetTyp] = useState<AktivitaetsTyp>('kommentar');
   const [aktivitaetTitel, setAktivitaetTitel] = useState('');
   const [aktivitaetBeschreibung, setAktivitaetBeschreibung] = useState('');
+  const [kundenNamen, setKundenNamen] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadAktivitaeten();
-  }, [kunde.kunde.id]);
+    resolveKundenNamen();
+  }, [kunde.kunde.id, kunde.beziehungenAlsVerein, kunde.beziehungenAlsPlatzbauer]);
 
   const loadAktivitaeten = async () => {
     try {
@@ -68,6 +70,30 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('de-DE');
+  };
+
+  const resolveKundenNamen = async () => {
+    const ids = new Set<string>();
+    kunde.beziehungenAlsVerein?.forEach((b) => b.platzbauerId && ids.add(b.platzbauerId));
+    kunde.beziehungenAlsPlatzbauer?.forEach((b) => b.vereinId && ids.add(b.vereinId));
+
+    const unknownIds = Array.from(ids).filter((id) => !kundenNamen[id]);
+    if (unknownIds.length === 0) return;
+
+    const entries = await Promise.all(
+      unknownIds.map(async (id) => {
+        const k = await saisonplanungService.loadKunde(id);
+        return { id, name: k?.name || id };
+      })
+    );
+
+    setKundenNamen((prev) => {
+      const next = { ...prev };
+      for (const { id, name } of entries) {
+        next[id] = name;
+      }
+      return next;
+    });
   };
 
   return (
@@ -180,9 +206,15 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                     {ap.telefonnummern.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {ap.telefonnummern.map((tel, idx) => (
-                          <div key={idx} className="text-sm text-gray-600 flex items-center gap-1">
-                            <Phone className="w-4 h-4" />
-                            {tel.nummer} {tel.typ && `(${tel.typ})`}
+                          <div key={idx} className="text-sm text-gray-600 flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-red-600" />
+                            <a
+                              href={`tel:${tel.nummer}`}
+                              className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                            >
+                              {tel.nummer}
+                            </a>
+                            {tel.typ && <span className="text-gray-500">({tel.typ})</span>}
                           </div>
                         ))}
                       </div>
@@ -200,7 +232,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
               <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                 {kunde.beziehungenAlsVerein?.map((b) => (
                   <li key={b.id}>
-                    {b.platzbauerId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
+                    {kundenNamen[b.platzbauerId] || b.platzbauerId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
                     {b.status === 'inaktiv' && <span className="text-xs text-gray-500">(inaktiv)</span>}
                   </li>
                 ))}
@@ -215,7 +247,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
                   {kunde.beziehungenAlsPlatzbauer?.map((b) => (
                     <li key={b.id}>
-                      {b.vereinId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
+                      {kundenNamen[b.vereinId] || b.vereinId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
                       {b.status === 'inaktiv' && (
                         <span className="text-xs text-gray-500">(inaktiv)</span>
                       )}

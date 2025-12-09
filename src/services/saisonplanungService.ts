@@ -24,6 +24,8 @@ import {
   SaisonplanungStatistik,
   GespraechsStatus,
   KundenTyp,
+  AnrufStatus,
+  AnrufErgebnis,
 } from '../types/saisonplanung';
 
 // Helper: Parse Document mit data-Feld
@@ -43,11 +45,18 @@ function parseDocument<T>(doc: Models.Document, fallback: T): T {
   return fallback;
 }
 
-// Helper: To Payload für Appwrite (nur data-Field nutzen)
-function toPayload<T extends Record<string, any>>(obj: T): { data: string } {
-  return {
-    data: JSON.stringify(obj),
-  };
+// Helper: To Payload für Appwrite
+// Nur die explizit übergebenen Attribute werden neben dem data-Feld gesetzt,
+// um Unknown-Attribute-Fehler zu vermeiden.
+function toPayload<T extends Record<string, any>>(
+  obj: T,
+  allowedKeys: string[] = []
+): Record<string, any> {
+  const payload: Record<string, any> = { data: JSON.stringify(obj) };
+  for (const key of allowedKeys) {
+    if (key in obj) payload[key] = (obj as any)[key];
+  }
+  return payload;
 }
 
 async function updatePreisHistorie(
@@ -167,7 +176,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_KUNDEN_COLLECTION_ID,
         neuerKunde.id,
-        toPayload(neuerKunde)
+        toPayload(neuerKunde) // Collection hat nur "data"
       );
       return parseDocument<SaisonKunde>(doc, neuerKunde);
     } catch (error) {
@@ -207,7 +216,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_KUNDEN_COLLECTION_ID,
         id,
-        toPayload(aktualisiert)
+        toPayload(aktualisiert) // Collection hat nur "data"
       );
       return parseDocument<SaisonKunde>(doc, aktualisiert);
     } catch (error) {
@@ -401,7 +410,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_DATEN_COLLECTION_ID,
         neueSaisonDaten.id,
-        toPayload(neueSaisonDaten)
+        toPayload(neueSaisonDaten, ['kundeId', 'saisonjahr'])
       );
       const parsed = parseDocument<SaisonDaten>(doc, neueSaisonDaten);
       await updatePreisHistorie(
@@ -445,7 +454,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_DATEN_COLLECTION_ID,
         id,
-        toPayload(aktualisiert)
+        toPayload(aktualisiert, ['kundeId', 'saisonjahr'])
       );
       const parsed = parseDocument<SaisonDaten>(updatedDoc, aktualisiert);
       await updatePreisHistorie(
@@ -543,7 +552,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_BEZIEHUNGEN_COLLECTION_ID,
         neueBeziehung.id,
-        toPayload(neueBeziehung)
+        toPayload(neueBeziehung, ['vereinId', 'platzbauerId'])
       );
       return parseDocument<VereinPlatzbauerBeziehung>(doc, neueBeziehung);
     } catch (error) {
@@ -582,7 +591,7 @@ export const saisonplanungService = {
         DATABASE_ID,
         SAISON_BEZIEHUNGEN_COLLECTION_ID,
         id,
-        toPayload(aktualisiert)
+        toPayload(aktualisiert, ['vereinId', 'platzbauerId'])
       );
       return parseDocument<VereinPlatzbauerBeziehung>(updatedDoc, aktualisiert);
     } catch (error) {
@@ -842,5 +851,207 @@ export const saisonplanungService = {
         gespraechsstatus: 'offen',
       });
     }
+  },
+
+  // ========== CALL-LISTEN-TOOL FUNKTIONEN ==========
+
+  /**
+   * Aktualisiert den Anruf-Status eines Kunden
+   */
+  async updateAnrufStatus(
+    kundeId: string,
+    saisonjahr: number,
+    neuerStatus: AnrufStatus,
+    optionen?: {
+      notiz?: string;
+      rueckrufDatum?: string;
+      rueckrufNotiz?: string;
+    }
+  ): Promise<SaisonDaten> {
+    let saisonDaten = await this.loadAktuelleSaisonDaten(kundeId, saisonjahr);
+    
+    const updateData: Partial<SaisonDaten> = {
+      anrufStatus: neuerStatus,
+      letztAngerufen: new Date().toISOString(),
+    };
+
+    if (optionen?.rueckrufDatum) {
+      updateData.rueckrufDatum = optionen.rueckrufDatum;
+    }
+    if (optionen?.rueckrufNotiz) {
+      updateData.rueckrufNotiz = optionen.rueckrufNotiz;
+    }
+
+    if (saisonDaten) {
+      return this.updateSaisonDaten(saisonDaten.id, updateData);
+    } else {
+      // Erstelle neue Saison-Daten wenn nicht vorhanden
+      return this.createSaisonDaten({
+        kundeId,
+        saisonjahr,
+        gespraechsstatus: 'offen',
+        ...updateData,
+      });
+    }
+  },
+
+  /**
+   * Erfasst ein Anruf-Ergebnis (bei "Erreicht")
+   */
+  async erfasseAnrufErgebnis(
+    kundeId: string,
+    saisonjahr: number,
+    ergebnis: AnrufErgebnis
+  ): Promise<SaisonDaten> {
+    let saisonDaten = await this.loadAktuelleSaisonDaten(kundeId, saisonjahr);
+    
+    const updateData: Partial<SaisonDaten> = {
+      anrufStatus: ergebnis.erreicht ? 'erreicht' : 'nicht_erreicht',
+      letztAngerufen: new Date().toISOString(),
+      gespraechsstatus: ergebnis.erreicht ? 'erledigt' : 'in_bearbeitung',
+    };
+
+    if (ergebnis.angefragteMenge !== undefined) {
+      updateData.angefragteMenge = ergebnis.angefragteMenge;
+    }
+    if (ergebnis.preisProTonne !== undefined) {
+      updateData.preisProTonne = ergebnis.preisProTonne;
+    }
+    if (ergebnis.bestellabsicht) {
+      updateData.bestellabsicht = ergebnis.bestellabsicht;
+    }
+    if (ergebnis.bezugsweg) {
+      updateData.bezugsweg = ergebnis.bezugsweg;
+    }
+    if (ergebnis.platzbauerId) {
+      updateData.platzbauerId = ergebnis.platzbauerId;
+    }
+    if (ergebnis.lieferfensterFrueh) {
+      updateData.lieferfensterFrueh = new Date(ergebnis.lieferfensterFrueh).toISOString();
+    }
+    if (ergebnis.lieferfensterSpaet) {
+      updateData.lieferfensterSpaet = new Date(ergebnis.lieferfensterSpaet).toISOString();
+    }
+    if (ergebnis.notizen) {
+      updateData.gespraechsnotizen = ergebnis.notizen;
+    }
+    if (ergebnis.rueckrufDatum) {
+      updateData.rueckrufDatum = ergebnis.rueckrufDatum;
+      updateData.anrufStatus = 'rueckruf';
+    }
+    if (ergebnis.rueckrufNotiz) {
+      updateData.rueckrufNotiz = ergebnis.rueckrufNotiz;
+    }
+
+    let result: SaisonDaten;
+    if (saisonDaten) {
+      result = await this.updateSaisonDaten(saisonDaten.id, updateData);
+    } else {
+      result = await this.createSaisonDaten({
+        kundeId,
+        saisonjahr,
+        gespraechsstatus: 'offen',
+        ...updateData,
+      });
+    }
+
+    // Erstelle Aktivität
+    const statusText = ergebnis.erreicht ? 'Kunde erreicht' : 'Kunde nicht erreicht';
+    const mengenText = ergebnis.angefragteMenge ? ` - ${ergebnis.angefragteMenge}t angefragt` : '';
+    await this.createAktivitaet({
+      kundeId,
+      typ: 'telefonat',
+      titel: statusText,
+      beschreibung: `${statusText}${mengenText}${ergebnis.notizen ? '\n' + ergebnis.notizen : ''}`,
+    });
+
+    return result;
+  },
+
+  /**
+   * Ermittelt den Anruf-Status für einen Kunden basierend auf der 4-Wochen-Regel
+   */
+  berechneAnrufStatus(saisonDaten?: SaisonDaten): AnrufStatus {
+    if (!saisonDaten) return 'anrufen';
+    
+    // Wenn expliziter Status gesetzt und nicht erreicht
+    if (saisonDaten.anrufStatus && saisonDaten.anrufStatus !== 'erreicht') {
+      return saisonDaten.anrufStatus;
+    }
+
+    // 4-Wochen-Regel für "erreicht"
+    if (saisonDaten.anrufStatus === 'erreicht' && saisonDaten.letztAngerufen) {
+      const letztAngerufen = new Date(saisonDaten.letztAngerufen);
+      const vierWochenAlt = new Date();
+      vierWochenAlt.setDate(vierWochenAlt.getDate() - 28);
+      
+      if (letztAngerufen > vierWochenAlt) {
+        return 'erreicht'; // Noch innerhalb von 4 Wochen
+      } else {
+        return 'anrufen'; // Älter als 4 Wochen, wieder anrufen
+      }
+    }
+
+    // Rückruf-Check
+    if (saisonDaten.rueckrufDatum) {
+      const rueckrufDatum = new Date(saisonDaten.rueckrufDatum);
+      const heute = new Date();
+      heute.setHours(0, 0, 0, 0);
+      rueckrufDatum.setHours(0, 0, 0, 0);
+      
+      if (rueckrufDatum <= heute) {
+        return 'anrufen'; // Rückruf fällig
+      }
+      return 'rueckruf';
+    }
+
+    return saisonDaten.anrufStatus || 'anrufen';
+  },
+
+  /**
+   * Lädt alle Kunden gruppiert nach Anruf-Status
+   */
+  async loadCallListeGruppiert(saisonjahr: number): Promise<{
+    anrufen: SaisonKundeMitDaten[];
+    nichtErreicht: SaisonKundeMitDaten[];
+    erreicht: SaisonKundeMitDaten[];
+    rueckruf: SaisonKundeMitDaten[];
+  }> {
+    const alleKunden = await this.loadCallListe({}, saisonjahr);
+    
+    const result = {
+      anrufen: [] as SaisonKundeMitDaten[],
+      nichtErreicht: [] as SaisonKundeMitDaten[],
+      erreicht: [] as SaisonKundeMitDaten[],
+      rueckruf: [] as SaisonKundeMitDaten[],
+    };
+
+    for (const kunde of alleKunden) {
+      const status = this.berechneAnrufStatus(kunde.aktuelleSaison);
+      
+      switch (status) {
+        case 'anrufen':
+          result.anrufen.push(kunde);
+          break;
+        case 'nicht_erreicht':
+          result.nichtErreicht.push(kunde);
+          break;
+        case 'erreicht':
+          result.erreicht.push(kunde);
+          break;
+        case 'rueckruf':
+          result.rueckruf.push(kunde);
+          break;
+      }
+    }
+
+    // Sortiere Rückrufe nach Datum
+    result.rueckruf.sort((a, b) => {
+      const dateA = a.aktuelleSaison?.rueckrufDatum || '';
+      const dateB = b.aktuelleSaison?.rueckrufDatum || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    return result;
   },
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
@@ -8,16 +9,15 @@ import {
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import KundenFormular from './KundenFormular';
-import CallListe from './CallListe';
 import KundenDetail from './KundenDetail';
 import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
 
 const Saisonplanung = () => {
+  const navigate = useNavigate();
   const [kunden, setKunden] = useState<SaisonKundeMitDaten[]>([]);
   const [statistik, setStatistik] = useState<SaisonplanungStatistik | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFormular, setShowFormular] = useState(false);
-  const [showCallListe, setShowCallListe] = useState(false);
   const [showBeziehungen, setShowBeziehungen] = useState(false);
   const [selectedKunde, setSelectedKunde] = useState<SaisonKundeMitDaten | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -142,7 +142,7 @@ const Saisonplanung = () => {
               Beziehungen
             </button>
             <button
-              onClick={() => setShowCallListe(true)}
+              onClick={() => navigate('/call-liste')}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
               <Phone className="w-5 h-5" />
@@ -253,16 +253,6 @@ const Saisonplanung = () => {
               setShowFormular(false);
               setSelectedKunde(null);
             }}
-          />
-        )}
-
-        {/* Call-Liste Modal */}
-        {showCallListe && (
-          <CallListe
-            kunden={kunden}
-            saisonjahr={saisonjahr}
-            onClose={() => setShowCallListe(false)}
-            onUpdate={loadData}
           />
         )}
 

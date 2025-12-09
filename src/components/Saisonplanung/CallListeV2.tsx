@@ -1,0 +1,849 @@
+import { useState, useEffect, useCallback, DragEvent } from 'react';
+import {
+  Phone,
+  PhoneCall,
+  PhoneOff,
+  PhoneMissed,
+  Clock,
+  CheckCircle2,
+  X,
+  Copy,
+  Check,
+  RefreshCw,
+  Search,
+  User,
+  MapPin,
+  Calendar,
+  MessageSquare,
+  Package,
+  Euro,
+  ArrowLeft,
+  GripVertical,
+  AlertCircle,
+} from 'lucide-react';
+import {
+  SaisonKundeMitDaten,
+  AnrufStatus,
+  AnrufErgebnis,
+  Bestellabsicht,
+  Bezugsweg,
+} from '../../types/saisonplanung';
+import { saisonplanungService } from '../../services/saisonplanungService';
+
+interface CallListeV2Props {
+  saisonjahr: number;
+  onClose: () => void;
+}
+
+// Tab-Konfiguration
+const TABS: { id: AnrufStatus; label: string; icon: React.ComponentType<any>; color: string; bgColor: string }[] = [
+  { id: 'anrufen', label: 'Anrufen', icon: Phone, color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
+  { id: 'nicht_erreicht', label: 'Nicht Erreicht', icon: PhoneMissed, color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-200' },
+  { id: 'erreicht', label: 'Erreicht', icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-50 border-green-200' },
+  { id: 'rueckruf', label: 'Rückruf', icon: Clock, color: 'text-purple-600', bgColor: 'bg-purple-50 border-purple-200' },
+];
+
+const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
+  const [kundenGruppiert, setKundenGruppiert] = useState<{
+    anrufen: SaisonKundeMitDaten[];
+    nichtErreicht: SaisonKundeMitDaten[];
+    erreicht: SaisonKundeMitDaten[];
+    rueckruf: SaisonKundeMitDaten[];
+  }>({
+    anrufen: [],
+    nichtErreicht: [],
+    erreicht: [],
+    rueckruf: [],
+  });
+  const [allePlatzbauerKunden, setAllePlatzbauerKunden] = useState<SaisonKundeMitDaten[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [suche, setSuche] = useState('');
+  const [draggedKunde, setDraggedKunde] = useState<SaisonKundeMitDaten | null>(null);
+  const [dragOverTab, setDragOverTab] = useState<AnrufStatus | null>(null);
+  
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [modalKunde, setModalKunde] = useState<SaisonKundeMitDaten | null>(null);
+  const [modalZielStatus, setModalZielStatus] = useState<AnrufStatus>('erreicht');
+  
+  // Form State für Modal
+  const [formData, setFormData] = useState<AnrufErgebnis>({
+    erreicht: true,
+    notizen: '',
+  });
+
+  // Lade Daten
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [gruppiert, alleKunden] = await Promise.all([
+        saisonplanungService.loadCallListeGruppiert(saisonjahr),
+        saisonplanungService.loadCallListe({}, saisonjahr),
+      ]);
+      setKundenGruppiert(gruppiert);
+      setAllePlatzbauerKunden(alleKunden.filter(k => k.kunde.typ === 'platzbauer'));
+    } catch (error) {
+      console.error('Fehler beim Laden:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [saisonjahr]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Filter-Funktion
+  const filterKunden = (kunden: SaisonKundeMitDaten[]) => {
+    if (!suche) return kunden;
+    const s = suche.toLowerCase();
+    return kunden.filter(k => 
+      k.kunde.name.toLowerCase().includes(s) ||
+      k.kunde.adresse.ort.toLowerCase().includes(s) ||
+      k.kunde.adresse.plz.includes(s) ||
+      k.ansprechpartner.some(ap => 
+        ap.name.toLowerCase().includes(s) ||
+        ap.telefonnummern.some(tel => tel.nummer.includes(s))
+      )
+    );
+  };
+
+  // Drag & Drop Handler
+  const handleDragStart = (e: DragEvent, kunde: SaisonKundeMitDaten) => {
+    setDraggedKunde(kunde);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', kunde.kunde.id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedKunde(null);
+    setDragOverTab(null);
+  };
+
+  const handleDragOver = (e: DragEvent, tab: AnrufStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverTab(tab);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverTab(null);
+  };
+
+  const handleDrop = async (e: DragEvent, zielTab: AnrufStatus) => {
+    e.preventDefault();
+    setDragOverTab(null);
+    
+    if (!draggedKunde) return;
+
+    // Bei "erreicht" oder "rueckruf" immer Modal öffnen
+    if (zielTab === 'erreicht' || zielTab === 'rueckruf') {
+      setModalKunde(draggedKunde);
+      setModalZielStatus(zielTab);
+      setFormData({
+        erreicht: zielTab === 'erreicht',
+        notizen: draggedKunde.aktuelleSaison?.gespraechsnotizen || '',
+        angefragteMenge: draggedKunde.aktuelleSaison?.angefragteMenge,
+        preisProTonne: draggedKunde.aktuelleSaison?.preisProTonne || draggedKunde.kunde.zuletztGezahlterPreis,
+        bestellabsicht: draggedKunde.aktuelleSaison?.bestellabsicht,
+        bezugsweg: draggedKunde.aktuelleSaison?.bezugsweg || draggedKunde.kunde.standardBezugsweg,
+        platzbauerId: draggedKunde.aktuelleSaison?.platzbauerId || draggedKunde.kunde.standardPlatzbauerId,
+        lieferfensterFrueh: draggedKunde.aktuelleSaison?.lieferfensterFrueh?.split('T')[0],
+        lieferfensterSpaet: draggedKunde.aktuelleSaison?.lieferfensterSpaet?.split('T')[0],
+        rueckrufDatum: draggedKunde.aktuelleSaison?.rueckrufDatum?.split('T')[0],
+        rueckrufNotiz: draggedKunde.aktuelleSaison?.rueckrufNotiz,
+      });
+      setShowModal(true);
+    } else {
+      // Direkt verschieben für "anrufen" und "nicht_erreicht"
+      await updateStatus(draggedKunde, zielTab);
+    }
+    
+    setDraggedKunde(null);
+  };
+
+  // Status Update
+  const updateStatus = async (kunde: SaisonKundeMitDaten, neuerStatus: AnrufStatus) => {
+    setSaving(true);
+    try {
+      await saisonplanungService.updateAnrufStatus(kunde.kunde.id, saisonjahr, neuerStatus);
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Status-Update:', error);
+      alert('Fehler beim Speichern. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Erreicht Button Handler
+  const handleErreichtClick = (kunde: SaisonKundeMitDaten) => {
+    setModalKunde(kunde);
+    setModalZielStatus('erreicht');
+    setFormData({
+      erreicht: true,
+      notizen: kunde.aktuelleSaison?.gespraechsnotizen || '',
+      angefragteMenge: kunde.aktuelleSaison?.angefragteMenge,
+      preisProTonne: kunde.aktuelleSaison?.preisProTonne || kunde.kunde.zuletztGezahlterPreis,
+      bestellabsicht: kunde.aktuelleSaison?.bestellabsicht,
+      bezugsweg: kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg,
+      platzbauerId: kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId,
+      lieferfensterFrueh: kunde.aktuelleSaison?.lieferfensterFrueh?.split('T')[0],
+      lieferfensterSpaet: kunde.aktuelleSaison?.lieferfensterSpaet?.split('T')[0],
+    });
+    setShowModal(true);
+  };
+
+  // Nicht Erreicht Button Handler
+  const handleNichtErreichtClick = async (kunde: SaisonKundeMitDaten) => {
+    await updateStatus(kunde, 'nicht_erreicht');
+  };
+
+  // Modal speichern
+  const handleModalSave = async () => {
+    if (!modalKunde) return;
+    
+    setSaving(true);
+    try {
+      await saisonplanungService.erfasseAnrufErgebnis(modalKunde.kunde.id, saisonjahr, formData);
+      setShowModal(false);
+      setModalKunde(null);
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      alert('Fehler beim Speichern. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Berechne Gesamtzahlen
+  const gesamtAnrufen = kundenGruppiert.anrufen.length;
+  const gesamtNichtErreicht = kundenGruppiert.nichtErreicht.length;
+  const gesamtErreicht = kundenGruppiert.erreicht.length;
+  const gesamtRueckruf = kundenGruppiert.rueckruf.length;
+  const gesamt = gesamtAnrufen + gesamtNichtErreicht + gesamtErreicht + gesamtRueckruf;
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-gray-100 z-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <p className="mt-4 text-xl text-gray-600">Lade Call-Liste...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <PhoneCall className="w-7 h-7 text-red-600" />
+              Call-Liste {saisonjahr}
+            </h1>
+            <p className="text-sm text-gray-600">
+              {gesamt} Kunden • {gesamtErreicht} erreicht ({gesamt > 0 ? Math.round((gesamtErreicht / gesamt) * 100) : 0}%)
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          {/* Suche */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Suche (Name, Ort, Telefon...)"
+              value={suche}
+              onChange={(e) => setSuche(e.target.value)}
+              className="pl-10 pr-4 py-2 w-72 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            />
+          </div>
+          
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            Aktualisieren
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs / Spalten */}
+      <div className="flex-1 p-4 grid grid-cols-4 gap-4 overflow-hidden">
+        {TABS.map((tab) => {
+          const TabIcon = tab.icon;
+          const kunden = filterKunden(
+            tab.id === 'anrufen' ? kundenGruppiert.anrufen :
+            tab.id === 'nicht_erreicht' ? kundenGruppiert.nichtErreicht :
+            tab.id === 'erreicht' ? kundenGruppiert.erreicht :
+            kundenGruppiert.rueckruf
+          );
+          const count = 
+            tab.id === 'anrufen' ? gesamtAnrufen :
+            tab.id === 'nicht_erreicht' ? gesamtNichtErreicht :
+            tab.id === 'erreicht' ? gesamtErreicht :
+            gesamtRueckruf;
+          
+          return (
+            <div
+              key={tab.id}
+              className={`flex flex-col bg-white rounded-xl shadow-lg border-2 transition-all ${
+                dragOverTab === tab.id ? 'border-red-500 ring-4 ring-red-200' : 'border-gray-200'
+              }`}
+              onDragOver={(e) => handleDragOver(e, tab.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, tab.id)}
+            >
+              {/* Tab Header */}
+              <div className={`px-4 py-3 border-b-2 ${tab.bgColor} rounded-t-xl`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TabIcon className={`w-5 h-5 ${tab.color}`} />
+                    <span className={`font-semibold ${tab.color}`}>{tab.label}</span>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-sm font-bold ${tab.bgColor} ${tab.color}`}>
+                    {count}
+                  </span>
+                </div>
+              </div>
+
+              {/* Kunden-Liste */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {kunden.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <TabIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Keine Kunden</p>
+                  </div>
+                ) : (
+                  kunden.map((kunde) => (
+                    <KundenCard
+                      key={kunde.kunde.id}
+                      kunde={kunde}
+                      status={tab.id}
+                      onDragStart={(e) => handleDragStart(e, kunde)}
+                      onDragEnd={handleDragEnd}
+                      onErreicht={() => handleErreichtClick(kunde)}
+                      onNichtErreicht={() => handleNichtErreichtClick(kunde)}
+                      saving={saving}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Ergebnis-Modal */}
+      {showModal && modalKunde && (
+        <ErgebnisModal
+          kunde={modalKunde}
+          formData={formData}
+          setFormData={setFormData}
+          zielStatus={modalZielStatus}
+          platzbauerKunden={allePlatzbauerKunden}
+          onSave={handleModalSave}
+          onCancel={() => {
+            setShowModal(false);
+            setModalKunde(null);
+          }}
+          saving={saving}
+        />
+      )}
+
+      {/* Saving Overlay */}
+      {saving && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-[60] flex items-center justify-center">
+          <div className="bg-white rounded-lg px-6 py-4 flex items-center gap-3 shadow-xl">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+            <span className="text-gray-700 font-medium">Speichere...</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Kunden-Card Komponente
+interface KundenCardProps {
+  kunde: SaisonKundeMitDaten;
+  status: AnrufStatus;
+  onDragStart: (e: DragEvent) => void;
+  onDragEnd: () => void;
+  onErreicht: () => void;
+  onNichtErreicht: () => void;
+  saving: boolean;
+}
+
+const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNichtErreicht, saving }: KundenCardProps) => {
+  const [copiedTel, setCopiedTel] = useState<string | null>(null);
+
+  // Telefonnummer kopieren
+  const copyTelefon = async (nummer: string) => {
+    try {
+      await navigator.clipboard.writeText(nummer);
+      setCopiedTel(nummer);
+      setTimeout(() => setCopiedTel(null), 2000);
+    } catch (error) {
+      console.error('Kopieren fehlgeschlagen:', error);
+    }
+  };
+
+  // Erste Telefonnummer finden
+  const ersteTelefonnummer = kunde.ansprechpartner
+    .flatMap(ap => ap.telefonnummern)
+    .find(tel => tel.nummer);
+
+  // Rückruf-Info
+  const rueckrufDatum = kunde.aktuelleSaison?.rueckrufDatum 
+    ? new Date(kunde.aktuelleSaison.rueckrufDatum).toLocaleDateString('de-DE')
+    : null;
+
+  // Letzte Kontaktzeit
+  const letztAngerufen = kunde.aktuelleSaison?.letztAngerufen
+    ? new Date(kunde.aktuelleSaison.letztAngerufen).toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : null;
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all cursor-grab active:cursor-grabbing group"
+    >
+      {/* Header mit Drag Handle */}
+      <div className="flex items-start gap-2 mb-2">
+        <GripVertical className="w-4 h-4 text-gray-300 group-hover:text-gray-500 mt-1 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-gray-900 truncate">{kunde.kunde.name}</h4>
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <MapPin className="w-3 h-3" />
+            <span className="truncate">{kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}</span>
+          </div>
+          {kunde.kunde.typ === 'platzbauer' && (
+            <span className="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+              Platzbauer
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Telefonnummern */}
+      {kunde.ansprechpartner.length > 0 && (
+        <div className="mb-2 space-y-1">
+          {kunde.ansprechpartner.slice(0, 2).map((ap) => (
+            <div key={ap.id}>
+              {ap.telefonnummern.slice(0, 2).map((tel, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-sm">
+                  <a
+                    href={`tel:${tel.nummer.replace(/\s/g, '')}`}
+                    className="flex-1 text-blue-600 hover:text-blue-800 hover:underline font-medium truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    📞 {tel.nummer}
+                  </a>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyTelefon(tel.nummer);
+                    }}
+                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    title="Kopieren"
+                  >
+                    {copiedTel === tel.nummer ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                  {ap.name && (
+                    <span className="text-xs text-gray-400 truncate max-w-20">
+                      {ap.name}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Keine Telefonnummer Warnung */}
+      {!ersteTelefonnummer && (
+        <div className="flex items-center gap-1 text-xs text-orange-600 mb-2">
+          <AlertCircle className="w-3 h-3" />
+          <span>Keine Telefonnummer</span>
+        </div>
+      )}
+
+      {/* Zusatz-Info */}
+      {(rueckrufDatum || letztAngerufen || kunde.aktuelleSaison?.angefragteMenge) && (
+        <div className="text-xs text-gray-500 mb-2 space-y-0.5">
+          {rueckrufDatum && status === 'rueckruf' && (
+            <div className="flex items-center gap-1 text-purple-600">
+              <Calendar className="w-3 h-3" />
+              Rückruf: {rueckrufDatum}
+            </div>
+          )}
+          {letztAngerufen && status === 'erreicht' && (
+            <div className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Erreicht: {letztAngerufen}
+            </div>
+          )}
+          {kunde.aktuelleSaison?.angefragteMenge && (
+            <div className="flex items-center gap-1">
+              <Package className="w-3 h-3" />
+              {kunde.aktuelleSaison.angefragteMenge}t angefragt
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notiz Preview */}
+      {kunde.aktuelleSaison?.gespraechsnotizen && (
+        <div className="text-xs text-gray-400 mb-2 line-clamp-1 italic">
+          "{kunde.aktuelleSaison.gespraechsnotizen}"
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      {(status === 'anrufen' || status === 'nicht_erreicht' || status === 'rueckruf') && (
+        <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onNichtErreicht();
+            }}
+            disabled={saving}
+            className="flex-1 px-2 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors flex items-center justify-center gap-1"
+          >
+            <PhoneOff className="w-3.5 h-3.5" />
+            Nicht erreicht
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onErreicht();
+            }}
+            disabled={saving}
+            className="flex-1 px-2 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors flex items-center justify-center gap-1"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Erreicht ✓
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Ergebnis-Modal Komponente
+interface ErgebnisModalProps {
+  kunde: SaisonKundeMitDaten;
+  formData: AnrufErgebnis;
+  setFormData: (data: AnrufErgebnis) => void;
+  zielStatus: AnrufStatus;
+  platzbauerKunden: SaisonKundeMitDaten[];
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}
+
+const ErgebnisModal = ({ 
+  kunde, 
+  formData, 
+  setFormData, 
+  zielStatus, 
+  platzbauerKunden, 
+  onSave, 
+  onCancel, 
+  saving 
+}: ErgebnisModalProps) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[55] flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Modal Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              {zielStatus === 'erreicht' ? (
+                <>
+                  <CheckCircle2 className="w-6 h-6 text-green-500" />
+                  Kunde erreicht
+                </>
+              ) : (
+                <>
+                  <Clock className="w-6 h-6 text-purple-500" />
+                  Rückruf planen
+                </>
+              )}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">{kunde.kunde.name}</p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 space-y-6">
+          {/* Kunden-Info */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <User className="w-5 h-5 text-gray-400 mt-1" />
+              <div>
+                <h3 className="font-semibold text-gray-900">{kunde.kunde.name}</h3>
+                <p className="text-sm text-gray-600">
+                  {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
+                </p>
+                {kunde.ansprechpartner[0] && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    {kunde.ansprechpartner[0].name}
+                    {kunde.ansprechpartner[0].telefonnummern[0] && (
+                      <> • {kunde.ansprechpartner[0].telefonnummern[0].nummer}</>
+                    )}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Rückruf-Felder (nur wenn Rückruf) */}
+          {zielStatus === 'rueckruf' && (
+            <div className="space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <h4 className="font-medium text-purple-800 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Rückruf-Details
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rückruf-Datum *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.rueckrufDatum || ''}
+                    onChange={(e) => setFormData({ ...formData, rueckrufDatum: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rückruf-Notiz
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.rueckrufNotiz || ''}
+                    onChange={(e) => setFormData({ ...formData, rueckrufNotiz: e.target.value })}
+                    placeholder="z.B. Urlaub bis..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mengen und Preise */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Package className="w-4 h-4 inline mr-1" />
+                Angefragte Menge (Tonnen)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.angefragteMenge || ''}
+                onChange={(e) => setFormData({ ...formData, angefragteMenge: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="z.B. 5.0"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Euro className="w-4 h-4 inline mr-1" />
+                Preis pro Tonne (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.preisProTonne || ''}
+                onChange={(e) => setFormData({ ...formData, preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="z.B. 120.00"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+          </div>
+
+          {/* Bestellabsicht */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bestellabsicht
+            </label>
+            <div className="flex gap-3">
+              {[
+                { value: 'bestellt', label: 'Bestellt', color: 'green' },
+                { value: 'bestellt_nicht', label: 'Bestellt nicht', color: 'red' },
+                { value: 'unklar', label: 'Unklar', color: 'yellow' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setFormData({ ...formData, bestellabsicht: option.value as Bestellabsicht })}
+                  className={`flex-1 px-4 py-2 rounded-lg border-2 font-medium transition-all ${
+                    formData.bestellabsicht === option.value
+                      ? option.color === 'green'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : option.color === 'red'
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bezugsweg */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Bezugsweg
+              </label>
+              <select
+                value={formData.bezugsweg || ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  bezugsweg: e.target.value as Bezugsweg || undefined,
+                  platzbauerId: e.target.value === 'ueber_platzbauer' ? formData.platzbauerId : undefined 
+                })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Bitte wählen</option>
+                <option value="direkt">Direkt</option>
+                <option value="ueber_platzbauer">Über Platzbauer</option>
+              </select>
+            </div>
+            {formData.bezugsweg === 'ueber_platzbauer' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Platzbauer
+                </label>
+                <select
+                  value={formData.platzbauerId || ''}
+                  onChange={(e) => setFormData({ ...formData, platzbauerId: e.target.value || undefined })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Bitte wählen</option>
+                  {platzbauerKunden.map((pb) => (
+                    <option key={pb.kunde.id} value={pb.kunde.id}>
+                      {pb.kunde.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Lieferfenster */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Calendar className="w-4 h-4 inline mr-1" />
+                Frühestes Lieferdatum
+              </label>
+              <input
+                type="date"
+                value={formData.lieferfensterFrueh || ''}
+                onChange={(e) => setFormData({ ...formData, lieferfensterFrueh: e.target.value || undefined })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Calendar className="w-4 h-4 inline mr-1" />
+                Spätestes Lieferdatum
+              </label>
+              <input
+                type="date"
+                value={formData.lieferfensterSpaet || ''}
+                onChange={(e) => setFormData({ ...formData, lieferfensterSpaet: e.target.value || undefined })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+          </div>
+
+          {/* Notizen */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <MessageSquare className="w-4 h-4 inline mr-1" />
+              Gesprächsnotizen
+            </label>
+            <textarea
+              value={formData.notizen || ''}
+              onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
+              rows={4}
+              placeholder="Wichtige Infos aus dem Gespräch..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3 rounded-b-xl">
+          <button
+            onClick={onCancel}
+            disabled={saving}
+            className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={onSave}
+            disabled={saving || (zielStatus === 'rueckruf' && !formData.rueckrufDatum)}
+            className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Speichere...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                Speichern
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CallListeV2;

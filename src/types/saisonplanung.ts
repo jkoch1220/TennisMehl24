@@ -6,6 +6,9 @@ export type KundenTyp = 'verein' | 'platzbauer';
 // Gesprächsstatus für Call-Liste
 export type GespraechsStatus = 'offen' | 'in_bearbeitung' | 'erledigt';
 
+// Anruf-Status für das neue Call-Listen-Tool (Drag & Drop Tabs)
+export type AnrufStatus = 'anrufen' | 'nicht_erreicht' | 'erreicht' | 'rueckruf';
+
 // Bestellabsicht
 export type Bestellabsicht = 'bestellt' | 'bestellt_nicht' | 'unklar';
 
@@ -67,6 +70,11 @@ export interface SaisonDaten {
   erstelltAm: string;
   geaendertAm: string;
   erstelltVon?: string; // Wer hat Gespräch geführt
+  // Neue Felder für Call-Listen-Tool
+  anrufStatus?: AnrufStatus; // Aktueller Status im Call-Listen-Tool
+  letztAngerufen?: string; // ISO Date String - wann zuletzt angerufen/erreicht
+  rueckrufDatum?: string; // ISO Date String - geplanter Rückruftermin
+  rueckrufNotiz?: string; // Notiz für Rückruf
 }
 
 export type NeueSaisonDaten = Omit<SaisonDaten, 'id' | 'erstelltAm' | 'geaendertAm'> & {
@@ -154,6 +162,29 @@ export interface CallListeFilter {
   bezugsweg?: Bezugsweg[];
   platzbauerId?: string;
   suche?: string;
+  anrufStatus?: AnrufStatus[];
+}
+
+// Anruf-Log Eintrag für Tracking
+export interface AnrufLogEintrag {
+  zeitpunkt: string; // ISO Date String
+  status: AnrufStatus;
+  notiz?: string;
+}
+
+// Ergebnis eines erfolgreichen Anrufs
+export interface AnrufErgebnis {
+  erreicht: boolean;
+  angefragteMenge?: number;
+  preisProTonne?: number;
+  bestellabsicht?: Bestellabsicht;
+  bezugsweg?: Bezugsweg;
+  platzbauerId?: string;
+  lieferfensterFrueh?: string;
+  lieferfensterSpaet?: string;
+  notizen?: string;
+  rueckrufDatum?: string;
+  rueckrufNotiz?: string;
 }
 
 // Statistik

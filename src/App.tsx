@@ -9,6 +9,7 @@ import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import DispoPlanung from './components/DispoPlanung/DispoPlanung';
 import Saisonplanung from './components/Saisonplanung/Saisonplanung';
+import CallListePage from './pages/CallListePage';
 import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVerwaltung';
 import KonkurrentenVerwaltung from './components/KonkurrentenKarte/KonkurrentenVerwaltung';
 import Vorschlaege from './components/Tickets/Vorschlaege';
@@ -61,26 +62,34 @@ function App() {
 
   return (
     <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
-          <Route path="/fixkosten" element={<FixkostenRechner />} />
-          <Route path="/variable-kosten" element={<VariableKostenRechner />} />
-          <Route path="/dispo-planung" element={<DispoPlanung />} />
-          <Route path="/saisonplanung" element={<Saisonplanung />} />
-          <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
-          <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
-          <Route path="/kunden-karte" element={<KundenKarte />} />
-          <Route path="/kunden-liste" element={<KundenListe />} />
-          <Route path="/vorschlaege" element={<Vorschlaege />} />
-          <Route path="/todos" element={<Todos />} />
-          <Route path="/wiki" element={<Wiki />} />
-          {/* Legacy route redirect */}
-          <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        {/* Fullscreen Route ohne Layout */}
+        <Route path="/call-liste" element={<CallListePage />} />
+        
+        {/* Normale Routes mit Layout */}
+        <Route path="/*" element={
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
+              <Route path="/fixkosten" element={<FixkostenRechner />} />
+              <Route path="/variable-kosten" element={<VariableKostenRechner />} />
+              <Route path="/dispo-planung" element={<DispoPlanung />} />
+              <Route path="/saisonplanung" element={<Saisonplanung />} />
+              <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
+              <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
+              <Route path="/kunden-karte" element={<KundenKarte />} />
+              <Route path="/kunden-liste" element={<KundenListe />} />
+              <Route path="/vorschlaege" element={<Vorschlaege />} />
+              <Route path="/todos" element={<Todos />} />
+              <Route path="/wiki" element={<Wiki />} />
+              {/* Legacy route redirect */}
+              <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
+            </Routes>
+          </Layout>
+        } />
+      </Routes>
     </Router>
   );
 }
