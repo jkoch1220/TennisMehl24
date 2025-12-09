@@ -21,6 +21,8 @@ interface KundenFormularProps {
 const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplikate, setDuplikate] = useState<SaisonKunde[]>([]);
+  const [showDuplikatWarnung, setShowDuplikatWarnung] = useState(false);
 
   const [formData, setFormData] = useState<Partial<NeuerSaisonKunde>>({
     typ: 'verein',
@@ -125,7 +127,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     }
   }, [formData.typ]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, ignoreDuplikate = false) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
@@ -136,6 +138,22 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         setError('Name und Typ sind Pflichtfelder');
         setLoading(false);
         return;
+      }
+
+      // Duplikatsprüfung nur bei neuen Kunden
+      if (!kunde && !ignoreDuplikate) {
+        const gefundeneDuplikate = await saisonplanungService.pruefeDuplikat(
+          formData.name || '',
+          formData.adresse?.plz || '',
+          formData.adresse?.ort || ''
+        );
+        
+        if (gefundeneDuplikate.length > 0) {
+          setDuplikate(gefundeneDuplikate);
+          setShowDuplikatWarnung(true);
+          setLoading(false);
+          return;
+        }
       }
 
       let kundeId: string;
@@ -690,6 +708,55 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           </div>
         </form>
       </div>
+
+      {/* Duplikat-Warnung Modal */}
+      {showDuplikatWarnung && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Mögliche Duplikate gefunden</h3>
+            <p className="text-gray-700 mb-4">
+              Es wurden bereits Kunden mit ähnlichem Namen oder Adresse gefunden:
+            </p>
+            <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
+              {duplikate.map((dup) => (
+                <div key={dup.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  <div className="font-semibold text-gray-900">{dup.name}</div>
+                  <div className="text-sm text-gray-600">
+                    {dup.adresse.strasse && `${dup.adresse.strasse}, `}
+                    {dup.adresse.plz} {dup.adresse.ort}
+                    {dup.adresse.bundesland && ` (${dup.adresse.bundesland})`}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Typ: {dup.typ === 'verein' ? 'Verein' : 'Platzbauer'}
+                    {dup.kundennummer && ` • Kundennummer: ${dup.kundennummer}`}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDuplikatWarnung(false);
+                  setDuplikate([]);
+                  setLoading(false);
+                }}
+                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={(e) => {
+                  setShowDuplikatWarnung(false);
+                  handleSubmit(e as any, true);
+                }}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Trotzdem speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

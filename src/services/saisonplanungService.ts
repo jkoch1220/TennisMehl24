@@ -1054,4 +1054,35 @@ export const saisonplanungService = {
 
     return result;
   },
+
+  /**
+   * Prüft ob ein Kunde mit ähnlichem Namen/Adresse bereits existiert
+   */
+  async pruefeDuplikat(
+    name: string,
+    plz: string,
+    ort: string
+  ): Promise<SaisonKunde[]> {
+    const alleKunden = await this.loadAlleKunden();
+    const nameLower = name.toLowerCase().trim();
+    const plzTrimmed = plz.trim();
+    const ortLower = ort.toLowerCase().trim();
+
+    return alleKunden.filter((k) => {
+      const kundeNameLower = k.name.toLowerCase().trim();
+      const kundePlz = k.adresse.plz.trim();
+      const kundeOrt = k.adresse.ort.toLowerCase().trim();
+
+      // Exakte Namensübereinstimmung
+      const nameMatch = kundeNameLower === nameLower;
+      
+      // Adressübereinstimmung (PLZ + Ort)
+      const adresseMatch = kundePlz === plzTrimmed && kundeOrt === ortLower;
+
+      // Als Duplikat markieren wenn:
+      // 1) Exakter Name + gleiche Adresse
+      // 2) Exakter Name (auch wenn Adresse unterschiedlich - Warnung)
+      return nameMatch || adresseMatch;
+    });
+  },
 };

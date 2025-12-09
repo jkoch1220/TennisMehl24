@@ -145,7 +145,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
         erreicht: zielTab === 'erreicht',
         notizen: draggedKunde.aktuelleSaison?.gespraechsnotizen || '',
         angefragteMenge: draggedKunde.aktuelleSaison?.angefragteMenge,
-        preisProTonne: draggedKunde.aktuelleSaison?.preisProTonne || draggedKunde.kunde.zuletztGezahlterPreis,
+        preisProTonne: draggedKunde.aktuelleSaison?.preisProTonne, // Leer lassen, Vorjahrespreis separat anzeigen
         bestellabsicht: draggedKunde.aktuelleSaison?.bestellabsicht,
         bezugsweg: draggedKunde.aktuelleSaison?.bezugsweg || draggedKunde.kunde.standardBezugsweg,
         platzbauerId: draggedKunde.aktuelleSaison?.platzbauerId || draggedKunde.kunde.standardPlatzbauerId,
@@ -185,7 +185,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       erreicht: true,
       notizen: kunde.aktuelleSaison?.gespraechsnotizen || '',
       angefragteMenge: kunde.aktuelleSaison?.angefragteMenge,
-      preisProTonne: kunde.aktuelleSaison?.preisProTonne || kunde.kunde.zuletztGezahlterPreis,
+      preisProTonne: kunde.aktuelleSaison?.preisProTonne, // Leer lassen, Vorjahrespreis separat anzeigen
       bestellabsicht: kunde.aktuelleSaison?.bestellabsicht,
       bezugsweg: kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg,
       platzbauerId: kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId,
@@ -683,20 +683,49 @@ const ErgebnisModal = ({
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
+            {/* Vorjahrespreis - nicht editierbar */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-500 mb-1">
                 <Euro className="w-4 h-4 inline mr-1" />
-                Preis pro Tonne (€)
+                Preis Vorjahr (Referenz)
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.preisProTonne || ''}
-                onChange={(e) => setFormData({ ...formData, preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined })}
-                placeholder="z.B. 120.00"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
+              <div className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-medium">
+                {kunde.kunde.zuletztGezahlterPreis 
+                  ? `${kunde.kunde.zuletztGezahlterPreis.toFixed(2)} €/t`
+                  : '– kein Vorjahrespreis –'}
+              </div>
             </div>
+          </div>
+
+          {/* Neuer Preis diese Saison */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <Euro className="w-4 h-4 inline mr-1" />
+              Preis diese Saison (€/Tonne) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.preisProTonne || ''}
+              onChange={(e) => setFormData({ ...formData, preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined })}
+              placeholder="Neuen Preis eingeben..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-lg"
+            />
+            {kunde.kunde.zuletztGezahlterPreis && formData.preisProTonne && (
+              <p className={`text-sm mt-1 ${
+                formData.preisProTonne > kunde.kunde.zuletztGezahlterPreis 
+                  ? 'text-green-600' 
+                  : formData.preisProTonne < kunde.kunde.zuletztGezahlterPreis 
+                  ? 'text-red-600' 
+                  : 'text-gray-500'
+              }`}>
+                {formData.preisProTonne > kunde.kunde.zuletztGezahlterPreis 
+                  ? `↑ +${(formData.preisProTonne - kunde.kunde.zuletztGezahlterPreis).toFixed(2)} €/t mehr als Vorjahr`
+                  : formData.preisProTonne < kunde.kunde.zuletztGezahlterPreis 
+                  ? `↓ ${(kunde.kunde.zuletztGezahlterPreis - formData.preisProTonne).toFixed(2)} €/t weniger als Vorjahr`
+                  : '= Gleicher Preis wie Vorjahr'}
+              </p>
+            )}
           </div>
 
           {/* Bestellabsicht */}
