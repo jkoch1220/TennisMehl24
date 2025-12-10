@@ -1,9 +1,27 @@
 import { Link } from 'react-router-dom';
 import { Package, BarChart3, TrendingUp } from 'lucide-react';
-import { useToolSettings } from '../hooks/useToolSettings';
+import { useAuth } from '../contexts/AuthContext';
+import { filterAllowedTools } from '../services/permissionsService';
+import { ALL_TOOLS } from '../constants/tools';
 
 const Home = () => {
-  const { enabledTools } = useToolSettings();
+  const { user } = useAuth();
+  
+  // Tools basierend auf User-Berechtigungen filtern
+  const enabledTools = filterAllowedTools(user, ALL_TOOLS);
+  
+  // Zusätzlich lokale Visibility-Settings beachten
+  const localVisibility = (() => {
+    try {
+      const stored = localStorage.getItem('tm_local_tool_visibility_v1');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  })();
+  
+  // Nur Tools anzeigen die sowohl erlaubt als auch lokal nicht ausgeblendet sind
+  const visibleTools = enabledTools.filter(tool => localVisibility[tool.id] !== false);
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -21,7 +39,7 @@ const Home = () => {
 
         {/* Tools Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {enabledTools.map((tool) => {
+          {visibleTools.map((tool) => {
             const Icon = tool.icon;
             const content = (
               <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all cursor-pointer hover:scale-105">

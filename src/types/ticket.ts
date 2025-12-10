@@ -7,6 +7,8 @@ export interface Ticket {
   erstelltAm: string; // ISO Date String
   geaendertAm: string; // ISO Date String
   erstelltVon?: string; // Name des Erstellers
+  erstelltVonId?: string; // User-ID des Erstellers
+  sortIndex?: number; // Für manuelle Sortierung/Priorisierung
 }
 
 export type TicketStatus = 'offen' | 'in_bearbeitung' | 'erledigt' | 'abgelehnt';

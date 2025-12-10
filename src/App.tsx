@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Login from './components/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Dashboard from './components/Dashboard/Dashboard';
 import SpeditionskostenRechner from './components/SpeditionskostenRechner';
@@ -12,40 +14,26 @@ import Saisonplanung from './components/Saisonplanung/Saisonplanung';
 import CallListePage from './pages/CallListePage';
 import KreditorenVerwaltung from './components/KreditorenVerwaltung/KreditorenVerwaltung';
 import KonkurrentenVerwaltung from './components/KonkurrentenKarte/KonkurrentenVerwaltung';
-import Vorschlaege from './components/Tickets/Vorschlaege';
+import VorschlaegeNeu from './components/Tickets/VorschlaegeNeu';
 import Todos from './components/Todos/Todos';
 import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
 import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
 import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
 import Stammdaten from './components/Stammdaten/Stammdaten';
-import { isAuthenticated } from './utils/auth';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
-function App() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+// App Content Komponente (braucht Auth Context)
+function AppContent() {
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    // Prüfe beim Start, ob bereits eine Session existiert
-    const checkAuth = () => {
-      const auth = isAuthenticated();
-      setAuthenticated(auth);
-      setLoading(false);
-    };
-
-    checkAuth();
-    
     // Appwrite Auto-Setup (läuft einmal pro Tab, wenn API Key verfügbar)
     if (import.meta.env.VITE_APPWRITE_API_KEY && typeof window !== 'undefined' && !sessionStorage.getItem('appwrite_setup_run')) {
       sessionStorage.setItem('appwrite_setup_run', 'true');
       setupAppwriteFields().catch(console.error);
     }
   }, []);
-
-  const handleLogin = () => {
-    setAuthenticated(true);
-  };
 
   if (loading) {
     return (
@@ -58,44 +46,124 @@ function App() {
     );
   }
 
-  if (!authenticated) {
-    return <Login onLogin={handleLogin} />;
+  if (!user) {
+    return <Login />;
   }
 
   return (
     <Router>
       <Routes>
-        {/* Fullscreen Route ohne Layout */}
-        <Route path="/call-liste" element={<CallListePage />} />
+        {/* Fullscreen Route ohne Layout - auch geschützt */}
+        <Route path="/call-liste" element={
+          <ProtectedRoute toolId="saisonplanung">
+            <CallListePage />
+          </ProtectedRoute>
+        } />
         
         {/* Normale Routes mit Layout */}
         <Route path="/*" element={
           <Layout>
             <Routes>
+              {/* Startseite - immer zugänglich */}
               <Route path="/" element={<Home />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/speditionskosten" element={<SpeditionskostenRechner />} />
-              <Route path="/fixkosten" element={<FixkostenRechner />} />
-              <Route path="/variable-kosten" element={<VariableKostenRechner />} />
-              <Route path="/dispo-planung" element={<DispoPlanung />} />
-              <Route path="/saisonplanung" element={<Saisonplanung />} />
-              <Route path="/kreditoren" element={<KreditorenVerwaltung />} />
-              <Route path="/konkurrenten" element={<KonkurrentenVerwaltung />} />
-              <Route path="/kunden-karte" element={<KundenKarte />} />
-              {/* Bestellabwicklung nur noch über Projekte zugänglich */}
-              <Route path="/bestellabwicklung/:projektId" element={<Bestellabwicklung />} />
-              <Route path="/projekt-verwaltung" element={<ProjektVerwaltung />} />
-              <Route path="/vorschlaege" element={<Vorschlaege />} />
-              <Route path="/todos" element={<Todos />} />
-              <Route path="/wiki" element={<Wiki />} />
-              <Route path="/stammdaten" element={<Stammdaten />} />
-              {/* Legacy route redirect */}
-              <Route path="/ziegelmehl" element={<SpeditionskostenRechner />} />
+              
+              {/* Geschützte Tool-Routes */}
+              <Route path="/dashboard" element={
+                <ProtectedRoute toolId="dashboard">
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/speditionskosten" element={
+                <ProtectedRoute toolId="speditionskosten">
+                  <SpeditionskostenRechner />
+                </ProtectedRoute>
+              } />
+              <Route path="/fixkosten" element={
+                <ProtectedRoute toolId="fixkosten">
+                  <FixkostenRechner />
+                </ProtectedRoute>
+              } />
+              <Route path="/variable-kosten" element={
+                <ProtectedRoute toolId="variable-kosten">
+                  <VariableKostenRechner />
+                </ProtectedRoute>
+              } />
+              <Route path="/dispo-planung" element={
+                <ProtectedRoute toolId="dispo-planung">
+                  <DispoPlanung />
+                </ProtectedRoute>
+              } />
+              <Route path="/saisonplanung" element={
+                <ProtectedRoute toolId="saisonplanung">
+                  <Saisonplanung />
+                </ProtectedRoute>
+              } />
+              <Route path="/kreditoren" element={
+                <ProtectedRoute toolId="kreditoren">
+                  <KreditorenVerwaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/konkurrenten" element={
+                <ProtectedRoute toolId="konkurrenten">
+                  <KonkurrentenVerwaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/kunden-karte" element={
+                <ProtectedRoute toolId="kunden-karte">
+                  <KundenKarte />
+                </ProtectedRoute>
+              } />
+              <Route path="/bestellabwicklung/:projektId" element={
+                <ProtectedRoute toolId="projekt-verwaltung">
+                  <Bestellabwicklung />
+                </ProtectedRoute>
+              } />
+              <Route path="/projekt-verwaltung" element={
+                <ProtectedRoute toolId="projekt-verwaltung">
+                  <ProjektVerwaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/vorschlaege" element={
+                <ProtectedRoute toolId="vorschlaege">
+                  <VorschlaegeNeu />
+                </ProtectedRoute>
+              } />
+              <Route path="/todos" element={
+                <ProtectedRoute toolId="todos">
+                  <Todos />
+                </ProtectedRoute>
+              } />
+              <Route path="/wiki" element={
+                <ProtectedRoute toolId="wiki">
+                  <Wiki />
+                </ProtectedRoute>
+              } />
+              <Route path="/stammdaten" element={
+                <ProtectedRoute toolId="stammdaten">
+                  <Stammdaten />
+                </ProtectedRoute>
+              } />
+              
+              {/* Legacy route redirect - auch geschützt */}
+              <Route path="/ziegelmehl" element={
+                <ProtectedRoute toolId="speditionskosten">
+                  <SpeditionskostenRechner />
+                </ProtectedRoute>
+              } />
             </Routes>
           </Layout>
         } />
       </Routes>
     </Router>
+  );
+}
+
+// Main App mit AuthProvider
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

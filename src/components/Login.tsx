@@ -1,15 +1,13 @@
 import { useState, FormEvent } from 'react';
-import { Lock, AlertCircle } from 'lucide-react';
-import { verifyPassword, setSession } from '../utils/auth';
+import { Lock, AlertCircle, User as UserIcon } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-interface LoginProps {
-  onLogin: () => void;
-}
-
-const Login = ({ onLogin }: LoginProps) => {
+const Login = () => {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -17,16 +15,10 @@ const Login = ({ onLogin }: LoginProps) => {
     setIsLoading(true);
 
     try {
-      const isValid = await verifyPassword(password);
-      if (isValid) {
-        setSession();
-        onLogin();
-      } else {
-        setError('Falsches Passwort. Bitte versuchen Sie es erneut.');
-        setPassword('');
-      }
-    } catch (err) {
-      setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.');
+      await login(username, password);
+    } catch (err: any) {
+      setError(err.message || 'Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.');
+      setPassword('');
     } finally {
       setIsLoading(false);
     }
@@ -43,11 +35,36 @@ const Login = ({ onLogin }: LoginProps) => {
             TennisMehl24
           </h1>
           <p className="text-gray-600">
-            Bitte geben Sie das Passwort ein, um fortzufahren
+            Bitte melden Sie sich mit Ihren Zugangsdaten an
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label
+              htmlFor="username"
+              className="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              Benutzername
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <UserIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+                placeholder="Benutzername eingeben"
+                autoFocus
+                disabled={isLoading}
+                required
+              />
+            </div>
+          </div>
+
           <div>
             <label
               htmlFor="password"
@@ -55,16 +72,21 @@ const Login = ({ onLogin }: LoginProps) => {
             >
               Passwort
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
-              placeholder="Passwort eingeben"
-              autoFocus
-              disabled={isLoading}
-            />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+                placeholder="Passwort eingeben"
+                disabled={isLoading}
+                required
+              />
+            </div>
           </div>
 
           {error && (
@@ -76,16 +98,16 @@ const Login = ({ onLogin }: LoginProps) => {
 
           <button
             type="submit"
-            disabled={isLoading || !password}
+            disabled={isLoading || !username || !password}
             className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
           >
-            {isLoading ? 'Wird überprüft...' : 'Anmelden'}
+            {isLoading ? 'Wird angemeldet...' : 'Anmelden'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
-            Diese Anwendung ist passwortgeschützt
+            Zugriff nur für autorisierte Benutzer
           </p>
         </div>
       </div>

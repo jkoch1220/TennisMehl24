@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ticketService } from '../../services/ticketService';
 import { NeuesTicket, TicketPrioritaet } from '../../types/ticket';
-import { MessageSquare, X } from 'lucide-react';
+import { MessageSquare, X, User } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const VorschlagButton = () => {
   const location = useLocation();
+  const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<NeuesTicket>({
     titel: '',
@@ -28,7 +30,7 @@ const VorschlagButton = () => {
 
     setIsSubmitting(true);
     try {
-      await ticketService.createTicket(formData);
+      await ticketService.createTicket(formData, user?.$id, user?.name);
       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
       setShowForm(false);
       alert('Vorschlag erfolgreich angelegt!');
@@ -118,6 +120,14 @@ const VorschlagButton = () => {
                     <option value="kritisch">Kritisch</option>
                   </select>
                 </div>
+                {user && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-600" />
+                    <p className="text-sm text-blue-800">
+                      Erstellt als: <strong>{user.name}</strong>
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-4">
                   <button
                     type="button"

@@ -38,7 +38,7 @@ export const ticketService = {
   },
 
   // Erstelle neues Ticket
-  async createTicket(ticket: NeuesTicket): Promise<Ticket> {
+  async createTicket(ticket: NeuesTicket, userId?: string, userName?: string): Promise<Ticket> {
     const jetzt = new Date().toISOString();
     const neuesTicket: Ticket = {
       ...ticket,
@@ -47,6 +47,9 @@ export const ticketService = {
       prioritaet: ticket.prioritaet || 'normal',
       erstelltAm: jetzt,
       geaendertAm: jetzt,
+      erstelltVon: userName,
+      erstelltVonId: userId,
+      sortIndex: Date.now(), // Neueste haben höchsten Index
     };
 
     try {

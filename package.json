@@ -8,7 +8,12 @@
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "setup:appwrite": "node scripts/setup-appwrite-fields.js"
+    "setup:appwrite": "node scripts/setup-appwrite-fields.js",
+    "setup:users": "node scripts/setup-users.js",
+    "list:users": "node scripts/list-users.js",
+    "delete:user": "node scripts/delete-user.js",
+    "cleanup:users": "node scripts/cleanup-users.js",
+    "cache:users": "node scripts/cache-users-helper.js"
   },
   "dependencies": {
     "appwrite": "^21.4.0",

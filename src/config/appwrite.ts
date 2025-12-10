@@ -1,4 +1,4 @@
-import { Client, Databases, Storage } from 'appwrite';
+import { Client, Databases, Storage, Account } from 'appwrite';
 
 // Database und Collection IDs (müssen zuerst definiert werden)
 export const DATABASE_ID = 'tennismehl24_db';
@@ -29,6 +29,7 @@ export const PROJEKTE_COLLECTION_ID = 'projekte';
 export const ARTIKEL_COLLECTION_ID = 'artikel';
 export const STAMMDATEN_COLLECTION_ID = 'stammdaten';
 export const BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
+export const USER_PERMISSIONS_COLLECTION_ID = 'user_permissions';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -58,6 +59,7 @@ export const COLLECTIONS = {
   ARTIKEL: ARTIKEL_COLLECTION_ID,
   STAMMDATEN: STAMMDATEN_COLLECTION_ID,
   BESTELLABWICKLUNG_DOKUMENTE: BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+  USER_PERMISSIONS: USER_PERMISSIONS_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
@@ -87,6 +89,7 @@ client.setEndpoint(endpoint).setProject(projectId);
 
 export const databases = new Databases(client);
 export const storage = new Storage(client);
+export const account = new Account(client);
 export { client };
 
 // Debug: Zeige Konfiguration in Development
