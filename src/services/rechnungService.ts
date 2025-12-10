@@ -232,7 +232,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     }
     
     return [
-      pos.artikelnummer || '',
+      pos.artikelnummer || '-',  // Artikel-Nr. (mit Fallback)
       bezeichnungMitBeschreibung,
       pos.menge.toString(),
       pos.einheit,
@@ -243,8 +243,8 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25, bottom: 30 },
-    head: [['Artikel-Nr.', 'Leistungsbeschreibung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt']],
+    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    head: [['Art.Nr.', 'Leistung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -258,13 +258,13 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 25, halign: 'left' },
-      1: { cellWidth: 70, halign: 'left', valign: 'top' },
-      2: { cellWidth: 18, halign: 'right' },
-      3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 24, halign: 'right', valign: 'middle' },
-      5: { cellWidth: 24, halign: 'right' }
-    },
+      0: { cellWidth: 16, halign: 'left' },    // Art.Nr.
+      1: { cellWidth: 68, halign: 'left', valign: 'top' },  // Leistung
+      2: { cellWidth: 16, halign: 'right' },   // Menge
+      3: { cellWidth: 16, halign: 'center' },  // Einh.
+      4: { cellWidth: 22, halign: 'right', valign: 'middle' },  // Stückpr.
+      5: { cellWidth: 22, halign: 'right' }    // Gesamt
+    }, // Summe: 160mm
     didParseCell: function(data: any) {
       // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
       if (data.column.index === 1 && data.section === 'body') {

@@ -163,6 +163,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     }
     
     return [
+      pos.artikelnummer || '-',  // Artikel-Nr. als erste Spalte
       bezeichnungMitBeschreibung,
       pos.menge.toString(),
       pos.einheit,
@@ -173,14 +174,14 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25, bottom: 30 },
-    head: [['Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamtpreis']],
+    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    head: [['Art.Nr.', 'Bezeichnung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
-      fontSize: 10,
+      fontSize: 9,
       fontStyle: 'bold'
     },
     styles: {
@@ -188,21 +189,22 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 75, valign: 'top' },
-      1: { cellWidth: 18, halign: 'right' },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 27, halign: 'right', valign: 'middle' },
-      4: { cellWidth: 27, halign: 'right' }
-    },
+      0: { cellWidth: 16, halign: 'left' },    // Art.Nr.
+      1: { cellWidth: 68, valign: 'top' },     // Bezeichnung
+      2: { cellWidth: 16, halign: 'right' },   // Menge
+      3: { cellWidth: 16 },                    // Einh.
+      4: { cellWidth: 22, halign: 'right', valign: 'middle' },  // Stückpr.
+      5: { cellWidth: 22, halign: 'right' }    // Gesamt
+    }, // Summe: 160mm
     didParseCell: function(data: any) {
       // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
-      if (data.column.index === 0 && data.section === 'body') {
+      if (data.column.index === 1 && data.section === 'body') {
         data.cell.styles.fontSize = 9;
       }
     },
     didDrawCell: function(data: any) {
       // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
-      if (data.column.index === 3 && data.section === 'body') {
+      if (data.column.index === 4 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
@@ -389,7 +391,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.setFontSize(9);
   
   summenY += 5;
-  doc.text(`Zahlungsziel: ${daten.zahlungsziel} Tage`, 25, summenY);
+  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
   
   if (daten.skonto) {
     summenY += 4;
@@ -595,6 +597,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     }
     
     return [
+      pos.artikelnummer || '-',  // Artikel-Nr. als erste Spalte
       bezeichnungMitBeschreibung,
       pos.menge.toString(),
       pos.einheit,
@@ -605,14 +608,14 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25, bottom: 30 },
-    head: [['Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamtpreis']],
+    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    head: [['Art.Nr.', 'Bezeichnung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
     headStyles: {
       fillColor: [237, 137, 54], // orange-500
       textColor: [255, 255, 255],
-      fontSize: 10,
+      fontSize: 9,
       fontStyle: 'bold'
     },
     styles: {
@@ -620,21 +623,22 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 75, valign: 'top' },
-      1: { cellWidth: 18, halign: 'right' },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 27, halign: 'right', valign: 'middle' },
-      4: { cellWidth: 27, halign: 'right' }
-    },
+      0: { cellWidth: 16, halign: 'left' },    // Art.Nr.
+      1: { cellWidth: 68, valign: 'top' },     // Bezeichnung
+      2: { cellWidth: 16, halign: 'right' },   // Menge
+      3: { cellWidth: 16 },                    // Einh.
+      4: { cellWidth: 22, halign: 'right', valign: 'middle' },  // Stückpr.
+      5: { cellWidth: 22, halign: 'right' }    // Gesamt
+    }, // Summe: 160mm (passt zu 165mm Content-Breite bei DIN 5008)
     didParseCell: function(data: any) {
       // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
-      if (data.column.index === 0 && data.section === 'body') {
+      if (data.column.index === 1 && data.section === 'body') {
         data.cell.styles.fontSize = 9;
       }
     },
     didDrawCell: function(data: any) {
       // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
-      if (data.column.index === 3 && data.section === 'body') {
+      if (data.column.index === 4 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
@@ -1006,6 +1010,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   const tableData = daten.positionen.map(pos => {
     const row = [
+      pos.artikelnummer || '-',  // Artikel-Nr. als erste Spalte
       pos.artikel,
       pos.menge.toString(),
       pos.einheit
@@ -1022,14 +1027,14 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25, bottom: 30 },
-    head: [['Artikel', 'Menge', 'Einheit', 'Serien-/Chargennr.']],
+    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    head: [['Art.Nr.', 'Artikel', 'Menge', 'Einh.', 'Serien-/Chargennr.']],
     body: tableData,
     theme: 'striped',
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
-      fontSize: 10,
+      fontSize: 9,
       fontStyle: 'bold'
     },
     styles: {
@@ -1037,11 +1042,12 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 85 },
-      1: { cellWidth: 22, halign: 'right' },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 37 }
-    },
+      0: { cellWidth: 16, halign: 'left' },    // Art.Nr.
+      1: { cellWidth: 66 },                    // Artikel
+      2: { cellWidth: 16, halign: 'right' },   // Menge
+      3: { cellWidth: 18 },                    // Einh.
+      4: { cellWidth: 44 }                     // Serien-/Chargennr.
+    }, // Summe: 160mm
     // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
     didDrawPage: function(data) {
       if (data.pageNumber > 1) {

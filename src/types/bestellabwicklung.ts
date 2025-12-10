@@ -14,6 +14,7 @@ export interface Position {
 
 export interface LieferscheinPosition {
   id: string;
+  artikelnummer?: string;
   artikel: string;
   menge: number;
   einheit: string;
