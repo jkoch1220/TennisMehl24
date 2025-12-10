@@ -286,7 +286,21 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
             // Linie nur über dem Text, rechtsbündig in der Zelle
             const x2 = cell.x + cell.width - cell.padding('right');
             const x1 = x2 - textWidth;
-            const y = cell.y + cell.padding('top') + 1.5; // Mittig über der ersten Textzeile
+            
+            // Y-Position berechnen für valign: 'middle'
+            // FontSize 9pt = ~3.175mm, Zeilenhöhe ~3.65mm (mit lineHeight 1.15)
+            const fontSizeInMm = 9 * 0.352778;
+            const lineHeight = fontSizeInMm * 1.15;
+            const totalTextHeight = lines.length * lineHeight;
+            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
+            
+            // Bei valign: 'middle' startet der Text zentriert
+            // Baseline der ersten Zeile = cell.y + padding + offset + fontSizeInMm
+            const verticalOffset = (availableHeight - totalTextHeight) / 2;
+            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            
+            // Streichlinie mittig durch den Text (35% über der Baseline)
+            const y = firstLineBaseline - (fontSizeInMm * 0.35);
             
             doc.setDrawColor(150, 150, 150);
             doc.setLineWidth(0.4);

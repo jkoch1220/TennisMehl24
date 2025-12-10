@@ -126,6 +126,55 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           });
         }
         
+        // Für Kunden mit Bezugsweg "direkt": Standard-Artikel hinzufügen
+        const bezugsweg = projekt?.bezugsweg;
+        if (bezugsweg === 'direkt') {
+          try {
+            // Lade alle Artikel aus Appwrite
+            const alleArtikel = await getAlleArtikel();
+            
+            // Suche nach den drei Standard-Artikeln anhand ihrer Artikelnummern
+            const standardArtikelNummern = [
+              'TM-ZM-02',  // Tennissand 0/2
+              'TM-PE',     // PE Folie
+              'TM-FP'      // Frachtkostenpauschale
+            ];
+            
+            // Starte Position-ID nach bereits vorhandenen Positionen
+            let positionId = initialePositionen.length + 1;
+            let hinzugefuegteArtikel = 0;
+            
+            for (const artikelnummer of standardArtikelNummern) {
+              const artikel = alleArtikel.find(a => a.artikelnummer === artikelnummer);
+              
+              if (artikel) {
+                initialePositionen.push({
+                  id: positionId.toString(),
+                  artikelnummer: artikel.artikelnummer,
+                  bezeichnung: artikel.bezeichnung,
+                  beschreibung: artikel.beschreibung || '',
+                  menge: 1,
+                  einheit: artikel.einheit,
+                  einzelpreis: artikel.einzelpreis ?? 0,
+                  streichpreis: artikel.streichpreis,
+                  gesamtpreis: artikel.einzelpreis ?? 0,
+                });
+                positionId++;
+                hinzugefuegteArtikel++;
+              }
+            }
+            
+            // Falls keine Artikel gefunden wurden, Warnung ausgeben
+            if (hinzugefuegteArtikel === 0) {
+              console.warn('Keine Standard-Artikel für Direkt-Kunden gefunden. Bitte legen Sie die Artikel in den Stammdaten an: TM-ZM-02 (Tennissand 0/2), TM-PE (PE Folie), TM-FP (Frachtkostenpauschale)');
+            } else {
+              console.info(`${hinzugefuegteArtikel} Standard-Artikel für Direkt-Kunden hinzugefügt`);
+            }
+          } catch (error) {
+            console.error('Fehler beim Laden der Standard-Artikel:', error);
+          }
+        }
+        
         let angebotsnummer = projekt?.angebotsnummer;
         if (!angebotsnummer) {
           try {
