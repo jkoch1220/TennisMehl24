@@ -1,8 +1,17 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Download } from 'lucide-react';
-import { LieferscheinDaten, LieferscheinPosition } from '../../types/bestellabwicklung';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff } from 'lucide-react';
+import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import {
+  ladeDokumentNachTyp,
+  speichereLieferschein,
+  aktualisereLieferschein,
+  ladeDokumentDaten,
+  getFileDownloadUrl,
+  speichereEntwurf,
+  ladeEntwurf
+} from '../../services/bestellabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 
 interface LieferscheinTabProps {
@@ -38,10 +47,113 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     positionen: [],
   });
   
+  // Dokument-Status
+  const [gespeichertesDokument, setGespeichertesDokument] = useState<GespeichertesDokument | null>(null);
+  const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
+  const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
+  const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
+  
+  // Auto-Save Status
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const hatGeaendert = useRef(false);
+  const initialLaden = useRef(true);
+  
+  // Gespeichertes Dokument und Entwurf laden (wenn Projekt vorhanden)
+  useEffect(() => {
+    const ladeDokument = async () => {
+      if (!projekt?.$id) {
+        setLadeStatus('bereit');
+        initialLaden.current = false;
+        return;
+      }
+      
+      try {
+        setLadeStatus('laden');
+        
+        // Erst prüfen ob ein finalisiertes Dokument existiert
+        const dokument = await ladeDokumentNachTyp(projekt.$id, 'lieferschein');
+        
+        if (dokument) {
+          setGespeichertesDokument(dokument);
+          // Lade gespeicherte Daten für Bearbeitung
+          const gespeicherteDaten = ladeDokumentDaten<LieferscheinDaten>(dokument);
+          if (gespeicherteDaten) {
+            // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
+            setLieferscheinDaten({
+              ...gespeicherteDaten,
+              kundennummer: gespeicherteDaten.kundennummer || projekt?.kundennummer,
+              kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
+              kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+            });
+          }
+          setAutoSaveStatus('gespeichert');
+        } else {
+          // Kein finalisiertes Dokument - versuche Entwurf zu laden
+          const entwurf = await ladeEntwurf<LieferscheinDaten>(projekt.$id, 'lieferscheinDaten');
+          if (entwurf) {
+            // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
+            setLieferscheinDaten({
+              ...entwurf,
+              kundennummer: entwurf.kundennummer || projekt?.kundennummer,
+              kundenname: entwurf.kundenname || projekt?.kundenname || '',
+              kundenstrasse: entwurf.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: entwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+            });
+            setAutoSaveStatus('gespeichert');
+          }
+        }
+        
+        setLadeStatus('bereit');
+        initialLaden.current = false;
+      } catch (error) {
+        console.error('Fehler beim Laden des Dokuments:', error);
+        setLadeStatus('bereit');
+        initialLaden.current = false;
+      }
+    };
+    
+    ladeDokument();
+  }, [projekt?.$id]);
+
+  // Auto-Save mit Debounce
+  const speichereAutomatisch = useCallback(async (daten: LieferscheinDaten) => {
+    if (!projekt?.$id || initialLaden.current || gespeichertesDokument) return;
+    
+    try {
+      setAutoSaveStatus('speichern');
+      await speichereEntwurf(projekt.$id, 'lieferscheinDaten', daten);
+      setAutoSaveStatus('gespeichert');
+    } catch (error) {
+      console.error('Auto-Save Fehler:', error);
+      setAutoSaveStatus('fehler');
+    }
+  }, [projekt?.$id, gespeichertesDokument]);
+
+  // Debounced Auto-Save bei Änderungen
+  useEffect(() => {
+    if (initialLaden.current || !hatGeaendert.current || gespeichertesDokument) return;
+    
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    
+    debounceTimer.current = setTimeout(() => {
+      speichereAutomatisch(lieferscheinDaten);
+    }, 1500);
+    
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [lieferscheinDaten, speichereAutomatisch, gespeichertesDokument]);
+
   // Lieferscheinnummer generieren (nur wenn noch keine vorhanden ist)
   useEffect(() => {
     const generiereNummer = async () => {
-      if (!lieferscheinDaten.lieferscheinnummer && !projekt?.lieferscheinnummer) {
+      if (!lieferscheinDaten.lieferscheinnummer && !projekt?.lieferscheinnummer && !gespeichertesDokument) {
         try {
           const neueNummer = await generiereNaechsteDokumentnummer('lieferschein');
           setLieferscheinDaten(prev => ({ ...prev, lieferscheinnummer: neueNummer }));
@@ -55,11 +167,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       }
     };
     generiereNummer();
-  }, []);
+  }, [gespeichertesDokument]);
   
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
     const ladeDaten = async () => {
+      // Nicht überschreiben wenn bereits ein Dokument geladen wurde
+      if (gespeichertesDokument) return;
+      
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
@@ -97,18 +212,19 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
-          bemerkung: projekt?.notizen || kundeInfo?.notizen || prev.bemerkung,
         }));
       }
     };
     ladeDaten();
-  }, [projekt, kundeInfo]);
+  }, [projekt, kundeInfo, gespeichertesDokument]);
 
   const handleInputChange = (field: keyof LieferscheinDaten, value: any) => {
+    hatGeaendert.current = true;
     setLieferscheinDaten(prev => ({ ...prev, [field]: value }));
   };
 
   const handlePositionChange = (index: number, field: keyof LieferscheinPosition, value: any) => {
+    hatGeaendert.current = true;
     const neuePositionen = [...lieferscheinDaten.positionen];
     neuePositionen[index] = {
       ...neuePositionen[index],
@@ -119,6 +235,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   };
 
   const addPosition = () => {
+    hatGeaendert.current = true;
     const neuePosition: LieferscheinPosition = {
       id: Date.now().toString(),
       artikel: '',
@@ -133,15 +250,17 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   };
 
   const removePosition = (index: number) => {
+    hatGeaendert.current = true;
     setLieferscheinDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
     }));
   };
 
+  // Nur PDF generieren und herunterladen (ohne Speicherung)
   const generiereUndLadeLieferschein = async () => {
     try {
-      console.log('Generiere Lieferschein...', lieferscheinDaten);
+      console.log('Generiere Lieferschein (nur Download)...', lieferscheinDaten);
       const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
       pdf.save(`Lieferschein_${lieferscheinDaten.lieferscheinnummer}.pdf`);
       console.log('Lieferschein erfolgreich generiert!');
@@ -151,11 +270,186 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     }
   };
 
+  // Speichern in Appwrite
+  const speichereUndHinterlegeLieferschein = async () => {
+    if (!projekt?.$id) {
+      setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
+      return;
+    }
+    
+    try {
+      setLadeStatus('speichern');
+      setStatusMeldung(null);
+      
+      let neuesDokument: GespeichertesDokument;
+      
+      if (gespeichertesDokument && istBearbeitungsModus) {
+        // Aktualisieren
+        neuesDokument = await aktualisereLieferschein(
+          gespeichertesDokument.$id!,
+          gespeichertesDokument.dateiId,
+          lieferscheinDaten
+        );
+        setStatusMeldung({ typ: 'erfolg', text: 'Lieferschein erfolgreich aktualisiert!' });
+      } else {
+        // Neu erstellen
+        neuesDokument = await speichereLieferschein(projekt.$id, lieferscheinDaten);
+        setStatusMeldung({ typ: 'erfolg', text: 'Lieferschein erfolgreich gespeichert und hinterlegt!' });
+      }
+      
+      setGespeichertesDokument(neuesDokument);
+      setIstBearbeitungsModus(false);
+      setLadeStatus('bereit');
+      
+      // Status-Meldung nach 5 Sekunden ausblenden
+      setTimeout(() => setStatusMeldung(null), 5000);
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      setStatusMeldung({ typ: 'fehler', text: 'Fehler beim Speichern: ' + (error as Error).message });
+      setLadeStatus('fehler');
+    }
+  };
+
+  // Zeige Lade-Indikator
+  if (ladeStatus === 'laden') {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+        <span className="ml-3 text-gray-600">Lade Dokument...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* Linke Spalte - Formular */}
       <div className="lg:col-span-3 space-y-6">
         
+        {/* STATUS-BANNER: Bereits hinterlegtes Dokument */}
+        {gespeichertesDokument && !istBearbeitungsModus && (
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <FileCheck className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-green-800">Lieferschein hinterlegt</h3>
+                <p className="text-sm text-green-700 mt-1">
+                  <strong>{gespeichertesDokument.dokumentNummer}</strong> wurde am{' '}
+                  {gespeichertesDokument.$createdAt && new Date(gespeichertesDokument.$createdAt).toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })} gespeichert.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <a
+                    href={getFileDownloadUrl(gespeichertesDokument.dateiId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    <Download className="h-4 w-4" />
+                    PDF herunterladen
+                  </a>
+                  <button
+                    onClick={() => setIstBearbeitungsModus(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Bearbeiten & neu speichern
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bearbeitungs-Hinweis */}
+        {istBearbeitungsModus && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Edit3 className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Bearbeitungsmodus aktiv</p>
+                <p className="text-xs text-amber-700">Änderungen werden nach dem Speichern den bestehenden Lieferschein ersetzen.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIstBearbeitungsModus(false);
+                  // Originaldaten wiederherstellen
+                  if (gespeichertesDokument) {
+                    const gespeicherteDaten = ladeDokumentDaten<LieferscheinDaten>(gespeichertesDokument);
+                    if (gespeicherteDaten) {
+                      setLieferscheinDaten(gespeicherteDaten);
+                    }
+                  }
+                }}
+                className="ml-auto text-sm text-amber-700 hover:text-amber-900 underline"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Status-Meldung */}
+        {statusMeldung && (
+          <div className={`rounded-xl p-4 flex items-center gap-3 ${
+            statusMeldung.typ === 'erfolg'
+              ? 'bg-green-50 border border-green-200'
+              : 'bg-red-50 border border-red-200'
+          }`}>
+            {statusMeldung.typ === 'erfolg' ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            )}
+            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800' : 'text-red-800'}`}>
+              {statusMeldung.text}
+            </p>
+          </div>
+        )}
+
+        {/* Auto-Save Status (nur wenn noch kein Dokument hinterlegt) */}
+        {projekt?.$id && !gespeichertesDokument && (
+          <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
+            autoSaveStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
+            autoSaveStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
+            autoSaveStatus === 'fehler' ? 'bg-red-50 text-red-700' :
+            'bg-gray-50 text-gray-500'
+          }`}>
+            {autoSaveStatus === 'gespeichert' && (
+              <>
+                <Cloud className="h-4 w-4" />
+                <span>Entwurf automatisch gespeichert</span>
+              </>
+            )}
+            {autoSaveStatus === 'speichern' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Speichern...</span>
+              </>
+            )}
+            {autoSaveStatus === 'fehler' && (
+              <>
+                <CloudOff className="h-4 w-4" />
+                <span>Fehler beim Speichern</span>
+              </>
+            )}
+            {autoSaveStatus === 'idle' && (
+              <>
+                <Cloud className="h-4 w-4" />
+                <span>Bereit</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Lieferscheininformationen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Lieferscheininformationen</h2>
@@ -166,7 +460,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="text"
                 value={lieferscheinDaten.lieferscheinnummer}
                 onChange={(e) => handleInputChange('lieferscheinnummer', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -175,7 +470,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="date"
                 value={lieferscheinDaten.lieferdatum}
                 onChange={(e) => handleInputChange('lieferdatum', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -184,7 +480,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="text"
                 value={lieferscheinDaten.bestellnummer || ''}
                 onChange={(e) => handleInputChange('bestellnummer', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
           </div>
@@ -201,8 +498,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
               <div>
@@ -211,8 +509,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.projektnummer || ''}
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
               <div>
@@ -221,8 +520,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
               <div>
@@ -231,8 +531,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.ansprechpartner || ''}
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
             </div>
@@ -242,7 +543,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="text"
                 value={lieferscheinDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -251,7 +553,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="text"
                 value={lieferscheinDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -260,7 +563,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="text"
                 value={lieferscheinDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
           </div>
@@ -275,7 +579,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 type="checkbox"
                 checked={lieferscheinDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 disabled:opacity-50"
               />
               <span className="text-sm text-gray-600">Abweichende Lieferadresse</span>
             </label>
@@ -289,7 +594,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
               <div>
@@ -298,7 +604,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
               <div>
@@ -307,7 +614,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   type="text"
                   value={lieferscheinDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
             </div>
@@ -321,13 +629,15 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               <h2 className="text-xl font-semibold text-gray-900">Lieferpositionen</h2>
               <p className="text-sm text-gray-500 mt-1">Hinweis: Lieferscheine enthalten KEINE Preise</p>
             </div>
-            <button
-              onClick={addPosition}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Position hinzufügen
-            </button>
+            {(!gespeichertesDokument || istBearbeitungsModus) && (
+              <button
+                onClick={addPosition}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Position hinzufügen
+              </button>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -341,7 +651,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         type="text"
                         value={position.artikel}
                         onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                     <div>
@@ -350,7 +661,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         type="number"
                         value={position.menge}
                         onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                     <div>
@@ -359,7 +671,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         type="text"
                         value={position.einheit}
                         onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                     <div>
@@ -368,17 +681,20 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         type="text"
                         value={position.chargennummer || ''}
                         onChange={(e) => handlePositionChange(index, 'chargennummer', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
                   </div>
                   
-                  <button
-                    onClick={() => removePosition(index)}
-                    className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+                  {(!gespeichertesDokument || istBearbeitungsModus) && (
+                    <button
+                      onClick={() => removePosition(index)}
+                      className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -391,9 +707,10 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           <textarea
             value={lieferscheinDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
+            disabled={!!gespeichertesDokument && !istBearbeitungsModus}
             rows={3}
             placeholder="z.B. Hinweise zur Lieferung oder Empfangsbestätigung"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
           />
         </div>
       </div>
@@ -427,13 +744,47 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             </div>
           </div>
           
-          <button
-            onClick={generiereUndLadeLieferschein}
-            className="w-full mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl"
-          >
-            <Download className="h-5 w-5" />
-            PDF Generieren
-          </button>
+          {/* Buttons basierend auf Status */}
+          <div className="mt-6 space-y-3">
+            {/* Immer verfügbar: Nur PDF generieren */}
+            <button
+              onClick={generiereUndLadeLieferschein}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-green-700 border-2 border-green-300 rounded-lg hover:bg-green-50 transition-all"
+            >
+              <Download className="h-5 w-5" />
+              Nur PDF herunterladen
+            </button>
+            
+            {/* Haupt-Aktion basierend auf Status */}
+            {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
+              <button
+                onClick={speichereUndHinterlegeLieferschein}
+                disabled={ladeStatus === 'speichern'}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {ladeStatus === 'speichern' ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Speichern...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="h-5 w-5" />
+                    {istBearbeitungsModus ? 'Änderungen speichern' : 'Lieferschein speichern & hinterlegen'}
+                  </>
+                )}
+              </button>
+            )}
+            
+            {!projekt?.$id && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800">
+                  <AlertCircle className="h-4 w-4 inline mr-2" />
+                  Zum Speichern muss ein Projekt ausgewählt sein.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, Package, Search } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import { AngebotsDaten, Position } from '../../types/bestellabwicklung';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import { speichereEntwurf, ladeEntwurf } from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 
@@ -50,6 +51,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
+  // Auto-Save Status
+  const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
+  const [initialLaden, setInitialLaden] = useState(true);
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const hatGeaendert = useRef(false);
+  
   // Artikel laden
   useEffect(() => {
     const ladeArtikel = async () => {
@@ -62,30 +69,41 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     };
     ladeArtikel();
   }, []);
-  
-  // Angebotsnummer generieren (nur wenn noch keine vorhanden ist)
+
+  // Gespeicherten Entwurf laden
   useEffect(() => {
-    const generiereNummer = async () => {
-      if (!angebotsDaten.angebotsnummer && !projekt?.angebotsnummer) {
-        try {
-          const neueNummer = await generiereNaechsteDokumentnummer('angebot');
-          setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
-        } catch (error) {
-          console.error('Fehler beim Generieren der Angebotsnummer:', error);
-          // Fallback
-          setAngebotsDaten(prev => ({ 
-            ...prev, 
-            angebotsnummer: `ANG-2026-TEMP` 
-          }));
+    const ladeGespeichertenEntwurf = async () => {
+      if (!projekt?.$id) {
+        setInitialLaden(false);
+        return;
+      }
+      
+      try {
+        const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
+        
+        if (gespeicherterEntwurf) {
+          // Ergänze fehlende Projekt-Daten (z.B. Kundennummer, falls sie später hinzugefügt wurde)
+          setAngebotsDaten({
+            ...gespeicherterEntwurf,
+            kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
+            kundenname: gespeicherterEntwurf.kundenname || projekt?.kundenname || '',
+            kundenstrasse: gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
+            kundenPlzOrt: gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+          });
+          setSpeicherStatus('gespeichert');
+        } else {
+          // Fallback: Projekt-Daten nutzen
+          await ladeVonProjekt();
         }
+      } catch (error) {
+        console.error('Fehler beim Laden des Entwurfs:', error);
+        await ladeVonProjekt();
+      } finally {
+        setInitialLaden(false);
       }
     };
-    generiereNummer();
-  }, []);
-
-  // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
-  useEffect(() => {
-    const ladeDaten = async () => {
+    
+    const ladeVonProjekt = async () => {
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
@@ -108,7 +126,6 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           });
         }
         
-        // Angebotsnummer generieren, falls nicht vorhanden
         let angebotsnummer = projekt?.angebotsnummer;
         if (!angebotsnummer) {
           try {
@@ -130,18 +147,72 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           gueltigBis: gueltigBis.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
-          bemerkung: projekt?.notizen || kundeInfo?.notizen || prev.bemerkung,
         }));
       }
     };
-    ladeDaten();
-  }, [projekt, kundeInfo]);
+    
+    ladeGespeichertenEntwurf();
+  }, [projekt?.$id]);
+
+  // Angebotsnummer generieren (nur wenn noch keine vorhanden ist)
+  useEffect(() => {
+    const generiereNummer = async () => {
+      if (!angebotsDaten.angebotsnummer && !projekt?.angebotsnummer && !initialLaden) {
+        try {
+          const neueNummer = await generiereNaechsteDokumentnummer('angebot');
+          setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
+        } catch (error) {
+          console.error('Fehler beim Generieren der Angebotsnummer:', error);
+          setAngebotsDaten(prev => ({ 
+            ...prev, 
+            angebotsnummer: `ANG-2026-TEMP` 
+          }));
+        }
+      }
+    };
+    generiereNummer();
+  }, [initialLaden]);
+
+  // Auto-Save mit Debounce
+  const speichereAutomatisch = useCallback(async (daten: AngebotsDaten) => {
+    if (!projekt?.$id || initialLaden) return;
+    
+    try {
+      setSpeicherStatus('speichern');
+      await speichereEntwurf(projekt.$id, 'angebotsDaten', daten);
+      setSpeicherStatus('gespeichert');
+    } catch (error) {
+      console.error('Auto-Save Fehler:', error);
+      setSpeicherStatus('fehler');
+    }
+  }, [projekt?.$id, initialLaden]);
+
+  // Debounced Auto-Save bei Änderungen
+  useEffect(() => {
+    if (initialLaden || !hatGeaendert.current) return;
+    
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    
+    debounceTimer.current = setTimeout(() => {
+      speichereAutomatisch(angebotsDaten);
+    }, 1500); // 1.5 Sekunden Debounce
+    
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [angebotsDaten, speichereAutomatisch, initialLaden]);
 
   const handleInputChange = (field: keyof AngebotsDaten, value: any) => {
+    hatGeaendert.current = true;
     setAngebotsDaten(prev => ({ ...prev, [field]: value }));
   };
 
   const handlePositionChange = (index: number, field: keyof Position, value: any) => {
+    hatGeaendert.current = true;
     const neuePositionen = [...angebotsDaten.positionen];
     neuePositionen[index] = {
       ...neuePositionen[index],
@@ -157,6 +228,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   };
 
   const addPosition = () => {
+    hatGeaendert.current = true;
     const neuePosition: Position = {
       id: Date.now().toString(),
       bezeichnung: '',
@@ -174,10 +246,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   };
 
   const addPositionAusArtikel = (artikelId: string) => {
+    hatGeaendert.current = true;
     const selectedArtikel = artikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    // Verwende den Einzelpreis des Artikels, falls vorhanden, sonst 0
     const preis = selectedArtikel.einzelpreis ?? 0;
 
     const neuePosition: Position = {
@@ -198,7 +270,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }));
     
     setShowArtikelAuswahl(false);
-    setArtikelSuchtext(''); // Suche zurücksetzen
+    setArtikelSuchtext('');
   };
 
   // Gefilterte und sortierte Artikel für die Auswahl
@@ -226,6 +298,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     });
 
   const removePosition = (index: number) => {
+    hatGeaendert.current = true;
     setAngebotsDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
@@ -248,10 +321,55 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
   const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
 
+  // Lade-Indikator
+  if (initialLaden) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <span className="ml-3 text-gray-600">Lade Angebotsdaten...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* Linke Spalte - Formular */}
       <div className="lg:col-span-3 space-y-6">
+        
+        {/* Auto-Save Status */}
+        {projekt?.$id && (
+          <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
+            speicherStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
+            speicherStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
+            speicherStatus === 'fehler' ? 'bg-red-50 text-red-700' :
+            'bg-gray-50 text-gray-500'
+          }`}>
+            {speicherStatus === 'gespeichert' && (
+              <>
+                <Cloud className="h-4 w-4" />
+                <span>Automatisch gespeichert</span>
+              </>
+            )}
+            {speicherStatus === 'speichern' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Speichern...</span>
+              </>
+            )}
+            {speicherStatus === 'fehler' && (
+              <>
+                <CloudOff className="h-4 w-4" />
+                <span>Fehler beim Speichern</span>
+              </>
+            )}
+            {speicherStatus === 'idle' && (
+              <>
+                <Cloud className="h-4 w-4" />
+                <span>Bereit</span>
+              </>
+            )}
+          </div>
+        )}
         
         {/* Angebotsinformationen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -488,43 +606,23 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                       <table className="w-full">
                         <thead className="bg-purple-100 sticky top-0">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
-                              Art.-Nr.
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
-                              Bezeichnung
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">
-                              Beschreibung
-                            </th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">
-                              Einheit
-                            </th>
-                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700">
-                              Preis
-                            </th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">
-                              Aktion
-                            </th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Art.-Nr.</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Bezeichnung</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Beschreibung</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Einheit</th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700">Preis</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Aktion</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {gefilterteArtikel.map((art) => (
                             <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                                {art.artikelnummer}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-900">
-                                {art.bezeichnung}
-                              </td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{art.artikelnummer}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{art.bezeichnung}</td>
                               <td className="px-4 py-3 text-sm text-gray-600">
-                                <div className="line-clamp-2 max-w-xs">
-                                  {art.beschreibung || '-'}
-                                </div>
+                                <div className="line-clamp-2 max-w-xs">{art.beschreibung || '-'}</div>
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                                {art.einheit}
-                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-center">{art.einheit}</td>
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
                                 {art.einzelpreis !== undefined && art.einzelpreis !== null 
                                   ? `${art.einzelpreis.toFixed(2)} €` 

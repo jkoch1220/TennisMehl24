@@ -279,3 +279,40 @@ export const getTextHeight = (text: string | string[], lineHeight: number = 4): 
   }
   return lineHeight;
 };
+
+/**
+ * Berechnet die ISO-Kalenderwoche für ein Datum
+ * ISO-Wochen beginnen am Montag, die erste Woche des Jahres ist die Woche mit dem ersten Donnerstag
+ */
+export const getKalenderwoche = (datum: Date): number => {
+  const d = new Date(datum.getTime());
+  d.setHours(0, 0, 0, 0);
+  // Setze auf den nächsten Donnerstag
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+  // Hol den ersten Tag des Jahres
+  const jahrStart = new Date(d.getFullYear(), 0, 1);
+  // Berechne die Anzahl der Wochen
+  const woche = Math.ceil((((d.getTime() - jahrStart.getTime()) / 86400000) + 1) / 7);
+  return woche;
+};
+
+/**
+ * Generiert den Liefersaison-Text mit Datumsbereich und Kalenderwochen
+ * @param jahr - Das Jahr der Liefersaison
+ * @returns Formatierter Text wie "Liefersaison voraussichtlich 03.03. - 18.04.2026 (10. - 16. KW 2026)"
+ */
+export const getLiefersaisonText = (jahr: number = 2026): string => {
+  // Liefersaison: 3. März bis 18. April
+  const startDatum = new Date(jahr, 2, 3); // Monat 2 = März (0-basiert)
+  const endDatum = new Date(jahr, 3, 18);  // Monat 3 = April
+  
+  // Berechne Kalenderwochen
+  const startKW = getKalenderwoche(startDatum);
+  const endKW = getKalenderwoche(endDatum);
+  
+  // Formatiere Daten (dd.MM.)
+  const startFormatiert = `${startDatum.getDate().toString().padStart(2, '0')}.${(startDatum.getMonth() + 1).toString().padStart(2, '0')}.`;
+  const endFormatiert = `${endDatum.getDate().toString().padStart(2, '0')}.${(endDatum.getMonth() + 1).toString().padStart(2, '0')}.${endDatum.getFullYear()}`;
+  
+  return `Liefersaison voraussichtlich ${startFormatiert} - ${endFormatiert} (${startKW}. - ${endKW}. KW ${jahr})`;
+};

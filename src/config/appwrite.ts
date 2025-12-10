@@ -28,6 +28,7 @@ export const SAISON_AKTIVITAETEN_COLLECTION_ID = 'saison_aktivitaeten';
 export const PROJEKTE_COLLECTION_ID = 'projekte';
 export const ARTIKEL_COLLECTION_ID = 'artikel';
 export const STAMMDATEN_COLLECTION_ID = 'stammdaten';
+export const BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -56,12 +57,14 @@ export const COLLECTIONS = {
   PROJEKTE: PROJEKTE_COLLECTION_ID,
   ARTIKEL: ARTIKEL_COLLECTION_ID,
   STAMMDATEN: STAMMDATEN_COLLECTION_ID,
+  BESTELLABWICKLUNG_DOKUMENTE: BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
 export const RECHNUNGS_DATEIEN_BUCKET_ID = 'rechnungs-dateien';
 export const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
 export const KUNDEN_DATEIEN_BUCKET_ID = 'kunden-dateien';
+export const BESTELLABWICKLUNG_DATEIEN_BUCKET_ID = 'bestellabwicklung_dateien';
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';

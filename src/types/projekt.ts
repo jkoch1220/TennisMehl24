@@ -4,6 +4,7 @@ export type ProjektStatus = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' 
 // Projekt für Bestellabwicklung
 export interface Projekt {
   id: string;
+  $id?: string; // Appwrite Document ID
   projektName: string;
   kundeId: string;
   kundennummer?: string;

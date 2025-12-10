@@ -169,3 +169,31 @@ export interface DokumentBerechnung {
 }
 
 export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+
+// Gespeichertes Dokument in der Datenbank
+export interface GespeichertesDokument {
+  $id?: string;
+  projektId: string;
+  dokumentTyp: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+  dokumentNummer: string;
+  dateiId: string;
+  dateiname: string;
+  bruttobetrag?: number;
+  istFinal: boolean; // true bei Rechnungen, false bei AB/LS
+  daten?: string; // JSON-String der Dokument-Daten für Bearbeitung
+  $createdAt?: string; // Automatisch von Appwrite erstellt
+  $updatedAt?: string; // Automatisch von Appwrite erstellt
+}
+
+// Typ für die UI-Darstellung eines Dokuments
+export interface DokumentAnzeige {
+  id: string;
+  typ: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+  nummer: string;
+  dateiname: string;
+  erstelltAm: Date; // Wird aus $createdAt gemappt
+  bruttobetrag?: number;
+  istFinal: boolean;
+  downloadUrl: string;
+  viewUrl: string;
+}

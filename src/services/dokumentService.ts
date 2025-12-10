@@ -11,7 +11,8 @@ import {
   ensureSpace,
   formatWaehrung,
   formatDatum,
-  getTextHeight
+  getTextHeight,
+  getLiefersaisonText
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
@@ -280,8 +281,20 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   
+  // === Liefersaison-Hinweis ===
+  summenY += 12;
+  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont('helvetica', 'italic');
+  const liefersaisonText = getLiefersaisonText(2026);
+  doc.text(liefersaisonText, 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  
   // === Lieferbedingungen ===
-  summenY += 15;
+  summenY += 10;
   
   // Prüfe Platz für Lieferbedingungen-Block (ca. 25mm)
   summenY = ensureSpace(doc, summenY, 25, stammdaten);
@@ -648,8 +661,20 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   
+  // === Liefersaison-Hinweis ===
+  summenY += 12;
+  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont('helvetica', 'italic');
+  const liefersaisonText = getLiefersaisonText(2026);
+  doc.text(liefersaisonText, 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  
   // === Lieferbedingungen ===
-  summenY += 15;
+  summenY += 10;
   
   // Prüfe Platz für Lieferbedingungen-Block
   summenY = ensureSpace(doc, summenY, 25, stammdaten);
