@@ -3,9 +3,11 @@ export interface Position {
   id: string;
   artikelnummer?: string;
   bezeichnung: string;
+  beschreibung?: string;
   menge: number;
   einheit: string;
   einzelpreis: number;
+  streichpreis?: number; // Optional - durchgestrichener Originalpreis für Rabattaktionen
   gesamtpreis: number;
 }
 
@@ -76,6 +78,8 @@ export interface AngebotsDaten extends BaseDokument {
   lieferdatum?: string;
   frachtkosten?: number;
   verpackungskosten?: number;
+  lieferbedingungenAktiviert?: boolean;
+  lieferbedingungen?: string;
   
   // Optionale Klauseln
   agbHinweis?: string;
@@ -106,6 +110,8 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   lieferdatum?: string;
   frachtkosten?: number;
   verpackungskosten?: number;
+  lieferbedingungenAktiviert?: boolean;
+  lieferbedingungen?: string;
   
   // Optionale Klauseln
   agbHinweis?: string;

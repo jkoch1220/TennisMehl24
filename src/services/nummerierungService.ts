@@ -68,7 +68,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
   let versuch = 0;
   
   try {
-    const aktuellesJahr = new Date().getFullYear();
+    const aktuellesJahr = 2026; // Aktuelle Saison
     
     // Hole die aktuellen Zählerstände
     let stammdaten: any;
@@ -188,7 +188,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
   } catch (error) {
     console.error('❌ KRITISCHER Fehler bei der Generierung der Dokumentnummer:', error);
     // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-    const jahr = new Date().getFullYear();
+    const jahr = 2026; // Aktuelle Saison
     const timestamp = Date.now();
     const zufall = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     let prefix: string;
@@ -307,10 +307,11 @@ export const getZaehlerstaende = async (): Promise<Zaehlerstaende | null> => {
       auftragsbestaetigungZaehler: stammdaten.auftragsbestaetigungZaehler || 0,
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
-      jahr: stammdaten.jahr || new Date().getFullYear(),
+      jahr: stammdaten.jahr || 2026, // Aktuelle Saison
     };
   } catch (error) {
     console.error('Fehler beim Abrufen der Zählerstände:', error);
     return null;
   }
 };
+

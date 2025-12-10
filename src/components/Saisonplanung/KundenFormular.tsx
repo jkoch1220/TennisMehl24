@@ -8,6 +8,7 @@ import {
   KundenTyp,
   Bezugsweg,
   SaisonKunde,
+  Belieferungsart,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import AdressAutocomplete from './AdressAutocomplete.tsx';
@@ -44,6 +45,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     beziehtUeberUnsPlatzbauer: false,
     abwerkspreis: false,
     zahlungsziel: 14,
+    schuettstellenAnzahl: undefined,
+    belieferungsart: undefined,
   });
 
   const [ansprechpartner, setAnsprechpartner] = useState<NeuerAnsprechpartner[]>([]);
@@ -75,6 +78,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: kunde.kunde.tonnenLetztesJahr,
         beziehtUeberUnsPlatzbauer: kunde.kunde.beziehtUeberUnsPlatzbauer,
         abwerkspreis: kunde.kunde.abwerkspreis || false,
+        schuettstellenAnzahl: kunde.kunde.schuettstellenAnzahl,
+        belieferungsart: kunde.kunde.belieferungsart,
       });
       setAnsprechpartner(
         kunde.ansprechpartner.map((ap) => ({
@@ -105,6 +110,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: undefined,
         beziehtUeberUnsPlatzbauer: false,
         abwerkspreis: false,
+        belieferungsart: undefined,
       });
       setAnsprechpartner([]);
       setZugeordnetePlatzbauer([]);
@@ -428,6 +434,48 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Schüttstellen Anzahl
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={formData.schuettstellenAnzahl ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      schuettstellenAnzahl: e.target.value ? parseInt(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Belieferungsart
+                </label>
+                <select
+                  value={formData.belieferungsart ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      belieferungsart: e.target.value ? (e.target.value as Belieferungsart) : undefined,
+                    })
+                  }
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Bitte wählen</option>
+                  <option value="nur_motorwagen">Nur Motorwagen</option>
+                  <option value="mit_haenger">Mit Hänger Belieferbar</option>
+                  <option value="abholung_ab_werk">Abholung ab Werk</option>
+                  <option value="palette_mit_ladekran">Palette mit Ladekran</option>
+                  <option value="bigbag">BigBag</option>
+                </select>
               </div>
 
               <div className="flex items-center gap-6">

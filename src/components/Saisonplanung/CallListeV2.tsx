@@ -258,7 +258,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       setProjektKunde(null);
       
       // Zur Projektverwaltung navigieren
-      navigate('/projektverwaltung');
+      navigate('/projekt-verwaltung');
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       alert('Fehler beim Erstellen des Projekts. Bitte erneut versuchen.');

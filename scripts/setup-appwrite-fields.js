@@ -130,43 +130,19 @@ const kundenAktivitaetenFields = [
   { key: 'data', type: 'string', size: 10000 },
 ];
 
+// ⚠️ WICHTIG: Nur 8 Basis-Felder für Projekte anlegen!
+// Appwrite hat ein Attribut-Limit pro Collection.
+// Alle anderen Daten werden im 'data'-JSON gespeichert.
+// Siehe: APPWRITE_COLLECTION_PROJEKTE.md
 const projekteFields = [
-  { key: 'kundeId', type: 'string', size: 100, required: true },
-  { key: 'kundennummer', type: 'string', size: 100 },
-  { key: 'kundenname', type: 'string', size: 500, required: true },
-  { key: 'kundenstrasse', type: 'string', size: 500 },
-  { key: 'kundenPlzOrt', type: 'string', size: 200 },
+  { key: 'projektName', type: 'string', size: 255, required: true },
+  { key: 'kundeId', type: 'string', size: 255, required: true },
+  { key: 'kundenname', type: 'string', size: 255, required: true },
   { key: 'saisonjahr', type: 'integer', required: true },
   { key: 'status', type: 'string', size: 50, required: true },
-  
-  // Angebot
-  { key: 'angebotId', type: 'string', size: 100 },
-  { key: 'angebotsnummer', type: 'string', size: 100 },
-  { key: 'angebotsdatum', type: 'string', size: 50 },
-  
-  // Lieferschein
-  { key: 'lieferscheinId', type: 'string', size: 100 },
-  { key: 'lieferscheinnummer', type: 'string', size: 100 },
-  { key: 'lieferdatum', type: 'string', size: 50 },
-  
-  // Rechnung
-  { key: 'rechnungId', type: 'string', size: 100 },
-  { key: 'rechnungsnummer', type: 'string', size: 100 },
-  { key: 'rechnungsdatum', type: 'string', size: 50 },
-  
-  { key: 'bezahltAm', type: 'string', size: 50 },
-  
-  // Mengen und Preise
-  { key: 'angefragteMenge', type: 'double' },
-  { key: 'preisProTonne', type: 'double' },
-  { key: 'bezugsweg', type: 'string', size: 100 },
-  { key: 'platzbauerId', type: 'string', size: 100 },
-  
-  { key: 'notizen', type: 'string', size: 2000 },
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
-  { key: 'erstelltVon', type: 'string', size: 100 },
-  { key: 'data', type: 'string', size: 10000 },
+  { key: 'data', type: 'string', size: 100000, required: true },
 ];
 
 const artikelFields = [
@@ -217,7 +193,7 @@ const stammdatenFields = [
   { key: 'auftragsbestaetigungZaehler', type: 'integer', default: 0 },
   { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
   { key: 'rechnungZaehler', type: 'integer', default: 0 },
-  { key: 'jahr', type: 'integer', default: 2025 },
+  { key: 'jahr', type: 'integer', default: 2026 },
   
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },

@@ -3,6 +3,14 @@ import { Adresse } from './dispo';
 // Kunden-Typ
 export type KundenTyp = 'verein' | 'platzbauer';
 
+// Belieferungsart
+export type Belieferungsart = 
+  | 'nur_motorwagen' 
+  | 'mit_haenger' 
+  | 'abholung_ab_werk' 
+  | 'palette_mit_ladekran' 
+  | 'bigbag';
+
 // Gesprächsstatus für Call-Liste
 export type GespraechsStatus = 'offen' | 'in_bearbeitung' | 'erledigt';
 
@@ -142,6 +150,8 @@ export interface SaisonKunde {
   beziehtUeberUnsPlatzbauer?: boolean;
   abwerkspreis?: boolean; // Kunde bekommt Abwerkspreis (Ja/Nein)
   zahlungsziel?: number; // Zahlungsziel in Tagen (z.B. 14, 30)
+  schuettstellenAnzahl?: number; // Anzahl der Schüttstellen
+  belieferungsart?: Belieferungsart; // Art der Belieferung
   erstelltAm: string;
   geaendertAm: string;
 }

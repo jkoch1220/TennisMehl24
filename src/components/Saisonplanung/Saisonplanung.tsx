@@ -21,7 +21,7 @@ const Saisonplanung = () => {
   const [showBeziehungen, setShowBeziehungen] = useState(false);
   const [selectedKunde, setSelectedKunde] = useState<SaisonKundeMitDaten | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [saisonjahr] = useState(new Date().getFullYear());
+  const [saisonjahr] = useState(2026); // Aktuelle Saison
   const [searchText, setSearchText] = useState('');
 
   // OPTIMIERT: useCallback verhindert unnötige Re-Renders

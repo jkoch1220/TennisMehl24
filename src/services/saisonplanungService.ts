@@ -398,7 +398,7 @@ export const saisonplanungService = {
         parseDocument<SaisonDaten>(doc, {
           id: doc.$id,
           kundeId,
-          saisonjahr: new Date().getFullYear(),
+          saisonjahr: 2026, // Aktuelle Saison
           gespraechsstatus: 'offen',
           erstelltAm: doc.$createdAt,
           geaendertAm: doc.$updatedAt || doc.$createdAt,
@@ -480,7 +480,7 @@ export const saisonplanungService = {
       const aktuell = parseDocument<SaisonDaten>(doc, {
         id: doc.$id,
         kundeId: '',
-        saisonjahr: new Date().getFullYear(),
+        saisonjahr: 2026, // Aktuelle Saison
         gespraechsstatus: 'offen',
         erstelltAm: doc.$createdAt,
         geaendertAm: doc.$updatedAt || doc.$createdAt,
@@ -879,7 +879,7 @@ export const saisonplanungService = {
         const saisonDaten = parseDocument<SaisonDaten>(doc, {
           id: doc.$id,
           kundeId: '',
-          saisonjahr: new Date().getFullYear(),
+          saisonjahr: 2026, // Aktuelle Saison
           gespraechsstatus: 'offen',
           erstelltAm: doc.$createdAt,
           geaendertAm: doc.$updatedAt || doc.$createdAt,

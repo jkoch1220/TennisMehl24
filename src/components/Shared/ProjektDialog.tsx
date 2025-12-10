@@ -30,8 +30,8 @@ const ProjektDialog = ({
   saving = false,
 }: ProjektDialogProps) => {
   const [formData, setFormData] = useState({
-    projektName: `${kundenname} - ${new Date().getFullYear()}`,
-    saisonjahr: new Date().getFullYear(),
+    projektName: `${kundenname} - 2026`,
+    saisonjahr: 2026,
     angefragteMenge: angefragteMenge || 0,
     preisProTonne: preisProTonne || 0,
     bezugsweg: bezugsweg || 'direkt',
@@ -127,7 +127,7 @@ const ProjektDialog = ({
               value={formData.projektName}
               onChange={(e) => setFormData({ ...formData, projektName: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-medium"
-              placeholder="z.B. TC Musterstadt - 2025"
+              placeholder="z.B. TC Musterstadt - 2026"
               required
             />
             <p className="text-xs text-gray-500 mt-1">

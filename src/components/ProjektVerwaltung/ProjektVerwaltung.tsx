@@ -49,7 +49,7 @@ const ProjektVerwaltung = () => {
   const [suche, setSuche] = useState('');
   const [draggedProjekt, setDraggedProjekt] = useState<Projekt | null>(null);
   const [dragOverTab, setDragOverTab] = useState<ProjektStatus | null>(null);
-  const [saisonjahr] = useState(new Date().getFullYear());
+  const [saisonjahr] = useState(2026); // Aktuelle Saison
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 

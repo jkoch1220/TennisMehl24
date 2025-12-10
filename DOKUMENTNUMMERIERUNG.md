@@ -211,3 +211,4 @@ Bei Problemen:
 1. Prüfe die Browser-Console auf Fehler
 2. Überprüfe die Appwrite-Logs
 3. Kontaktiere den Entwickler mit Fehlerdetails
+

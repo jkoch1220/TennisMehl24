@@ -595,7 +595,7 @@ const SpeditionskostenRechner = () => {
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
             Alle Preise in Euro inkl. MwSt. • Herstellungskosten basierend auf
-            Kalkulation 2025
+            Kalkulation 2026
           </p>
         </div>
       </div>

@@ -55,7 +55,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           console.error('Fehler beim Generieren der Rechnungsnummer:', error);
           setRechnungsDaten(prev => ({ 
             ...prev, 
-            rechnungsnummer: `RE-${new Date().getFullYear()}-TEMP` 
+            rechnungsnummer: `RE-2026-TEMP` 
           }));
         }
       }
@@ -93,7 +93,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             rechnungsnummer = await generiereNaechsteDokumentnummer('rechnung');
           } catch (error) {
             console.error('Fehler beim Generieren der Rechnungsnummer:', error);
-            rechnungsnummer = `RE-${new Date().getFullYear()}-TEMP`;
+            rechnungsnummer = `RE-2026-TEMP`;
           }
         }
         
@@ -104,7 +104,6 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
           ansprechpartner: kundeInfo?.ansprechpartner,
-          projektnummer: projekt?.id,
           rechnungsnummer: rechnungsnummer,
           rechnungsdatum: projekt?.rechnungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           leistungsdatum: heute.toISOString().split('T')[0],
@@ -139,6 +138,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     const neuePosition: Position = {
       id: Date.now().toString(),
       bezeichnung: '',
+      beschreibung: '',
       menge: 1,
       einheit: 'Stk',
       einzelpreis: 0,
@@ -358,51 +358,75 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             {rechnungsDaten.positionen.map((position, index) => (
               <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-start gap-4">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
-                      <input
-                        type="text"
-                        value={position.artikelnummer || ''}
-                        onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
-                        placeholder="TM-001"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
+                        <input
+                          type="text"
+                          value={position.artikelnummer || ''}
+                          onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                          placeholder="TM-001"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Bezeichnung</label>
+                        <input
+                          type="text"
+                          value={position.bezeichnung}
+                          onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
+                          placeholder="z.B. Tennismehl / Ziegelmehl"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
+                        <input
+                          type="number"
+                          value={position.menge}
+                          onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
+                        <input
+                          type="text"
+                          value={position.einheit}
+                          onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Streichpreis (€)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={position.streichpreis ?? ''}
+                          onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          placeholder="Optional"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={position.einzelpreis}
+                          onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Leistungsbeschreibung</label>
-                      <input
-                        type="text"
-                        value={position.bezeichnung}
-                        onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
-                    </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
-                      <input
-                        type="number"
-                        value={position.menge}
-                        onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
-                      <input
-                        type="text"
-                        value={position.einheit}
-                        onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={position.einzelpreis}
-                        onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Beschreibung (optional)</label>
+                      <textarea
+                        value={position.beschreibung || ''}
+                        onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
+                        placeholder="Detaillierte Beschreibung der Position..."
+                        rows={2}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                       />
                     </div>

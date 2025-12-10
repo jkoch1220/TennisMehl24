@@ -49,7 +49,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
           setLieferscheinDaten(prev => ({ 
             ...prev, 
-            lieferscheinnummer: `LS-${new Date().getFullYear()}-TEMP` 
+            lieferscheinnummer: `LS-2026-TEMP` 
           }));
         }
       }
@@ -83,7 +83,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             lieferscheinnummer = await generiereNaechsteDokumentnummer('lieferschein');
           } catch (error) {
             console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
-            lieferscheinnummer = `LS-${new Date().getFullYear()}-TEMP`;
+            lieferscheinnummer = `LS-2026-TEMP`;
           }
         }
         
@@ -94,7 +94,6 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
           ansprechpartner: kundeInfo?.ansprechpartner,
-          projektnummer: projekt?.id,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,

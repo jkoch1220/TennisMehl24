@@ -40,6 +40,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     
     positionen: [],
     zahlungsziel: '14 Tage',
+    lieferbedingungenAktiviert: true,
+    lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
   });
   
   const [artikel, setArtikel] = useState<Artikel[]>([]);
@@ -71,7 +73,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
           setAuftragsbestaetigungsDaten(prev => ({ 
             ...prev, 
-            auftragsbestaetigungsnummer: `AB-${new Date().getFullYear()}-TEMP` 
+            auftragsbestaetigungsnummer: `AB-2026-TEMP` 
           }));
         }
       }
@@ -109,7 +111,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             auftragsbestaetigungsnummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
           } catch (error) {
             console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
-            auftragsbestaetigungsnummer = `AB-${new Date().getFullYear()}-TEMP`;
+            auftragsbestaetigungsnummer = `AB-2026-TEMP`;
           }
         }
         
@@ -120,7 +122,6 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
           ansprechpartner: kundeInfo?.ansprechpartner,
-          projektnummer: projekt?.id,
           auftragsbestaetigungsnummer: auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: projekt?.auftragsbestaetigungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
@@ -154,6 +155,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     const neuePosition: Position = {
       id: Date.now().toString(),
       bezeichnung: '',
+      beschreibung: '',
       menge: 1,
       einheit: 'Stk',
       einzelpreis: 0,
@@ -176,9 +178,11 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       id: Date.now().toString(),
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
+      beschreibung: selectedArtikel.beschreibung || '',
       menge: 1,
       einheit: selectedArtikel.einheit,
       einzelpreis: preis,
+      streichpreis: selectedArtikel.streichpreis,
       gesamtpreis: preis,
     };
     
@@ -550,51 +554,75 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             {auftragsbestaetigungsDaten.positionen.map((position, index) => (
               <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-start gap-4">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
-                      <input
-                        type="text"
-                        value={position.artikelnummer || ''}
-                        onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
-                        placeholder="TM-001"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
+                        <input
+                          type="text"
+                          value={position.artikelnummer || ''}
+                          onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                          placeholder="TM-001"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Bezeichnung</label>
+                        <input
+                          type="text"
+                          value={position.bezeichnung}
+                          onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
+                          placeholder="z.B. Tennismehl / Ziegelmehl"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
+                        <input
+                          type="number"
+                          value={position.menge}
+                          onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
+                        <input
+                          type="text"
+                          value={position.einheit}
+                          onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Streichpreis (€)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={position.streichpreis ?? ''}
+                          onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                          placeholder="Optional"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={position.einzelpreis}
+                          onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                      </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Leistungsbeschreibung</label>
-                      <input
-                        type="text"
-                        value={position.bezeichnung}
-                        onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
-                    </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
-                      <input
-                        type="number"
-                        value={position.menge}
-                        onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
-                      <input
-                        type="text"
-                        value={position.einheit}
-                        onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={position.einzelpreis}
-                        onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Beschreibung (optional)</label>
+                      <textarea
+                        value={position.beschreibung || ''}
+                        onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
+                        placeholder="Detaillierte Beschreibung der Position..."
+                        rows={2}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                       />
                     </div>
@@ -622,7 +650,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         {/* Lieferbedingungen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Lieferbedingungen</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Lieferzeit</label>
               <input
@@ -643,6 +671,26 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={auftragsbestaetigungsDaten.lieferbedingungenAktiviert || false}
+                onChange={(e) => handleInputChange('lieferbedingungenAktiviert', e.target.checked)}
+                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Lieferbedingungen / Hinweise anzeigen</span>
+            </label>
+            
+            {auftragsbestaetigungsDaten.lieferbedingungenAktiviert && (
+              <textarea
+                value={auftragsbestaetigungsDaten.lieferbedingungen || ''}
+                onChange={(e) => handleInputChange('lieferbedingungen', e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            )}
           </div>
         </div>
 

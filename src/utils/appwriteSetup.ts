@@ -161,7 +161,7 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'auftragsbestaetigungZaehler', type: 'integer', default: 0 },
   { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
   { key: 'rechnungZaehler', type: 'integer', default: 0 },
-  { key: 'jahr', type: 'integer', default: 2025 },
+  { key: 'jahr', type: 'integer', default: 2026 },
   
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },

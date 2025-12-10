@@ -3,149 +3,18 @@ import autoTable from 'jspdf-autotable';
 import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten } from '../types/bestellabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
+import {
+  addDIN5008Header,
+  addDIN5008Footer,
+  addAbsenderzeile,
+  addFollowPageHeader,
+  ensureSpace,
+  formatWaehrung,
+  formatDatum,
+  getTextHeight
+} from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
-
-const formatWaehrung = (betrag: number): string => {
-  return new Intl.NumberFormat('de-DE', {
-    style: 'currency',
-    currency: 'EUR'
-  }).format(betrag);
-};
-
-const formatDatum = (datum: string): string => {
-  return new Date(datum).toLocaleDateString('de-DE', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-};
-
-// DIN 5008: Gemeinsamer Header mit Absender aus Stammdaten
-const addDIN5008Header = (doc: jsPDF, stammdaten: Stammdaten) => {
-  // === DIN 5008: FALZMARKEN ===
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.1);
-  doc.line(3, 87, 8, 87);  // Falzmarke 1 bei 87mm
-  doc.line(3, 192, 8, 192); // Falzmarke 2 bei 192mm
-  
-  // === LOGO BOX - Oben rechts ===
-  const logoBoxX = 130;
-  const logoBoxY = 15;
-  const logoBoxWidth = 65;
-  const logoBoxHeight = 35;
-  
-  // Logo Box mit rotem Rand
-  doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(0.5);
-  doc.rect(logoBoxX, logoBoxY, logoBoxWidth, logoBoxHeight);
-  
-  // Firmenname im Logo
-  doc.setFontSize(14);
-  doc.setTextColor(...primaryColor);
-  doc.setFont('helvetica', 'bold');
-  doc.text(stammdaten.firmenname, logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
-  
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('GmbH', logoBoxX + logoBoxWidth / 2, logoBoxY + 15, { align: 'center' });
-  
-  doc.setFontSize(8);
-  doc.text('Tennismehl', logoBoxX + logoBoxWidth / 2, logoBoxY + 21, { align: 'center' });
-  doc.text('Tennisplatzzubehör', logoBoxX + logoBoxWidth / 2, logoBoxY + 26, { align: 'center' });
-  doc.text('Tennisplatzbau', logoBoxX + logoBoxWidth / 2, logoBoxY + 30, { align: 'center' });
-  doc.text('Ziegelsplittprodukte', logoBoxX + logoBoxWidth / 2, logoBoxY + 34, { align: 'center' });
-};
-
-// DIN 5008: Absenderzeile für Fensterkuvert
-const addAbsenderzeile = (doc: jsPDF, stammdaten: Stammdaten) => {
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`${stammdaten.firmenname} · ${stammdaten.firmenstrasse} · ${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, 25, 45);
-};
-
-// DIN 5008: Footer mit Stammdaten
-const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
-  const pageHeight = doc.internal.pageSize.height;
-  const footerY = pageHeight - 20;
-  
-  // Trennlinie über Footer
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.3);
-  doc.line(25, footerY - 6, 185, footerY - 6);
-  
-  doc.setFontSize(7);
-  doc.setTextColor(80, 80, 80);
-  
-  // Spalte 1: Verwaltung
-  let col1X = 25;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Verwaltung:', col1X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.firmenname, col1X, footerY + 4);
-  doc.text(stammdaten.firmenstrasse, col1X, footerY + 8);
-  doc.text(`${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, col1X, footerY + 12);
-  
-  // Spalte 2: Geschäftsführer
-  let col2X = 55;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Geschäftsführer:', col2X, footerY);
-  doc.setFont('helvetica', 'normal');
-  
-  // Geschäftsführer untereinander schreiben
-  let gfYPos = footerY + 4;
-  stammdaten.geschaeftsfuehrer.forEach((gf, index) => {
-    doc.text(gf, col2X, gfYPos + (index * 3));
-  });
-  
-  // Sitz d. Gesellschaft dynamisch positionieren
-  const gfEndPos = gfYPos + (stammdaten.geschaeftsfuehrer.length * 3);
-  doc.text('Sitz: ' + stammdaten.sitzGesellschaft, col2X, gfEndPos + 1);
-  
-  // Spalte 3: Registergericht & USt-ID
-  let col3X = 85;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Registergericht:', col3X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.handelsregister, col3X, footerY + 4);
-  doc.setFont('helvetica', 'bold');
-  doc.text('USt-ID:', col3X, footerY + 8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.ustIdNr, col3X, footerY + 12);
-  
-  // Spalte 4: Werk/Verkauf (falls vorhanden)
-  let col4X = 115;
-  if (stammdaten.werkName && stammdaten.werkStrasse && stammdaten.werkPlz && stammdaten.werkOrt) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Werk/Verkauf:', col4X, footerY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(stammdaten.werkName, col4X, footerY + 4);
-    doc.text(stammdaten.werkStrasse, col4X, footerY + 8);
-    doc.text(`${stammdaten.werkPlz} ${stammdaten.werkOrt}`, col4X, footerY + 12);
-  }
-
-  // Spalte 5: Kontakt
-  let col5X = 145;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Kontakt:', col5X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Tel: ${stammdaten.firmenTelefon}`, col5X, footerY + 4);
-  doc.text(stammdaten.firmenEmail, col5X, footerY + 8);
-  if (stammdaten.firmenWebsite) {
-    doc.text(stammdaten.firmenWebsite, col5X, footerY + 12);
-  }
-  
-  // Spalte 6: Bankverbindung
-  let col6X = 170;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Bank:', col6X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.bankname, col6X, footerY + 4);
-  const ibanFormatted = stammdaten.iban.match(/.{1,4}/g)?.join(' ') || stammdaten.iban;
-  doc.text(ibanFormatted, col6X, footerY + 8);
-  doc.text(`BIC: ${stammdaten.bic}`, col6X, footerY + 12);
-};
 
 // === ANGEBOT ===
 export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Stammdaten): Promise<jsPDF> => {
@@ -274,17 +143,31 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // === Positionen Tabelle ===
   yPos += 8;
   
-  const tableData = daten.positionen.map(pos => [
-    pos.bezeichnung,
-    pos.menge.toString(),
-    pos.einheit,
-    formatWaehrung(pos.einzelpreis),
-    formatWaehrung(pos.gesamtpreis)
-  ]);
+  const tableData = daten.positionen.map(pos => {
+    // Bezeichnung mit Beschreibung (falls vorhanden)
+    let bezeichnungMitBeschreibung = pos.bezeichnung;
+    if (pos.beschreibung && pos.beschreibung.trim()) {
+      bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
+    }
+    
+    // Einzelpreis mit optionalem Streichpreis
+    let einzelpreisText = formatWaehrung(pos.einzelpreis);
+    if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
+      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+    }
+    
+    return [
+      bezeichnungMitBeschreibung,
+      pos.menge.toString(),
+      pos.einheit,
+      einzelpreisText,
+      formatWaehrung(pos.gesamtpreis)
+    ];
+  });
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25 },
+    margin: { left: 25, right: 25, bottom: 30 },
     head: [['Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamtpreis']],
     body: tableData,
     theme: 'striped',
@@ -299,16 +182,65 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 75 },
+      0: { cellWidth: 75, valign: 'top' },
       1: { cellWidth: 18, halign: 'right' },
       2: { cellWidth: 22 },
-      3: { cellWidth: 27, halign: 'right' },
+      3: { cellWidth: 27, halign: 'right', valign: 'middle' },
       4: { cellWidth: 27, halign: 'right' }
+    },
+    didParseCell: function(data: any) {
+      // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
+      if (data.column.index === 0 && data.section === 'body') {
+        data.cell.styles.fontSize = 9;
+      }
+    },
+    didDrawCell: function(data: any) {
+      // Streichpreis durchstreichen (wenn vorhanden)
+      if (data.column.index === 3 && data.section === 'body') {
+        const position = daten.positionen[data.row.index];
+        if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
+          const cell = data.cell;
+          const lines = cell.text;
+          
+          // Erste Zeile durchstreichen (Streichpreis)
+          if (lines.length >= 2) {
+            const streichpreisText = lines[0];
+            
+            // Textbreite berechnen
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const textWidth = doc.getTextWidth(streichpreisText);
+            
+            // Linie nur über dem Text, rechtsbündig in der Zelle
+            const x2 = cell.x + cell.width - cell.padding('right');
+            const x1 = x2 - textWidth;
+            const y = cell.y + cell.padding('top') + 1.5; // Mittig über der ersten Textzeile
+            
+            doc.setDrawColor(150, 150, 150);
+            doc.setLineWidth(0.4);
+            doc.line(x1, y, x2, y);
+          }
+        }
+      }
+    },
+    // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        // Folgeseiten-Header (ohne Adressfeld)
+        const currentPage = doc.getCurrentPageInfo().pageNumber;
+        if (currentPage > 1) {
+          addFollowPageHeader(doc, stammdaten);
+        }
+        addDIN5008Footer(doc, stammdaten);
+      }
     }
   });
   
   // === Summen ===
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  
+  // Prüfe ob genug Platz für Summen-Block (ca. 40mm Höhe)
+  summenY = ensureSpace(doc, summenY, 40, stammdaten);
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
@@ -316,7 +248,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   const bruttobetrag = nettoGesamt + umsatzsteuer;
   
   const summenX = 125;
-  let summenY = finalY + 10;
+  summenY += 10;
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -350,6 +282,10 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   // === Lieferbedingungen ===
   summenY += 15;
+  
+  // Prüfe Platz für Lieferbedingungen-Block (ca. 25mm)
+  summenY = ensureSpace(doc, summenY, 25, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -367,8 +303,24 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY += 4;
   }
   
+  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
+    summenY += 2;
+    const lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
+    const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
+    
+    // Prüfe ob genug Platz für Lieferbedingungen-Text
+    summenY = ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
+    
+    doc.text(lieferbedingungenLines, 25, summenY);
+    summenY += lieferbedingungenHeight;
+  }
+  
   // === Zahlungsbedingungen ===
   summenY += 5;
+  
+  // Prüfe Platz für Zahlungsbedingungen-Block (ca. 20mm)
+  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('Zahlungsbedingungen:', 25, summenY);
@@ -396,16 +348,27 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;
+    
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+    
+    // Prüfe Platz für Bemerkung
+    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
     summenY += 5;
-    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
     doc.text(bemerkungLines, 25, summenY);
+    summenY += (bemerkungLines.length * 4);
   }
   
   // === Grußformel ===
   summenY += 12;
+  
+  // Prüfe Platz für Grußformel (ca. 15mm)
+  summenY = ensureSpace(doc, summenY, 15, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Wir freuen uns auf Ihre Rückmeldung und verbleiben', 25, summenY);
@@ -416,7 +379,12 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
 
-  addDIN5008Footer(doc, stammdaten);
+  // Footer auf erster Seite (und allen weiteren, falls vorhanden)
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
+  }
 
   return doc;
 };
@@ -547,17 +515,31 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   // === Positionen Tabelle ===
   yPos += 6;
   
-  const tableData = daten.positionen.map(pos => [
-    pos.bezeichnung,
-    pos.menge.toString(),
-    pos.einheit,
-    formatWaehrung(pos.einzelpreis),
-    formatWaehrung(pos.gesamtpreis)
-  ]);
+  const tableData = daten.positionen.map(pos => {
+    // Bezeichnung mit Beschreibung (falls vorhanden)
+    let bezeichnungMitBeschreibung = pos.bezeichnung;
+    if (pos.beschreibung && pos.beschreibung.trim()) {
+      bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
+    }
+    
+    // Einzelpreis mit optionalem Streichpreis
+    let einzelpreisText = formatWaehrung(pos.einzelpreis);
+    if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
+      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+    }
+    
+    return [
+      bezeichnungMitBeschreibung,
+      pos.menge.toString(),
+      pos.einheit,
+      einzelpreisText,
+      formatWaehrung(pos.gesamtpreis)
+    ];
+  });
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25 },
+    margin: { left: 25, right: 25, bottom: 30 },
     head: [['Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamtpreis']],
     body: tableData,
     theme: 'striped',
@@ -572,16 +554,61 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 75 },
+      0: { cellWidth: 75, valign: 'top' },
       1: { cellWidth: 18, halign: 'right' },
       2: { cellWidth: 22 },
-      3: { cellWidth: 27, halign: 'right' },
+      3: { cellWidth: 27, halign: 'right', valign: 'middle' },
       4: { cellWidth: 27, halign: 'right' }
+    },
+    didParseCell: function(data: any) {
+      // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
+      if (data.column.index === 0 && data.section === 'body') {
+        data.cell.styles.fontSize = 9;
+      }
+    },
+    didDrawCell: function(data: any) {
+      // Streichpreis durchstreichen (wenn vorhanden)
+      if (data.column.index === 3 && data.section === 'body') {
+        const position = daten.positionen[data.row.index];
+        if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
+          const cell = data.cell;
+          const lines = cell.text;
+          
+          // Erste Zeile durchstreichen (Streichpreis)
+          if (lines.length >= 2) {
+            const streichpreisText = lines[0];
+            
+            // Textbreite berechnen
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const textWidth = doc.getTextWidth(streichpreisText);
+            
+            // Linie nur über dem Text, rechtsbündig in der Zelle
+            const x2 = cell.x + cell.width - cell.padding('right');
+            const x1 = x2 - textWidth;
+            const y = cell.y + cell.padding('top') + 2.5; // Mittig über der ersten Textzeile
+            
+            doc.setDrawColor(150, 150, 150);
+            doc.setLineWidth(0.4);
+            doc.line(x1, y, x2, y);
+          }
+        }
+      }
+    },
+    // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        addFollowPageHeader(doc, stammdaten);
+        addDIN5008Footer(doc, stammdaten);
+      }
     }
   });
   
   // === Summen ===
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  
+  // Prüfe ob genug Platz für Summen-Block
+  summenY = ensureSpace(doc, summenY, 40, stammdaten);
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
@@ -589,7 +616,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   const bruttobetrag = nettoGesamt + umsatzsteuer;
   
   const summenX = 125;
-  let summenY = finalY + 10;
+  summenY += 10;
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -623,6 +650,10 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   // === Lieferbedingungen ===
   summenY += 15;
+  
+  // Prüfe Platz für Lieferbedingungen-Block
+  summenY = ensureSpace(doc, summenY, 25, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -640,8 +671,24 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY += 4;
   }
   
+  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
+    summenY += 2;
+    const lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
+    const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
+    
+    // Prüfe ob genug Platz für Lieferbedingungen-Text
+    summenY = ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
+    
+    doc.text(lieferbedingungenLines, 25, summenY);
+    summenY += lieferbedingungenHeight;
+  }
+  
   // === Zahlungsbedingungen ===
   summenY += 5;
+  
+  // Prüfe Platz für Zahlungsbedingungen-Block
+  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('Zahlungsbedingungen:', 25, summenY);
@@ -669,16 +716,27 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;
+    
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+    
+    // Prüfe Platz für Bemerkung
+    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
     summenY += 5;
-    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
     doc.text(bemerkungLines, 25, summenY);
+    summenY += (bemerkungLines.length * 4);
   }
   
   // === Grußformel ===
   summenY += 12;
+  
+  // Prüfe Platz für Grußformel
+  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Wir danken für Ihr Vertrauen und freuen uns auf eine erfolgreiche Zusammenarbeit.', 25, summenY);
@@ -689,7 +747,12 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
 
-  addDIN5008Footer(doc, stammdaten);
+  // Footer auf allen Seiten
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
+  }
 
   return doc;
 };
@@ -838,7 +901,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25 },
+    margin: { left: 25, right: 25, bottom: 30 },
     head: [['Artikel', 'Menge', 'Einheit', 'Serien-/Chargennr.']],
     body: tableData,
     theme: 'striped',
@@ -857,13 +920,23 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       1: { cellWidth: 22, halign: 'right' },
       2: { cellWidth: 25 },
       3: { cellWidth: 37 }
+    },
+    // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        addFollowPageHeader(doc, stammdaten);
+        addDIN5008Footer(doc, stammdaten);
+      }
     }
   });
   
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
   
   // === Empfangsbestätigung ===
-  let signY = finalY + 20;
+  signY += 20;
+  
+  // Prüfe Platz für Empfangsbestätigung
+  signY = ensureSpace(doc, signY, 30, stammdaten);
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -882,16 +955,27 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   // === Bemerkung ===
   if (daten.bemerkung) {
     signY += 15;
+    
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+    
+    // Prüfe Platz für Bemerkung
+    signY = ensureSpace(doc, signY, bemerkungHeight, stammdaten);
+    
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, signY);
     signY += 5;
-    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
     doc.text(bemerkungLines, 25, signY);
+    signY += (bemerkungLines.length * 4);
   }
   
   // === Grußformel ===
   signY += 12;
+  
+  // Prüfe Platz für Grußformel
+  signY = ensureSpace(doc, signY, 10, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Mit freundlichen Grüßen', 25, signY);
@@ -900,9 +984,12 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(stammdaten.firmenname, 25, signY);
   doc.setFont('helvetica', 'normal');
 
-  addDIN5008Footer(doc, stammdaten);
+  // Footer auf allen Seiten
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
+  }
 
   return doc;
 };
-
-export { formatWaehrung, formatDatum };

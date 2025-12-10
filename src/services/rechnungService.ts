@@ -1,8 +1,19 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 import { RechnungsDaten, DokumentBerechnung, Position } from '../types/bestellabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
+import {
+  addDIN5008Header,
+  addDIN5008Footer,
+  addAbsenderzeile,
+  addFollowPageHeader,
+  ensureSpace,
+  formatWaehrung as formatWaehrungHelper,
+  formatDatum as formatDatumHelper,
+  getTextHeight
+} from './pdfHelpers';
 
 // Gemeinsame Berechnungsfunktion
 export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnung => {
@@ -23,6 +34,48 @@ export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnu
 export const berechneRechnungsSummen = berechneDokumentSummen;
 
 /**
+ * Generiert einen EPC-QR-Code String nach dem GiroCode Standard
+ * für SEPA-Überweisungen
+ */
+const generiereEPCString = (
+  empfaengerName: string,
+  iban: string,
+  bic: string,
+  betrag: number,
+  verwendungszweck: string
+): string => {
+  // EPC-QR-Code Format (GiroCode)
+  // https://www.europeanpaymentscouncil.eu/document-library/guidance-documents/quick-response-code-guidelines-enable-data-capture-initiation
+  
+  // IBAN ohne Leerzeichen
+  const ibanOhneLeerzeichen = iban.replace(/\s/g, '');
+  
+  // Betrag auf 2 Dezimalstellen formatiert (max 999999999.99)
+  const betragFormatiert = betrag.toFixed(2);
+  
+  // Verwendungszweck auf 140 Zeichen begrenzen
+  const verwendungszweckGekuerzt = verwendungszweck.substring(0, 140);
+  
+  // EPC-QR-Code String aufbauen
+  const epcLines = [
+    'BCD',                    // Service Tag
+    '002',                    // Version
+    '1',                      // Character Set (1 = UTF-8)
+    'SCT',                    // Identification (SEPA Credit Transfer)
+    bic,                      // BIC
+    empfaengerName,           // Empfängername (max 70 Zeichen)
+    ibanOhneLeerzeichen,      // IBAN
+    `EUR${betragFormatiert}`, // Währung und Betrag
+    '',                       // Purpose (optional, meist leer)
+    '',                       // Structured Reference (optional)
+    verwendungszweckGekuerzt, // Unstructured Remittance Information
+    ''                        // Beneficiary to Originator Information (optional)
+  ];
+  
+  return epcLines.join('\n');
+};
+
+/**
  * Generiert eine Rechnung als PDF
  * Optional können Stammdaten übergeben werden, sonst werden diese aus der DB geladen
  */
@@ -37,41 +90,8 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   // Farben
   const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
   
-  // === DIN 5008: FALZMARKEN ===
-  // Falzmarke 1 bei 87mm (für C6/5)
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.1);
-  doc.line(3, 87, 8, 87);
-  // Falzmarke 2 bei 192mm
-  doc.line(3, 192, 8, 192);
-  
-  // === LOGO BOX - Oben rechts ===
-  const logoBoxX = 130;
-  const logoBoxY = 15;
-  const logoBoxWidth = 65;
-  const logoBoxHeight = 35;
-  
-  // Logo Box mit rotem Rand
-  doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(0.5);
-  doc.rect(logoBoxX, logoBoxY, logoBoxWidth, logoBoxHeight);
-  
-  // Firmenname im Logo
-  doc.setFontSize(14);
-  doc.setTextColor(...primaryColor);
-  doc.setFont('helvetica', 'bold');
-  doc.text(stammdaten.firmenname, logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
-  
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('GmbH', logoBoxX + logoBoxWidth / 2, logoBoxY + 15, { align: 'center' });
-  
-  doc.setFontSize(8);
-  doc.text('Tennismehl', logoBoxX + logoBoxWidth / 2, logoBoxY + 21, { align: 'center' });
-  doc.text('Tennisplatzzubehör', logoBoxX + logoBoxWidth / 2, logoBoxY + 26, { align: 'center' });
-  doc.text('Tennisplatzbau', logoBoxX + logoBoxWidth / 2, logoBoxY + 30, { align: 'center' });
-  doc.text('Ziegelsplittprodukte', logoBoxX + logoBoxWidth / 2, logoBoxY + 34, { align: 'center' });
+  // DIN 5008 Header
+  addDIN5008Header(doc, stammdaten);
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -124,11 +144,8 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
   }
   
-  // === DIN 5008: ABSENDERZEILE (für Fensterkuvert) ===
-  yPos = 45;
-  doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`${stammdaten.firmenname} · ${stammdaten.firmenstrasse} · ${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, 25, yPos);
+  // DIN 5008 Absenderzeile
+  addAbsenderzeile(doc, stammdaten);
   
   // === DIN 5008: EMPFÄNGERADRESSE ===
   yPos = 50;
@@ -196,18 +213,32 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   // === Positionen Tabelle ===
   yPos += 8;
   
-  const tableData = daten.positionen.map(pos => [
-    pos.artikelnummer || '',
-    pos.bezeichnung,
-    pos.menge.toString(),
-    pos.einheit,
-    formatWaehrung(pos.einzelpreis),
-    formatWaehrung(pos.gesamtpreis)
-  ]);
+  const tableData = daten.positionen.map(pos => {
+    // Bezeichnung mit Beschreibung (falls vorhanden)
+    let bezeichnungMitBeschreibung = pos.bezeichnung;
+    if (pos.beschreibung && pos.beschreibung.trim()) {
+      bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
+    }
+    
+    // Einzelpreis mit optionalem Streichpreis
+    let einzelpreisText = formatWaehrung(pos.einzelpreis);
+    if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
+      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+    }
+    
+    return [
+      pos.artikelnummer || '',
+      bezeichnungMitBeschreibung,
+      pos.menge.toString(),
+      pos.einheit,
+      einzelpreisText,
+      formatWaehrung(pos.gesamtpreis)
+    ];
+  });
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 25 },
+    margin: { left: 25, right: 25, bottom: 30 },
     head: [['Artikel-Nr.', 'Leistungsbeschreibung', 'Menge', 'Einheit', 'Einzelpreis', 'Gesamt']],
     body: tableData,
     theme: 'striped',
@@ -223,20 +254,65 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     },
     columnStyles: {
       0: { cellWidth: 25, halign: 'left' },
-      1: { cellWidth: 70, halign: 'left' },
+      1: { cellWidth: 70, halign: 'left', valign: 'top' },
       2: { cellWidth: 18, halign: 'right' },
       3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 24, halign: 'right' },
+      4: { cellWidth: 24, halign: 'right', valign: 'middle' },
       5: { cellWidth: 24, halign: 'right' }
+    },
+    didParseCell: function(data: any) {
+      // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
+      if (data.column.index === 1 && data.section === 'body') {
+        data.cell.styles.fontSize = 9;
+      }
+    },
+    didDrawCell: function(data: any) {
+      // Streichpreis durchstreichen (wenn vorhanden)
+      if (data.column.index === 4 && data.section === 'body') {
+        const position = daten.positionen[data.row.index];
+        if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
+          const cell = data.cell;
+          const lines = cell.text;
+          
+          // Erste Zeile durchstreichen (Streichpreis)
+          if (lines.length >= 2) {
+            const streichpreisText = lines[0];
+            
+            // Textbreite berechnen
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const textWidth = doc.getTextWidth(streichpreisText);
+            
+            // Linie nur über dem Text, rechtsbündig in der Zelle
+            const x2 = cell.x + cell.width - cell.padding('right');
+            const x1 = x2 - textWidth;
+            const y = cell.y + cell.padding('top') + 1.5; // Mittig über der ersten Textzeile
+            
+            doc.setDrawColor(150, 150, 150);
+            doc.setLineWidth(0.4);
+            doc.line(x1, y, x2, y);
+          }
+        }
+      }
+    },
+    // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        addFollowPageHeader(doc, stammdaten);
+        addDIN5008Footer(doc, stammdaten);
+      }
     }
   });
   
   // === Summen ===
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   const berechnung = berechneRechnungsSummen(daten.positionen);
   
+  // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 50mm)
+  summenY = ensureSpace(doc, summenY, 50, stammdaten);
+  
   const summenX = 125;
-  let summenY = finalY + 10;
+  summenY += 10;
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -264,6 +340,10 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // === Zahlungsbedingungen ===
   summenY += 15;
+  
+  // Prüfe Platz für Zahlungsbedingungen + Bankdaten + QR-Code (ca. 45mm)
+  summenY = ensureSpace(doc, summenY, 45, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -285,8 +365,10 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     );
   }
   
-  // === Bankdaten ===
+  // === Bankdaten mit EPC-QR-Code ===
   summenY += 8;
+  const bankdatenStartY = summenY;
+  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('Bankverbindung:', 25, summenY);
@@ -300,27 +382,73 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   summenY += 4;
   doc.text(`BIC: ${stammdaten.bic}`, 25, summenY);
   
+  // === EPC-QR-Code generieren und einfügen ===
+  try {
+    const verwendungszweck = `Rechnung ${daten.rechnungsnummer}`;
+    const epcString = generiereEPCString(
+      stammdaten.firmenname,
+      stammdaten.iban,
+      stammdaten.bic,
+      berechnung.bruttobetrag,
+      verwendungszweck
+    );
+    
+    // QR-Code als Data URL generieren
+    const qrDataUrl = await QRCode.toDataURL(epcString, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 256
+    });
+    
+    // QR-Code rechts neben den Bankdaten platzieren
+    const qrSize = 35;
+    const qrX = 145;
+    const qrY = bankdatenStartY - 5;
+    
+    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+    
+    // QR-Code Beschriftung
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Zum Bezahlen', qrX + qrSize/2, qrY + qrSize + 3, { align: 'center' });
+    doc.text('scannen', qrX + qrSize/2, qrY + qrSize + 6, { align: 'center' });
+  } catch (error) {
+    console.error('Fehler beim Generieren des QR-Codes:', error);
+    // Fortfahren ohne QR-Code, falls ein Fehler auftritt
+  }
+  
   // === Zahlungshinweis ===
   summenY += 8;
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   const hinweisText = 'Bitte verwenden Sie für die Zahlung die angegebene Rechnungsnummer als Verwendungszweck, damit wir Ihre Zahlung korrekt zuordnen können.';
-  const hinweisLines = doc.splitTextToSize(hinweisText, 160);
+  const hinweisLines = doc.splitTextToSize(hinweisText, 115); // Breite reduziert wegen QR-Code
   doc.text(hinweisLines, 25, summenY);
   
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;
+    
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+    
+    // Prüfe Platz für Bemerkung
+    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
     summenY += 5;
-    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
     doc.text(bemerkungLines, 25, summenY);
+    summenY += (bemerkungLines.length * 4);
   }
   
   // === Grußformel ===
   summenY += 12;
+  
+  // Prüfe Platz für Grußformel
+  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Mit freundlichen Grüßen', 25, summenY);
@@ -329,100 +457,16 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
   
-  // === DIN 5008: Footer mit Stammdaten ===
-  const pageHeight = doc.internal.pageSize.height;
-  const footerY = pageHeight - 20;
-  
-  // Trennlinie über Footer
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.3);
-  doc.line(25, footerY - 6, 185, footerY - 6);
-  
-  doc.setFontSize(7);
-  doc.setTextColor(80, 80, 80);
-  
-  // Spalte 1: Verwaltung
-  let col1X = 25;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Verwaltung:', col1X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.firmenname, col1X, footerY + 4);
-  doc.text(stammdaten.firmenstrasse, col1X, footerY + 8);
-  doc.text(`${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, col1X, footerY + 12);
-  
-  // Spalte 2: Geschäftsführer
-  let col2X = 55;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Geschäftsführer:', col2X, footerY);
-  doc.setFont('helvetica', 'normal');
-  
-  // Geschäftsführer untereinander schreiben
-  let gfYPos = footerY + 4;
-  stammdaten.geschaeftsfuehrer.forEach((gf, index) => {
-    doc.text(gf, col2X, gfYPos + (index * 3));
-  });
-  
-  // Sitz d. Gesellschaft dynamisch positionieren
-  const gfEndPos = gfYPos + (stammdaten.geschaeftsfuehrer.length * 3);
-  doc.text('Sitz: ' + stammdaten.sitzGesellschaft, col2X, gfEndPos + 1);
-  
-  // Spalte 3: Registergericht & USt-ID
-  let col3X = 85;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Registergericht:', col3X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.handelsregister, col3X, footerY + 4);
-  doc.setFont('helvetica', 'bold');
-  doc.text('USt-ID:', col3X, footerY + 8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.ustIdNr, col3X, footerY + 12);
-  
-  // Spalte 4: Werk/Verkauf (falls vorhanden)
-  let col4X = 115;
-  if (stammdaten.werkName && stammdaten.werkStrasse && stammdaten.werkPlz && stammdaten.werkOrt) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Werk/Verkauf:', col4X, footerY);
-    doc.setFont('helvetica', 'normal');
-    doc.text(stammdaten.werkName, col4X, footerY + 4);
-    doc.text(stammdaten.werkStrasse, col4X, footerY + 8);
-    doc.text(`${stammdaten.werkPlz} ${stammdaten.werkOrt}`, col4X, footerY + 12);
+  // Footer auf allen Seiten
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
   }
-
-  // Spalte 5: Kontakt
-  let col5X = 145;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Kontakt:', col5X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Tel: ${stammdaten.firmenTelefon}`, col5X, footerY + 4);
-  doc.text(stammdaten.firmenEmail, col5X, footerY + 8);
-  if (stammdaten.firmenWebsite) {
-    doc.text(stammdaten.firmenWebsite, col5X, footerY + 12);
-  }
-  
-  // Spalte 6: Bankverbindung
-  let col6X = 170;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Bank:', col6X, footerY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.bankname, col6X, footerY + 4);
-  const ibanFormatted = stammdaten.iban.match(/.{1,4}/g)?.join(' ') || stammdaten.iban;
-  doc.text(ibanFormatted, col6X, footerY + 8);
-  doc.text(`BIC: ${stammdaten.bic}`, col6X, footerY + 12);
   
   return doc;
 };
 
-const formatWaehrung = (betrag: number): string => {
-  return new Intl.NumberFormat('de-DE', {
-    style: 'currency',
-    currency: 'EUR'
-  }).format(betrag);
-};
-
-const formatDatum = (datum: string): string => {
-  return new Date(datum).toLocaleDateString('de-DE', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-};
+// Helper-Funktionen aus pdfHelpers verwenden
+const formatWaehrung = formatWaehrungHelper;
+const formatDatum = formatDatumHelper;

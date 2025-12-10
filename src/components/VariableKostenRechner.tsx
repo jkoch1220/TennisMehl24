@@ -280,7 +280,7 @@ const VariableKostenRechner = () => {
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
                   Variable Kosten Rechner
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">Ziegelmehl Herstellung 2025</p>
+                <p className="text-sm text-gray-500 mt-1">Ziegelmehl Herstellung 2026</p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">

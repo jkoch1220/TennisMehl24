@@ -77,7 +77,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
       setShowProjektDialog(false);
       
       // Navigiere zur Projektverwaltung
-      navigate('/projektverwaltung');
+      navigate('/projekt-verwaltung');
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       alert('Fehler beim Erstellen des Projekts');
@@ -222,6 +222,18 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   </span>
                 </div>
               )}
+              {kunde.kunde.belieferungsart && (
+                <div>
+                  <span className="font-medium text-gray-700">Belieferungsart:</span>{' '}
+                  <span className="text-gray-900">
+                    {kunde.kunde.belieferungsart === 'nur_motorwagen' && 'Nur Motorwagen'}
+                    {kunde.kunde.belieferungsart === 'mit_haenger' && 'Mit Hänger Belieferbar'}
+                    {kunde.kunde.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
+                    {kunde.kunde.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
+                    {kunde.kunde.belieferungsart === 'bigbag' && 'BigBag'}
+                  </span>
+                </div>
+              )}
               {kunde.kunde.notizen && (
                 <div className="md:col-span-2">
                   <span className="font-medium text-gray-700">Notizen:</span>{' '}
@@ -234,6 +246,12 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   <span className="text-gray-900">
                     {kunde.kunde.standardBezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
                   </span>
+                </div>
+              )}
+              {kunde.kunde.schuettstellenAnzahl !== undefined && kunde.kunde.schuettstellenAnzahl !== null && (
+                <div>
+                  <span className="font-medium text-gray-700">Schüttstellen Anzahl:</span>{' '}
+                  <span className="text-gray-900">{kunde.kunde.schuettstellenAnzahl}</span>
                 </div>
               )}
             </div>

@@ -317,7 +317,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                       ? 'border-orange-400 bg-orange-50' 
                       : 'border-gray-300'
                   }`}
-                  placeholder="z.B. RE-2025-001"
+                  placeholder="z.B. RE-2026-001"
                 />
                 {checkingDuplikat && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

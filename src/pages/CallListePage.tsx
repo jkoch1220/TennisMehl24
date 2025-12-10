@@ -3,7 +3,7 @@ import CallListeV2 from '../components/Saisonplanung/CallListeV2';
 
 const CallListePage = () => {
   const navigate = useNavigate();
-  const saisonjahr = new Date().getFullYear();
+  const saisonjahr = 2026; // Aktuelle Saison
 
   return (
     <CallListeV2

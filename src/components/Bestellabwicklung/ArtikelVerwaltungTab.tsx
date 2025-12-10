@@ -24,6 +24,7 @@ const ArtikelVerwaltungTab = () => {
     beschreibung: '',
     einheit: 't',
     einzelpreis: undefined,
+    streichpreis: undefined,
   });
 
   // Artikel laden
@@ -70,6 +71,7 @@ const ArtikelVerwaltungTab = () => {
       beschreibung: '',
       einheit: 't',
       einzelpreis: undefined,
+      streichpreis: undefined,
     });
   };
 
@@ -83,6 +85,7 @@ const ArtikelVerwaltungTab = () => {
       beschreibung: art.beschreibung || '',
       einheit: art.einheit,
       einzelpreis: art.einzelpreis,
+      streichpreis: art.streichpreis,
     });
   };
 
@@ -255,6 +258,20 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.einzelpreis ?? ''}
                 onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Optional - für Angebote auf Anfrage"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Streichpreis (€) <span className="text-gray-400 text-xs">(optional)</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.streichpreis ?? ''}
+                onChange={(e) => setFormData({ ...formData, streichpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="Ursprünglicher Preis bei Rabattaktionen"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>

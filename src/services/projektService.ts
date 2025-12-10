@@ -19,7 +19,8 @@ class ProjektService {
       }
 
       if (filter?.suche) {
-        queries.push(Query.search('kundenname', filter.suche));
+        // Verwende Query.contains statt Query.search (benötigt keinen Fulltext-Index)
+        queries.push(Query.contains('kundenname', filter.suche));
       }
 
       queries.push(Query.orderDesc('erstelltAm'));
