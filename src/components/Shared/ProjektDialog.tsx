@@ -197,7 +197,8 @@ const ProjektDialog = ({
             >
               <option value="">Bitte wählen</option>
               <option value="direkt">Direkt</option>
-              <option value="ueber_platzbauer">Über Platzbauer</option>
+              <option value="direkt_instandsetzung">Direkt Instandsetzung</option>
+              <option value="ueber_platzbauer">Platzbauer</option>
             </select>
           </div>
 

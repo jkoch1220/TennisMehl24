@@ -211,11 +211,18 @@ const Saisonplanung = () => {
               color="orange"
             />
             <StatistikKarte
-              title="Bezugsweg direkt"
+              title="Bezugsweg Direkt"
               value={statistik.nachBezugsweg.direkt.toString()}
               subtitle="Direkt beliefert"
               icon={Building2}
               color="blue"
+            />
+            <StatistikKarte
+              title="Direkt Instandsetzung"
+              value={statistik.nachBezugsweg.direkt_instandsetzung.toString()}
+              subtitle="Direkt FIS"
+              icon={Building2}
+              color="green"
             />
             <StatistikKarte
               title="Über Platzbauer"
@@ -423,10 +430,14 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
                 {kunde.aktuelleSaison?.bezugsweg
                   ? kunde.aktuelleSaison.bezugsweg === 'direkt'
                     ? 'Direkt'
-                    : 'Über Platzbauer'
+                    : kunde.aktuelleSaison.bezugsweg === 'direkt_instandsetzung'
+                    ? 'Direkt Instandsetzung'
+                    : 'Platzbauer'
                   : kunde.kunde.standardBezugsweg === 'direkt'
                   ? 'Direkt (Standard)'
-                  : 'Über Platzbauer (Standard)'}
+                  : kunde.kunde.standardBezugsweg === 'direkt_instandsetzung'
+                  ? 'Direkt Instandsetzung (Standard)'
+                  : 'Platzbauer (Standard)'}
               </p>
             )}
           </div>

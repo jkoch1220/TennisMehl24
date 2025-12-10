@@ -244,7 +244,11 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 <div>
                   <span className="font-medium text-gray-700">Standard Bezugsweg:</span>{' '}
                   <span className="text-gray-900">
-                    {kunde.kunde.standardBezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                    {kunde.kunde.standardBezugsweg === 'direkt' 
+                      ? 'Direkt' 
+                      : kunde.kunde.standardBezugsweg === 'direkt_instandsetzung'
+                      ? 'Direkt Instandsetzung'
+                      : 'Platzbauer'}
                   </span>
                 </div>
               )}
@@ -371,7 +375,11 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   <div>
                     <span className="font-medium text-gray-700">Bezugsweg:</span>{' '}
                     <span className="text-gray-900">
-                      {kunde.aktuelleSaison.bezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                      {kunde.aktuelleSaison.bezugsweg === 'direkt'
+                        ? 'Direkt'
+                        : kunde.aktuelleSaison.bezugsweg === 'direkt_instandsetzung'
+                        ? 'Direkt Instandsetzung'
+                        : 'Platzbauer'}
                     </span>
                   </div>
                 )}
@@ -445,7 +453,11 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                           <div>
                             <span className="text-gray-600">Bezugsweg:</span>{' '}
                             <span className="font-medium">
-                              {saison.bezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                              {saison.bezugsweg === 'direkt'
+                                ? 'Direkt'
+                                : saison.bezugsweg === 'direkt_instandsetzung'
+                                ? 'Direkt Instandsetzung'
+                                : 'Platzbauer'}
                             </span>
                           </div>
                         )}
@@ -513,7 +525,11 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                           {projekt.bezugsweg && (
                             <div className="text-gray-600">
                               Bezugsweg: <span className="font-medium text-gray-900">
-                                {projekt.bezugsweg === 'direkt' ? 'Direkt' : 'Über Platzbauer'}
+                                {projekt.bezugsweg === 'direkt'
+                                  ? 'Direkt'
+                                  : projekt.bezugsweg === 'direkt_instandsetzung'
+                                  ? 'Direkt Instandsetzung'
+                                  : 'Platzbauer'}
                               </span>
                             </div>
                           )}

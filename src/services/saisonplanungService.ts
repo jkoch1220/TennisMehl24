@@ -1088,8 +1088,9 @@ export const saisonplanungService = {
       in_bearbeitung: 0,
       erledigt: 0,
     };
-    const nachBezugsweg: Record<'direkt' | 'ueber_platzbauer', number> = {
+    const nachBezugsweg: Record<'direkt' | 'direkt_instandsetzung' | 'ueber_platzbauer', number> = {
       direkt: 0,
+      direkt_instandsetzung: 0,
       ueber_platzbauer: 0,
     };
 
@@ -1185,8 +1186,9 @@ export const saisonplanungService = {
       in_bearbeitung: 0,
       erledigt: 0,
     };
-    const nachBezugsweg: Record<'direkt' | 'ueber_platzbauer', number> = {
+    const nachBezugsweg: Record<'direkt' | 'direkt_instandsetzung' | 'ueber_platzbauer', number> = {
       direkt: 0,
+      direkt_instandsetzung: 0,
       ueber_platzbauer: 0,
     };
 

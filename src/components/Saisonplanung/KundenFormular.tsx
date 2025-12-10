@@ -546,7 +546,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="direkt">Direkt</option>
-                    <option value="ueber_platzbauer">Über Platzbauer</option>
+                    <option value="direkt_instandsetzung">Direkt Instandsetzung</option>
+                    <option value="ueber_platzbauer">Platzbauer</option>
                   </select>
                 </div>
                 {formData.standardBezugsweg === 'ueber_platzbauer' && (

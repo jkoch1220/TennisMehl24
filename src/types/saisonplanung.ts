@@ -21,7 +21,7 @@ export type AnrufStatus = 'anrufen' | 'nicht_erreicht' | 'erreicht' | 'rueckruf'
 export type Bestellabsicht = 'bestellt' | 'bestellt_nicht' | 'unklar';
 
 // Bezugsweg
-export type Bezugsweg = 'direkt' | 'ueber_platzbauer';
+export type Bezugsweg = 'direkt' | 'direkt_instandsetzung' | 'ueber_platzbauer';
 
 // Aktivitäts-Typen
 export type AktivitaetsTyp =
