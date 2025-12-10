@@ -8,6 +8,7 @@ export interface Position {
   einheit: string;
   einzelpreis: number;
   streichpreis?: number; // Optional - durchgestrichener Originalpreis für Rabattaktionen
+  streichpreisGrund?: string; // Optional - Grund für den Rabatt (z.B. "Neukundenaktion", "Frühbucherpreis")
   gesamtpreis: number;
 }
 
@@ -168,27 +169,47 @@ export interface DokumentBerechnung {
   bruttobetrag: number;
 }
 
-export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
+
+// Status einer Rechnung im Workflow
+export type RechnungsStatus = 'aktiv' | 'storniert';
 
 // Gespeichertes Dokument in der Datenbank
+// WICHTIG: Diese Dokumente dienen der gesetzlichen Aufbewahrungspflicht (8 Jahre GoBD)!
 export interface GespeichertesDokument {
   $id?: string;
   projektId: string;
-  dokumentTyp: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+  dokumentTyp: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
   dokumentNummer: string;
   dateiId: string;
   dateiname: string;
   bruttobetrag?: number;
-  istFinal: boolean; // true bei Rechnungen, false bei AB/LS
-  daten?: string; // JSON-String der Dokument-Daten für Bearbeitung
+  istFinal: boolean; // true bei Rechnungen & Stornos (unveränderbar), false bei Angebot/AB/LS
+  daten?: string; // JSON-String der Dokument-Daten für Archivierung
+  version?: number; // Versionsnummer für Angebote/AB/LS
+  // Storno-Referenzen (nur für Rechnungen und Stornos)
+  stornoVonRechnungId?: string; // Bei Stornorechnung: ID der stornierten Rechnung
+  stornoRechnungId?: string; // Bei Rechnung: ID der zugehörigen Stornorechnung (wenn storniert)
+  rechnungsStatus?: RechnungsStatus; // Status der Rechnung
+  stornoGrund?: string; // Begründung für Stornierung
   $createdAt?: string; // Automatisch von Appwrite erstellt
   $updatedAt?: string; // Automatisch von Appwrite erstellt
+}
+
+// Storno-Rechnung Daten
+export interface StornoRechnungsDaten extends Omit<RechnungsDaten, 'rechnungsnummer' | 'rechnungsdatum'> {
+  stornoRechnungsnummer: string;
+  stornoDatum: string;
+  originalRechnungsnummer: string;
+  originalRechnungsdatum: string;
+  originalRechnungId: string;
+  stornoGrund: string;
 }
 
 // Typ für die UI-Darstellung eines Dokuments
 export interface DokumentAnzeige {
   id: string;
-  typ: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+  typ: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
   nummer: string;
   dateiname: string;
   erstelltAm: Date; // Wird aus $createdAt gemappt
@@ -196,4 +217,27 @@ export interface DokumentAnzeige {
   istFinal: boolean;
   downloadUrl: string;
   viewUrl: string;
+  version?: number;
+  rechnungsStatus?: RechnungsStatus;
+  stornoGrund?: string;
+}
+
+// Dateiverlauf für die UI
+export interface DokumentVerlaufEintrag {
+  id: string;
+  typ: DokumentTyp;
+  nummer: string;
+  dateiname: string;
+  erstelltAm: Date;
+  bruttobetrag?: number;
+  istFinal: boolean;
+  downloadUrl: string;
+  viewUrl: string;
+  version?: number;
+  rechnungsStatus?: RechnungsStatus;
+  stornoVonRechnungId?: string;
+  stornoGrund?: string;
+  // UI-Helper
+  istAktuell: boolean; // Neueste Version dieses Dokumenttyps
+  istStorniert?: boolean; // Wurde diese Rechnung storniert?
 }

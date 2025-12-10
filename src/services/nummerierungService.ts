@@ -1,13 +1,14 @@
 import { databases, DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID, PROJEKTE_COLLECTION_ID } from '../config/appwrite';
 import { Query } from 'appwrite';
 
-export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
 
 interface Zaehlerstaende {
   angebotZaehler: number;
   auftragsbestaetigungZaehler: number;
   lieferscheinZaehler: number;
   rechnungZaehler: number;
+  stornoZaehler: number;
   jahr: number;
 }
 
@@ -30,6 +31,9 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
         break;
       case 'rechnung':
         feldName = 'rechnungsnummer';
+        break;
+      case 'stornorechnung':
+        feldName = 'stornoRechnungsnummer';
         break;
       default:
         return false;
@@ -91,6 +95,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
             auftragsbestaetigungZaehler: 0,
             lieferscheinZaehler: 0,
             rechnungZaehler: 0,
+            stornoZaehler: 0,
             jahr: aktuellesJahr,
           }
         );
@@ -106,6 +111,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       auftragsbestaetigungZaehler: stammdaten.auftragsbestaetigungZaehler || 0,
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
+      stornoZaehler: stammdaten.stornoZaehler || 0,
       jahr: gespeichertesJahr,
     };
     
@@ -116,6 +122,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
         auftragsbestaetigungZaehler: 0,
         lieferscheinZaehler: 0,
         rechnungZaehler: 0,
+        stornoZaehler: 0,
         jahr: aktuellesJahr,
       };
     }
@@ -140,6 +147,10 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       case 'rechnung':
         prefix = 'RE';
         zaehlerFeld = 'rechnungZaehler';
+        break;
+      case 'stornorechnung':
+        prefix = 'STORNO';
+        zaehlerFeld = 'stornoZaehler';
         break;
       default:
         throw new Error(`Unbekannter Dokumenttyp: ${typ}`);
@@ -206,6 +217,9 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       case 'rechnung':
         prefix = 'RE';
         break;
+      case 'stornorechnung':
+        prefix = 'STORNO';
+        break;
       default:
         prefix = 'DOK';
     }
@@ -251,6 +265,9 @@ export const pruefeDokumentnummer = async (
         break;
       case 'rechnung':
         feldName = 'rechnungsnummer';
+        break;
+      case 'stornorechnung':
+        feldName = 'stornoRechnungsnummer';
         break;
       default:
         return { existiert: false };
@@ -307,6 +324,7 @@ export const getZaehlerstaende = async (): Promise<Zaehlerstaende | null> => {
       auftragsbestaetigungZaehler: stammdaten.auftragsbestaetigungZaehler || 0,
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
+      stornoZaehler: stammdaten.stornoZaehler || 0,
       jahr: stammdaten.jahr || 2026, // Aktuelle Saison
     };
   } catch (error) {

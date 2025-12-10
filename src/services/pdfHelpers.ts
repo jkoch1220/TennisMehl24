@@ -7,8 +7,22 @@
 
 import jsPDF from 'jspdf';
 import { Stammdaten } from '../types/stammdaten';
+import { loadLogoBase64 } from './logoLoader';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
+
+// Logo Cache für Performance
+let logoCache: string | null = null;
+
+/**
+ * Lädt das Logo einmalig beim ersten Aufruf
+ */
+const ensureLogoLoaded = async (): Promise<string | null> => {
+  if (!logoCache) {
+    logoCache = await loadLogoBase64();
+  }
+  return logoCache;
+};
 
 // === KONSTANTEN FÜR SEITENLAYOUT ===
 export const PAGE_MARGINS = {
@@ -54,11 +68,11 @@ export const hasEnoughSpace = (doc: jsPDF, currentY: number, neededHeight: numbe
  * @param isFirstPage - Ob es die erste Seite ist (für Adressfeld)
  * @returns Die Start-Y-Position für Content auf der neuen Seite
  */
-export const addNewPage = (doc: jsPDF, stammdaten: Stammdaten): number => {
+export const addNewPage = async (doc: jsPDF, stammdaten: Stammdaten): Promise<number> => {
   doc.addPage();
   
   // Füge Header-Elemente für Folgeseite hinzu
-  addFollowPageHeader(doc, stammdaten);
+  await addFollowPageHeader(doc, stammdaten);
   
   // Füge Footer hinzu
   addDIN5008Footer(doc, stammdaten);
@@ -74,83 +88,98 @@ export const addNewPage = (doc: jsPDF, stammdaten: Stammdaten): number => {
  * @param stammdaten - Stammdaten für Footer
  * @returns Die Y-Position, an der der Content platziert werden soll
  */
-export const ensureSpace = (
+export const ensureSpace = async (
   doc: jsPDF,
   currentY: number,
   neededHeight: number,
   stammdaten: Stammdaten
-): number => {
+): Promise<number> => {
   if (!hasEnoughSpace(doc, currentY, neededHeight)) {
-    return addNewPage(doc, stammdaten);
+    return await addNewPage(doc, stammdaten);
   }
   return currentY;
 };
 
 // === DIN 5008: Gemeinsamer Header für erste Seite ===
-export const addDIN5008Header = (doc: jsPDF, stammdaten: Stammdaten) => {
+export const addDIN5008Header = async (doc: jsPDF, stammdaten: Stammdaten) => {
   // === DIN 5008: FALZMARKEN ===
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
   doc.line(3, 87, 8, 87);  // Falzmarke 1 bei 87mm
   doc.line(3, 192, 8, 192); // Falzmarke 2 bei 192mm
   
-  // === LOGO BOX - Oben rechts ===
-  const logoBoxX = 130;
-  const logoBoxY = 15;
-  const logoBoxWidth = 65;
-  const logoBoxHeight = 35;
+  // === TENNISMEHL LOGO - Oben rechts ===
+  const logoX = 125;
+  const logoY = 15;
+  const logoWidth = 70;
+  const logoHeight = 35;
   
-  // Logo Box mit rotem Rand
-  doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(0.5);
-  doc.rect(logoBoxX, logoBoxY, logoBoxWidth, logoBoxHeight);
-  
-  // Firmenname im Logo
-  doc.setFontSize(14);
-  doc.setTextColor(...primaryColor);
-  doc.setFont('helvetica', 'bold');
-  doc.text(stammdaten.firmenname, logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
-  
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('GmbH', logoBoxX + logoBoxWidth / 2, logoBoxY + 15, { align: 'center' });
-  
-  doc.setFontSize(8);
-  doc.text('Tennismehl', logoBoxX + logoBoxWidth / 2, logoBoxY + 21, { align: 'center' });
-  doc.text('Tennisplatzzubehör', logoBoxX + logoBoxWidth / 2, logoBoxY + 26, { align: 'center' });
-  doc.text('Tennisplatzbau', logoBoxX + logoBoxWidth / 2, logoBoxY + 30, { align: 'center' });
-  doc.text('Ziegelsplittprodukte', logoBoxX + logoBoxWidth / 2, logoBoxY + 34, { align: 'center' });
+  // Logo als Image einfügen
+  try {
+    const logoData = await ensureLogoLoaded();
+    
+    if (logoData) {
+      // Logo erfolgreich geladen - als Bild einfügen
+      doc.addImage(logoData, 'PNG', logoX, logoY, logoWidth, logoHeight);
+    } else {
+      throw new Error('Logo konnte nicht geladen werden');
+    }
+  } catch (error) {
+    console.error('Logo konnte nicht geladen werden, verwende Fallback:', error);
+    
+    // FALLBACK: Wenn Logo nicht geladen werden kann, verwende Text
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(0.5);
+    doc.rect(logoX, logoY, logoWidth, logoHeight);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(...primaryColor);
+    doc.setFont('helvetica', 'bold');
+    doc.text(stammdaten.firmenname, logoX + logoWidth / 2, logoY + 10, { align: 'center' });
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('GmbH', logoX + logoWidth / 2, logoY + 15, { align: 'center' });
+  }
 };
 
 // === Header für Folgeseiten (ohne Adressfeld) ===
-export const addFollowPageHeader = (doc: jsPDF, stammdaten: Stammdaten) => {
+export const addFollowPageHeader = async (doc: jsPDF, stammdaten: Stammdaten) => {
   // === FALZMARKEN auch auf Folgeseiten ===
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.1);
   doc.line(3, 87, 8, 87);
   doc.line(3, 192, 8, 192);
   
-  // === LOGO BOX - Kleiner auf Folgeseiten ===
-  const logoBoxX = 150;
-  const logoBoxY = 15;
-  const logoBoxWidth = 45;
-  const logoBoxHeight = 25;
+  // === TENNISMEHL LOGO - Kleiner auf Folgeseiten ===
+  const logoX = 145;
+  const logoY = 15;
+  const logoWidth = 50;
+  const logoHeight = 25;
   
-  doc.setDrawColor(...primaryColor);
-  doc.setLineWidth(0.5);
-  doc.rect(logoBoxX, logoBoxY, logoBoxWidth, logoBoxHeight);
-  
-  doc.setFontSize(12);
-  doc.setTextColor(...primaryColor);
-  doc.setFont('helvetica', 'bold');
-  doc.text(stammdaten.firmenname, logoBoxX + logoBoxWidth / 2, logoBoxY + 10, { align: 'center' });
-  
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('GmbH', logoBoxX + logoBoxWidth / 2, logoBoxY + 14, { align: 'center' });
-  doc.text('Tennismehl', logoBoxX + logoBoxWidth / 2, logoBoxY + 19, { align: 'center' });
+  try {
+    const logoData = await ensureLogoLoaded();
+    
+    if (logoData) {
+      // Logo erfolgreich geladen - als Bild einfügen
+      doc.addImage(logoData, 'PNG', logoX, logoY, logoWidth, logoHeight);
+    } else {
+      throw new Error('Logo konnte nicht geladen werden');
+    }
+  } catch (error) {
+    console.error('Logo konnte nicht geladen werden, verwende Fallback:', error);
+    
+    // FALLBACK
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(0.5);
+    doc.rect(logoX, logoY, logoWidth, logoHeight);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(...primaryColor);
+    doc.setFont('helvetica', 'bold');
+    doc.text(stammdaten.firmenname, logoX + logoWidth / 2, logoY + 10, { align: 'center' });
+  }
   
   // "Fortsetzung" Text
   doc.setFontSize(10);

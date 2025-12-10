@@ -11,11 +11,13 @@ import {
   Building2,
   FileText,
   Upload,
+  Hash,
 } from 'lucide-react';
 import { KundenListenEintrag, NeuerKundenListenEintrag, KundenTyp } from '../../types/kundenliste';
 import { KundenAktivitaet, KundenAktivitaetsTyp } from '../../types/kundenAktivitaet';
 import { kundenListeService } from '../../services/kundenListeService';
 import { kundenAktivitaetService } from '../../services/kundenAktivitaetService';
+import { kundennummerService } from '../../services/kundennummerService';
 
 const leeresFormular: NeuerKundenListenEintrag = {
   name: '',
@@ -84,6 +86,16 @@ const KundenListe = () => {
   const resetFormular = () => {
     setFormData(leeresFormular);
     setBearbeiteId(null);
+  };
+
+  const generiereKundennummer = async () => {
+    try {
+      const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
+      setFormData({ ...formData, kundennummer: neueNummer });
+    } catch (error) {
+      console.error('Fehler beim Generieren der Kundennummer:', error);
+      alert('Fehler beim Generieren der Kundennummer');
+    }
   };
 
   const handleSpeichern = async () => {
@@ -261,6 +273,9 @@ const KundenListe = () => {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Nr.
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Kunde
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -293,6 +308,11 @@ const KundenListe = () => {
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => openDetails(kunde)}
                   >
+                    <td className="px-4 py-3">
+                      <div className="font-mono font-semibold text-gray-900">
+                        {kunde.kundennummer || kunde.id.substring(0, 8)}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{kunde.name}</div>
                       <div className="text-sm text-gray-500">
@@ -396,7 +416,7 @@ const KundenListe = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kundenname</label>
                   <input
@@ -406,6 +426,33 @@ const KundenListe = () => {
                     className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
                     placeholder="z.B. TC Musterstadt"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kundennummer</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.kundennummer || ''}
+                      onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
+                      placeholder={bearbeiteId ? '' : 'Wird automatisch vergeben'}
+                      className="flex-1 p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    />
+                    {!bearbeiteId && (
+                      <button
+                        type="button"
+                        onClick={generiereKundennummer}
+                        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+                        title="Kundennummer generieren"
+                      >
+                        <Hash className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {!bearbeiteId && !formData.kundennummer && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Kundennummer wird beim Speichern automatisch vergeben
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Kunden-Typ</label>

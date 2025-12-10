@@ -5,6 +5,7 @@ export type KundenTyp = 'verein' | 'platzbauer' | 'sonstige';
 export interface KundenListenEintrag {
   id: string;
   name: string;
+  kundennummer?: string;
   kundenTyp: KundenTyp;
   bestelltDirekt: boolean;
   adresse: Adresse;

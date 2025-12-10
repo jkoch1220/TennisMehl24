@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Users, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Users, Edit, Trash2, Search, Hash } from 'lucide-react';
 import { Kunde, NeuerKunde } from '../../types/dispo';
 import { kundenService } from '../../services/kundenService';
+import { kundennummerService } from '../../services/kundennummerService';
 
 const KundenVerwaltung = () => {
   const [kunden, setKunden] = useState<Kunde[]>([]);
@@ -45,12 +46,29 @@ const KundenVerwaltung = () => {
     }
   };
 
+  const generiereKundennummer = async () => {
+    try {
+      const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
+      setFormData({ ...formData, kundennummer: neueNummer });
+    } catch (error) {
+      console.error('Fehler beim Generieren der Kundennummer:', error);
+      alert('Fehler beim Generieren der Kundennummer');
+    }
+  };
+
   const handleSpeichern = async () => {
     try {
+      // Automatische Kundennummernvergabe für neue Kunden ohne Nummer
+      let kundenDaten = { ...formData };
+      if (!bearbeiteKunde && !kundenDaten.kundennummer) {
+        const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
+        kundenDaten.kundennummer = neueNummer;
+      }
+
       if (bearbeiteKunde) {
-        await kundenService.updateKunde(bearbeiteKunde.id, formData as Partial<Kunde>);
+        await kundenService.updateKunde(bearbeiteKunde.id, kundenDaten as Partial<Kunde>);
       } else {
-        await kundenService.createKunde(formData as NeuerKunde);
+        await kundenService.createKunde(kundenDaten as NeuerKunde);
       }
       setShowFormular(false);
       setBearbeiteKunde(null);
@@ -213,14 +231,32 @@ const KundenVerwaltung = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Kundennummer
                     </label>
-                    <input
-                      type="text"
-                      value={formData.kundennummer || ''}
-                      onChange={(e) =>
-                        setFormData({ ...formData, kundennummer: e.target.value })
-                      }
-                      className="w-full p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.kundennummer || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, kundennummer: e.target.value })
+                        }
+                        placeholder={bearbeiteKunde ? '' : 'Wird automatisch vergeben'}
+                        className="flex-1 p-2 border-2 border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+                      />
+                      {!bearbeiteKunde && (
+                        <button
+                          type="button"
+                          onClick={generiereKundennummer}
+                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                          title="Kundennummer generieren"
+                        >
+                          <Hash className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {!bearbeiteKunde && !formData.kundennummer && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Kundennummer wird beim Speichern automatisch vergeben
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">

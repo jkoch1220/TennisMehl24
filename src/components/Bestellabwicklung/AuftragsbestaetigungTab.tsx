@@ -12,10 +12,12 @@ import {
   ladeDokumentDaten,
   getFileDownloadUrl,
   speichereEntwurf,
-  ladeEntwurf
+  ladeEntwurf,
+  ladePositionenVonVorherigem
 } from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
+import DokumentVerlauf from './DokumentVerlauf';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -63,7 +65,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
   const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
-  
+  const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -203,20 +206,33 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       if (datenQuelle) {
         const heute = new Date();
         
-        const initialePositionen: Position[] = [];
-        const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
-        const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
+        // AUTOMATISCH: Versuche Positionen vom vorherigen Dokument (Angebot) zu übernehmen
+        let initialePositionen: Position[] = [];
         
-        if (angefragteMenge && preisProTonne) {
-          initialePositionen.push({
-            id: '1',
-            artikelnummer: 'TM-ZM',
-            bezeichnung: 'Tennismehl / Ziegelmehl',
-            menge: angefragteMenge,
-            einheit: 't',
-            einzelpreis: preisProTonne,
-            gesamtpreis: angefragteMenge * preisProTonne,
-          });
+        if (projekt?.$id) {
+          const positionen = await ladePositionenVonVorherigem(projekt.$id, 'auftragsbestaetigung');
+          if (positionen && positionen.length > 0) {
+            initialePositionen = positionen as Position[];
+            console.log('✅ Stückliste vom Angebot übernommen:', initialePositionen.length, 'Positionen');
+          }
+        }
+        
+        // Fallback: Wenn keine Positionen vom Angebot, versuche aus Projektdaten
+        if (initialePositionen.length === 0) {
+          const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
+          const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
+          
+          if (angefragteMenge && preisProTonne) {
+            initialePositionen.push({
+              id: '1',
+              artikelnummer: 'TM-ZM',
+              bezeichnung: 'Tennismehl / Ziegelmehl',
+              menge: angefragteMenge,
+              einheit: 't',
+              einzelpreis: preisProTonne,
+              gesamtpreis: angefragteMenge * preisProTonne,
+            });
+          }
         }
         
         // Auftragsbestätigungsnummer generieren, falls nicht vorhanden
@@ -388,7 +404,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       setGespeichertesDokument(neuesDokument);
       setIstBearbeitungsModus(false);
       setLadeStatus('bereit');
-      
+      setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
+
       // Status-Meldung nach 5 Sekunden ausblenden
       setTimeout(() => setStatusMeldung(null), 5000);
     } catch (error) {
@@ -905,6 +922,23 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           placeholder="Optional"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                         />
+                        {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
+                        {position.streichpreis && position.streichpreis > 0 && (
+                          <select
+                            value={position.streichpreisGrund || ''}
+                            onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
+                            disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-amber-50 disabled:bg-gray-100 disabled:text-gray-500"
+                          >
+                            <option value="">Grund wählen...</option>
+                            <option value="Neukundenaktion">Neukundenaktion</option>
+                            <option value="Frühbucherpreis">Frühbucherpreis</option>
+                            <option value="Treuerabatt">Treuerabatt</option>
+                            <option value="Last Minute Preis">Last Minute Preis</option>
+                            <option value="Sonderaktion">Sonderaktion</option>
+                            <option value="Mengenrabatt">Mengenrabatt</option>
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
@@ -1180,6 +1214,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               </div>
             )}
           </div>
+          
+          {/* Dateiverlauf */}
+          {projekt?.$id && (
+            <div className="mt-6">
+              <DokumentVerlauf
+                projektId={projekt.$id}
+                dokumentTyp="auftragsbestaetigung"
+                titel="AB-Verlauf"
+                maxAnzeige={3}
+                ladeZaehler={verlaufLadeZaehler}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

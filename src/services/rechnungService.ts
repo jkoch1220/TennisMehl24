@@ -91,7 +91,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
   
   // DIN 5008 Header
-  addDIN5008Header(doc, stammdaten);
+  await addDIN5008Header(doc, stammdaten);
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -220,10 +220,15 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
     }
     
-    // Einzelpreis mit optionalem Streichpreis
+    // Einzelpreis mit optionalem Streichpreis und Grund
     let einzelpreisText = formatWaehrung(pos.einzelpreis);
     if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
-      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      // Format: "Grund" (falls vorhanden), dann Streichpreis, dann neuer Preis
+      if (pos.streichpreisGrund) {
+        einzelpreisText = pos.streichpreisGrund + '\n' + formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      } else {
+        einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      }
     }
     
     return [
@@ -267,16 +272,18 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       }
     },
     didDrawCell: function(data: any) {
-      // Streichpreis durchstreichen (wenn vorhanden)
+      // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
       if (data.column.index === 4 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
           const lines = cell.text;
+          const hasGrund = position.streichpreisGrund && lines.length >= 3;
+          const streichpreisLineIndex = hasGrund ? 1 : 0;
           
-          // Erste Zeile durchstreichen (Streichpreis)
-          if (lines.length >= 2) {
-            const streichpreisText = lines[0];
+          // Streichpreis durchstreichen
+          if (lines.length >= (hasGrund ? 3 : 2)) {
+            const streichpreisText = lines[streichpreisLineIndex];
             
             // Textbreite berechnen
             doc.setFontSize(9);
@@ -288,23 +295,50 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
             const x1 = x2 - textWidth;
             
             // Y-Position berechnen für valign: 'middle'
-            // FontSize 9pt = ~3.175mm, Zeilenhöhe ~3.65mm (mit lineHeight 1.15)
             const fontSizeInMm = 9 * 0.352778;
             const lineHeight = fontSizeInMm * 1.15;
             const totalTextHeight = lines.length * lineHeight;
             const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
             
-            // Bei valign: 'middle' startet der Text zentriert
-            // Baseline der ersten Zeile = cell.y + padding + offset + fontSizeInMm
             const verticalOffset = (availableHeight - totalTextHeight) / 2;
-            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            // Baseline für die Streichpreis-Zeile berechnen
+            const lineBaseline = cell.y + cell.padding('top') + verticalOffset + (streichpreisLineIndex + 1) * fontSizeInMm + streichpreisLineIndex * (lineHeight - fontSizeInMm);
             
             // Streichlinie mittig durch den Text (35% über der Baseline)
-            const y = firstLineBaseline - (fontSizeInMm * 0.35);
+            const y = lineBaseline - (fontSizeInMm * 0.35);
             
             doc.setDrawColor(150, 150, 150);
             doc.setLineWidth(0.4);
             doc.line(x1, y, x2, y);
+          }
+          
+          // Grund kursiv überschreiben (erste Zeile)
+          if (hasGrund) {
+            const grundText = lines[0];
+            
+            // Position berechnen
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            
+            const x2 = cell.x + cell.width - cell.padding('right');
+            
+            const fontSizeInMm = 9 * 0.352778;
+            const lineHeight = fontSizeInMm * 1.15;
+            const totalTextHeight = lines.length * lineHeight;
+            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
+            const verticalOffset = (availableHeight - totalTextHeight) / 2;
+            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            
+            // Hintergrund der ersten Zeile überdecken
+            doc.setFillColor(255, 255, 255);
+            const bgHeight = fontSizeInMm * 1.2;
+            doc.rect(cell.x + cell.padding('left'), firstLineBaseline - fontSizeInMm, cell.width - cell.padding('left') - cell.padding('right'), bgHeight, 'F');
+            
+            // Kursiven Text neu zeichnen
+            doc.setTextColor(100, 100, 100);
+            doc.text(grundText, x2, firstLineBaseline, { align: 'right' });
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
           }
         }
       }
@@ -323,7 +357,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   const berechnung = berechneRechnungsSummen(daten.positionen);
   
   // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 50mm)
-  summenY = ensureSpace(doc, summenY, 50, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 50, stammdaten);
   
   const summenX = 125;
   summenY += 10;
@@ -356,7 +390,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   summenY += 15;
   
   // Prüfe Platz für Zahlungsbedingungen + Bankdaten + QR-Code (ca. 45mm)
-  summenY = ensureSpace(doc, summenY, 45, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -419,13 +453,21 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     const qrX = 145;
     const qrY = bankdatenStartY - 5;
     
+    // GiroCode Überschrift
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GiroCode', qrX + qrSize/2, qrY - 2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    
     doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
     
     // QR-Code Beschriftung
     doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
     doc.text('Zum Bezahlen', qrX + qrSize/2, qrY + qrSize + 3, { align: 'center' });
-    doc.text('scannen', qrX + qrSize/2, qrY + qrSize + 6, { align: 'center' });
+    doc.text('im Online Banking', qrX + qrSize/2, qrY + qrSize + 6, { align: 'center' });
+    doc.text('scannen', qrX + qrSize/2, qrY + qrSize + 9, { align: 'center' });
   } catch (error) {
     console.error('Fehler beim Generieren des QR-Codes:', error);
     // Fortfahren ohne QR-Code, falls ein Fehler auftritt
@@ -447,7 +489,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
     
     // Prüfe Platz für Bemerkung
-    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
     
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
@@ -461,7 +503,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   summenY += 12;
   
   // Prüfe Platz für Grußformel
-  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);

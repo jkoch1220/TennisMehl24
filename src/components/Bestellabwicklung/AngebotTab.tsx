@@ -1,13 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2 } from 'lucide-react';
-import { AngebotsDaten, Position } from '../../types/bestellabwicklung';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
-import { speichereEntwurf, ladeEntwurf } from '../../services/bestellabwicklungDokumentService';
+import {
+  speichereEntwurf,
+  ladeEntwurf,
+  ladeDokumentNachTyp,
+  speichereAngebot,
+  aktualisiereAngebot,
+  ladeDokumentDaten,
+  getFileDownloadUrl
+} from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
+import DokumentVerlauf from './DokumentVerlauf';
 
 interface AngebotTabProps {
   projekt?: Projekt;
@@ -51,6 +60,13 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
+  // Dokument-Status
+  const [gespeichertesDokument, setGespeichertesDokument] = useState<GespeichertesDokument | null>(null);
+  const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
+  const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
+  const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
+  const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+  
   // Auto-Save Status
   const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const [initialLaden, setInitialLaden] = useState(true);
@@ -70,34 +86,59 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     ladeArtikel();
   }, []);
 
-  // Gespeicherten Entwurf laden
+  // Gespeichertes Dokument und Entwurf laden
   useEffect(() => {
     const ladeGespeichertenEntwurf = async () => {
       if (!projekt?.$id) {
         setInitialLaden(false);
+        setLadeStatus('bereit');
         return;
       }
       
       try {
-        const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
+        setLadeStatus('laden');
         
-        if (gespeicherterEntwurf) {
-          // Ergänze fehlende Projekt-Daten (z.B. Kundennummer, falls sie später hinzugefügt wurde)
-          setAngebotsDaten({
-            ...gespeicherterEntwurf,
-            kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
-            kundenname: gespeicherterEntwurf.kundenname || projekt?.kundenname || '',
-            kundenstrasse: gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
-            kundenPlzOrt: gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
-          });
+        // Erst prüfen ob ein finalisiertes Angebot existiert
+        const dokument = await ladeDokumentNachTyp(projekt.$id, 'angebot');
+        
+        if (dokument) {
+          setGespeichertesDokument(dokument);
+          // Lade gespeicherte Daten für Bearbeitung
+          const gespeicherteDaten = ladeDokumentDaten<AngebotsDaten>(dokument);
+          if (gespeicherteDaten) {
+            setAngebotsDaten({
+              ...gespeicherteDaten,
+              kundennummer: gespeicherteDaten.kundennummer || projekt?.kundennummer,
+              kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
+              kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+            });
+          }
           setSpeicherStatus('gespeichert');
         } else {
-          // Fallback: Projekt-Daten nutzen
-          await ladeVonProjekt();
+          // Kein finalisiertes Angebot - versuche Entwurf zu laden
+          const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
+          
+          if (gespeicherterEntwurf) {
+            setAngebotsDaten({
+              ...gespeicherterEntwurf,
+              kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
+              kundenname: gespeicherterEntwurf.kundenname || projekt?.kundenname || '',
+              kundenstrasse: gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+            });
+            setSpeicherStatus('gespeichert');
+          } else {
+            // Fallback: Projekt-Daten nutzen
+            await ladeVonProjekt();
+          }
         }
+        
+        setLadeStatus('bereit');
       } catch (error) {
         console.error('Fehler beim Laden des Entwurfs:', error);
         await ladeVonProjekt();
+        setLadeStatus('bereit');
       } finally {
         setInitialLaden(false);
       }
@@ -222,9 +263,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     generiereNummer();
   }, [initialLaden]);
 
-  // Auto-Save mit Debounce
+  // Auto-Save mit Debounce (nur für Entwürfe, nicht wenn Dokument hinterlegt ist)
   const speichereAutomatisch = useCallback(async (daten: AngebotsDaten) => {
-    if (!projekt?.$id || initialLaden) return;
+    if (!projekt?.$id || initialLaden || gespeichertesDokument) return;
     
     try {
       setSpeicherStatus('speichern');
@@ -234,11 +275,11 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.$id, initialLaden]);
+  }, [projekt?.$id, initialLaden, gespeichertesDokument]);
 
-  // Debounced Auto-Save bei Änderungen
+  // Debounced Auto-Save bei Änderungen (nur wenn noch kein Dokument hinterlegt)
   useEffect(() => {
-    if (initialLaden || !hatGeaendert.current) return;
+    if (initialLaden || !hatGeaendert.current || gespeichertesDokument) return;
     
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -253,7 +294,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [angebotsDaten, speichereAutomatisch, initialLaden]);
+  }, [angebotsDaten, speichereAutomatisch, initialLaden, gespeichertesDokument]);
 
   const handleInputChange = (field: keyof AngebotsDaten, value: any) => {
     hatGeaendert.current = true;
@@ -354,9 +395,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }));
   };
 
+  // Nur PDF generieren und herunterladen (ohne Speicherung)
   const generiereUndLadeAngebot = async () => {
     try {
-      console.log('Generiere Angebot...', angebotsDaten);
+      console.log('Generiere Angebot (nur Download)...', angebotsDaten);
       const pdf = await generiereAngebotPDF(angebotsDaten);
       pdf.save(`Angebot_${angebotsDaten.angebotsnummer}.pdf`);
       console.log('Angebot erfolgreich generiert!');
@@ -366,12 +408,54 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }
   };
 
+  // Speichern in Appwrite (mit Versionierung)
+  const speichereUndHinterlegeAngebot = async () => {
+    if (!projekt?.$id) {
+      setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
+      return;
+    }
+    
+    try {
+      setLadeStatus('speichern');
+      setStatusMeldung(null);
+      
+      let neuesDokument: GespeichertesDokument;
+      
+      if (gespeichertesDokument && istBearbeitungsModus) {
+        // Neue Version erstellen (altes Dokument bleibt erhalten!)
+        neuesDokument = await aktualisiereAngebot(
+          gespeichertesDokument.$id!,
+          gespeichertesDokument.dateiId,
+          angebotsDaten,
+          gespeichertesDokument.version || 1
+        );
+        setStatusMeldung({ typ: 'erfolg', text: `Angebot als Version ${neuesDokument.version} gespeichert!` });
+      } else {
+        // Neu erstellen
+        neuesDokument = await speichereAngebot(projekt.$id, angebotsDaten);
+        setStatusMeldung({ typ: 'erfolg', text: 'Angebot erfolgreich gespeichert und hinterlegt!' });
+      }
+      
+      setGespeichertesDokument(neuesDokument);
+      setIstBearbeitungsModus(false);
+      setLadeStatus('bereit');
+      setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
+      
+      // Status-Meldung nach 5 Sekunden ausblenden
+      setTimeout(() => setStatusMeldung(null), 5000);
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+      setStatusMeldung({ typ: 'fehler', text: 'Fehler beim Speichern: ' + (error as Error).message });
+      setLadeStatus('fehler');
+    }
+  };
+
   const berechnung = berechneDokumentSummen(angebotsDaten.positionen);
   const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
   const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
 
   // Lade-Indikator
-  if (initialLaden) {
+  if (initialLaden || ladeStatus === 'laden') {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -385,8 +469,105 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       {/* Linke Spalte - Formular */}
       <div className="lg:col-span-3 space-y-6">
         
-        {/* Auto-Save Status */}
-        {projekt?.$id && (
+        {/* STATUS-BANNER: Bereits hinterlegtes Dokument */}
+        {gespeichertesDokument && !istBearbeitungsModus && (
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <FileCheck className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-green-800">Angebot hinterlegt</h3>
+                <p className="text-sm text-green-700 mt-1">
+                  <strong>{gespeichertesDokument.dokumentNummer}</strong>
+                  {gespeichertesDokument.version && ` (Version ${gespeichertesDokument.version})`}
+                  {' '}wurde am{' '}
+                  {gespeichertesDokument.$createdAt && new Date(gespeichertesDokument.$createdAt).toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })} gespeichert.
+                </p>
+                {gespeichertesDokument.bruttobetrag && (
+                  <p className="text-sm text-green-700 mt-1">
+                    Bruttobetrag: <strong>{gespeichertesDokument.bruttobetrag.toFixed(2)} €</strong>
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <a
+                    href={getFileDownloadUrl(gespeichertesDokument.dateiId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    <Download className="h-4 w-4" />
+                    PDF herunterladen
+                  </a>
+                  <button
+                    onClick={() => setIstBearbeitungsModus(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Bearbeiten & neue Version
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bearbeitungs-Hinweis */}
+        {istBearbeitungsModus && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Edit3 className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Bearbeitungsmodus aktiv</p>
+                <p className="text-xs text-amber-700">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setIstBearbeitungsModus(false);
+                  // Originaldaten wiederherstellen
+                  if (gespeichertesDokument) {
+                    const gespeicherteDaten = ladeDokumentDaten<AngebotsDaten>(gespeichertesDokument);
+                    if (gespeicherteDaten) {
+                      setAngebotsDaten(gespeicherteDaten);
+                    }
+                  }
+                }}
+                className="ml-auto text-sm text-amber-700 hover:text-amber-900 underline"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Status-Meldung */}
+        {statusMeldung && (
+          <div className={`rounded-xl p-4 flex items-center gap-3 ${
+            statusMeldung.typ === 'erfolg' 
+              ? 'bg-green-50 border border-green-200' 
+              : 'bg-red-50 border border-red-200'
+          }`}>
+            {statusMeldung.typ === 'erfolg' ? (
+              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+            )}
+            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800' : 'text-red-800'}`}>
+              {statusMeldung.text}
+            </p>
+          </div>
+        )}
+
+        {/* Auto-Save Status (nur wenn noch kein Dokument hinterlegt) */}
+        {projekt?.$id && !gespeichertesDokument && (
           <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
             speicherStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
             speicherStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
@@ -756,6 +937,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           placeholder="Optional"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
+                        {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
+                        {position.streichpreis && position.streichpreis > 0 && (
+                          <select
+                            value={position.streichpreisGrund || ''}
+                            onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
+                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-amber-50"
+                          >
+                            <option value="">Grund wählen...</option>
+                            <option value="Neukundenaktion">Neukundenaktion</option>
+                            <option value="Frühbucherpreis">Frühbucherpreis</option>
+                            <option value="Treuerabatt">Treuerabatt</option>
+                            <option value="Last Minute Preis">Last Minute Preis</option>
+                            <option value="Sonderaktion">Sonderaktion</option>
+                            <option value="Mengenrabatt">Mengenrabatt</option>
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Einzelpreis (€)</label>
@@ -983,13 +1180,60 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             </div>
           </div>
           
-          <button
-            onClick={generiereUndLadeAngebot}
-            className="w-full mt-6 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl"
-          >
-            <Download className="h-5 w-5" />
-            PDF Generieren
-          </button>
+          {/* Buttons basierend auf Status */}
+          <div className="mt-6 space-y-3">
+            {/* Immer verfügbar: Nur PDF generieren */}
+            <button
+              onClick={generiereUndLadeAngebot}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-blue-700 border-2 border-blue-300 rounded-lg hover:bg-blue-50 transition-all"
+            >
+              <Download className="h-5 w-5" />
+              Nur PDF herunterladen
+            </button>
+            
+            {/* Haupt-Aktion basierend auf Status */}
+            {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
+              <button
+                onClick={speichereUndHinterlegeAngebot}
+                disabled={ladeStatus === 'speichern'}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {ladeStatus === 'speichern' ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Speichern...
+                  </>
+                ) : (
+                  <>
+                    <FileCheck className="h-5 w-5" />
+                    {istBearbeitungsModus ? 'Als neue Version speichern' : 'Angebot speichern & hinterlegen'}
+                  </>
+                )}
+              </button>
+            )}
+            
+            {!projekt?.$id && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <p className="text-sm text-amber-800">
+                  <AlertCircle className="h-4 w-4 inline mr-2" />
+                  Zum Speichern muss ein Projekt ausgewählt sein.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          {/* Dateiverlauf */}
+          {projekt?.$id && (
+            <div className="mt-6">
+              <DokumentVerlauf
+                projektId={projekt.$id}
+                dokumentTyp="angebot"
+                titel="Angebot-Verlauf"
+                maxAnzeige={3}
+                ladeZaehler={verlaufLadeZaehler}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

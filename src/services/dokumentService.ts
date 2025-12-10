@@ -27,7 +27,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   const doc = new jsPDF();
   
   // DIN 5008 Header
-  addDIN5008Header(doc, stammdaten);
+  await addDIN5008Header(doc, stammdaten);
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -151,10 +151,15 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
     }
     
-    // Einzelpreis mit optionalem Streichpreis
+    // Einzelpreis mit optionalem Streichpreis und Grund
     let einzelpreisText = formatWaehrung(pos.einzelpreis);
     if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
-      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      // Format: "Grund" (falls vorhanden), dann Streichpreis, dann neuer Preis
+      if (pos.streichpreisGrund) {
+        einzelpreisText = pos.streichpreisGrund + '\n' + formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      } else {
+        einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      }
     }
     
     return [
@@ -196,16 +201,18 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       }
     },
     didDrawCell: function(data: any) {
-      // Streichpreis durchstreichen (wenn vorhanden)
+      // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
       if (data.column.index === 3 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
           const lines = cell.text;
+          const hasGrund = position.streichpreisGrund && lines.length >= 3;
+          const streichpreisLineIndex = hasGrund ? 1 : 0;
           
-          // Erste Zeile durchstreichen (Streichpreis)
-          if (lines.length >= 2) {
-            const streichpreisText = lines[0];
+          // Streichpreis durchstreichen
+          if (lines.length >= (hasGrund ? 3 : 2)) {
+            const streichpreisText = lines[streichpreisLineIndex];
             
             // Textbreite berechnen
             doc.setFontSize(9);
@@ -217,23 +224,50 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
             const x1 = x2 - textWidth;
             
             // Y-Position berechnen für valign: 'middle'
-            // FontSize 9pt = ~3.175mm, Zeilenhöhe ~3.65mm (mit lineHeight 1.15)
             const fontSizeInMm = 9 * 0.352778;
             const lineHeight = fontSizeInMm * 1.15;
             const totalTextHeight = lines.length * lineHeight;
             const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
             
-            // Bei valign: 'middle' startet der Text zentriert
-            // Baseline der ersten Zeile = cell.y + padding + offset + fontSizeInMm
             const verticalOffset = (availableHeight - totalTextHeight) / 2;
-            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            // Baseline für die Streichpreis-Zeile berechnen
+            const lineBaseline = cell.y + cell.padding('top') + verticalOffset + (streichpreisLineIndex + 1) * fontSizeInMm + streichpreisLineIndex * (lineHeight - fontSizeInMm);
             
             // Streichlinie mittig durch den Text (35% über der Baseline)
-            const y = firstLineBaseline - (fontSizeInMm * 0.35);
+            const y = lineBaseline - (fontSizeInMm * 0.35);
             
             doc.setDrawColor(150, 150, 150);
             doc.setLineWidth(0.4);
             doc.line(x1, y, x2, y);
+          }
+          
+          // Grund kursiv überschreiben (erste Zeile)
+          if (hasGrund) {
+            const grundText = lines[0];
+            
+            // Position berechnen
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            
+            const x2 = cell.x + cell.width - cell.padding('right');
+            
+            const fontSizeInMm = 9 * 0.352778;
+            const lineHeight = fontSizeInMm * 1.15;
+            const totalTextHeight = lines.length * lineHeight;
+            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
+            const verticalOffset = (availableHeight - totalTextHeight) / 2;
+            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            
+            // Hintergrund der ersten Zeile überdecken
+            doc.setFillColor(255, 255, 255);
+            const bgHeight = fontSizeInMm * 1.2;
+            doc.rect(cell.x + cell.padding('left'), firstLineBaseline - fontSizeInMm, cell.width - cell.padding('left') - cell.padding('right'), bgHeight, 'F');
+            
+            // Kursiven Text neu zeichnen
+            doc.setTextColor(100, 100, 100);
+            doc.text(grundText, x2, firstLineBaseline, { align: 'right' });
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
           }
         }
       }
@@ -255,7 +289,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   
   // Prüfe ob genug Platz für Summen-Block (ca. 40mm Höhe)
-  summenY = ensureSpace(doc, summenY, 40, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
@@ -297,7 +331,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   // === Liefersaison-Hinweis ===
   summenY += 12;
-  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
   
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
@@ -311,7 +345,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   summenY += 10;
   
   // Prüfe Platz für Lieferbedingungen-Block (ca. 25mm)
-  summenY = ensureSpace(doc, summenY, 25, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -336,7 +370,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
     
     // Prüfe ob genug Platz für Lieferbedingungen-Text
-    summenY = ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
+    summenY = await ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
     
     doc.text(lieferbedingungenLines, 25, summenY);
     summenY += lieferbedingungenHeight;
@@ -346,7 +380,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   summenY += 5;
   
   // Prüfe Platz für Zahlungsbedingungen-Block (ca. 20mm)
-  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -380,7 +414,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
     
     // Prüfe Platz für Bemerkung
-    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
     
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
@@ -394,7 +428,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   summenY += 12;
   
   // Prüfe Platz für Grußformel (ca. 15mm)
-  summenY = ensureSpace(doc, summenY, 15, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 15, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -426,7 +460,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   const doc = new jsPDF();
   
   // DIN 5008 Header
-  addDIN5008Header(doc, stammdaten);
+  await addDIN5008Header(doc, stammdaten);
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -549,10 +583,15 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
       bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
     }
     
-    // Einzelpreis mit optionalem Streichpreis
+    // Einzelpreis mit optionalem Streichpreis und Grund
     let einzelpreisText = formatWaehrung(pos.einzelpreis);
     if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
-      einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      // Format: "Grund" (falls vorhanden), dann Streichpreis, dann neuer Preis
+      if (pos.streichpreisGrund) {
+        einzelpreisText = pos.streichpreisGrund + '\n' + formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      } else {
+        einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      }
     }
     
     return [
@@ -594,16 +633,18 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
       }
     },
     didDrawCell: function(data: any) {
-      // Streichpreis durchstreichen (wenn vorhanden)
+      // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
       if (data.column.index === 3 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
           const lines = cell.text;
+          const hasGrund = position.streichpreisGrund && lines.length >= 3;
+          const streichpreisLineIndex = hasGrund ? 1 : 0;
           
-          // Erste Zeile durchstreichen (Streichpreis)
-          if (lines.length >= 2) {
-            const streichpreisText = lines[0];
+          // Streichpreis durchstreichen
+          if (lines.length >= (hasGrund ? 3 : 2)) {
+            const streichpreisText = lines[streichpreisLineIndex];
             
             // Textbreite berechnen
             doc.setFontSize(9);
@@ -615,23 +656,50 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
             const x1 = x2 - textWidth;
             
             // Y-Position berechnen für valign: 'middle'
-            // FontSize 9pt = ~3.175mm, Zeilenhöhe ~3.65mm (mit lineHeight 1.15)
             const fontSizeInMm = 9 * 0.352778;
             const lineHeight = fontSizeInMm * 1.15;
             const totalTextHeight = lines.length * lineHeight;
             const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
             
-            // Bei valign: 'middle' startet der Text zentriert
-            // Baseline der ersten Zeile = cell.y + padding + offset + fontSizeInMm
             const verticalOffset = (availableHeight - totalTextHeight) / 2;
-            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            // Baseline für die Streichpreis-Zeile berechnen
+            const lineBaseline = cell.y + cell.padding('top') + verticalOffset + (streichpreisLineIndex + 1) * fontSizeInMm + streichpreisLineIndex * (lineHeight - fontSizeInMm);
             
             // Streichlinie mittig durch den Text (35% über der Baseline)
-            const y = firstLineBaseline - (fontSizeInMm * 0.35);
+            const y = lineBaseline - (fontSizeInMm * 0.35);
             
             doc.setDrawColor(150, 150, 150);
             doc.setLineWidth(0.4);
             doc.line(x1, y, x2, y);
+          }
+          
+          // Grund kursiv überschreiben (erste Zeile)
+          if (hasGrund) {
+            const grundText = lines[0];
+            
+            // Position berechnen
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            
+            const x2 = cell.x + cell.width - cell.padding('right');
+            
+            const fontSizeInMm = 9 * 0.352778;
+            const lineHeight = fontSizeInMm * 1.15;
+            const totalTextHeight = lines.length * lineHeight;
+            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
+            const verticalOffset = (availableHeight - totalTextHeight) / 2;
+            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            
+            // Hintergrund der ersten Zeile überdecken
+            doc.setFillColor(255, 255, 255);
+            const bgHeight = fontSizeInMm * 1.2;
+            doc.rect(cell.x + cell.padding('left'), firstLineBaseline - fontSizeInMm, cell.width - cell.padding('left') - cell.padding('right'), bgHeight, 'F');
+            
+            // Kursiven Text neu zeichnen
+            doc.setTextColor(100, 100, 100);
+            doc.text(grundText, x2, firstLineBaseline, { align: 'right' });
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
           }
         }
       }
@@ -649,7 +717,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   
   // Prüfe ob genug Platz für Summen-Block
-  summenY = ensureSpace(doc, summenY, 40, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
@@ -691,7 +759,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   // === Liefersaison-Hinweis ===
   summenY += 12;
-  summenY = ensureSpace(doc, summenY, 10, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
   
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
@@ -705,7 +773,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   summenY += 10;
   
   // Prüfe Platz für Lieferbedingungen-Block
-  summenY = ensureSpace(doc, summenY, 25, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -730,7 +798,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
     
     // Prüfe ob genug Platz für Lieferbedingungen-Text
-    summenY = ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
+    summenY = await ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
     
     doc.text(lieferbedingungenLines, 25, summenY);
     summenY += lieferbedingungenHeight;
@@ -740,7 +808,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   summenY += 5;
   
   // Prüfe Platz für Zahlungsbedingungen-Block
-  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -774,7 +842,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
     
     // Prüfe Platz für Bemerkung
-    summenY = ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
     
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
@@ -788,7 +856,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   summenY += 12;
   
   // Prüfe Platz für Grußformel
-  summenY = ensureSpace(doc, summenY, 20, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -820,7 +888,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   const doc = new jsPDF();
   
   // DIN 5008 Header
-  addDIN5008Header(doc, stammdaten);
+  await addDIN5008Header(doc, stammdaten);
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -989,7 +1057,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   signY += 20;
   
   // Prüfe Platz für Empfangsbestätigung
-  signY = ensureSpace(doc, signY, 30, stammdaten);
+  signY = await ensureSpace(doc, signY, 30, stammdaten);
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -1013,7 +1081,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
     
     // Prüfe Platz für Bemerkung
-    signY = ensureSpace(doc, signY, bemerkungHeight, stammdaten);
+    signY = await ensureSpace(doc, signY, bemerkungHeight, stammdaten);
     
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
@@ -1027,7 +1095,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   signY += 12;
   
   // Prüfe Platz für Grußformel
-  signY = ensureSpace(doc, signY, 10, stammdaten);
+  signY = await ensureSpace(doc, signY, 10, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);

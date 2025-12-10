@@ -10,13 +10,18 @@ import {
 import {
   GespeichertesDokument,
   DokumentAnzeige,
+  DokumentVerlaufEintrag,
+  DokumentTyp,
   AngebotsDaten,
   AuftragsbestaetigungsDaten,
   LieferscheinDaten,
-  RechnungsDaten
+  RechnungsDaten,
+  StornoRechnungsDaten,
+  Position,
+  LieferscheinPosition
 } from '../types/bestellabwicklung';
 import { Projekt } from '../types/projekt';
-import { generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
+import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import jsPDF from 'jspdf';
 
@@ -58,7 +63,7 @@ export const ladeProjektDokumente = async (projektId: string): Promise<Gespeiche
 
 export const ladeDokumentNachTyp = async (
   projektId: string,
-  dokumentTyp: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung'
+  dokumentTyp: DokumentTyp
 ): Promise<GespeichertesDokument | null> => {
   try {
     const response = await databases.listDocuments(
@@ -79,6 +84,145 @@ export const ladeDokumentNachTyp = async (
   } catch (error) {
     console.error(`Fehler beim Laden des ${dokumentTyp}:`, error);
     return null;
+  }
+};
+
+// Helper-Funktion zum Laden aller Dokumente nach Typ (für Versionierung)
+const ladeDokumenteNachTyp = async (
+  projektId: string,
+  dokumentTyp: DokumentTyp
+): Promise<GespeichertesDokument[]> => {
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      [
+        Query.equal('projektId', projektId),
+        Query.equal('dokumentTyp', dokumentTyp),
+        Query.orderDesc('$createdAt')
+      ]
+    );
+    return response.documents as unknown as GespeichertesDokument[];
+  } catch (error) {
+    console.error(`Fehler beim Laden der Dokumente (Typ: ${dokumentTyp}):`, error);
+    return [];
+  }
+};
+
+// === ANGEBOT ===
+export const speichereAngebot = async (
+  projektId: string,
+  daten: AngebotsDaten
+): Promise<GespeichertesDokument> => {
+  try {
+    // Prüfen ob bereits Angebote existieren (für Versionierung)
+    const bestehendeAngebote = await ladeDokumenteNachTyp(projektId, 'angebot');
+    const neueVersion = bestehendeAngebote.length + 1;
+    
+    // PDF generieren
+    const pdf = await generiereAngebotPDF(daten);
+    const blob = pdfToBlob(pdf);
+    const dateiname = `Angebot_${daten.angebotsnummer}_v${neueVersion}.pdf`;
+    
+    // Datei in Storage hochladen
+    const file = new File([blob], dateiname, { type: 'application/pdf' });
+    const uploadedFile = await storage.createFile(
+      BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+    
+    // Bruttobetrag berechnen
+    const summen = berechneRechnungsSummen(daten.positionen);
+    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
+    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    
+    // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
+    const dokument = await databases.createDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      {
+        projektId,
+        dokumentTyp: 'angebot',
+        dokumentNummer: daten.angebotsnummer,
+        dateiId: uploadedFile.$id,
+        dateiname,
+        bruttobetrag,
+        istFinal: false,
+        daten: JSON.stringify(daten)
+      }
+    );
+    
+    // Setze Version manuell für Rückgabe (für UI)
+    const result = dokument as unknown as GespeichertesDokument;
+    result.version = neueVersion;
+
+    return result;
+  } catch (error) {
+    console.error('Fehler beim Speichern des Angebots:', error);
+    throw error;
+  }
+};
+
+export const aktualisiereAngebot = async (
+  dokumentId: string,
+  _alteDateiId: string, // Bewusst ungenutzt: Alte Datei bleibt im Archiv (GoBD)
+  daten: AngebotsDaten,
+  alteVersion: number
+): Promise<GespeichertesDokument> => {
+  try {
+    // WICHTIG: Alte Datei wird NICHT gelöscht - sie bleibt im Archiv
+    // Stattdessen erstellen wir eine neue Version
+    
+    const neueVersion = alteVersion + 1;
+    
+    // Neues PDF generieren
+    const pdf = await generiereAngebotPDF(daten);
+    const blob = pdfToBlob(pdf);
+    const dateiname = `Angebot_${daten.angebotsnummer}_v${neueVersion}.pdf`;
+    
+    // Neue Datei hochladen
+    const file = new File([blob], dateiname, { type: 'application/pdf' });
+    const uploadedFile = await storage.createFile(
+      BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+    
+    // Bruttobetrag berechnen
+    const summen = berechneRechnungsSummen(daten.positionen);
+    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
+    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    
+    // Lade projektId vom alten Dokument
+    const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
+    
+    // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
+    const dokument = await databases.createDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      {
+        projektId: altesDokument.projektId,
+        dokumentTyp: 'angebot',
+        dokumentNummer: daten.angebotsnummer,
+        dateiId: uploadedFile.$id,
+        dateiname,
+        bruttobetrag,
+        istFinal: false,
+        daten: JSON.stringify(daten)
+      }
+    );
+    
+    // Setze Version manuell für Rückgabe (für UI)
+    const result = dokument as unknown as GespeichertesDokument;
+    result.version = neueVersion;
+    
+    return result;
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren des Angebots:', error);
+    throw error;
   }
 };
 
@@ -320,6 +464,241 @@ export const speichereRechnung = async (
   }
 };
 
+// === STORNORECHNUNG (FINAL - UNVERÄNDERBAR!) ===
+// WICHTIG: Stornorechnungen sind gesetzlich vorgeschrieben und dürfen NIEMALS geändert werden!
+export const speichereStornoRechnung = async (
+  projektId: string,
+  originalRechnung: GespeichertesDokument,
+  stornoRechnungsnummer: string,
+  stornoGrund: string
+): Promise<{
+  stornoRechnung: GespeichertesDokument;
+  aktualisierteOriginalRechnung: GespeichertesDokument;
+}> => {
+  try {
+    // Prüfen ob Originalrechnung bereits storniert
+    if (originalRechnung.rechnungsStatus === 'storniert') {
+      throw new Error('Diese Rechnung wurde bereits storniert.');
+    }
+    
+    // Originaldaten laden
+    const originalDaten = ladeDokumentDaten<RechnungsDaten>(originalRechnung);
+    if (!originalDaten) {
+      throw new Error('Originaldaten der Rechnung konnten nicht geladen werden.');
+    }
+    
+    // Storno-Daten erstellen (Beträge negativ!)
+    const stornoPositionen = originalDaten.positionen.map(pos => ({
+      ...pos,
+      einzelpreis: -Math.abs(pos.einzelpreis),
+      gesamtpreis: -Math.abs(pos.gesamtpreis),
+      streichpreis: pos.streichpreis ? -Math.abs(pos.streichpreis) : undefined
+    }));
+    
+    const stornoDaten: StornoRechnungsDaten = {
+      ...originalDaten,
+      stornoRechnungsnummer,
+      stornoDatum: new Date().toISOString().split('T')[0],
+      originalRechnungsnummer: originalDaten.rechnungsnummer,
+      originalRechnungsdatum: originalDaten.rechnungsdatum,
+      originalRechnungId: originalRechnung.$id!,
+      stornoGrund,
+      positionen: stornoPositionen,
+      bemerkung: `STORNORECHNUNG zu Rechnung ${originalDaten.rechnungsnummer} vom ${new Date(originalDaten.rechnungsdatum).toLocaleDateString('de-DE')}\n\nStornogrund: ${stornoGrund}${originalDaten.bemerkung ? `\n\nOriginal-Bemerkung: ${originalDaten.bemerkung}` : ''}`
+    };
+    
+    // Storno-PDF generieren (mit spezieller Kennzeichnung)
+    const stornoPDF = await generiereStornoRechnungPDF(stornoDaten);
+    const blob = pdfToBlob(stornoPDF);
+    const dateiname = `Stornorechnung_${stornoRechnungsnummer}.pdf`;
+    
+    // Datei in Storage hochladen
+    const file = new File([blob], dateiname, { type: 'application/pdf' });
+    const uploadedFile = await storage.createFile(
+      BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+    
+    // Bruttobetrag berechnen (negativ!)
+    const summen = berechneRechnungsSummen(stornoPositionen);
+    
+    // Storno-Dokument erstellen
+    const stornoDokument = await databases.createDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      {
+        projektId,
+        dokumentTyp: 'stornorechnung',
+        dokumentNummer: stornoRechnungsnummer,
+        dateiId: uploadedFile.$id,
+        dateiname,
+        bruttobetrag: summen.bruttobetrag, // Negativ!
+        istFinal: true, // UNVERÄNDERBAR!
+        stornoVonRechnungId: originalRechnung.$id,
+        rechnungsStatus: 'aktiv',
+        stornoGrund,
+        daten: JSON.stringify(stornoDaten)
+      }
+    );
+    
+    // Original-Rechnung als storniert markieren
+    const aktualisiertesOriginal = await databases.updateDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      originalRechnung.$id!,
+      {
+        rechnungsStatus: 'storniert',
+        stornoRechnungId: stornoDokument.$id,
+        stornoGrund
+      }
+    );
+    
+    return {
+      stornoRechnung: stornoDokument as unknown as GespeichertesDokument,
+      aktualisierteOriginalRechnung: aktualisiertesOriginal as unknown as GespeichertesDokument
+    };
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Stornorechnung:', error);
+    throw error;
+  }
+};
+
+// Storno-Rechnung PDF generieren
+const generiereStornoRechnungPDF = async (daten: StornoRechnungsDaten): Promise<jsPDF> => {
+  // Wir verwenden das normale Rechnungs-PDF, aber mit Storno-Kennzeichnung
+  // Die Positionen haben bereits negative Beträge
+  const rechnungsDaten: RechnungsDaten = {
+    ...daten,
+    rechnungsnummer: daten.stornoRechnungsnummer,
+    rechnungsdatum: daten.stornoDatum
+  };
+  
+  const pdf = await generiereRechnungPDF(rechnungsDaten);
+  
+  // Storno-Wasserzeichen hinzufügen
+  const totalPages = pdf.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(60);
+    pdf.setTextColor(255, 0, 0);
+    pdf.setFont('helvetica', 'bold');
+    
+    // Schräg über die Seite
+    pdf.saveGraphicsState();
+    pdf.text('STORNORECHNUNG', 105, 150, {
+      align: 'center',
+      angle: 45
+    });
+    pdf.restoreGraphicsState();
+    pdf.setTextColor(0, 0, 0);
+  }
+  
+  return pdf;
+};
+
+// Prüfen ob eine neue Rechnung nach Storno erstellt werden kann
+export const kannNeueRechnungErstellen = async (projektId: string): Promise<{
+  erlaubt: boolean;
+  grund?: string;
+  letzteRechnung?: GespeichertesDokument;
+  stornoRechnung?: GespeichertesDokument;
+}> => {
+  try {
+    const rechnungen = await ladeDokumenteNachTyp(projektId, 'rechnung');
+    const stornos = await ladeDokumenteNachTyp(projektId, 'stornorechnung');
+    
+    if (rechnungen.length === 0) {
+      return { erlaubt: true }; // Noch keine Rechnung - erlaubt
+    }
+    
+    const letzteRechnung = rechnungen[0]; // Neueste Rechnung
+    
+    // Wenn letzte Rechnung aktiv ist, keine neue erlaubt
+    if (letzteRechnung.rechnungsStatus !== 'storniert') {
+      return {
+        erlaubt: false,
+        grund: 'Die bestehende Rechnung muss erst storniert werden, bevor eine neue erstellt werden kann.',
+        letzteRechnung
+      };
+    }
+    
+    // Rechnung wurde storniert - neue erlaubt
+    const zugehoerigesStorno = stornos.find(s => s.stornoVonRechnungId === letzteRechnung.$id);
+    return {
+      erlaubt: true,
+      letzteRechnung,
+      stornoRechnung: zugehoerigesStorno
+    };
+  } catch (error) {
+    console.error('Fehler beim Prüfen der Rechnungserstellung:', error);
+    return { erlaubt: false, grund: 'Fehler bei der Prüfung' };
+  }
+};
+
+// === DOKUMENTEN-VERLAUF LADEN ===
+
+// Alle Dokumente eines Typs für Dateiverlauf laden
+export const ladeDokumentVerlauf = async (
+  projektId: string,
+  dokumentTyp: DokumentTyp
+): Promise<DokumentVerlaufEintrag[]> => {
+  try {
+    const dokumente = await ladeDokumenteNachTyp(projektId, dokumentTyp);
+    
+    // Bei Rechnungen auch Stornos laden
+    let stornos: GespeichertesDokument[] = [];
+    if (dokumentTyp === 'rechnung') {
+      stornos = await ladeDokumenteNachTyp(projektId, 'stornorechnung');
+    }
+    
+    // Alle Dokumente zusammenführen (Rechnungen + Stornos)
+    const alleDokumente = [...dokumente, ...stornos];
+    
+    // Nach Datum sortieren
+    alleDokumente.sort((a, b) => 
+      new Date(b.$createdAt || '').getTime() - new Date(a.$createdAt || '').getTime()
+    );
+    
+    return alleDokumente.map((dok, index) => ({
+      id: dok.$id!,
+      typ: dok.dokumentTyp,
+      nummer: dok.dokumentNummer,
+      dateiname: dok.dateiname,
+      erstelltAm: new Date(dok.$createdAt || ''),
+      bruttobetrag: dok.bruttobetrag,
+      istFinal: dok.istFinal,
+      downloadUrl: getFileDownloadUrl(dok.dateiId),
+      viewUrl: getFileViewUrl(dok.dateiId),
+      version: dok.version,
+      rechnungsStatus: dok.rechnungsStatus,
+      stornoVonRechnungId: dok.stornoVonRechnungId,
+      stornoGrund: dok.stornoGrund,
+      // Neuestes Dokument ist "aktuell"
+      istAktuell: index === 0 || (dok.dokumentTyp === 'stornorechnung' && index <= stornos.length),
+      istStorniert: dok.rechnungsStatus === 'storniert'
+    }));
+  } catch (error) {
+    console.error(`Fehler beim Laden des ${dokumentTyp}-Verlaufs:`, error);
+    return [];
+  }
+};
+
+// Aktuellstes Dokument eines Typs laden
+export const ladeAktuellesDokument = async (
+  projektId: string,
+  dokumentTyp: DokumentTyp
+): Promise<GespeichertesDokument | null> => {
+  try {
+    const dokumente = await ladeDokumenteNachTyp(projektId, dokumentTyp);
+    return dokumente.length > 0 ? dokumente[0] : null;
+  } catch (error) {
+    console.error(`Fehler beim Laden des aktuellen ${dokumentTyp}:`, error);
+    return null;
+  }
+};
+
 // === HELPER FUNKTIONEN ===
 export const dokumentZuAnzeige = (dokument: GespeichertesDokument): DokumentAnzeige => {
   return {
@@ -331,7 +710,10 @@ export const dokumentZuAnzeige = (dokument: GespeichertesDokument): DokumentAnze
     bruttobetrag: dokument.bruttobetrag,
     istFinal: dokument.istFinal,
     downloadUrl: getFileDownloadUrl(dokument.dateiId),
-    viewUrl: getFileViewUrl(dokument.dateiId)
+    viewUrl: getFileViewUrl(dokument.dateiId),
+    version: dokument.version,
+    rechnungsStatus: dokument.rechnungsStatus,
+    stornoGrund: dokument.stornoGrund
   };
 };
 
@@ -489,3 +871,114 @@ export const erstelleDebounce = <T extends (...args: Parameters<T>) => void>(
     timeoutId = setTimeout(() => fn(...args), delay);
   };
 };
+
+// === AUTOMATISCHE STÜCKLISTEN-ÜBERNAHME ===
+
+/**
+ * Lädt die Positionen vom vorherigen Dokument im Workflow
+ * Angebot → Auftragsbestätigung → Lieferschein → Rechnung
+ */
+export const ladePositionenVonVorherigem = async (
+  projektId: string,
+  zielDokumentTyp: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung'
+): Promise<Position[] | LieferscheinPosition[] | null> => {
+  try {
+    // Bestimme das Quell-Dokument basierend auf dem Ziel
+    let quellDokumentTyp: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | null = null;
+    
+    if (zielDokumentTyp === 'auftragsbestaetigung') {
+      quellDokumentTyp = 'angebot';
+    } else if (zielDokumentTyp === 'lieferschein') {
+      quellDokumentTyp = 'auftragsbestaetigung';
+    } else if (zielDokumentTyp === 'rechnung') {
+      // Für Rechnung nehmen wir die Positionen aus der Auftragsbestätigung (mit Preisen!)
+      quellDokumentTyp = 'auftragsbestaetigung';
+    }
+    
+    if (!quellDokumentTyp) return null;
+    
+    // Versuche finalisiertes Dokument zu laden
+    let quellDokument = await ladeDokumentNachTyp(projektId, quellDokumentTyp);
+    
+    // Falls kein finalisiertes Dokument existiert, versuche Entwurf zu laden
+    if (!quellDokument) {
+      const entwurfTyp = `${quellDokumentTyp}sDaten` as EntwurfTyp;
+      const entwurf = await ladeEntwurf<AngebotsDaten | AuftragsbestaetigungsDaten | LieferscheinDaten>(
+        projektId, 
+        entwurfTyp
+      );
+      
+      if (entwurf && 'positionen' in entwurf) {
+        return konvertierePositionen(entwurf.positionen, zielDokumentTyp);
+      }
+      return null;
+    }
+    
+    // Lade Dokument-Daten
+    const quellDaten = ladeDokumentDaten<AngebotsDaten | AuftragsbestaetigungsDaten | LieferscheinDaten>(quellDokument);
+    
+    if (!quellDaten || !('positionen' in quellDaten)) {
+      return null;
+    }
+    
+    // Konvertiere Positionen basierend auf dem Ziel-Dokumenttyp
+    return konvertierePositionen(quellDaten.positionen, zielDokumentTyp);
+    
+  } catch (error) {
+    console.error('Fehler beim Laden der Positionen vom vorherigen Dokument:', error);
+    return null;
+  }
+};
+
+/**
+ * Konvertiert Positionen zwischen verschiedenen Dokumenttypen
+ */
+function konvertierePositionen(
+  quellPositionen: Position[] | LieferscheinPosition[],
+  zielDokumentTyp: 'auftragsbestaetigung' | 'lieferschein' | 'rechnung'
+): Position[] | LieferscheinPosition[] {
+  
+  // Prüfe ob Quelle schon LieferscheinPosition ist
+  const istLieferscheinPosition = (pos: any): pos is LieferscheinPosition => {
+    return 'artikel' in pos && !('bezeichnung' in pos);
+  };
+  
+  if (zielDokumentTyp === 'lieferschein') {
+    // Konvertiere zu LieferscheinPosition (ohne Preise)
+    return (quellPositionen as Position[]).map((pos: Position) => ({
+      id: pos.id,
+      artikel: pos.bezeichnung,
+      menge: pos.menge,
+      einheit: pos.einheit,
+      seriennummer: undefined,
+      chargennummer: undefined,
+    }));
+  } else {
+    // Konvertiere zu Position (mit Preisen)
+    // Falls Quelle LieferscheinPosition ist, nur Artikel-Daten übernehmen
+    if (quellPositionen.length > 0 && istLieferscheinPosition(quellPositionen[0])) {
+      return (quellPositionen as LieferscheinPosition[]).map((pos: LieferscheinPosition) => ({
+        id: pos.id,
+        bezeichnung: pos.artikel,
+        beschreibung: '',
+        menge: pos.menge,
+        einheit: pos.einheit,
+        einzelpreis: 0,
+        gesamtpreis: 0,
+      }));
+    }
+    
+    // Quelle ist bereits Position, einfach kopieren
+    return (quellPositionen as Position[]).map((pos: Position) => ({
+      id: pos.id,
+      artikelnummer: pos.artikelnummer,
+      bezeichnung: pos.bezeichnung,
+      beschreibung: pos.beschreibung,
+      menge: pos.menge,
+      einheit: pos.einheit,
+      einzelpreis: pos.einzelpreis,
+      streichpreis: pos.streichpreis,
+      gesamtpreis: pos.gesamtpreis,
+    }));
+  }
+}

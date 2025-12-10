@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2 } from 'lucide-react';
+import { X, Save, Plus, Trash2, Hash } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   NeuerSaisonKunde,
@@ -11,6 +11,7 @@ import {
   Belieferungsart,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { kundennummerService } from '../../services/kundennummerService';
 import AdressAutocomplete from './AdressAutocomplete.tsx';
 
 interface KundenFormularProps {
@@ -140,6 +141,16 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     }
   }, [formData.typ]);
 
+  const generiereKundennummer = async () => {
+    try {
+      const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
+      setFormData({ ...formData, kundennummer: neueNummer });
+    } catch (error) {
+      console.error('Fehler beim Generieren der Kundennummer:', error);
+      setError('Fehler beim Generieren der Kundennummer');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent, ignoreDuplikate = false) => {
     e.preventDefault();
     setError(null);
@@ -169,27 +180,34 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         }
       }
 
+      // Automatische Kundennummernvergabe für neue Kunden ohne Nummer
+      let kundenDaten = { ...formData };
+      if (!kunde && !kundenDaten.kundennummer) {
+        const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
+        kundenDaten.kundennummer = neueNummer;
+      }
+
       let kundeId: string;
 
       if (kunde) {
         // Update bestehender Kunde
         const updated = await saisonplanungService.updateKunde(kunde.kunde.id, {
-          ...formData,
-          adresse: formData.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          ...kundenDaten,
+          adresse: kundenDaten.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
           standardPlatzbauerId:
-            formData.standardBezugsweg === 'ueber_platzbauer'
-              ? formData.standardPlatzbauerId
+            kundenDaten.standardBezugsweg === 'ueber_platzbauer'
+              ? kundenDaten.standardPlatzbauerId
               : '',
         } as Partial<NeuerSaisonKunde>);
         kundeId = updated.id;
       } else {
         // Erstelle neuen Kunden
         const created = await saisonplanungService.createKunde({
-          ...formData,
-          adresse: formData.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          ...kundenDaten,
+          adresse: kundenDaten.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
           standardPlatzbauerId:
-            formData.standardBezugsweg === 'ueber_platzbauer'
-              ? formData.standardPlatzbauerId
+            kundenDaten.standardBezugsweg === 'ueber_platzbauer'
+              ? kundenDaten.standardPlatzbauerId
               : '',
         } as NeuerSaisonKunde);
         kundeId = created.id;
@@ -382,12 +400,30 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Kundennummer
                 </label>
-                <input
-                  type="text"
-                  value={formData.kundennummer || ''}
-                  onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.kundennummer || ''}
+                    onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
+                    placeholder={kunde ? '' : 'Wird automatisch vergeben'}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  {!kunde && (
+                    <button
+                      type="button"
+                      onClick={generiereKundennummer}
+                      className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+                      title="Kundennummer generieren"
+                    >
+                      <Hash className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {!kunde && !formData.kundennummer && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Kundennummer wird beim Speichern automatisch vergeben
+                  </p>
+                )}
               </div>
 
               <div>

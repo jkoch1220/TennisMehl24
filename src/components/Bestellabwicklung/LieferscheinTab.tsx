@@ -10,9 +10,11 @@ import {
   ladeDokumentDaten,
   getFileDownloadUrl,
   speichereEntwurf,
-  ladeEntwurf
+  ladeEntwurf,
+  ladePositionenVonVorherigem
 } from '../../services/bestellabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
+import DokumentVerlauf from './DokumentVerlauf';
 
 interface LieferscheinTabProps {
   projekt?: Projekt;
@@ -52,7 +54,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
-  
+  const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -179,16 +182,29 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       if (datenQuelle) {
         const heute = new Date();
         
-        const initialePositionen: LieferscheinPosition[] = [];
-        const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
+        // AUTOMATISCH: Versuche Positionen vom vorherigen Dokument (Auftragsbestätigung) zu übernehmen
+        let initialePositionen: LieferscheinPosition[] = [];
         
-        if (angefragteMenge) {
-          initialePositionen.push({
-            id: '1',
-            artikel: 'Tennismehl / Ziegelmehl',
-            menge: angefragteMenge,
-            einheit: 't',
-          });
+        if (projekt?.$id) {
+          const positionen = await ladePositionenVonVorherigem(projekt.$id, 'lieferschein');
+          if (positionen && positionen.length > 0) {
+            initialePositionen = positionen as LieferscheinPosition[];
+            console.log('✅ Stückliste von Auftragsbestätigung übernommen:', initialePositionen.length, 'Positionen');
+          }
+        }
+        
+        // Fallback: Wenn keine Positionen von AB, versuche aus Projektdaten
+        if (initialePositionen.length === 0) {
+          const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
+          
+          if (angefragteMenge) {
+            initialePositionen.push({
+              id: '1',
+              artikel: 'Tennismehl / Ziegelmehl',
+              menge: angefragteMenge,
+              einheit: 't',
+            });
+          }
         }
         
         // Lieferscheinnummer generieren, falls nicht vorhanden
@@ -300,7 +316,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       setGespeichertesDokument(neuesDokument);
       setIstBearbeitungsModus(false);
       setLadeStatus('bereit');
-      
+      setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
+
       // Status-Meldung nach 5 Sekunden ausblenden
       setTimeout(() => setStatusMeldung(null), 5000);
     } catch (error) {
@@ -785,6 +802,19 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               </div>
             )}
           </div>
+          
+          {/* Dateiverlauf */}
+          {projekt?.$id && (
+            <div className="mt-6">
+              <DokumentVerlauf
+                projektId={projekt.$id}
+                dokumentTyp="lieferschein"
+                titel="Lieferschein-Verlauf"
+                maxAnzeige={3}
+                ladeZaehler={verlaufLadeZaehler}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

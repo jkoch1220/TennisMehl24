@@ -1,12 +1,13 @@
 import { ID, Query, Models } from 'appwrite';
 import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite';
 import { KundenListenEintrag, NeuerKundenListenEintrag } from '../types/kundenliste';
+import { kundennummerService } from './kundennummerService';
 
 function toStorageObject(entry: KundenListenEintrag) {
   // Legacy-Felder beilegen, damit bestehende Views weiterhin funktionieren
   return {
     ...entry,
-    kundennummer: entry.id,
+    kundennummer: entry.kundennummer || entry.id, // Verwende explizite Kundennummer falls vorhanden, sonst ID
     kontakt: {
       name: entry.ansprechpartner || entry.name,
       telefon: entry.telefonnummer || '',
@@ -37,6 +38,7 @@ function parseDocument(doc: Models.Document): KundenListenEintrag {
       return {
         ...parsed,
         id: parsed.id || doc.$id,
+        kundennummer: parsed.kundennummer, // Explizite Kundennummer beibehalten
         erstelltAm: parsed.erstelltAm || anyDoc.erstelltAm || doc.$createdAt,
         aktualisiertAm:
           parsed.aktualisiertAm || anyDoc.aktualisiertAm || doc.$updatedAt || parsed.erstelltAm,
@@ -51,6 +53,7 @@ function parseDocument(doc: Models.Document): KundenListenEintrag {
   return {
     id: doc?.$id,
     name: (raw.name as string) || '',
+    kundennummer: (raw.kundennummer as string) || undefined,
     kundenTyp: (raw.kundenTyp as KundenListenEintrag['kundenTyp']) || 'sonstige',
     bestelltDirekt: Boolean(raw.bestelltDirekt),
     adresse: {
@@ -106,9 +109,17 @@ export const kundenListeService = {
 
   async create(payload: NeuerKundenListenEintrag): Promise<KundenListenEintrag> {
     const jetzt = new Date().toISOString();
+    
+    // Automatische Kundennummernvergabe wenn keine vorhanden
+    let kundennummer = payload.kundennummer;
+    if (!kundennummer) {
+      kundennummer = await kundennummerService.generiereNaechsteKundennummer();
+    }
+    
     const entry: KundenListenEintrag = {
       id: payload.id || ID.unique(),
       name: payload.name,
+      kundennummer,
       kundenTyp: payload.kundenTyp,
       bestelltDirekt: payload.bestelltDirekt,
       adresse: payload.adresse,
@@ -116,6 +127,12 @@ export const kundenListeService = {
       bestelltUeberIds: payload.bestelltUeberIds || [],
       tennisplatzAnzahl: payload.tennisplatzAnzahl ?? 0,
       tonnenProJahr: payload.tonnenProJahr ?? 0,
+      telefonnummer: payload.telefonnummer,
+      ansprechpartner: payload.ansprechpartner,
+      email: payload.email,
+      zahlungsbedingungen: payload.zahlungsbedingungen,
+      zahlungsverhalten: payload.zahlungsverhalten,
+      zahlungszielTage: payload.zahlungszielTage ?? 0,
       erstelltAm: jetzt,
       aktualisiertAm: jetzt,
       bemerkungen: payload.bemerkungen || '',
@@ -141,6 +158,7 @@ export const kundenListeService = {
       ...existing,
       ...payload,
       id,
+      kundennummer: payload.kundennummer ?? existing.kundennummer,
       adresse: { ...existing.adresse, ...(payload.adresse || {}) },
       lieferadresse: payload.lieferadresse
         ? { ...existing.lieferadresse, ...payload.lieferadresse }

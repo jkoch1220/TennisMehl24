@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Hash, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { kundennummerService } from '../../services/kundennummerService';
 import type { SaisonKunde } from '../../types/saisonplanung';
 
 const KundennummernTab = () => {
@@ -21,15 +22,9 @@ const KundennummernTab = () => {
       const alleKunden = await saisonplanungService.loadAlleKunden();
       setKunden(alleKunden);
 
-      // Ermittle die höchste bestehende Kundennummer
-      const kundenMitNummern = alleKunden.filter(k => k.kundennummer);
-      if (kundenMitNummern.length > 0) {
-        const nummern = kundenMitNummern
-          .map(k => parseInt(k.kundennummer || '0'))
-          .filter(n => !isNaN(n));
-        const hoechsteNummer = Math.max(...nummern);
-        setNaechsteNummer(Math.max(231, hoechsteNummer + 1));
-      }
+      // Verwende den zentralen Service zum Ermitteln der nächsten Nummer
+      const hoechsteNummer = await kundennummerService.getHoechsteKundennummer();
+      setNaechsteNummer(hoechsteNummer + 1);
     } catch (error) {
       console.error('Fehler beim Laden der Kunden:', error);
       setFehler('Fehler beim Laden der Kundendaten');
@@ -45,19 +40,20 @@ const KundennummernTab = () => {
     const kundenOhneNummer = kunden.filter(k => !k.kundennummer);
     setFortschritt({ aktuell: 0, gesamt: kundenOhneNummer.length });
 
-    let aktuelleNummer = naechsteNummer;
     let erfolge = 0;
 
     try {
+      // Generiere alle benötigten Kundennummern auf einmal
+      const nummern = await kundennummerService.generiereKundennummern(kundenOhneNummer.length);
+      
       for (let i = 0; i < kundenOhneNummer.length; i++) {
         const kunde = kundenOhneNummer[i];
         
         try {
           await saisonplanungService.updateKunde(kunde.id, {
-            kundennummer: aktuelleNummer.toString(),
+            kundennummer: nummern[i],
           });
           
-          aktuelleNummer++;
           erfolge++;
           setFortschritt({ aktuell: i + 1, gesamt: kundenOhneNummer.length });
         } catch (error) {
