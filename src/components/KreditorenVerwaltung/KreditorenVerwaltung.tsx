@@ -261,6 +261,54 @@ const KreditorenVerwaltung = () => {
           />
         </div>
 
+        {/* Nächste Fälligkeiten */}
+        {statistik && statistik.naechsteFaelligkeiten.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Clock className="w-6 h-6 text-yellow-600" />
+              <h2 className="text-xl font-bold text-yellow-900">Nächste Fälligkeiten (7 Tage)</h2>
+            </div>
+            <div className="space-y-2">
+              {statistik.naechsteFaelligkeiten.map((rechnung) => {
+                const tageBisFaellig = Math.floor(
+                  (new Date(rechnung.faelligkeitsdatum).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+                );
+                const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
+                const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
+                return (
+                  <div
+                    key={rechnung.id}
+                    className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => handleOpenDetail(rechnung)}
+                  >
+                    <div>
+                      <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
+                      <div className="text-sm text-gray-600">
+                        {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
+                      </div>
+                      {gesamtBezahlt > 0 && (
+                        <div className="text-xs text-green-600 mt-1">
+                          Bereits bezahlt: {formatCurrency(gesamtBezahlt)} von {formatCurrency(rechnung.summe)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-gray-900">{formatCurrency(offenerBetrag)}</div>
+                      <div className="text-sm text-yellow-600 font-medium">
+                        {tageBisFaellig === -1
+                          ? 'Heute fällig'
+                          : tageBisFaellig === 0
+                          ? 'Morgen fällig'
+                          : `in ${tageBisFaellig + 1} Tagen`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -360,54 +408,6 @@ const KreditorenVerwaltung = () => {
             )}
           </div>
         </div>
-
-        {/* Nächste Fälligkeiten */}
-        {statistik && statistik.naechsteFaelligkeiten.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Clock className="w-6 h-6 text-yellow-600" />
-              <h2 className="text-xl font-bold text-yellow-900">Nächste Fälligkeiten (7 Tage)</h2>
-            </div>
-            <div className="space-y-2">
-              {statistik.naechsteFaelligkeiten.map((rechnung) => {
-                const tageBisFaellig = Math.floor(
-                  (new Date(rechnung.faelligkeitsdatum).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-                );
-                const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
-                const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
-                return (
-                  <div
-                    key={rechnung.id}
-                    className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => handleOpenDetail(rechnung)}
-                  >
-                    <div>
-                      <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
-                      <div className="text-sm text-gray-600">
-                        {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
-                      </div>
-                      {gesamtBezahlt > 0 && (
-                        <div className="text-xs text-green-600 mt-1">
-                          Bereits bezahlt: {formatCurrency(gesamtBezahlt)} von {formatCurrency(rechnung.summe)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-gray-900">{formatCurrency(offenerBetrag)}</div>
-                      <div className="text-sm text-yellow-600 font-medium">
-                        {tageBisFaellig === -1
-                          ? 'Heute fällig'
-                          : tageBisFaellig === 0
-                          ? 'Morgen fällig'
-                          : `in ${tageBisFaellig + 1} Tagen`}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Timeline */}
         <FaelligkeitsTimeline rechnungen={rechnungen} tageAnzeigen={60} onOpenDetail={handleOpenDetail} />
