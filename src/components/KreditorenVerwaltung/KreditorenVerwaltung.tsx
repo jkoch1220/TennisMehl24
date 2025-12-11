@@ -379,7 +379,7 @@ const KreditorenVerwaltung = () => {
                   <div
                     key={rechnung.id}
                     className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => handleEdit(rechnung)}
+                    onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
                       <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
