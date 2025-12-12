@@ -211,7 +211,8 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
           const lines = cell.text;
           
           // Prüfe ob ein Grund vorhanden ist (ORIGINAL aus dem Datenobjekt!)
-          const hasGrund = !!(position.streichpreisGrund && position.streichpreisGrund.trim());
+          const streichpreisGrund = (position.streichpreisGrund ?? '').trim();
+          const hasGrund = streichpreisGrund.length > 0;
           
           // BOMBENSICHERE LOGIK: Finde die Zeile mit dem Streichpreis
           // Der Streichpreis ist IMMER formatiert als Währung (z.B. "125,50 €")
@@ -278,9 +279,9 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
             doc.setTextColor(0, 0, 0);
             const grundY = startY + (7 * 0.352778);
             // Kürze den Text falls zu lang (maximal 25 Zeichen)
-            const grundTextGekuerzt = position.streichpreisGrund.length > 25 
-              ? position.streichpreisGrund.substring(0, 22) + '...' 
-              : position.streichpreisGrund;
+            const grundTextGekuerzt = streichpreisGrund.length > 25 
+              ? streichpreisGrund.substring(0, 22) + '...' 
+              : streichpreisGrund;
             doc.text(grundTextGekuerzt, x2, grundY, { align: 'right' });
             
             // 2. Streichpreis (normal, 9pt) - WIRD GLEICH DURCHGESTRICHEN
@@ -680,7 +681,8 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
           const lines = cell.text;
           
           // Prüfe ob ein Grund vorhanden ist (ORIGINAL aus dem Datenobjekt!)
-          const hasGrund = !!(position.streichpreisGrund && position.streichpreisGrund.trim());
+          const streichpreisGrund = (position.streichpreisGrund ?? '').trim();
+          const hasGrund = streichpreisGrund.length > 0;
           
           // BOMBENSICHERE LOGIK: Finde die Zeile mit dem Streichpreis
           // Der Streichpreis ist IMMER formatiert als Währung (z.B. "125,50 €")
@@ -747,9 +749,9 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
             doc.setTextColor(0, 0, 0);
             const grundY = startY + (7 * 0.352778);
             // Kürze den Text falls zu lang (maximal 25 Zeichen)
-            const grundTextGekuerzt = position.streichpreisGrund.length > 25 
-              ? position.streichpreisGrund.substring(0, 22) + '...' 
-              : position.streichpreisGrund;
+            const grundTextGekuerzt = streichpreisGrund.length > 25 
+              ? streichpreisGrund.substring(0, 22) + '...' 
+              : streichpreisGrund;
             doc.text(grundTextGekuerzt, x2, grundY, { align: 'right' });
             
             // 2. Streichpreis (normal, 9pt) - WIRD GLEICH DURCHGESTRICHEN
