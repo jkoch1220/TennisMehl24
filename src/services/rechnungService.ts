@@ -262,8 +262,8 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       1: { cellWidth: 68, halign: 'left', valign: 'top' },  // Leistung
       2: { cellWidth: 16, halign: 'right' },   // Menge
       3: { cellWidth: 16, halign: 'center' },  // Einh.
-      4: { cellWidth: 22, halign: 'right', valign: 'middle' },  // Stückpr.
-      5: { cellWidth: 22, halign: 'right' }    // Gesamt
+      4: { cellWidth: 22, halign: 'right', valign: 'top' },  // Stückpr. - oben ausgerichtet
+      5: { cellWidth: 22, halign: 'right', valign: 'top' }    // Gesamt - oben ausgerichtet
     }, // Summe: 160mm
     didParseCell: function(data: any) {
       // Für die Bezeichnungsspalte im Body: Erste Zeile fett, weitere Zeilen normal
@@ -272,17 +272,31 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       }
     },
     didDrawCell: function(data: any) {
-      // Streichpreis durchstreichen und Grund kursiv anzeigen (wenn vorhanden)
+      // Streichpreis durchstreichen und Grund fett anzeigen (wenn vorhanden)
       if (data.column.index === 4 && data.section === 'body') {
         const position = daten.positionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
           const lines = cell.text;
-          const hasGrund = position.streichpreisGrund && lines.length >= 3;
-          const streichpreisLineIndex = hasGrund ? 1 : 0;
           
-          // Streichpreis durchstreichen
-          if (lines.length >= (hasGrund ? 3 : 2)) {
+          // Prüfe ob ein Grund vorhanden ist (ORIGINAL aus dem Datenobjekt!)
+          const hasGrund = !!(position.streichpreisGrund && position.streichpreisGrund.trim());
+          
+          // BOMBENSICHERE LOGIK: Finde die Zeile mit dem Streichpreis
+          // Der Streichpreis ist IMMER formatiert als Währung (z.B. "125,50 €")
+          const streichpreisFormatiert = formatWaehrung(position.streichpreis);
+          let streichpreisLineIndex = -1;
+          
+          // Suche die Zeile, die den Streichpreis enthält
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === streichpreisFormatiert) {
+              streichpreisLineIndex = i;
+              break;
+            }
+          }
+          
+          // NUR den Streichpreis durchstreichen (wenn gefunden)
+          if (streichpreisLineIndex >= 0) {
             const streichpreisText = lines[streichpreisLineIndex];
             
             // Textbreite berechnen
@@ -294,15 +308,12 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
             const x2 = cell.x + cell.width - cell.padding('right');
             const x1 = x2 - textWidth;
             
-            // Y-Position berechnen für valign: 'middle'
+            // Y-Position berechnen für valign: 'top'
             const fontSizeInMm = 9 * 0.352778;
             const lineHeight = fontSizeInMm * 1.15;
-            const totalTextHeight = lines.length * lineHeight;
-            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
             
-            const verticalOffset = (availableHeight - totalTextHeight) / 2;
-            // Baseline für die Streichpreis-Zeile berechnen
-            const lineBaseline = cell.y + cell.padding('top') + verticalOffset + (streichpreisLineIndex + 1) * fontSizeInMm + streichpreisLineIndex * (lineHeight - fontSizeInMm);
+            // Baseline für die Streichpreis-Zeile berechnen (oben ausgerichtet)
+            const lineBaseline = cell.y + cell.padding('top') + (streichpreisLineIndex + 1) * fontSizeInMm + streichpreisLineIndex * (lineHeight - fontSizeInMm);
             
             // Streichlinie mittig durch den Text (35% über der Baseline)
             const y = lineBaseline - (fontSizeInMm * 0.35);
@@ -312,31 +323,55 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
             doc.line(x1, y, x2, y);
           }
           
-          // Grund kursiv überschreiben (erste Zeile)
+          // Grund fett und KLEINER überschreiben - NICHT DURCHSTREICHEN!
           if (hasGrund) {
-            const grundText = lines[0];
-            
-            // Position berechnen
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'italic');
-            
+            // Gesamten Zellinhalt überschreiben mit korrekt formatiertem Text
             const x2 = cell.x + cell.width - cell.padding('right');
+            const startY = cell.y + cell.padding('top');
             
-            const fontSizeInMm = 9 * 0.352778;
-            const lineHeight = fontSizeInMm * 1.15;
-            const totalTextHeight = lines.length * lineHeight;
-            const availableHeight = cell.height - cell.padding('top') - cell.padding('bottom');
-            const verticalOffset = (availableHeight - totalTextHeight) / 2;
-            const firstLineBaseline = cell.y + cell.padding('top') + verticalOffset + fontSizeInMm;
+            // Hintergrund mit der gleichen Farbe wie die Zelle zeichnen (für striped theme)
+            // Bei striped theme: gerade Zeilen sind weiß (255,255,255), ungerade sind hellgrau (245,245,245)
+            const isEvenRow = data.row.index % 2 === 0;
+            if (isEvenRow) {
+              doc.setFillColor(255, 255, 255); // Weiß
+            } else {
+              doc.setFillColor(245, 245, 245); // Hellgrau (striped)
+            }
+            doc.rect(cell.x + cell.padding('left'), cell.y + cell.padding('top'), 
+                    cell.width - cell.padding('left') - cell.padding('right'), 
+                    cell.height - cell.padding('top') - cell.padding('bottom'), 'F');
             
-            // Hintergrund der ersten Zeile überdecken
-            doc.setFillColor(255, 255, 255);
-            const bgHeight = fontSizeInMm * 1.2;
-            doc.rect(cell.x + cell.padding('left'), firstLineBaseline - fontSizeInMm, cell.width - cell.padding('left') - cell.padding('right'), bgHeight, 'F');
+            // 1. Nachlassgrund in KLEINERER Schrift (7pt) und FETT - BOMBENSICHER ohne Umbruch
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            const grundY = startY + (7 * 0.352778);
+            // Kürze den Text falls zu lang (maximal 25 Zeichen)
+            const grundTextGekuerzt = position.streichpreisGrund.length > 25 
+              ? position.streichpreisGrund.substring(0, 22) + '...' 
+              : position.streichpreisGrund;
+            doc.text(grundTextGekuerzt, x2, grundY, { align: 'right' });
             
-            // Kursiven Text neu zeichnen
-            doc.setTextColor(100, 100, 100);
-            doc.text(grundText, x2, firstLineBaseline, { align: 'right' });
+            // 2. Streichpreis (normal, 9pt) - WIRD GLEICH DURCHGESTRICHEN
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const streichpreisY = grundY + (9 * 0.352778) + 0.5;
+            doc.text(formatWaehrung(position.streichpreis), x2, streichpreisY, { align: 'right' });
+            
+            // 3. Neuer Preis (normal, 9pt)
+            const neuerPreisY = streichpreisY + (9 * 0.352778) + 0.5;
+            doc.text(formatWaehrung(position.einzelpreis), x2, neuerPreisY, { align: 'right' });
+            
+            // JETZT Streichlinie über dem Streichpreis
+            doc.setFontSize(9);
+            const streichpreisTextWidth = doc.getTextWidth(formatWaehrung(position.streichpreis));
+            const lineX1 = x2 - streichpreisTextWidth;
+            const lineY = streichpreisY - (9 * 0.352778 * 0.35);
+            
+            doc.setDrawColor(150, 150, 150);
+            doc.setLineWidth(0.4);
+            doc.line(lineX1, lineY, x2, lineY);
+            
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'normal');
           }

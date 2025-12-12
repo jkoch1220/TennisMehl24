@@ -60,3 +60,5 @@ async function deleteUser(email) {
 
 const email = process.argv[2];
 deleteUser(email);
+
+
