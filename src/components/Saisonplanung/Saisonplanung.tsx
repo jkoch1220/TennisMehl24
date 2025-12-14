@@ -134,7 +134,7 @@ const Saisonplanung = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Saisonplanung {saisonjahr}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Kundenliste {saisonjahr}</h1>
             <p className="text-gray-600 mt-1">Verwaltung der Kundenliste und Telefonaktion</p>
           </div>
           <div className="flex gap-3 items-center flex-wrap">

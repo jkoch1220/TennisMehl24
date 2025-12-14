@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail } from 'lucide-react';
 import { RechnungsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -16,6 +16,8 @@ import {
 } from '../../services/bestellabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import EmailFormular from './EmailFormular';
+import jsPDF from 'jspdf';
 
 interface RechnungTabProps {
   projekt?: Projekt;
@@ -61,6 +63,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler' | 'warnung'; text: string } | null>(null);
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
+  
+  // E-Mail-Formular
+  const [showEmailFormular, setShowEmailFormular] = useState(false);
+  const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
   
   // Storno-Status
   const [showStornoDialog, setShowStornoDialog] = useState(false);
@@ -323,6 +329,24 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     } catch (error) {
       console.error('Fehler beim Generieren der Rechnung:', error);
       alert('Fehler beim Generieren der Rechnung: ' + (error as Error).message);
+    }
+  };
+
+  // PDF generieren und E-Mail-Formular öffnen
+  const oeffneEmailMitRechnung = async () => {
+    try {
+      if (!rechnungsDaten.rechnungsnummer) {
+        alert('Bitte geben Sie zuerst eine Rechnungsnummer ein.');
+        return;
+      }
+
+      // PDF generieren
+      const pdf = await generiereRechnungPDF(rechnungsDaten);
+      setEmailPdf(pdf);
+      setShowEmailFormular(true);
+    } catch (error) {
+      console.error('Fehler beim Generieren der PDF:', error);
+      alert('Fehler beim Generieren der PDF: ' + (error as Error).message);
     }
   };
 
@@ -1221,6 +1245,15 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
               Entwurf herunterladen
             </button>
             
+            {/* E-Mail mit PDF öffnen */}
+            <button
+              onClick={oeffneEmailMitRechnung}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              <Mail className="h-5 w-5" />
+              E-Mail mit PDF öffnen
+            </button>
+            
             {/* Finalisieren */}
             {projekt?.$id && !showFinalConfirm && (
               <button
@@ -1296,6 +1329,22 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           )}
         </div>
       </div>
+      
+      {/* E-Mail-Formular */}
+      {showEmailFormular && emailPdf && (
+        <EmailFormular
+          pdf={emailPdf}
+          dateiname={`Rechnung_${rechnungsDaten.rechnungsnummer}.pdf`}
+          dokumentTyp="rechnung"
+          dokumentNummer={rechnungsDaten.rechnungsnummer}
+          kundenname={rechnungsDaten.kundenname}
+          kundennummer={rechnungsDaten.kundennummer}
+          onClose={() => {
+            setShowEmailFormular(false);
+            setEmailPdf(null);
+          }}
+        />
+      )}
     </div>
   );
 };

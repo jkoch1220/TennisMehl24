@@ -16,8 +16,10 @@
     "cache:users": "node scripts/cache-users-helper.js"
   },
   "dependencies": {
+    "@types/js-yaml": "^4.0.9",
     "appwrite": "^21.4.0",
     "canvas-confetti": "^1.9.4",
+    "js-yaml": "^4.1.1",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.427.0",

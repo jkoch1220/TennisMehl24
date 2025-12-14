@@ -1,0 +1,40 @@
+# E-Mail-Templates für verschiedene Dokumenttypen
+# Diese Datei kann bearbeitet werden, um die E-Mail-Inhalte anzupassen
+
+angebot:
+  betreff: "Angebot {dokumentNummer} - {kundenname}"
+  anrede: "Sehr geehrte Damen und Herren,"
+  einleitung: "anbei erhalten Sie unser angebot {dokumentNummer}{kundennummerText}."
+  haupttext: "Wir freuen uns auf Ihre Rückmeldung."
+  schluss: "Bei Fragen stehen wir Ihnen gerne zur Verfügung."
+  absender: "Mit freundlichen Grüßen\nKoch Dienste"
+
+auftragsbestaetigung:
+  betreff: "Auftragsbestätigung {dokumentNummer} - {kundenname}"
+  anrede: "Sehr geehrte Damen und Herren,"
+  einleitung: "anbei erhalten Sie unsere auftragsbestätigung {dokumentNummer}{kundennummerText}."
+  haupttext: "Vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit die Bestellung."
+  schluss: "Bei Fragen stehen wir Ihnen gerne zur Verfügung."
+  absender: "Mit freundlichen Grüßen\nKoch Dienste"
+
+lieferschein:
+  betreff: "Lieferschein {dokumentNummer} - {kundenname}"
+  anrede: "Sehr geehrte Damen und Herren,"
+  einleitung: "anbei erhalten Sie unseren lieferschein {dokumentNummer}{kundennummerText}."
+  haupttext: "Bitte bestätigen Sie den Erhalt der Ware."
+  schluss: "Bei Fragen stehen wir Ihnen gerne zur Verfügung."
+  absender: "Mit freundlichen Grüßen\nKoch Dienste"
+
+rechnung:
+  betreff: "Rechnung {dokumentNummer} - {kundenname}"
+  anrede: "Sehr geehrte Damen und Herren,"
+  einleitung: "anbei erhalten Sie unsere rechnung {dokumentNummer}{kundennummerText}."
+  haupttext: "Bitte überweisen Sie den Rechnungsbetrag innerhalb der angegebenen Zahlungsfrist."
+  schluss: "Bei Fragen stehen wir Ihnen gerne zur Verfügung."
+  absender: "Mit freundlichen Grüßen\nKoch Dienste"
+
+# Platzhalter:
+# {dokumentNummer} - wird durch die Dokumentnummer ersetzt
+# {kundenname} - wird durch den Kundennamen ersetzt
+# {kundennummer} - wird durch die Kundennummer ersetzt (falls vorhanden)
+# {kundennummerText} - wird durch " (Kundennummer: {kundennummer})" ersetzt, falls vorhanden, sonst leer

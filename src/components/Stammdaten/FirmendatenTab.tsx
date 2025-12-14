@@ -27,6 +27,7 @@ const FirmendatenTab = () => {
     werkStrasse: '',
     werkPlz: '',
     werkOrt: '',
+    emailTemplates: '',
   });
 
   useEffect(() => {
@@ -59,6 +60,7 @@ const FirmendatenTab = () => {
           werkStrasse: daten.werkStrasse || '',
           werkPlz: daten.werkPlz || '',
           werkOrt: daten.werkOrt || '',
+          emailTemplates: daten.emailTemplates || '',
         });
       }
     } catch (error) {

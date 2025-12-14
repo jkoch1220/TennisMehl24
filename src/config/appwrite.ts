@@ -19,7 +19,7 @@ export const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 export const WIKI_FILES_COLLECTION_ID = 'wiki_files';
 export const LAGER_COLLECTION_ID = 'lager_bestand';
 export const KUNDEN_AKTIVITAETEN_COLLECTION_ID = 'kunden_aktivitaeten';
-// Saisonplanung Collections
+// Kundenliste Collections
 export const SAISON_KUNDEN_COLLECTION_ID = 'saison_kunden';
 export const SAISON_ANSPRECHPARTNER_COLLECTION_ID = 'saison_ansprechpartner';
 export const SAISON_DATEN_COLLECTION_ID = 'saison_daten';
@@ -30,6 +30,8 @@ export const ARTIKEL_COLLECTION_ID = 'artikel';
 export const STAMMDATEN_COLLECTION_ID = 'stammdaten';
 export const BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
 export const USER_PERMISSIONS_COLLECTION_ID = 'user_permissions';
+export const LIEFERANTEN_COLLECTION_ID = 'lieferanten';
+export const ANFRAGEN_COLLECTION_ID = 'anfragen';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -60,6 +62,8 @@ export const COLLECTIONS = {
   STAMMDATEN: STAMMDATEN_COLLECTION_ID,
   BESTELLABWICKLUNG_DOKUMENTE: BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
   USER_PERMISSIONS: USER_PERMISSIONS_COLLECTION_ID,
+  LIEFERANTEN: LIEFERANTEN_COLLECTION_ID,
+  ANFRAGEN: ANFRAGEN_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

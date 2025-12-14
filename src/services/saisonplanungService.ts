@@ -1140,7 +1140,7 @@ export const saisonplanungService = {
   /**
    * SUPER-OPTIMIERT: Lädt Dashboard-Daten (CallListe + Statistik) in einem Durchgang
    * Verwendet die gleichen Batch-Queries für beide, um doppelte Abfragen zu vermeiden
-   * Perfekt für die Saisonplanung-Übersichtsseite
+   * Perfekt für die Kundenliste-Übersichtsseite
    */
   async loadSaisonplanungDashboard(
     filter: CallListeFilter = {},

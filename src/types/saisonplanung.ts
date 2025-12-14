@@ -130,7 +130,7 @@ export type NeueSaisonAktivitaet = Omit<SaisonAktivitaet, 'id' | 'erstelltAm'> &
   id?: string;
 };
 
-// Saisonplanungs-Kunde (erweitert)
+// Kundenliste-Kunde (erweitert)
 export interface SaisonKunde {
   id: string;
   typ: KundenTyp;

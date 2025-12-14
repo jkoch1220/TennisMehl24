@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail } from 'lucide-react';
 import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -17,6 +17,8 @@ import {
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import EmailFormular from './EmailFormular';
+import jsPDF from 'jspdf';
 
 interface AngebotTabProps {
   projekt?: Projekt;
@@ -66,6 +68,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+  
+  // E-Mail-Formular
+  const [showEmailFormular, setShowEmailFormular] = useState(false);
+  const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
   
   // Auto-Save Status
   const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -405,6 +411,24 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     } catch (error) {
       console.error('Fehler beim Generieren des Angebots:', error);
       alert('Fehler beim Generieren des Angebots: ' + (error as Error).message);
+    }
+  };
+
+  // PDF generieren und E-Mail-Formular öffnen
+  const oeffneEmailMitAngebot = async () => {
+    try {
+      if (!angebotsDaten.angebotsnummer) {
+        alert('Bitte geben Sie zuerst eine Angebotsnummer ein.');
+        return;
+      }
+
+      // PDF generieren
+      const pdf = await generiereAngebotPDF(angebotsDaten);
+      setEmailPdf(pdf);
+      setShowEmailFormular(true);
+    } catch (error) {
+      console.error('Fehler beim Generieren der PDF:', error);
+      alert('Fehler beim Generieren der PDF: ' + (error as Error).message);
     }
   };
 
@@ -1191,6 +1215,15 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               Nur PDF herunterladen
             </button>
             
+            {/* E-Mail mit PDF öffnen */}
+            <button
+              onClick={oeffneEmailMitAngebot}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              <Mail className="h-5 w-5" />
+              E-Mail mit PDF öffnen
+            </button>
+            
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
@@ -1236,6 +1269,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           )}
         </div>
       </div>
+      
+      {/* E-Mail-Formular */}
+      {showEmailFormular && emailPdf && (
+        <EmailFormular
+          pdf={emailPdf}
+          dateiname={`Angebot_${angebotsDaten.angebotsnummer}.pdf`}
+          dokumentTyp="angebot"
+          dokumentNummer={angebotsDaten.angebotsnummer}
+          kundenname={angebotsDaten.kundenname}
+          kundennummer={angebotsDaten.kundennummer}
+          onClose={() => {
+            setShowEmailFormular(false);
+            setEmailPdf(null);
+          }}
+        />
+      )}
     </div>
   );
 };

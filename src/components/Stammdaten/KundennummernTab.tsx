@@ -90,7 +90,7 @@ const KundennummernTab = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Kundennummern Generierung</h2>
-            <p className="text-gray-600">Automatische Vergabe von Kundennummern für die Saisonplanung</p>
+            <p className="text-gray-600">Automatische Vergabe von Kundennummern für die Kundenliste</p>
           </div>
         </div>
 
@@ -314,7 +314,7 @@ const KundennummernTab = () => {
             vergeben, beginnend mit der Nummer 231.
           </p>
           <p>
-            <strong>Verwendung:</strong> Die Kundennummern werden in der Saisonplanung und
+            <strong>Verwendung:</strong> Die Kundennummern werden in der Kundenliste und
             in allen Dokumenten zur eindeutigen Identifikation verwendet.
           </p>
           <p>

@@ -13,6 +13,8 @@ import {
   CheckSquare,
   Layers,
   Database,
+  ClipboardList,
+  Mail,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -43,10 +45,10 @@ export const ALL_TOOLS: ToolConfig[] = [
   },
   {
     id: 'saisonplanung',
-    name: 'Saisonplanung',
+    name: 'Kundenliste',
     description: 'Call-Liste, Saisonmengen, Platzbauer-Beziehungen und Preise pflegen',
     href: '/saisonplanung',
-    icon: CalendarDays,
+    icon: ClipboardList,
     color: 'from-amber-500 to-red-500',
   },
   {
@@ -115,7 +117,7 @@ export const ALL_TOOLS: ToolConfig[] = [
   },
   {
     id: 'vorschlaege',
-    name: 'Verbesserungsvorschläge',
+    name: 'Verbesserungen',
     description: 'Vorschläge zur Verbesserung des Online-Tools anlegen und verwalten',
     href: '/vorschlaege',
     icon: MessageSquare,
@@ -136,6 +138,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/stammdaten',
     icon: Database,
     color: 'from-blue-500 to-cyan-600',
+  },
+  {
+    id: 'anfragen',
+    name: 'Anfragen',
+    description: 'Automatisch erkannte E-Mail-Anfragen verwalten und zu Kunden zuordnen',
+    href: '/anfragen',
+    icon: Mail,
+    color: 'from-teal-500 to-cyan-500',
   },
 ];
 

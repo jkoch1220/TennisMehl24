@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail } from 'lucide-react';
 import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
+import jsPDF from 'jspdf';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import {
   ladeDokumentNachTyp,
@@ -13,8 +14,11 @@ import {
   ladeEntwurf,
   ladePositionenVonVorherigem
 } from '../../services/bestellabwicklungDokumentService';
+import { getAlleArtikel } from '../../services/artikelService';
+import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import EmailFormular from './EmailFormular';
 
 interface LieferscheinTabProps {
   projekt?: Projekt;
@@ -55,12 +59,35 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+  
+  // E-Mail-Formular
+  const [showEmailFormular, setShowEmailFormular] = useState(false);
+  const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
 
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
+  
+  // Artikel-Auswahl
+  const [artikel, setArtikel] = useState<Artikel[]>([]);
+  const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  const [artikelSuchtext, setArtikelSuchtext] = useState('');
+  const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
+  
+  // Artikel laden
+  useEffect(() => {
+    const ladeArtikel = async () => {
+      try {
+        const artikelListe = await getAlleArtikel();
+        setArtikel(artikelListe);
+      } catch (error) {
+        console.error('Fehler beim Laden der Artikel:', error);
+      }
+    };
+    ladeArtikel();
+  }, []);
   
   // Gespeichertes Dokument und Entwurf laden (wenn Projekt vorhanden)
   useEffect(() => {
@@ -265,6 +292,52 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     }));
   };
 
+  const addPositionAusArtikel = (artikelId: string) => {
+    hatGeaendert.current = true;
+    const selectedArtikel = artikel.find(a => a.$id === artikelId);
+    if (!selectedArtikel) return;
+
+    const neuePosition: LieferscheinPosition = {
+      id: Date.now().toString(),
+      artikelnummer: selectedArtikel.artikelnummer,
+      artikel: selectedArtikel.bezeichnung,
+      menge: 1,
+      einheit: selectedArtikel.einheit,
+    };
+    
+    setLieferscheinDaten(prev => ({
+      ...prev,
+      positionen: [...prev.positionen, neuePosition]
+    }));
+    
+    setShowArtikelAuswahl(false);
+    setArtikelSuchtext('');
+  };
+
+  // Gefilterte und sortierte Artikel für die Auswahl
+  const gefilterteArtikel = artikel
+    .filter(art => {
+      if (!artikelSuchtext.trim()) return true;
+      const suchtext = artikelSuchtext.toLowerCase();
+      return (
+        art.bezeichnung.toLowerCase().includes(suchtext) ||
+        art.artikelnummer.toLowerCase().includes(suchtext) ||
+        (art.beschreibung && art.beschreibung.toLowerCase().includes(suchtext))
+      );
+    })
+    .sort((a, b) => {
+      if (artikelSortierung === 'bezeichnung') {
+        return a.bezeichnung.localeCompare(b.bezeichnung);
+      } else if (artikelSortierung === 'artikelnummer') {
+        return a.artikelnummer.localeCompare(b.artikelnummer);
+      } else if (artikelSortierung === 'einzelpreis') {
+        const preisA = a.einzelpreis ?? 0;
+        const preisB = b.einzelpreis ?? 0;
+        return preisA - preisB;
+      }
+      return 0;
+    });
+
   const removePosition = (index: number) => {
     hatGeaendert.current = true;
     setLieferscheinDaten(prev => ({
@@ -283,6 +356,24 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     } catch (error) {
       console.error('Fehler beim Generieren des Lieferscheins:', error);
       alert('Fehler beim Generieren des Lieferscheins: ' + (error as Error).message);
+    }
+  };
+
+  // PDF generieren und E-Mail-Formular öffnen
+  const oeffneEmailMitLieferschein = async () => {
+    try {
+      if (!lieferscheinDaten.lieferscheinnummer) {
+        alert('Bitte geben Sie zuerst eine Lieferscheinnummer ein.');
+        return;
+      }
+
+      // PDF generieren
+      const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
+      setEmailPdf(pdf);
+      setShowEmailFormular(true);
+    } catch (error) {
+      console.error('Fehler beim Generieren der PDF:', error);
+      alert('Fehler beim Generieren der PDF: ' + (error as Error).message);
     }
   };
 
@@ -647,15 +738,119 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               <p className="text-sm text-gray-500 mt-1">Hinweis: Lieferscheine enthalten KEINE Preise</p>
             </div>
             {(!gespeichertesDokument || istBearbeitungsModus) && (
-              <button
-                onClick={addPosition}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                Position hinzufügen
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowArtikelAuswahl(!showArtikelAuswahl)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  <Package className="h-4 w-4" />
+                  Aus Artikel
+                </button>
+                <button
+                  onClick={addPosition}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Leere Position
+                </button>
+              </div>
             )}
           </div>
+
+          {/* Artikel-Auswahl */}
+          {showArtikelAuswahl && (
+            <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Artikel auswählen</h3>
+                <button
+                  onClick={() => {
+                    setShowArtikelAuswahl(false);
+                    setArtikelSuchtext('');
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Schließen
+                </button>
+              </div>
+
+              {artikel.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Keine Artikel vorhanden. Legen Sie zuerst Artikel in der Artikelverwaltung an.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {/* Suchfeld und Sortierung */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={artikelSuchtext}
+                        onChange={(e) => setArtikelSuchtext(e.target.value)}
+                        placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                      />
+                    </div>
+                    <select
+                      value={artikelSortierung}
+                      onChange={(e) => setArtikelSortierung(e.target.value as any)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                    >
+                      <option value="bezeichnung">Sortierung: Bezeichnung</option>
+                      <option value="artikelnummer">Sortierung: Art.-Nr.</option>
+                      <option value="einzelpreis">Sortierung: Preis</option>
+                    </select>
+                  </div>
+
+                  {/* Artikel-Tabelle */}
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-96 overflow-y-auto">
+                    {gefilterteArtikel.length === 0 ? (
+                      <div className="p-4 text-center text-gray-600 text-sm">
+                        Keine Artikel gefunden
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-purple-100 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Art.-Nr.</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Bezeichnung</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Beschreibung</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Einheit</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Aktion</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {gefilterteArtikel.map((art) => (
+                            <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{art.artikelnummer}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{art.bezeichnung}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                <div className="line-clamp-2 max-w-xs">{art.beschreibung || '-'}</div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-center">{art.einheit}</td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => addPositionAusArtikel(art.$id!)}
+                                  className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                                >
+                                  Hinzufügen
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Info-Zeile */}
+                  <div className="text-xs text-gray-600 text-center">
+                    {gefilterteArtikel.length} von {artikel.length} Artikel{artikel.length !== 1 ? 'n' : ''} angezeigt
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-4">
             {lieferscheinDaten.positionen.map((position, index) => (
@@ -772,6 +967,15 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               Nur PDF herunterladen
             </button>
             
+            {/* E-Mail mit PDF öffnen */}
+            <button
+              onClick={oeffneEmailMitLieferschein}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              <Mail className="h-5 w-5" />
+              E-Mail mit PDF öffnen
+            </button>
+            
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
@@ -817,6 +1021,22 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           )}
         </div>
       </div>
+      
+      {/* E-Mail-Formular */}
+      {showEmailFormular && emailPdf && (
+        <EmailFormular
+          pdf={emailPdf}
+          dateiname={`Lieferschein_${lieferscheinDaten.lieferscheinnummer}.pdf`}
+          dokumentTyp="lieferschein"
+          dokumentNummer={lieferscheinDaten.lieferscheinnummer}
+          kundenname={lieferscheinDaten.kundenname}
+          kundennummer={lieferscheinDaten.kundennummer}
+          onClose={() => {
+            setShowEmailFormular(false);
+            setEmailPdf(null);
+          }}
+        />
+      )}
     </div>
   );
 };

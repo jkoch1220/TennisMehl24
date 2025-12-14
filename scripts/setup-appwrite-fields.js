@@ -187,6 +187,9 @@ const stammdatenFields = [
   { key: 'werkPlz', type: 'string', size: 20 },
   { key: 'werkOrt', type: 'string', size: 200 },
   
+  // E-Mail-Templates (als JSON-String)
+  { key: 'emailTemplates', type: 'string', size: 10000 },
+  
   // WICHTIG: Dokumentnummern-Zähler für Nummerierungssystem
   // Diese Felder werden verwendet, um eindeutige, fortlaufende Nummern zu generieren
   { key: 'angebotZaehler', type: 'integer', default: 0 },

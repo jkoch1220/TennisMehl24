@@ -49,7 +49,7 @@ export const kundennummerService = {
         console.warn('Fehler beim Laden der Dispo-Kunden:', error);
       }
 
-      // Lade alle Kunden aus der Saisonplanungs-Collection
+      // Lade alle Kunden aus der Kundenliste-Collection
       try {
         const saisonKunden = await databases.listDocuments(
           DATABASE_ID,

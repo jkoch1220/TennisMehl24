@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail } from 'lucide-react';
 import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -18,6 +18,8 @@ import {
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import EmailFormular from './EmailFormular';
+import jsPDF from 'jspdf';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -66,6 +68,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler'; text: string } | null>(null);
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+  
+  // E-Mail-Formular
+  const [showEmailFormular, setShowEmailFormular] = useState(false);
+  const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
 
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -371,6 +377,24 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     } catch (error) {
       console.error('Fehler beim Generieren der Auftragsbestätigung:', error);
       alert('Fehler beim Generieren der Auftragsbestätigung: ' + (error as Error).message);
+    }
+  };
+
+  // PDF generieren und E-Mail-Formular öffnen
+  const oeffneEmailMitAuftragsbestaetigung = async () => {
+    try {
+      if (!auftragsbestaetigungsDaten.auftragsbestaetigungsnummer) {
+        alert('Bitte geben Sie zuerst eine Auftragsbestätigungsnummer ein.');
+        return;
+      }
+
+      // PDF generieren
+      const pdf = await generiereAuftragsbestaetigungPDF(auftragsbestaetigungsDaten);
+      setEmailPdf(pdf);
+      setShowEmailFormular(true);
+    } catch (error) {
+      console.error('Fehler beim Generieren der PDF:', error);
+      alert('Fehler beim Generieren der PDF: ' + (error as Error).message);
     }
   };
 
@@ -1184,6 +1208,15 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               Nur PDF herunterladen
             </button>
             
+            {/* E-Mail mit PDF öffnen */}
+            <button
+              onClick={oeffneEmailMitAuftragsbestaetigung}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              <Mail className="h-5 w-5" />
+              E-Mail mit PDF öffnen
+            </button>
+            
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
@@ -1229,6 +1262,22 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           )}
         </div>
       </div>
+      
+      {/* E-Mail-Formular */}
+      {showEmailFormular && emailPdf && (
+        <EmailFormular
+          pdf={emailPdf}
+          dateiname={`Auftragsbestaetigung_${auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}.pdf`}
+          dokumentTyp="auftragsbestaetigung"
+          dokumentNummer={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
+          kundenname={auftragsbestaetigungsDaten.kundenname}
+          kundennummer={auftragsbestaetigungsDaten.kundennummer}
+          onClose={() => {
+            setShowEmailFormular(false);
+            setEmailPdf(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -21,6 +21,7 @@ import KundenKarte from './pages/KundenKarte';
 import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
 import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
 import Stammdaten from './components/Stammdaten/Stammdaten';
+import Anfragen from './components/Anfragen/Anfragen';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
 // App Content Komponente (braucht Auth Context)
@@ -141,6 +142,11 @@ function AppContent() {
               <Route path="/stammdaten" element={
                 <ProtectedRoute toolId="stammdaten">
                   <Stammdaten />
+                </ProtectedRoute>
+              } />
+              <Route path="/anfragen" element={
+                <ProtectedRoute toolId="anfragen">
+                  <Anfragen />
                 </ProtectedRoute>
               } />
               

@@ -226,3 +226,23 @@ export interface VariableKostenErgebnis {
   jahresgewinn: number; // Jahresgewinn = Gesamtzahl Tonnen × Gewinn je Tonne
 }
 
+// Lieferanten Typen
+export interface Lieferant {
+  id: string;
+  name: string; // Name des Lieferanten
+  firma: string; // Firmenname
+  stundenlohn: number; // €/Stunde - Fixpreis pro Stunde
+  lkw: string; // LKW-Typ/Bezeichnung
+  lieferVolumen: number; // Liefervolumen in Tonnen
+  erstelltAm: string;
+  geaendertAm: string;
+}
+
+export interface NeuerLieferant {
+  name: string;
+  firma: string;
+  stundenlohn: number;
+  lkw: string;
+  lieferVolumen: number;
+}
+

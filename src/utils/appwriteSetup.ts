@@ -15,6 +15,7 @@ import {
   PROJEKTE_COLLECTION_ID,
   ARTIKEL_COLLECTION_ID,
   STAMMDATEN_COLLECTION_ID,
+  LIEFERANTEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -74,7 +75,7 @@ const kundenAktivitaetenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },
 ];
 
-// Saisonplanung Collections (Minimalfelder für Filter)
+// Kundenliste Collections (Minimalfelder für Filter)
 const saisonKundenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },
 ];
@@ -122,6 +123,10 @@ const artikelFields: FieldConfig[] = [
   { key: 'einzelpreis', type: 'double', required: false }, // Optional - kann weggelassen werden
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'aktualisiertAm', type: 'string', size: 50 },
+];
+
+const lieferantenFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 10000 },
 ];
 
 const stammdatenFields: FieldConfig[] = [
@@ -298,6 +303,7 @@ export async function setupAppwriteFields() {
       { id: PROJEKTE_COLLECTION_ID, name: 'Projekte', fields: projekteFields },
       { id: ARTIKEL_COLLECTION_ID, name: 'Artikel', fields: artikelFields },
       { id: STAMMDATEN_COLLECTION_ID, name: 'Stammdaten', fields: stammdatenFields },
+      { id: LIEFERANTEN_COLLECTION_ID, name: 'Lieferanten', fields: lieferantenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {

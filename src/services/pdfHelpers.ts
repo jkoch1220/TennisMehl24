@@ -377,22 +377,10 @@ export const getKalenderwoche = (datum: Date): number => {
 };
 
 /**
- * Generiert den Liefersaison-Text mit Datumsbereich und Kalenderwochen
- * @param jahr - Das Jahr der Liefersaison
- * @returns Formatierter Text wie "Liefersaison voraussichtlich 03.03. - 18.04.2026 (10. - 16. KW 2026)"
+ * Generiert den Liefersaison-Text mit Datumsbereich
+ * @param jahr - Das Jahr der Liefersaison (wird nicht mehr verwendet, bleibt für Kompatibilität)
+ * @returns Formatierter Text wie "Liefersaison voraussichtlich 02.03 bis 22.03"
  */
 export const getLiefersaisonText = (jahr: number = 2026): string => {
-  // Liefersaison: 3. März bis 18. April
-  const startDatum = new Date(jahr, 2, 3); // Monat 2 = März (0-basiert)
-  const endDatum = new Date(jahr, 3, 18);  // Monat 3 = April
-  
-  // Berechne Kalenderwochen
-  const startKW = getKalenderwoche(startDatum);
-  const endKW = getKalenderwoche(endDatum);
-  
-  // Formatiere Daten (dd.MM.)
-  const startFormatiert = `${startDatum.getDate().toString().padStart(2, '0')}.${(startDatum.getMonth() + 1).toString().padStart(2, '0')}.`;
-  const endFormatiert = `${endDatum.getDate().toString().padStart(2, '0')}.${(endDatum.getMonth() + 1).toString().padStart(2, '0')}.${endDatum.getFullYear()}`;
-  
-  return `Liefersaison voraussichtlich ${startFormatiert} - ${endFormatiert} (${startKW}. - ${endKW}. KW ${jahr})`;
+  return 'Liefersaison voraussichtlich 02.03 bis 22.03';
 };

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
 import KundennummernTab from './KundennummernTab';
+import EmailTemplatesTab from './EmailTemplatesTab';
 
-type TabId = 'firmendaten' | 'artikel' | 'kundennummern';
+type TabId = 'firmendaten' | 'artikel' | 'kundennummern' | 'emailTemplates';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -30,6 +31,13 @@ const Stammdaten = () => {
       icon: Hash, 
       color: 'from-green-600 to-emerald-600',
       description: 'Kundennummern generieren'
+    },
+    { 
+      id: 'emailTemplates' as TabId, 
+      label: 'E-Mail-Templates', 
+      icon: Mail, 
+      color: 'from-purple-600 to-indigo-600',
+      description: 'E-Mail-Vorlagen bearbeiten'
     },
   ];
 
@@ -82,6 +90,7 @@ const Stammdaten = () => {
         {activeTab === 'firmendaten' && <FirmendatenTab />}
         {activeTab === 'artikel' && <ArtikelVerwaltungTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}
+        {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
       </div>
 
       {/* Info-Box über Stammdaten */}
@@ -99,7 +108,7 @@ const Stammdaten = () => {
           </p>
           <p>
             <strong>Kundennummern:</strong> Automatische Vergabe von eindeutigen Kundennummern für alle Kunden
-            in der Saisonplanung. Die Nummern beginnen bei 231 und werden fortlaufend vergeben.
+            in der Kundenliste. Die Nummern beginnen bei 231 und werden fortlaufend vergeben.
           </p>
           <p className="text-blue-700 font-medium mt-4">
             💡 Tipp: Pflegen Sie Ihre Stammdaten sorgfältig, da diese zentral in vielen Bereichen verwendet werden.

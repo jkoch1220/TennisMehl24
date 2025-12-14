@@ -48,7 +48,7 @@ const VorschlagButton = () => {
       <button
         onClick={() => setShowForm(true)}
         className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-50"
-        title="Verbesserungsvorschlag anlegen"
+        title="Verbesserung anlegen"
       >
         <MessageSquare className="w-5 h-5" />
         <span className="text-sm font-medium whitespace-nowrap">
@@ -63,7 +63,7 @@ const VorschlagButton = () => {
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  Verbesserungsvorschlag anlegen
+                  Verbesserung anlegen
                 </h2>
                 <button
                   onClick={() => {
@@ -99,7 +99,7 @@ const VorschlagButton = () => {
                     onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     rows={6}
-                    placeholder="Detaillierte Beschreibung des Verbesserungsvorschlags..."
+                    placeholder="Detaillierte Beschreibung der Verbesserung..."
                     required
                     disabled={isSubmitting}
                   />

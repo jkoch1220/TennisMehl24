@@ -36,6 +36,9 @@ export interface Stammdaten {
   werkPlz?: string;
   werkOrt?: string;
   
+  // E-Mail-Templates (als JSON-String gespeichert)
+  emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
+  
   // Metadaten
   erstelltAm?: string;
   aktualisiertAm?: string;
@@ -61,4 +64,5 @@ export interface StammdatenInput {
   werkStrasse?: string;
   werkPlz?: string;
   werkOrt?: string;
+  emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
 }

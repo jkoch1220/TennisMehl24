@@ -12,7 +12,9 @@ import {
   GripVertical,
   User,
   Filter,
-  ArrowUpDown
+  ArrowUpDown,
+  Copy,
+  Check
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -39,6 +41,7 @@ const VorschlaegeNeu = () => {
     draggedIndex: null,
     draggedOverIndex: null,
   });
+  const [copiedItem, setCopiedItem] = useState<{ id: string; type: 'titel' | 'beschreibung' } | null>(null);
 
   useEffect(() => {
     loadTickets();
@@ -220,6 +223,17 @@ const VorschlaegeNeu = () => {
     );
   };
 
+  const handleCopy = async (text: string, ticketId: string, type: 'titel' | 'beschreibung') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedItem({ id: ticketId, type });
+      setTimeout(() => setCopiedItem(null), 2000);
+    } catch (error) {
+      console.error('Fehler beim Kopieren:', error);
+      alert('Fehler beim Kopieren in die Zwischenablage.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -239,7 +253,7 @@ const VorschlaegeNeu = () => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Verbesserungsvorschläge
+                Verbesserungen
               </h1>
               <p className="text-gray-600">
                 {filteredTickets.length} {filteredTickets.length === 1 ? 'Vorschlag' : 'Vorschläge'}
@@ -325,19 +339,45 @@ const VorschlaegeNeu = () => {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-4 mb-3">
-                        <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-3 flex-wrap flex-1">
                           {getStatusIcon(ticket.status)}
-                          <h3 className="text-xl font-semibold text-gray-900">
-                            {ticket.titel}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-semibold text-gray-900">
+                              {ticket.titel}
+                            </h3>
+                            <button
+                              onClick={() => handleCopy(ticket.titel, ticket.id, 'titel')}
+                              className="p-1 hover:bg-gray-100 rounded transition-colors"
+                              title="Titel kopieren"
+                            >
+                              {copiedItem?.id === ticket.id && copiedItem?.type === 'titel' ? (
+                                <Check className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-gray-400" />
+                              )}
+                            </button>
+                          </div>
                           {getStatusBadge(ticket.status)}
                           {getPrioritaetBadge(ticket.prioritaet)}
                         </div>
                       </div>
 
-                      <p className="text-gray-700 mb-4 whitespace-pre-wrap">
-                        {ticket.beschreibung}
-                      </p>
+                      <div className="flex items-start gap-2 mb-4">
+                        <p className="text-gray-700 whitespace-pre-wrap flex-1">
+                          {ticket.beschreibung}
+                        </p>
+                        <button
+                          onClick={() => handleCopy(ticket.beschreibung, ticket.id, 'beschreibung')}
+                          className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0 mt-1"
+                          title="Beschreibung kopieren"
+                        >
+                          {copiedItem?.id === ticket.id && copiedItem?.type === 'beschreibung' ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      </div>
 
                       <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-2">
@@ -394,7 +434,7 @@ const VorschlaegeNeu = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Neuer Verbesserungsvorschlag
+                    Neue Verbesserung
                   </h2>
                   <button
                     onClick={() => {
@@ -429,7 +469,7 @@ const VorschlaegeNeu = () => {
                       onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={6}
-                      placeholder="Detaillierte Beschreibung des Verbesserungsvorschlags..."
+                      placeholder="Detaillierte Beschreibung der Verbesserung..."
                       required
                     />
                   </div>
