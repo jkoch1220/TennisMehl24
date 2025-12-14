@@ -6,6 +6,7 @@ export interface Ticket {
   prioritaet: TicketPrioritaet;
   erstelltAm: string; // ISO Date String
   geaendertAm: string; // ISO Date String
+  erledigtAm?: string; // ISO Date String - wann wurde das Ticket erledigt
   erstelltVon?: string; // Name des Erstellers
   erstelltVonId?: string; // User-ID des Erstellers
   sortIndex?: number; // Für manuelle Sortierung/Priorisierung
