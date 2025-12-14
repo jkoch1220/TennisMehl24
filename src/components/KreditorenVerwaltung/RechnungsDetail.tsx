@@ -7,7 +7,6 @@ import {
   MessageSquare, 
   Upload, 
   FileText, 
-  Download,
   Trash2,
   Plus,
   Edit,
@@ -16,7 +15,8 @@ import {
   Calendar,
   Building2,
   Send,
-  PartyPopper
+  PartyPopper,
+  Eye
 } from 'lucide-react';
 import Confetti from 'react-confetti';
 import { OffeneRechnung, RechnungsAktivitaet, Zahlung, AktivitaetsTyp } from '../../types/kreditor';
@@ -24,6 +24,7 @@ import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
 import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
+import DokumentVorschau from './DokumentVorschau';
 
 interface RechnungsDetailProps {
   rechnung: OffeneRechnung;
@@ -42,6 +43,15 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [telefonnummer, setTelefonnummer] = useState<string | null>(null);
+  
+  // Dokumentenvorschau States
+  const [vorschauDokument, setVorschauDokument] = useState<{
+    dateiId: string;
+    dateiName: string;
+    dateiTyp?: string;
+    viewUrl: string;
+    downloadUrl: string;
+  } | null>(null);
 
   // Tilgung States
   const [showAddZahlung, setShowAddZahlung] = useState(false);
@@ -866,24 +876,34 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                               {aktivitaet.beschreibung && (
                                 <p className="text-sm mt-1 whitespace-pre-wrap">{aktivitaet.beschreibung}</p>
                               )}
-                              {aktivitaet.dateiId && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <a
-                                    href={aktivitaetService.getDateiDownloadUrl(aktivitaet.dateiId)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-2 py-1 bg-white/50 rounded text-sm hover:bg-white/80"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    {aktivitaet.dateiName}
-                                    {aktivitaet.dateiGroesse && (
-                                      <span className="text-xs text-gray-500">
-                                        ({formatFileSize(aktivitaet.dateiGroesse)})
-                                      </span>
-                                    )}
-                                  </a>
-                                </div>
-                              )}
+                              {aktivitaet.dateiId && (() => {
+                                const dateiId = aktivitaet.dateiId;
+                                return (
+                                  <div className="mt-2 flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setVorschauDokument({
+                                          dateiId,
+                                          dateiName: aktivitaet.dateiName || 'Dokument',
+                                          dateiTyp: aktivitaet.dateiTyp,
+                                          viewUrl: aktivitaetService.getDateiUrl(dateiId),
+                                          downloadUrl: aktivitaetService.getDateiDownloadUrl(dateiId),
+                                        });
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-white/50 rounded text-sm hover:bg-white/80 transition-colors"
+                                      title="Vorschau öffnen"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                      {aktivitaet.dateiName}
+                                      {aktivitaet.dateiGroesse && (
+                                        <span className="text-xs text-gray-500">
+                                          ({formatFileSize(aktivitaet.dateiGroesse)})
+                                        </span>
+                                      )}
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                               <p className="text-xs mt-2 opacity-70">{formatDateTime(aktivitaet.erstelltAm)}</p>
                             </div>
                           </div>
@@ -918,6 +938,18 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             tweenDuration={5000}
           />
         </div>
+      )}
+      
+      {/* Dokumentenvorschau */}
+      {vorschauDokument && (
+        <DokumentVorschau
+          dateiId={vorschauDokument.dateiId}
+          dateiName={vorschauDokument.dateiName}
+          dateiTyp={vorschauDokument.dateiTyp}
+          viewUrl={vorschauDokument.viewUrl}
+          downloadUrl={vorschauDokument.downloadUrl}
+          onClose={() => setVorschauDokument(null)}
+        />
       )}
     </>
   );

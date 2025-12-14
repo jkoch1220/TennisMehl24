@@ -2,7 +2,7 @@
  * Routenberechnung und Zeitberechnung für Eigenlieferung
  */
 
-import { EigenlieferungStammdaten, RoutenBerechnung } from '../types';
+import { EigenlieferungStammdaten, RoutenBerechnung, FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../types';
 
 // Startadresse (Standort des Unternehmens)
 export const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
@@ -451,9 +451,12 @@ export const berechneEigenlieferungRoute = async (
   // Pausen werden während der Fahrt gemacht, nicht nur am Ziel
   const pausenzeit = berechnePausenzeit(fahrzeit);
   
-  // Gesamtzeit = Beladung + Hinweg + Abladung + Rückweg + Pausen
+  // Berechne Gesamtabladungszeit: Abladungszeit × Anzahl Abladestellen
+  const gesamtAbladungszeit = stammdaten.abladungszeit * stammdaten.anzahlAbladestellen;
+  
+  // Gesamtzeit = Beladung + Hinweg + Abladung (× Anzahl Abladestellen) + Rückweg + Pausen
   // Pausen können während der Fahrt gemacht werden, daher addieren wir sie zur Fahrzeit
-  const gesamtzeit = stammdaten.beladungszeit + fahrzeit + pausenzeit + stammdaten.abladungszeit;
+  const gesamtzeit = stammdaten.beladungszeit + fahrzeit + pausenzeit + gesamtAbladungszeit;
   
   // Berechne Dieselverbrauch für die gesamte Strecke (Hinweg + Rückweg)
   const dieselverbrauch = (distanz / 100) * stammdaten.dieselverbrauchDurchschnitt;
@@ -476,7 +479,80 @@ export const berechneEigenlieferungRoute = async (
     dieselkosten,
     verschleisskosten,
     beladungszeit: stammdaten.beladungszeit,
-    abladungszeit: stammdaten.abladungszeit,
+    abladungszeit: gesamtAbladungszeit, // Gesamtabladungszeit (pro Abladestelle multipliziert)
+    pausenzeit,
+    hinwegDistanz,
+    rueckwegDistanz,
+    hinwegFahrzeit,
+    rueckwegFahrzeit,
+  };
+};
+
+/**
+ * Berechnet die komplette Routenberechnung für Fremdlieferung
+ * Berücksichtigt sowohl Hinweg als auch Rückfahrt
+ * Berechnet Kosten basierend auf Stundenlohn statt Diesel/Verschleiß
+ */
+export const berechneFremdlieferungRoute = async (
+  startPLZ: string,
+  zielPLZ: string,
+  stammdaten: FremdlieferungStammdaten
+): Promise<FremdlieferungRoutenBerechnung> => {
+  console.log(`🚚 Berechne Route für Fremdlieferung: ${startPLZ} → ${zielPLZ} → ${startPLZ}`);
+  
+  // Berechne Hinweg (Start → Ziel)
+  console.log(`\n📤 === HINWEG BERECHNUNG ===`);
+  console.log(`   Von: ${startPLZ} → Nach: ${zielPLZ}`);
+  const hinwegDistanz = await berechneDistanzVonPLZ(startPLZ, zielPLZ);
+  console.log(`   ✅ Hinweg berechnet: ${hinwegDistanz.toFixed(2)} km\n`);
+  
+  // Warte kurz, um sicherzustellen, dass die API-Anfragen nicht gecached werden
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // Berechne Rückweg (Ziel → Start)
+  console.log(`\n📥 === RÜCKWEG BERECHNUNG ===`);
+  console.log(`   Von: ${zielPLZ} → Nach: ${startPLZ}`);
+  const rueckwegDistanz = await berechneDistanzVonPLZ(zielPLZ, startPLZ);
+  console.log(`   ✅ Rückweg berechnet: ${rueckwegDistanz.toFixed(2)} km\n`);
+  
+  // Gesamtdistanz = Hinweg + Rückweg
+  const distanz = hinwegDistanz + rueckwegDistanz;
+  console.log(`   Gesamtdistanz: ${distanz.toFixed(2)} km`);
+  
+  // Berechne Fahrzeit für Hinweg
+  const hinwegFahrzeit = berechneFahrzeit(hinwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
+  
+  // Berechne Fahrzeit für Rückweg
+  const rueckwegFahrzeit = berechneFahrzeit(rueckwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
+  
+  // Gesamtfahrzeit = Hinweg + Rückweg
+  const fahrzeit = hinwegFahrzeit + rueckwegFahrzeit;
+  console.log(`   Gesamtfahrzeit: ${fahrzeit.toFixed(1)} Minuten (${(fahrzeit / 60).toFixed(1)} Stunden)`);
+  
+  // Berechne Pausenzeit für die gesamte Fahrt
+  const pausenzeit = berechnePausenzeit(fahrzeit);
+  
+  // Berechne Gesamtabladungszeit: Abladungszeit × Anzahl Abladestellen
+  const gesamtAbladungszeit = stammdaten.abladungszeit * stammdaten.anzahlAbladestellen;
+  
+  // Gesamtzeit = Beladung + Hinweg + Abladung (× Anzahl Abladestellen) + Rückweg + Pausen
+  const gesamtzeit = stammdaten.beladungszeit + fahrzeit + pausenzeit + gesamtAbladungszeit;
+  
+  // Berechne Lohnkosten basierend auf Stundenlohn und Gesamtzeit
+  const gesamtzeitInStunden = gesamtzeit / 60;
+  const lohnkosten = gesamtzeitInStunden * stammdaten.stundenlohn;
+  
+  console.log(`   Gesamtzeit: ${gesamtzeit.toFixed(1)} Minuten (${gesamtzeitInStunden.toFixed(2)} Stunden)`);
+  console.log(`   Abladungszeit: ${gesamtAbladungszeit.toFixed(0)} Minuten (${stammdaten.abladungszeit.toFixed(0)} min × ${stammdaten.anzahlAbladestellen} Abladestellen)`);
+  console.log(`   Lohnkosten: ${lohnkosten.toFixed(2)} € (${stammdaten.stundenlohn.toFixed(2)} €/h × ${gesamtzeitInStunden.toFixed(2)} h)`);
+  
+  return {
+    distanz,
+    fahrzeit,
+    gesamtzeit,
+    lohnkosten,
+    beladungszeit: stammdaten.beladungszeit,
+    abladungszeit: gesamtAbladungszeit, // Gesamtabladungszeit (pro Abladestelle multipliziert)
     pausenzeit,
     hinwegDistanz,
     rueckwegDistanz,

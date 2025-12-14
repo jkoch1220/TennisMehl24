@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Calculator, Truck, Package, TrendingUp, Fuel, Clock, MapPin, Settings } from 'lucide-react';
-import { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten, SpeditionskostenErgebnis } from '../types';
+import { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten, FremdlieferungStammdaten, SpeditionskostenErgebnis } from '../types';
 import { berechneSpeditionskosten } from '../utils/calculations';
 import {
   getZoneFromPLZ,
@@ -26,9 +26,21 @@ const SpeditionskostenRechner = () => {
     durchschnittsgeschwindigkeit: 60.0, // km/h
     dieselLiterKostenBrutto: 1.50, // €/Liter
     beladungszeit: 30, // Minuten
-    abladungszeit: 30, // Minuten
+    abladungszeit: 30, // Minuten pro Abladestelle
+    anzahlAbladestellen: 1, // Anzahl der Abladestellen
     pausenzeit: 45, // Minuten pro 4 Stunden
     verschleisspauschaleProKm: 0.50, // €/km - Verschleißpauschale pro gefahrenen Kilometer
+    lkwLadungInTonnen: 1.0, // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
+  });
+  
+  // Fremdlieferung Stammdaten
+  const [fremdlieferungStammdaten, setFremdlieferungStammdaten] = useState<FremdlieferungStammdaten>({
+    stundenlohn: 25.0, // €/Stunde
+    durchschnittsgeschwindigkeit: 60.0, // km/h
+    beladungszeit: 30, // Minuten
+    abladungszeit: 30, // Minuten pro Abladestelle
+    anzahlAbladestellen: 1, // Anzahl der Abladestellen
+    pausenzeit: 45, // Minuten pro 4 Stunden
     lkwLadungInTonnen: 1.0, // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
   });
   
@@ -36,6 +48,10 @@ const SpeditionskostenRechner = () => {
   const [ergebnis, setErgebnis] = useState<SpeditionskostenErgebnis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [herstellkostenJeTonne, setHerstellkostenJeTonne] = useState<number | undefined>(undefined);
+  
+  // Ref für Debouncing
+  const berechnungsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dieselPreisTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Lade Abwerkspreis (Herstellkosten je Tonne) aus Variable-Kosten-Rechner
   useEffect(() => {
@@ -58,8 +74,8 @@ const SpeditionskostenRechner = () => {
 
     window.addEventListener('storage', handleStorageChange);
 
-    // Polling für localStorage-Änderungen (für gleichen Tab)
-    const interval = setInterval(loadHerstellkosten, 1000);
+    // Polling für localStorage-Änderungen (für gleichen Tab) - reduziert von 1s auf 3s
+    const interval = setInterval(loadHerstellkosten, 3000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
@@ -67,43 +83,136 @@ const SpeditionskostenRechner = () => {
     };
   }, []);
 
-  // Lade Dieselpreis automatisch wenn Eigenlieferung gewählt
+  // Lade Dieselpreis automatisch wenn Eigenlieferung gewählt (mit Debouncing)
   useEffect(() => {
-    if (lieferart === 'eigenlieferung' && zielPLZ && !dieselPreisManuell && istDieselPreisAPIVerfuegbar()) {
-      holeDieselPreis(zielPLZ).then(preis => {
-        setStammdaten(prev => ({ ...prev, dieselLiterKostenBrutto: preis }));
-      });
+    if (dieselPreisTimeoutRef.current) {
+      clearTimeout(dieselPreisTimeoutRef.current);
     }
+    
+    if (lieferart === 'eigenlieferung' && zielPLZ && zielPLZ.length >= 5 && !dieselPreisManuell && istDieselPreisAPIVerfuegbar()) {
+      dieselPreisTimeoutRef.current = setTimeout(() => {
+        holeDieselPreis(zielPLZ).then(preis => {
+          setStammdaten(prev => ({ ...prev, dieselLiterKostenBrutto: preis }));
+        }).catch(error => {
+          console.error('Fehler beim Laden des Dieselpreises:', error);
+        });
+      }, 500); // 500ms Debounce
+    }
+    
+    return () => {
+      if (dieselPreisTimeoutRef.current) {
+        clearTimeout(dieselPreisTimeoutRef.current);
+      }
+    };
   }, [zielPLZ, lieferart, dieselPreisManuell]);
 
-  // Berechne Speditionskosten
+  // Memoize relevante Stammdaten-Werte für Dependencies
+  const eigenlieferungStammdatenKey = useMemo(() => 
+    lieferart === 'eigenlieferung' 
+      ? JSON.stringify(stammdaten)
+      : null,
+    [lieferart, stammdaten.dieselverbrauchDurchschnitt, stammdaten.durchschnittsgeschwindigkeit, 
+     stammdaten.dieselLiterKostenBrutto, stammdaten.beladungszeit, stammdaten.abladungszeit, 
+     stammdaten.anzahlAbladestellen, stammdaten.verschleisspauschaleProKm, stammdaten.lkwLadungInTonnen]
+  );
+  
+  const fremdlieferungStammdatenKey = useMemo(() => 
+    lieferart === 'fremdlieferung' 
+      ? JSON.stringify(fremdlieferungStammdaten)
+      : null,
+    [lieferart, fremdlieferungStammdaten.stundenlohn, fremdlieferungStammdaten.durchschnittsgeschwindigkeit,
+     fremdlieferungStammdaten.beladungszeit, fremdlieferungStammdaten.abladungszeit,
+     fremdlieferungStammdaten.anzahlAbladestellen, fremdlieferungStammdaten.lkwLadungInTonnen]
+  );
+
+  // Berechne Speditionskosten mit Debouncing
   useEffect(() => {
+    // Clear previous timeout
+    if (berechnungsTimeoutRef.current) {
+      clearTimeout(berechnungsTimeoutRef.current);
+    }
+
     if (!zielPLZ || zielPLZ.length < 5) {
       setErgebnis(null);
       return;
     }
 
+    // Debounce Berechnung um 300ms
     setIsLoading(true);
-    berechneSpeditionskosten(
-      warenart,
-      paletten,
-      gewicht,
-      zielPLZ,
-      aufschlagTyp,
-      lieferart,
-      lieferart === 'eigenlieferung' ? stammdaten : undefined,
-      START_PLZ,
-      herstellkostenJeTonne // Abwerkspreis aus Variable-Kosten-Rechner
-    ).then(result => {
-      setErgebnis(result);
-      setIsLoading(false);
-    }).catch(error => {
-      console.error('Fehler bei Berechnung:', error);
-      setIsLoading(false);
-    });
-  }, [warenart, paletten, gewicht, zielPLZ, aufschlagTyp, lieferart, stammdaten, herstellkostenJeTonne]);
+    berechnungsTimeoutRef.current = setTimeout(() => {
+      const eigenlieferungData = lieferart === 'eigenlieferung' ? stammdaten : undefined;
+      const fremdlieferungData = lieferart === 'fremdlieferung' ? fremdlieferungStammdaten : undefined;
+      
+      berechneSpeditionskosten(
+        warenart,
+        paletten,
+        gewicht,
+        zielPLZ,
+        aufschlagTyp,
+        lieferart,
+        eigenlieferungData,
+        fremdlieferungData,
+        START_PLZ,
+        herstellkostenJeTonne
+      ).then(result => {
+        setErgebnis(result);
+        setIsLoading(false);
+      }).catch(error => {
+        console.error('Fehler bei Berechnung:', error);
+        setIsLoading(false);
+      });
+    }, 300);
 
-  const zone = zielPLZ.length >= 2 ? getZoneFromPLZ(zielPLZ) : null;
+    return () => {
+      if (berechnungsTimeoutRef.current) {
+        clearTimeout(berechnungsTimeoutRef.current);
+      }
+    };
+  }, [warenart, paletten, gewicht, zielPLZ, aufschlagTyp, lieferart, eigenlieferungStammdatenKey, fremdlieferungStammdatenKey, herstellkostenJeTonne]);
+
+  // Memoize Zone-Berechnung
+  const zone = useMemo(() => 
+    zielPLZ.length >= 2 ? getZoneFromPLZ(zielPLZ) : null,
+    [zielPLZ]
+  );
+  
+  // Memoize berechnete Werte für Anzeige
+  const tonnen = useMemo(() => gewicht / 1000, [gewicht]);
+  const gesamtAbladungszeitEigenlieferung = useMemo(
+    () => stammdaten.abladungszeit * stammdaten.anzahlAbladestellen,
+    [stammdaten.abladungszeit, stammdaten.anzahlAbladestellen]
+  );
+  const gesamtAbladungszeitFremdlieferung = useMemo(
+    () => fremdlieferungStammdaten.abladungszeit * fremdlieferungStammdaten.anzahlAbladestellen,
+    [fremdlieferungStammdaten.abladungszeit, fremdlieferungStammdaten.anzahlAbladestellen]
+  );
+  
+  // Memoize Handler-Funktionen
+  const handlePalettenChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const p = parseInt(e.target.value);
+    setPaletten(p);
+    setGewicht(p * 1000);
+  }, []);
+  
+  const handleZielPLZChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setZielPLZ(e.target.value.replace(/\D/g, '').slice(0, 5));
+  }, []);
+  
+  const handleAufschlagTypChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setAufschlagTyp(e.target.value as AufschlagTyp);
+  }, []);
+  
+  const handleDieselPreisToggle = useCallback(() => {
+    setDieselPreisManuell(prev => {
+      const newValue = !prev;
+      if (!newValue && zielPLZ && zielPLZ.length >= 5) {
+        holeDieselPreis(zielPLZ).then(preis => {
+          setStammdaten(prevStammdaten => ({ ...prevStammdaten, dieselLiterKostenBrutto: preis }));
+        });
+      }
+      return newValue;
+    });
+  }, [zielPLZ]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 p-4 md:p-8">
@@ -121,7 +230,7 @@ const SpeditionskostenRechner = () => {
             <label className="block text-lg font-semibold text-gray-700 mb-3">
               Lieferart wählen
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <button
                 onClick={() => setLieferart('spedition')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
@@ -143,6 +252,17 @@ const SpeditionskostenRechner = () => {
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
                 Eigenlieferung
+              </button>
+              <button
+                onClick={() => setLieferart('fremdlieferung')}
+                className={`p-4 rounded-lg font-semibold transition-all ${
+                  lieferart === 'fremdlieferung'
+                    ? 'bg-blue-500 text-white shadow-lg scale-105'
+                    : 'bg-white text-gray-700 hover:bg-blue-100'
+                }`}
+              >
+                <Truck className="w-6 h-6 mx-auto mb-2" />
+                Fremdlieferung
               </button>
             </div>
           </div>
@@ -187,11 +307,7 @@ const SpeditionskostenRechner = () => {
               </label>
               <select
                 value={paletten}
-                onChange={(e) => {
-                  const p = parseInt(e.target.value);
-                  setPaletten(p);
-                  setGewicht(p * 1000);
-                }}
+                onChange={handlePalettenChange}
                 className="w-full p-3 border-2 border-orange-200 rounded-lg text-lg focus:border-orange-400 focus:outline-none"
               >
                 <option value={1}>1 Palette</option>
@@ -201,7 +317,7 @@ const SpeditionskostenRechner = () => {
                 <option value={5}>5 Paletten</option>
               </select>
               <p className="text-sm text-gray-600 mt-2">
-                Gewicht: {gewicht} kg = {(gewicht / 1000).toFixed(2)} Tonnen
+                Gewicht: {gewicht} kg = {tonnen.toFixed(2)} Tonnen
               </p>
             </div>
 
@@ -214,7 +330,7 @@ const SpeditionskostenRechner = () => {
               <input
                 type="text"
                 value={zielPLZ}
-                onChange={(e) => setZielPLZ(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                onChange={handleZielPLZChange}
                 placeholder="z.B. 10115"
                 maxLength={5}
                 className="w-full p-3 border-2 border-blue-200 rounded-lg text-lg focus:border-blue-400 focus:outline-none"
@@ -234,7 +350,7 @@ const SpeditionskostenRechner = () => {
               </label>
               <select
                 value={aufschlagTyp}
-                onChange={(e) => setAufschlagTyp(e.target.value as AufschlagTyp)}
+                onChange={handleAufschlagTypChange}
                 className="w-full p-3 border-2 border-purple-200 rounded-lg text-lg focus:border-purple-400 focus:outline-none"
               >
                 <option value="endkunde">Endkunde (25% W+G)</option>
@@ -245,6 +361,108 @@ const SpeditionskostenRechner = () => {
               </p>
             </div>
           </div>
+
+          {/* Fremdlieferung Stammdaten */}
+          {lieferart === 'fremdlieferung' && (
+            <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Settings className="w-6 h-6" />
+                Stammdaten Fremdlieferung
+              </h2>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Stundenlohn (€/h)
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.stundenlohn}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, stundenlohn: value }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={0.5}
+                    min={0}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Stundenlohn für Fremdlieferung
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Durchschnittsgeschwindigkeit (km/h)
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.durchschnittsgeschwindigkeit}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, durchschnittsgeschwindigkeit: value }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={1}
+                    min={0}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Beladungszeit (Minuten)
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.beladungszeit}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, beladungszeit: value }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={1}
+                    min={0}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Abladungszeit pro Abladestelle (Minuten)
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.abladungszeit}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, abladungszeit: value }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={1}
+                    min={0}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Abladungszeit pro einzelne Abladestelle
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Anzahl Abladestellen
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.anzahlAbladestellen}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, anzahlAbladestellen: Math.max(1, Math.round(value)) }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={1}
+                    min={1}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Gesamtabladungszeit = {fremdlieferungStammdaten.abladungszeit} min × {fremdlieferungStammdaten.anzahlAbladestellen} = {gesamtAbladungszeitFremdlieferung} min
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    LKW Ladung in Tonnen
+                  </label>
+                  <NumberInput
+                    value={fremdlieferungStammdaten.lkwLadungInTonnen}
+                    onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, lkwLadungInTonnen: value }))}
+                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    step={0.1}
+                    min={0.1}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Eigenlieferung Stammdaten */}
           {lieferart === 'eigenlieferung' && (
@@ -296,14 +514,7 @@ const SpeditionskostenRechner = () => {
                     />
                     {istDieselPreisAPIVerfuegbar() && (
                       <button
-                        onClick={() => {
-                          setDieselPreisManuell(!dieselPreisManuell);
-                          if (!dieselPreisManuell && zielPLZ) {
-                            holeDieselPreis(zielPLZ).then(preis => {
-                              setStammdaten(prev => ({ ...prev, dieselLiterKostenBrutto: preis }));
-                            });
-                          }
-                        }}
+                        onClick={handleDieselPreisToggle}
                         className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
                       >
                         {dieselPreisManuell ? 'Manuell' : 'API'}
@@ -327,7 +538,7 @@ const SpeditionskostenRechner = () => {
                 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Abladungszeit (Minuten)
+                    Abladungszeit pro Abladestelle (Minuten)
                   </label>
                   <NumberInput
                     value={stammdaten.abladungszeit}
@@ -336,6 +547,25 @@ const SpeditionskostenRechner = () => {
                     step={1}
                     min={0}
                   />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Abladungszeit pro einzelne Abladestelle
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Anzahl Abladestellen
+                  </label>
+                  <NumberInput
+                    value={stammdaten.anzahlAbladestellen}
+                    onChange={(value) => setStammdaten(prev => ({ ...prev, anzahlAbladestellen: Math.max(1, Math.round(value)) }))}
+                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    step={1}
+                    min={1}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Gesamtabladungszeit = {stammdaten.abladungszeit} min × {stammdaten.anzahlAbladestellen} = {gesamtAbladungszeitEigenlieferung} min
+                  </p>
                 </div>
                 
                 <div>
@@ -383,6 +613,105 @@ const SpeditionskostenRechner = () => {
 
           {ergebnis && !isLoading && (
             <div className="space-y-6">
+              {/* Fremdlieferung Route Details */}
+              {lieferart === 'fremdlieferung' && ergebnis.fremdlieferung && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Truck className="w-6 h-6" />
+                    Routenberechnung Fremdlieferung
+                  </h2>
+                  
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        Distanz
+                      </p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {ergebnis.fremdlieferung.route.distanz.toFixed(1)} km
+                      </p>
+                      {ergebnis.fremdlieferung.route.hinwegDistanz !== undefined && ergebnis.fremdlieferung.route.rueckwegDistanz !== undefined && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Hinweg: {ergebnis.fremdlieferung.route.hinwegDistanz.toFixed(1)} km | 
+                          Rückweg: {ergebnis.fremdlieferung.route.rueckwegDistanz.toFixed(1)} km
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 mb-1 flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        Fahrtzeit
+                      </p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {formatZeit(ergebnis.fremdlieferung.route.fahrzeit)}
+                      </p>
+                      {ergebnis.fremdlieferung.route.hinwegFahrzeit !== undefined && ergebnis.fremdlieferung.route.rueckwegFahrzeit !== undefined && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Hinweg: {formatZeit(ergebnis.fremdlieferung.route.hinwegFahrzeit)} | 
+                          Rückweg: {formatZeit(ergebnis.fremdlieferung.route.rueckwegFahrzeit)}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        Gesamt: {formatZeit(ergebnis.fremdlieferung.route.gesamtzeit)} | 
+                        Beladung: {ergebnis.fremdlieferung.route.beladungszeit}min | 
+                        Abladung: {ergebnis.fremdlieferung.route.abladungszeit}min ({ergebnis.fremdlieferung.stammdaten.abladungszeit}min × {ergebnis.fremdlieferung.stammdaten.anzahlAbladestellen} Stellen) | 
+                        Pause: {ergebnis.fremdlieferung.route.pausenzeit}min
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 mb-1">
+                        Stundenlohn
+                      </p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {ergebnis.fremdlieferung.stammdaten.stundenlohn.toFixed(2)} €/h
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 mb-1">
+                        Lohnkosten
+                      </p>
+                      <p className="text-2xl font-bold text-red-600">
+                        {ergebnis.fremdlieferung.route.lohnkosten.toFixed(2)} €
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {ergebnis.fremdlieferung.route.gesamtzeit.toFixed(0)} min = {(ergebnis.fremdlieferung.route.gesamtzeit / 60).toFixed(2)} h
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Kosten pro Lieferung - Unten rechts */}
+                  <div className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-lg text-white">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm opacity-90 mb-1">
+                          Gesamtkosten für die Lieferung (Fremdlieferung)
+                        </p>
+                        <p className="text-3xl font-bold">
+                          {ergebnis.transportkosten.toFixed(2)} €
+                        </p>
+                        <p className="text-xs opacity-75 mt-1">
+                          Lohnkosten: {ergebnis.fremdlieferung.route.lohnkosten.toFixed(2)} €
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold">
+                          {ergebnis.transportkostenProTonne.toFixed(2)} €/t
+                        </p>
+                        <p className="text-sm opacity-90">
+                          Transportkosten pro Tonne
+                        </p>
+                        <p className="text-xs opacity-75 mt-1">
+                          bei {ergebnis.fremdlieferung.stammdaten.lkwLadungInTonnen.toFixed(1)} t LKW-Ladung
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Eigenlieferung Route Details */}
               {lieferart === 'eigenlieferung' && ergebnis.eigenlieferung && (
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
@@ -425,7 +754,7 @@ const SpeditionskostenRechner = () => {
                       <p className="text-xs text-gray-500 mt-1">
                         Gesamt: {formatZeit(ergebnis.eigenlieferung.route.gesamtzeit)} | 
                         Beladung: {ergebnis.eigenlieferung.route.beladungszeit}min | 
-                        Abladung: {ergebnis.eigenlieferung.route.abladungszeit}min | 
+                        Abladung: {ergebnis.eigenlieferung.route.abladungszeit}min ({ergebnis.eigenlieferung.stammdaten.abladungszeit}min × {ergebnis.eigenlieferung.stammdaten.anzahlAbladestellen} Stellen) | 
                         Pause: {ergebnis.eigenlieferung.route.pausenzeit}min
                       </p>
                     </div>
@@ -536,7 +865,7 @@ const SpeditionskostenRechner = () => {
                       {ergebnis.transportkosten.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500">
-                      {lieferart === 'spedition' ? `Zone ${zone}` : 'Eigenlieferung'}
+                      {lieferart === 'spedition' ? `Zone ${zone}` : lieferart === 'eigenlieferung' ? 'Eigenlieferung' : 'Fremdlieferung'}
                     </p>
                   </div>
                   <div className="bg-white p-4 rounded-lg shadow">

@@ -23,6 +23,7 @@ const FahrzeugVerwaltung = () => {
       pausenzeit: 45,
       verschleisspauschaleProKm: 0.50,
       lkwLadungInTonnen: 7.5,
+      anzahlAbladestellen: 1,
     },
     verfuegbarkeit: {
       verfuegbar: true,
@@ -115,6 +116,7 @@ const FahrzeugVerwaltung = () => {
                   pausenzeit: 45,
                   verschleisspauschaleProKm: 0.50,
                   lkwLadungInTonnen: 7.5,
+                  anzahlAbladestellen: 1,
                 },
                 verfuegbarkeit: {
                   verfuegbar: true,

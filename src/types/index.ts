@@ -33,16 +33,27 @@ export interface Berechnungsergebnis {
 }
 
 // Speditionskosten Typen
-export type Lieferart = 'spedition' | 'eigenlieferung';
+export type Lieferart = 'spedition' | 'eigenlieferung' | 'fremdlieferung';
 
 export interface EigenlieferungStammdaten {
   dieselverbrauchDurchschnitt: number; // Liter pro 100km
   durchschnittsgeschwindigkeit: number; // km/h
   dieselLiterKostenBrutto: number; // €/Liter
   beladungszeit: number; // Minuten
-  abladungszeit: number; // Minuten
+  abladungszeit: number; // Minuten pro Abladestelle
+  anzahlAbladestellen: number; // Anzahl der Abladestellen
   pausenzeit: number; // Minuten pro 4 Stunden Fahrt
   verschleisspauschaleProKm: number; // €/km - Verschleißpauschale pro gefahrenen Kilometer
+  lkwLadungInTonnen: number; // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
+}
+
+export interface FremdlieferungStammdaten {
+  stundenlohn: number; // €/Stunde - Stundenlohn für Fremdlieferung
+  durchschnittsgeschwindigkeit: number; // km/h
+  beladungszeit: number; // Minuten
+  abladungszeit: number; // Minuten pro Abladestelle
+  anzahlAbladestellen: number; // Anzahl der Abladestellen
+  pausenzeit: number; // Minuten pro 4 Stunden Fahrt
   lkwLadungInTonnen: number; // Tonnen - LKW Ladung in Tonnen für Kostenberechnung
 }
 
@@ -62,6 +73,20 @@ export interface RoutenBerechnung {
   rueckwegFahrzeit?: number; // Minuten (nur Rückweg)
 }
 
+export interface FremdlieferungRoutenBerechnung {
+  distanz: number; // km (Gesamt: Hinweg + Rückweg)
+  fahrzeit: number; // Minuten (Gesamt: Hinweg + Rückweg)
+  gesamtzeit: number; // Minuten (inkl. Beladung, Abladung, Pause)
+  lohnkosten: number; // € - Lohnkosten basierend auf Stundenlohn und Gesamtzeit
+  beladungszeit: number; // Minuten
+  abladungszeit: number; // Minuten
+  pausenzeit: number; // Minuten
+  hinwegDistanz?: number; // km (nur Hinweg)
+  rueckwegDistanz?: number; // km (nur Rückweg)
+  hinwegFahrzeit?: number; // Minuten (nur Hinweg)
+  rueckwegFahrzeit?: number; // Minuten (nur Rückweg)
+}
+
 export interface SpeditionskostenErgebnis extends Berechnungsergebnis {
   lieferart: Lieferart;
   werkspreisProTonne: number; // Werkspreis pro Tonne
@@ -69,6 +94,10 @@ export interface SpeditionskostenErgebnis extends Berechnungsergebnis {
   eigenlieferung?: {
     route: RoutenBerechnung;
     stammdaten: EigenlieferungStammdaten;
+  };
+  fremdlieferung?: {
+    route: FremdlieferungRoutenBerechnung;
+    stammdaten: FremdlieferungStammdaten;
   };
 }
 

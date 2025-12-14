@@ -1,4 +1,4 @@
-import { Berechnungsergebnis, SpeditionskostenErgebnis, Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten } from '../types';
+import { Berechnungsergebnis, SpeditionskostenErgebnis, Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten, FremdlieferungStammdaten } from '../types';
 import {
   HERSTELLUNGSKOSTEN,
   SACKWARE_KOSTEN,
@@ -6,7 +6,7 @@ import {
   LIEFER_PREIS_TABELLE,
   getZoneFromPLZ,
 } from '../constants/pricing';
-import { berechneEigenlieferungRoute } from './routeCalculation';
+import { berechneEigenlieferungRoute, berechneFremdlieferungRoute } from './routeCalculation';
 
 export const berechneZiegelmehl = (
   warenart: Warenart,
@@ -75,7 +75,7 @@ export const berechneZiegelmehl = (
 };
 
 /**
- * Berechnet Speditionskosten (erweitert um Eigenlieferung)
+ * Berechnet Speditionskosten (erweitert um Eigenlieferung und Fremdlieferung)
  * Verwendet Abwerkspreis aus Variable-Kosten-Rechner falls verfügbar
  */
 export const berechneSpeditionskosten = async (
@@ -86,6 +86,7 @@ export const berechneSpeditionskosten = async (
   aufschlagTyp: AufschlagTyp,
   lieferart: Lieferart,
   eigenlieferungStammdaten?: EigenlieferungStammdaten,
+  fremdlieferungStammdaten?: FremdlieferungStammdaten,
   startPLZ: string = '97828', // Wertheimer Str. 30, 97828 Marktheidenfeld
   herstellkostenJeTonne?: number // Abwerkspreis aus Variable-Kosten-Rechner
 ): Promise<SpeditionskostenErgebnis> => {
@@ -130,6 +131,7 @@ export const berechneSpeditionskosten = async (
   const verkaufspreis = werkspreis;
 
   let eigenlieferungRoute = undefined;
+  let fremdlieferungRoute = undefined;
   
   // Wenn Eigenlieferung gewählt wurde
   if (lieferart === 'eigenlieferung' && eigenlieferungStammdaten) {
@@ -149,18 +151,40 @@ export const berechneSpeditionskosten = async (
     };
   }
   
+  // Wenn Fremdlieferung gewählt wurde
+  if (lieferart === 'fremdlieferung' && fremdlieferungStammdaten) {
+    // Berechne Route und Kosten für Fremdlieferung
+    const route = await berechneFremdlieferungRoute(
+      startPLZ,
+      zielPLZ,
+      fremdlieferungStammdaten
+    );
+    
+    // Transportkosten = Lohnkosten
+    transportkosten = route.lohnkosten;
+    
+    fremdlieferungRoute = {
+      route,
+      stammdaten: fremdlieferungStammdaten,
+    };
+  }
+  
   const gesamtpreisMitLieferung = verkaufspreis + transportkosten;
   
   // Berechne Preise pro Tonne explizit
   // Endpreis pro Tonne = Werkspreis pro Tonne + Transportkosten pro Tonne
   const werkspreisProTonne = tonnen > 0 ? werkspreis / tonnen : 0;
   
-  // Bei Eigenlieferung: Transportkosten pro Tonne basierend auf LKW-Ladung
+  // Bei Eigenlieferung/Fremdlieferung: Transportkosten pro Tonne basierend auf LKW-Ladung
   // Bei Spedition: Transportkosten pro Tonne basierend auf tatsächlicher Liefermenge
   let transportkostenProTonne = 0;
   if (lieferart === 'eigenlieferung' && eigenlieferungStammdaten) {
     // Verwende LKW-Ladung für Berechnung der Kosten pro Tonne
     const lkwLadung = eigenlieferungStammdaten.lkwLadungInTonnen;
+    transportkostenProTonne = lkwLadung > 0 ? transportkosten / lkwLadung : 0;
+  } else if (lieferart === 'fremdlieferung' && fremdlieferungStammdaten) {
+    // Verwende LKW-Ladung für Berechnung der Kosten pro Tonne
+    const lkwLadung = fremdlieferungStammdaten.lkwLadungInTonnen;
     transportkostenProTonne = lkwLadung > 0 ? transportkosten / lkwLadung : 0;
   } else {
     // Bei Spedition: Verwende tatsächliche Liefermenge
@@ -185,6 +209,7 @@ export const berechneSpeditionskosten = async (
     werkspreisProTonne, // Werkspreis pro Tonne
     transportkostenProTonne, // Transportkosten pro Tonne
     eigenlieferung: eigenlieferungRoute,
+    fremdlieferung: fremdlieferungRoute,
   };
 };
 
