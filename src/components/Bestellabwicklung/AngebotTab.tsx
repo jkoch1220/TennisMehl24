@@ -16,6 +16,7 @@ import {
 } from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
+import { projektService } from '../../services/projektService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
@@ -35,6 +36,11 @@ interface AngebotTabProps {
 }
 
 const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
+  const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
+    'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
+    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
+    'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
+
   // Initialisiere mit leeren Daten
   const [angebotsDaten, setAngebotsDaten] = useState<AngebotsDaten>({
     firmenname: 'Koch Dienste',
@@ -56,6 +62,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     zahlungsziel: '14 Tage',
     lieferbedingungenAktiviert: true,
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
+    dieselpreiszuschlagAktiviert: false,
+    dieselpreiszuschlagText: '',
   });
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
@@ -302,6 +310,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     };
   }, [angebotsDaten, speichereAutomatisch, initialLaden, gespeichertesDokument]);
 
+  // Dieselpreiszuschlag: Wenn aktiviert und noch kein Text gesetzt, automatisch Standardtext hinterlegen
+  useEffect(() => {
+    if (
+      angebotsDaten.dieselpreiszuschlagAktiviert &&
+      (!angebotsDaten.dieselpreiszuschlagText ||
+        angebotsDaten.dieselpreiszuschlagText.trim().length === 0)
+    ) {
+      setAngebotsDaten(prev => ({
+        ...prev,
+        dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+      }));
+    }
+  }, [angebotsDaten.dieselpreiszuschlagAktiviert, angebotsDaten.dieselpreiszuschlagText]);
+
   const handleInputChange = (field: keyof AngebotsDaten, value: any) => {
     hatGeaendert.current = true;
     setAngebotsDaten(prev => ({ ...prev, [field]: value }));
@@ -429,6 +451,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     } catch (error) {
       console.error('Fehler beim Generieren der PDF:', error);
       alert('Fehler beim Generieren der PDF: ' + (error as Error).message);
+    }
+  };
+
+  // Callback für E-Mail-Versand: Projektstatus auf "angebot_versendet" setzen
+  const handleEmailGesendet = async () => {
+    if (!projekt?.$id) {
+      console.warn('Kein Projekt vorhanden, kann Status nicht aktualisieren');
+      return;
+    }
+
+    try {
+      await projektService.updateProjektStatus(projekt.$id, 'angebot_versendet');
+      console.log('Projektstatus erfolgreich auf "angebot_versendet" gesetzt');
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren des Projektstatus:', error);
+      // Fehler wird nur geloggt, damit der E-Mail-Versand nicht blockiert wird
     }
   };
 
@@ -1067,6 +1105,49 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           </div>
         </div>
 
+        {/* Dieselpreiszuschlag */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-start gap-3 mb-3">
+            <input
+              id="dieselpreiszuschlag"
+              type="checkbox"
+              checked={angebotsDaten.dieselpreiszuschlagAktiviert || false}
+              onChange={(e) =>
+                handleInputChange('dieselpreiszuschlagAktiviert', e.target.checked)
+              }
+              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <div className="flex-1">
+              <label
+                htmlFor="dieselpreiszuschlag"
+                className="block text-sm font-medium text-gray-900"
+              >
+                Dieselpreiszuschlag im Angebot ausweisen
+              </label>
+              <p className="mt-1 text-xs text-gray-600">
+                Wenn aktiviert, wird im Angebot ein Hinweis zum Dieselpreiszuschlag mit
+                folgendem Text aufgenommen. Der Text kann bei Bedarf angepasst werden.
+              </p>
+            </div>
+          </div>
+
+          {angebotsDaten.dieselpreiszuschlagAktiviert && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Text zum Dieselpreiszuschlag
+              </label>
+              <textarea
+                value={angebotsDaten.dieselpreiszuschlagText || ''}
+                onChange={(e) =>
+                  handleInputChange('dieselpreiszuschlagText', e.target.value)
+                }
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+          )}
+        </div>
+
         {/* Zahlungsbedingungen */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Zahlungsbedingungen</h2>
@@ -1283,6 +1364,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             setShowEmailFormular(false);
             setEmailPdf(null);
           }}
+          onSend={handleEmailGesendet}
         />
       )}
     </div>

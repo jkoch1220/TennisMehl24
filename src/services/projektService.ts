@@ -1,6 +1,7 @@
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus } from '../types/projekt';
+import { saisonplanungService } from './saisonplanungService';
 
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
@@ -46,6 +47,7 @@ class ProjektService {
   // Projekte gruppiert nach Status laden
   async loadProjekteGruppiert(saisonjahr?: number): Promise<{
     angebot: Projekt[];
+    angebot_versendet: Projekt[];
     auftragsbestaetigung: Projekt[];
     lieferschein: Projekt[];
     rechnung: Projekt[];
@@ -63,6 +65,7 @@ class ProjektService {
 
       return {
         angebot: projekte.filter((p) => p.status === 'angebot'),
+        angebot_versendet: projekte.filter((p) => p.status === 'angebot_versendet'),
         auftragsbestaetigung: projekte.filter((p) => p.status === 'auftragsbestaetigung'),
         lieferschein: projekte.filter((p) => p.status === 'lieferschein'),
         rechnung: projekte.filter((p) => p.status === 'rechnung'),
@@ -126,14 +129,66 @@ class ProjektService {
     }
   }
 
+  // Projekt für eine Kundennummer finden (aktuelle Saison)
+  async getProjektFuerKundennummer(kundennummer: string, saisonjahr: number): Promise<Projekt | null> {
+    try {
+      if (!kundennummer) return null;
+      
+      // Lade alle Projekte für das Saisonjahr und filtere nach Kundennummer
+      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, [
+        Query.equal('saisonjahr', saisonjahr),
+        Query.limit(1000),
+      ]);
+      
+      // Parse die Projekte und suche nach Kundennummer
+      for (const doc of response.documents) {
+        let projekt: Projekt;
+        if (doc.data && typeof doc.data === 'string') {
+          try {
+            projekt = { ...JSON.parse(doc.data), $id: doc.$id };
+          } catch {
+            projekt = doc as unknown as Projekt;
+          }
+        } else {
+          projekt = doc as unknown as Projekt;
+        }
+        
+        if (projekt.kundennummer === kundennummer) {
+          return projekt;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Fehler beim Laden des Projekts für Kundennummer:', error);
+      throw error;
+    }
+  }
+
   // Neues Projekt erstellen
   async createProjekt(projekt: NeuesProjekt): Promise<Projekt> {
     try {
       const dokumentId = projekt.id || ID.unique();
       const jetzt = new Date().toISOString();
 
+      // WICHTIG: Stelle sicher, dass die Kundennummer gesetzt ist
+      // Lade sie aus dem Kunden-Datensatz falls nicht vorhanden
+      let kundennummer = projekt.kundennummer;
+      if (!kundennummer && projekt.kundeId) {
+        try {
+          const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+          if (kunde && kunde.kundennummer) {
+            kundennummer = kunde.kundennummer;
+          }
+        } catch (error) {
+          console.warn('Konnte Kundennummer nicht aus Kunden-Datensatz laden:', error);
+          // Verwende undefined als Fallback
+        }
+      }
+
       const neuesProjekt: Projekt = {
         ...projekt,
+        kundennummer: kundennummer, // Stelle sicher, dass Kundennummer gesetzt ist
         id: dokumentId,
         erstelltAm: jetzt,
         geaendertAm: jetzt,
@@ -177,9 +232,27 @@ class ProjektService {
       // Erst das aktuelle Projekt laden
       const aktuell = await this.getProjekt(projektId);
       
+      // WICHTIG: Wenn der Kundenname geändert wird, lade die Kundennummer aus dem Kunden-Datensatz
+      // um die Verknüpfung zum Projekt zu erhalten
+      let kundennummer = updates.kundennummer !== undefined ? updates.kundennummer : aktuell.kundennummer;
+      
+      // Wenn kundeId vorhanden ist und der Kundenname geändert wird, aktualisiere die Kundennummer
+      if (aktuell.kundeId && (updates.kundenname !== undefined || updates.kundennummer === undefined)) {
+        try {
+          const kunde = await saisonplanungService.loadKunde(aktuell.kundeId);
+          if (kunde && kunde.kundennummer) {
+            kundennummer = kunde.kundennummer;
+          }
+        } catch (error) {
+          console.warn('Konnte Kundennummer nicht aus Kunden-Datensatz laden:', error);
+          // Verwende die vorhandene Kundennummer als Fallback
+        }
+      }
+      
       const aktualisiert = {
         ...aktuell,
         ...updates,
+        kundennummer: kundennummer, // Stelle sicher, dass Kundennummer gesetzt ist
         geaendertAm: new Date().toISOString(),
       };
 
@@ -217,19 +290,40 @@ class ProjektService {
   // Projekt-Status ändern
   async updateProjektStatus(projektId: string, neuerStatus: ProjektStatus): Promise<Projekt> {
     try {
-      const updates: Partial<Projekt> = {
+      // Erst das aktuelle Projekt laden
+      const aktuell = await this.getProjekt(projektId);
+      
+      const aktualisiert = {
+        ...aktuell,
         status: neuerStatus,
         geaendertAm: new Date().toISOString(),
+      };
+
+      const dokument = {
+        projektName: aktualisiert.projektName,
+        kundeId: aktualisiert.kundeId,
+        kundenname: aktualisiert.kundenname,
+        saisonjahr: aktualisiert.saisonjahr,
+        status: aktualisiert.status,
+        geaendertAm: aktualisiert.geaendertAm,
+        data: JSON.stringify(aktualisiert),
       };
 
       const response = await databases.updateDocument(
         DATABASE_ID,
         this.collectionId,
         projektId,
-        updates
+        dokument
       );
 
-      return response as unknown as Projekt;
+      if (response.data && typeof response.data === 'string') {
+        try {
+          return { ...JSON.parse(response.data), $id: response.$id };
+        } catch {
+          return aktualisiert;
+        }
+      }
+      return aktualisiert;
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Projekt-Status:', error);
       throw error;

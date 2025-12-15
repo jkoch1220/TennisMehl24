@@ -102,29 +102,52 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.setTextColor(0, 0, 0);
   }
   
-  // === Lieferadresse (falls abweichend) ===
+  // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 50;
-    const lieferX = 120;
+    // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
+    yPos += 9;
     
+    // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
+    // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
+    doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
+    doc.setLineWidth(0.15);  // Dünner (dezenter)
+    doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
+    
+    // Zweite Hälfte des Abstands
+    yPos += 9;
+    
+    // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text('Lieferadresse:', lieferX, lieferYPos);
-    lieferYPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text('Lieferadresse:', 25, yPos);
+    yPos += 6;
     
-    doc.setFontSize(10);
+    // Lieferadresse-Daten
+    doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    doc.text(daten.lieferadresseName, 25, yPos);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 5;
-    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
-    lieferYPos += 4;
-    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+    yPos += 6;
+    
+    if (daten.lieferadresseStrasse) {
+      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      yPos += 5;
+    }
+    
+    if (daten.lieferadressePlzOrt) {
+      doc.text(daten.lieferadressePlzOrt, 25, yPos);
+      yPos += 5;
+    }
   }
 
   // === DIN 5008: BETREFF ===
-  yPos = 95;
+  // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+    ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
+    : 95;  // Standard-Position wenn keine Lieferadresse
+  yPos = betrefYPos;
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -462,6 +485,24 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY += (bemerkungLines.length * 4);
   }
   
+  // === Dieselpreiszuschlag ===
+  if (daten.dieselpreiszuschlagAktiviert && daten.dieselpreiszuschlagText) {
+    summenY += 10;
+
+    const dieselLines = doc.splitTextToSize(daten.dieselpreiszuschlagText, 160);
+    const dieselHeight = getTextHeight(dieselLines) + 5;
+
+    // Prüfe Platz für Dieselpreiszuschlag
+    summenY = await ensureSpace(doc, summenY, dieselHeight, stammdaten);
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Dieselpreiszuschlag:', 25, summenY);
+    summenY += 5;
+    doc.text(dieselLines, 25, summenY);
+    summenY += (dieselLines.length * 4);
+  }
+  
   // === Grußformel ===
   summenY += 12;
   
@@ -575,29 +616,52 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     doc.setTextColor(0, 0, 0);
   }
   
-  // === Lieferadresse (falls abweichend) ===
+  // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 50;
-    const lieferX = 120;
+    // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
+    yPos += 9;
     
+    // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
+    // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
+    doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
+    doc.setLineWidth(0.15);  // Dünner (dezenter)
+    doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
+    
+    // Zweite Hälfte des Abstands
+    yPos += 9;
+    
+    // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text('Lieferadresse:', lieferX, lieferYPos);
-    lieferYPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text('Lieferadresse:', 25, yPos);
+    yPos += 6;
     
-    doc.setFontSize(10);
+    // Lieferadresse-Daten
+    doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    doc.text(daten.lieferadresseName, 25, yPos);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 5;
-    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
-    lieferYPos += 4;
-    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+    yPos += 6;
+    
+    if (daten.lieferadresseStrasse) {
+      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      yPos += 5;
+    }
+    
+    if (daten.lieferadressePlzOrt) {
+      doc.text(daten.lieferadressePlzOrt, 25, yPos);
+      yPos += 5;
+    }
   }
 
   // === DIN 5008: BETREFF ===
-  yPos = 95;
+  // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+    ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
+    : 95;  // Standard-Position wenn keine Lieferadresse
+  yPos = betrefYPos;
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -1041,29 +1105,52 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.setTextColor(0, 0, 0);
   }
   
-  // === Lieferadresse (falls abweichend) ===
+  // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 50;
-    const lieferX = 120;
+    // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
+    yPos += 9;
     
+    // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
+    // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
+    doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
+    doc.setLineWidth(0.15);  // Dünner (dezenter)
+    doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
+    
+    // Zweite Hälfte des Abstands
+    yPos += 9;
+    
+    // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text('Lieferadresse:', lieferX, lieferYPos);
-    lieferYPos += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.text('Lieferadresse:', 25, yPos);
+    yPos += 6;
     
-    doc.setFontSize(10);
+    // Lieferadresse-Daten
+    doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    doc.text(daten.lieferadresseName, 25, yPos);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 5;
-    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
-    lieferYPos += 4;
-    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+    yPos += 6;
+    
+    if (daten.lieferadresseStrasse) {
+      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      yPos += 5;
+    }
+    
+    if (daten.lieferadressePlzOrt) {
+      doc.text(daten.lieferadressePlzOrt, 25, yPos);
+      yPos += 5;
+    }
   }
 
   // === DIN 5008: BETREFF ===
-  yPos = 95;
+  // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+    ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
+    : 95;  // Standard-Position wenn keine Lieferadresse
+  yPos = betrefYPos;
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');

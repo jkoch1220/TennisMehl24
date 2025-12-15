@@ -15,14 +15,17 @@ import {
   Pencil,
   Trash2,
   X,
+  Send,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import { useNavigate } from 'react-router-dom';
 
 // Tab-Konfiguration
 const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; color: string; bgColor: string }[] = [
   { id: 'angebot', label: 'Angebot', icon: FileCheck, color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
+  { id: 'angebot_versendet', label: 'Angebot versendet', icon: Send, color: 'text-indigo-600', bgColor: 'bg-indigo-50 border-indigo-200' },
   { id: 'auftragsbestaetigung', label: 'Auftragsbestätigung', icon: FileSignature, color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-200' },
   { id: 'lieferschein', label: 'Lieferschein', icon: Truck, color: 'text-green-600', bgColor: 'bg-green-50 border-green-200' },
   { id: 'rechnung', label: 'Rechnung', icon: FileText, color: 'text-red-600', bgColor: 'bg-red-50 border-red-200' },
@@ -33,12 +36,14 @@ const ProjektVerwaltung = () => {
   const navigate = useNavigate();
   const [projekteGruppiert, setProjekteGruppiert] = useState<{
     angebot: Projekt[];
+    angebot_versendet: Projekt[];
     auftragsbestaetigung: Projekt[];
     lieferschein: Projekt[];
     rechnung: Projekt[];
     bezahlt: Projekt[];
   }>({
     angebot: [],
+    angebot_versendet: [],
     auftragsbestaetigung: [],
     lieferschein: [],
     rechnung: [],
@@ -120,7 +125,9 @@ const ProjektVerwaltung = () => {
   const updateStatus = async (projekt: Projekt, neuerStatus: ProjektStatus) => {
     setSaving(true);
     try {
-      await projektService.updateProjektStatus(projekt.id, neuerStatus);
+      // Verwende $id (Appwrite Document ID), falls vorhanden, sonst die logische Projekt-ID
+      const documentId = (projekt as any).$id || projekt.id;
+      await projektService.updateProjektStatus(documentId, neuerStatus);
       await loadData();
     } catch (error) {
       console.error('Fehler beim Status-Update:', error);
@@ -189,11 +196,12 @@ const ProjektVerwaltung = () => {
 
   // Berechne Gesamtzahlen
   const gesamtAngebot = projekteGruppiert.angebot.length;
+  const gesamtAngebotVersendet = projekteGruppiert.angebot_versendet.length;
   const gesamtAuftragsbestaetigung = projekteGruppiert.auftragsbestaetigung.length;
   const gesamtLieferschein = projekteGruppiert.lieferschein.length;
   const gesamtRechnung = projekteGruppiert.rechnung.length;
   const gesamtBezahlt = projekteGruppiert.bezahlt.length;
-  const gesamt = gesamtAngebot + gesamtAuftragsbestaetigung + gesamtLieferschein + gesamtRechnung + gesamtBezahlt;
+  const gesamt = gesamtAngebot + gesamtAngebotVersendet + gesamtAuftragsbestaetigung + gesamtLieferschein + gesamtRechnung + gesamtBezahlt;
 
   if (loading) {
     return (
@@ -249,11 +257,12 @@ const ProjektVerwaltung = () => {
       </div>
 
       {/* Kanban Board */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         {TABS.map((tab) => {
           const TabIcon = tab.icon;
           const projekte = filterProjekte(
             tab.id === 'angebot' ? projekteGruppiert.angebot :
+            tab.id === 'angebot_versendet' ? projekteGruppiert.angebot_versendet :
             tab.id === 'auftragsbestaetigung' ? projekteGruppiert.auftragsbestaetigung :
             tab.id === 'lieferschein' ? projekteGruppiert.lieferschein :
             tab.id === 'rechnung' ? projekteGruppiert.rechnung :
@@ -261,6 +270,7 @@ const ProjektVerwaltung = () => {
           );
           const count = 
             tab.id === 'angebot' ? gesamtAngebot :
+            tab.id === 'angebot_versendet' ? gesamtAngebotVersendet :
             tab.id === 'auftragsbestaetigung' ? gesamtAuftragsbestaetigung :
             tab.id === 'lieferschein' ? gesamtLieferschein :
             tab.id === 'rechnung' ? gesamtRechnung :
@@ -497,6 +507,31 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
     bezugsweg: projekt.bezugsweg || '',
     notizen: projekt.notizen || '',
   });
+  const [loadingKundennummer, setLoadingKundennummer] = useState(false);
+
+  // Lade Kundennummer aus Kunden-Datensatz wenn Kundenname geändert wird
+  useEffect(() => {
+    const ladeKundennummer = async () => {
+      if (!projekt.kundeId) return;
+      
+      // Nur laden wenn Kundennummer noch nicht gesetzt ist oder wenn sich der Name geändert hat
+      if (!formData.kundennummer || formData.kundenname !== projekt.kundenname) {
+        setLoadingKundennummer(true);
+        try {
+          const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+          if (kunde && kunde.kundennummer) {
+            setFormData(prev => ({ ...prev, kundennummer: kunde.kundennummer || prev.kundennummer }));
+          }
+        } catch (error) {
+          console.warn('Konnte Kundennummer nicht laden:', error);
+        } finally {
+          setLoadingKundennummer(false);
+        }
+      }
+    };
+
+    ladeKundennummer();
+  }, [projekt.kundeId, formData.kundenname]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -560,14 +595,20 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
           {/* Kundennummer */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Kundennummer
+              Kundennummer <span className="text-xs text-gray-500">(Verknüpfung zum Projekt)</span>
             </label>
             <input
               type="text"
               value={formData.kundennummer}
               onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder={loadingKundennummer ? 'Lade...' : 'Wird automatisch aus Kunden-Datensatz geladen'}
             />
+            {formData.kundennummer && (
+              <p className="text-xs text-gray-500 mt-1">
+                ⚠️ Die Kundennummer dient als Verknüpfung zum Projekt. Sie wird automatisch aus dem Kunden-Datensatz geladen.
+              </p>
+            )}
           </div>
 
           {/* Straße */}

@@ -39,22 +39,33 @@ export type Rechnungskategorie =
   | 'darlehen'
   | 'sonstiges';
 
+// Ansprechpartner Interface
+export interface Ansprechpartner {
+  id: string;
+  name: string;
+  titel?: string; // z.B. "Herr", "Frau", "Dr.", "Geschäftsführer"
+  email?: string;
+  telefon?: string; // Telefonnummer
+  erstelltAm: string; // ISO Date String
+}
+
 // Kreditor/Glaubiger Interface
 export interface Kreditor {
   id: string;
   name: string;
   kreditorennummer?: string;
-  telefon?: string; // Direkte Telefonnummer für schnelle Erfassung
+  telefon?: string; // Direkte Telefonnummer für schnelle Erfassung (Legacy, für Rückwärtskompatibilität)
   kontakt?: {
-    ansprechpartner?: string;
-    telefon?: string;
-    email?: string;
+    ansprechpartner?: string; // Legacy, für Rückwärtskompatibilität
+    telefon?: string; // Legacy, für Rückwärtskompatibilität
+    email?: string; // Legacy, für Rückwärtskompatibilität
     adresse?: {
       strasse?: string;
       plz?: string;
       ort?: string;
     };
   };
+  ansprechpartner?: Ansprechpartner[]; // Neue Liste von Ansprechpartnern
   zahlungsbedingungen?: {
     zahlungsziel?: number; // Tage
     skonto?: {

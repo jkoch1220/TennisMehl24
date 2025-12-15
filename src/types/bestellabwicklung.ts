@@ -83,6 +83,10 @@ export interface AngebotsDaten extends BaseDokument {
   lieferbedingungenAktiviert?: boolean;
   lieferbedingungen?: string;
   
+  // Dieselpreiszuschlag
+  dieselpreiszuschlagAktiviert?: boolean;
+  dieselpreiszuschlagText?: string;
+  
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;

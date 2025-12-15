@@ -331,10 +331,14 @@ export const speichereLieferschein = async (
   daten: LieferscheinDaten
 ): Promise<GespeichertesDokument> => {
   try {
+    // Prüfen ob bereits Lieferscheine existieren (für Versionierung)
+    const bestehendeLieferscheine = await ladeDokumenteNachTyp(projektId, 'lieferschein');
+    const neueVersion = bestehendeLieferscheine.length + 1;
+    
     // PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Lieferschein_${daten.lieferscheinnummer}.pdf`;
+    const dateiname = `Lieferschein_${daten.lieferscheinnummer}_v${neueVersion}.pdf`;
     
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -344,7 +348,7 @@ export const speichereLieferschein = async (
       file
     );
     
-    // Dokument-Eintrag in DB erstellen
+    // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
     const dokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -360,7 +364,11 @@ export const speichereLieferschein = async (
       }
     );
     
-    return dokument as unknown as GespeichertesDokument;
+    // Setze Version manuell für Rückgabe (für UI)
+    const result = dokument as unknown as GespeichertesDokument;
+    result.version = neueVersion;
+
+    return result;
   } catch (error) {
     console.error('Fehler beim Speichern des Lieferscheins:', error);
     throw error;
@@ -369,21 +377,20 @@ export const speichereLieferschein = async (
 
 export const aktualisereLieferschein = async (
   dokumentId: string,
-  alteDateiId: string,
-  daten: LieferscheinDaten
+  _alteDateiId: string, // Bewusst ungenutzt: Alte Datei bleibt im Archiv (GoBD)
+  daten: LieferscheinDaten,
+  alteVersion: number
 ): Promise<GespeichertesDokument> => {
   try {
-    // Alte Datei löschen
-    try {
-      await storage.deleteFile(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID, alteDateiId);
-    } catch (e) {
-      console.warn('Alte Datei konnte nicht gelöscht werden:', e);
-    }
+    // WICHTIG: Alte Datei wird NICHT gelöscht - sie bleibt im Archiv (GoBD-konform)
+    // Stattdessen erstellen wir eine neue Version
+    
+    const neueVersion = alteVersion + 1;
     
     // Neues PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Lieferschein_${daten.lieferscheinnummer}.pdf`;
+    const dateiname = `Lieferschein_${daten.lieferscheinnummer}_v${neueVersion}.pdf`;
     
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -393,19 +400,30 @@ export const aktualisereLieferschein = async (
       file
     );
     
-    // Dokument-Eintrag aktualisieren
-    const dokument = await databases.updateDocument(
+    // Lade projektId vom alten Dokument
+    const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
+    
+    // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
+    const dokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      dokumentId,
+      ID.unique(),
       {
+        projektId: altesDokument.projektId,
+        dokumentTyp: 'lieferschein',
+        dokumentNummer: daten.lieferscheinnummer,
         dateiId: uploadedFile.$id,
         dateiname,
+        istFinal: false,
         daten: JSON.stringify(daten)
       }
     );
     
-    return dokument as unknown as GespeichertesDokument;
+    // Setze Version manuell für Rückgabe (für UI)
+    const result = dokument as unknown as GespeichertesDokument;
+    result.version = neueVersion;
+    
+    return result;
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Lieferscheins:', error);
     throw error;

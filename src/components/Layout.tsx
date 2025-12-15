@@ -64,16 +64,57 @@ const Layout = ({ children }: LayoutProps) => {
     );
   });
 
-  // Tools für globale Suche filtern
-  const globalSearchResults = enabledTools.filter((tool) => {
-    if (!globalSearchQuery.trim()) return false;
+  // Tools für globale Suche filtern und priorisieren
+  const globalSearchResults = (() => {
+    if (!globalSearchQuery.trim()) return [];
     const query = globalSearchQuery.toLowerCase();
-    return (
-      tool.name.toLowerCase().includes(query) ||
-      tool.description.toLowerCase().includes(query) ||
-      tool.id.toLowerCase().includes(query)
-    );
-  });
+    
+    // Filtere Tools die den Suchbegriff enthalten
+    const matchingTools = enabledTools.filter((tool) => {
+      const nameLower = tool.name.toLowerCase();
+      const descLower = tool.description.toLowerCase();
+      const idLower = tool.id.toLowerCase();
+      
+      return (
+        nameLower.includes(query) ||
+        descLower.includes(query) ||
+        idLower.includes(query)
+      );
+    });
+    
+    // Sortiere nach Priorität: Titel-Matches vor Beschreibungs-Matches
+    return matchingTools.sort((a, b) => {
+      const queryLower = query.toLowerCase();
+      const aNameLower = a.name.toLowerCase();
+      const bNameLower = b.name.toLowerCase();
+      
+      // Berechne Score für jedes Tool
+      const getScore = (tool: typeof a) => {
+        const nameLower = tool.name.toLowerCase();
+        const descLower = tool.description.toLowerCase();
+        
+        // Titel beginnt mit Suchbegriff: höchste Priorität
+        if (nameLower.startsWith(queryLower)) return 3;
+        // Titel enthält Suchbegriff: hohe Priorität
+        if (nameLower.includes(queryLower)) return 2;
+        // Beschreibung enthält Suchbegriff: niedrigere Priorität
+        if (descLower.includes(queryLower)) return 1;
+        // ID enthält Suchbegriff: niedrigste Priorität
+        return 0.5;
+      };
+      
+      const scoreA = getScore(a);
+      const scoreB = getScore(b);
+      
+      // Sortiere nach Score (höher = weiter oben)
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      
+      // Bei gleichem Score: alphabetisch nach Name
+      return aNameLower.localeCompare(bNameLower);
+    });
+  })();
 
   // Startseite auch in Suchergebnissen anzeigen
   const allSearchResults = [
@@ -110,14 +151,20 @@ const Layout = ({ children }: LayoutProps) => {
   // Klick außerhalb schließt globale Suche
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (globalSearchRef.current && !globalSearchRef.current.contains(event.target as Node)) {
+      const target = event.target as HTMLElement;
+      // Prüfe ob das Ziel ein Link innerhalb des Dropdowns ist
+      if (target.closest('a') && globalSearchRef.current?.contains(target)) {
+        return; // Ignoriere Klicks auf Links innerhalb des Dropdowns
+      }
+      if (globalSearchRef.current && !globalSearchRef.current.contains(target)) {
         setGlobalSearchOpen(false);
         setGlobalSearchQuery('');
       }
     };
     if (globalSearchOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // Verwende 'click' statt 'mousedown' für bessere Kompatibilität mit Links
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [globalSearchOpen]);
 
@@ -241,11 +288,15 @@ const Layout = ({ children }: LayoutProps) => {
                               <Link
                                 key={item.id}
                                 to={item.href}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setGlobalSearchOpen(false);
                                   setGlobalSearchQuery('');
                                 }}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                }}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                                   isActive
                                     ? 'bg-red-50 border-2 border-red-200'
                                     : isFirst
@@ -370,11 +421,15 @@ const Layout = ({ children }: LayoutProps) => {
                               <Link
                                 key={item.id}
                                 to={item.href}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setGlobalSearchOpen(false);
                                   setGlobalSearchQuery('');
                                 }}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                }}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
                                   isActive
                                     ? 'bg-red-50 border border-red-200'
                                     : 'hover:bg-gray-50'

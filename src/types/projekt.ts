@@ -1,5 +1,5 @@
 // Projekt-Status
-export type ProjektStatus = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'bezahlt';
+export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'bezahlt';
 
 // Projekt für Bestellabwicklung
 export interface Projekt {

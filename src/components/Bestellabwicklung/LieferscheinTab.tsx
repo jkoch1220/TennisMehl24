@@ -391,13 +391,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       let neuesDokument: GespeichertesDokument;
       
       if (gespeichertesDokument && istBearbeitungsModus) {
-        // Aktualisieren
+        // Neue Version erstellen (altes Dokument bleibt erhalten!)
         neuesDokument = await aktualisereLieferschein(
           gespeichertesDokument.$id!,
           gespeichertesDokument.dateiId,
-          lieferscheinDaten
+          lieferscheinDaten,
+          gespeichertesDokument.version || 1
         );
-        setStatusMeldung({ typ: 'erfolg', text: 'Lieferschein erfolgreich aktualisiert!' });
+        setStatusMeldung({ typ: 'erfolg', text: `Lieferschein als Version ${neuesDokument.version} gespeichert!` });
       } else {
         // Neu erstellen
         neuesDokument = await speichereLieferschein(projekt.$id, lieferscheinDaten);
@@ -445,7 +446,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-green-800">Lieferschein hinterlegt</h3>
                 <p className="text-sm text-green-700 mt-1">
-                  <strong>{gespeichertesDokument.dokumentNummer}</strong> wurde am{' '}
+                  <strong>{gespeichertesDokument.dokumentNummer}</strong>
+                  {gespeichertesDokument.version && ` (Version ${gespeichertesDokument.version})`}
+                  {' '}wurde am{' '}
                   {gespeichertesDokument.$createdAt && new Date(gespeichertesDokument.$createdAt).toLocaleDateString('de-DE', {
                     day: '2-digit',
                     month: '2-digit',
@@ -484,7 +487,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               <Edit3 className="h-5 w-5 text-amber-600" />
               <div>
                 <p className="text-sm font-medium text-amber-800">Bearbeitungsmodus aktiv</p>
-                <p className="text-xs text-amber-700">Änderungen werden nach dem Speichern den bestehenden Lieferschein ersetzen.</p>
+                <p className="text-xs text-amber-700">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten (GoBD-konform).</p>
               </div>
               <button
                 onClick={() => {
@@ -991,7 +994,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 ) : (
                   <>
                     <FileCheck className="h-5 w-5" />
-                    {istBearbeitungsModus ? 'Änderungen speichern' : 'Lieferschein speichern & hinterlegen'}
+                    {istBearbeitungsModus ? 'Als neue Version speichern' : 'Lieferschein speichern & hinterlegen'}
                   </>
                 )}
               </button>

@@ -607,20 +607,6 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     </select>
                   </div>
                 )}
-                <div className="md:col-span-2 flex items-center gap-3">
-                  <input
-                    id="beziehtUeberUns"
-                    type="checkbox"
-                    checked={formData.beziehtUeberUnsPlatzbauer ?? false}
-                    onChange={(e) =>
-                      setFormData({ ...formData, beziehtUeberUnsPlatzbauer: e.target.checked })
-                    }
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
-                  />
-                  <label htmlFor="beziehtUeberUns" className="text-sm font-medium text-gray-700">
-                    Bezug Platzbauer über uns (TennisMehl24)
-                  </label>
-                </div>
               </div>
             )}
 

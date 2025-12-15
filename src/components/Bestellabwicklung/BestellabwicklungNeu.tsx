@@ -30,7 +30,7 @@ const Bestellabwicklung = () => {
         setProjekt(loadedProjekt);
         
         // Tab basierend auf Projekt-Status setzen
-        if (loadedProjekt.status === 'angebot') {
+        if (loadedProjekt.status === 'angebot' || loadedProjekt.status === 'angebot_versendet') {
           setActiveTab('angebot');
         } else if (loadedProjekt.status === 'lieferschein') {
           setActiveTab('lieferschein');

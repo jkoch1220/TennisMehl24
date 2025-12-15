@@ -16,15 +16,17 @@ import {
   Building2,
   Send,
   PartyPopper,
-  Eye
+  Eye,
+  User
 } from 'lucide-react';
 import Confetti from 'react-confetti';
-import { OffeneRechnung, RechnungsAktivitaet, Zahlung, AktivitaetsTyp } from '../../types/kreditor';
+import { OffeneRechnung, RechnungsAktivitaet, Zahlung, AktivitaetsTyp, Kreditor } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
 import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
 import DokumentVorschau from './DokumentVorschau';
+import KreditorDetail from './KreditorDetail';
 
 interface RechnungsDetailProps {
   rechnung: OffeneRechnung;
@@ -43,6 +45,8 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [telefonnummer, setTelefonnummer] = useState<string | null>(null);
+  const [kreditor, setKreditor] = useState<Kreditor | null>(null);
+  const [showKreditorDetail, setShowKreditorDetail] = useState(false);
   
   // Dokumentenvorschau States
   const [vorschauDokument, setVorschauDokument] = useState<{
@@ -94,16 +98,45 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
     try {
       // Suche Kreditor anhand des Namens
       const alleKreditoren = await kreditorService.loadAlleKreditoren();
-      const kreditor = alleKreditoren.find(k => 
+      const gefundenerKreditor = alleKreditoren.find(k => 
         k.name.toLowerCase().trim() === rechnung.kreditorName.toLowerCase().trim()
       );
       
-      if (kreditor) {
-        const tel = kreditor.telefon || kreditor.kontakt?.telefon;
+      if (gefundenerKreditor) {
+        setKreditor(gefundenerKreditor);
+        const tel = gefundenerKreditor.telefon || gefundenerKreditor.kontakt?.telefon;
         setTelefonnummer(tel || null);
+      } else {
+        // Kreditor existiert noch nicht - erstelle einen temporären für die Anzeige
+        // Der wird beim Öffnen der Detailansicht erstellt, falls nötig
+        setKreditor(null);
       }
     } catch (error) {
       console.error('Fehler beim Laden der Telefonnummer:', error);
+    }
+  };
+
+  const handleOpenKreditorDetail = async () => {
+    // Wenn Kreditor noch nicht existiert, erstelle ihn
+    if (!kreditor) {
+      try {
+        const neuerKreditor = await kreditorService.createKreditor({
+          name: rechnung.kreditorName,
+        });
+        setKreditor(neuerKreditor);
+        // Verknüpfe Rechnung mit Kreditor falls noch nicht geschehen
+        if (!rechnung.kreditorId) {
+          await kreditorService.updateRechnung(rechnung.id, {
+            kreditorId: neuerKreditor.id,
+          });
+        }
+        setShowKreditorDetail(true);
+      } catch (error) {
+        console.error('Fehler beim Erstellen des Kreditors:', error);
+        alert('Fehler beim Erstellen des Kreditors');
+      }
+    } else {
+      setShowKreditorDetail(true);
     }
   };
 
@@ -436,7 +469,22 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
               <ArrowLeft className="w-6 h-6" />
             </button>
             <div>
-              <h2 className="text-xl font-bold">{rechnung.kreditorName}</h2>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-xl font-bold">{rechnung.kreditorName}</h2>
+                <button
+                  onClick={handleOpenKreditorDetail}
+                  className="bg-white/20 hover:bg-white/30 text-white rounded-lg px-4 py-2 transition-all flex items-center gap-2 text-sm font-semibold border-2 border-white/40 hover:border-white/60 shadow-lg hover:shadow-xl backdrop-blur-sm"
+                  title="Ansprechpartner verwalten"
+                >
+                  <User className="w-5 h-5" />
+                  <span>Ansprechpartner</span>
+                  {kreditor?.ansprechpartner && kreditor.ansprechpartner.length > 0 && (
+                    <span className="bg-white/30 rounded-full px-2 py-0.5 text-xs font-bold">
+                      {kreditor.ansprechpartner.length}
+                    </span>
+                  )}
+                </button>
+              </div>
               <p className="text-white/80 text-sm">
                 {rechnung.rechnungsnummer || 'Keine Rechnungsnummer'} • {rechnung.betreff || 'Kein Betreff'}
               </p>
@@ -949,6 +997,21 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
           viewUrl={vorschauDokument.viewUrl}
           downloadUrl={vorschauDokument.downloadUrl}
           onClose={() => setVorschauDokument(null)}
+        />
+      )}
+
+      {/* Kreditor Detail */}
+      {showKreditorDetail && kreditor && (
+        <KreditorDetail
+          kreditor={kreditor}
+          onClose={async () => {
+            setShowKreditorDetail(false);
+            await loadKreditorTelefon(); // Aktualisiere Kreditor-Daten
+          }}
+          onUpdate={async () => {
+            await loadKreditorTelefon(); // Aktualisiere Kreditor-Daten
+            onUpdate(); // Aktualisiere auch Rechnungsliste
+          }}
         />
       )}
     </>
