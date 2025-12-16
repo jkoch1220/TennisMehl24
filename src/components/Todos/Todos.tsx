@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { todoService } from '../../services/todoService';
 import { Todo, NeuesTodo, TodoStatus, Bearbeiter } from '../../types/todo';
-import { Plus, X, Calendar, User, LayoutGrid, List, Filter, Search } from 'lucide-react';
+import { Plus, X, Calendar, User, LayoutGrid, List, Filter, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 const Todos = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -11,6 +11,7 @@ const Todos = () => {
   const [draggedTodoId, setDraggedTodoId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TodoStatus | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [expandedTodos, setExpandedTodos] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<{
     status: TodoStatus[];
     prioritaet: string[];
@@ -223,6 +224,18 @@ const Todos = () => {
         {prioritaet.charAt(0).toUpperCase() + prioritaet.slice(1)}
       </span>
     );
+  };
+
+  const toggleTodoExpansion = (todoId: string) => {
+    setExpandedTodos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(todoId)) {
+        newSet.delete(todoId);
+      } else {
+        newSet.add(todoId);
+      }
+      return newSet;
+    });
   };
 
 
@@ -633,64 +646,110 @@ const Todos = () => {
                 <div className="space-y-3">
                   {spaltenTodos.map((todo) => {
                     const isDragging = draggedTodoId === todo.id;
+                    const isExpanded = expandedTodos.has(todo.id);
+                    const hasBeschreibung = todo.beschreibung && todo.beschreibung.trim().length > 0;
                     return (
                     <div
                       key={todo.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, todo.id)}
                       onDragEnd={handleDragEnd}
-                      className={`bg-white rounded-lg shadow p-4 hover:shadow-md transition-all duration-200 cursor-move ${
+                      className={`bg-white rounded-lg shadow p-3 hover:shadow-md transition-all duration-200 cursor-move ${
                         isDragging ? 'opacity-50 scale-95 rotate-2' : 'opacity-100'
                       }`}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 flex-1">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 
+                          className="font-semibold text-gray-900 flex-1 text-sm cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasBeschreibung) {
+                              toggleTodoExpansion(todo.id);
+                            }
+                          }}
+                        >
                           {todo.titel}
                         </h3>
-                        <button
-                          onClick={() => handleDelete(todo.id)}
-                          className="text-gray-400 hover:text-red-600 ml-2"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {hasBeschreibung && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTodoExpansion(todo.id);
+                              }}
+                              className="text-gray-400 hover:text-gray-600"
+                              title={isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(todo.id);
+                            }}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      {todo.beschreibung && (
-                        <p className="text-sm text-gray-600 mb-3 whitespace-pre-wrap">
-                          {todo.beschreibung}
-                        </p>
+                      
+                      {isExpanded && hasBeschreibung && (
+                        <div className="mb-3 pt-2 border-t border-gray-100">
+                          <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                            {todo.beschreibung}
+                          </p>
+                        </div>
                       )}
+                      
                       <div className="flex items-center gap-2 mb-2">
                         {getPrioritaetBadge(todo.prioritaet)}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                         {todo.faelligkeitsdatum && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
                             <Calendar className="w-3 h-3" />
                             <span>
-                              {new Date(todo.faelligkeitsdatum).toLocaleDateString('de-DE')}
+                              {new Date(todo.faelligkeitsdatum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
                             </span>
                           </div>
                         )}
                       </div>
-                      <div className="mt-3">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Bearbeiter
-                        </label>
-                        <select
-                          value={todo.bearbeiter || ''}
-                          onChange={(e) => handleBearbeiterChange(todo.id, e.target.value as Bearbeiter || undefined)}
-                          className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        >
-                          <option value="">Keiner</option>
-                          {bearbeiter.map((b) => (
-                            <option key={b} value={b}>
-                              {b}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {todo.bearbeiter && (
-                        <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
+                      
+                      {isExpanded && (
+                        <>
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Bearbeiter
+                            </label>
+                            <select
+                              value={todo.bearbeiter || ''}
+                              onChange={(e) => handleBearbeiterChange(todo.id, e.target.value as Bearbeiter || undefined)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            >
+                              <option value="">Keiner</option>
+                              {bearbeiter.map((b) => (
+                                <option key={b} value={b}>
+                                  {b}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {todo.bearbeiter && (
+                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
+                              <User className="w-3 h-3" />
+                              <span>{todo.bearbeiter}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      
+                      {!isExpanded && todo.bearbeiter && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
                           <User className="w-3 h-3" />
                           <span>{todo.bearbeiter}</span>
                         </div>

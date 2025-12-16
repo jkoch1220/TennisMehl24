@@ -11,6 +11,11 @@ export interface Projekt {
   kundenname: string;
   kundenstrasse: string;
   kundenPlzOrt: string;
+  lieferadresse?: {
+    strasse: string;
+    plz: string;
+    ort: string;
+  };
   saisonjahr: number;
   status: ProjektStatus;
   

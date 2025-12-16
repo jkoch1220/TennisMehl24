@@ -965,7 +965,9 @@ function konvertierePositionen(
     // Konvertiere zu LieferscheinPosition (ohne Preise)
     return (quellPositionen as Position[]).map((pos: Position) => ({
       id: pos.id,
+      artikelnummer: pos.artikelnummer,
       artikel: pos.bezeichnung,
+      beschreibung: pos.beschreibung,
       menge: pos.menge,
       einheit: pos.einheit,
       seriennummer: undefined,
@@ -977,8 +979,9 @@ function konvertierePositionen(
     if (quellPositionen.length > 0 && istLieferscheinPosition(quellPositionen[0])) {
       return (quellPositionen as LieferscheinPosition[]).map((pos: LieferscheinPosition) => ({
         id: pos.id,
+        artikelnummer: pos.artikelnummer,
         bezeichnung: pos.artikel,
-        beschreibung: '',
+        beschreibung: pos.beschreibung || '',
         menge: pos.menge,
         einheit: pos.einheit,
         einzelpreis: 0,

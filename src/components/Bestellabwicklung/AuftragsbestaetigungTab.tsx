@@ -62,6 +62,12 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
+  // Drag & Drop State für Positionen
+  const [dragState, setDragState] = useState<{ draggedIndex: number | null; draggedOverIndex: number | null }>({
+    draggedIndex: null,
+    draggedOverIndex: null,
+  });
+  
   // Dokument-Status
   const [gespeichertesDokument, setGespeichertesDokument] = useState<GespeichertesDokument | null>(null);
   const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
@@ -112,6 +118,22 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           // Lade gespeicherte Daten für Bearbeitung
           const gespeicherteDaten = ladeDokumentDaten<AuftragsbestaetigungsDaten>(dokument);
           if (gespeicherteDaten) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
+              ? gespeicherteDaten.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = gespeicherteDaten.lieferadresseName 
+              ? gespeicherteDaten.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
+              ? gespeicherteDaten.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
+              ? gespeicherteDaten.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
             setAuftragsbestaetigungsDaten({
               ...gespeicherteDaten,
@@ -119,6 +141,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
               kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
           }
           setAutoSaveStatus('gespeichert');
@@ -126,6 +152,22 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           // Kein finalisiertes Dokument - versuche Entwurf zu laden
           const entwurf = await ladeEntwurf<AuftragsbestaetigungsDaten>(projekt.$id, 'auftragsbestaetigungsDaten');
           if (entwurf) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
+            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend 
+              ? entwurf.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = entwurf.lieferadresseName 
+              ? entwurf.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = entwurf.lieferadresseStrasse 
+              ? entwurf.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt 
+              ? entwurf.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
             setAuftragsbestaetigungsDaten({
               ...entwurf,
@@ -133,6 +175,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               kundenname: entwurf.kundenname || projekt?.kundenname || '',
               kundenstrasse: entwurf.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: entwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
             setAutoSaveStatus('gespeichert');
           }
@@ -192,9 +238,11 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           setAuftragsbestaetigungsDaten(prev => ({ ...prev, auftragsbestaetigungsnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
+          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
           setAuftragsbestaetigungsDaten(prev => ({ 
             ...prev, 
-            auftragsbestaetigungsnummer: `AB-2026-TEMP` 
+            auftragsbestaetigungsnummer: `AB-${laufnummer}` 
           }));
         }
       }
@@ -248,9 +296,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             auftragsbestaetigungsnummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
           } catch (error) {
             console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
-            auftragsbestaetigungsnummer = `AB-2026-TEMP`;
+            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
+            auftragsbestaetigungsnummer = `AB-${laufnummer}`;
           }
         }
+        
+        // Übernehme Lieferadresse aus Projekt, falls vorhanden
+        const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+        const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+        const lieferadressePlzOrt = projekt?.lieferadresse 
+          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+          : undefined;
         
         setAuftragsbestaetigungsDaten(prev => ({
           ...prev,
@@ -262,6 +320,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           auftragsbestaetigungsnummer: auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: projekt?.auftragsbestaetigungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
+          lieferadresseAbweichend: lieferadresseAbweichend,
+          lieferadresseName: lieferadresseName,
+          lieferadresseStrasse: lieferadresseStrasse,
+          lieferadressePlzOrt: lieferadressePlzOrt,
         }));
       }
     };
@@ -365,6 +427,52 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
     }));
+  };
+
+  // Drag & Drop Handler für Positionen
+  const handleDragStart = (index: number) => {
+    setDragState({ draggedIndex: index, draggedOverIndex: null });
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex !== null && dragState.draggedIndex !== index) {
+      setDragState(prev => ({ ...prev, draggedOverIndex: index }));
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex === null || dragState.draggedIndex === dropIndex) {
+      setDragState({ draggedIndex: null, draggedOverIndex: null });
+      return;
+    }
+
+    hatGeaendert.current = true;
+    const neuePositionen = [...auftragsbestaetigungsDaten.positionen];
+    const [draggedPosition] = neuePositionen.splice(dragState.draggedIndex, 1);
+    neuePositionen.splice(dropIndex, 0, draggedPosition);
+
+    setAuftragsbestaetigungsDaten(prev => ({
+      ...prev,
+      positionen: neuePositionen
+    }));
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  const handleDragEnd = () => {
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  // Enter-Handler für Artikel-Suche
+  const handleArtikelSucheKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && gefilterteArtikel.length > 0) {
+      e.preventDefault();
+      const erstesErgebnis = gefilterteArtikel[0];
+      if (erstesErgebnis.$id) {
+        addPositionAusArtikel(erstesErgebnis.$id);
+      }
+    }
   };
 
   // Nur PDF generieren und herunterladen (ohne Speicherung)
@@ -815,6 +923,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                         type="text"
                         value={artikelSuchtext}
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
+                        onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                       />
@@ -889,7 +998,21 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
 
           <div className="space-y-4">
             {auftragsbestaetigungsDaten.positionen.map((position, index) => (
-              <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div
+                key={position.id}
+                draggable={!gespeichertesDokument || istBearbeitungsModus}
+                onDragStart={() => (!gespeichertesDokument || istBearbeitungsModus) && handleDragStart(index)}
+                onDragOver={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDragOver(e, index)}
+                onDrop={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 transition-all ${
+                  (!gespeichertesDokument || istBearbeitungsModus) ? 'cursor-move' : ''
+                } ${
+                  dragState.draggedIndex === index ? 'opacity-50' : ''
+                } ${
+                  dragState.draggedOverIndex === index ? 'border-2 border-orange-500 shadow-lg' : ''
+                }`}
+              >
                 <div className="flex items-start gap-4">
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-7 gap-3">

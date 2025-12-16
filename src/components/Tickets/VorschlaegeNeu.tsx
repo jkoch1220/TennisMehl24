@@ -275,8 +275,8 @@ const VorschlaegeNeu = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.titel.trim() || !formData.beschreibung.trim()) {
-      alert('Bitte füllen Sie alle Felder aus.');
+    if (!formData.titel.trim()) {
+      alert('Bitte füllen Sie den Titel aus.');
       return;
     }
 
@@ -746,7 +746,7 @@ const VorschlaegeNeu = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Beschreibung *
+                      Beschreibung
                     </label>
                     <textarea
                       value={formData.beschreibung}
@@ -754,7 +754,6 @@ const VorschlaegeNeu = () => {
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={6}
                       placeholder="Detaillierte Beschreibung der Verbesserung..."
-                      required
                     />
                   </div>
                   <div>
@@ -902,18 +901,24 @@ const TicketCard = ({
               </div>
               
               {/* Drei-Punkte-Menü */}
-              <div className="relative" ref={menuRef}>
+              <div className="relative" ref={menuRef} data-menu-container>
                 <button
-                  onClick={() => setOpenMenuId(openMenuId === ticket.id ? null : ticket.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === ticket.id ? null : ticket.id);
+                  }}
                   className="p-2 hover:bg-gray-100 rounded transition-colors"
                   title="Mehr Optionen"
                 >
                   <MoreVertical className="w-5 h-5 text-gray-500" />
                 </button>
                 {openMenuId === ticket.id && (
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 min-w-[150px]">
+                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[150px]">
                     <button
-                      onClick={() => onDelete(ticket.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(ticket.id);
+                      }}
                       className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1063,7 +1068,10 @@ const CompletedTicketCard = ({
               {/* Drei-Punkte-Menü */}
               <div className="relative" ref={menuRef} data-menu-container>
                 <button
-                  onClick={() => setOpenMenuId(openMenuId === ticket.id ? null : ticket.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === ticket.id ? null : ticket.id);
+                  }}
                   className="p-2 hover:bg-gray-100 rounded transition-colors"
                   title="Mehr Optionen"
                 >
@@ -1072,7 +1080,10 @@ const CompletedTicketCard = ({
                 {openMenuId === ticket.id && (
                   <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[150px]">
                     <button
-                      onClick={() => onDelete(ticket.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(ticket.id);
+                      }}
                       className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />

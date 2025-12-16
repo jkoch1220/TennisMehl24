@@ -16,6 +16,7 @@ export interface LieferscheinPosition {
   id: string;
   artikelnummer?: string;
   artikel: string;
+  beschreibung?: string;
   menge: number;
   einheit: string;
   seriennummer?: string;
@@ -87,6 +88,9 @@ export interface AngebotsDaten extends BaseDokument {
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
   
+  // Liefersaison
+  liefersaisonAnzeigen?: boolean;
+  
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;
@@ -136,6 +140,9 @@ export interface LieferscheinDaten extends BaseDokument {
   
   // Empfangsbestätigung
   empfangBestaetigt?: boolean;
+  
+  // Unterschriften für Empfangsbestätigung (default: true)
+  unterschriftenFuerEmpfangsbestaetigung?: boolean;
 }
 
 // RECHNUNG

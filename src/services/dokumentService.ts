@@ -396,17 +396,19 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   
-  // === Liefersaison-Hinweis ===
-  summenY += 12;
-  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
-  
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'italic');
-  const liefersaisonText = getLiefersaisonText();
-  doc.text(liefersaisonText, 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
+  // === Liefersaison-Hinweis (nur wenn aktiviert) ===
+  if (daten.liefersaisonAnzeigen) {
+    summenY += 12;
+    summenY = await ensureSpace(doc, summenY, 10, stammdaten);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'italic');
+    const liefersaisonText = getLiefersaisonText();
+    doc.text(liefersaisonText, 25, summenY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+  }
   
   // === Lieferbedingungen ===
   summenY += 10;
@@ -1180,18 +1182,18 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   yPos += 6;
   
   const tableData = daten.positionen.map(pos => {
+    // Bezeichnung mit Beschreibung (falls vorhanden)
+    let artikelMitBeschreibung = pos.artikel;
+    if (pos.beschreibung && pos.beschreibung.trim()) {
+      artikelMitBeschreibung += '\n' + pos.beschreibung;
+    }
+    
     const row = [
       pos.artikelnummer || '-',  // Artikel-Nr. als erste Spalte
-      pos.artikel,
+      artikelMitBeschreibung,
       pos.menge.toString(),
       pos.einheit
     ];
-    
-    // Optional: Serien-/Chargennummer
-    const zusatz = [];
-    if (pos.seriennummer) zusatz.push(`SN: ${pos.seriennummer}`);
-    if (pos.chargennummer) zusatz.push(`Ch: ${pos.chargennummer}`);
-    row.push(zusatz.join(' / '));
     
     return row;
   });
@@ -1204,7 +1206,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       top: 45,  // WICHTIG: Genug Platz für Logo (Y=12, Höhe=22) + "Fortsetzung" (Y=38) + Abstand
       bottom: 30 
     }, // DIN 5008: links 25mm, rechts 20mm
-    head: [['Art.Nr.', 'Artikel', 'Menge', 'Einh.', 'Serien-/Chargennr.']],
+    head: [['Art.Nr.', 'Artikel', 'Menge', 'Einh.']],
     body: tableData,
     theme: 'striped',
     rowPageBreak: 'avoid', // WICHTIG: Verhindert, dass eine Positionszeile über Seitenumbrüche geteilt wird
@@ -1219,11 +1221,10 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       cellPadding: 3
     },
     columnStyles: {
-      0: { cellWidth: 16, halign: 'left' },    // Art.Nr.
-      1: { cellWidth: 66 },                    // Artikel
-      2: { cellWidth: 16, halign: 'right' },   // Menge
-      3: { cellWidth: 18 },                    // Einh.
-      4: { cellWidth: 44 }                     // Serien-/Chargennr.
+      0: { cellWidth: 20, halign: 'left' },    // Art.Nr.
+      1: { cellWidth: 90, valign: 'top' },     // Artikel (mit Beschreibung)
+      2: { cellWidth: 20, halign: 'right' },   // Menge
+      3: { cellWidth: 30 }                     // Einh.
     }, // Summe: 160mm
     // WICHTIG: Automatische Seitenumbrüche mit Header und Footer auf jeder Seite
     didDrawPage: function(data) {
@@ -1236,25 +1237,30 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
   
-  // === Empfangsbestätigung ===
-  signY += 20;
+  // === Empfangsbestätigung (nur wenn aktiviert) ===
+  // Default: true (für Rückwärtskompatibilität: undefined = true)
+  const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;
   
-  // Prüfe Platz für Empfangsbestätigung
-  signY = await ensureSpace(doc, signY, 30, stammdaten);
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Empfangsbestätigung:', 25, signY);
-  doc.setFont('helvetica', 'normal');
-  
-  signY += 10;
-  doc.setFontSize(9);
-  doc.text('Ware erhalten am:', 25, signY);
-  doc.line(60, signY, 100, signY); // Linie für Datum
-  
-  signY += 15;
-  doc.text('Unterschrift Empfänger:', 25, signY);
-  doc.line(65, signY, 125, signY); // Linie für Unterschrift
+  if (zeigeEmpfangsbestaetigung) {
+    signY += 20;
+    
+    // Prüfe Platz für Empfangsbestätigung
+    signY = await ensureSpace(doc, signY, 30, stammdaten);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Empfangsbestätigung:', 25, signY);
+    doc.setFont('helvetica', 'normal');
+    
+    signY += 10;
+    doc.setFontSize(9);
+    doc.text('Ware erhalten am:', 25, signY);
+    doc.line(60, signY, 100, signY); // Linie für Datum
+    
+    signY += 15;
+    doc.text('Unterschrift Empfänger:', 25, signY);
+    doc.line(65, signY, 125, signY); // Linie für Unterschrift
+  }
   
   // === Bemerkung ===
   if (daten.bemerkung) {

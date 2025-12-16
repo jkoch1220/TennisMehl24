@@ -57,12 +57,12 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
 
 /**
  * Generiert eine standardkonforme Dokumentnummer nach deutschem Muster
- * Format: PREFIX-JAHR-LAUFNUMMER
+ * Format: PREFIX-LAUFNUMMER
  * Beispiele:
- * - ANG-2025-0001 (Angebot)
- * - AB-2025-0001 (Auftragsbestätigung)
- * - LS-2025-0001 (Lieferschein)
- * - RE-2025-0001 (Rechnung)
+ * - ANG-0001 (Angebot)
+ * - AB-0001 (Auftragsbestätigung)
+ * - LS-0001 (Lieferschein)
+ * - RE-0001 (Rechnung)
  * 
  * WICHTIG: Diese Funktion prüft IMMER, ob die generierte Nummer bereits existiert,
  * um doppelte Nummern zu vermeiden!
@@ -167,7 +167,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       const laufnummer = neuerZaehler.toString().padStart(4, '0');
       
       // Generiere die vollständige Dokumentnummer
-      const dokumentnummer = `${prefix}-${aktuellesJahr}-${laufnummer}`;
+      const dokumentnummer = `${prefix}-${laufnummer}`;
       
       // KRITISCH: Prüfe, ob diese Nummer bereits existiert
       const existiert = await nummerExistiertBereits(dokumentnummer, typ);
@@ -199,9 +199,9 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
   } catch (error) {
     console.error('❌ KRITISCHER Fehler bei der Generierung der Dokumentnummer:', error);
     // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-    const jahr = 2026; // Aktuelle Saison
     const timestamp = Date.now();
-    const zufall = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    // Verwende die letzten 4 Ziffern des Timestamps als Laufnummer
+    const laufnummer = (timestamp % 10000).toString().padStart(4, '0');
     let prefix: string;
     
     switch (typ) {
@@ -224,7 +224,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
         prefix = 'DOK';
     }
     
-    const fallbackNummer = `${prefix}-${jahr}-TEMP-${timestamp}-${zufall}`;
+    const fallbackNummer = `${prefix}-${laufnummer}`;
     console.error(`⚠️ Verwende Fallback-Nummer: ${fallbackNummer}`);
     
     return fallbackNummer;

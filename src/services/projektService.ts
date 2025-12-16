@@ -2,6 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus } from '../types/projekt';
 import { saisonplanungService } from './saisonplanungService';
+import { kundenListeService } from './kundenListeService';
 
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
@@ -174,21 +175,43 @@ class ProjektService {
       // WICHTIG: Stelle sicher, dass die Kundennummer gesetzt ist
       // Lade sie aus dem Kunden-Datensatz falls nicht vorhanden
       let kundennummer = projekt.kundennummer;
-      if (!kundennummer && projekt.kundeId) {
+      let lieferadresse = projekt.lieferadresse;
+      
+      if (projekt.kundeId) {
+        // Versuche zuerst aus Kundenliste zu laden
         try {
-          const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-          if (kunde && kunde.kundennummer) {
-            kundennummer = kunde.kundennummer;
+          const kundenListeKunde = await kundenListeService.get(projekt.kundeId);
+          if (kundenListeKunde) {
+            if (!kundennummer && kundenListeKunde.kundennummer) {
+              kundennummer = kundenListeKunde.kundennummer;
+            }
+            // Übernehme Lieferadresse aus Kundenliste, falls vorhanden
+            if (!lieferadresse && kundenListeKunde.lieferadresse) {
+              lieferadresse = kundenListeKunde.lieferadresse;
+            }
           }
         } catch (error) {
-          console.warn('Konnte Kundennummer nicht aus Kunden-Datensatz laden:', error);
-          // Verwende undefined als Fallback
+          console.warn('Konnte Kunde nicht aus Kundenliste laden, versuche Saisonplanung:', error);
+        }
+        
+        // Falls nicht in Kundenliste gefunden, versuche Saisonplanung
+        if (!kundennummer) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde && kunde.kundennummer) {
+              kundennummer = kunde.kundennummer;
+            }
+          } catch (error) {
+            console.warn('Konnte Kundennummer nicht aus Kunden-Datensatz laden:', error);
+            // Verwende undefined als Fallback
+          }
         }
       }
 
       const neuesProjekt: Projekt = {
         ...projekt,
         kundennummer: kundennummer, // Stelle sicher, dass Kundennummer gesetzt ist
+        lieferadresse: lieferadresse, // Übernehme Lieferadresse aus Kunde
         id: dokumentId,
         erstelltAm: jetzt,
         geaendertAm: jetzt,

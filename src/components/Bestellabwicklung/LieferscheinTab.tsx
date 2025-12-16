@@ -51,6 +51,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     lieferdatum: new Date().toISOString().split('T')[0],
     
     positionen: [],
+    
+    // Default: Unterschriften für Empfangsbestätigung aktiviert
+    unterschriftenFuerEmpfangsbestaetigung: true,
   });
   
   // Dokument-Status
@@ -75,6 +78,12 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
+  
+  // Drag & Drop State für Positionen
+  const [dragState, setDragState] = useState<{ draggedIndex: number | null; draggedOverIndex: number | null }>({
+    draggedIndex: null,
+    draggedOverIndex: null,
+  });
   
   // Artikel laden
   useEffect(() => {
@@ -109,6 +118,22 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           // Lade gespeicherte Daten für Bearbeitung
           const gespeicherteDaten = ladeDokumentDaten<LieferscheinDaten>(dokument);
           if (gespeicherteDaten) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
+              ? gespeicherteDaten.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = gespeicherteDaten.lieferadresseName 
+              ? gespeicherteDaten.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
+              ? gespeicherteDaten.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
+              ? gespeicherteDaten.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
             setLieferscheinDaten({
               ...gespeicherteDaten,
@@ -116,6 +141,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
               kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              // Default für Unterschriften: true (Rückwärtskompatibilität)
+              unterschriftenFuerEmpfangsbestaetigung: gespeicherteDaten.unterschriftenFuerEmpfangsbestaetigung !== undefined 
+                ? gespeicherteDaten.unterschriftenFuerEmpfangsbestaetigung 
+                : true,
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
           }
           setAutoSaveStatus('gespeichert');
@@ -123,6 +156,22 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           // Kein finalisiertes Dokument - versuche Entwurf zu laden
           const entwurf = await ladeEntwurf<LieferscheinDaten>(projekt.$id, 'lieferscheinDaten');
           if (entwurf) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
+            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend 
+              ? entwurf.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = entwurf.lieferadresseName 
+              ? entwurf.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = entwurf.lieferadresseStrasse 
+              ? entwurf.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt 
+              ? entwurf.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
             setLieferscheinDaten({
               ...entwurf,
@@ -130,6 +179,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               kundenname: entwurf.kundenname || projekt?.kundenname || '',
               kundenstrasse: entwurf.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: entwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              // Default für Unterschriften: true (Rückwärtskompatibilität)
+              unterschriftenFuerEmpfangsbestaetigung: entwurf.unterschriftenFuerEmpfangsbestaetigung !== undefined 
+                ? entwurf.unterschriftenFuerEmpfangsbestaetigung 
+                : true,
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
             setAutoSaveStatus('gespeichert');
           }
@@ -189,9 +246,11 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           setLieferscheinDaten(prev => ({ ...prev, lieferscheinnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
+          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
           setLieferscheinDaten(prev => ({ 
             ...prev, 
-            lieferscheinnummer: `LS-2026-TEMP` 
+            lieferscheinnummer: `LS-${laufnummer}` 
           }));
         }
       }
@@ -227,7 +286,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           if (angefragteMenge) {
             initialePositionen.push({
               id: '1',
+              artikelnummer: 'TM-ZM',
               artikel: 'Tennismehl / Ziegelmehl',
+              beschreibung: '',
               menge: angefragteMenge,
               einheit: 't',
             });
@@ -241,9 +302,19 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             lieferscheinnummer = await generiereNaechsteDokumentnummer('lieferschein');
           } catch (error) {
             console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
-            lieferscheinnummer = `LS-2026-TEMP`;
+            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
+            lieferscheinnummer = `LS-${laufnummer}`;
           }
         }
+        
+        // Übernehme Lieferadresse aus Projekt, falls vorhanden
+        const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+        const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+        const lieferadressePlzOrt = projekt?.lieferadresse 
+          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+          : undefined;
         
         setLieferscheinDaten(prev => ({
           ...prev,
@@ -255,6 +326,10 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
+          lieferadresseAbweichend: lieferadresseAbweichend,
+          lieferadresseName: lieferadresseName,
+          lieferadresseStrasse: lieferadresseStrasse,
+          lieferadressePlzOrt: lieferadressePlzOrt,
         }));
       }
     };
@@ -281,7 +356,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     hatGeaendert.current = true;
     const neuePosition: LieferscheinPosition = {
       id: Date.now().toString(),
+      artikelnummer: '',
       artikel: '',
+      beschreibung: '',
       menge: 1,
       einheit: 'Stk',
     };
@@ -301,6 +378,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       id: Date.now().toString(),
       artikelnummer: selectedArtikel.artikelnummer,
       artikel: selectedArtikel.bezeichnung,
+      beschreibung: selectedArtikel.beschreibung,
       menge: 1,
       einheit: selectedArtikel.einheit,
     };
@@ -344,6 +422,52 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
     }));
+  };
+
+  // Drag & Drop Handler für Positionen
+  const handleDragStart = (index: number) => {
+    setDragState({ draggedIndex: index, draggedOverIndex: null });
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex !== null && dragState.draggedIndex !== index) {
+      setDragState(prev => ({ ...prev, draggedOverIndex: index }));
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex === null || dragState.draggedIndex === dropIndex) {
+      setDragState({ draggedIndex: null, draggedOverIndex: null });
+      return;
+    }
+
+    hatGeaendert.current = true;
+    const neuePositionen = [...lieferscheinDaten.positionen];
+    const [draggedPosition] = neuePositionen.splice(dragState.draggedIndex, 1);
+    neuePositionen.splice(dropIndex, 0, draggedPosition);
+
+    setLieferscheinDaten(prev => ({
+      ...prev,
+      positionen: neuePositionen
+    }));
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  const handleDragEnd = () => {
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  // Enter-Handler für Artikel-Suche
+  const handleArtikelSucheKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && gefilterteArtikel.length > 0) {
+      e.preventDefault();
+      const erstesErgebnis = gefilterteArtikel[0];
+      if (erstesErgebnis.$id) {
+        addPositionAusArtikel(erstesErgebnis.$id);
+      }
+    }
   };
 
   // Nur PDF generieren und herunterladen (ohne Speicherung)
@@ -790,6 +914,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         type="text"
                         value={artikelSuchtext}
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
+                        onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                       />
@@ -857,46 +982,75 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
 
           <div className="space-y-4">
             {lieferscheinDaten.positionen.map((position, index) => (
-              <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div
+                key={position.id}
+                draggable={!gespeichertesDokument || istBearbeitungsModus}
+                onDragStart={() => (!gespeichertesDokument || istBearbeitungsModus) && handleDragStart(index)}
+                onDragOver={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDragOver(e, index)}
+                onDrop={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 transition-all ${
+                  (!gespeichertesDokument || istBearbeitungsModus) ? 'cursor-move' : ''
+                } ${
+                  dragState.draggedIndex === index ? 'opacity-50' : ''
+                } ${
+                  dragState.draggedOverIndex === index ? 'border-2 border-green-500 shadow-lg' : ''
+                }`}
+              >
                 <div className="flex items-start gap-4">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Artikel</label>
-                      <input
-                        type="text"
-                        value={position.artikel}
-                        onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
-                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
-                      />
+                  <div className="flex-1 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
+                        <input
+                          type="text"
+                          value={position.artikelnummer || ''}
+                          onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                          placeholder="TM-001"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel</label>
+                        <input
+                          type="text"
+                          value={position.artikel}
+                          onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
+                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                          placeholder="z.B. Tennismehl / Ziegelmehl"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
+                        <input
+                          type="number"
+                          value={position.menge}
+                          onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
+                        <input
+                          type="text"
+                          value={position.einheit}
+                          onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
+                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
-                      <input
-                        type="number"
-                        value={position.menge}
-                        onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Beschreibung (optional)</label>
+                      <textarea
+                        value={position.beschreibung || ''}
+                        onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
                         disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
-                      <input
-                        type="text"
-                        value={position.einheit}
-                        onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Chargennr. (optional)</label>
-                      <input
-                        type="text"
-                        value={position.chargennummer || ''}
-                        onChange={(e) => handlePositionChange(index, 'chargennummer', e.target.value)}
-                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                        placeholder="Detaillierte Beschreibung der Position..."
+                        rows={2}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
                       />
                     </div>
@@ -914,6 +1068,27 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Empfangsbestätigung */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Empfangsbestätigung</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={lieferscheinDaten.unterschriftenFuerEmpfangsbestaetigung !== false}
+                onChange={(e) => handleInputChange('unterschriftenFuerEmpfangsbestaetigung', e.target.checked)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600">Unterschriften für Empfangsbestätigung verwenden</span>
+            </label>
+          </div>
+          <p className="text-sm text-gray-500">
+            Wenn aktiviert, wird auf dem Lieferschein eine Empfangsbestätigung mit Unterschriftsfeld für den Empfänger angezeigt. 
+            Bei Shop-Artikeln kann dies deaktiviert werden.
+          </p>
         </div>
 
         {/* Bemerkung */}

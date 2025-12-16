@@ -70,6 +70,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
+  // Drag & Drop State für Positionen
+  const [dragState, setDragState] = useState<{ draggedIndex: number | null; draggedOverIndex: number | null }>({
+    draggedIndex: null,
+    draggedOverIndex: null,
+  });
+  
   // Dokument-Status
   const [gespeichertesDokument, setGespeichertesDokument] = useState<GespeichertesDokument | null>(null);
   const [istBearbeitungsModus, setIstBearbeitungsModus] = useState(false);
@@ -120,12 +126,32 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           // Lade gespeicherte Daten für Bearbeitung
           const gespeicherteDaten = ladeDokumentDaten<AngebotsDaten>(dokument);
           if (gespeicherteDaten) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
+              ? gespeicherteDaten.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = gespeicherteDaten.lieferadresseName 
+              ? gespeicherteDaten.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
+              ? gespeicherteDaten.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
+              ? gespeicherteDaten.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             setAngebotsDaten({
               ...gespeicherteDaten,
               kundennummer: gespeicherteDaten.kundennummer || projekt?.kundennummer,
               kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
               kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
           }
           setSpeicherStatus('gespeichert');
@@ -134,12 +160,32 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
           
           if (gespeicherterEntwurf) {
+            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
+            const lieferadresseAbweichend = gespeicherterEntwurf.lieferadresseAbweichend 
+              ? gespeicherterEntwurf.lieferadresseAbweichend 
+              : (projekt?.lieferadresse ? true : false);
+            const lieferadresseName = gespeicherterEntwurf.lieferadresseName 
+              ? gespeicherterEntwurf.lieferadresseName 
+              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
+            const lieferadresseStrasse = gespeicherterEntwurf.lieferadresseStrasse 
+              ? gespeicherterEntwurf.lieferadresseStrasse 
+              : (projekt?.lieferadresse?.strasse || undefined);
+            const lieferadressePlzOrt = gespeicherterEntwurf.lieferadressePlzOrt 
+              ? gespeicherterEntwurf.lieferadressePlzOrt 
+              : (projekt?.lieferadresse 
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+                : undefined);
+            
             setAngebotsDaten({
               ...gespeicherterEntwurf,
               kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
               kundenname: gespeicherterEntwurf.kundenname || projekt?.kundenname || '',
               kundenstrasse: gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
               kundenPlzOrt: gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: lieferadresseAbweichend,
+              lieferadresseName: lieferadresseName,
+              lieferadresseStrasse: lieferadresseStrasse,
+              lieferadressePlzOrt: lieferadressePlzOrt,
             });
             setSpeicherStatus('gespeichert');
           } else {
@@ -236,9 +282,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
           } catch (error) {
             console.error('Fehler beim Generieren der Angebotsnummer:', error);
-            angebotsnummer = `ANG-2026-TEMP`;
+            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
+            angebotsnummer = `ANG-${laufnummer}`;
           }
         }
+        
+        // Übernehme Lieferadresse aus Projekt, falls vorhanden
+        const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+        const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+        const lieferadressePlzOrt = projekt?.lieferadresse 
+          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+          : undefined;
         
         setAngebotsDaten(prev => ({
           ...prev,
@@ -251,6 +307,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           gueltigBis: gueltigBis.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
+          lieferadresseAbweichend: lieferadresseAbweichend,
+          lieferadresseName: lieferadresseName,
+          lieferadresseStrasse: lieferadresseStrasse,
+          lieferadressePlzOrt: lieferadressePlzOrt,
         }));
       }
     };
@@ -267,9 +327,11 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Angebotsnummer:', error);
+          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
+          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
           setAngebotsDaten(prev => ({ 
             ...prev, 
-            angebotsnummer: `ANG-2026-TEMP` 
+            angebotsnummer: `ANG-${laufnummer}` 
           }));
         }
       }
@@ -421,6 +483,52 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
     }));
+  };
+
+  // Drag & Drop Handler für Positionen
+  const handleDragStart = (index: number) => {
+    setDragState({ draggedIndex: index, draggedOverIndex: null });
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex !== null && dragState.draggedIndex !== index) {
+      setDragState(prev => ({ ...prev, draggedOverIndex: index }));
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragState.draggedIndex === null || dragState.draggedIndex === dropIndex) {
+      setDragState({ draggedIndex: null, draggedOverIndex: null });
+      return;
+    }
+
+    hatGeaendert.current = true;
+    const neuePositionen = [...angebotsDaten.positionen];
+    const [draggedPosition] = neuePositionen.splice(dragState.draggedIndex, 1);
+    neuePositionen.splice(dropIndex, 0, draggedPosition);
+
+    setAngebotsDaten(prev => ({
+      ...prev,
+      positionen: neuePositionen
+    }));
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  const handleDragEnd = () => {
+    setDragState({ draggedIndex: null, draggedOverIndex: null });
+  };
+
+  // Enter-Handler für Artikel-Suche
+  const handleArtikelSucheKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && gefilterteArtikel.length > 0) {
+      e.preventDefault();
+      const erstesErgebnis = gefilterteArtikel[0];
+      if (erstesErgebnis.$id) {
+        addPositionAusArtikel(erstesErgebnis.$id);
+      }
+    }
   };
 
   // Nur PDF generieren und herunterladen (ohne Speicherung)
@@ -873,6 +981,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         type="text"
                         value={artikelSuchtext}
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
+                        onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
                       />
@@ -947,7 +1056,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
           <div className="space-y-4">
             {angebotsDaten.positionen.map((position, index) => (
-              <div key={position.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div
+                key={position.id}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-move transition-all ${
+                  dragState.draggedIndex === index ? 'opacity-50' : ''
+                } ${
+                  dragState.draggedOverIndex === index ? 'border-2 border-blue-500 shadow-lg' : ''
+                }`}
+              >
                 <div className="flex items-start gap-4">
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
@@ -1103,6 +1224,26 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               />
             )}
           </div>
+        </div>
+
+        {/* Liefersaison */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Liefersaison</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={angebotsDaten.liefersaisonAnzeigen || false}
+                onChange={(e) => handleInputChange('liefersaisonAnzeigen', e.target.checked)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600">Liefersaison auf Angebot anzeigen</span>
+            </label>
+          </div>
+          <p className="text-sm text-gray-500">
+            Wenn aktiviert, wird die Liefersaison (z.B. "KW 10 bis 12") auf dem Angebot gedruckt.
+          </p>
         </div>
 
         {/* Dieselpreiszuschlag */}

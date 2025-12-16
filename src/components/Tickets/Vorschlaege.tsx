@@ -36,8 +36,8 @@ const Vorschlaege = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.titel.trim() || !formData.beschreibung.trim()) {
-      alert('Bitte füllen Sie alle Felder aus.');
+    if (!formData.titel.trim()) {
+      alert('Bitte füllen Sie den Titel aus.');
       return;
     }
 
@@ -291,7 +291,7 @@ const Vorschlaege = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Beschreibung *
+                      Beschreibung
                     </label>
                     <textarea
                       value={formData.beschreibung}
@@ -299,7 +299,6 @@ const Vorschlaege = () => {
                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={6}
                       placeholder="Detaillierte Beschreibung der Verbesserung..."
-                      required
                     />
                   </div>
                   <div>
