@@ -79,14 +79,17 @@ const ProjektVerwaltung = () => {
   const filterProjekte = (projekte: Projekt[]) => {
     if (!suche) return projekte;
     const s = suche.toLowerCase();
-    return projekte.filter(p => 
-      p.kundenname.toLowerCase().includes(s) ||
-      p.kundenPlzOrt.toLowerCase().includes(s) ||
-      p.kundennummer?.toLowerCase().includes(s) ||
-      p.angebotsnummer?.toLowerCase().includes(s) ||
-      p.rechnungsnummer?.toLowerCase().includes(s) ||
-      p.lieferscheinnummer?.toLowerCase().includes(s)
-    );
+    return projekte.filter(p => {
+      const kundennummerStr = p.kundennummer ? String(p.kundennummer).toLowerCase() : '';
+      return (
+        p.kundenname?.toLowerCase().includes(s) ||
+        p.kundenPlzOrt?.toLowerCase().includes(s) ||
+        kundennummerStr.includes(s) ||
+        p.angebotsnummer?.toLowerCase().includes(s) ||
+        p.rechnungsnummer?.toLowerCase().includes(s) ||
+        p.lieferscheinnummer?.toLowerCase().includes(s)
+      );
+    });
   };
 
   // Drag & Drop Handler

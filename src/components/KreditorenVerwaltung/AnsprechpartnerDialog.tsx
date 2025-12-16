@@ -224,3 +224,4 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
 };
 
 export default AnsprechpartnerDialog;
+

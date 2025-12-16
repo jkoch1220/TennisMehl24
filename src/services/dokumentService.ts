@@ -197,10 +197,16 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    margin: { 
+      left: 25, 
+      right: 20, 
+      top: 45,  // WICHTIG: Genug Platz für Logo (Y=12, Höhe=22) + "Fortsetzung" (Y=38) + Abstand
+      bottom: 30 
+    }, // DIN 5008: links 25mm, rechts 20mm
     head: [['Art.Nr.', 'Bezeichnung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
+    rowPageBreak: 'avoid', // WICHTIG: Verhindert, dass eine Positionszeile über Seitenumbrüche geteilt wird
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
@@ -397,7 +403,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   doc.setFont('helvetica', 'italic');
-  const liefersaisonText = getLiefersaisonText(2026);
+  const liefersaisonText = getLiefersaisonText();
   doc.text(liefersaisonText, 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
@@ -708,10 +714,16 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    margin: { 
+      left: 25, 
+      right: 20, 
+      top: 45,  // WICHTIG: Genug Platz für Logo (Y=12, Höhe=22) + "Fortsetzung" (Y=38) + Abstand
+      bottom: 30 
+    }, // DIN 5008: links 25mm, rechts 20mm
     head: [['Art.Nr.', 'Bezeichnung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
+    rowPageBreak: 'avoid', // WICHTIG: Verhindert, dass eine Positionszeile über Seitenumbrüche geteilt wird
     headStyles: {
       fillColor: [237, 137, 54], // orange-500
       textColor: [255, 255, 255],
@@ -904,7 +916,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   doc.setFont('helvetica', 'italic');
-  const liefersaisonText = getLiefersaisonText(2026);
+  const liefersaisonText = getLiefersaisonText();
   doc.text(liefersaisonText, 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
@@ -1186,10 +1198,16 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    margin: { 
+      left: 25, 
+      right: 20, 
+      top: 45,  // WICHTIG: Genug Platz für Logo (Y=12, Höhe=22) + "Fortsetzung" (Y=38) + Abstand
+      bottom: 30 
+    }, // DIN 5008: links 25mm, rechts 20mm
     head: [['Art.Nr.', 'Artikel', 'Menge', 'Einh.', 'Serien-/Chargennr.']],
     body: tableData,
     theme: 'striped',
+    rowPageBreak: 'avoid', // WICHTIG: Verhindert, dass eine Positionszeile über Seitenumbrüche geteilt wird
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],

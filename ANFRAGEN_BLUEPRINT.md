@@ -391,3 +391,4 @@ E-Mail-Postfach → n8n Workflow → Appwrite Database → Anfragen-Tool (Fronte
 **Erstellt:** 2026
 **Version:** 1.0
 **Autor:** TennisMehl24 Development Team
+

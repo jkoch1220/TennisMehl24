@@ -9,8 +9,6 @@ import {
   FileText, 
   Send, 
   CheckCircle, 
-  XCircle,
-  Clock,
   Eye,
   X,
   Calendar,
@@ -199,20 +197,6 @@ const Anfragen = () => {
     );
   });
 
-  const gefilterteKunden = [
-    ...kunden.filter(k => 
-      k && k.name && (
-        k.name.toLowerCase().includes(kundenSuche.toLowerCase()) ||
-        k.kundennummer?.toLowerCase().includes(kundenSuche.toLowerCase())
-      )
-    ),
-    ...saisonKunden.filter(k =>
-      k && k.kunde && k.kunde.name && (
-        k.kunde.name.toLowerCase().includes(kundenSuche.toLowerCase()) ||
-        k.kunde.kundennummer?.toLowerCase().includes(kundenSuche.toLowerCase())
-      )
-    )
-  ];
 
   const getKundeFuerAnfrage = (anfrage: Anfrage): any => {
     if (!anfrage.zugeordneterKundeId) return null;
@@ -226,12 +210,12 @@ const Anfragen = () => {
         adresse: kunde.adresse,
       } : null;
     } else {
-      const saisonKunde = saisonKunden.find(k => k.kunde.id === anfrage.zugeordneterKundeId);
+      const saisonKunde = saisonKunden.find(k => k.id === anfrage.zugeordneterKundeId);
       return saisonKunde ? {
-        id: saisonKunde.kunde.id,
-        name: saisonKunde.kunde.name,
-        kundennummer: saisonKunde.kunde.kundennummer,
-        adresse: saisonKunde.kunde.adresse,
+        id: saisonKunde.id,
+        name: saisonKunde.name,
+        kundennummer: saisonKunde.kundennummer,
+        adresse: saisonKunde.adresse,
       } : null;
     }
   };
@@ -847,11 +831,11 @@ const KundenAuswahlDialog = ({
       )
     ).map(k => ({ ...k, typ: 'dispo' as const })),
     ...saisonKunden.filter(k =>
-      k && k.kunde && k.kunde.name && (
-        k.kunde.name.toLowerCase().includes(suche.toLowerCase()) ||
-        k.kunde.kundennummer?.toLowerCase().includes(suche.toLowerCase())
+      k && k.name && (
+        k.name.toLowerCase().includes(suche.toLowerCase()) ||
+        k.kundennummer?.toLowerCase().includes(suche.toLowerCase())
       )
-    ).map(k => ({ kunde: k.kunde, typ: 'saison' as const }))
+    ).map(k => ({ ...k, typ: 'saison' as const }))
   ];
 
   return (
@@ -876,7 +860,7 @@ const KundenAuswahlDialog = ({
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {gefilterteKunden.map((item) => {
-              const kunde = 'kunde' in item ? item.kunde : item;
+              const kunde = item;
               const typ = 'typ' in item ? item.typ : 'dispo';
               return (
                 <button
@@ -1028,3 +1012,5 @@ const ProjektErstellenDialog = ({
 };
 
 export default Anfragen;
+
+

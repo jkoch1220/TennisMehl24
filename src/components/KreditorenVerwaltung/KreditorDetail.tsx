@@ -10,8 +10,7 @@ import {
   Trash2,
   Plus,
   Copy,
-  Check,
-  Briefcase
+  Check
 } from 'lucide-react';
 import { Kreditor, Ansprechpartner } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
@@ -372,3 +371,5 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
 };
 
 export default KreditorDetail;
+
+

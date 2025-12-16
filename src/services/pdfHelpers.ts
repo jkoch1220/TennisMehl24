@@ -378,9 +378,8 @@ export const getKalenderwoche = (datum: Date): number => {
 
 /**
  * Generiert den Liefersaison-Text mit Datumsbereich
- * @param jahr - Das Jahr der Liefersaison (wird nicht mehr verwendet, bleibt für Kompatibilität)
  * @returns Formatierter Text wie "Liefersaison voraussichtlich 02.03 bis 22.03"
  */
-export const getLiefersaisonText = (jahr: number = 2026): string => {
+export const getLiefersaisonText = (): string => {
   return 'Liefersaison voraussichtlich 02.03 bis 22.03';
 };

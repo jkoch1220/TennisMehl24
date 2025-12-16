@@ -243,10 +243,16 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   autoTable(doc, {
     startY: yPos,
-    margin: { left: 25, right: 20, bottom: 30 }, // DIN 5008: links 25mm, rechts 20mm
+    margin: { 
+      left: 25, 
+      right: 20, 
+      top: 45,  // WICHTIG: Genug Platz für Logo (Y=12, Höhe=22) + "Fortsetzung" (Y=38) + Abstand
+      bottom: 30 
+    }, // DIN 5008: links 25mm, rechts 20mm
     head: [['Art.Nr.', 'Leistung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
     body: tableData,
     theme: 'striped',
+    rowPageBreak: 'avoid', // WICHTIG: Verhindert, dass eine Positionszeile über Seitenumbrüche geteilt wird
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],

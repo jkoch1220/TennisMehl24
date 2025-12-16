@@ -89,3 +89,4 @@ export interface AnfrageUpdate {
   notizen?: string;
   bearbeitetVon?: string;
 }
+

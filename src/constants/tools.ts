@@ -1,7 +1,6 @@
 import {
   BarChart3,
   Calendar,
-  CalendarDays,
   Receipt,
   BookOpen,
   MapPin,
