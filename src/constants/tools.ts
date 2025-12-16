@@ -146,6 +146,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     icon: Mail,
     color: 'from-teal-500 to-cyan-500',
   },
+  {
+    id: 'kalender',
+    name: 'Kalender',
+    description: 'Termine und Ereignisse verwalten mit Monats- und Wochenansicht',
+    href: '/kalender',
+    icon: Calendar,
+    color: 'from-blue-500 to-cyan-500',
+  },
 ];
 
 export const DEFAULT_TOOL_VISIBILITY = ALL_TOOLS.reduce<Record<string, boolean>>((acc, tool) => {

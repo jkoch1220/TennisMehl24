@@ -32,6 +32,7 @@ export const BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_doku
 export const USER_PERMISSIONS_COLLECTION_ID = 'user_permissions';
 export const LIEFERANTEN_COLLECTION_ID = 'lieferanten';
 export const ANFRAGEN_COLLECTION_ID = 'anfragen';
+export const KALENDER_COLLECTION_ID = 'kalender_termine';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -64,6 +65,7 @@ export const COLLECTIONS = {
   USER_PERMISSIONS: USER_PERMISSIONS_COLLECTION_ID,
   LIEFERANTEN: LIEFERANTEN_COLLECTION_ID,
   ANFRAGEN: ANFRAGEN_COLLECTION_ID,
+  KALENDER: KALENDER_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

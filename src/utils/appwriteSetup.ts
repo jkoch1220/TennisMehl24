@@ -16,6 +16,7 @@ import {
   ARTIKEL_COLLECTION_ID,
   STAMMDATEN_COLLECTION_ID,
   LIEFERANTEN_COLLECTION_ID,
+  KALENDER_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -23,7 +24,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '10'; // Updated: Projekte data-Feld auf 100000 erhöht
+const APPWRITE_SETUP_VERSION = '11'; // Updated: Kalender-Collection hinzugefügt
 
 type FieldConfig = {
   key: string;
@@ -126,6 +127,24 @@ const artikelFields: FieldConfig[] = [
 ];
 
 const lieferantenFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 10000 },
+];
+
+// Kalender Collection
+const kalenderFields: FieldConfig[] = [
+  { key: 'titel', type: 'string', size: 500, required: true },
+  { key: 'beschreibung', type: 'string', size: 2000 },
+  { key: 'startDatum', type: 'string', size: 50, required: true },
+  { key: 'endDatum', type: 'string', size: 50, required: true },
+  { key: 'ganztaegig', type: 'boolean', default: false },
+  { key: 'farbe', type: 'string', size: 50 },
+  { key: 'ort', type: 'string', size: 500 },
+  { key: 'wiederholung', type: 'string', size: 50, default: 'keine' },
+  { key: 'wiederholungEnde', type: 'string', size: 50 },
+  { key: 'erinnerung', type: 'integer', default: 0 },
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  { key: 'erstelltVon', type: 'string', size: 100 },
   { key: 'data', type: 'string', size: 10000 },
 ];
 
@@ -304,6 +323,7 @@ export async function setupAppwriteFields() {
       { id: ARTIKEL_COLLECTION_ID, name: 'Artikel', fields: artikelFields },
       { id: STAMMDATEN_COLLECTION_ID, name: 'Stammdaten', fields: stammdatenFields },
       { id: LIEFERANTEN_COLLECTION_ID, name: 'Lieferanten', fields: lieferantenFields },
+      { id: KALENDER_COLLECTION_ID, name: 'Kalender', fields: kalenderFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {

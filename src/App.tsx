@@ -22,6 +22,7 @@ import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung'
 import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
 import Stammdaten from './components/Stammdaten/Stammdaten';
 import Anfragen from './components/Anfragen/Anfragen';
+import Kalender from './components/Kalender/Kalender';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
 // App Content Komponente (braucht Auth Context)
@@ -147,6 +148,11 @@ function AppContent() {
               <Route path="/anfragen" element={
                 <ProtectedRoute toolId="anfragen">
                   <Anfragen />
+                </ProtectedRoute>
+              } />
+              <Route path="/kalender" element={
+                <ProtectedRoute toolId="kalender">
+                  <Kalender />
                 </ProtectedRoute>
               } />
               
