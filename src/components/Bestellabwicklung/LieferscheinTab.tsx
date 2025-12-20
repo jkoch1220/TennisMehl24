@@ -560,16 +560,16 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         
         {/* STATUS-BANNER: Bereits hinterlegtes Dokument */}
         {gespeichertesDokument && !istBearbeitungsModus && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-sm">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800 rounded-xl p-6 shadow-sm dark:shadow-dark-lg">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FileCheck className="h-6 w-6 text-green-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
+                  <FileCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-green-800">Lieferschein hinterlegt</h3>
-                <p className="text-sm text-green-700 mt-1">
+                <h3 className="text-lg font-semibold text-green-800 dark:text-green-300">Lieferschein hinterlegt</h3>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
                   <strong>{gespeichertesDokument.dokumentNummer}</strong>
                   {gespeichertesDokument.version && ` (Version ${gespeichertesDokument.version})`}
                   {' '}wurde am{' '}
@@ -586,14 +586,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                     href={getFileDownloadUrl(gespeichertesDokument.dateiId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500 transition-colors text-sm font-medium shadow-lg dark:shadow-dark-lg"
                   >
                     <Download className="h-4 w-4" />
                     PDF herunterladen
                   </a>
                   <button
                     onClick={() => setIstBearbeitungsModus(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors text-sm font-medium"
                   >
                     <Edit3 className="h-4 w-4" />
                     Bearbeiten & neu speichern
@@ -606,12 +606,12 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
 
         {/* Bearbeitungs-Hinweis */}
         {istBearbeitungsModus && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <Edit3 className="h-5 w-5 text-amber-600" />
+              <Edit3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               <div>
-                <p className="text-sm font-medium text-amber-800">Bearbeitungsmodus aktiv</p>
-                <p className="text-xs text-amber-700">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten (GoBD-konform).</p>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Bearbeitungsmodus aktiv</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten (GoBD-konform).</p>
               </div>
               <button
                 onClick={() => {
@@ -624,7 +624,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                     }
                   }
                 }}
-                className="ml-auto text-sm text-amber-700 hover:text-amber-900 underline"
+                className="ml-auto text-sm text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 underline"
               >
                 Abbrechen
               </button>
@@ -636,15 +636,15 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         {statusMeldung && (
           <div className={`rounded-xl p-4 flex items-center gap-3 ${
             statusMeldung.typ === 'erfolg'
-              ? 'bg-green-50 border border-green-200'
-              : 'bg-red-50 border border-red-200'
+              ? 'bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
           }`}>
             {statusMeldung.typ === 'erfolg' ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
             ) : (
-              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             )}
-            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800' : 'text-red-800'}`}>
+            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
               {statusMeldung.text}
             </p>
           </div>
@@ -653,10 +653,10 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         {/* Auto-Save Status (nur wenn noch kein Dokument hinterlegt) */}
         {projekt?.$id && !gespeichertesDokument && (
           <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
-            autoSaveStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
-            autoSaveStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
-            autoSaveStatus === 'fehler' ? 'bg-red-50 text-red-700' :
-            'bg-gray-50 text-gray-500'
+            autoSaveStatus === 'gespeichert' ? 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400' :
+            autoSaveStatus === 'speichern' ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400' :
+            autoSaveStatus === 'fehler' ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400' :
+            'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-dark-textMuted'
           }`}>
             {autoSaveStatus === 'gespeichert' && (
               <>
@@ -686,7 +686,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         )}
 
         {/* Lieferscheininformationen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Lieferscheininformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -696,7 +696,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.lieferscheinnummer}
                 onChange={(e) => handleInputChange('lieferscheinnummer', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
             <div>
@@ -706,7 +706,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.lieferdatum}
                 onChange={(e) => handleInputChange('lieferdatum', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
             <div>
@@ -716,14 +716,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.bestellnummer || ''}
                 onChange={(e) => handleInputChange('bestellnummer', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
           </div>
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -735,7 +735,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
               <div>
@@ -746,7 +746,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
               <div>
@@ -757,7 +757,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
               <div>
@@ -768,7 +768,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
             </div>
@@ -779,7 +779,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
             <div>
@@ -789,7 +789,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
             <div>
@@ -799,14 +799,14 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 value={lieferscheinDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
               />
             </div>
           </div>
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -815,7 +815,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 checked={lieferscheinDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-green-600 border-gray-300 dark:border-dark-border rounded focus:ring-green-500 disabled:opacity-50"
+                className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
@@ -830,7 +830,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   value={lieferscheinDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
               <div>
@@ -840,7 +840,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   value={lieferscheinDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
               <div>
@@ -850,7 +850,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   value={lieferscheinDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>
             </div>
@@ -858,7 +858,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         </div>
 
         {/* Lieferpositionen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferpositionen</h2>
@@ -916,13 +916,13 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
                         onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-900"
                       />
                     </div>
                     <select
                       value={artikelSortierung}
                       onChange={(e) => setArtikelSortierung(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                      className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-900"
                     >
                       <option value="bezeichnung">Sortierung: Bezeichnung</option>
                       <option value="artikelnummer">Sortierung: Art.-Nr.</option>
@@ -931,7 +931,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   </div>
 
                   {/* Artikel-Tabelle */}
-                  <div className="bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
                     {gefilterteArtikel.length === 0 ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                         Keine Artikel gefunden
@@ -1008,7 +1008,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                           onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                         />
                       </div>
                       <div className="md:col-span-2">
@@ -1019,7 +1019,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                           onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                         />
                       </div>
                       <div>
@@ -1029,7 +1029,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                           value={position.menge}
                           onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                         />
                       </div>
                       <div>
@@ -1039,7 +1039,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                           value={position.einheit}
                           onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                         />
                       </div>
                     </div>
@@ -1051,7 +1051,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                         disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                         placeholder="Detaillierte Beschreibung der Position..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                       />
                     </div>
                   </div>
@@ -1071,7 +1071,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         </div>
 
         {/* Empfangsbestätigung */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Empfangsbestätigung</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1080,7 +1080,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 checked={lieferscheinDaten.unterschriftenFuerEmpfangsbestaetigung !== false}
                 onChange={(e) => handleInputChange('unterschriftenFuerEmpfangsbestaetigung', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-green-600 border-gray-300 dark:border-dark-border rounded focus:ring-green-500 disabled:opacity-50"
+                className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Unterschriften für Empfangsbestätigung verwenden</span>
             </label>
@@ -1092,7 +1092,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         </div>
 
         {/* Bemerkung */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
           <textarea
             value={lieferscheinDaten.bemerkung || ''}
@@ -1100,23 +1100,23 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             disabled={!!gespeichertesDokument && !istBearbeitungsModus}
             rows={3}
             placeholder="z.B. Hinweise zur Lieferung oder Empfangsbestätigung"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
           />
         </div>
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-sm border border-green-200 p-8 sticky top-6">
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 rounded-xl shadow-lg dark:shadow-dark-lg border border-green-200 dark:border-green-800 p-8 sticky top-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
-          
+
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-dark-textMuted">Lieferpositionen:</span>
               <span className="font-medium text-gray-900 dark:text-dark-text">{lieferscheinDaten.positionen.length}</span>
             </div>
-            
-            <div className="border-t border-green-200 pt-3">
+
+            <div className="border-t border-green-200 dark:border-green-800 pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">Gesamtmenge:</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">
@@ -1124,42 +1124,42 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 </span>
               </div>
             </div>
-            
-            <div className="border-t border-green-200 pt-3 mt-3">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
+
+            <div className="border-t border-green-200 dark:border-green-800 pt-3 mt-3">
+              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
                   <strong>Hinweis:</strong> Ein Lieferschein dokumentiert nur die gelieferten Waren und enthält keine Preisangaben.
                 </p>
               </div>
             </div>
           </div>
-          
+
           {/* Buttons basierend auf Status */}
           <div className="mt-6 space-y-3">
             {/* Immer verfügbar: Nur PDF generieren */}
             <button
               onClick={generiereUndLadeLieferschein}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-surface text-green-700 border-2 border-green-300 rounded-lg hover:bg-green-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border-2 border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-all"
             >
               <Download className="h-5 w-5" />
               Nur PDF herunterladen
             </button>
-            
+
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitLieferschein}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl"
             >
               <Mail className="h-5 w-5" />
               E-Mail mit PDF öffnen
             </button>
-            
+
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
                 onClick={speichereUndHinterlegeLieferschein}
                 disabled={ladeStatus === 'speichern'}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 dark:from-green-500 dark:to-emerald-500 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 dark:hover:from-green-400 dark:hover:to-emerald-400 transition-all shadow-lg dark:shadow-dark-glow-green hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {ladeStatus === 'speichern' ? (
                   <>
@@ -1174,10 +1174,10 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 )}
               </button>
             )}
-            
+
             {!projekt?.$id && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-sm text-amber-800">
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   <AlertCircle className="h-4 w-4 inline mr-2" />
                   Zum Speichern muss ein Projekt ausgewählt sein.
                 </p>

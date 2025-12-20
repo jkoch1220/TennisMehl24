@@ -604,7 +604,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   </a>
                   <button
                     onClick={() => setIstBearbeitungsModus(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
                   >
                     <Edit3 className="h-4 w-4" />
                     Bearbeiten & neu speichern
@@ -697,7 +697,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         )}
         
         {/* Auftragsbestätigungsinformationen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Auftragsbestätigungsinformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -707,7 +707,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
                 onChange={(e) => handleInputChange('auftragsbestaetigungsnummer', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
             <div>
@@ -717,7 +717,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.auftragsbestaetigungsdatum}
                 onChange={(e) => handleInputChange('auftragsbestaetigungsdatum', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
             <div>
@@ -728,14 +728,14 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 onChange={(e) => handleInputChange('kundennummerExtern', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 placeholder="z.B. BEST-2024-123"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
           </div>
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -747,7 +747,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
               <div>
@@ -758,7 +758,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
               <div>
@@ -769,7 +769,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
               <div>
@@ -780,7 +780,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
             </div>
@@ -791,7 +791,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
             <div>
@@ -801,7 +801,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
             <div>
@@ -811,14 +811,14 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
           </div>
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -827,7 +827,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 checked={auftragsbestaetigungsDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-dark-border rounded focus:ring-orange-500 disabled:opacity-50"
+                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
@@ -842,7 +842,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   value={auftragsbestaetigungsDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
               <div>
@@ -852,7 +852,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   value={auftragsbestaetigungsDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
               <div>
@@ -862,7 +862,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   value={auftragsbestaetigungsDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                 />
               </div>
             </div>
@@ -870,7 +870,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         </div>
 
         {/* Positionen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Positionen</h2>
             {(!gespeichertesDokument || istBearbeitungsModus) && (
@@ -925,13 +925,13 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
                         onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-900"
                       />
                     </div>
                     <select
                       value={artikelSortierung}
                       onChange={(e) => setArtikelSortierung(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                      className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-slate-900"
                     >
                       <option value="bezeichnung">Sortierung: Bezeichnung</option>
                       <option value="artikelnummer">Sortierung: Art.-Nr.</option>
@@ -940,7 +940,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   </div>
 
                   {/* Artikel-Tabelle */}
-                  <div className="bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
                     {gefilterteArtikel.length === 0 ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                         Keine Artikel gefunden
@@ -1005,7 +1005,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 onDragOver={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDragOver(e, index)}
                 onDrop={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 transition-all ${
+                className={`p-4 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-600 transition-all ${
                   (!gespeichertesDokument || istBearbeitungsModus) ? 'cursor-move' : ''
                 } ${
                   dragState.draggedIndex === index ? 'opacity-50' : ''
@@ -1024,7 +1024,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                       </div>
                       <div className="md:col-span-2">
@@ -1035,7 +1035,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                       </div>
                       <div>
@@ -1045,7 +1045,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           value={position.menge}
                           onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                       </div>
                       <div>
@@ -1055,7 +1055,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           value={position.einheit}
                           onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                       </div>
                       <div>
@@ -1067,7 +1067,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="Optional"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                         {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
                         {position.streichpreis && position.streichpreis > 0 && (
@@ -1075,7 +1075,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                             value={position.streichpreisGrund || ''}
                             onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
                             disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-amber-50 disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-amber-50 disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                           >
                             <option value="">Grund wählen...</option>
                             <option value="Neukundenaktion">Neukundenaktion</option>
@@ -1095,7 +1095,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           value={position.einzelpreis}
                           onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                         />
                       </div>
                     </div>
@@ -1107,7 +1107,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                         disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                         placeholder="Detaillierte Beschreibung der Position..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                       />
                     </div>
                   </div>
@@ -1115,7 +1115,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   {(!gespeichertesDokument || istBearbeitungsModus) && (
                     <button
                       onClick={() => removePosition(index)}
-                      className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="mt-7 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                     >
                       <Trash2 className="h-5 w-5" />
                     </button>
@@ -1134,7 +1134,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         </div>
 
         {/* Lieferbedingungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Lieferbedingungen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -1145,7 +1145,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 onChange={(e) => handleInputChange('lieferzeit', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 placeholder="z.B. 2-3 Werktage"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
             <div>
@@ -1156,7 +1156,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.frachtkosten || ''}
                 onChange={(e) => handleInputChange('frachtkosten', parseFloat(e.target.value) || 0)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             </div>
           </div>
@@ -1167,7 +1167,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 checked={auftragsbestaetigungsDaten.lieferbedingungenAktiviert || false}
                 onChange={(e) => handleInputChange('lieferbedingungenAktiviert', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-dark-border rounded focus:ring-orange-500 disabled:opacity-50"
+                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
               />
               <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Lieferbedingungen / Hinweise anzeigen</span>
             </label>
@@ -1178,14 +1178,14 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 onChange={(e) => handleInputChange('lieferbedingungen', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 rows={5}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
             )}
           </div>
         </div>
 
         {/* Zahlungsbedingungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zahlungsbedingungen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1194,7 +1194,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 value={auftragsbestaetigungsDaten.zahlungsziel}
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               >
                 <option value="Vorkasse">Vorkasse</option>
                 <option value="Sofort">Sofort</option>
@@ -1211,7 +1211,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   checked={auftragsbestaetigungsDaten.skontoAktiviert || false}
                   onChange={(e) => handleInputChange('skontoAktiviert', e.target.checked)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-4 h-4 text-orange-600 border-gray-300 dark:border-dark-border rounded focus:ring-orange-500 disabled:opacity-50"
+                  className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Skonto aktivieren</span>
               </label>
@@ -1229,7 +1229,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                         tage: auftragsbestaetigungsDaten.skonto?.tage || 7
                       })}
                       disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                     />
                   </div>
                   <div>
@@ -1242,7 +1242,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                         tage: parseInt(e.target.value) || 0
                       })}
                       disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                     />
                   </div>
                 </div>
@@ -1252,21 +1252,21 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         </div>
 
         {/* Bemerkung */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
           <textarea
             value={auftragsbestaetigungsDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
             disabled={!!gespeichertesDokument && !istBearbeitungsModus}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
           />
         </div>
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl shadow-sm border border-orange-200 p-8 sticky top-6">
+        <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-slate-800 dark:to-slate-800 rounded-xl shadow-sm border border-orange-200 dark:border-slate-600 p-8 sticky top-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
           
           <div className="space-y-3">
@@ -1275,7 +1275,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               <span className="font-medium text-gray-900 dark:text-dark-text">{auftragsbestaetigungsDaten.positionen.length}</span>
             </div>
             
-            <div className="border-t border-orange-200 pt-3">
+            <div className="border-t border-orange-200 dark:border-slate-600 pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">Nettobetrag:</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</span>
@@ -1295,7 +1295,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 </span>
               </div>
               
-              <div className="border-t border-orange-200 pt-3 mt-3">
+              <div className="border-t border-orange-200 dark:border-slate-600 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Auftragssumme:</span>
                   <span className="text-3xl font-bold text-orange-600 break-all">
@@ -1306,7 +1306,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             </div>
             
             {auftragsbestaetigungsDaten.skontoAktiviert && auftragsbestaetigungsDaten.skonto && auftragsbestaetigungsDaten.skonto.prozent > 0 && (
-              <div className="border-t border-orange-200 pt-3 mt-3">
+              <div className="border-t border-orange-200 dark:border-slate-600 pt-3 mt-3">
                 <div className="text-sm text-gray-600 dark:text-dark-textMuted mb-1">
                   Bei Zahlung innerhalb von {auftragsbestaetigungsDaten.skonto.tage} Tagen:
                 </div>
@@ -1325,7 +1325,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             {/* Immer verfügbar: Nur PDF generieren */}
             <button
               onClick={generiereUndLadeAuftragsbestaetigung}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-surface text-orange-700 border-2 border-orange-300 rounded-lg hover:bg-orange-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-700 text-orange-700 dark:text-orange-400 border-2 border-orange-300 dark:border-orange-500/50 rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition-all"
             >
               <Download className="h-5 w-5" />
               Nur PDF herunterladen
@@ -1362,8 +1362,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             )}
             
             {!projekt?.$id && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-sm text-amber-800">
+              <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   <AlertCircle className="h-4 w-4 inline mr-2" />
                   Zum Speichern muss ein Projekt ausgewählt sein.
                 </p>

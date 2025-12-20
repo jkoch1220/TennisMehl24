@@ -251,7 +251,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header mit Progress */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-xl">
           <div className="flex justify-between items-center mb-3">
@@ -283,10 +283,10 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
         </div>
 
         {/* Filter */}
-        <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-dark-border px-6 py-4">
+        <div className="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4">
           <div className="flex items-center gap-3 mb-3">
-            <FilterIcon className="w-5 h-5 text-gray-600 dark:text-dark-textMuted" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Filter</span>
+            <FilterIcon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-400">Filter</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {/* Kreditor-Suche */}
@@ -297,7 +297,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
                 value={filterKreditor}
                 onChange={(e) => setFilterKreditor(e.target.value)}
                 placeholder="Nach Kreditor suchen..."
-                className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             
@@ -305,7 +305,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
             <select
               value={filterUnternehmen}
               onChange={(e) => setFilterUnternehmen(e.target.value as any)}
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="alle">Alle Unternehmen</option>
               <option value="TennisMehl">TennisMehl</option>
@@ -333,10 +333,10 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
           {filteredRechnungen.length === 0 ? (
             <div className="text-center py-12">
               <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-slate-400 mb-2">
                 Keine Rechnungen gefunden
               </h3>
-              <p className="text-gray-500 dark:text-dark-textMuted mb-4">
+              <p className="text-gray-500 dark:text-slate-400 mb-4">
                 Passe deine Filterkriterien an oder setze sie zurück.
               </p>
               <button
@@ -352,16 +352,16 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
           ) : currentRechnung ? (
             <>
           {/* Kreditor Info */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
-            <div className="text-sm text-gray-600 dark:text-dark-textMuted mb-1">Kreditor</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-2">
+          <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-6 mb-6">
+            <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">Kreditor</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">
               {currentRechnung.kreditorName}
             </div>
-            <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+            <div className="text-sm text-gray-600 dark:text-slate-400">
               {currentRechnung.betreff || currentRechnung.rechnungsnummer || 'Keine Beschreibung'}
             </div>
             {currentRechnung.rechnungsnummer && (
-              <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+              <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                 RG-Nr: {currentRechnung.rechnungsnummer}
               </div>
             )}
@@ -369,7 +369,7 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
 
           {/* Telefonnummer Input */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">
               Telefonnummer
             </label>
             <div className="relative">
@@ -380,11 +380,11 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
                 onChange={(e) => setTelefonnummer(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="z.B. 0171 1234567"
-                className="w-full px-4 py-3 text-lg border-2 border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 text-lg border-2 border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 autoFocus
               />
               {showSaveSuccess && (
-                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg dark:shadow-dark-lg flex items-center gap-2 animate-bounce">
+                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg dark:shadow-slate-900/50 flex items-center gap-2 animate-bounce">
                   <CheckCheck className="w-5 h-5" />
                   Gespeichert!
                 </div>
@@ -403,10 +403,10 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="text-sm font-semibold text-blue-900 mb-2">⌨️ Tastatur-Shortcuts:</div>
             <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
-              <div><kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border">Enter</kbd> = Speichern & Weiter</div>
-              <div><kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border">Esc</kbd> = Schließen</div>
-              <div><kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border">Ctrl+→</kbd> = Überspringen</div>
-              <div><kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border">Ctrl+←</kbd> = Zurück</div>
+              <div><kbd className="px-2 py-1 bg-white dark:bg-slate-800 rounded border">Enter</kbd> = Speichern & Weiter</div>
+              <div><kbd className="px-2 py-1 bg-white dark:bg-slate-800 rounded border">Esc</kbd> = Schließen</div>
+              <div><kbd className="px-2 py-1 bg-white dark:bg-slate-800 rounded border">Ctrl+→</kbd> = Überspringen</div>
+              <div><kbd className="px-2 py-1 bg-white dark:bg-slate-800 rounded border">Ctrl+←</kbd> = Zurück</div>
             </div>
           </div>
 
@@ -452,15 +452,15 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
           ) : (
             <div className="text-center py-12">
               <Phone className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-dark-textMuted">Lade Daten...</p>
+              <p className="text-gray-500 dark:text-slate-400">Lade Daten...</p>
             </div>
           )}
         </div>
         </div>
 
         {/* Bereits erfasste Telefonnummern */}
-        <div className="border-t border-gray-200 dark:border-dark-border px-6 py-4 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
-          <div className="text-xs font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+        <div className="border-t border-gray-200 dark:border-slate-700 px-6 py-4 bg-gray-50 dark:bg-slate-800 rounded-b-xl">
+          <div className="text-xs font-semibold text-gray-700 dark:text-slate-400 mb-2">
             📞 Bereits erfasste Nummern:
           </div>
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
@@ -470,9 +470,9 @@ const TelefonnummernSchnellerfassung = ({ rechnungen, onClose, onUpdate }: Telef
               .map((rechnung, idx) => (
                 <div
                   key={rechnung.id}
-                  className="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded px-3 py-1.5 text-xs flex items-center gap-2 group hover:border-blue-400 transition-colors"
+                  className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-3 py-1.5 text-xs flex items-center gap-2 group hover:border-blue-400 transition-colors"
                 >
-                  <span className="text-gray-600 dark:text-dark-textMuted">{rechnung.kreditorName.substring(0, 20)}</span>
+                  <span className="text-gray-600 dark:text-slate-400">{rechnung.kreditorName.substring(0, 20)}</span>
                   {rechnung.kreditorId && (
                     <button
                       onClick={() => {

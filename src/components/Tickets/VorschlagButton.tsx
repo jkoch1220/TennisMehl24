@@ -47,7 +47,7 @@ const VorschlagButton = () => {
       {/* Floating Action Button */}
       <button
         onClick={() => setShowForm(true)}
-        className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-3 shadow-lg dark:shadow-dark-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-50"
+        className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-3 shadow-lg dark:shadow-slate-900/50 hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-50"
         title="Verbesserung anlegen"
       >
         <MessageSquare className="w-5 h-5" />
@@ -59,10 +59,10 @@ const VorschlagButton = () => {
       {/* Modal für neues Ticket */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                   Verbesserung anlegen
                 </h2>
                 <button
@@ -70,47 +70,47 @@ const VorschlagButton = () => {
                     setShowForm(false);
                     setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                   }}
-                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted"
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-slate-400"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                     Titel *
                   </label>
                   <input
                     type="text"
                     value={formData.titel}
                     onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
-                    className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     placeholder="Kurze Beschreibung des Vorschlags"
                     required
                     disabled={isSubmitting}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                     Beschreibung
                   </label>
                   <textarea
                     value={formData.beschreibung}
                     onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
-                    className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     rows={6}
                     placeholder="Detaillierte Beschreibung der Verbesserung..."
                     disabled={isSubmitting}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                     Priorität
                   </label>
                   <select
                     value={formData.prioritaet}
                     onChange={(e) => setFormData({ ...formData, prioritaet: e.target.value as TicketPrioritaet })}
-                    className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     disabled={isSubmitting}
                   >
                     <option value="niedrig">Niedrig</option>
@@ -120,9 +120,9 @@ const VorschlagButton = () => {
                   </select>
                 </div>
                 {user && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
-                    <User className="w-4 h-4 text-blue-600" />
-                    <p className="text-sm text-blue-800">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg p-3 flex items-center gap-2">
+                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <p className="text-sm text-blue-800 dark:text-blue-300">
                       Erstellt als: <strong>{user.name}</strong>
                     </p>
                   </div>
@@ -134,7 +134,7 @@ const VorschlagButton = () => {
                       setShowForm(false);
                       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                     }}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-md text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-md text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
                     disabled={isSubmitting}
                   >
                     Abbrechen

@@ -240,7 +240,7 @@ const AdressAutocomplete = ({
     <div className="space-y-4">
       {/* Header mit Clear-Button */}
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Adresse</h4>
+        <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-400">Adresse</h4>
         {hasContent && (
           <button
             type="button"
@@ -255,8 +255,8 @@ const AdressAutocomplete = ({
 
       {/* Suchfeld - UNABHÄNGIG */}
       <div className="relative">
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1.5">
-          <Search className="w-3.5 h-3.5 inline mr-1.5 text-gray-500 dark:text-dark-textMuted" />
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">
+          <Search className="w-3.5 h-3.5 inline mr-1.5 text-gray-500 dark:text-slate-400" />
           Adresse suchen
         </label>
         <div className="relative">
@@ -272,10 +272,10 @@ const AdressAutocomplete = ({
               }
             }}
             placeholder="z.B. Musterweg 1, 80331 München"
-            className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent pr-10 transition-all"
+            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent pr-10 transition-all"
           />
           {loading && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-gray-300 dark:border-dark-border border-t-red-500 rounded-full animate-spin" />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-gray-300 dark:border-slate-700 border-t-red-500 rounded-full animate-spin" />
           )}
           {query && !loading && (
             <button
@@ -286,7 +286,7 @@ const AdressAutocomplete = ({
                 setShowDropdown(false);
                 searchInputRef.current?.focus();
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-slate-400 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -303,7 +303,7 @@ const AdressAutocomplete = ({
         {showDropdown && vorschlaege.length > 0 && (
           <div
             ref={dropdownRef}
-            className="absolute z-30 mt-2 w-full bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-lg shadow-xl max-h-64 overflow-auto"
+            className="absolute z-30 mt-2 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl max-h-64 overflow-auto"
           >
             {vorschlaege.map((v, idx) => (
               <button
@@ -318,8 +318,8 @@ const AdressAutocomplete = ({
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-900 dark:text-dark-text">{v.label}</div>
-                    <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-0.5">
+                    <div className="font-medium text-gray-900 dark:text-slate-100">{v.label}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                       {v.strasse && <span>{v.strasse}</span>}
                       {v.plz && v.strasse && <span> • </span>}
                       {v.plz && <span>{v.plz}</span>}
@@ -336,7 +336,7 @@ const AdressAutocomplete = ({
 
       {/* Hinweis */}
       {!hasContent && !query && (
-        <div className="text-xs text-gray-500 dark:text-dark-textMuted bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 flex items-start gap-2">
+        <div className="text-xs text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 flex items-start gap-2">
           <span className="text-blue-500 mt-0.5">ℹ️</span>
           <span>
             Suchen Sie nach einer Adresse oder füllen Sie die Felder unten manuell aus.
@@ -347,42 +347,42 @@ const AdressAutocomplete = ({
       {/* Manuelle Felder */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1.5">Straße</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">Straße</label>
           <input
             type="text"
             value={werte.strasse}
             onChange={(e) => update({ strasse: e.target.value })}
-            className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
             placeholder="z.B. Musterweg 1"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1.5">PLZ</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">PLZ</label>
           <input
             type="text"
             value={werte.plz}
             onChange={(e) => update({ plz: e.target.value })}
-            className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
             placeholder="z.B. 80331"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1.5">Ort</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">Ort</label>
           <input
             type="text"
             value={werte.ort}
             onChange={(e) => update({ ort: e.target.value })}
-            className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
             placeholder="z.B. München"
           />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1.5">Bundesland</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">Bundesland</label>
           <input
             type="text"
             value={werte.bundesland || ''}
             onChange={(e) => update({ bundesland: e.target.value })}
-            className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
             placeholder="z.B. Bayern"
           />
         </div>

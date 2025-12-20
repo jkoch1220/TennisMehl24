@@ -508,7 +508,7 @@ const Layout = ({ children }: LayoutProps) => {
               
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                className="sm:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
               >
                 <Menu className="h-6 w-6" />
               </button>
@@ -521,21 +521,17 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="sm:hidden">
             {/* Mobile User Info */}
             <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold">
-                    {user?.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
-                      {user?.name}
-                      {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑 Admin</span>}
-                    </span>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
-                {/* Mobile Theme Toggle */}
-                <ThemeToggle />
+                <div className="flex flex-col">
+                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
+                    {user?.name}
+                    {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑 Admin</span>}
+                  </span>
+                </div>
               </div>
             </div>
 

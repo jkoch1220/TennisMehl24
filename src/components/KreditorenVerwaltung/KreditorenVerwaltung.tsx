@@ -140,7 +140,7 @@ const KreditorenVerwaltung = () => {
       <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Daten...</p>
+          <p className="mt-4 text-gray-600 dark:text-slate-400">Lade Daten...</p>
         </div>
       </div>
     );
@@ -152,18 +152,18 @@ const KreditorenVerwaltung = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Kreditoren-Verwaltung</h1>
-            <p className="text-gray-600 dark:text-dark-textMuted mt-1">Verwaltung offener Rechnungen und Kreditoren</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Kreditoren-Verwaltung</h1>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">Verwaltung offener Rechnungen und Kreditoren</p>
           </div>
           <div className="flex gap-3 items-center flex-wrap">
             {/* Default-Firma Auswahl */}
-            <div className="flex items-center gap-2 bg-white dark:bg-dark-surface border border-gray-300 dark:border-dark-border rounded-lg px-4 py-2">
-              <Building2 className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
-              <label className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Standard:</label>
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2">
+              <Building2 className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+              <label className="text-sm font-medium text-gray-700 dark:text-slate-400">Standard:</label>
               <select
                 value={defaultFirma}
                 onChange={(e) => setDefaultFirma(e.target.value as Unternehmen)}
-                className="border-none bg-transparent text-sm font-semibold text-gray-900 dark:text-dark-text focus:outline-none cursor-pointer"
+                className="border-none bg-transparent text-sm font-semibold text-gray-900 dark:text-slate-100 focus:outline-none cursor-pointer"
               >
                 <option value="Egner Bau">Egner Bau</option>
                 <option value="TennisMehl">TennisMehl</option>
@@ -172,7 +172,7 @@ const KreditorenVerwaltung = () => {
             
             <button
               onClick={loadData}
-              className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
               Aktualisieren
@@ -263,10 +263,10 @@ const KreditorenVerwaltung = () => {
 
         {/* Nächste Fälligkeiten */}
         {statistik && statistik.naechsteFaelligkeiten.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-6">
             <div className="flex items-center gap-3 mb-4">
-              <Clock className="w-6 h-6 text-yellow-600" />
-              <h2 className="text-xl font-bold text-yellow-900">Nächste Fälligkeiten (7 Tage)</h2>
+              <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              <h2 className="text-xl font-bold text-yellow-900 dark:text-yellow-300">Nächste Fälligkeiten (7 Tage)</h2>
             </div>
             <div className="space-y-2">
               {statistik.naechsteFaelligkeiten.map((rechnung) => {
@@ -278,12 +278,12 @@ const KreditorenVerwaltung = () => {
                 return (
                   <div
                     key={rechnung.id}
-                    className="bg-white dark:bg-dark-surface rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-slate-800 rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-slate-900/40 transition-shadow cursor-pointer"
                     onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
-                      <div className="font-semibold text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
-                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                      <div className="font-semibold text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
+                      <div className="text-sm text-gray-600 dark:text-slate-400">
                         {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                       </div>
                       {gesamtBezahlt > 0 && (
@@ -293,7 +293,7 @@ const KreditorenVerwaltung = () => {
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-gray-900 dark:text-dark-text">{formatCurrency(offenerBetrag)}</div>
+                      <div className="font-bold text-gray-900 dark:text-slate-100">{formatCurrency(offenerBetrag)}</div>
                       <div className="text-sm text-yellow-600 font-medium">
                         {tageBisFaellig === -1
                           ? 'Heute fällig'
@@ -311,10 +311,10 @@ const KreditorenVerwaltung = () => {
 
         {/* Kritische Rechnungen */}
         {statistik && statistik.kritischeRechnungen.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-lg p-6">
             <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-600" />
-              <h2 className="text-xl font-bold text-red-900">Kritische Rechnungen</h2>
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              <h2 className="text-xl font-bold text-red-900 dark:text-red-300">Kritische Rechnungen</h2>
             </div>
             <div className="space-y-2">
               {statistik.kritischeRechnungen.map((rechnung) => {
@@ -323,12 +323,12 @@ const KreditorenVerwaltung = () => {
                 return (
                   <div
                     key={rechnung.id}
-                    className="bg-white dark:bg-dark-surface rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-slate-800 rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-slate-900/40 transition-shadow cursor-pointer"
                     onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
-                      <div className="font-semibold text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
-                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                      <div className="font-semibold text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
+                      <div className="text-sm text-gray-600 dark:text-slate-400">
                         {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                       </div>
                       {gesamtBezahlt > 0 && (
@@ -339,7 +339,7 @@ const KreditorenVerwaltung = () => {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-red-600">{formatCurrency(offenerBetrag)}</div>
-                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                      <div className="text-sm text-gray-600 dark:text-slate-400">
                         Fällig: {new Date(rechnung.faelligkeitsdatum).toLocaleDateString('de-DE')}
                       </div>
                     </div>
@@ -351,20 +351,20 @@ const KreditorenVerwaltung = () => {
         )}
 
         {/* Tabs für Offene/Bezahlte Rechnungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg">
-          <div className="border-b border-gray-200 dark:border-dark-border">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50">
+          <div className="border-b border-gray-200 dark:border-slate-700">
             <div className="flex">
               <button
                 onClick={() => setActiveTab('offen')}
                 className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
                   activeTab === 'offen'
                     ? 'text-red-600 border-b-2 border-red-600'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <span>Offene Rechnungen</span>
-                  <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold">
+                  <span className="bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 px-2 py-1 rounded-full text-xs font-semibold">
                     {offeneRechnungen.length}
                   </span>
                 </div>
@@ -374,12 +374,12 @@ const KreditorenVerwaltung = () => {
                 className={`flex-1 px-6 py-4 text-sm font-medium transition-colors relative ${
                   activeTab === 'bezahlt'
                     ? 'text-green-600 border-b-2 border-green-600'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
               >
                 <div className="flex items-center justify-center gap-2">
                   <span>Bezahlte Rechnungen</span>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                  <span className="bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 px-2 py-1 rounded-full text-xs font-semibold">
                     {bezahlteRechnungen.length}
                   </span>
                 </div>
@@ -476,12 +476,12 @@ const StatistikKarte = ({ title, value, subtitle, icon: Icon, color }: Statistik
   };
 
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow">
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6 hover:shadow-xl transition-shadow">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-dark-text mt-2">{value}</p>
-          <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">{subtitle}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-slate-400">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 mt-2">{value}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{subtitle}</p>
         </div>
         <div className={`${colorClasses[color]} rounded-lg p-3`}>
           <Icon className="w-6 h-6 text-white" />
@@ -500,10 +500,10 @@ interface DiagrammKarteProps {
 
 const DiagrammKarte = ({ title, icon: Icon, children }: DiagrammKarteProps) => {
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6">
       <div className="flex items-center gap-3 mb-6">
         <Icon className="w-6 h-6 text-red-600" />
-        <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">{title}</h3>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{title}</h3>
       </div>
       {children}
     </div>
@@ -669,9 +669,9 @@ const PieChart = ({ data }: PieChartProps) => {
           <div
             key={index}
             className={`flex items-center justify-between px-3 py-2 rounded-md transition-all duration-200 cursor-pointer ${
-              hoveredIndex === index 
-                ? 'bg-gray-100 shadow-sm scale-[1.02]' 
-                : 'hover:bg-gray-50'
+              hoveredIndex === index
+                ? 'bg-gray-100 dark:bg-slate-700 shadow-sm scale-[1.02]'
+                : 'hover:bg-gray-50 dark:hover:bg-slate-700'
             }`}
             onMouseEnter={() => setHoveredIndex(index)}
             onMouseLeave={() => setHoveredIndex(null)}
@@ -684,7 +684,7 @@ const PieChart = ({ data }: PieChartProps) => {
                   transform: hoveredIndex === index ? 'scale(1.2)' : 'scale(1)'
                 }}
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted truncate">
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-400 truncate">
                 {segment.label}
               </span>
               <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
@@ -692,7 +692,7 @@ const PieChart = ({ data }: PieChartProps) => {
               </span>
             </div>
             <div className="text-right flex-shrink-0 ml-3">
-              <div className="text-sm font-semibold text-gray-900 dark:text-dark-text">
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                 {formatCurrency(segment.value)}
               </div>
             </div>

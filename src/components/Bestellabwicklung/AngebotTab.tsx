@@ -641,16 +641,16 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         
         {/* STATUS-BANNER: Bereits hinterlegtes Dokument */}
         {gespeichertesDokument && !istBearbeitungsModus && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-sm">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800 rounded-xl p-6 shadow-sm dark:shadow-dark-lg">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <FileCheck className="h-6 w-6 text-green-600" />
+                <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
+                  <FileCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-green-800">Angebot hinterlegt</h3>
-                <p className="text-sm text-green-700 mt-1">
+                <h3 className="text-lg font-semibold text-green-800 dark:text-green-300">Angebot hinterlegt</h3>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
                   <strong>{gespeichertesDokument.dokumentNummer}</strong>
                   {gespeichertesDokument.version && ` (Version ${gespeichertesDokument.version})`}
                   {' '}wurde am{' '}
@@ -663,7 +663,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   })} gespeichert.
                 </p>
                 {gespeichertesDokument.bruttobetrag && (
-                  <p className="text-sm text-green-700 mt-1">
+                  <p className="text-sm text-green-700 dark:text-green-400 mt-1">
                     Bruttobetrag: <strong>{gespeichertesDokument.bruttobetrag.toFixed(2)} €</strong>
                   </p>
                 )}
@@ -672,14 +672,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                     href={getFileDownloadUrl(gespeichertesDokument.dateiId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500 transition-colors text-sm font-medium shadow-lg dark:shadow-dark-lg"
                   >
                     <Download className="h-4 w-4" />
                     PDF herunterladen
                   </a>
                   <button
                     onClick={() => setIstBearbeitungsModus(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors text-sm font-medium"
                   >
                     <Edit3 className="h-4 w-4" />
                     Bearbeiten & neue Version
@@ -692,12 +692,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
         {/* Bearbeitungs-Hinweis */}
         {istBearbeitungsModus && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <Edit3 className="h-5 w-5 text-amber-600" />
+              <Edit3 className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               <div>
-                <p className="text-sm font-medium text-amber-800">Bearbeitungsmodus aktiv</p>
-                <p className="text-xs text-amber-700">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten.</p>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Bearbeitungsmodus aktiv</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">Änderungen werden als neue Version gespeichert. Alte Versionen bleiben erhalten.</p>
               </div>
               <button
                 onClick={() => {
@@ -710,7 +710,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                     }
                   }
                 }}
-                className="ml-auto text-sm text-amber-700 hover:text-amber-900 underline"
+                className="ml-auto text-sm text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 underline"
               >
                 Abbrechen
               </button>
@@ -721,16 +721,16 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         {/* Status-Meldung */}
         {statusMeldung && (
           <div className={`rounded-xl p-4 flex items-center gap-3 ${
-            statusMeldung.typ === 'erfolg' 
-              ? 'bg-green-50 border border-green-200' 
-              : 'bg-red-50 border border-red-200'
+            statusMeldung.typ === 'erfolg'
+              ? 'bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
           }`}>
             {statusMeldung.typ === 'erfolg' ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
             ) : (
-              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             )}
-            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800' : 'text-red-800'}`}>
+            <p className={`text-sm ${statusMeldung.typ === 'erfolg' ? 'text-green-800 dark:text-green-300' : 'text-red-800 dark:text-red-300'}`}>
               {statusMeldung.text}
             </p>
           </div>
@@ -739,10 +739,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         {/* Auto-Save Status (nur wenn noch kein Dokument hinterlegt) */}
         {projekt?.$id && !gespeichertesDokument && (
           <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
-            speicherStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
-            speicherStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
-            speicherStatus === 'fehler' ? 'bg-red-50 text-red-700' :
-            'bg-gray-50 text-gray-500'
+            speicherStatus === 'gespeichert' ? 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400' :
+            speicherStatus === 'speichern' ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400' :
+            speicherStatus === 'fehler' ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400' :
+            'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-dark-textMuted'
           }`}>
             {speicherStatus === 'gespeichert' && (
               <>
@@ -772,7 +772,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         )}
         
         {/* Angebotsinformationen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Angebotsinformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -781,7 +781,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="text"
                 value={angebotsDaten.angebotsnummer}
                 onChange={(e) => handleInputChange('angebotsnummer', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -790,7 +790,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="date"
                 value={angebotsDaten.angebotsdatum}
                 onChange={(e) => handleInputChange('angebotsdatum', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -799,14 +799,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="date"
                 value={angebotsDaten.gueltigBis}
                 onChange={(e) => handleInputChange('gueltigBis', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
           </div>
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -817,7 +817,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   value={angebotsDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -827,7 +827,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   value={angebotsDaten.projektnummer || ''}
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -837,7 +837,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   value={angebotsDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -847,7 +847,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   value={angebotsDaten.ansprechpartner || ''}
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
             </div>
@@ -857,7 +857,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="text"
                 value={angebotsDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -866,7 +866,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="text"
                 value={angebotsDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -875,14 +875,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="text"
                 value={angebotsDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
           </div>
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -890,7 +890,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="checkbox"
                 checked={angebotsDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-blue-500"
+                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
@@ -904,7 +904,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   type="text"
                   value={angebotsDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -913,7 +913,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   type="text"
                   value={angebotsDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -922,7 +922,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   type="text"
                   value={angebotsDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
               </div>
             </div>
@@ -930,7 +930,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Angebotspositionen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Angebotspositionen</h2>
             <div className="flex gap-2">
@@ -953,7 +953,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
           {/* Artikel-Auswahl */}
           {showArtikelAuswahl && (
-            <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+            <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-lg border border-purple-200 dark:border-purple-800">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-dark-text">Artikel auswählen</h3>
                 <button
@@ -961,7 +961,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                     setShowArtikelAuswahl(false);
                     setArtikelSuchtext('');
                   }}
-                  className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text"
+                  className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text"
                 >
                   Schließen
                 </button>
@@ -976,20 +976,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   {/* Suchfeld und Sortierung */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-textMuted" />
                       <input
                         type="text"
                         value={artikelSuchtext}
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
                         onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
                       />
                     </div>
                     <select
                       value={artikelSortierung}
                       onChange={(e) => setArtikelSortierung(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
+                      className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
                     >
                       <option value="bezeichnung">Sortierung: Bezeichnung</option>
                       <option value="artikelnummer">Sortierung: Art.-Nr.</option>
@@ -998,26 +998,26 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   </div>
 
                   {/* Artikel-Tabelle */}
-                  <div className="bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
                     {gefilterteArtikel.length === 0 ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                         Keine Artikel gefunden
                       </div>
                     ) : (
                       <table className="w-full">
-                        <thead className="bg-purple-100 sticky top-0">
+                        <thead className="bg-purple-100 dark:bg-purple-950/60 sticky top-0">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Art.-Nr.</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Bezeichnung</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Beschreibung</th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Einheit</th>
-                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Preis</th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Aktion</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Art.-Nr.</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Bezeichnung</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Beschreibung</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-purple-300">Einheit</th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-purple-300">Preis</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-purple-300">Aktion</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                           {gefilterteArtikel.map((art) => (
-                            <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
+                            <tr key={art.$id} className="hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-colors">
                               <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
                               <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text">{art.bezeichnung}</td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted">
@@ -1025,15 +1025,15 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text text-center">{art.einheit}</td>
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
-                                {art.einzelpreis !== undefined && art.einzelpreis !== null 
-                                  ? `${art.einzelpreis.toFixed(2)} €` 
-                                  : <span className="text-gray-400 dark:text-gray-500 italic text-xs">auf Anfrage</span>
+                                {art.einzelpreis !== undefined && art.einzelpreis !== null
+                                  ? `${art.einzelpreis.toFixed(2)} €`
+                                  : <span className="text-gray-400 dark:text-dark-textSubtle italic text-xs">auf Anfrage</span>
                                 }
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <button
                                   onClick={() => addPositionAusArtikel(art.$id!)}
-                                  className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                                  className="px-3 py-1 bg-purple-600 dark:bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 dark:hover:bg-purple-500 transition-colors"
                                 >
                                   Hinzufügen
                                 </button>
@@ -1063,10 +1063,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-move transition-all ${
+                className={`p-4 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 cursor-move transition-all ${
                   dragState.draggedIndex === index ? 'opacity-50' : ''
                 } ${
-                  dragState.draggedOverIndex === index ? 'border-2 border-blue-500 shadow-lg' : ''
+                  dragState.draggedOverIndex === index ? 'border-2 border-blue-500 dark:border-blue-400 shadow-lg dark:shadow-dark-lg' : ''
                 }`}
               >
                 <div className="flex items-start gap-4">
@@ -1079,7 +1079,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           value={position.artikelnummer || ''}
                           onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                           placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                       </div>
                       <div className="md:col-span-2">
@@ -1089,7 +1089,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           value={position.bezeichnung}
                           onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
                           placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1098,7 +1098,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           type="number"
                           value={position.menge}
                           onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1107,7 +1107,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           type="text"
                           value={position.einheit}
                           onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1118,14 +1118,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           value={position.streichpreis ?? ''}
                           onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
                           placeholder="Optional"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                         {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
                         {position.streichpreis && position.streichpreis > 0 && (
                           <select
                             value={position.streichpreisGrund || ''}
                             onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
-                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-amber-50"
+                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-amber-50"
                           >
                             <option value="">Grund wählen...</option>
                             <option value="Neukundenaktion">Neukundenaktion</option>
@@ -1144,7 +1144,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           step="0.01"
                           value={position.einzelpreis}
                           onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -1155,7 +1155,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
                         placeholder="Detaillierte Beschreibung der Position..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -1180,7 +1180,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Lieferbedingungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Lieferbedingungen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -1190,7 +1190,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 value={angebotsDaten.lieferzeit || ''}
                 onChange={(e) => handleInputChange('lieferzeit', e.target.value)}
                 placeholder="z.B. 2-3 Werktage"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -1200,7 +1200,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 step="0.01"
                 value={angebotsDaten.frachtkosten || ''}
                 onChange={(e) => handleInputChange('frachtkosten', parseFloat(e.target.value) || 0)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
           </div>
@@ -1210,7 +1210,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 type="checkbox"
                 checked={angebotsDaten.lieferbedingungenAktiviert || false}
                 onChange={(e) => handleInputChange('lieferbedingungenAktiviert', e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-blue-500"
+                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
               />
               <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Lieferbedingungen / Hinweise anzeigen</span>
             </label>
@@ -1220,14 +1220,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 value={angebotsDaten.lieferbedingungen || ''}
                 onChange={(e) => handleInputChange('lieferbedingungen', e.target.value)}
                 rows={5}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             )}
           </div>
         </div>
 
         {/* Liefersaison */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Liefersaison</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1236,7 +1236,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 checked={angebotsDaten.liefersaisonAnzeigen || false}
                 onChange={(e) => handleInputChange('liefersaisonAnzeigen', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-blue-500 disabled:opacity-50"
+                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500 disabled:opacity-50"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Liefersaison auf Angebot anzeigen</span>
             </label>
@@ -1247,7 +1247,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Dieselpreiszuschlag */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-start gap-3 mb-3">
             <input
               id="dieselpreiszuschlag"
@@ -1256,7 +1256,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               onChange={(e) =>
                 handleInputChange('dieselpreiszuschlagAktiviert', e.target.checked)
               }
-              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-blue-500"
+              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
             />
             <div className="flex-1">
               <label
@@ -1283,14 +1283,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   handleInputChange('dieselpreiszuschlagText', e.target.value)
                 }
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
             </div>
           )}
         </div>
 
         {/* Zahlungsbedingungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zahlungsbedingungen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1298,7 +1298,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <select
                 value={angebotsDaten.zahlungsziel}
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               >
                 <option value="Vorkasse">Vorkasse</option>
                 <option value="Sofort">Sofort</option>
@@ -1314,7 +1314,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   type="checkbox"
                   checked={angebotsDaten.skontoAktiviert || false}
                   onChange={(e) => handleInputChange('skontoAktiviert', e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Skonto aktivieren</span>
               </label>
@@ -1331,7 +1331,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         prozent: parseFloat(e.target.value) || 0,
                         tage: angebotsDaten.skonto?.tage || 7
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -1343,7 +1343,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                         prozent: angebotsDaten.skonto?.prozent || 0,
                         tage: parseInt(e.target.value) || 0
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -1353,105 +1353,105 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Bemerkung */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
           <textarea
             value={angebotsDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl shadow-sm border border-blue-200 p-8 sticky top-6">
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 rounded-xl shadow-lg dark:shadow-dark-lg border border-blue-200 dark:border-blue-800 p-8 sticky top-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
-          
+
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-dark-textMuted">Positionen:</span>
               <span className="font-medium text-gray-900 dark:text-dark-text">{angebotsDaten.positionen.length}</span>
             </div>
-            
-            <div className="border-t border-blue-200 pt-3">
+
+            <div className="border-t border-blue-200 dark:border-blue-800 pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">Nettobetrag:</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</span>
               </div>
-              
+
               {frachtUndVerpackung > 0 && (
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-600 dark:text-dark-textMuted">Fracht/Verpackung:</span>
                   <span className="font-medium text-gray-900 dark:text-dark-text">{frachtUndVerpackung.toFixed(2)} €</span>
                 </div>
               )}
-              
+
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">MwSt. (19%):</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">
                   {((berechnung.nettobetrag + frachtUndVerpackung) * 0.19).toFixed(2)} €
                 </span>
               </div>
-              
-              <div className="border-t border-blue-200 pt-3 mt-3">
+
+              <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Angebotssumme:</span>
-                  <span className="text-3xl font-bold text-blue-600 break-all">
+                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400 break-all">
                     {gesamtBrutto.toFixed(2)} €
                   </span>
                 </div>
               </div>
             </div>
-            
+
             {angebotsDaten.skontoAktiviert && angebotsDaten.skonto && angebotsDaten.skonto.prozent > 0 && (
-              <div className="border-t border-blue-200 pt-3 mt-3">
+              <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">
                 <div className="text-sm text-gray-600 dark:text-dark-textMuted mb-1">
                   Bei Zahlung innerhalb von {angebotsDaten.skonto.tage} Tagen:
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-dark-textMuted">Skonto ({angebotsDaten.skonto.prozent}%):</span>
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     {(gesamtBrutto * (1 - angebotsDaten.skonto.prozent / 100)).toFixed(2)} €
                   </span>
                 </div>
               </div>
             )}
-            
-            <div className="border-t border-blue-200 pt-3">
+
+            <div className="border-t border-blue-200 dark:border-blue-800 pt-3">
               <div className="text-sm text-gray-600 dark:text-dark-textMuted mb-1">
                 Gültig bis: {new Date(angebotsDaten.gueltigBis).toLocaleDateString('de-DE')}
               </div>
             </div>
           </div>
-          
+
           {/* Buttons basierend auf Status */}
           <div className="mt-6 space-y-3">
             {/* Immer verfügbar: Nur PDF generieren */}
             <button
               onClick={generiereUndLadeAngebot}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-surface text-blue-700 border-2 border-blue-300 rounded-lg hover:bg-blue-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 border-2 border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all"
             >
               <Download className="h-5 w-5" />
               Nur PDF herunterladen
             </button>
-            
+
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitAngebot}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl"
             >
               <Mail className="h-5 w-5" />
               E-Mail mit PDF öffnen
             </button>
-            
+
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
                 onClick={speichereUndHinterlegeAngebot}
                 disabled={ladeStatus === 'speichern'}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-500 dark:to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-400 dark:hover:to-cyan-400 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {ladeStatus === 'speichern' ? (
                   <>
@@ -1466,10 +1466,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 )}
               </button>
             )}
-            
+
             {!projekt?.$id && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <p className="text-sm text-amber-800">
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   <AlertCircle className="h-4 w-4 inline mr-2" />
                   Zum Speichern muss ein Projekt ausgewählt sein.
                 </p>

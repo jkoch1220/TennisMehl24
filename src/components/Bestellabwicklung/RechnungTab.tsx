@@ -697,7 +697,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                       setShowStornoDialog(false);
                       setStornoGrund('');
                     }}
-                    className="flex-1 px-4 py-2 bg-white dark:bg-dark-surface text-gray-700 dark:text-dark-textMuted border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium"
                   >
                     Abbrechen
                   </button>
@@ -725,17 +725,17 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         )}
 
         {/* Info-Box */}
-        <div className={`rounded-xl p-6 ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'}`}>
+        <div className={`rounded-xl p-6 ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800'}`}>
           <div className="flex items-start gap-4">
-            <AlertCircle className={`h-6 w-6 flex-shrink-0 mt-0.5 ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-600' : 'text-blue-600'}`} />
+            <AlertCircle className={`h-6 w-6 flex-shrink-0 mt-0.5 ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`} />
             <div>
-              <h3 className={`text-base font-semibold ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-800' : 'text-blue-800'}`}>
-                {gespeichertesDokument.rechnungsStatus === 'storniert' 
-                  ? 'Diese Rechnung wurde storniert' 
+              <h3 className={`text-base font-semibold ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-800 dark:text-amber-300' : 'text-blue-800 dark:text-blue-300'}`}>
+                {gespeichertesDokument.rechnungsStatus === 'storniert'
+                  ? 'Diese Rechnung wurde storniert'
                   : 'Warum kann diese Rechnung nicht geändert werden?'}
               </h3>
-              <p className={`mt-2 text-sm ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-700' : 'text-blue-700'}`}>
-                {gespeichertesDokument.rechnungsStatus === 'storniert' 
+              <p className={`mt-2 text-sm ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-amber-700 dark:text-amber-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                {gespeichertesDokument.rechnungsStatus === 'storniert'
                   ? 'Die Originalrechnung und die Stornorechnung bleiben für die gesetzliche Aufbewahrungspflicht (8-10 Jahre) im Archiv erhalten. Sie können jetzt eine neue Rechnung erstellen.'
                   : 'Rechnungen sind rechtlich verbindliche Dokumente. Nach der Finalisierung wird die Rechnung archiviert und kann aus Compliance-Gründen nicht mehr verändert werden. Sollten Korrekturen notwendig sein, müssen Sie eine Stornorechnung oder Gutschrift erstellen.'}
               </p>
@@ -744,25 +744,25 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         </div>
 
         {/* Archivierte Rechnungsdetails - Read Only */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
             <FileCheck className="h-5 w-5 text-gray-500 dark:text-dark-textMuted" />
             Archivierte Rechnungsdetails
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
               <p className="text-gray-600 dark:text-dark-textMuted">Kunde</p>
               <p className="font-medium text-gray-900 dark:text-dark-text">{rechnungsDaten.kundenname}</p>
               <p className="text-gray-600 dark:text-dark-textMuted text-xs mt-1">{rechnungsDaten.kundenstrasse}, {rechnungsDaten.kundenPlzOrt}</p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
               <p className="text-gray-600 dark:text-dark-textMuted">Rechnungsdatum</p>
               <p className="font-medium text-gray-900 dark:text-dark-text">
                 {new Date(rechnungsDaten.rechnungsdatum).toLocaleDateString('de-DE')}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
               <p className="text-gray-600 dark:text-dark-textMuted">Leistungsdatum</p>
               <p className="font-medium text-gray-900 dark:text-dark-text">
                 {rechnungsDaten.leistungsdatum 
@@ -770,7 +770,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   : '-'}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
               <p className="text-gray-600 dark:text-dark-textMuted">Zahlungsziel</p>
               <p className="font-medium text-gray-900 dark:text-dark-text">{rechnungsDaten.zahlungsziel}</p>
             </div>
@@ -782,7 +782,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
               <h4 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">Positionen</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-100 dark:bg-gray-700">
+                  <thead className="bg-gray-100 dark:bg-slate-800">
                     <tr>
                       <th className="px-4 py-2 text-left text-gray-700 dark:text-dark-textMuted">Bezeichnung</th>
                       <th className="px-4 py-2 text-right text-gray-700 dark:text-dark-textMuted">Menge</th>
@@ -791,7 +791,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                       <th className="px-4 py-2 text-right text-gray-700 dark:text-dark-textMuted">Gesamt</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
                     {rechnungsDaten.positionen.map((pos, idx) => (
                       <tr key={idx}>
                         <td className="px-4 py-3 text-gray-900 dark:text-dark-text">{pos.bezeichnung}</td>
@@ -802,7 +802,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-gray-50 dark:bg-gray-800">
+                  <tfoot className="bg-gray-50 dark:bg-slate-900">
                     <tr>
                       <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">Netto:</td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</td>
@@ -811,9 +811,9 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                       <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">MwSt. (19%):</td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.umsatzsteuer.toFixed(2)} €</td>
                     </tr>
-                    <tr className={gespeichertesDokument.rechnungsStatus === 'storniert' ? 'bg-red-50' : 'bg-green-50'}>
-                      <td colSpan={4} className={`px-4 py-3 text-right font-bold ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800' : 'text-green-800'}`}>Brutto:</td>
-                      <td className={`px-4 py-3 text-right font-bold text-lg ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 line-through' : 'text-green-800'}`}>{berechnung.bruttobetrag.toFixed(2)} €</td>
+                    <tr className={gespeichertesDokument.rechnungsStatus === 'storniert' ? 'bg-red-50 dark:bg-red-950/40' : 'bg-green-50 dark:bg-green-950/40'}>
+                      <td colSpan={4} className={`px-4 py-3 text-right font-bold ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>Brutto:</td>
+                      <td className={`px-4 py-3 text-right font-bold text-lg ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 dark:text-red-300 line-through' : 'text-green-800 dark:text-green-300'}`}>{berechnung.bruttobetrag.toFixed(2)} €</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -845,14 +845,14 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
       <div className="lg:col-span-3 space-y-6">
         
         {/* WICHTIGER HINWEIS */}
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5">
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-5">
           <div className="flex items-start gap-4">
-            <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+            <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-base font-semibold text-amber-800">Wichtig: Rechnungen sind endgültig</h3>
-              <p className="mt-1 text-sm text-amber-700">
-                Nach dem Speichern kann diese Rechnung <strong>nicht mehr geändert</strong> werden. 
-                Bitte überprüfen Sie alle Daten sorgfältig. Nutzen Sie ggf. die "Entwurf herunterladen" Funktion 
+              <h3 className="text-base font-semibold text-amber-800 dark:text-amber-300">Wichtig: Rechnungen sind endgültig</h3>
+              <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
+                Nach dem Speichern kann diese Rechnung <strong>nicht mehr geändert</strong> werden.
+                Bitte überprüfen Sie alle Daten sorgfältig. Nutzen Sie ggf. die "Entwurf herunterladen" Funktion
                 um die Rechnung vor dem Finalisieren zu prüfen.
               </p>
             </div>
@@ -862,22 +862,22 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         {/* Status-Meldung */}
         {statusMeldung && (
           <div className={`rounded-xl p-4 flex items-center gap-3 ${
-            statusMeldung.typ === 'erfolg' 
-              ? 'bg-green-50 border border-green-200' 
+            statusMeldung.typ === 'erfolg'
+              ? 'bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800'
               : statusMeldung.typ === 'warnung'
-              ? 'bg-amber-50 border border-amber-200'
-              : 'bg-red-50 border border-red-200'
+              ? 'bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800'
+              : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
           }`}>
             {statusMeldung.typ === 'erfolg' ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
             ) : statusMeldung.typ === 'warnung' ? (
-              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             ) : (
-              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             )}
             <p className={`text-sm ${
-              statusMeldung.typ === 'erfolg' ? 'text-green-800' : 
-              statusMeldung.typ === 'warnung' ? 'text-amber-800' : 'text-red-800'
+              statusMeldung.typ === 'erfolg' ? 'text-green-800 dark:text-green-300' :
+              statusMeldung.typ === 'warnung' ? 'text-amber-800 dark:text-amber-300' : 'text-red-800 dark:text-red-300'
             }`}>
               {statusMeldung.text}
             </p>
@@ -887,10 +887,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         {/* Auto-Save Status (nur wenn noch keine finale Rechnung existiert) */}
         {projekt?.$id && !gespeichertesDokument && (
           <div className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg ${
-            autoSaveStatus === 'gespeichert' ? 'bg-green-50 text-green-700' :
-            autoSaveStatus === 'speichern' ? 'bg-blue-50 text-blue-700' :
-            autoSaveStatus === 'fehler' ? 'bg-red-50 text-red-700' :
-            'bg-gray-50 text-gray-500'
+            autoSaveStatus === 'gespeichert' ? 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400' :
+            autoSaveStatus === 'speichern' ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400' :
+            autoSaveStatus === 'fehler' ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400' :
+            'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-dark-textMuted'
           }`}>
             {autoSaveStatus === 'gespeichert' && (
               <>
@@ -920,7 +920,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         )}
 
         {/* Rechnungsinformationen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Rechnungsinformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -931,7 +931,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="text"
                 value={rechnungsDaten.rechnungsnummer}
                 onChange={(e) => handleInputChange('rechnungsnummer', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -942,7 +942,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="date"
                 value={rechnungsDaten.rechnungsdatum}
                 onChange={(e) => handleInputChange('rechnungsdatum', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -953,14 +953,14 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="date"
                 value={rechnungsDaten.leistungsdatum || ''}
                 onChange={(e) => handleInputChange('leistungsdatum', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
           </div>
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -971,7 +971,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   value={rechnungsDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -981,7 +981,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   value={rechnungsDaten.projektnummer || ''}
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -991,7 +991,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   value={rechnungsDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -1001,7 +1001,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   value={rechnungsDaten.ansprechpartner || ''}
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
             </div>
@@ -1011,7 +1011,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="text"
                 value={rechnungsDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -1020,7 +1020,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="text"
                 value={rechnungsDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
             <div>
@@ -1029,14 +1029,14 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="text"
                 value={rechnungsDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
             </div>
           </div>
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1044,7 +1044,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 type="checkbox"
                 checked={rechnungsDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
-                className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
+                className="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-700 rounded focus:ring-red-500"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
@@ -1058,7 +1058,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   type="text"
                   value={rechnungsDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -1067,7 +1067,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   type="text"
                   value={rechnungsDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -1076,7 +1076,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   type="text"
                   value={rechnungsDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                 />
               </div>
             </div>
@@ -1084,7 +1084,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         </div>
 
         {/* Rechnungspositionen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Rechnungspositionen</h2>
             <button
@@ -1123,7 +1123,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           value={position.artikelnummer || ''}
                           onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                           placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                       </div>
                       <div className="md:col-span-2">
@@ -1133,7 +1133,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           value={position.bezeichnung}
                           onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
                           placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1142,7 +1142,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           type="number"
                           value={position.menge}
                           onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1151,7 +1151,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           type="text"
                           value={position.einheit}
                           onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                       </div>
                       <div>
@@ -1162,14 +1162,14 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           value={position.streichpreis ?? ''}
                           onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
                           placeholder="Optional"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                         {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
                         {position.streichpreis && position.streichpreis > 0 && (
                           <select
                             value={position.streichpreisGrund || ''}
                             onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
-                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-amber-50"
+                            className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-amber-50"
                           >
                             <option value="">Grund wählen...</option>
                             <option value="Neukundenaktion">Neukundenaktion</option>
@@ -1188,7 +1188,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           step="0.01"
                           value={position.einzelpreis}
                           onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -1199,7 +1199,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                         onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
                         placeholder="Detaillierte Beschreibung der Position..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -1224,7 +1224,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         </div>
 
         {/* Zahlungsbedingungen */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zahlungsbedingungen</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1232,7 +1232,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
               <select
                 value={rechnungsDaten.zahlungsziel}
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               >
                 <option value="Vorkasse">Vorkasse</option>
                 <option value="Sofort">Sofort</option>
@@ -1248,7 +1248,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                   type="checkbox"
                   checked={rechnungsDaten.skontoAktiviert || false}
                   onChange={(e) => handleInputChange('skontoAktiviert', e.target.checked)}
-                  className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
+                  className="w-4 h-4 text-red-600 border-gray-300 dark:border-slate-700 rounded focus:ring-red-500"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Skonto aktivieren</span>
               </label>
@@ -1265,7 +1265,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                         prozent: parseFloat(e.target.value) || 0,
                         tage: rechnungsDaten.skonto?.tage || 7
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -1277,7 +1277,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                         prozent: rechnungsDaten.skonto?.prozent || 0,
                         tage: parseInt(e.target.value) || 0
                       })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -1287,103 +1287,103 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         </div>
 
         {/* Bemerkung */}
-        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
           <textarea
             value={rechnungsDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl shadow-sm border border-red-200 p-8 sticky top-6">
+        <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/40 dark:to-orange-950/40 rounded-xl shadow-lg dark:shadow-dark-lg border border-red-200 dark:border-red-800 p-8 sticky top-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
-          
+
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-dark-textMuted">Positionen:</span>
               <span className="font-medium text-gray-900 dark:text-dark-text">{rechnungsDaten.positionen.length}</span>
             </div>
-            
-            <div className="border-t border-red-200 pt-3">
+
+            <div className="border-t border-red-200 dark:border-red-800 pt-3">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">Nettobetrag:</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</span>
               </div>
-              
+
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">MwSt. ({berechnung.umsatzsteuersatz}%):</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.umsatzsteuer.toFixed(2)} €</span>
               </div>
-              
-              <div className="border-t border-red-200 pt-3 mt-3">
+
+              <div className="border-t border-red-200 dark:border-red-800 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Gesamtbetrag:</span>
-                  <span className="text-3xl font-bold text-red-600 break-all">
+                  <span className="text-3xl font-bold text-red-600 dark:text-red-400 break-all">
                     {berechnung.bruttobetrag.toFixed(2)} €
                   </span>
                 </div>
               </div>
             </div>
-            
+
             {rechnungsDaten.skontoAktiviert && rechnungsDaten.skonto && rechnungsDaten.skonto.prozent > 0 && (
-              <div className="border-t border-red-200 pt-3 mt-3">
+              <div className="border-t border-red-200 dark:border-red-800 pt-3 mt-3">
                 <div className="text-sm text-gray-600 dark:text-dark-textMuted mb-1">
                   Bei Zahlung innerhalb von {rechnungsDaten.skonto.tage} Tagen:
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-dark-textMuted">Skonto ({rechnungsDaten.skonto.prozent}%):</span>
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     {(berechnung.bruttobetrag * (1 - rechnungsDaten.skonto.prozent / 100)).toFixed(2)} €
                   </span>
                 </div>
               </div>
             )}
           </div>
-          
+
           {/* Buttons */}
           <div className="mt-6 space-y-3">
             {/* Entwurf herunterladen */}
             <button
               onClick={generiereUndLadeRechnung}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-surface text-red-700 border-2 border-red-300 rounded-lg hover:bg-red-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-red-700 dark:text-red-400 border-2 border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-all"
             >
               <Download className="h-5 w-5" />
               Entwurf herunterladen
             </button>
-            
+
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitRechnung}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 dark:bg-red-600 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-500 transition-all shadow-lg dark:shadow-dark-glow-red hover:shadow-xl"
             >
               <Mail className="h-5 w-5" />
               E-Mail mit PDF öffnen
             </button>
-            
+
             {/* Finalisieren */}
             {projekt?.$id && !showFinalConfirm && (
               <button
                 onClick={() => setShowFinalConfirm(true)}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-500 dark:to-orange-500 text-white rounded-lg hover:from-red-700 hover:to-orange-700 dark:hover:from-red-400 dark:hover:to-orange-400 transition-all shadow-lg dark:shadow-dark-glow-red hover:shadow-xl"
               >
                 <Lock className="h-5 w-5" />
                 Rechnung finalisieren
               </button>
             )}
-            
+
             {/* Bestätigungs-Dialog */}
             {showFinalConfirm && (
-              <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4 space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-4 space-y-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0" />
+                  <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                   <div>
-                    <p className="font-semibold text-amber-800">Sind Sie sicher?</p>
-                    <p className="text-sm text-amber-700 mt-1">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300">Sind Sie sicher?</p>
+                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
                       Nach dem Finalisieren kann diese Rechnung nicht mehr geändert werden!
                     </p>
                   </div>
@@ -1391,7 +1391,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowFinalConfirm(false)}
-                    className="flex-1 px-4 py-2 bg-white dark:bg-dark-surface text-gray-700 dark:text-dark-textMuted border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors text-sm font-medium"
+                    className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-textMuted border border-gray-300 dark:border-slate-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-surfaceHover transition-colors text-sm font-medium"
                   >
                     Abbrechen
                   </button>

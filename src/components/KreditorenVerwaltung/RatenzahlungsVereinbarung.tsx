@@ -99,12 +99,12 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
 
   if (ratenzahlungsRechnungen.length === 0) {
     return (
-      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6 mb-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
           <CreditCard className="w-6 h-6 text-indigo-600" />
-          <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">Ratenzahlungsvereinbarungen</h3>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">Ratenzahlungsvereinbarungen</h3>
         </div>
-        <div className="text-center py-8 text-gray-500 dark:text-dark-textMuted">
+        <div className="text-center py-8 text-gray-500 dark:text-slate-400">
           <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p>Keine aktiven Ratenzahlungsvereinbarungen</p>
         </div>
@@ -113,10 +113,10 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
   }
 
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6 mb-6">
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6 mb-6">
       <div className="flex items-center gap-3 mb-6">
         <CreditCard className="w-6 h-6 text-indigo-600" />
-        <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">Ratenzahlungsvereinbarungen</h3>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">Ratenzahlungsvereinbarungen</h3>
         <span className="ml-auto px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
           {ratenzahlungsRechnungen.length} aktive {ratenzahlungsRechnungen.length === 1 ? 'Vereinbarung' : 'Vereinbarungen'}
         </span>
@@ -135,18 +135,18 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
               key={rechnung.id}
               onClick={() => onOpenDetail?.(rechnung)}
               className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
-                istUeberfaellig 
-                  ? 'border-red-500 bg-red-50 shadow-lg shadow-red-200 animate-pulse hover:shadow-xl' 
+                istUeberfaellig
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/30 shadow-lg shadow-red-200 dark:shadow-red-900/50 animate-pulse hover:shadow-xl'
                   : istHeute
-                  ? 'border-orange-400 bg-orange-50 shadow-md shadow-orange-100 hover:shadow-lg'
-                  : 'border-indigo-200 hover:border-indigo-400 hover:shadow-md'
+                  ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/30 shadow-md shadow-orange-100 dark:shadow-orange-900/30 hover:shadow-lg'
+                  : 'border-indigo-200 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-slate-500 hover:shadow-md'
               }`}
             >
               <div className="flex items-center justify-between gap-4">
                 {/* Kreditor */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-dark-text truncate">{rechnung.kreditorName}</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-slate-100 truncate">{rechnung.kreditorName}</h4>
                     {istUeberfaellig && (
                       <span className="flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white rounded-full text-xs font-bold animate-pulse">
                         <AlertTriangle className="w-3 h-3" />
@@ -160,27 +160,27 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-dark-textMuted truncate">
+                  <p className="text-sm text-gray-500 dark:text-slate-400 truncate">
                     {rechnung.betreff || rechnung.rechnungsnummer || 'Keine Beschreibung'}
                   </p>
                 </div>
 
                 {/* Ratenhöhe */}
-                <div className="text-center px-4 border-l border-gray-200 dark:border-dark-border">
+                <div className="text-center px-4 border-l border-gray-200 dark:border-slate-700">
                   <div className="flex items-center gap-1 text-indigo-600 mb-1">
                     <Euro className="w-4 h-4" />
                     <span className="text-xs font-medium">Ratenhöhe</span>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 dark:text-dark-text">
+                  <div className="text-lg font-bold text-gray-900 dark:text-slate-100">
                     {formatCurrency(rechnung.monatlicheRate || 0)}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-dark-textMuted capitalize">
+                  <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">
                     {rechnung.ratenzahlungInterval || 'monatlich'}
                   </div>
                 </div>
 
                 {/* Ratenfälligkeit */}
-                <div className="text-center px-4 border-l border-gray-200 dark:border-dark-border">
+                <div className="text-center px-4 border-l border-gray-200 dark:border-slate-700">
                   <div className={`flex items-center gap-1 mb-1 ${
                     istUeberfaellig 
                       ? 'text-red-600' 
@@ -221,15 +221,15 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
                 </div>
 
                 {/* Restbetrag */}
-                <div className="text-center px-4 border-l border-gray-200 dark:border-dark-border">
+                <div className="text-center px-4 border-l border-gray-200 dark:border-slate-700">
                   <div className="flex items-center gap-1 text-red-600 mb-1">
                     <TrendingDown className="w-4 h-4" />
                     <span className="text-xs font-medium">Restbetrag</span>
                   </div>
-                  <div className="text-lg font-bold text-gray-900 dark:text-dark-text">
+                  <div className="text-lg font-bold text-gray-900 dark:text-slate-100">
                     {formatCurrency(restbetrag)}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-dark-textMuted">
+                  <div className="text-xs text-gray-500 dark:text-slate-400">
                     von {formatCurrency(rechnung.summe)}
                   </div>
                   {/* Fortschrittsbalken */}
@@ -242,7 +242,7 @@ const RatenzahlungsVereinbarung = ({ rechnungen, onUpdate, onOpenDetail }: Raten
                 </div>
 
                 {/* Button */}
-                <div className="pl-4 border-l border-gray-200 dark:border-dark-border">
+                <div className="pl-4 border-l border-gray-200 dark:border-slate-700">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

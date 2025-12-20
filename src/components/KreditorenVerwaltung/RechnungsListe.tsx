@@ -167,10 +167,10 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
 
   const getUnternehmenHintergrund = (unternehmen: Unternehmen) => {
     const styles: Record<Unternehmen, string> = {
-      'TennisMehl': 'bg-blue-50',
-      'Egner Bau': 'bg-amber-50',
+      'TennisMehl': 'bg-blue-50 dark:bg-blue-900/20',
+      'Egner Bau': 'bg-amber-50 dark:bg-amber-900/20',
     };
-    return styles[unternehmen] || 'bg-white';
+    return styles[unternehmen] || 'bg-white dark:bg-slate-800';
   };
 
   const formatCurrency = (amount: number) => {
@@ -231,7 +231,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
   return (
     <div className="space-y-4">
       {/* Filter und Suche */}
-      <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Suche */}
           <div className="flex-1 relative">
@@ -241,7 +241,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
               placeholder="Suche nach Rechnungsnummer, Betreff, Kreditor..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
           </div>
 
@@ -250,8 +250,8 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             onClick={() => setShowFilter(!showFilter)}
             className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
               showFilter
-                ? 'bg-red-50 border-red-300 text-red-700'
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                ? 'bg-red-50 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300'
+                : 'bg-white dark:bg-slate-800 border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
             }`}
           >
             <Filter className="w-5 h-5" />
@@ -266,9 +266,9 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
 
         {/* Erweiterte Filter */}
         {showFilter && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-dark-border grid md:grid-cols-3 gap-4">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700 grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Status</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">Status</label>
               <select
                 multiple
                 value={filter.status || []}
@@ -276,7 +276,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   const values = Array.from(e.target.selectedOptions, option => option.value as RechnungsStatus);
                   setFilter({ ...filter, status: values.length > 0 ? values : undefined });
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg"
                 size={4}
               >
                 <option value="offen">Offen</option>
@@ -291,7 +291,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Kategorie</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">Kategorie</label>
               <select
                 multiple
                 value={filter.kategorie || []}
@@ -299,7 +299,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   const values = Array.from(e.target.selectedOptions, option => option.value as Rechnungskategorie);
                   setFilter({ ...filter, kategorie: values.length > 0 ? values : undefined });
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg"
                 size={4}
               >
                 <option value="lieferanten">Lieferanten</option>
@@ -314,7 +314,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Priorität</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">Priorität</label>
               <select
                 multiple
                 value={filter.prioritaet || []}
@@ -322,7 +322,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   const values = Array.from(e.target.selectedOptions, option => option.value as Prioritaet);
                   setFilter({ ...filter, prioritaet: values.length > 0 ? values : undefined });
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg"
                 size={4}
               >
                 <option value="kritisch">Kritisch</option>
@@ -333,7 +333,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Unternehmen</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">Unternehmen</label>
               <select
                 multiple
                 value={filter.anUnternehmen || []}
@@ -341,7 +341,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   const values = Array.from(e.target.selectedOptions, option => option.value as Unternehmen);
                   setFilter({ ...filter, anUnternehmen: values.length > 0 ? values : undefined });
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg"
                 size={2}
               >
                 <option value="TennisMehl">TennisMehl</option>
@@ -355,7 +355,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   setFilter({});
                   setSuche('');
                 }}
-                className="px-4 py-2 text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 text-gray-700 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
               >
                 <X className="w-4 h-4" />
                 Filter zurücksetzen
@@ -366,47 +366,47 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
       </div>
 
       {/* Tabelle */}
-      <div className="bg-white dark:bg-dark-surface rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-gray-50 dark:bg-slate-800">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="kreditorName">Kreditor</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Unternehmen
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Rechnungsnummer
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Betreff
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="summe">Summe</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="faelligkeitsdatum">Fälligkeitsdatum</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="status">Status</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Mahnstufe
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="prioritaet">Priorität</SortButton>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Aktionen
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-dark-surface divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200">
               {displayedRechnungen.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-dark-textMuted">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     Keine Rechnungen gefunden
                   </td>
                 </tr>
@@ -424,16 +424,16 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         onClick={() => onOpenDetail?.(rechnung)}
                         className={`cursor-pointer transition-colors ${
                           istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
-                            ? 'bg-red-50 hover:bg-red-100'
+                            ? 'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50'
                             : istHeute && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
-                            ? 'bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-400'
-                            : `${getUnternehmenHintergrund(rechnung.anUnternehmen)} hover:brightness-95`
+                            ? 'bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-l-4 border-orange-400'
+                            : `${getUnternehmenHintergrund(rechnung.anUnternehmen)} hover:brightness-95 dark:hover:brightness-110`
                         }`}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
                           {rechnung.kategorie && (
-                            <div className="text-xs text-gray-500 dark:text-dark-textMuted capitalize">{rechnung.kategorie}</div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">{rechnung.kategorie}</div>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -442,10 +442,10 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-dark-text">{rechnung.rechnungsnummer || '-'}</div>
+                          <div className="text-sm text-gray-900 dark:text-slate-100">{rechnung.rechnungsnummer || '-'}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 dark:text-dark-text max-w-xs truncate" title={rechnung.betreff}>
+                          <div className="text-sm text-gray-900 dark:text-slate-100 max-w-xs truncate" title={rechnung.betreff}>
                             {rechnung.betreff || '-'}
                           </div>
                         </td>
@@ -457,11 +457,11 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                             
                             return (
                               <>
-                                <div className="text-sm font-semibold text-gray-900 dark:text-dark-text">
+                                <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                                   {formatCurrency(offenerBetrag)}
                                 </div>
                                 {hatZahlungen && (
-                                  <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                                     von {formatCurrency(rechnung.summe)}
                                   </div>
                                 )}
@@ -606,13 +606,13 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
         </div>
 
         {/* Footer mit Anzahl */}
-        <div className="bg-gray-50 dark:bg-gray-800 px-6 py-3 border-t border-gray-200 dark:border-dark-border">
+        <div className="bg-gray-50 dark:bg-slate-800 px-6 py-3 border-t border-gray-200 dark:border-slate-700">
           <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-700 dark:text-dark-textMuted">
+            <div className="text-sm text-gray-700 dark:text-slate-400">
               {filteredRechnungen.length} von {rechnungen.length} Rechnungen
             </div>
             {filteredRechnungen.length > 0 && (
-              <div className="text-sm font-semibold text-gray-900 dark:text-dark-text">
+              <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                 Gesamt: {formatCurrency(
                   filteredRechnungen.reduce((sum, r) => sum + r.summe, 0)
                 )}
@@ -623,8 +623,8 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
 
         {/* Pagination - nur anzeigen wenn kein aktiver Filter/Suche */}
         {!hasActiveSearch && totalPages > 1 && (
-          <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-4 flex items-center justify-between">
-            <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600 dark:text-slate-400">
               Seite {currentPage} von {totalPages} ({filteredRechnungen.length} Rechnungen)
             </div>
             <div className="flex gap-2">

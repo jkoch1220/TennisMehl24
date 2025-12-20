@@ -147,7 +147,7 @@ const ArtikelVerwaltungTab = () => {
   return (
     <div className="space-y-6">
       {/* Header mit Suche und Neue Artikel Button */}
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-2">Artikelverwaltung</h2>
@@ -165,7 +165,7 @@ const ArtikelVerwaltungTab = () => {
                 value={suchtext}
                 onChange={(e) => handleSuche(e.target.value)}
                 placeholder="Artikel suchen..."
-                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-64"
+                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-64"
               />
             </div>
 
@@ -198,7 +198,7 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.artikelnummer}
                 onChange={(e) => setFormData({ ...formData, artikelnummer: e.target.value })}
                 placeholder="z.B. TM-ZM"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -211,7 +211,7 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.bezeichnung}
                 onChange={(e) => setFormData({ ...formData, bezeichnung: e.target.value })}
                 placeholder="z.B. Tennismehl / Ziegelmehl"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -224,7 +224,7 @@ const ArtikelVerwaltungTab = () => {
                 onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
                 placeholder="Zusätzliche Informationen zum Artikel..."
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -235,7 +235,7 @@ const ArtikelVerwaltungTab = () => {
               <select
                 value={formData.einheit}
                 onChange={(e) => setFormData({ ...formData, einheit: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="t">t (Tonnen)</option>
                 <option value="kg">kg (Kilogramm)</option>
@@ -258,7 +258,7 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.einzelpreis ?? ''}
                 onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Optional - für Angebote auf Anfrage"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -272,7 +272,7 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.streichpreis ?? ''}
                 onChange={(e) => setFormData({ ...formData, streichpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Ursprünglicher Preis bei Rabattaktionen"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -287,7 +287,7 @@ const ArtikelVerwaltungTab = () => {
             </button>
             <button
               onClick={handleAbbrechen}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-8000 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-500 dark:bg-slate-600 text-white rounded-lg hover:bg-gray-600 dark:hover:bg-slate-500 transition-colors"
             >
               <X className="h-4 w-4" />
               Abbrechen
@@ -297,7 +297,7 @@ const ArtikelVerwaltungTab = () => {
       )}
 
       {/* Artikel-Liste */}
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-600 dark:text-dark-textMuted">
             Lade Artikel...
@@ -309,7 +309,7 @@ const ArtikelVerwaltungTab = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-dark-border">
+              <thead className="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
                 <tr>
                   <th className="px-6 py-3 text-left">
                     <button
@@ -351,7 +351,7 @@ const ArtikelVerwaltungTab = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {artikel.map((art) => (
-                  <tr key={art.$id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors">
+                  <tr key={art.$id} className="hover:bg-gray-50 dark:hover:bg-slate-700 dark:bg-slate-800 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</span>
                     </td>

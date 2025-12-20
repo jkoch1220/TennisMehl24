@@ -436,10 +436,10 @@ const VorschlaegeNeu = () => {
 
   const getStatusBadge = (status: TicketStatus) => {
     const styles = {
-      offen: 'bg-blue-100 text-blue-800 border-blue-200',
-      in_bearbeitung: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      erledigt: 'bg-green-100 text-green-800 border-green-200',
-      abgelehnt: 'bg-red-100 text-red-800 border-red-200',
+      offen: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+      in_bearbeitung: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700',
+      erledigt: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700',
+      abgelehnt: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700',
     };
     const labels = {
       offen: 'Offen',
@@ -456,10 +456,10 @@ const VorschlaegeNeu = () => {
 
   const getPrioritaetBadge = (prioritaet: TicketPrioritaet) => {
     const styles = {
-      niedrig: 'bg-gray-100 text-gray-800 border-gray-200',
-      normal: 'bg-blue-100 text-blue-800 border-blue-200',
-      hoch: 'bg-orange-100 text-orange-800 border-orange-200',
-      kritisch: 'bg-red-100 text-red-800 border-red-200',
+      niedrig: 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300 border-gray-200 dark:border-slate-600',
+      normal: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700',
+      hoch: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-700',
+      kritisch: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700',
     };
     const icons = {
       niedrig: '↓',
@@ -510,7 +510,7 @@ const VorschlaegeNeu = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Vorschläge...</p>
+          <p className="mt-4 text-gray-600 dark:text-slate-400">Lade Vorschläge...</p>
         </div>
       </div>
     );
@@ -534,10 +534,10 @@ const VorschlaegeNeu = () => {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">
                 Verbesserungen
               </h1>
-              <p className="text-gray-600 dark:text-dark-textMuted">
+              <p className="text-gray-600 dark:text-slate-400">
                 {activeTab === 'offen' 
                   ? `${filteredTickets.length} ${filteredTickets.length === 1 ? 'offener Vorschlag' : 'offene Vorschläge'}`
                   : `${filteredTickets.length} ${filteredTickets.length === 1 ? 'erledigter Vorschlag' : 'erledigte Vorschläge'}`
@@ -546,7 +546,7 @@ const VorschlaegeNeu = () => {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md dark:shadow-dark-md hover:shadow-lg dark:shadow-dark-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md dark:shadow-slate-900/50 hover:shadow-lg dark:shadow-slate-900/50 transition-all flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               Neuer Vorschlag
@@ -554,18 +554,18 @@ const VorschlaegeNeu = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-dark-border">
+          <div className="flex gap-2 mb-4 border-b border-gray-200 dark:border-slate-700">
             <button
               onClick={() => setActiveTab('offen')}
               className={`px-6 py-3 font-semibold transition-all relative ${
                 activeTab === 'offen'
                   ? 'text-red-600 border-b-2 border-red-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
               }`}
             >
               Offen
               {activeTab === 'offen' && filteredTickets.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">
+                <span className="ml-2 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs">
                   {filteredTickets.length}
                 </span>
               )}
@@ -575,12 +575,12 @@ const VorschlaegeNeu = () => {
               className={`px-6 py-3 font-semibold transition-all relative ${
                 activeTab === 'erledigt'
                   ? 'text-green-600 border-b-2 border-green-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
               }`}
             >
               Erledigt
               {activeTab === 'erledigt' && filteredTickets.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
+                <span className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
                   {filteredTickets.length}
                 </span>
               )}
@@ -589,15 +589,15 @@ const VorschlaegeNeu = () => {
 
           {/* Filter */}
           {activeTab === 'offen' && (
-            <div className="bg-white dark:bg-dark-surface rounded-lg shadow-sm p-4 flex flex-wrap gap-4">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
-                <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Filter:</span>
+                <Filter className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+                <span className="text-sm font-medium text-gray-700 dark:text-slate-400">Filter:</span>
               </div>
               <select
                 value={prioritaetFilter}
                 onChange={(e) => setPrioritaetFilter(e.target.value as TicketPrioritaet | 'alle')}
-                className="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="text-sm border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="alle">Alle Prioritäten</option>
                 <option value="niedrig">Niedrig</option>
@@ -605,7 +605,7 @@ const VorschlaegeNeu = () => {
                 <option value="hoch">Hoch</option>
                 <option value="kritisch">Kritisch</option>
               </select>
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-textMuted">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
                 <ArrowUpDown className="w-4 h-4" />
                 <span>Ziehen zum Umsortieren</span>
               </div>
@@ -616,9 +616,9 @@ const VorschlaegeNeu = () => {
         {/* Tickets Liste */}
         {activeTab === 'offen' ? (
           filteredTickets.length === 0 ? (
-            <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-8 text-center">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-8 text-center">
               <MessageSquare className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-dark-textMuted text-lg">
+              <p className="text-gray-600 dark:text-slate-400 text-lg">
                 {tickets.length === 0 
                   ? 'Noch keine Vorschläge vorhanden.'
                   : 'Keine offenen Vorschläge gefunden.'}
@@ -656,7 +656,7 @@ const VorschlaegeNeu = () => {
             {/* Heute erledigt Bereich */}
             {todayCompleted.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2">
                   <span className="text-2xl">🎉</span>
                   Heute erledigt
                 </h2>
@@ -682,7 +682,7 @@ const VorschlaegeNeu = () => {
             {/* Ältere erledigte Tasks */}
             {olderCompleted.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text mb-4">Ältere erledigte Tasks</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-4">Ältere erledigte Tasks</h2>
                 <div className="grid gap-3">
                   {olderCompleted.map((ticket) => (
                     <CompletedTicketCard
@@ -703,9 +703,9 @@ const VorschlaegeNeu = () => {
             )}
 
             {filteredTickets.length === 0 && (
-              <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-8 text-center">
+              <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-8 text-center">
                 <CheckCircle className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                <p className="text-gray-600 dark:text-dark-textMuted text-lg">Noch keine erledigten Vorschläge.</p>
+                <p className="text-gray-600 dark:text-slate-400 text-lg">Noch keine erledigten Vorschläge.</p>
               </div>
             )}
           </div>
@@ -714,10 +714,10 @@ const VorschlaegeNeu = () => {
         {/* Modal für neues Ticket */}
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     Neue Verbesserung
                   </h2>
                   <button
@@ -725,45 +725,45 @@ const VorschlaegeNeu = () => {
                       setShowForm(false);
                       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                     }}
-                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted"
+                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-slate-400"
                   >
                     <X className="w-6 h-6" />
                   </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                       Titel *
                     </label>
                     <input
                       type="text"
                       value={formData.titel}
                       onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       placeholder="Kurze Beschreibung des Vorschlags"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                       Beschreibung
                     </label>
                     <textarea
                       value={formData.beschreibung}
                       onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
-                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={6}
                       placeholder="Detaillierte Beschreibung der Verbesserung..."
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                       Priorität
                     </label>
                     <select
                       value={formData.prioritaet}
                       onChange={(e) => setFormData({ ...formData, prioritaet: e.target.value as TicketPrioritaet })}
-                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="niedrig">Niedrig</option>
                       <option value="normal">Normal</option>
@@ -772,8 +772,8 @@ const VorschlaegeNeu = () => {
                     </select>
                   </div>
                   {user && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-800">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg p-3">
+                      <p className="text-sm text-blue-800 dark:text-blue-300">
                         Erstellt als: <strong>{user.name}</strong>
                       </p>
                     </div>
@@ -785,7 +785,7 @@ const VorschlaegeNeu = () => {
                         setShowForm(false);
                         setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                       }}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-md text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-md text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
                     >
                       Abbrechen
                     </button>
@@ -859,9 +859,9 @@ const TicketCard = ({
       onDragOver={(e) => !isRemoving && onDragOver(e, index)}
       onDrop={(e) => !isRemoving && onDrop(e, index)}
       onDragEnd={onDragEnd}
-      className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-500 cursor-move
+      className={`bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-900/50 hover:shadow-lg transition-all duration-500 cursor-move
         ${dragState.draggedIndex === index ? 'opacity-50' : ''}
-        ${dragState.draggedOverIndex === index ? 'border-2 border-red-500' : 'border-2 border-transparent'}
+        ${dragState.draggedOverIndex === index ? 'border-2 border-red-500' : 'border-2 border-transparent dark:border-slate-700'}
         ${isRemoving ? 'opacity-0 scale-95 -translate-y-4 pointer-events-none' : 'opacity-100 scale-100 translate-y-0'}
       `}
       style={{
@@ -871,7 +871,7 @@ const TicketCard = ({
       <div className="p-6">
         <div className="flex items-start gap-4">
           {/* Drag Handle */}
-          <div className="flex-shrink-0 mt-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted cursor-grab active:cursor-grabbing">
+          <div className="flex-shrink-0 mt-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-slate-400 cursor-grab active:cursor-grabbing">
             <GripVertical className="w-6 h-6" />
           </div>
 
@@ -881,7 +881,7 @@ const TicketCard = ({
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 {getStatusIcon(ticket.status)}
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100">
                     {ticket.titel}
                   </h3>
                   <button
@@ -910,16 +910,16 @@ const TicketCard = ({
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                   title="Mehr Optionen"
                 >
-                  <MoreVertical className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
+                  <MoreVertical className="w-5 h-5 text-gray-500 dark:text-slate-400" />
                 </button>
                 {openMenuId === ticket.id && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border py-1 z-50 min-w-[150px]">
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 border border-gray-200 dark:border-slate-700 py-1 z-50 min-w-[150px]">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(ticket.id);
                       }}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Löschen
@@ -930,7 +930,7 @@ const TicketCard = ({
             </div>
 
             <div className="flex items-start gap-2 mb-4">
-              <p className="text-gray-700 dark:text-dark-textMuted whitespace-pre-wrap flex-1">
+              <p className="text-gray-700 dark:text-slate-400 whitespace-pre-wrap flex-1">
                 {ticket.beschreibung}
               </p>
               <button
@@ -946,7 +946,7 @@ const TicketCard = ({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-dark-textMuted">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 <span>
@@ -989,7 +989,7 @@ const TicketCard = ({
             >
               {isChecking ? (
                 <>
-                  <CheckCircle className="w-10 h-10 text-green-600 animate-bounce drop-shadow-lg dark:shadow-dark-lg z-10 relative" />
+                  <CheckCircle className="w-10 h-10 text-green-600 animate-bounce drop-shadow-lg dark:shadow-slate-900/50 z-10 relative" />
                   <div className="absolute inset-0 rounded-full bg-green-400 opacity-30 animate-ping"></div>
                   <div className="absolute inset-0 rounded-full bg-green-300 opacity-20 animate-pulse"></div>
                 </>
@@ -1032,7 +1032,7 @@ const CompletedTicketCard = ({
 
   return (
     <div 
-      className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-400 border-2 border-transparent
+      className={`bg-white dark:bg-slate-800 rounded-lg shadow-md dark:shadow-slate-900/50 hover:shadow-lg transition-all duration-400 border-2 border-transparent dark:border-slate-700
         ${isDeleting ? 'opacity-0 scale-90 -translate-y-2 pointer-events-none' : 'opacity-75 hover:opacity-100'}
       `}
       style={{
@@ -1046,7 +1046,7 @@ const CompletedTicketCard = ({
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <CheckCircle className="w-5 h-5 text-green-500" />
                 <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text line-through">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-slate-100 line-through">
                     {ticket.titel}
                   </h3>
                   <button
@@ -1075,16 +1075,16 @@ const CompletedTicketCard = ({
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                   title="Mehr Optionen"
                 >
-                  <MoreVertical className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
+                  <MoreVertical className="w-5 h-5 text-gray-500 dark:text-slate-400" />
                 </button>
                 {openMenuId === ticket.id && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border py-1 z-50 min-w-[150px]">
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 border border-gray-200 dark:border-slate-700 py-1 z-50 min-w-[150px]">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(ticket.id);
                       }}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Löschen
@@ -1095,7 +1095,7 @@ const CompletedTicketCard = ({
             </div>
 
             <div className="flex items-start gap-2 mb-4">
-              <p className="text-gray-600 dark:text-dark-textMuted whitespace-pre-wrap flex-1 line-through">
+              <p className="text-gray-600 dark:text-slate-400 whitespace-pre-wrap flex-1 line-through">
                 {ticket.beschreibung}
               </p>
               <button
@@ -1111,7 +1111,7 @@ const CompletedTicketCard = ({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-dark-textMuted">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
                 <span>

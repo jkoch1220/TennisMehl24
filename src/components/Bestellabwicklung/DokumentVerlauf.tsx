@@ -150,7 +150,7 @@ const DokumentVerlauf = ({
   return (
     <div className={`${config.hintergrund} ${config.border} border rounded-lg overflow-hidden`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface/50">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History className={`h-4 w-4 ${config.farbe}`} />
@@ -268,7 +268,7 @@ const DokumentVerlauf = ({
       {hatMehrEintraege && (
         <button
           onClick={() => setAlleAnzeigen(!alleAnzeigen)}
-          className="w-full px-4 py-2 text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text hover:bg-white dark:bg-dark-surface/50 transition-colors flex items-center justify-center gap-1 border-t border-gray-100"
+          className="w-full px-4 py-2 text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text hover:bg-white dark:bg-slate-900/50 transition-colors flex items-center justify-center gap-1 border-t border-gray-100"
         >
           {alleAnzeigen ? (
             <>
@@ -286,7 +286,7 @@ const DokumentVerlauf = ({
       
       {/* Hinweis zur Aufbewahrung */}
       {verlauf.length > 0 && (dokumentTyp === 'rechnung' || dokumentTyp === 'stornorechnung') && (
-        <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-dark-border">
+        <div className="px-4 py-2 bg-gray-100 dark:bg-slate-700/50 border-t border-gray-200 dark:border-slate-700">
           <p className="text-xs text-gray-500 dark:text-dark-textMuted flex items-center gap-1">
             <FileText className="h-3 w-3" />
             Dokumente werden 10 Jahre aufbewahrt (GoBD)

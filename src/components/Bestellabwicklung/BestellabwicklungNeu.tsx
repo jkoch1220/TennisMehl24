@@ -50,16 +50,16 @@ const Bestellabwicklung = () => {
   }, [projektId, navigate]);
 
   const tabs = [
-    { id: 'angebot' as DokumentTyp, label: 'Angebot', icon: FileCheck, color: 'from-blue-600 to-cyan-600' },
-    { id: 'lieferschein' as DokumentTyp, label: 'Lieferschein', icon: Truck, color: 'from-green-600 to-emerald-600' },
-    { id: 'rechnung' as DokumentTyp, label: 'Rechnung', icon: FileText, color: 'from-red-600 to-orange-600' },
+    { id: 'angebot' as DokumentTyp, label: 'Angebot', icon: FileCheck, activeGradient: 'from-blue-600 to-cyan-600 dark:from-blue-500 dark:to-cyan-500', inactiveText: 'text-blue-600 dark:text-blue-400' },
+    { id: 'lieferschein' as DokumentTyp, label: 'Lieferschein', icon: Truck, activeGradient: 'from-green-600 to-emerald-600 dark:from-green-500 dark:to-emerald-500', inactiveText: 'text-green-600 dark:text-green-400' },
+    { id: 'rechnung' as DokumentTyp, label: 'Rechnung', icon: FileText, activeGradient: 'from-red-600 to-orange-600 dark:from-red-500 dark:to-orange-500', inactiveText: 'text-red-600 dark:text-red-400' },
   ];
 
   if (loading) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 dark:border-red-400 mx-auto"></div>
           <p className="mt-4 text-xl text-gray-600 dark:text-dark-textMuted">Lade Projekt...</p>
         </div>
       </div>
@@ -73,7 +73,7 @@ const Bestellabwicklung = () => {
           <p className="text-xl text-gray-600 dark:text-dark-textMuted">Projekt nicht gefunden</p>
           <button
             onClick={() => navigate('/projekt-verwaltung')}
-            className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="mt-4 px-6 py-3 bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500 text-white rounded-lg transition-colors shadow-lg dark:shadow-dark-lg font-medium"
           >
             Zurück zur Projektverwaltung
           </button>
@@ -89,12 +89,12 @@ const Bestellabwicklung = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/projekt-verwaltung')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-lg transition-colors"
             title="Zurück zur Projektverwaltung"
           >
             <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-dark-textMuted" />
           </button>
-          <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg dark:shadow-dark-lg">
+          <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 dark:from-red-400 dark:to-orange-500 rounded-xl shadow-lg dark:shadow-dark-glow-red">
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
@@ -107,8 +107,8 @@ const Bestellabwicklung = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border mb-6 overflow-hidden">
-        <div className="flex border-b border-gray-200 dark:border-dark-border">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
+        <div className="flex">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -116,10 +116,10 @@ const Bestellabwicklung = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-3 px-6 py-4 font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-3 px-6 py-4 font-semibold transition-all border-b-2 ${
                   isActive
-                    ? 'bg-gradient-to-r ' + tab.color + ' text-white shadow-lg'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    ? `bg-gradient-to-r ${tab.activeGradient} text-white shadow-lg dark:shadow-dark-lg border-transparent`
+                    : `${tab.inactiveText} bg-transparent dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-dark-elevated border-transparent`
                 }`}
               >
                 <Icon className="h-5 w-5" />

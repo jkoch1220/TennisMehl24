@@ -97,7 +97,7 @@ const Bestellabwicklung = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/projekt-verwaltung')}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-600 dark:bg-slate-700 rounded-lg transition-colors"
             title="Zurück zur Projektverwaltung"
           >
             <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-dark-textMuted" />
@@ -115,8 +115,8 @@ const Bestellabwicklung = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border mb-6 overflow-hidden">
-        <div className="flex border-b border-gray-200 dark:border-dark-border">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
+        <div className="flex border-b border-gray-200 dark:border-slate-700">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

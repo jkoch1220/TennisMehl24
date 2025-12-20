@@ -250,19 +250,19 @@ const SpeditionskostenRechner = () => {
   }, [zielPLZ]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl p-6 md:p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-8">
             <Calculator className="w-10 h-10 text-red-600" />
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-dark-text">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-slate-100">
               Speditionskosten-Rechner
             </h1>
           </div>
 
           {/* Lieferart Auswahl */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200">
-            <label className="block text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-3">
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-700/50">
+            <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
               Lieferart wählen
             </label>
             <div className="grid grid-cols-3 gap-4">
@@ -271,7 +271,7 @@ const SpeditionskostenRechner = () => {
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'spedition'
                     ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white text-gray-700 hover:bg-blue-100'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -282,7 +282,7 @@ const SpeditionskostenRechner = () => {
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'eigenlieferung'
                     ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white text-gray-700 hover:bg-blue-100'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -293,7 +293,7 @@ const SpeditionskostenRechner = () => {
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'fremdlieferung'
                     ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white text-gray-700 hover:bg-blue-100'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -303,8 +303,8 @@ const SpeditionskostenRechner = () => {
           </div>
 
           {/* Warenart Auswahl */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border-2 border-yellow-200">
-            <label className="block text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-3">
+          <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border-2 border-yellow-200 dark:border-yellow-700/50">
+            <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
               Warenart wählen
             </label>
             <div className="grid grid-cols-2 gap-4">
@@ -313,7 +313,7 @@ const SpeditionskostenRechner = () => {
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   warenart === 'sackware'
                     ? 'bg-yellow-500 text-white shadow-lg scale-105'
-                    : 'bg-white text-gray-700 hover:bg-yellow-100'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-yellow-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Package className="w-6 h-6 mx-auto mb-2" />
@@ -324,7 +324,7 @@ const SpeditionskostenRechner = () => {
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   warenart === 'schuettware'
                     ? 'bg-yellow-500 text-white shadow-lg scale-105'
-                    : 'bg-white text-gray-700 hover:bg-yellow-100'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-yellow-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <TrendingUp className="w-6 h-6 mx-auto mb-2" />
@@ -335,15 +335,15 @@ const SpeditionskostenRechner = () => {
 
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             {/* Paletten/Menge */}
-            <div className="bg-orange-50 p-6 rounded-xl">
-              <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-3">
+            <div className="bg-orange-50 dark:bg-orange-900/20 p-6 rounded-xl border border-orange-200 dark:border-orange-700/50">
+              <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
                 <Package className="w-5 h-5 text-orange-600" />
                 Anzahl Paletten
               </label>
               <select
                 value={paletten}
                 onChange={handlePalettenChange}
-                className="w-full p-3 border-2 border-orange-200 rounded-lg text-lg focus:border-orange-400 focus:outline-none"
+                className="w-full p-3 border-2 border-orange-200 dark:border-orange-700/50 rounded-lg text-lg focus:border-orange-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value={1}>1 Palette</option>
                 <option value={2}>2 Paletten</option>
@@ -351,14 +351,14 @@ const SpeditionskostenRechner = () => {
                 <option value={4}>4 Paletten</option>
                 <option value={5}>5 Paletten</option>
               </select>
-              <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-2">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">
                 Gewicht: {gewicht} kg = {tonnen.toFixed(2)} Tonnen
               </p>
             </div>
 
             {/* Ziel-PLZ */}
-            <div className="bg-blue-50 p-6 rounded-xl">
-              <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-3">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-700/50">
+              <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
                 <MapPin className="w-5 h-5 text-blue-600" />
                 Ziel-Postleitzahl
               </label>
@@ -368,30 +368,30 @@ const SpeditionskostenRechner = () => {
                 onChange={handleZielPLZChange}
                 placeholder="z.B. 10115"
                 maxLength={5}
-                className="w-full p-3 border-2 border-blue-200 rounded-lg text-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-3 border-2 border-blue-200 dark:border-blue-700/50 rounded-lg text-lg focus:border-blue-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               />
               {zone && (
-                <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-2">Zone: {zone}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Zone: {zone}</p>
               )}
-              <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                 Start: {START_ADRESSE}
               </p>
             </div>
 
             {/* Kundentyp */}
-            <div className="bg-purple-50 p-6 rounded-xl">
-              <label className="block text-lg font-semibold text-gray-700 dark:text-dark-textMuted mb-3">
+            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-xl border border-purple-200 dark:border-purple-700/50">
+              <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
                 Kundentyp
               </label>
               <select
                 value={aufschlagTyp}
                 onChange={handleAufschlagTypChange}
-                className="w-full p-3 border-2 border-purple-200 rounded-lg text-lg focus:border-purple-400 focus:outline-none"
+                className="w-full p-3 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg text-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="endkunde">Endkunde (25% W+G)</option>
                 <option value="grosskunde">Großkunde (12% W+G)</option>
               </select>
-              <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-2">
+              <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">
                 Aufschlag: {aufschlagTyp === 'endkunde' ? '25%' : '12%'}
               </p>
             </div>
@@ -399,9 +399,9 @@ const SpeditionskostenRechner = () => {
 
           {/* Fremdlieferung Stammdaten */}
           {lieferart === 'fremdlieferung' && (
-            <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200">
+            <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-700/50">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 flex items-center gap-2">
                   <Settings className="w-6 h-6" />
                   Stammdaten Fremdlieferung
                 </h2>
@@ -416,7 +416,7 @@ const SpeditionskostenRechner = () => {
 
               {/* Lieferantenauswahl */}
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                   Lieferant auswählen
                 </label>
                 <div className="flex gap-2">
@@ -425,7 +425,7 @@ const SpeditionskostenRechner = () => {
                     onChange={(e) => {
                       setAusgewaehlterLieferantId(e.target.value || null);
                     }}
-                    className="flex-1 p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="flex-1 p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                   >
                     <option value="">-- Bitte wählen --</option>
                     {lieferanten.map((lieferant) => (
@@ -436,8 +436,8 @@ const SpeditionskostenRechner = () => {
                   </select>
                 </div>
                 {ausgewaehlterLieferantId && (
-                  <div className="mt-2 p-3 bg-white dark:bg-dark-surface rounded-lg border border-purple-200">
-                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">
+                  <div className="mt-2 p-3 bg-white dark:bg-slate-800 rounded-lg border border-purple-200">
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
                       <strong>Ausgewählt:</strong> {lieferanten.find(l => l.id === ausgewaehlterLieferantId)?.name} 
                       {' - '}
                       {lieferanten.find(l => l.id === ausgewaehlterLieferantId)?.firma}
@@ -452,91 +452,91 @@ const SpeditionskostenRechner = () => {
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Stundenlohn (€/h)
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.stundenlohn}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, stundenlohn: value }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.5}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Stundenlohn für Fremdlieferung
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Durchschnittsgeschwindigkeit (km/h)
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.durchschnittsgeschwindigkeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, durchschnittsgeschwindigkeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Beladungszeit (Minuten)
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.beladungszeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, beladungszeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Abladungszeit pro Abladestelle (Minuten)
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.abladungszeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, abladungszeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Abladungszeit pro einzelne Abladestelle
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Anzahl Abladestellen
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.anzahlAbladestellen}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, anzahlAbladestellen: Math.max(1, Math.round(value)) }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={1}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Gesamtabladungszeit = {fremdlieferungStammdaten.abladungszeit} min × {fremdlieferungStammdaten.anzahlAbladestellen} = {gesamtAbladungszeitFremdlieferung} min
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     LKW Ladung in Tonnen
                   </label>
                   <NumberInput
                     value={fremdlieferungStammdaten.lkwLadungInTonnen}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, lkwLadungInTonnen: value }))}
-                    className="w-full p-2 border-2 border-purple-200 rounded-lg focus:border-purple-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0.1}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
                   </p>
                 </div>
@@ -546,48 +546,48 @@ const SpeditionskostenRechner = () => {
 
           {/* Eigenlieferung Stammdaten */}
           {lieferart === 'eigenlieferung' && (
-            <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text mb-4 flex items-center gap-2">
+            <div className="mb-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border-2 border-green-200 dark:border-green-700/50">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                 <Settings className="w-6 h-6" />
                 Stammdaten Eigenlieferung
               </h2>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Dieselverbrauch Durchschnitt (L/100km)
                   </label>
                   <NumberInput
                     value={stammdaten.dieselverbrauchDurchschnitt}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, dieselverbrauchDurchschnitt: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Durchschnittsgeschwindigkeit (km/h)
                   </label>
                   <NumberInput
                     value={stammdaten.durchschnittsgeschwindigkeit}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, durchschnittsgeschwindigkeit: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Diesel Liter Kosten Brutto (€/L)
                   </label>
                   <div className="flex gap-2">
                     <NumberInput
                       value={stammdaten.dieselLiterKostenBrutto}
                       onChange={(value) => setStammdaten(prev => ({ ...prev, dieselLiterKostenBrutto: value }))}
-                      className="flex-1 p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                      className="flex-1 p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                       step={0.01}
                       min={0}
                       readOnly={!dieselPreisManuell}
@@ -604,78 +604,78 @@ const SpeditionskostenRechner = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Beladungszeit (Minuten)
                   </label>
                   <NumberInput
                     value={stammdaten.beladungszeit}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, beladungszeit: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Abladungszeit pro Abladestelle (Minuten)
                   </label>
                   <NumberInput
                     value={stammdaten.abladungszeit}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, abladungszeit: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Abladungszeit pro einzelne Abladestelle
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Anzahl Abladestellen
                   </label>
                   <NumberInput
                     value={stammdaten.anzahlAbladestellen}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, anzahlAbladestellen: Math.max(1, Math.round(value)) }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={1}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Gesamtabladungszeit = {stammdaten.abladungszeit} min × {stammdaten.anzahlAbladestellen} = {gesamtAbladungszeitEigenlieferung} min
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Verschleißpauschale pro km (€/km)
                   </label>
                   <NumberInput
                     value={stammdaten.verschleisspauschaleProKm}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, verschleisspauschaleProKm: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Verschleißkosten pro gefahrenen Kilometer
                   </p>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     LKW Ladung in Tonnen
                   </label>
                   <NumberInput
                     value={stammdaten.lkwLadungInTonnen}
                     onChange={(value) => setStammdaten(prev => ({ ...prev, lkwLadungInTonnen: value }))}
-                    className="w-full p-2 border-2 border-green-200 rounded-lg focus:border-green-400 focus:outline-none"
+                    className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0.1}
                   />
-                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
+                  <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
                   </p>
                 </div>
@@ -687,7 +687,7 @@ const SpeditionskostenRechner = () => {
           {isLoading && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Berechne Route...</p>
+              <p className="mt-4 text-gray-600 dark:text-slate-400">Berechne Route...</p>
             </div>
           )}
 
@@ -695,15 +695,15 @@ const SpeditionskostenRechner = () => {
             <div className="space-y-6">
               {/* Fremdlieferung Route Details */}
               {lieferart === 'fremdlieferung' && ergebnis.fremdlieferung && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text mb-4 flex items-center gap-2">
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700/50">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <Truck className="w-6 h-6" />
                     Routenberechnung Fremdlieferung
                   </h2>
                   
                   <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
                         Distanz
                       </p>
@@ -711,15 +711,15 @@ const SpeditionskostenRechner = () => {
                         {ergebnis.fremdlieferung.route.distanz.toFixed(1)} km
                       </p>
                       {ergebnis.fremdlieferung.route.hinwegDistanz !== undefined && ergebnis.fremdlieferung.route.rueckwegDistanz !== undefined && (
-                        <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                           Hinweg: {ergebnis.fremdlieferung.route.hinwegDistanz.toFixed(1)} km | 
                           Rückweg: {ergebnis.fremdlieferung.route.rueckwegDistanz.toFixed(1)} km
                         </p>
                       )}
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                         <Clock className="w-4 h-4" />
                         Fahrtzeit
                       </p>
@@ -727,12 +727,12 @@ const SpeditionskostenRechner = () => {
                         {formatZeit(ergebnis.fremdlieferung.route.fahrzeit)}
                       </p>
                       {ergebnis.fremdlieferung.route.hinwegFahrzeit !== undefined && ergebnis.fremdlieferung.route.rueckwegFahrzeit !== undefined && (
-                        <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                           Hinweg: {formatZeit(ergebnis.fremdlieferung.route.hinwegFahrzeit)} | 
                           Rückweg: {formatZeit(ergebnis.fremdlieferung.route.rueckwegFahrzeit)}
                         </p>
                       )}
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                         Gesamt: {formatZeit(ergebnis.fremdlieferung.route.gesamtzeit)} | 
                         Beladung: {ergebnis.fremdlieferung.route.beladungszeit}min | 
                         Abladung: {ergebnis.fremdlieferung.route.abladungszeit}min ({ergebnis.fremdlieferung.stammdaten.abladungszeit}min × {ergebnis.fremdlieferung.stammdaten.anzahlAbladestellen} Stellen) | 
@@ -740,8 +740,8 @@ const SpeditionskostenRechner = () => {
                       </p>
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                         Stundenlohn
                       </p>
                       <p className="text-2xl font-bold text-green-600">
@@ -749,14 +749,14 @@ const SpeditionskostenRechner = () => {
                       </p>
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                         Lohnkosten
                       </p>
                       <p className="text-2xl font-bold text-red-600">
                         {ergebnis.fremdlieferung.route.lohnkosten.toFixed(2)} €
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                         {ergebnis.fremdlieferung.route.gesamtzeit.toFixed(0)} min = {(ergebnis.fremdlieferung.route.gesamtzeit / 60).toFixed(2)} h
                       </p>
                     </div>
@@ -794,15 +794,15 @@ const SpeditionskostenRechner = () => {
 
               {/* Eigenlieferung Route Details */}
               {lieferart === 'eigenlieferung' && ergebnis.eigenlieferung && (
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text mb-4 flex items-center gap-2">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-700/50">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <Truck className="w-6 h-6" />
                     Routenberechnung Eigenlieferung
                   </h2>
                   
                   <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
                         Distanz
                       </p>
@@ -810,15 +810,15 @@ const SpeditionskostenRechner = () => {
                         {ergebnis.eigenlieferung.route.distanz.toFixed(1)} km
                       </p>
                       {ergebnis.eigenlieferung.route.hinwegDistanz !== undefined && ergebnis.eigenlieferung.route.rueckwegDistanz !== undefined && (
-                        <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                           Hinweg: {ergebnis.eigenlieferung.route.hinwegDistanz.toFixed(1)} km | 
                           Rückweg: {ergebnis.eigenlieferung.route.rueckwegDistanz.toFixed(1)} km
                         </p>
                       )}
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                         <Clock className="w-4 h-4" />
                         Fahrtzeit
                       </p>
@@ -826,12 +826,12 @@ const SpeditionskostenRechner = () => {
                         {formatZeit(ergebnis.eigenlieferung.route.fahrzeit)}
                       </p>
                       {ergebnis.eigenlieferung.route.hinwegFahrzeit !== undefined && ergebnis.eigenlieferung.route.rueckwegFahrzeit !== undefined && (
-                        <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                           Hinweg: {formatZeit(ergebnis.eigenlieferung.route.hinwegFahrzeit)} | 
                           Rückweg: {formatZeit(ergebnis.eigenlieferung.route.rueckwegFahrzeit)}
                       </p>
                       )}
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                         Gesamt: {formatZeit(ergebnis.eigenlieferung.route.gesamtzeit)} | 
                         Beladung: {ergebnis.eigenlieferung.route.beladungszeit}min | 
                         Abladung: {ergebnis.eigenlieferung.route.abladungszeit}min ({ergebnis.eigenlieferung.stammdaten.abladungszeit}min × {ergebnis.eigenlieferung.stammdaten.anzahlAbladestellen} Stellen) | 
@@ -839,8 +839,8 @@ const SpeditionskostenRechner = () => {
                       </p>
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1 flex items-center gap-1">
                         <Fuel className="w-4 h-4" />
                         Dieselverbrauch
                       </p>
@@ -849,26 +849,26 @@ const SpeditionskostenRechner = () => {
                       </p>
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                         Dieselkosten
                       </p>
                       <p className="text-2xl font-bold text-red-600">
                         {ergebnis.eigenlieferung.route.dieselkosten.toFixed(2)} €
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                         {ergebnis.eigenlieferung.stammdaten.dieselLiterKostenBrutto.toFixed(2)} €/L
                       </p>
                     </div>
                     
-                    <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                      <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                      <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                         Verschleißkosten
                       </p>
                       <p className="text-2xl font-bold text-orange-600">
                         {ergebnis.eigenlieferung.route.verschleisskosten.toFixed(2)} €
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                         {ergebnis.eigenlieferung.stammdaten.verschleisspauschaleProKm.toFixed(3)} €/km
                       </p>
                     </div>
@@ -906,54 +906,54 @@ const SpeditionskostenRechner = () => {
               )}
 
               {/* Hauptergebnisse */}
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border-2 border-green-200">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-dark-text mb-6">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-700/50">
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">
                   Preisübersicht
                 </h2>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                    <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Herstellungskosten
                     </p>
                     <p className="text-2xl font-bold text-orange-600">
                       {ergebnis.herstellungskostenGesamt.toFixed(2)} €
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {ergebnis.herstellungskostenProTonne.toFixed(2)} €/t
                     </p>
                   </div>
-                  <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                    <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Werkspreis ab Werk
                     </p>
                     <p className="text-2xl font-bold text-blue-600">
                       {ergebnis.werkspreis.toFixed(2)} €
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {aufschlagTyp === 'endkunde' ? 'inkl. 25% W+G (Endkunde)' : 'inkl. 12% W+G (Großkunde)'}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                       Basis: {(ergebnis.werkspreis - ergebnis.aufschlag).toFixed(2)} € + {ergebnis.aufschlag.toFixed(2)} € Aufschlag
                     </p>
                   </div>
-                  <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                    <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Transportkosten
                     </p>
                     <p className="text-2xl font-bold text-purple-600">
                       {ergebnis.transportkosten.toFixed(2)} €
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {lieferart === 'spedition' ? `Zone ${zone}` : lieferart === 'eigenlieferung' ? 'Eigenlieferung' : 'Fremdlieferung'}
                     </p>
                   </div>
-                  <div className="bg-white dark:bg-dark-surface p-4 rounded-lg shadow">
-                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Verkaufspreis</p>
+                  <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
+                    <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">Verkaufspreis</p>
                     <p className="text-2xl font-bold text-green-600">
                       {ergebnis.verkaufspreis.toFixed(2)} €
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       = Werkspreis (Aufschlag bereits enthalten)
                     </p>
                   </div>
@@ -985,23 +985,23 @@ const SpeditionskostenRechner = () => {
           )}
 
           {!ergebnis && !isLoading && zielPLZ && zielPLZ.length >= 5 && (
-            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
-              <p className="text-gray-700 dark:text-dark-textMuted">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700/50 rounded-xl p-6 text-center">
+              <p className="text-gray-700 dark:text-slate-400">
                 PLZ nicht gefunden. Bitte geben Sie eine gültige deutsche PLZ ein.
               </p>
             </div>
           )}
 
           {!zielPLZ && (
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 text-center">
-              <p className="text-gray-700 dark:text-dark-textMuted">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl p-6 text-center">
+              <p className="text-gray-700 dark:text-slate-400">
                 Bitte geben Sie eine Ziel-PLZ ein, um die Lieferkosten zu berechnen.
               </p>
             </div>
           )}
         </div>
 
-        <div className="mt-6 text-center text-sm text-gray-600 dark:text-dark-textMuted">
+        <div className="mt-6 text-center text-sm text-gray-600 dark:text-slate-400">
           <p>
             Alle Preise in Euro inkl. MwSt. • Herstellungskosten basierend auf
             Kalkulation 2026

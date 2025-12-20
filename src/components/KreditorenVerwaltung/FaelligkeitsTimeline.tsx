@@ -91,19 +91,19 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
 
   if (sortierteTage.length === 0) {
     return (
-      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-8 text-center">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-8 text-center">
         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-        <p className="text-gray-600 dark:text-dark-textMuted">Keine fälligen Rechnungen in den nächsten {tageAnzeigen} Tagen</p>
+        <p className="text-gray-600 dark:text-slate-400">Keine fälligen Rechnungen in den nächsten {tageAnzeigen} Tagen</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6">
       <div className="flex items-center gap-3 mb-6">
         <Calendar className="w-6 h-6 text-red-600" />
-        <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">Fälligkeits-Timeline</h3>
-        <span className="text-sm text-gray-500 dark:text-dark-textMuted">(nächste {tageAnzeigen} Tage)</span>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">Fälligkeits-Timeline</h3>
+        <span className="text-sm text-gray-500 dark:text-slate-400">(nächste {tageAnzeigen} Tage)</span>
       </div>
 
       <div className="space-y-4">
@@ -122,25 +122,25 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
               key={tage}
               className={`border-l-4 rounded-r-lg p-4 ${
                 istUeberfaellig
-                  ? 'bg-red-50 border-red-500'
+                  ? 'bg-red-50 dark:bg-red-900/20 border-red-500'
                   : istHeute
-                  ? 'bg-orange-50 border-orange-500'
-                  : 'bg-blue-50 border-blue-500'
+                  ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500'
+                  : 'bg-blue-50 dark:bg-blue-900/20 border-blue-500'
               }`}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   {getStatusIcon(tage)}
                   <div>
-                    <div className="font-semibold text-gray-900 dark:text-dark-text">{getTageLabel(tage)}</div>
-                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                    <div className="font-semibold text-gray-900 dark:text-slate-100">{getTageLabel(tage)}</div>
+                    <div className="text-sm text-gray-600 dark:text-slate-400">
                       {formatDate(getRelevanteFaelligkeit(rechnungenFuerTag[0]))}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-gray-900 dark:text-dark-text">{formatCurrency(gesamtBetrag)}</div>
-                  <div className="text-sm text-gray-600 dark:text-dark-textMuted">{rechnungenFuerTag.length} Rechnung(en)</div>
+                  <div className="font-bold text-gray-900 dark:text-slate-100">{formatCurrency(gesamtBetrag)}</div>
+                  <div className="text-sm text-gray-600 dark:text-slate-400">{rechnungenFuerTag.length} Rechnung(en)</div>
                 </div>
               </div>
 
@@ -156,11 +156,11 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                     <div
                       key={rechnung.id}
                       onClick={() => onOpenDetail?.(rechnung)}
-                      className="bg-white dark:bg-dark-surface rounded-lg p-3 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-all cursor-pointer hover:scale-[1.01]"
+                      className="bg-white dark:bg-slate-800 rounded-lg p-3 flex justify-between items-center hover:shadow-md dark:shadow-slate-900/40 transition-all cursor-pointer hover:scale-[1.01]"
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
-                        <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                        <div className="font-medium text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
+                        <div className="text-sm text-gray-600 dark:text-slate-400">
                           {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                         </div>
                         <div className="flex gap-3 mt-1">
@@ -175,16 +175,16 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                             </div>
                           )}
                           {gesamtBezahlt > 0 && (
-                            <div className="text-xs text-gray-500 dark:text-dark-textMuted">
+                            <div className="text-xs text-gray-500 dark:text-slate-400">
                               Bezahlt: {formatCurrency(gesamtBezahlt)} / {formatCurrency(rechnung.summe)}
                             </div>
                           )}
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="font-semibold text-gray-900 dark:text-dark-text">{formatCurrency(offenerBetrag)}</div>
+                        <div className="font-semibold text-gray-900 dark:text-slate-100">{formatCurrency(offenerBetrag)}</div>
                         {gesamtBezahlt > 0 && (
-                          <div className="text-xs text-gray-500 dark:text-dark-textMuted">
+                          <div className="text-xs text-gray-500 dark:text-slate-400">
                             von {formatCurrency(rechnung.summe)}
                           </div>
                         )}
@@ -218,27 +218,27 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
       </div>
 
       {/* Legende */}
-      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-border">
+      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-slate-700">
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-red-500 rounded"></div>
-            <span className="text-gray-600 dark:text-dark-textMuted">Überfällig</span>
+            <span className="text-gray-600 dark:text-slate-400">Überfällig</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-orange-500 rounded"></div>
-            <span className="text-gray-600 dark:text-dark-textMuted">Heute fällig</span>
+            <span className="text-gray-600 dark:text-slate-400">Heute fällig</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-            <span className="text-gray-600 dark:text-dark-textMuted">Diese Woche</span>
+            <span className="text-gray-600 dark:text-slate-400">Diese Woche</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-500 rounded"></div>
-            <span className="text-gray-600 dark:text-dark-textMuted">Dieser Monat</span>
+            <span className="text-gray-600 dark:text-slate-400">Dieser Monat</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-green-500 rounded"></div>
-            <span className="text-gray-600 dark:text-dark-textMuted">Später</span>
+            <span className="text-gray-600 dark:text-slate-400">Später</span>
           </div>
         </div>
       </div>

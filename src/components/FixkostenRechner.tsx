@@ -98,10 +98,10 @@ const FixkostenRechner = () => {
   // Zeige Loading-Screen während Daten geladen werden (NACH allen Hooks!)
   if (isLoading || !input || !ergebnis) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Daten aus der Datenbank...</p>
+          <p className="mt-4 text-gray-600 dark:text-slate-400">Lade Daten aus der Datenbank...</p>
         </div>
       </div>
     );
@@ -154,36 +154,36 @@ const FixkostenRechner = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white dark:bg-dark-surface rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.16)] transition-all duration-300 p-6 md:p-8 mb-6">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.16)] transition-all duration-300 p-6 md:p-8 mb-6">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-br from-red-500 to-orange-500 p-3 rounded-2xl shadow-lg dark:shadow-dark-lg">
                 <Calculator className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-dark-text">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-slate-100">
                   Fixkosten Rechner
                 </h1>
-                <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">Ziegelmehl Herstellung 2026</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Ziegelmehl Herstellung 2026</p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {isSaving && (
-                <div className="text-sm text-gray-500 dark:text-dark-textMuted flex items-center gap-2 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-full shadow-sm">
+                <div className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-2 bg-gray-50 dark:bg-slate-800 px-3 py-1.5 rounded-full shadow-sm">
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                   Speichere...
                 </div>
               )}
               {!isSaving && !isLoading && saveSuccess && (
-                <div className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full shadow-sm animate-in fade-in duration-300">
+                <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2 bg-green-50 dark:bg-green-900/30 px-3 py-1.5 rounded-full shadow-sm animate-in fade-in duration-300">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                   Gespeichert
                 </div>
               )}
               {saveError && (
-                <div className="text-sm text-red-600 flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full shadow-sm">
+                <div className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2 bg-red-50 dark:bg-red-900/30 px-3 py-1.5 rounded-full shadow-sm">
                   <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   Fehler: {saveError}
                 </div>
@@ -205,16 +205,16 @@ const FixkostenRechner = () => {
 
           {/* Diagramme */}
           <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-slate-800 dark:to-slate-800 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 dark:border-slate-700 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-orange-500 to-red-500 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-orange-500 to-red-500 p-2 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <TrendingUp className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100">
                   Kostenverteilung (Kreisdiagramm)
                 </h3>
               </div>
-              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -246,16 +246,16 @@ const FixkostenRechner = () => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-slate-800 dark:to-slate-800 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 dark:border-slate-700 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-2 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <Euro className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100">
                   Kostenverteilung (Balkendiagramm)
                 </h3>
               </div>
-              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={barData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -282,268 +282,268 @@ const FixkostenRechner = () => {
           {/* Eingabefelder */}
           <div className="space-y-6">
             {/* Grundstück */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-6 rounded-2xl border border-green-200 shadow-[0_4px_20px_rgba(34,197,94,0.15)] hover:shadow-[0_6px_30px_rgba(34,197,94,0.2)] transition-all duration-300 group">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 dark:from-green-900/20 dark:to-emerald-900/20 p-6 rounded-2xl border border-green-200 dark:border-green-700/50 shadow-[0_4px_20px_rgba(34,197,94,0.15)] hover:shadow-[0_6px_30px_rgba(34,197,94,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">
                   Grundstück
                 </h2>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Pacht (€)
                   </label>
                   <input
                     type="number"
                     value={input.grundstueck.pacht}
                     onChange={(e) => updateGrundstueck('pacht', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Steuer (€)
                   </label>
                   <input
                     type="number"
                     value={input.grundstueck.steuer}
                     onChange={(e) => updateGrundstueck('steuer', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Pflege (€)
                   </label>
                   <input
                     type="number"
                     value={input.grundstueck.pflege}
                     onChange={(e) => updateGrundstueck('pflege', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Bürocontainer (€)
                   </label>
                   <input
                     type="number"
                     value={input.grundstueck.buerocontainer}
                     onChange={(e) => updateGrundstueck('buerocontainer', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
               </div>
-              <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl shadow-inner border border-green-200">
-                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
+              <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl shadow-inner border border-green-200 dark:border-green-700/50">
+                <p className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center justify-between">
                   <span>Jahreskosten Grundstück:</span>
-                  <span className="text-lg text-green-700 font-bold">{formatNumber(ergebnis.jahreskostenGrundstueck)} €</span>
+                  <span className="text-lg text-green-700 dark:text-green-400 font-bold">{formatNumber(ergebnis.jahreskostenGrundstueck)} €</span>
                 </p>
               </div>
             </div>
 
             {/* Maschinen */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-6 rounded-2xl border border-blue-200 shadow-[0_4px_20px_rgba(59,130,246,0.15)] hover:shadow-[0_6px_30px_rgba(59,130,246,0.2)] transition-all duration-300 group">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-2xl border border-blue-200 dark:border-blue-700/50 shadow-[0_4px_20px_rgba(59,130,246,0.15)] hover:shadow-[0_6px_30px_rgba(59,130,246,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">
                   Maschinen
                 </h2>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Radlader (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.wartungRadlader}
                     onChange={(e) => updateMaschinen('wartungRadlader', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Stapler (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.wartungStapler}
                     onChange={(e) => updateMaschinen('wartungStapler', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Mühle (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.wartungMuehle}
                     onChange={(e) => updateMaschinen('wartungMuehle', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Siebanlage (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.wartungSiebanlage}
                     onChange={(e) => updateMaschinen('wartungSiebanlage', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Absackanlage (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.wartungAbsackanlage}
                     onChange={(e) => updateMaschinen('wartungAbsackanlage', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Sonstige Wartung (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.sonstigeWartung}
                     onChange={(e) => updateMaschinen('sonstigeWartung', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Grundkosten Maschinen (€)
                   </label>
                   <input
                     type="number"
                     value={input.maschinen.grundkostenMaschinen}
                     onChange={(e) => updateMaschinen('grundkostenMaschinen', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
               </div>
-              <div className="mt-6 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-inner border border-blue-200">
-                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
+              <div className="mt-6 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl shadow-inner border border-blue-200 dark:border-blue-700/50">
+                <p className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center justify-between">
                   <span>Jahreskosten Maschinen:</span>
-                  <span className="text-lg text-blue-700 font-bold">{formatNumber(ergebnis.jahreskostenMaschinen)} €</span>
+                  <span className="text-lg text-blue-700 dark:text-blue-400 font-bold">{formatNumber(ergebnis.jahreskostenMaschinen)} €</span>
                 </p>
               </div>
             </div>
 
             {/* Rücklagen */}
-            <div className="bg-gradient-to-br from-purple-50 to-violet-50/50 p-6 rounded-2xl border border-purple-200 shadow-[0_4px_20px_rgba(139,92,246,0.15)] hover:shadow-[0_6px_30px_rgba(139,92,246,0.2)] transition-all duration-300 group">
+            <div className="bg-gradient-to-br from-purple-50 to-violet-50/50 dark:from-purple-900/20 dark:to-violet-900/20 p-6 rounded-2xl border border-purple-200 dark:border-purple-700/50 shadow-[0_4px_20px_rgba(139,92,246,0.15)] hover:shadow-[0_6px_30px_rgba(139,92,246,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2.5 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <TrendingUp className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">Rücklagen für Ersatzkäufe</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">Rücklagen für Ersatzkäufe</h2>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                   Rücklagen (€)
                 </label>
                 <input
                   type="number"
                   value={input.ruecklagenErsatzkauf}
                   onChange={(e) => setInput(prev => prev ? ({ ...prev, ruecklagenErsatzkauf: parseFloat(e.target.value) || 0 }) : prev)}
-                  className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-purple-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-purple-200 dark:border-purple-700/50 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                 />
               </div>
             </div>
 
             {/* Sonstiges */}
-            <div className="bg-gradient-to-br from-gray-50 to-slate-50/50 p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-[0_4px_20px_rgba(107,114,128,0.15)] hover:shadow-[0_6px_30px_rgba(107,114,128,0.2)] transition-all duration-300 group">
+            <div className="bg-gradient-to-br from-gray-50 to-slate-50/50 dark:from-slate-800 dark:to-slate-800 p-6 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-[0_4px_20px_rgba(107,114,128,0.15)] hover:shadow-[0_6px_30px_rgba(107,114,128,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-gray-500 to-slate-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-gray-500 to-slate-600 p-2.5 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">Sonstiges</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">Sonstiges</h2>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                   Sonstige Kosten (€) - Versicherungen, Ämter, Prüfung Anlage
                 </label>
                 <input
                   type="number"
                   value={input.sonstiges}
                   onChange={(e) => setInput(prev => prev ? ({ ...prev, sonstiges: parseFloat(e.target.value) || 0 }) : prev)}
-                  className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-gray-200 dark:border-dark-border rounded-xl focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-gray-200 dark:border-slate-600 rounded-xl focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                 />
               </div>
             </div>
 
             {/* Verwaltung */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50/50 p-6 rounded-2xl border border-indigo-200 shadow-[0_4px_20px_rgba(99,102,241,0.15)] hover:shadow-[0_6px_30px_rgba(99,102,241,0.2)] transition-all duration-300 group">
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50/50 dark:from-indigo-900/20 dark:to-blue-900/20 p-6 rounded-2xl border border-indigo-200 dark:border-indigo-700/50 shadow-[0_4px_20px_rgba(99,102,241,0.15)] hover:shadow-[0_6px_30px_rgba(99,102,241,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-2.5 rounded-xl shadow-md dark:shadow-slate-900/40 group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">
                   Grundkosten Verwaltung
                 </h2>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     BRZ, Steuerberater (€)
                   </label>
                   <input
                     type="number"
                     value={input.verwaltung.brzSteuerberater}
                     onChange={(e) => updateVerwaltung('brzSteuerberater', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Telefon, Cloud, Server (€)
                   </label>
                   <input
                     type="number"
                     value={input.verwaltung.telefonCloudServer}
                     onChange={(e) => updateVerwaltung('telefonCloudServer', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     GF Gehalt (€)
                   </label>
                   <input
                     type="number"
                     value={input.verwaltung.gfGehalt}
                     onChange={(e) => updateVerwaltung('gfGehalt', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Grundsteuer (€)
                   </label>
                   <input
                     type="number"
                     value={input.verwaltung.grundsteuer}
                     onChange={(e) => updateVerwaltung('grundsteuer', parseFloat(e.target.value) || 0)}
-                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
+                    className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
               </div>
-              <div className="mt-6 p-4 bg-gradient-to-r from-indigo-100 to-blue-100 rounded-xl shadow-inner border border-indigo-200">
-                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
+              <div className="mt-6 p-4 bg-gradient-to-r from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-xl shadow-inner border border-indigo-200 dark:border-indigo-700/50">
+                <p className="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center justify-between">
                   <span>Grundkosten Verwaltung:</span>
-                  <span className="text-lg text-indigo-700 font-bold">{formatNumber(ergebnis.grundkostenVerwaltung)} €</span>
+                  <span className="text-lg text-indigo-700 dark:text-indigo-400 font-bold">{formatNumber(ergebnis.grundkostenVerwaltung)} €</span>
                 </p>
               </div>
             </div>
