@@ -117,10 +117,10 @@ const EmailFormular = ({
   if (ladeStatus === 'laden') {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-xl p-6 max-w-md w-full mx-4">
           <div className="flex items-center justify-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span className="text-gray-700">E-Mail-Template wird geladen...</span>
+            <span className="text-gray-700 dark:text-dark-textMuted">E-Mail-Template wird geladen...</span>
           </div>
         </div>
       </div>
@@ -129,16 +129,16 @@ const EmailFormular = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
             <Mail className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">E-Mail senden</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">E-Mail senden</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -163,7 +163,7 @@ const EmailFormular = ({
 
           {/* Empfänger */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Empfänger <span className="text-red-500">*</span>
             </label>
             <input
@@ -171,44 +171,44 @@ const EmailFormular = ({
               value={empfaenger}
               onChange={(e) => setEmpfaenger(e.target.value)}
               placeholder="kunde@example.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
 
           {/* Betreff */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Betreff <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={betreff}
               onChange={(e) => setBetreff(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
 
           {/* Text */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Nachricht
             </label>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={12}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-dark-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-white dark:bg-dark-surface border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
           >
             Abbrechen
           </button>

@@ -111,10 +111,10 @@ const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
     : `https://www.google.com/maps?q=${center[0]},${center[1]}&z=${Math.floor(zoom)}&output=embed`;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">
             Kartenansicht ({bestellungenMitKoordinaten.length} von {bestellungen.length} Bestellungen)
           </h3>
           {bestellungen.length > bestellungenMitKoordinaten.length && (
@@ -126,29 +126,29 @@ const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
         <div className="flex items-center gap-2">
           <button
             onClick={handleReset}
-            className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             title="Zurücksetzen"
           >
             <RotateCcw className="w-5 h-5" />
           </button>
           <button
             onClick={handleZoomOut}
-            className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             <ZoomOut className="w-5 h-5" />
           </button>
-          <span className="text-sm text-gray-600 min-w-[3rem] text-center">
+          <span className="text-sm text-gray-600 dark:text-dark-textMuted min-w-[3rem] text-center">
             {zoom.toFixed(1)}x
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             <ZoomIn className="w-5 h-5" />
           </button>
           <button
             onClick={handleFullscreen}
-            className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             <Maximize2 className="w-5 h-5" />
           </button>
@@ -157,7 +157,7 @@ const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
 
       <div
         ref={mapRef}
-        className="relative w-full h-[600px] bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300"
+        className="relative w-full h-[600px] bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden border-2 border-gray-300 dark:border-dark-border"
         style={{ position: 'relative' }}
       >
         {/* Google Maps Embed */}
@@ -173,8 +173,8 @@ const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
 
 
         {/* Legende */}
-        <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-xs z-30 pointer-events-none">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Legende</h4>
+        <div className="absolute bottom-4 left-4 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-4 max-w-xs z-30 pointer-events-none">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-dark-text mb-2">Legende</h4>
           <div className="space-y-1 text-xs">
             {(['offen', 'geplant', 'in_produktion', 'bereit', 'geliefert', 'storniert'] as const).map((status) => (
               <div key={status} className="flex items-center gap-2">
@@ -182,20 +182,20 @@ const BestellungsKarte = ({ bestellungen }: BestellungsKarteProps) => {
                   className="w-4 h-4 rounded-full"
                   style={{ backgroundColor: getPunktFarbe(status) }}
                 />
-                <span className="text-gray-600 capitalize">{status.replace('_', ' ')}</span>
+                <span className="text-gray-600 dark:text-dark-textMuted capitalize">{status.replace('_', ' ')}</span>
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <div className="text-xs text-gray-600 mb-2">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
+            <div className="text-xs text-gray-600 dark:text-dark-textMuted mb-2">
               Punktgröße = Bestellmenge
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span className="text-xs text-gray-600">{minTonnen.toFixed(1)} t</span>
-              <div className="flex-1 border-t border-gray-300 mx-2" />
+              <span className="text-xs text-gray-600 dark:text-dark-textMuted">{minTonnen.toFixed(1)} t</span>
+              <div className="flex-1 border-t border-gray-300 dark:border-dark-border mx-2" />
               <div className="w-6 h-6 rounded-full bg-blue-500" />
-              <span className="text-xs text-gray-600">{maxTonnen.toFixed(1)} t</span>
+              <span className="text-xs text-gray-600 dark:text-dark-textMuted">{maxTonnen.toFixed(1)} t</span>
             </div>
           </div>
         </div>

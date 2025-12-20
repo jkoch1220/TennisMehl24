@@ -235,14 +235,14 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-900">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-6 py-4 flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
             {rechnung ? 'Rechnung bearbeiten' : 'Neue Rechnung anlegen'}
           </h2>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -259,14 +259,14 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
           <div className="grid md:grid-cols-2 gap-6">
             {/* Kreditor */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Kreditor/Glaubiger <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.kreditorName || ''}
                 onChange={(e) => setFormData({ ...formData, kreditorName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="z.B. Bauhaus GmbH"
                 required
               />
@@ -274,27 +274,27 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Kreditor-ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Kreditor-ID
               </label>
               <input
                 type="text"
                 value={formData.kreditorId || ''}
                 onChange={(e) => setFormData({ ...formData, kreditorId: e.target.value || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Optional: Interne ID"
               />
             </div>
 
             {/* An Unternehmen */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 An Unternehmen <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.anUnternehmen || 'TennisMehl'}
                 onChange={(e) => setFormData({ ...formData, anUnternehmen: e.target.value as Unternehmen })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 required
               >
                 <option value="TennisMehl">TennisMehl</option>
@@ -304,7 +304,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Rechnungsnummer */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Rechnungsnummer
               </label>
               <div className="relative">
@@ -337,21 +337,21 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Betreff */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Betreff
               </label>
               <input
                 type="text"
                 value={formData.betreff || ''}
                 onChange={(e) => setFormData({ ...formData, betreff: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Kurzbeschreibung der Rechnung"
               />
             </div>
 
             {/* Summe */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Summe (€) <span className="text-red-500">*</span>
               </label>
               <input
@@ -360,14 +360,14 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 min="0"
                 value={formData.summe || ''}
                 onChange={(e) => setFormData({ ...formData, summe: parseFloat(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 required
               />
             </div>
 
             {/* MwSt */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 MwSt (€)
               </label>
               <input
@@ -376,13 +376,13 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 min="0"
                 value={formData.mwst || ''}
                 onChange={(e) => setFormData({ ...formData, mwst: parseFloat(e.target.value) || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </div>
 
             {/* Brutto-Summe */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Brutto-Summe (€)
               </label>
               <input
@@ -391,14 +391,14 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 min="0"
                 value={formData.bruttoSumme || ''}
                 onChange={(e) => setFormData({ ...formData, bruttoSumme: parseFloat(e.target.value) || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Summe inkl. MwSt"
               />
             </div>
 
             {/* Monatliche Rate */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Monatliche Rate (€)
               </label>
               <input
@@ -407,20 +407,20 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                 min="0"
                 value={formData.monatlicheRate || ''}
                 onChange={(e) => setFormData({ ...formData, monatlicheRate: parseFloat(e.target.value) || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Für Ratenzahlungen"
               />
             </div>
 
             {/* Ratenzahlung Interval */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Ratenzahlung Intervall
               </label>
               <select
                 value={formData.ratenzahlungInterval || ''}
                 onChange={(e) => setFormData({ ...formData, ratenzahlungInterval: e.target.value ? e.target.value as RatenzahlungInterval : undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 disabled={!formData.monatlicheRate}
               >
                 <option value="">Kein Intervall</option>
@@ -431,18 +431,18 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Rate fällig am */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Rate fällig am
               </label>
               <input
                 type="date"
                 value={formData.rateFaelligAm || ''}
                 onChange={(e) => setFormData({ ...formData, rateFaelligAm: e.target.value || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 disabled={!formData.monatlicheRate}
               />
               {formData.monatlicheRate && !formData.rateFaelligAm && (
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-gray-500 dark:text-dark-textMuted">
                   Wird bei Ratenzahlung verwendet
                 </p>
               )}
@@ -450,40 +450,40 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Fälligkeitsdatum */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Fälligkeitsdatum <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
                 value={formData.faelligkeitsdatum || ''}
                 onChange={(e) => setFormData({ ...formData, faelligkeitsdatum: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 required
               />
             </div>
 
             {/* Rechnungsdatum */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Rechnungsdatum
               </label>
               <input
                 type="date"
                 value={formData.rechnungsdatum || ''}
                 onChange={(e) => setFormData({ ...formData, rechnungsdatum: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </div>
 
             {/* Status */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Status
               </label>
               <select
                 value={formData.status || 'offen'}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as RechnungsStatus })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="offen">Offen</option>
                 <option value="faellig">Fällig</option>
@@ -499,13 +499,13 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Mahnstufe */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Mahnstufe
               </label>
               <select
                 value={formData.mahnstufe || 0}
                 onChange={(e) => setFormData({ ...formData, mahnstufe: parseInt(e.target.value) as Mahnstufe })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="0">Keine Mahnung</option>
                 <option value="1">1. Mahnung</option>
@@ -517,13 +517,13 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Priorität */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Priorität
               </label>
               <select
                 value={formData.prioritaet || 'normal'}
                 onChange={(e) => setFormData({ ...formData, prioritaet: e.target.value as Prioritaet })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="niedrig">Niedrig</option>
                 <option value="normal">Normal</option>
@@ -534,13 +534,13 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Kategorie */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Kategorie
               </label>
               <select
                 value={formData.kategorie || 'sonstiges'}
                 onChange={(e) => setFormData({ ...formData, kategorie: e.target.value as Rechnungskategorie })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               >
                 <option value="lieferanten">Lieferanten</option>
                 <option value="dienstleister">Dienstleister</option>
@@ -555,7 +555,7 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Letzter Kontakt */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Letzter Kontakt
               </label>
               <div className="space-y-2">
@@ -570,9 +570,9 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
                         setFormData({ ...formData, letzterKontakt: undefined });
                       }
                     }}
-                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
                   />
-                  <label htmlFor="keinKontakt" className="text-sm text-gray-600 cursor-pointer">
+                  <label htmlFor="keinKontakt" className="text-sm text-gray-600 dark:text-dark-textMuted cursor-pointer">
                     Kein Kontakt bisher
                   </label>
                 </div>
@@ -590,51 +590,51 @@ const RechnungsFormular = ({ rechnung, defaultFirma = 'Egner Bau', onSave, onCan
 
             {/* Spätestens bearbeiten am */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Spätestens bearbeiten am
               </label>
               <input
                 type="date"
                 value={formData.spaetestensBearbeitenAm || ''}
                 onChange={(e) => setFormData({ ...formData, spaetestensBearbeitenAm: e.target.value || undefined })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </div>
 
             {/* Zahlungsreferenz */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Zahlungsreferenz
               </label>
               <input
                 type="text"
                 value={formData.zahlungsreferenz || ''}
                 onChange={(e) => setFormData({ ...formData, zahlungsreferenz: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Verwendungszweck"
               />
             </div>
 
             {/* Kommentar */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 Kommentar
               </label>
               <textarea
                 value={formData.kommentar || ''}
                 onChange={(e) => setFormData({ ...formData, kommentar: e.target.value })}
                 rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 placeholder="Zusätzliche Notizen..."
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 pt-4 border-t border-gray-200">
+          <div className="flex justify-end gap-4 pt-4 border-t border-gray-200 dark:border-dark-border">
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
             >
               Abbrechen
             </button>

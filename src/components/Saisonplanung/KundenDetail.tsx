@@ -152,23 +152,23 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{kunde.kunde.name}</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">{kunde.kunde.name}</h2>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">
               {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
             </p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={onEdit}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <Edit className="w-5 h-5" />
               Bearbeiten
             </button>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -176,56 +176,56 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
 
         <div className="p-6 space-y-6">
           {/* Stammdaten */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5" />
               Stammdaten
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="font-medium text-gray-700">Typ:</span>{' '}
-                <span className="text-gray-900">
+                <span className="font-medium text-gray-700 dark:text-dark-textMuted">Typ:</span>{' '}
+                <span className="text-gray-900 dark:text-dark-text">
                   {kunde.kunde.typ === 'verein' ? 'Verein' : 'Platzbauer'}
                 </span>
               </div>
               {kunde.kunde.typ === 'verein' && (
                 <div>
-                  <span className="font-medium text-gray-700">Bezug Platzbauer über uns:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Bezug Platzbauer über uns:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">
                     {kunde.kunde.beziehtUeberUnsPlatzbauer ? 'Ja' : 'Nein'}
                   </span>
                 </div>
               )}
               {kunde.kunde.adresse.bundesland && (
                 <div>
-                  <span className="font-medium text-gray-700">Bundesland:</span>{' '}
-                  <span className="text-gray-900">{kunde.kunde.adresse.bundesland}</span>
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Bundesland:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">{kunde.kunde.adresse.bundesland}</span>
                 </div>
               )}
               {kunde.kunde.kundennummer && (
                 <div>
-                  <span className="font-medium text-gray-700">Kundennummer:</span>{' '}
-                  <span className="text-gray-900">{kunde.kunde.kundennummer}</span>
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Kundennummer:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">{kunde.kunde.kundennummer}</span>
                 </div>
               )}
               {kunde.kunde.email && (
                 <div>
-                  <span className="font-medium text-gray-700">E-Mail:</span>{' '}
-                  <span className="text-gray-900">{kunde.kunde.email}</span>
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">E-Mail:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">{kunde.kunde.email}</span>
                 </div>
               )}
               {kunde.kunde.zuletztGezahlterPreis && (
                 <div>
-                  <span className="font-medium text-gray-700">Zuletzt gezahlter Preis:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Zuletzt gezahlter Preis:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">
                     {formatCurrency(kunde.kunde.zuletztGezahlterPreis)}/t
                   </span>
                 </div>
               )}
               {kunde.kunde.belieferungsart && (
                 <div>
-                  <span className="font-medium text-gray-700">Belieferungsart:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Belieferungsart:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">
                     {kunde.kunde.belieferungsart === 'nur_motorwagen' && 'Nur Motorwagen'}
                     {kunde.kunde.belieferungsart === 'mit_haenger' && 'Mit Hänger Belieferbar'}
                     {kunde.kunde.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
@@ -236,14 +236,14 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
               )}
               {kunde.kunde.notizen && (
                 <div className="md:col-span-2">
-                  <span className="font-medium text-gray-700">Notizen:</span>{' '}
-                  <span className="text-gray-900">{kunde.kunde.notizen}</span>
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Notizen:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">{kunde.kunde.notizen}</span>
                 </div>
               )}
               {kunde.kunde.standardBezugsweg && (
                 <div>
-                  <span className="font-medium text-gray-700">Standard Bezugsweg:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Standard Bezugsweg:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">
                     {kunde.kunde.standardBezugsweg === 'direkt' 
                       ? 'Direkt' 
                       : kunde.kunde.standardBezugsweg === 'direkt_instandsetzung'
@@ -254,8 +254,8 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
               )}
               {kunde.kunde.schuettstellenAnzahl !== undefined && kunde.kunde.schuettstellenAnzahl !== null && (
                 <div>
-                  <span className="font-medium text-gray-700">Schüttstellen Anzahl:</span>{' '}
-                  <span className="text-gray-900">{kunde.kunde.schuettstellenAnzahl}</span>
+                  <span className="font-medium text-gray-700 dark:text-dark-textMuted">Schüttstellen Anzahl:</span>{' '}
+                  <span className="text-gray-900 dark:text-dark-text">{kunde.kunde.schuettstellenAnzahl}</span>
                 </div>
               )}
             </div>
@@ -264,17 +264,17 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Ansprechpartner */}
           {kunde.ansprechpartner.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Ansprechpartner
               </h3>
               <div className="space-y-3">
                 {kunde.ansprechpartner.map((ap) => (
-                  <div key={ap.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="font-medium text-gray-900">{ap.name}</div>
-                    {ap.rolle && <div className="text-sm text-gray-600">{ap.rolle}</div>}
+                  <div key={ap.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-4">
+                    <div className="font-medium text-gray-900 dark:text-dark-text">{ap.name}</div>
+                    {ap.rolle && <div className="text-sm text-gray-600 dark:text-dark-textMuted">{ap.rolle}</div>}
                     {ap.email && (
-                      <div className="text-sm text-gray-600 flex items-center gap-1 mt-1">
+                      <div className="text-sm text-gray-600 dark:text-dark-textMuted flex items-center gap-1 mt-1">
                         <Mail className="w-4 h-4" />
                         {ap.email}
                       </div>
@@ -282,7 +282,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                     {ap.telefonnummern.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {ap.telefonnummern.map((tel, idx) => (
-                          <div key={idx} className="text-sm text-gray-600 flex items-center gap-2">
+                          <div key={idx} className="text-sm text-gray-600 dark:text-dark-textMuted flex items-center gap-2">
                             <Phone className="w-4 h-4 text-red-600" />
                             <a
                               href={`tel:${tel.nummer}`}
@@ -290,7 +290,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                             >
                               {tel.nummer}
                             </a>
-                            {tel.typ && <span className="text-gray-500">({tel.typ})</span>}
+                            {tel.typ && <span className="text-gray-500 dark:text-dark-textMuted">({tel.typ})</span>}
                           </div>
                         ))}
                       </div>
@@ -304,12 +304,12 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Beziehungen */}
           {kunde.kunde.typ === 'verein' && (kunde.beziehungenAlsVerein?.length || 0) > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Platzbauer</h3>
-              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3">Platzbauer</h3>
+              <ul className="list-disc list-inside text-sm text-gray-700 dark:text-dark-textMuted space-y-1">
                 {kunde.beziehungenAlsVerein?.map((b) => (
                   <li key={b.id}>
                     {kundenNamen[b.platzbauerId] || b.platzbauerId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
-                    {b.status === 'inaktiv' && <span className="text-xs text-gray-500">(inaktiv)</span>}
+                    {b.status === 'inaktiv' && <span className="text-xs text-gray-500 dark:text-dark-textMuted">(inaktiv)</span>}
                   </li>
                 ))}
               </ul>
@@ -319,13 +319,13 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {kunde.kunde.typ === 'platzbauer' &&
             (kunde.beziehungenAlsPlatzbauer?.length || 0) > 0 && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Vereine</h3>
-                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3">Vereine</h3>
+                <ul className="list-disc list-inside text-sm text-gray-700 dark:text-dark-textMuted space-y-1">
                   {kunde.beziehungenAlsPlatzbauer?.map((b) => (
                     <li key={b.id}>
                       {kundenNamen[b.vereinId] || b.vereinId} {b.notiz ? `– ${b.notiz}` : ''}{' '}
                       {b.status === 'inaktiv' && (
-                        <span className="text-xs text-gray-500">(inaktiv)</span>
+                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">(inaktiv)</span>
                       )}
                     </li>
                   ))}
@@ -336,45 +336,45 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Aktuelle Saison */}
           {kunde.aktuelleSaison && (
             <div className="bg-blue-50 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Saison {kunde.aktuelleSaison.saisonjahr}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 {kunde.aktuelleSaison.referenzmenge !== undefined && (
                   <div>
-                    <span className="font-medium text-gray-700">Referenzmenge:</span>{' '}
-                    <span className="text-gray-900">{kunde.aktuelleSaison.referenzmenge.toFixed(1)} t</span>
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Referenzmenge:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">{kunde.aktuelleSaison.referenzmenge.toFixed(1)} t</span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.angefragteMenge !== undefined && (
                   <div>
-                    <span className="font-medium text-gray-700">Angefragte Menge:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Angefragte Menge:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">
                       {kunde.aktuelleSaison.angefragteMenge.toFixed(1)} t
                     </span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.tatsaechlicheMenge !== undefined && (
                   <div>
-                    <span className="font-medium text-gray-700">Tatsächliche Menge:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Tatsächliche Menge:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">
                       {kunde.aktuelleSaison.tatsaechlicheMenge.toFixed(1)} t
                     </span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.preisProTonne && (
                   <div>
-                    <span className="font-medium text-gray-700">Preis:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Preis:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">
                       {formatCurrency(kunde.aktuelleSaison.preisProTonne)}/t
                     </span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.bezugsweg && (
                   <div>
-                    <span className="font-medium text-gray-700">Bezugsweg:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Bezugsweg:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">
                       {kunde.aktuelleSaison.bezugsweg === 'direkt'
                         ? 'Direkt'
                         : kunde.aktuelleSaison.bezugsweg === 'direkt_instandsetzung'
@@ -385,8 +385,8 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 )}
                 {kunde.aktuelleSaison.bestellabsicht && (
                   <div>
-                    <span className="font-medium text-gray-700">Bestellabsicht:</span>{' '}
-                    <span className="text-gray-900">
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Bestellabsicht:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">
                       {kunde.aktuelleSaison.bestellabsicht === 'bestellt'
                         ? 'Bestellt'
                         : kunde.aktuelleSaison.bestellabsicht === 'bestellt_nicht'
@@ -397,20 +397,20 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 )}
                 {kunde.aktuelleSaison.lieferfensterFrueh && (
                   <div>
-                    <span className="font-medium text-gray-700">Frühestes Lieferdatum:</span>{' '}
-                    <span className="text-gray-900">{formatDate(kunde.aktuelleSaison.lieferfensterFrueh)}</span>
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Frühestes Lieferdatum:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">{formatDate(kunde.aktuelleSaison.lieferfensterFrueh)}</span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.lieferfensterSpaet && (
                   <div>
-                    <span className="font-medium text-gray-700">Spätestes Lieferdatum:</span>{' '}
-                    <span className="text-gray-900">{formatDate(kunde.aktuelleSaison.lieferfensterSpaet)}</span>
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Spätestes Lieferdatum:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">{formatDate(kunde.aktuelleSaison.lieferfensterSpaet)}</span>
                   </div>
                 )}
                 {kunde.aktuelleSaison.gespraechsnotizen && (
                   <div className="md:col-span-2">
-                    <span className="font-medium text-gray-700">Notizen:</span>{' '}
-                    <span className="text-gray-900">{kunde.aktuelleSaison.gespraechsnotizen}</span>
+                    <span className="font-medium text-gray-700 dark:text-dark-textMuted">Notizen:</span>{' '}
+                    <span className="text-gray-900 dark:text-dark-text">{kunde.aktuelleSaison.gespraechsnotizen}</span>
                   </div>
                 )}
               </div>
@@ -420,7 +420,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Saison-Historie */}
           {kunde.saisonHistorie.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
                 Saison-Historie
               </h3>
@@ -428,30 +428,30 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 {kunde.saisonHistorie
                   .sort((a, b) => b.saisonjahr - a.saisonjahr)
                   .map((saison) => (
-                    <div key={saison.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="font-medium text-gray-900 mb-2">Saison {saison.saisonjahr}</div>
+                    <div key={saison.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-3">
+                      <div className="font-medium text-gray-900 dark:text-dark-text mb-2">Saison {saison.saisonjahr}</div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                         {saison.angefragteMenge !== undefined && (
                           <div>
-                            <span className="text-gray-600">Angefragt:</span>{' '}
+                            <span className="text-gray-600 dark:text-dark-textMuted">Angefragt:</span>{' '}
                             <span className="font-medium">{saison.angefragteMenge.toFixed(1)} t</span>
                           </div>
                         )}
                         {saison.tatsaechlicheMenge !== undefined && (
                           <div>
-                            <span className="text-gray-600">Tatsächlich:</span>{' '}
+                            <span className="text-gray-600 dark:text-dark-textMuted">Tatsächlich:</span>{' '}
                             <span className="font-medium">{saison.tatsaechlicheMenge.toFixed(1)} t</span>
                           </div>
                         )}
                         {saison.preisProTonne && (
                           <div>
-                            <span className="text-gray-600">Preis:</span>{' '}
+                            <span className="text-gray-600 dark:text-dark-textMuted">Preis:</span>{' '}
                             <span className="font-medium">{formatCurrency(saison.preisProTonne)}/t</span>
                           </div>
                         )}
                         {saison.bezugsweg && (
                           <div>
-                            <span className="text-gray-600">Bezugsweg:</span>{' '}
+                            <span className="text-gray-600 dark:text-dark-textMuted">Bezugsweg:</span>{' '}
                             <span className="font-medium">
                               {saison.bezugsweg === 'direkt'
                                 ? 'Direkt'
@@ -471,7 +471,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Projekte */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2">
                 <Layers className="w-5 h-5" />
                 Projekte
               </h3>
@@ -487,13 +487,13 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             {loadingProjekte ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                <p className="mt-2 text-sm text-gray-600">Lade Projekte...</p>
+                <p className="mt-2 text-sm text-gray-600 dark:text-dark-textMuted">Lade Projekte...</p>
               </div>
             ) : projekte.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-8 text-center">
-                <Layers className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-600 mb-2">Noch keine Projekte vorhanden</p>
-                <p className="text-sm text-gray-500">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
+                <Layers className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500" />
+                <p className="text-gray-600 dark:text-dark-textMuted mb-2">Noch keine Projekte vorhanden</p>
+                <p className="text-sm text-gray-500 dark:text-dark-textMuted">
                   Erstellen Sie ein neues Projekt, um mit der Bestellabwicklung zu beginnen.
                 </p>
               </div>
@@ -503,28 +503,28 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   <div
                     key={(projekt as any).$id || projekt.id}
                     onClick={() => handleProjektClick(projekt)}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-green-300 transition-all cursor-pointer"
+                    className="border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md hover:border-green-300 transition-all cursor-pointer"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="font-medium text-gray-900">Saison {projekt.saisonjahr}</span>
+                          <span className="font-medium text-gray-900 dark:text-dark-text">Saison {projekt.saisonjahr}</span>
                           <StatusBadge status={projekt.status} />
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           {projekt.angefragteMenge && (
-                            <div className="text-gray-600">
-                              Menge: <span className="font-medium text-gray-900">{projekt.angefragteMenge.toFixed(1)} t</span>
+                            <div className="text-gray-600 dark:text-dark-textMuted">
+                              Menge: <span className="font-medium text-gray-900 dark:text-dark-text">{projekt.angefragteMenge.toFixed(1)} t</span>
                             </div>
                           )}
                           {projekt.preisProTonne && (
-                            <div className="text-gray-600">
-                              Preis: <span className="font-medium text-gray-900">{formatCurrency(projekt.preisProTonne)}/t</span>
+                            <div className="text-gray-600 dark:text-dark-textMuted">
+                              Preis: <span className="font-medium text-gray-900 dark:text-dark-text">{formatCurrency(projekt.preisProTonne)}/t</span>
                             </div>
                           )}
                           {projekt.bezugsweg && (
-                            <div className="text-gray-600">
-                              Bezugsweg: <span className="font-medium text-gray-900">
+                            <div className="text-gray-600 dark:text-dark-textMuted">
+                              Bezugsweg: <span className="font-medium text-gray-900 dark:text-dark-text">
                                 {projekt.bezugsweg === 'direkt'
                                   ? 'Direkt'
                                   : projekt.bezugsweg === 'direkt_instandsetzung'
@@ -536,7 +536,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                         </div>
                         <div className="mt-2 space-y-1">
                           {projekt.angebotsnummer && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                               <FileCheck className="w-3 h-3 text-blue-500" />
                               Angebot: {projekt.angebotsnummer}
                               {projekt.angebotsdatum && (
@@ -545,7 +545,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                             </div>
                           )}
                           {projekt.auftragsbestaetigungsnummer && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                               <FileSignature className="w-3 h-3 text-orange-500" />
                               AB: {projekt.auftragsbestaetigungsnummer}
                               {projekt.auftragsbestaetigungsdatum && (
@@ -554,7 +554,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                             </div>
                           )}
                           {projekt.lieferscheinnummer && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                               <Truck className="w-3 h-3 text-green-500" />
                               Lieferschein: {projekt.lieferscheinnummer}
                               {projekt.lieferdatum && (
@@ -563,7 +563,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                             </div>
                           )}
                           {projekt.rechnungsnummer && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                               <FileText className="w-3 h-3 text-red-500" />
                               Rechnung: {projekt.rechnungsnummer}
                               {projekt.rechnungsdatum && (
@@ -579,7 +579,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                           )}
                         </div>
                         {projekt.notizen && (
-                          <div className="text-xs text-gray-400 mt-2 line-clamp-1 italic">
+                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-2 line-clamp-1 italic">
                             "{projekt.notizen}"
                           </div>
                         )}
@@ -594,7 +594,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           {/* Aktivitätsverlauf */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2">
                 <Phone className="w-5 h-5" />
                 Aktivitätsverlauf
               </h3>
@@ -608,13 +608,13 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             </div>
 
             {showAddAktivitaet && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4 space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Typ</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Typ</label>
                   <select
                     value={aktivitaetTyp}
                     onChange={(e) => setAktivitaetTyp(e.target.value as AktivitaetsTyp)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="telefonat">Telefonat</option>
                     <option value="email">E-Mail</option>
@@ -626,22 +626,22 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Titel</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Titel</label>
                   <input
                     type="text"
                     value={aktivitaetTitel}
                     onChange={(e) => setAktivitaetTitel(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     placeholder="z.B. Telefonat mit Platzwart"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Beschreibung</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Beschreibung</label>
                   <textarea
                     value={aktivitaetBeschreibung}
                     onChange={(e) => setAktivitaetBeschreibung(e.target.value)}
                     rows={3}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
                 <div className="flex gap-2">
@@ -657,7 +657,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                       setAktivitaetTitel('');
                       setAktivitaetBeschreibung('');
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
                   >
                     Abbrechen
                   </button>
@@ -667,17 +667,17 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
 
             <div className="space-y-2">
               {aktivitaeten.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">Keine Aktivitäten vorhanden</p>
+                <p className="text-gray-500 dark:text-dark-textMuted text-center py-4">Keine Aktivitäten vorhanden</p>
               ) : (
                 aktivitaeten.map((akt) => (
-                  <div key={akt.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={akt.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{akt.titel}</div>
+                        <div className="font-medium text-gray-900 dark:text-dark-text">{akt.titel}</div>
                         {akt.beschreibung && (
-                          <div className="text-sm text-gray-600 mt-1">{akt.beschreibung}</div>
+                          <div className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">{akt.beschreibung}</div>
                         )}
-                        <div className="text-xs text-gray-500 mt-2">
+                        <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-2">
                           {new Date(akt.erstelltAm).toLocaleString('de-DE')}
                         </div>
                       </div>

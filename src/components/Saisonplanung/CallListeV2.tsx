@@ -294,32 +294,32 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-gray-100 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-gray-100 dark:bg-gray-700 z-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-xl text-gray-600">Lade Call-Liste...</p>
+          <p className="mt-4 text-xl text-gray-600 dark:text-dark-textMuted">Lade Call-Liste...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-100 z-50 flex flex-col">
+    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-700 z-50 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+      <div className="bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
+            <ArrowLeft className="w-6 h-6 text-gray-600 dark:text-dark-textMuted" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text flex items-center gap-2">
               <PhoneCall className="w-7 h-7 text-red-600" />
               Call-Liste {saisonjahr}
             </h1>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted">
               {gesamt} Kunden • {gesamtErreicht} erreicht ({gesamt > 0 ? Math.round((gesamtErreicht / gesamt) * 100) : 0}%)
             </p>
           </div>
@@ -328,20 +328,20 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
         <div className="flex items-center gap-4">
           {/* Suche */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Suche (Name, Ort, Telefon...)"
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
-              className="pl-10 pr-4 py-2 w-72 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 w-72 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
           </div>
           
           <button
             onClick={loadData}
             disabled={loading}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             Aktualisieren
@@ -391,7 +391,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
               {/* Kunden-Liste */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {kunden.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400">
+                  <div className="text-center py-8 text-gray-400 dark:text-gray-500">
                     <TabIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p className="text-sm">Keine Kunden</p>
                   </div>
@@ -457,9 +457,9 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       {/* Saving Overlay */}
       {saving && (
         <div className="fixed inset-0 bg-black bg-opacity-30 z-[60] flex items-center justify-center">
-          <div className="bg-white rounded-lg px-6 py-4 flex items-center gap-3 shadow-xl">
+          <div className="bg-white dark:bg-dark-surface rounded-lg px-6 py-4 flex items-center gap-3 shadow-xl">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-            <span className="text-gray-700 font-medium">Speichere...</span>
+            <span className="text-gray-700 dark:text-dark-textMuted font-medium">Speichere...</span>
           </div>
         </div>
       )}
@@ -519,14 +519,14 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all cursor-grab active:cursor-grabbing group"
+      className="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-lg p-3 hover:shadow-md dark:shadow-dark-md transition-all cursor-grab active:cursor-grabbing group"
     >
       {/* Header mit Drag Handle */}
       <div className="flex items-start gap-2 mb-2">
-        <GripVertical className="w-4 h-4 text-gray-300 group-hover:text-gray-500 mt-1 flex-shrink-0" />
+        <GripVertical className="w-4 h-4 text-gray-300 group-hover:text-gray-500 dark:text-dark-textMuted mt-1 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-gray-900 truncate">{kunde.kunde.name}</h4>
-          <div className="flex items-center gap-1 text-xs text-gray-500">
+          <h4 className="font-semibold text-gray-900 dark:text-dark-text truncate">{kunde.kunde.name}</h4>
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
             <MapPin className="w-3 h-3" />
             <span className="truncate">{kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}</span>
           </div>
@@ -557,17 +557,17 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
                       e.stopPropagation();
                       copyTelefon(tel.nummer);
                     }}
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                     title="Kopieren"
                   >
                     {copiedTel === tel.nummer ? (
                       <Check className="w-4 h-4 text-green-500" />
                     ) : (
-                      <Copy className="w-4 h-4 text-gray-400" />
+                      <Copy className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                     )}
                   </button>
                   {ap.name && (
-                    <span className="text-xs text-gray-400 truncate max-w-20">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-20">
                       {ap.name}
                     </span>
                   )}
@@ -588,7 +588,7 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
 
       {/* Zusatz-Info */}
       {(rueckrufDatum || letztAngerufen || kunde.aktuelleSaison?.angefragteMenge) && (
-        <div className="text-xs text-gray-500 mb-2 space-y-0.5">
+        <div className="text-xs text-gray-500 dark:text-dark-textMuted mb-2 space-y-0.5">
           {rueckrufDatum && status === 'rueckruf' && (
             <div className="flex items-center gap-1 text-purple-600">
               <Calendar className="w-3 h-3" />
@@ -612,7 +612,7 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
 
       {/* Notiz Preview */}
       {kunde.aktuelleSaison?.gespraechsnotizen && (
-        <div className="text-xs text-gray-400 mb-2 line-clamp-1 italic">
+        <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 line-clamp-1 italic">
           "{kunde.aktuelleSaison.gespraechsnotizen}"
         </div>
       )}
@@ -693,11 +693,11 @@ const ErgebnisModal = ({
 }: ErgebnisModalProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[55] flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-6 py-4 flex items-center justify-between rounded-t-xl">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text flex items-center gap-2">
               {zielStatus === 'erreicht' ? (
                 <>
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
@@ -710,29 +710,29 @@ const ErgebnisModal = ({
                 </>
               )}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">{kunde.kunde.name}</p>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">{kunde.kunde.name}</p>
           </div>
           <button
             onClick={onCancel}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
           >
-            <X className="w-6 h-6 text-gray-500" />
+            <X className="w-6 h-6 text-gray-500 dark:text-dark-textMuted" />
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="p-6 space-y-6">
           {/* Kunden-Info */}
-          <div className="bg-gray-50 rounded-lg p-4">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
             <div className="flex items-start gap-3">
-              <User className="w-5 h-5 text-gray-400 mt-1" />
+              <User className="w-5 h-5 text-gray-400 dark:text-gray-500 mt-1" />
               <div>
-                <h3 className="font-semibold text-gray-900">{kunde.kunde.name}</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className="font-semibold text-gray-900 dark:text-dark-text">{kunde.kunde.name}</h3>
+                <p className="text-sm text-gray-600 dark:text-dark-textMuted">
                   {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
                 </p>
                 {kunde.ansprechpartner[0] && (
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">
                     {kunde.ansprechpartner[0].name}
                     {kunde.ansprechpartner[0].telefonnummern[0] && (
                       <> • {kunde.ansprechpartner[0].telefonnummern[0].nummer}</>
@@ -752,19 +752,19 @@ const ErgebnisModal = ({
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Rückruf-Datum *
                   </label>
                   <input
                     type="date"
                     value={formData.rueckrufDatum || ''}
                     onChange={(e) => setFormData({ ...formData, rueckrufDatum: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Rückruf-Notiz
                   </label>
                   <input
@@ -772,7 +772,7 @@ const ErgebnisModal = ({
                     value={formData.rueckrufNotiz || ''}
                     onChange={(e) => setFormData({ ...formData, rueckrufNotiz: e.target.value })}
                     placeholder="z.B. Urlaub bis..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
               </div>
@@ -782,7 +782,7 @@ const ErgebnisModal = ({
           {/* Mengen und Preise */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 <Package className="w-4 h-4 inline mr-1" />
                 Angefragte Menge (Tonnen)
               </label>
@@ -792,16 +792,16 @@ const ErgebnisModal = ({
                 value={formData.angefragteMenge || ''}
                 onChange={(e) => setFormData({ ...formData, angefragteMenge: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="z.B. 5.0"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
             {/* Tonnen letztes Jahr - nicht editierbar */}
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">
+              <label className="block text-sm font-medium text-gray-500 dark:text-dark-textMuted mb-1">
                 <Package className="w-4 h-4 inline mr-1" />
                 Tonnen letztes Jahr (Referenz)
               </label>
-              <div className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-medium">
+              <div className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 text-gray-700 dark:text-dark-textMuted font-medium">
                 {kunde.kunde.tonnenLetztesJahr 
                   ? `${kunde.kunde.tonnenLetztesJahr.toFixed(1)} t`
                   : '– keine Angabe –'}
@@ -813,11 +813,11 @@ const ErgebnisModal = ({
           <div className="grid grid-cols-2 gap-4">
             <div></div>
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">
+              <label className="block text-sm font-medium text-gray-500 dark:text-dark-textMuted mb-1">
                 <Euro className="w-4 h-4 inline mr-1" />
                 Preis Vorjahr (Referenz)
               </label>
-              <div className="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-700 font-medium">
+              <div className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 text-gray-700 dark:text-dark-textMuted font-medium">
                 {kunde.kunde.zuletztGezahlterPreis 
                   ? `${kunde.kunde.zuletztGezahlterPreis.toFixed(2)} €/t`
                   : '– kein Vorjahrespreis –'}
@@ -827,7 +827,7 @@ const ErgebnisModal = ({
 
           {/* Neuer Preis diese Saison */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               <Euro className="w-4 h-4 inline mr-1" />
               Preis diese Saison (€/Tonne) *
             </label>
@@ -837,7 +837,7 @@ const ErgebnisModal = ({
               value={formData.preisProTonne || ''}
               onChange={(e) => setFormData({ ...formData, preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined })}
               placeholder="Neuen Preis eingeben..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-lg"
+              className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-lg"
             />
             {kunde.kunde.zuletztGezahlterPreis && formData.preisProTonne && (
               <p className={`text-sm mt-1 ${
@@ -858,7 +858,7 @@ const ErgebnisModal = ({
 
           {/* Bestellabsicht */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               Bestellabsicht
             </label>
             <div className="flex gap-3">
@@ -889,7 +889,7 @@ const ErgebnisModal = ({
           {/* Bezugsweg */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Bezugsweg
               </label>
               <select
@@ -899,7 +899,7 @@ const ErgebnisModal = ({
                   bezugsweg: e.target.value as Bezugsweg || undefined,
                   platzbauerId: e.target.value === 'ueber_platzbauer' ? formData.platzbauerId : undefined 
                 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Bitte wählen</option>
                 <option value="direkt">Direkt</option>
@@ -909,13 +909,13 @@ const ErgebnisModal = ({
             </div>
             {formData.bezugsweg === 'ueber_platzbauer' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Platzbauer
                 </label>
                 <select
                   value={formData.platzbauerId || ''}
                   onChange={(e) => setFormData({ ...formData, platzbauerId: e.target.value || undefined })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Bitte wählen</option>
                   {platzbauerKunden.map((pb) => (
@@ -942,7 +942,7 @@ const ErgebnisModal = ({
                     anzahlPlaetze: e.target.checked ? formData.anzahlPlaetze : undefined,
                     fruehjahresinstandsetzungPlatzbauerId: e.target.checked ? formData.fruehjahresinstandsetzungPlatzbauerId : undefined
                   })}
-                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="w-5 h-5 text-blue-600 border-gray-300 dark:border-dark-border rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 />
                 <label htmlFor="fis-checkbox" className="font-medium text-blue-900 cursor-pointer select-none">
                   Frühjahresinstandsetzung über uns
@@ -952,7 +952,7 @@ const ErgebnisModal = ({
               {formData.fruehjahresinstandsetzungUeberUns && (
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Anzahl Plätze *
                     </label>
                     <input
@@ -964,11 +964,11 @@ const ErgebnisModal = ({
                         anzahlPlaetze: e.target.value ? parseInt(e.target.value) : undefined 
                       })}
                       placeholder="z.B. 4"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Tennisbauer *
                     </label>
                     <select
@@ -977,7 +977,7 @@ const ErgebnisModal = ({
                         ...formData, 
                         fruehjahresinstandsetzungPlatzbauerId: e.target.value || undefined 
                       })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Bitte wählen</option>
                       {platzbauerKunden.map((pb) => (
@@ -995,7 +995,7 @@ const ErgebnisModal = ({
           {/* Lieferfenster */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 <Calendar className="w-4 h-4 inline mr-1" />
                 Frühestes Lieferdatum
               </label>
@@ -1003,11 +1003,11 @@ const ErgebnisModal = ({
                 type="date"
                 value={formData.lieferfensterFrueh || ''}
                 onChange={(e) => setFormData({ ...formData, lieferfensterFrueh: e.target.value || undefined })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 <Calendar className="w-4 h-4 inline mr-1" />
                 Spätestes Lieferdatum
               </label>
@@ -1015,14 +1015,14 @@ const ErgebnisModal = ({
                 type="date"
                 value={formData.lieferfensterSpaet || ''}
                 onChange={(e) => setFormData({ ...formData, lieferfensterSpaet: e.target.value || undefined })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
           </div>
 
           {/* Notizen */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               <MessageSquare className="w-4 h-4 inline mr-1" />
               Gesprächsnotizen
             </label>
@@ -1031,17 +1031,17 @@ const ErgebnisModal = ({
               onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
               rows={4}
               placeholder="Wichtige Infos aus dem Gespräch..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
             />
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3 rounded-b-xl">
+        <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-dark-border px-6 py-4 flex justify-end gap-3 rounded-b-xl">
           <button
             onClick={onCancel}
             disabled={saving}
-            className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
+            className="px-6 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 transition-colors font-medium"
           >
             Abbrechen
           </button>

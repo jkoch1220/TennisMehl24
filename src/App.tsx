@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -39,10 +40,10 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface flex items-center justify-center transition-colors duration-300">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 dark:border-dark-accent mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted transition-colors duration-300">Lade...</p>
         </div>
       </div>
     );
@@ -170,12 +171,14 @@ function AppContent() {
   );
 }
 
-// Main App mit AuthProvider
+// Main App mit Theme und Auth Provider
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

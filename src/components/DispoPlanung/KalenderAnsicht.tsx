@@ -120,36 +120,36 @@ const KalenderAnsicht = () => {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={handleVorheriger}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 transition-colors"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={handleHeute}
-              className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
             >
               Heute
             </button>
             <button
               onClick={handleNaechster}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 transition-colors"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
-            <h2 className="text-xl font-bold text-gray-900 ml-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text ml-4">
               {ansicht === 'monat'
                 ? aktuellesDatum.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
                 : formatDatum(aktuellesDatum)}
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               {(['monat', 'woche', 'tag'] as Ansicht[]).map((a) => (
                 <button
                   key={a}
@@ -182,7 +182,7 @@ const KalenderAnsicht = () => {
           <div className="grid grid-cols-7 gap-2">
             {/* Wochentage Header */}
             {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((tag) => (
-              <div key={tag} className="text-center font-semibold text-gray-700 py-2">
+              <div key={tag} className="text-center font-semibold text-gray-700 dark:text-dark-textMuted py-2">
                 {tag}
               </div>
             ))}
@@ -228,7 +228,7 @@ const KalenderAnsicht = () => {
                       </div>
                     ))}
                     {tagLieferungen.length > 3 && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                         +{tagLieferungen.length - 3} weitere
                       </div>
                     )}
@@ -241,19 +241,19 @@ const KalenderAnsicht = () => {
 
         {ansicht === 'tag' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">
               {formatDatum(aktuellesDatum)}
             </h3>
             <div className="space-y-3">
               {getRoutenFuerTag(aktuellesDatum).map((route) => (
                 <div key={route.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900">{route.name}</h4>
-                    <span className="text-sm text-gray-600">
+                    <h4 className="font-semibold text-gray-900 dark:text-dark-text">{route.name}</h4>
+                    <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                       {route.zeitplan.stops.length} Lieferungen
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-dark-textMuted">
                     <span>🚛 {route.fahrzeugId}</span>
                     <span>📍 {route.routeDetails.gesamtDistanz.toFixed(1)} km</span>
                     <span>💰 {route.routeDetails.gesamtkosten.toFixed(2)} €</span>
@@ -265,19 +265,19 @@ const KalenderAnsicht = () => {
                 .map((lieferung) => (
                   <div
                     key={lieferung.id}
-                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
                     onClick={() => {
                       setBearbeiteLieferung(lieferung);
                       setShowFormular(true);
                     }}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-900">{lieferung.kundenname}</h4>
+                      <h4 className="font-semibold text-gray-900 dark:text-dark-text">{lieferung.kundenname}</h4>
                       <span className={`text-xs px-2 py-1 rounded ${getStatusFarbe(lieferung.status)}`}>
                         {lieferung.status}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-dark-textMuted">
                       <span>📍 {lieferung.adresse.plz} {lieferung.adresse.ort}</span>
                       <span>📦 {lieferung.lieferdetails.paletten} Paletten</span>
                       <span>⚖️ {lieferung.lieferdetails.tonnen.toFixed(2)} t</span>

@@ -93,13 +93,13 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 border-2 border-gray-200">
+    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-4 border-2 border-gray-200 dark:border-dark-border">
       {/* Kopf mit Stand heute */}
-      <div className="mb-4 pb-4 border-b border-gray-200">
+      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Euro className="w-5 h-5 text-green-600" />
-            <h4 className="font-semibold text-gray-900">Zahlungsstand</h4>
+            <h4 className="font-semibold text-gray-900 dark:text-dark-text">Zahlungsstand</h4>
           </div>
           {heuteBezahlt > 0 && (
             <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
@@ -109,15 +109,15 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
         </div>
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
-            <div className="text-xs text-gray-500 mb-1">Rechnungssumme</div>
-            <div className="text-lg font-bold text-gray-900">{formatCurrency(rechnung.summe)}</div>
+            <div className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Rechnungssumme</div>
+            <div className="text-lg font-bold text-gray-900 dark:text-dark-text">{formatCurrency(rechnung.summe)}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500 mb-1">Bereits bezahlt</div>
+            <div className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Bereits bezahlt</div>
             <div className="text-lg font-bold text-green-600">{formatCurrency(gesamtBezahlt)}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500 mb-1">Noch offen</div>
+            <div className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Noch offen</div>
             <div className={`text-lg font-bold ${offenerBetrag > 0 ? 'text-red-600' : 'text-green-600'}`}>
               {formatCurrency(offenerBetrag)}
             </div>
@@ -144,7 +144,7 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Betrag (€) <span className="text-red-500">*</span>
               </label>
               <input
@@ -154,21 +154,21 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
                 max={offenerBetrag}
                 value={betrag}
                 onChange={(e) => setBetrag(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder={formatCurrency(offenerBetrag)}
                 required
                 autoFocus
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Notiz (optional)
               </label>
               <input
                 type="text"
                 value={notiz}
                 onChange={(e) => setNotiz(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="z.B. Rate Januar"
               />
             </div>
@@ -190,7 +190,7 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
                 setNotiz('');
                 setError(null);
               }}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-textMuted rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -200,8 +200,8 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
 
       {/* Zahlungshistorie */}
       {rechnung.zahlungen && rechnung.zahlungen.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="text-xs font-medium text-gray-700 mb-2">Zahlungshistorie</div>
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+          <div className="text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-2">Zahlungshistorie</div>
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {rechnung.zahlungen
               .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime())
@@ -221,7 +221,7 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
                         {istHeute && ' (heute)'}
                       </span>
                       {zahlung.notiz && (
-                        <span className="text-xs text-gray-500">- {zahlung.notiz}</span>
+                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">- {zahlung.notiz}</span>
                       )}
                     </div>
                     <span className={`font-semibold ${istHeute ? 'text-green-700' : 'text-gray-900'}`}>

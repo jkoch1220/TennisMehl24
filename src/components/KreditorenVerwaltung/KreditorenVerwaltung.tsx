@@ -140,7 +140,7 @@ const KreditorenVerwaltung = () => {
       <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Daten...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Daten...</p>
         </div>
       </div>
     );
@@ -152,18 +152,18 @@ const KreditorenVerwaltung = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Kreditoren-Verwaltung</h1>
-            <p className="text-gray-600 mt-1">Verwaltung offener Rechnungen und Kreditoren</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Kreditoren-Verwaltung</h1>
+            <p className="text-gray-600 dark:text-dark-textMuted mt-1">Verwaltung offener Rechnungen und Kreditoren</p>
           </div>
           <div className="flex gap-3 items-center flex-wrap">
             {/* Default-Firma Auswahl */}
-            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-4 py-2">
-              <Building2 className="w-5 h-5 text-gray-500" />
-              <label className="text-sm font-medium text-gray-700">Standard:</label>
+            <div className="flex items-center gap-2 bg-white dark:bg-dark-surface border border-gray-300 dark:border-dark-border rounded-lg px-4 py-2">
+              <Building2 className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
+              <label className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Standard:</label>
               <select
                 value={defaultFirma}
                 onChange={(e) => setDefaultFirma(e.target.value as Unternehmen)}
-                className="border-none bg-transparent text-sm font-semibold text-gray-900 focus:outline-none cursor-pointer"
+                className="border-none bg-transparent text-sm font-semibold text-gray-900 dark:text-dark-text focus:outline-none cursor-pointer"
               >
                 <option value="Egner Bau">Egner Bau</option>
                 <option value="TennisMehl">TennisMehl</option>
@@ -172,7 +172,7 @@ const KreditorenVerwaltung = () => {
             
             <button
               onClick={loadData}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
               Aktualisieren
@@ -278,12 +278,12 @@ const KreditorenVerwaltung = () => {
                 return (
                   <div
                     key={rechnung.id}
-                    className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-dark-surface rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
                     onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
-                      <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="font-semibold text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
+                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                         {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                       </div>
                       {gesamtBezahlt > 0 && (
@@ -293,7 +293,7 @@ const KreditorenVerwaltung = () => {
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-gray-900">{formatCurrency(offenerBetrag)}</div>
+                      <div className="font-bold text-gray-900 dark:text-dark-text">{formatCurrency(offenerBetrag)}</div>
                       <div className="text-sm text-yellow-600 font-medium">
                         {tageBisFaellig === -1
                           ? 'Heute fällig'
@@ -323,12 +323,12 @@ const KreditorenVerwaltung = () => {
                 return (
                   <div
                     key={rechnung.id}
-                    className="bg-white rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-white dark:bg-dark-surface rounded-lg p-4 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
                     onClick={() => handleOpenDetail(rechnung)}
                   >
                     <div>
-                      <div className="font-semibold text-gray-900">{rechnung.kreditorName}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="font-semibold text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
+                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                         {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                       </div>
                       {gesamtBezahlt > 0 && (
@@ -339,7 +339,7 @@ const KreditorenVerwaltung = () => {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-red-600">{formatCurrency(offenerBetrag)}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                         Fällig: {new Date(rechnung.faelligkeitsdatum).toLocaleDateString('de-DE')}
                       </div>
                     </div>
@@ -351,8 +351,8 @@ const KreditorenVerwaltung = () => {
         )}
 
         {/* Tabs für Offene/Bezahlte Rechnungen */}
-        <div className="bg-white rounded-lg shadow-lg">
-          <div className="border-b border-gray-200">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg">
+          <div className="border-b border-gray-200 dark:border-dark-border">
             <div className="flex">
               <button
                 onClick={() => setActiveTab('offen')}
@@ -476,12 +476,12 @@ const StatistikKarte = ({ title, value, subtitle, icon: Icon, color }: Statistik
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
-          <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-dark-text mt-2">{value}</p>
+          <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">{subtitle}</p>
         </div>
         <div className={`${colorClasses[color]} rounded-lg p-3`}>
           <Icon className="w-6 h-6 text-white" />
@@ -500,10 +500,10 @@ interface DiagrammKarteProps {
 
 const DiagrammKarte = ({ title, icon: Icon, children }: DiagrammKarteProps) => {
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
       <div className="flex items-center gap-3 mb-6">
         <Icon className="w-6 h-6 text-red-600" />
-        <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">{title}</h3>
       </div>
       {children}
     </div>
@@ -527,7 +527,7 @@ const PieChart = ({ data }: PieChartProps) => {
   
   if (total === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-500 text-sm">
         Keine Daten verfügbar
       </div>
     );
@@ -536,7 +536,7 @@ const PieChart = ({ data }: PieChartProps) => {
   // Auch bei nur einem Eintrag anzeigen
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+      <div className="flex items-center justify-center h-64 text-gray-400 dark:text-gray-500 text-sm">
         Keine Daten verfügbar
       </div>
     );
@@ -684,15 +684,15 @@ const PieChart = ({ data }: PieChartProps) => {
                   transform: hoveredIndex === index ? 'scale(1.2)' : 'scale(1)'
                 }}
               />
-              <span className="text-sm font-medium text-gray-700 truncate">
+              <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted truncate">
                 {segment.label}
               </span>
-              <span className="text-xs text-gray-400 flex-shrink-0">
+              <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
                 {segment.percentage.toFixed(0)}%
               </span>
             </div>
             <div className="text-right flex-shrink-0 ml-3">
-              <div className="text-sm font-semibold text-gray-900">
+              <div className="text-sm font-semibold text-gray-900 dark:text-dark-text">
                 {formatCurrency(segment.value)}
               </div>
             </div>

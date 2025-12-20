@@ -294,7 +294,7 @@ const Todos = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade TODOs...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade TODOs...</p>
         </div>
       </div>
     );
@@ -306,15 +306,15 @@ const Todos = () => {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text mb-2">
               TODO-Verwaltung
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-dark-textMuted">
               Verwalten Sie Ihre Aufgaben im Kanban-Board oder als Liste
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex gap-2 bg-white rounded-lg p-1 shadow-sm">
+            <div className="flex gap-2 bg-white dark:bg-dark-surface rounded-lg p-1 shadow-sm">
               <button
                 onClick={() => setViewMode('kanban')}
                 className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
@@ -340,7 +340,7 @@ const Todos = () => {
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md shadow-sm hover:shadow-md dark:shadow-dark-md transition-all flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
               <span>Hinzufügen</span>
@@ -349,11 +349,11 @@ const Todos = () => {
         </div>
 
         {/* Filter-Bereich */}
-        <div className="mb-6 bg-white rounded-lg shadow-md p-4">
+        <div className="mb-6 bg-white dark:bg-dark-surface rounded-lg shadow-md dark:shadow-dark-md p-4">
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-md transition-colors"
             >
               <Filter className="w-4 h-4" />
               <span>Filter</span>
@@ -366,7 +366,7 @@ const Todos = () => {
             {getActiveFilterCount() > 0 && (
               <button
                 onClick={resetFilters}
-                className="text-sm text-gray-600 hover:text-red-600 transition-colors"
+                className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-red-600 transition-colors"
               >
                 Filter zurücksetzen
               </button>
@@ -374,10 +374,10 @@ const Todos = () => {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200 dark:border-dark-border">
               {/* Textsuche */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                   <Search className="w-4 h-4 inline mr-1" />
                   Suche
                 </label>
@@ -386,13 +386,13 @@ const Todos = () => {
                   value={filters.suche}
                   onChange={(e) => setFilters({ ...filters, suche: e.target.value })}
                   placeholder="Titel oder Beschreibung..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               {/* Status-Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                   Status
                 </label>
                 <div className="space-y-2">
@@ -408,9 +408,9 @@ const Todos = () => {
                             setFilters({ ...filters, status: filters.status.filter(s => s !== spalte.status) });
                           }
                         }}
-                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                        className="rounded border-gray-300 dark:border-dark-border text-red-600 focus:ring-red-500"
                       />
-                      <span className="text-sm text-gray-700">{spalte.label}</span>
+                      <span className="text-sm text-gray-700 dark:text-dark-textMuted">{spalte.label}</span>
                     </label>
                   ))}
                 </div>
@@ -418,7 +418,7 @@ const Todos = () => {
 
               {/* Prioritäts-Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                   Priorität
                 </label>
                 <div className="space-y-2">
@@ -434,9 +434,9 @@ const Todos = () => {
                             setFilters({ ...filters, prioritaet: filters.prioritaet.filter(p => p !== prioritaet) });
                           }
                         }}
-                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                        className="rounded border-gray-300 dark:border-dark-border text-red-600 focus:ring-red-500"
                       />
-                      <span className="text-sm text-gray-700 capitalize">{prioritaet}</span>
+                      <span className="text-sm text-gray-700 dark:text-dark-textMuted capitalize">{prioritaet}</span>
                     </label>
                   ))}
                 </div>
@@ -444,7 +444,7 @@ const Todos = () => {
 
               {/* Bearbeiter-Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                   <User className="w-4 h-4 inline mr-1" />
                   Bearbeiter
                 </label>
@@ -460,9 +460,9 @@ const Todos = () => {
                           setFilters({ ...filters, bearbeiter: filters.bearbeiter.filter(b => b !== 'keiner') });
                         }
                       }}
-                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                      className="rounded border-gray-300 dark:border-dark-border text-red-600 focus:ring-red-500"
                     />
-                    <span className="text-sm text-gray-700">Keiner</span>
+                    <span className="text-sm text-gray-700 dark:text-dark-textMuted">Keiner</span>
                   </label>
                   {bearbeiter.map((b) => (
                     <label key={b} className="flex items-center gap-2 cursor-pointer">
@@ -476,9 +476,9 @@ const Todos = () => {
                             setFilters({ ...filters, bearbeiter: filters.bearbeiter.filter(be => be !== b) });
                           }
                         }}
-                        className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                        className="rounded border-gray-300 dark:border-dark-border text-red-600 focus:ring-red-500"
                       />
-                      <span className="text-sm text-gray-700">{b}</span>
+                      <span className="text-sm text-gray-700 dark:text-dark-textMuted">{b}</span>
                     </label>
                   ))}
                 </div>
@@ -486,7 +486,7 @@ const Todos = () => {
 
               {/* Fälligkeitsdatum-Filter */}
               <div className="md:col-span-2 lg:col-span-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
                   Fälligkeitsdatum
                 </label>
@@ -518,48 +518,48 @@ const Todos = () => {
 
         {/* Liste Ansicht */}
         {viewMode === 'list' && (
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-md dark:shadow-dark-md overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Titel
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Priorität
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Bearbeiter
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Fälligkeitsdatum
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
                       Aktionen
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-dark-surface divide-y divide-gray-200">
                   {getFilteredTodos().length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-dark-textMuted">
                         {todos.length === 0 ? 'Keine TODOs vorhanden' : 'Keine TODOs entsprechen den Filtern'}
                       </td>
                     </tr>
                   ) : (
                     getFilteredTodos().map((todo) => (
-                      <tr key={todo.id} className="hover:bg-gray-50">
+                      <tr key={todo.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-gray-900 dark:text-dark-text">
                               {todo.titel}
                             </div>
                             {todo.beschreibung && (
-                              <div className="text-sm text-gray-500 mt-1 max-w-md truncate">
+                              <div className="text-sm text-gray-500 dark:text-dark-textMuted mt-1 max-w-md truncate">
                                 {todo.beschreibung}
                               </div>
                             )}
@@ -569,7 +569,7 @@ const Todos = () => {
                           <select
                             value={todo.status}
                             onChange={(e) => handleStatusChange(todo.id, e.target.value as TodoStatus)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            className="text-sm border border-gray-300 dark:border-dark-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
                           >
                             <option value="todo">TODO</option>
                             <option value="in_arbeit">In Arbeit</option>
@@ -584,7 +584,7 @@ const Todos = () => {
                           <select
                             value={todo.bearbeiter || ''}
                             onChange={(e) => handleBearbeiterChange(todo.id, e.target.value as Bearbeiter || undefined)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            className="text-sm border border-gray-300 dark:border-dark-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
                           >
                             <option value="">Keiner</option>
                             {bearbeiter.map((b) => (
@@ -594,14 +594,14 @@ const Todos = () => {
                             ))}
                           </select>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-dark-textMuted">
                           {todo.faelligkeitsdatum ? (
                             <div className="flex items-center gap-1">
                               <Calendar className="w-4 h-4" />
                               {new Date(todo.faelligkeitsdatum).toLocaleDateString('de-DE')}
                             </div>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <span className="text-gray-400 dark:text-gray-500">-</span>
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -637,9 +637,9 @@ const Todos = () => {
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, spalte.status)}
               >
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center justify-between">
                   <span>{spalte.label}</span>
-                  <span className="bg-white rounded-full px-2 py-1 text-sm font-medium">
+                  <span className="bg-white dark:bg-dark-surface rounded-full px-2 py-1 text-sm font-medium">
                     {spaltenTodos.length}
                   </span>
                 </h2>
@@ -660,7 +660,7 @@ const Todos = () => {
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 
-                          className="font-semibold text-gray-900 flex-1 text-sm cursor-pointer"
+                          className="font-semibold text-gray-900 dark:text-dark-text flex-1 text-sm cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (hasBeschreibung) {
@@ -677,7 +677,7 @@ const Todos = () => {
                                 e.stopPropagation();
                                 toggleTodoExpansion(todo.id);
                               }}
-                              className="text-gray-400 hover:text-gray-600"
+                              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted"
                               title={isExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}
                             >
                               {isExpanded ? (
@@ -692,7 +692,7 @@ const Todos = () => {
                               e.stopPropagation();
                               handleDelete(todo.id);
                             }}
-                            className="text-gray-400 hover:text-red-600"
+                            className="text-gray-400 dark:text-gray-500 hover:text-red-600"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -701,7 +701,7 @@ const Todos = () => {
                       
                       {isExpanded && hasBeschreibung && (
                         <div className="mb-3 pt-2 border-t border-gray-100">
-                          <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                          <p className="text-xs text-gray-600 dark:text-dark-textMuted whitespace-pre-wrap">
                             {todo.beschreibung}
                           </p>
                         </div>
@@ -710,7 +710,7 @@ const Todos = () => {
                       <div className="flex items-center gap-2 mb-2">
                         {getPrioritaetBadge(todo.prioritaet)}
                         {todo.faelligkeitsdatum && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                             <Calendar className="w-3 h-3" />
                             <span>
                               {new Date(todo.faelligkeitsdatum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
@@ -722,14 +722,14 @@ const Todos = () => {
                       {isExpanded && (
                         <>
                           <div className="mt-2 pt-2 border-t border-gray-100">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                               Bearbeiter
                             </label>
                             <select
                               value={todo.bearbeiter || ''}
                               onChange={(e) => handleBearbeiterChange(todo.id, e.target.value as Bearbeiter || undefined)}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                              className="w-full text-sm border border-gray-300 dark:border-dark-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
                             >
                               <option value="">Keiner</option>
                               {bearbeiter.map((b) => (
@@ -740,7 +740,7 @@ const Todos = () => {
                             </select>
                           </div>
                           {todo.bearbeiter && (
-                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-600">
+                            <div className="mt-2 flex items-center gap-1 text-xs text-gray-600 dark:text-dark-textMuted">
                               <User className="w-3 h-3" />
                               <span>{todo.bearbeiter}</span>
                             </div>
@@ -749,7 +749,7 @@ const Todos = () => {
                       )}
                       
                       {!isExpanded && todo.bearbeiter && (
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-textMuted">
                           <User className="w-3 h-3" />
                           <span>{todo.bearbeiter}</span>
                         </div>
@@ -774,7 +774,7 @@ const Todos = () => {
         {/* Floating Action Button */}
         <button
           onClick={() => setShowForm(true)}
-          className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center w-16 h-16 z-50"
+          className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-lg dark:shadow-dark-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center w-16 h-16 z-50"
           title="Neues TODO anlegen"
         >
           <Plus className="w-8 h-8" />
@@ -783,10 +783,10 @@ const Todos = () => {
         {/* Modal für neues TODO */}
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
                     Neues TODO anlegen
                   </h2>
                   <button
@@ -794,46 +794,46 @@ const Todos = () => {
                       setShowForm(false);
                       setFormData({ titel: '', beschreibung: '', status: 'todo', prioritaet: 'normal' });
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted"
                   >
                     <X className="w-6 h-6" />
                   </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Titel *
                     </label>
                     <input
                       type="text"
                       value={formData.titel}
                       onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       placeholder="Titel der Aufgabe"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Beschreibung
                     </label>
                     <textarea
                       value={formData.beschreibung}
                       onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={4}
                       placeholder="Detaillierte Beschreibung der Aufgabe..."
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                         Status
                       </label>
                       <select
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value as TodoStatus })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="todo">TODO</option>
                         <option value="in_arbeit">In Arbeit</option>
@@ -842,13 +842,13 @@ const Todos = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                         Priorität
                       </label>
                       <select
                         value={formData.prioritaet}
                         onChange={(e) => setFormData({ ...formData, prioritaet: e.target.value as any })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="niedrig">Niedrig</option>
                         <option value="normal">Normal</option>
@@ -859,13 +859,13 @@ const Todos = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                         Bearbeiter
                       </label>
                       <select
                         value={formData.bearbeiter || ''}
                         onChange={(e) => setFormData({ ...formData, bearbeiter: e.target.value as Bearbeiter || undefined })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="">Keiner</option>
                         {bearbeiter.map((b) => (
@@ -876,14 +876,14 @@ const Todos = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                         Fälligkeitsdatum
                       </label>
                       <input
                         type="date"
                         value={formData.faelligkeitsdatum || ''}
                         onChange={(e) => setFormData({ ...formData, faelligkeitsdatum: e.target.value || undefined })}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                   </div>
@@ -894,7 +894,7 @@ const Todos = () => {
                         setShowForm(false);
                         setFormData({ titel: '', beschreibung: '', status: 'todo', prioritaet: 'normal' });
                       }}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-md text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
                     >
                       Abbrechen
                     </button>

@@ -105,19 +105,19 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+      <div className="bg-white dark:bg-dark-surface rounded-xl p-6 border-2 border-gray-200 dark:border-dark-border">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Lieferanten...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Lieferanten...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl p-6 border-2 border-gray-200">
+    <div className="bg-white dark:bg-dark-surface rounded-xl p-6 border-2 border-gray-200 dark:border-dark-border">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-dark-text flex items-center gap-2">
           <Users className="w-6 h-6" />
           Lieferantenverwaltung
         </h2>
@@ -135,64 +135,64 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
       {/* Erstellungsformular */}
       {isCreating && (
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Neuer Lieferant</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-4">Neuer Lieferant</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                 Name *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                 placeholder="Max Mustermann"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                 Firma *
               </label>
               <input
                 type="text"
                 value={formData.firma}
                 onChange={(e) => setFormData({ ...formData, firma: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                 placeholder="Transport GmbH"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                 Stundenlohn (€/h) *
               </label>
               <NumberInput
                 value={formData.stundenlohn}
                 onChange={(value) => setFormData({ ...formData, stundenlohn: value })}
-                className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                 step={0.5}
                 min={0}
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                 LKW *
               </label>
               <input
                 type="text"
                 value={formData.lkw}
                 onChange={(e) => setFormData({ ...formData, lkw: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                 placeholder="7,5t LKW"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                 Liefervolumen (t) *
               </label>
               <NumberInput
                 value={formData.lieferVolumen}
                 onChange={(value) => setFormData({ ...formData, lieferVolumen: value })}
-                className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                 step={0.1}
                 min={0.1}
               />
@@ -209,7 +209,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
             </button>
             <button
               onClick={handleCancel}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-8000 text-white rounded-lg hover:bg-gray-600 transition-colors"
             >
               <X className="w-4 h-4" />
               Abbrechen
@@ -220,8 +220,8 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
 
       {/* Lieferantenliste */}
       {lieferanten.length === 0 && !isCreating ? (
-        <div className="text-center py-8 text-gray-500">
-          <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+        <div className="text-center py-8 text-gray-500 dark:text-dark-textMuted">
+          <Users className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
           <p>Noch keine Lieferanten vorhanden.</p>
           <p className="text-sm mt-2">Klicken Sie auf "Neuer Lieferant" um einen hinzuzufügen.</p>
         </div>
@@ -239,61 +239,61 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
               {isEditing === lieferant.id ? (
                 // Bearbeitungsformular
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Lieferant bearbeiten</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-4">Lieferant bearbeiten</h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                         Name *
                       </label>
                       <input
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                         Firma *
                       </label>
                       <input
                         type="text"
                         value={formData.firma}
                         onChange={(e) => setFormData({ ...formData, firma: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                         Stundenlohn (€/h) *
                       </label>
                       <NumberInput
                         value={formData.stundenlohn}
                         onChange={(value) => setFormData({ ...formData, stundenlohn: value })}
-                        className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                         step={0.5}
                         min={0}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                         LKW *
                       </label>
                       <input
                         type="text"
                         value={formData.lkw}
                         onChange={(e) => setFormData({ ...formData, lkw: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                         Liefervolumen (t) *
                       </label>
                       <NumberInput
                         value={formData.lieferVolumen}
                         onChange={(value) => setFormData({ ...formData, lieferVolumen: value })}
-                        className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
                         step={0.1}
                         min={0.1}
                       />
@@ -310,7 +310,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                     </button>
                     <button
                       onClick={handleCancel}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-8000 text-white rounded-lg hover:bg-gray-600 transition-colors"
                     >
                       <X className="w-4 h-4" />
                       Abbrechen
@@ -323,24 +323,24 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                   <div className="flex-1">
                     <div className="flex items-center gap-4 flex-wrap">
                       <div>
-                        <p className="text-sm text-gray-600">Name</p>
-                        <p className="font-semibold text-gray-900">{lieferant.name}</p>
+                        <p className="text-sm text-gray-600 dark:text-dark-textMuted">Name</p>
+                        <p className="font-semibold text-gray-900 dark:text-dark-text">{lieferant.name}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Firma</p>
-                        <p className="font-semibold text-gray-900">{lieferant.firma}</p>
+                        <p className="text-sm text-gray-600 dark:text-dark-textMuted">Firma</p>
+                        <p className="font-semibold text-gray-900 dark:text-dark-text">{lieferant.firma}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Stundenlohn</p>
-                        <p className="font-semibold text-gray-900">{lieferant.stundenlohn.toFixed(2)} €/h</p>
+                        <p className="text-sm text-gray-600 dark:text-dark-textMuted">Stundenlohn</p>
+                        <p className="font-semibold text-gray-900 dark:text-dark-text">{lieferant.stundenlohn.toFixed(2)} €/h</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">LKW</p>
-                        <p className="font-semibold text-gray-900">{lieferant.lkw}</p>
+                        <p className="text-sm text-gray-600 dark:text-dark-textMuted">LKW</p>
+                        <p className="font-semibold text-gray-900 dark:text-dark-text">{lieferant.lkw}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-gray-600">Liefervolumen</p>
-                        <p className="font-semibold text-gray-900">{lieferant.lieferVolumen.toFixed(1)} t</p>
+                        <p className="text-sm text-gray-600 dark:text-dark-textMuted">Liefervolumen</p>
+                        <p className="font-semibold text-gray-900 dark:text-dark-text">{lieferant.lieferVolumen.toFixed(1)} t</p>
                       </div>
                     </div>
                   </div>

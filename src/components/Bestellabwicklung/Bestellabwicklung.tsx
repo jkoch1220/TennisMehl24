@@ -56,7 +56,7 @@ const Bestellabwicklung = () => {
       <div className="p-6 max-w-7xl mx-auto">
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-xl text-gray-600">Lade Projekt...</p>
+          <p className="mt-4 text-xl text-gray-600 dark:text-dark-textMuted">Lade Projekt...</p>
         </div>
       </div>
     );
@@ -68,13 +68,13 @@ const Bestellabwicklung = () => {
       <div className="p-6 max-w-4xl mx-auto">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-8 text-center">
           <AlertCircle className="h-16 w-16 text-orange-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Kein Projekt ausgewählt</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-2">Kein Projekt ausgewählt</h2>
+          <p className="text-gray-600 dark:text-dark-textMuted mb-6">
             Die Bestellabwicklung kann nur über ein Projekt geöffnet werden.
           </p>
           <button
             onClick={() => navigate('/projekt-verwaltung')}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg"
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-lg dark:shadow-dark-lg"
           >
             Zur Projekt-Verwaltung
           </button>
@@ -97,17 +97,17 @@ const Bestellabwicklung = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/projekt-verwaltung')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
             title="Zurück zur Projektverwaltung"
           >
-            <ArrowLeft className="h-6 w-6 text-gray-600" />
+            <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-dark-textMuted" />
           </button>
-          <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg">
+          <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg dark:shadow-dark-lg">
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Bestellabwicklung</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Bestellabwicklung</h1>
+            <p className="text-gray-600 dark:text-dark-textMuted mt-1">
               {projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
           </div>
@@ -115,8 +115,8 @@ const Bestellabwicklung = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
-        <div className="flex border-b border-gray-200">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border mb-6 overflow-hidden">
+        <div className="flex border-b border-gray-200 dark:border-dark-border">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

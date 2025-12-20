@@ -154,11 +154,11 @@ const UserManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2 mb-4">
           <Users className="w-5 h-5" />
           Benutzerverwaltung
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-4">
           Legen Sie fest, welche Tools andere Benutzer sehen dürfen. 
           Admins haben immer Zugriff auf alle Tools.
         </p>
@@ -172,12 +172,12 @@ const UserManagement: React.FC = () => {
       {/* User Auswahl */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-semibold text-gray-700">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
             Benutzer auswählen
           </label>
           <button
             onClick={loadUsers}
-            className="text-sm text-gray-600 hover:text-gray-700 font-medium flex items-center gap-1"
+            className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-700 dark:text-dark-textMuted font-medium flex items-center gap-1"
             title="Liste aktualisieren"
           >
             <RefreshCw className="w-4 h-4" />
@@ -204,7 +204,7 @@ const UserManagement: React.FC = () => {
           <select
             value={selectedUser || ''}
             onChange={(e) => setSelectedUser(e.target.value || null)}
-            className="flex-1 p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+            className="flex-1 p-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
             disabled={saving}
           >
             <option value="">-- Benutzer wählen --</option>
@@ -241,25 +241,25 @@ const UserManagement: React.FC = () => {
 
       {/* Tool-Berechtigungen */}
       {selectedUser && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              <span className="ml-2 text-gray-600">Lade Berechtigungen...</span>
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400 dark:text-gray-500" />
+              <span className="ml-2 text-gray-600 dark:text-dark-textMuted">Lade Berechtigungen...</span>
             </div>
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-gray-900">Tool-Berechtigungen</h4>
+                <h4 className="font-semibold text-gray-900 dark:text-dark-text">Tool-Berechtigungen</h4>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={allToolsEnabled}
                     onChange={handleToggleAllTools}
                     disabled={saving}
-                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
                   />
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">
                     Alle Tools erlauben
                   </span>
                 </label>
@@ -283,22 +283,22 @@ const UserManagement: React.FC = () => {
                           <Icon className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{tool.name}</div>
-                          <div className="text-xs text-gray-600">{tool.description}</div>
+                          <div className="font-medium text-gray-900 dark:text-dark-text">{tool.name}</div>
+                          <div className="text-xs text-gray-600 dark:text-dark-textMuted">{tool.description}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {isSelected ? (
                           <Check className="w-5 h-5 text-green-600" />
                         ) : (
-                          <X className="w-5 h-5 text-gray-400" />
+                          <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                         )}
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleTool(tool.id)}
                           disabled={isDisabled}
-                          className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                          className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
                         />
                       </div>
                     </label>
@@ -306,7 +306,7 @@ const UserManagement: React.FC = () => {
                 })}
               </div>
 
-              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+              <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-dark-border">
                 <div>
                   {saved && (
                     <span className="text-sm text-green-600 font-medium">
@@ -317,7 +317,7 @@ const UserManagement: React.FC = () => {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all shadow-md dark:shadow-dark-md disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {saving ? 'Speichere...' : 'Änderungen speichern'}

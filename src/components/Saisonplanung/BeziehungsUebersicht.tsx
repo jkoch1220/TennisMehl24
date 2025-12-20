@@ -71,25 +71,25 @@ const BeziehungsUebersicht = ({ kunden, onClose, onUpdate }: Props) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Beziehungen Verein ↔ Platzbauer</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Beziehungen Verein ↔ Platzbauer</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
           {/* Neue Beziehung */}
-          <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-lg font-semibold text-gray-900">Neue Zuordnung</h3>
+          <div className="border border-gray-200 dark:border-dark-border rounded-lg p-4 space-y-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Neue Zuordnung</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Verein</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Verein</label>
                 <select
                   value={neueBeziehung.vereinId}
                   onChange={(e) => setNeueBeziehung({ ...neueBeziehung, vereinId: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Bitte wählen</option>
                   {vereine.map((v) => (
@@ -100,13 +100,13 @@ const BeziehungsUebersicht = ({ kunden, onClose, onUpdate }: Props) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Platzbauer</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Platzbauer</label>
                 <select
                   value={neueBeziehung.platzbauerId}
                   onChange={(e) =>
                     setNeueBeziehung({ ...neueBeziehung, platzbauerId: e.target.value })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Bitte wählen</option>
                   {platzbauer.map((p) => (
@@ -117,12 +117,12 @@ const BeziehungsUebersicht = ({ kunden, onClose, onUpdate }: Props) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notiz</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Notiz</label>
                 <input
                   type="text"
                   value={neueBeziehung.notiz || ''}
                   onChange={(e) => setNeueBeziehung({ ...neueBeziehung, notiz: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   placeholder="z.B. hauptsächlich"
                 />
               </div>
@@ -140,40 +140,40 @@ const BeziehungsUebersicht = ({ kunden, onClose, onUpdate }: Props) => {
           {/* Liste */}
           <div className="space-y-2">
             {beziehungen.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">Keine Beziehungen erfasst.</p>
+              <p className="text-gray-500 dark:text-dark-textMuted text-center py-4">Keine Beziehungen erfasst.</p>
             ) : (
               beziehungen.map((b) => (
                 <div
                   key={b.id}
-                  className="border border-gray-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-center"
+                  className="border border-gray-200 dark:border-dark-border rounded-lg p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-center"
                 >
                   <div>
-                    <div className="text-sm text-gray-600">Verein</div>
-                    <div className="font-medium text-gray-900">{b.vereinName}</div>
+                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">Verein</div>
+                    <div className="font-medium text-gray-900 dark:text-dark-text">{b.vereinName}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-600">Platzbauer</div>
-                    <div className="font-medium text-gray-900">{b.platzbauerName}</div>
+                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">Platzbauer</div>
+                    <div className="font-medium text-gray-900 dark:text-dark-text">{b.platzbauerName}</div>
                   </div>
                   <div className="space-y-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Status</label>
                       <select
                         value={b.status}
                         onChange={(e) => handleUpdate(b.id, { status: e.target.value as any })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       >
                         <option value="aktiv">Aktiv</option>
                         <option value="inaktiv">Inaktiv</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Notiz</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Notiz</label>
                       <input
                         type="text"
                         value={b.notiz || ''}
                         onChange={(e) => handleUpdate(b.id, { notiz: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                   </div>

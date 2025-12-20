@@ -21,3 +21,22 @@ body {
   display: none;  /* Chrome, Safari und Opera */
 }
 
+/* Custom Scrollbar für Dark Mode */
+.dark *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark *::-webkit-scrollbar-track {
+  background: rgb(15 23 42); /* dark-bg */
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: rgb(51 65 85); /* dark-border */
+  border-radius: 4px;
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgb(71 85 105); /* slightly lighter */
+}
+

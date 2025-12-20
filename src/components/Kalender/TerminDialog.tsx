@@ -202,15 +202,15 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">
             {istBearbeitung ? 'Termin bearbeiten' : 'Neuer Termin'}
           </h2>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
           >
             <X className="h-6 w-6" />
           </button>
@@ -220,7 +220,7 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
         <div className="p-6 space-y-6">
           {/* Titel */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Titel *
             </label>
             <input
@@ -241,7 +241,7 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
           {/* Datum und Zeit */}
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-gray-400" />
+              <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -249,13 +249,13 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
                   onChange={(e) => handleGanztaegigChange(e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm font-medium text-gray-700">Ganztägig</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Ganztägig</span>
               </label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Startdatum *
                 </label>
                 <input
@@ -272,7 +272,7 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Enddatum *
                 </label>
                 <input
@@ -292,7 +292,7 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
             {!formData.ganztaegig && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     <Clock className="h-4 w-4 inline mr-1" />
                     Startzeit *
                   </label>
@@ -310,7 +310,7 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Endzeit *
                   </label>
                   <input
@@ -331,21 +331,21 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
 
           {/* Beschreibung */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Beschreibung
             </label>
             <textarea
               value={formData.beschreibung}
               onChange={(e) => handleInputChange('beschreibung', e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-blue-500 focus:border-blue-500"
               placeholder="Optionale Beschreibung..."
             />
           </div>
 
           {/* Ort */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               <MapPin className="h-4 w-4 inline mr-1" />
               Ort
             </label>
@@ -353,14 +353,14 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
               type="text"
               value={formData.ort}
               onChange={(e) => handleInputChange('ort', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-blue-500 focus:border-blue-500"
               placeholder="z.B. Besprechungsraum 1"
             />
           </div>
 
           {/* Farbe */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               <Palette className="h-4 w-4 inline mr-1" />
               Farbe
             </label>
@@ -383,14 +383,14 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
 
           {/* Wiederholung */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               <Repeat className="h-4 w-4 inline mr-1" />
               Wiederholung
             </label>
             <select
               value={formData.wiederholung}
               onChange={(e) => handleInputChange('wiederholung', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="keine">Keine Wiederholung</option>
               <option value="taeglich">Täglich</option>
@@ -402,14 +402,14 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
 
           {/* Erinnerung */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               <Bell className="h-4 w-4 inline mr-1" />
               Erinnerung
             </label>
             <select
               value={formData.erinnerung}
               onChange={(e) => handleInputChange('erinnerung', parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value={0}>Keine Erinnerung</option>
               <option value={5}>5 Minuten vorher</option>
@@ -424,10 +424,10 @@ const TerminDialog: React.FC<TerminDialogProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200">
+        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-dark-border">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-md transition-colors"
           >
             Abbrechen
           </button>

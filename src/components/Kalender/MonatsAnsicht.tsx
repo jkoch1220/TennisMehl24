@@ -78,13 +78,13 @@ const MonatsAnsicht: React.FC<MonatsAnsichtProps> = ({
   const MAX_SICHTBARE_TERMINE = 3;
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white dark:bg-dark-surface">
       {/* Wochentage Header */}
-      <div className="grid grid-cols-7 border-b border-gray-200">
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-dark-border">
         {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((wochentag) => (
           <div
             key={wochentag}
-            className="p-3 text-center text-sm font-medium text-gray-500 bg-gray-50"
+            className="p-3 text-center text-sm font-medium text-gray-500 dark:text-dark-textMuted bg-gray-50 dark:bg-gray-800"
           >
             {wochentag}
           </div>
@@ -166,7 +166,7 @@ const MonatsAnsicht: React.FC<MonatsAnsichtProps> = ({
 
                   {/* "X weitere" Anzeige */}
                   {weitereTermineAnzahl > 0 && (
-                    <div className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 cursor-pointer">
+                    <div className="px-2 py-1 text-xs text-gray-600 dark:text-dark-textMuted hover:text-gray-800 dark:text-dark-text cursor-pointer">
                       + {weitereTermineAnzahl} weitere
                     </div>
                   )}

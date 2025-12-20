@@ -136,7 +136,7 @@ const Vorschlaege = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Vorschläge...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Vorschläge...</p>
         </div>
       </div>
     );
@@ -147,45 +147,45 @@ const Vorschlaege = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text mb-2">
             Verbesserungen
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-dark-textMuted">
             Verbesserungen des Online-Tools
           </p>
         </div>
 
         {/* Tickets Liste */}
         {tickets.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg">Noch keine Vorschläge vorhanden.</p>
-            <p className="text-gray-500 mt-2">Klicken Sie auf den Button unten rechts, um einen Vorschlag anzulegen.</p>
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow p-8 text-center">
+            <MessageSquare className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-dark-textMuted text-lg">Noch keine Vorschläge vorhanden.</p>
+            <p className="text-gray-500 dark:text-dark-textMuted mt-2">Klicken Sie auf den Button unten rechts, um einen Vorschlag anzulegen.</p>
           </div>
         ) : (
           <div className="grid gap-4">
             {tickets.map((ticket) => (
               <div
                 key={ticket.id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                className="bg-white dark:bg-dark-surface rounded-lg shadow-md dark:shadow-dark-md p-6 hover:shadow-lg dark:shadow-dark-lg transition-shadow"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       {getStatusIcon(ticket.status)}
                       <div className="flex items-center gap-2 flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text">
                           {ticket.titel}
                         </h3>
                         <button
                           onClick={() => handleCopy(ticket.titel, ticket.id, 'titel')}
-                          className="p-1 hover:bg-gray-100 rounded transition-colors"
+                          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                           title="Titel kopieren"
                         >
                           {copiedItem?.id === ticket.id && copiedItem?.type === 'titel' ? (
                             <Check className="w-4 h-4 text-green-500" />
                           ) : (
-                            <Copy className="w-4 h-4 text-gray-400" />
+                            <Copy className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                           )}
                         </button>
                       </div>
@@ -193,22 +193,22 @@ const Vorschlaege = () => {
                       {getPrioritaetBadge(ticket.prioritaet)}
                     </div>
                     <div className="flex items-start gap-2 mb-4">
-                      <p className="text-gray-700 whitespace-pre-wrap flex-1">
+                      <p className="text-gray-700 dark:text-dark-textMuted whitespace-pre-wrap flex-1">
                         {ticket.beschreibung}
                       </p>
                       <button
                         onClick={() => handleCopy(ticket.beschreibung, ticket.id, 'beschreibung')}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors flex-shrink-0 mt-1"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors flex-shrink-0 mt-1"
                         title="Beschreibung kopieren"
                       >
                         {copiedItem?.id === ticket.id && copiedItem?.type === 'beschreibung' ? (
                           <Check className="w-4 h-4 text-green-500" />
                         ) : (
-                          <Copy className="w-4 h-4 text-gray-400" />
+                          <Copy className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                         )}
                       </button>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-dark-textMuted">
                       <span>
                         Erstellt: {new Date(ticket.erstelltAm).toLocaleDateString('de-DE', {
                           day: '2-digit',
@@ -227,7 +227,7 @@ const Vorschlaege = () => {
                     <select
                       value={ticket.status}
                       onChange={(e) => handleStatusChange(ticket.id, e.target.value as TicketStatus)}
-                      className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="text-sm border border-gray-300 dark:border-dark-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="offen">Offen</option>
                       <option value="in_bearbeitung">In Bearbeitung</option>
@@ -250,7 +250,7 @@ const Vorschlaege = () => {
         {/* Floating Action Button - nur auf dieser Seite, da globaler Button im Layout ist */}
         <button
           onClick={() => setShowForm(true)}
-          className="fixed bottom-24 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center w-16 h-16 z-40"
+          className="fixed bottom-24 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-lg dark:shadow-dark-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center w-16 h-16 z-40"
           title="Neuen Vorschlag anlegen"
         >
           <Plus className="w-8 h-8" />
@@ -259,10 +259,10 @@ const Vorschlaege = () => {
         {/* Modal für neues Ticket */}
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
                     Neue Verbesserung
                   </h2>
                   <button
@@ -270,45 +270,45 @@ const Vorschlaege = () => {
                       setShowForm(false);
                       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                     }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted"
                   >
                     <X className="w-6 h-6" />
                   </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Titel *
                     </label>
                     <input
                       type="text"
                       value={formData.titel}
                       onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       placeholder="Kurze Beschreibung des Vorschlags"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Beschreibung
                     </label>
                     <textarea
                       value={formData.beschreibung}
                       onChange={(e) => setFormData({ ...formData, beschreibung: e.target.value })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       rows={6}
                       placeholder="Detaillierte Beschreibung der Verbesserung..."
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Priorität
                     </label>
                     <select
                       value={formData.prioritaet}
                       onChange={(e) => setFormData({ ...formData, prioritaet: e.target.value as TicketPrioritaet })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="niedrig">Niedrig</option>
                       <option value="normal">Normal</option>
@@ -323,7 +323,7 @@ const Vorschlaege = () => {
                         setShowForm(false);
                         setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
                       }}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-md text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500"
                     >
                       Abbrechen
                     </button>

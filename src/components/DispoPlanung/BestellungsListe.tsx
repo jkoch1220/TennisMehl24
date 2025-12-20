@@ -137,7 +137,7 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="flex-1 max-w-md">
@@ -150,7 +150,7 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
             />
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-500" />
+            <Filter className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as BestellungsStatus | 'alle')}
@@ -179,7 +179,7 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
 
         {/* Bestellungsliste */}
         {gefilterteBestellungen.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-textMuted">
             <Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p>
               {bestellungen.length === 0
@@ -192,12 +192,12 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
             {gefilterteBestellungen.map((bestellung) => (
               <div
                 key={bestellung.id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                         {bestellung.kundenname}
                       </h3>
                       <span
@@ -211,7 +211,7 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-dark-textMuted mb-2">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
                         {bestellung.adresse.plz} {bestellung.adresse.ort}
@@ -226,12 +226,12 @@ const BestellungsListe = ({ onBestellungAktualisiert }: BestellungsListeProps) =
                       )}
                     </div>
                     {bestellung.lieferdatum && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                         Lieferdatum: {formatDatum(new Date(bestellung.lieferdatum.von))} - {formatDatum(new Date(bestellung.lieferdatum.bis))}
                       </div>
                     )}
                     {bestellung.notizen && (
-                      <div className="text-sm text-gray-500 mt-2 italic">
+                      <div className="text-sm text-gray-500 dark:text-dark-textMuted mt-2 italic">
                         {bestellung.notizen}
                       </div>
                     )}

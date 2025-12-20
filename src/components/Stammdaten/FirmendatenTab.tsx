@@ -172,7 +172,7 @@ const FirmendatenTab = () => {
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Stammdaten...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Stammdaten...</p>
         </div>
       </div>
     );
@@ -181,11 +181,11 @@ const FirmendatenTab = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Firmendaten</h2>
-            <p className="text-gray-600 text-sm">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-2">Firmendaten</h2>
+            <p className="text-gray-600 dark:text-dark-textMuted text-sm">
               Zentrale Verwaltung aller Firmenstammdaten für Dokumente und Rechnungen
             </p>
           </div>
@@ -212,17 +212,17 @@ const FirmendatenTab = () => {
       </div>
 
       {/* Formular */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
         <div className="space-y-8">
           {/* Firmendaten */}
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Building2 className="h-5 w-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Firmendaten</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Firmendaten</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Firmenname *
                 </label>
                 <input
@@ -230,11 +230,11 @@ const FirmendatenTab = () => {
                   value={formData.firmenname}
                   onChange={(e) => setFormData({ ...formData, firmenname: e.target.value })}
                   placeholder="z.B. TENNISMEHL GmbH"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Straße und Hausnummer *
                 </label>
                 <input
@@ -242,11 +242,11 @@ const FirmendatenTab = () => {
                   value={formData.firmenstrasse}
                   onChange={(e) => setFormData({ ...formData, firmenstrasse: e.target.value })}
                   placeholder="z.B. Wertheimer Str. 13"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   PLZ *
                 </label>
                 <input
@@ -254,11 +254,11 @@ const FirmendatenTab = () => {
                   value={formData.firmenPlz}
                   onChange={(e) => setFormData({ ...formData, firmenPlz: e.target.value })}
                   placeholder="z.B. 97959"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Ort *
                 </label>
                 <input
@@ -266,7 +266,7 @@ const FirmendatenTab = () => {
                   value={formData.firmenOrt}
                   onChange={(e) => setFormData({ ...formData, firmenOrt: e.target.value })}
                   placeholder="z.B. Großrinderfeld"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -276,11 +276,11 @@ const FirmendatenTab = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Phone className="h-5 w-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Kontaktdaten</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Kontaktdaten</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Telefon *
                 </label>
                 <input
@@ -288,11 +288,11 @@ const FirmendatenTab = () => {
                   value={formData.firmenTelefon}
                   onChange={(e) => setFormData({ ...formData, firmenTelefon: e.target.value })}
                   placeholder="z.B. 09391 9870-0"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   E-Mail *
                 </label>
                 <input
@@ -300,11 +300,11 @@ const FirmendatenTab = () => {
                   value={formData.firmenEmail}
                   onChange={(e) => setFormData({ ...formData, firmenEmail: e.target.value })}
                   placeholder="z.B. info@tennismehl.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Website
                 </label>
                 <input
@@ -312,7 +312,7 @@ const FirmendatenTab = () => {
                   value={formData.firmenWebsite}
                   onChange={(e) => setFormData({ ...formData, firmenWebsite: e.target.value })}
                   placeholder="z.B. www.tennismehl.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -323,7 +323,7 @@ const FirmendatenTab = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <User className="h-5 w-5 text-purple-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Geschäftsführung</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Geschäftsführung</h3>
               </div>
               <button
                 type="button"
@@ -337,9 +337,9 @@ const FirmendatenTab = () => {
             
             <div className="space-y-3">
               {formData.geschaeftsfuehrer.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                  <User className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 mb-3">Noch keine Geschäftsführer angelegt</p>
+                <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-dark-border">
+                  <User className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                  <p className="text-gray-600 dark:text-dark-textMuted mb-3">Noch keine Geschäftsführer angelegt</p>
                   <button
                     type="button"
                     onClick={handleGeschaeftsfuehrerHinzufuegen}
@@ -357,7 +357,7 @@ const FirmendatenTab = () => {
                         value={gf}
                         onChange={(e) => handleGeschaeftsfuehrerAendern(index, e.target.value)}
                         placeholder="z.B. Stefan Egner"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
                     </div>
                     <button
@@ -374,7 +374,7 @@ const FirmendatenTab = () => {
             </div>
             
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Sitz der Gesellschaft *
               </label>
               <input
@@ -382,7 +382,7 @@ const FirmendatenTab = () => {
                 value={formData.sitzGesellschaft}
                 onChange={(e) => setFormData({ ...formData, sitzGesellschaft: e.target.value })}
                 placeholder="z.B. Großrinderfeld"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -391,11 +391,11 @@ const FirmendatenTab = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Briefcase className="h-5 w-5 text-orange-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Handelsregister & Steuern</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Handelsregister & Steuern</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Handelsregister *
                 </label>
                 <input
@@ -403,11 +403,11 @@ const FirmendatenTab = () => {
                   value={formData.handelsregister}
                   onChange={(e) => setFormData({ ...formData, handelsregister: e.target.value })}
                   placeholder="z.B. Würzburg HRB 731653"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   USt-IdNr. *
                 </label>
                 <input
@@ -415,19 +415,19 @@ const FirmendatenTab = () => {
                   value={formData.ustIdNr}
                   onChange={(e) => setFormData({ ...formData, ustIdNr: e.target.value })}
                   placeholder="z.B. DE 320 029 255"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Steuernummer <span className="text-gray-400 text-xs">(optional)</span>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Steuernummer <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={formData.steuernummer}
                   onChange={(e) => setFormData({ ...formData, steuernummer: e.target.value })}
                   placeholder="z.B. 123/456/78901"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -437,11 +437,11 @@ const FirmendatenTab = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <CreditCard className="h-5 w-5 text-red-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Bankverbindung</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Bankverbindung</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Bankname *
                 </label>
                 <input
@@ -449,11 +449,11 @@ const FirmendatenTab = () => {
                   value={formData.bankname}
                   onChange={(e) => setFormData({ ...formData, bankname: e.target.value })}
                   placeholder="z.B. Sparkasse Tauberfranken"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   IBAN *
                 </label>
                 <input
@@ -461,11 +461,11 @@ const FirmendatenTab = () => {
                   value={formData.iban}
                   onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
                   placeholder="z.B. DE49 6735 0130 0000254019"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   BIC *
                 </label>
                 <input
@@ -473,7 +473,7 @@ const FirmendatenTab = () => {
                   value={formData.bic}
                   onChange={(e) => setFormData({ ...formData, bic: e.target.value })}
                   placeholder="z.B. SOLADES1TBB"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -483,11 +483,11 @@ const FirmendatenTab = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="h-5 w-5 text-cyan-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Werk/Verkauf <span className="text-sm text-gray-500 font-normal">(optional)</span></h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Werk/Verkauf <span className="text-sm text-gray-500 dark:text-dark-textMuted font-normal">(optional)</span></h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Name
                 </label>
                 <input
@@ -495,11 +495,11 @@ const FirmendatenTab = () => {
                   value={formData.werkName}
                   onChange={(e) => setFormData({ ...formData, werkName: e.target.value })}
                   placeholder="z.B. TENNISMEHL GmbH"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Straße und Hausnummer
                 </label>
                 <input
@@ -507,11 +507,11 @@ const FirmendatenTab = () => {
                   value={formData.werkStrasse}
                   onChange={(e) => setFormData({ ...formData, werkStrasse: e.target.value })}
                   placeholder="z.B. Wertheimer Str. 3a"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   PLZ
                 </label>
                 <input
@@ -519,11 +519,11 @@ const FirmendatenTab = () => {
                   value={formData.werkPlz}
                   onChange={(e) => setFormData({ ...formData, werkPlz: e.target.value })}
                   placeholder="z.B. 97828"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Ort
                 </label>
                 <input
@@ -531,7 +531,7 @@ const FirmendatenTab = () => {
                   value={formData.werkOrt}
                   onChange={(e) => setFormData({ ...formData, werkOrt: e.target.value })}
                   placeholder="z.B. Marktheidenfeld"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>

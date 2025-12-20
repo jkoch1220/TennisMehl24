@@ -548,7 +548,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-green-500" />
-        <span className="ml-3 text-gray-600">Lade Dokument...</span>
+        <span className="ml-3 text-gray-600 dark:text-dark-textMuted">Lade Dokument...</span>
       </div>
     );
   }
@@ -593,7 +593,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   </a>
                   <button
                     onClick={() => setIstBearbeitungsModus(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors text-sm font-medium"
                   >
                     <Edit3 className="h-4 w-4" />
                     Bearbeiten & neu speichern
@@ -686,171 +686,171 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         )}
 
         {/* Lieferscheininformationen */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Lieferscheininformationen</h2>
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Lieferscheininformationen</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lieferscheinnummer</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Lieferscheinnummer</label>
               <input
                 type="text"
                 value={lieferscheinDaten.lieferscheinnummer}
                 onChange={(e) => handleInputChange('lieferscheinnummer', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lieferdatum</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Lieferdatum</label>
               <input
                 type="date"
                 value={lieferscheinDaten.lieferdatum}
                 onChange={(e) => handleInputChange('lieferdatum', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bestellnummer (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Bestellnummer (optional)</label>
               <input
                 type="text"
                 value={lieferscheinDaten.bestellnummer || ''}
                 onChange={(e) => handleInputChange('bestellnummer', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
           </div>
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Kundendaten</h2>
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kundennummer</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kundennummer</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.kundennummer || ''}
                   onChange={(e) => handleInputChange('kundennummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. K-2024-001"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Projektnummer (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Projektnummer (optional)</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.projektnummer || ''}
                   onChange={(e) => handleInputChange('projektnummer', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. P-2024-042"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ihr Ansprechpartner (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ihr Ansprechpartner (optional)</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ansprechpartner beim Kunden (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden (optional)</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.ansprechpartner || ''}
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Max Mustermann"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
               <input
                 type="text"
                 value={lieferscheinDaten.kundenname}
                 onChange={(e) => handleInputChange('kundenname', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Straße</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
               <input
                 type="text"
                 value={lieferscheinDaten.kundenstrasse}
                 onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">PLZ & Ort</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
               <input
                 type="text"
                 value={lieferscheinDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
               />
             </div>
           </div>
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Lieferadresse</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={lieferscheinDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 disabled:opacity-50"
+                className="w-4 h-4 text-green-600 border-gray-300 dark:border-dark-border rounded focus:ring-green-500 disabled:opacity-50"
               />
-              <span className="text-sm text-gray-600">Abweichende Lieferadresse</span>
+              <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
           </div>
           
           {lieferscheinDaten.lieferadresseAbweichend && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.lieferadresseName || ''}
                   onChange={(e) => handleInputChange('lieferadresseName', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Straße</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.lieferadresseStrasse || ''}
                   onChange={(e) => handleInputChange('lieferadresseStrasse', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PLZ & Ort</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.lieferadressePlzOrt || ''}
                   onChange={(e) => handleInputChange('lieferadressePlzOrt', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                 />
               </div>
             </div>
@@ -858,11 +858,11 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         </div>
 
         {/* Lieferpositionen */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Lieferpositionen</h2>
-              <p className="text-sm text-gray-500 mt-1">Hinweis: Lieferscheine enthalten KEINE Preise</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferpositionen</h2>
+              <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">Hinweis: Lieferscheine enthalten KEINE Preise</p>
             </div>
             {(!gespeichertesDokument || istBearbeitungsModus) && (
               <div className="flex gap-2">
@@ -888,20 +888,20 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           {showArtikelAuswahl && (
             <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900">Artikel auswählen</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-dark-text">Artikel auswählen</h3>
                 <button
                   onClick={() => {
                     setShowArtikelAuswahl(false);
                     setArtikelSuchtext('');
                   }}
-                  className="text-sm text-gray-600 hover:text-gray-900"
+                  className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text"
                 >
                   Schließen
                 </button>
               </div>
 
               {artikel.length === 0 ? (
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-dark-textMuted">
                   Keine Artikel vorhanden. Legen Sie zuerst Artikel in der Artikelverwaltung an.
                 </p>
               ) : (
@@ -909,20 +909,20 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   {/* Suchfeld und Sortierung */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
                       <input
                         type="text"
                         value={artikelSuchtext}
                         onChange={(e) => setArtikelSuchtext(e.target.value)}
                         onKeyDown={handleArtikelSucheKeyDown}
                         placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
                       />
                     </div>
                     <select
                       value={artikelSortierung}
                       onChange={(e) => setArtikelSortierung(e.target.value as any)}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                      className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-dark-surface"
                     >
                       <option value="bezeichnung">Sortierung: Bezeichnung</option>
                       <option value="artikelnummer">Sortierung: Art.-Nr.</option>
@@ -931,31 +931,31 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   </div>
 
                   {/* Artikel-Tabelle */}
-                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden max-h-96 overflow-y-auto">
                     {gefilterteArtikel.length === 0 ? (
-                      <div className="p-4 text-center text-gray-600 text-sm">
+                      <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                         Keine Artikel gefunden
                       </div>
                     ) : (
                       <table className="w-full">
                         <thead className="bg-purple-100 sticky top-0">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Art.-Nr.</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Bezeichnung</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Beschreibung</th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Einheit</th>
-                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700">Aktion</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Art.-Nr.</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Bezeichnung</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Beschreibung</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Einheit</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted">Aktion</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {gefilterteArtikel.map((art) => (
                             <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{art.artikelnummer}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{art.bezeichnung}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text">{art.bezeichnung}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted">
                                 <div className="line-clamp-2 max-w-xs">{art.beschreibung || '-'}</div>
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-center">{art.einheit}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text text-center">{art.einheit}</td>
                               <td className="px-4 py-3 text-center">
                                 <button
                                   onClick={() => addPositionAusArtikel(art.$id!)}
@@ -972,7 +972,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   </div>
 
                   {/* Info-Zeile */}
-                  <div className="text-xs text-gray-600 text-center">
+                  <div className="text-xs text-gray-600 dark:text-dark-textMuted text-center">
                     {gefilterteArtikel.length} von {artikel.length} Artikel{artikel.length !== 1 ? 'n' : ''} angezeigt
                   </div>
                 </div>
@@ -1001,57 +1001,57 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel-Nr.</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel-Nr.</label>
                         <input
                           type="text"
                           value={position.artikelnummer || ''}
                           onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Artikel</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel</label>
                         <input
                           type="text"
                           value={position.artikel}
                           onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                           placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Menge</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
                         <input
                           type="number"
                           value={position.menge}
                           onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Einheit</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einheit</label>
                         <input
                           type="text"
                           value={position.einheit}
                           onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
                           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Beschreibung (optional)</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Beschreibung (optional)</label>
                       <textarea
                         value={position.beschreibung || ''}
                         onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
                         disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                         placeholder="Detaillierte Beschreibung der Position..."
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
                       />
                     </div>
                   </div>
@@ -1071,36 +1071,36 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         </div>
 
         {/* Empfangsbestätigung */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Empfangsbestätigung</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Empfangsbestätigung</h2>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={lieferscheinDaten.unterschriftenFuerEmpfangsbestaetigung !== false}
                 onChange={(e) => handleInputChange('unterschriftenFuerEmpfangsbestaetigung', e.target.checked)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 disabled:opacity-50"
+                className="w-4 h-4 text-green-600 border-gray-300 dark:border-dark-border rounded focus:ring-green-500 disabled:opacity-50"
               />
-              <span className="text-sm text-gray-600">Unterschriften für Empfangsbestätigung verwenden</span>
+              <span className="text-sm text-gray-600 dark:text-dark-textMuted">Unterschriften für Empfangsbestätigung verwenden</span>
             </label>
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted">
             Wenn aktiviert, wird auf dem Lieferschein eine Empfangsbestätigung mit Unterschriftsfeld für den Empfänger angezeigt. 
             Bei Shop-Artikeln kann dies deaktiviert werden.
           </p>
         </div>
 
         {/* Bemerkung */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Bemerkung</h2>
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
           <textarea
             value={lieferscheinDaten.bemerkung || ''}
             onChange={(e) => handleInputChange('bemerkung', e.target.value)}
             disabled={!!gespeichertesDokument && !istBearbeitungsModus}
             rows={3}
             placeholder="z.B. Hinweise zur Lieferung oder Empfangsbestätigung"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 dark:bg-gray-700 disabled:text-gray-500 dark:text-dark-textMuted"
           />
         </div>
       </div>
@@ -1108,18 +1108,18 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-sm border border-green-200 p-8 sticky top-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Zusammenfassung</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
           
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Lieferpositionen:</span>
-              <span className="font-medium text-gray-900">{lieferscheinDaten.positionen.length}</span>
+              <span className="text-gray-600 dark:text-dark-textMuted">Lieferpositionen:</span>
+              <span className="font-medium text-gray-900 dark:text-dark-text">{lieferscheinDaten.positionen.length}</span>
             </div>
             
             <div className="border-t border-green-200 pt-3">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600">Gesamtmenge:</span>
-                <span className="font-medium text-gray-900">
+                <span className="text-gray-600 dark:text-dark-textMuted">Gesamtmenge:</span>
+                <span className="font-medium text-gray-900 dark:text-dark-text">
                   {lieferscheinDaten.positionen.reduce((sum, pos) => sum + pos.menge, 0)} Einheiten
                 </span>
               </div>
@@ -1139,7 +1139,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             {/* Immer verfügbar: Nur PDF generieren */}
             <button
               onClick={generiereUndLadeLieferschein}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-green-700 border-2 border-green-300 rounded-lg hover:bg-green-50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-dark-surface text-green-700 border-2 border-green-300 rounded-lg hover:bg-green-50 transition-all"
             >
               <Download className="h-5 w-5" />
               Nur PDF herunterladen
@@ -1148,7 +1148,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitLieferschein}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl"
             >
               <Mail className="h-5 w-5" />
               E-Mail mit PDF öffnen
@@ -1159,7 +1159,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               <button
                 onClick={speichereUndHinterlegeLieferschein}
                 disabled={ladeStatus === 'speichern'}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {ladeStatus === 'speichern' ? (
                   <>

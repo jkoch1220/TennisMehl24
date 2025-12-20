@@ -55,11 +55,11 @@ const RoutenAnsicht = () => {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="flex items-center gap-4">
-            <label className="text-sm font-semibold text-gray-700">Datum:</label>
+            <label className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Datum:</label>
             <input
               type="date"
               value={ausgewaehltesDatum}
@@ -78,7 +78,7 @@ const RoutenAnsicht = () => {
 
         {/* Routen Liste */}
         {routen.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-textMuted">
             <Truck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p>Keine Routen für {formatDatum(new Date(ausgewaehltesDatum))}</p>
           </div>
@@ -92,14 +92,14 @@ const RoutenAnsicht = () => {
               return (
                 <div
                   key={route.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-1">
                         {route.name}
                       </h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-dark-textMuted">
                         <span className="flex items-center gap-1">
                           <Truck className="w-4 h-4" />
                           {route.fahrzeugId}
@@ -131,26 +131,26 @@ const RoutenAnsicht = () => {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="bg-blue-50 rounded-lg p-3">
-                      <div className="text-xs text-gray-600 mb-1">Lieferungen</div>
-                      <div className="text-lg font-semibold text-gray-900">
+                      <div className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Lieferungen</div>
+                      <div className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                         {route.lieferungen.length}
                       </div>
                     </div>
                     <div className="bg-green-50 rounded-lg p-3">
-                      <div className="text-xs text-gray-600 mb-1">Distanz</div>
-                      <div className="text-lg font-semibold text-gray-900">
+                      <div className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Distanz</div>
+                      <div className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                         {route.routeDetails.gesamtDistanz.toFixed(1)} km
                       </div>
                     </div>
                     <div className="bg-yellow-50 rounded-lg p-3">
-                      <div className="text-xs text-gray-600 mb-1">Zeit</div>
-                      <div className="text-lg font-semibold text-gray-900">
+                      <div className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Zeit</div>
+                      <div className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                         {Math.round(route.routeDetails.gesamtZeit / 60)}h {route.routeDetails.gesamtZeit % 60}m
                       </div>
                     </div>
                     <div className="bg-red-50 rounded-lg p-3">
-                      <div className="text-xs text-gray-600 mb-1">Kosten</div>
-                      <div className="text-lg font-semibold text-gray-900">
+                      <div className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Kosten</div>
+                      <div className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                         {route.routeDetails.gesamtkosten.toFixed(2)} €
                       </div>
                     </div>
@@ -158,24 +158,24 @@ const RoutenAnsicht = () => {
 
                   {/* Lieferungen in Route */}
                   <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Lieferungen:
                     </h4>
                     {routeLieferungen.map((lieferung, index) => (
                       <div
                         key={lieferung.id}
-                        className="flex items-center justify-between bg-gray-50 rounded-lg p-2 text-sm"
+                        className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-sm"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-700">
+                          <span className="font-semibold text-gray-700 dark:text-dark-textMuted">
                             {index + 1}.
                           </span>
-                          <span className="text-gray-900">{lieferung.kundenname}</span>
-                          <span className="text-gray-500">
+                          <span className="text-gray-900 dark:text-dark-text">{lieferung.kundenname}</span>
+                          <span className="text-gray-500 dark:text-dark-textMuted">
                             ({lieferung.adresse.plz} {lieferung.adresse.ort})
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-dark-textMuted">
                           <span>{lieferung.lieferdetails.paletten} Paletten</span>
                           <span>{lieferung.lieferdetails.tonnen.toFixed(2)} t</span>
                         </div>

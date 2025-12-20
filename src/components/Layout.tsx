@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { filterAllowedTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
+import ThemeToggle from './ThemeToggle';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -185,7 +186,7 @@ const Layout = ({ children }: LayoutProps) => {
     const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
     return parts.map((part, index) =>
       part.toLowerCase() === query.toLowerCase() ? (
-        <mark key={index} className="bg-yellow-200 text-gray-900 px-0.5 rounded">
+        <mark key={index} className="bg-yellow-200 text-gray-900 dark:text-dark-text">
           {part}
         </mark>
       ) : (
@@ -226,9 +227,9 @@ const Layout = ({ children }: LayoutProps) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface transition-colors duration-300">
       {/* Navigation */}
-      <nav className="bg-white shadow-lg sticky top-0 z-50">
+      <nav className="bg-white dark:bg-dark-surface">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center min-h-[72px] py-3">
             <div className="flex items-center flex-1 min-w-0">
@@ -255,7 +256,7 @@ const Layout = ({ children }: LayoutProps) => {
                       onFocus={() => setGlobalSearchOpen(true)}
                       onKeyDown={handleGlobalSearchEnter}
                       placeholder="Tools suchen... (⌘K)"
-                      className="w-full pl-10 pr-20 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all bg-white text-gray-900 placeholder-gray-400 text-sm"
+                      className="w-full pl-10 pr-20 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                     />
                     {globalSearchQuery && (
                       <button
@@ -263,13 +264,13 @@ const Layout = ({ children }: LayoutProps) => {
                           setGlobalSearchQuery('');
                           setGlobalSearchOpen(false);
                         }}
-                        className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                        className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:text-dark-textMuted"
                         aria-label="Suche zurücksetzen"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     )}
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-xs text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-300 border border-gray-200 dark:border-dark-border">
                       <Command className="w-3 h-3" />
                       <span>K</span>
                     </div>
@@ -277,7 +278,7 @@ const Layout = ({ children }: LayoutProps) => {
 
                   {/* Dropdown mit Suchergebnissen */}
                   {globalSearchOpen && globalSearchQuery.trim() && (
-                    <div className="absolute top-full mt-2 w-full bg-white rounded-xl shadow-2xl border border-gray-200 max-h-96 overflow-y-auto z-50">
+                    <div className="absolute top-full mt-2 w-full bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
                       {allSearchResults.length > 0 ? (
                         <div className="p-2">
                           {allSearchResults.map((item, index) => {
@@ -298,10 +299,10 @@ const Layout = ({ children }: LayoutProps) => {
                                 }}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                                   isActive
-                                    ? 'bg-red-50 border-2 border-red-200'
+                                    ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
                                     : isFirst
-                                    ? 'bg-gray-50 border-2 border-gray-200 hover:bg-gray-100'
-                                    : 'hover:bg-gray-50 border-2 border-transparent'
+                                    ? 'bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
                                 }`}
                               >
                                 <div className={`p-2 rounded-lg bg-gradient-to-br ${
@@ -312,11 +313,11 @@ const Layout = ({ children }: LayoutProps) => {
                                   <Icon className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-gray-900">
+                                  <div className="font-semibold text-gray-900 dark:text-dark-text">
                                     {highlightText(item.name, globalSearchQuery)}
                                   </div>
                                   {(item as any).description && (
-                                    <div className="text-sm text-gray-600 truncate">
+                                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                                       {highlightText((item as any).description, globalSearchQuery)}
                                     </div>
                                   )}
@@ -333,9 +334,9 @@ const Layout = ({ children }: LayoutProps) => {
                             );
                           })}
                           {allSearchResults.length > 0 && (
-                            <div className="px-4 py-2 border-t border-gray-100 text-xs text-gray-500 text-center">
+                            <div className="px-4 py-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500 dark:text-dark-textMuted">
                               <span className="inline-flex items-center gap-1">
-                                <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd>
+                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700">Enter</kbd>
                                 <span>zum Öffnen</span>
                               </span>
                             </div>
@@ -343,11 +344,11 @@ const Layout = ({ children }: LayoutProps) => {
                         </div>
                       ) : (
                         <div className="p-8 text-center">
-                          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-3">
+                          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700">
                             <Search className="w-6 h-6 text-gray-400" />
                           </div>
-                          <p className="text-gray-600 font-medium mb-1">Keine Ergebnisse gefunden</p>
-                          <p className="text-sm text-gray-500">Versuche es mit einem anderen Suchbegriff</p>
+                          <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse gefunden</p>
+                          <p className="text-sm text-gray-500 dark:text-dark-textMuted">Versuche es mit einem anderen Suchbegriff</p>
                         </div>
                       )}
                     </div>
@@ -366,8 +367,8 @@ const Layout = ({ children }: LayoutProps) => {
                         to={item.href}
                         className={`inline-flex items-center px-3 xl:px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all whitespace-nowrap ${
                           isActive
-                            ? 'border-red-500 text-gray-900 bg-red-50'
-                            : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 hover:bg-gray-50'
+                            ? 'border-red-500 dark:border-red-600 text-gray-900 dark:text-dark-text bg-red-50 dark:bg-red-900/20'
+                            : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-900 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-gray-800'
                         }`}
                       >
                         <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -393,7 +394,7 @@ const Layout = ({ children }: LayoutProps) => {
                       onFocus={() => setGlobalSearchOpen(true)}
                       onKeyDown={handleGlobalSearchEnter}
                       placeholder="Suchen..."
-                      className="w-full pl-8 pr-8 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all bg-white text-gray-900 placeholder-gray-400 text-xs"
+                      className="w-full pl-8 pr-8 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                     />
                     {globalSearchQuery && (
                       <button
@@ -401,7 +402,7 @@ const Layout = ({ children }: LayoutProps) => {
                           setGlobalSearchQuery('');
                           setGlobalSearchOpen(false);
                         }}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted"
                         aria-label="Suche zurücksetzen"
                       >
                         <X className="w-3 h-3" />
@@ -411,7 +412,7 @@ const Layout = ({ children }: LayoutProps) => {
 
                   {/* Tablet Dropdown */}
                   {globalSearchOpen && globalSearchQuery.trim() && (
-                    <div className="absolute top-full mt-1 w-full bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50">
+                    <div className="absolute top-full mt-1 w-full bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
                       {allSearchResults.length > 0 ? (
                         <div className="p-1">
                           {allSearchResults.map((item) => {
@@ -431,8 +432,8 @@ const Layout = ({ children }: LayoutProps) => {
                                 }}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
                                   isActive
-                                    ? 'bg-red-50 border border-red-200'
-                                    : 'hover:bg-gray-50'
+                                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                               >
                                 <div className={`p-1.5 rounded-lg bg-gradient-to-br ${
@@ -443,7 +444,7 @@ const Layout = ({ children }: LayoutProps) => {
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 text-sm truncate">
+                                  <div className="font-medium text-gray-900 dark:text-dark-text">
                                     {highlightText(item.name, globalSearchQuery)}
                                   </div>
                                 </div>
@@ -453,7 +454,7 @@ const Layout = ({ children }: LayoutProps) => {
                         </div>
                       ) : (
                         <div className="p-4 text-center">
-                          <p className="text-gray-600 text-sm">Keine Ergebnisse</p>
+                          <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse</p>
                         </div>
                       )}
                     </div>
@@ -470,8 +471,8 @@ const Layout = ({ children }: LayoutProps) => {
                         to={item.href}
                         className={`inline-flex items-center px-2 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                           isActive
-                            ? 'text-red-600 bg-red-50'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                            ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                            : 'text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-gray-800'
                         }`}
                         title={item.name}
                       >
@@ -486,24 +487,28 @@ const Layout = ({ children }: LayoutProps) => {
               {/* User Avatar als Settings Button */}
               <button
                 onClick={() => setSettingsOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 transition-all hover:shadow-md"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
                 title="Einstellungen öffnen"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold text-sm">
                   {user?.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
                 <div className="hidden lg:flex flex-col">
-                  <span className="text-xs text-gray-500">Angemeldet als</span>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
                     {user?.name}
-                    {isAdmin && <span className="ml-1 text-xs text-orange-600">👑</span>}
+                    {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑</span>}
                   </span>
                 </div>
-                <Settings className="w-4 h-4 text-gray-400" />
+                <Settings className="w-4 h-4 text-gray-400 dark:text-gray-300" />
               </button>
+              
+              {/* Theme Toggle - ganz rechts */}
+              <ThemeToggle />
+              
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500 sm:hidden"
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
               >
                 <Menu className="h-6 w-6" />
               </button>
@@ -515,23 +520,27 @@ const Layout = ({ children }: LayoutProps) => {
         {mobileMenuOpen && (
           <div className="sm:hidden">
             {/* Mobile User Info */}
-            <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
+                      {user?.name}
+                      {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑 Admin</span>}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500">Angemeldet als</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {user?.name}
-                    {isAdmin && <span className="ml-1 text-xs text-orange-600">👑 Admin</span>}
-                  </span>
-                </div>
+                {/* Mobile Theme Toggle */}
+                <ThemeToggle />
               </div>
             </div>
 
             {/* Mobile Suchleiste */}
-            <div className="px-4 py-3 border-b border-gray-200 bg-white relative">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -544,7 +553,7 @@ const Layout = ({ children }: LayoutProps) => {
                   onFocus={() => setGlobalSearchOpen(true)}
                   onKeyDown={handleGlobalSearchEnter}
                   placeholder="Tools suchen..."
-                  className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all bg-white text-gray-900 placeholder-gray-400 text-sm"
+                  className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                 />
                 {globalSearchQuery && (
                   <button
@@ -552,7 +561,7 @@ const Layout = ({ children }: LayoutProps) => {
                       setGlobalSearchQuery('');
                       setGlobalSearchOpen(false);
                     }}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:text-dark-textMuted"
                     aria-label="Suche zurücksetzen"
                   >
                     <X className="w-4 h-4" />
@@ -562,7 +571,7 @@ const Layout = ({ children }: LayoutProps) => {
 
               {/* Mobile Dropdown mit Suchergebnissen */}
               {globalSearchOpen && globalSearchQuery.trim() && (
-                <div className="absolute left-4 right-4 top-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 max-h-80 overflow-y-auto z-50">
+                <div className="absolute left-4 right-4 top-full mt-2 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
                   {allSearchResults.length > 0 ? (
                     <div className="p-2">
                       {allSearchResults.map((item) => {
@@ -579,8 +588,8 @@ const Layout = ({ children }: LayoutProps) => {
                             }}
                             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                               isActive
-                                ? 'bg-red-50 border-2 border-red-200'
-                                : 'hover:bg-gray-50 border-2 border-transparent'
+                                ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
                             }`}
                           >
                             <div className={`p-2 rounded-lg bg-gradient-to-br ${
@@ -591,11 +600,11 @@ const Layout = ({ children }: LayoutProps) => {
                               <Icon className="w-5 h-5" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-gray-900">
+                              <div className="font-semibold text-gray-900 dark:text-dark-text">
                                 {highlightText(item.name, globalSearchQuery)}
                               </div>
                               {(item as any).description && (
-                                <div className="text-sm text-gray-600 truncate">
+                                <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                                   {highlightText((item as any).description, globalSearchQuery)}
                                 </div>
                               )}
@@ -609,11 +618,11 @@ const Layout = ({ children }: LayoutProps) => {
                     </div>
                   ) : (
                     <div className="p-6 text-center">
-                      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 mb-2">
+                      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700">
                         <Search className="w-5 h-5 text-gray-400" />
                       </div>
-                      <p className="text-gray-600 font-medium mb-1 text-sm">Keine Ergebnisse</p>
-                      <p className="text-xs text-gray-500">Versuche einen anderen Begriff</p>
+                      <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse</p>
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">Versuche einen anderen Begriff</p>
                     </div>
                   )}
                 </div>
@@ -629,10 +638,10 @@ const Layout = ({ children }: LayoutProps) => {
                     key={item.name}
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
+                    className={`flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-colors duration-300 ${
                       isActive
-                        ? 'bg-red-50 border-red-500 text-red-700'
-                        : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
+                        ? 'bg-red-50 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-400'
+                        : 'border-transparent text-gray-500 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-dark-text'
                     }`}
                   >
                     <Icon className="w-5 h-5 mr-3" />
@@ -645,7 +654,7 @@ const Layout = ({ children }: LayoutProps) => {
                   setMobileMenuOpen(false);
                   setSettingsOpen(true);
                 }}
-                className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700 w-full text-left"
+                className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 dark:text-dark-textMuted"
               >
                 <Settings className="w-5 h-5 mr-3" />
                 Einstellungen
@@ -660,9 +669,9 @@ const Layout = ({ children }: LayoutProps) => {
 
       {/* Footer - nicht auf Dashboard-Seite anzeigen */}
       {location.pathname !== '/dashboard' && (
-        <footer className="bg-white border-t border-gray-200 mt-12">
+        <footer className="bg-white dark:bg-dark-surface">
           <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <p className="text-center text-sm text-gray-500">
+            <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
               © 2026 TennisMehl24 - Kalkulationstools
             </p>
           </div>
@@ -682,11 +691,11 @@ const Layout = ({ children }: LayoutProps) => {
               setActiveTab('tools');
             }}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 sm:p-8 max-h-[90vh] overflow-hidden flex flex-col">
-            <div className="flex justify-between items-start mb-6">
+          <div className="relative bg-white dark:bg-dark-surface rounded-lg shadow-xl dark:shadow-dark-xl border border-gray-200 dark:border-dark-border max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-start mb-6 p-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
-                <p className="text-gray-600 text-sm mt-1">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Settings</h2>
+                <p className="text-gray-600 dark:text-dark-textMuted">
                   Einstellungen und Verwaltung
                 </p>
               </div>
@@ -695,7 +704,7 @@ const Layout = ({ children }: LayoutProps) => {
                   setSettingsOpen(false);
                   setActiveTab('tools');
                 }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 dark:text-dark-textMuted dark:hover:text-dark-text transition-colors duration-200"
                 aria-label="Schließen"
               >
                 ✕
@@ -703,13 +712,13 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 mb-6">
+            <div className="flex gap-2 border-b border-gray-200 dark:border-dark-border px-6">
               <button
                 onClick={() => setActiveTab('tools')}
                 className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
                   activeTab === 'tools'
-                    ? 'border-red-500 text-red-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                    : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                 }`}
               >
                 Tool-Sichtbarkeit
@@ -718,8 +727,8 @@ const Layout = ({ children }: LayoutProps) => {
                 onClick={() => setActiveTab('password')}
                 className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
                   activeTab === 'password'
-                    ? 'border-red-500 text-red-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                    : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                 }`}
               >
                 Passwort ändern
@@ -729,8 +738,8 @@ const Layout = ({ children }: LayoutProps) => {
                   onClick={() => setActiveTab('users')}
                   className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
                     activeTab === 'users'
-                      ? 'border-red-500 text-red-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                      ? 'border-red-500 text-red-600 dark:text-red-400'
+                      : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                   }`}
                 >
                   Benutzerverwaltung
@@ -739,10 +748,10 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto pr-1">
+            <div className="flex-1 overflow-y-auto pr-1 px-6 py-4">
               {activeTab === 'tools' && (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="text-sm text-gray-600 dark:text-dark-textMuted">
                     Tools ein- und ausblenden (lokale Browser-Einstellung)
                   </p>
                   
@@ -756,12 +765,12 @@ const Layout = ({ children }: LayoutProps) => {
                         value={toolSearchQuery}
                         onChange={(e) => setToolSearchQuery(e.target.value)}
                         placeholder="Tools durchsuchen... (⌘K)"
-                        className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all bg-white text-gray-900 placeholder-gray-400"
+                        className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                       />
                       {toolSearchQuery && (
                         <button
                           onClick={() => setToolSearchQuery('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted"
                           aria-label="Suche zurücksetzen"
                         >
                           <X className="w-4 h-4" />
@@ -769,7 +778,7 @@ const Layout = ({ children }: LayoutProps) => {
                       )}
                     </div>
                     {toolSearchQuery && (
-                      <p className="text-xs text-gray-500 mt-2 ml-1">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">
                         {filteredTools.length} {filteredTools.length === 1 ? 'Tool gefunden' : 'Tools gefunden'}
                       </p>
                     )}
@@ -784,23 +793,23 @@ const Layout = ({ children }: LayoutProps) => {
                     return (
                       <label
                         key={tool.id}
-                        className="flex items-center justify-between gap-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-xl px-4 py-3"
+                        className="flex items-center justify-between gap-4 bg-gray-50 dark:bg-dark-bg rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg bg-gradient-to-br ${tool.color} text-white`}>
                             <Icon className="w-5 h-5" />
                           </div>
                           <div>
-                            <div className="font-semibold text-gray-900">
+                            <div className="font-semibold text-gray-900 dark:text-dark-text">
                               {toolSearchQuery ? highlightText(tool.name, toolSearchQuery) : tool.name}
                             </div>
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                               {toolSearchQuery ? highlightText(tool.description, toolSearchQuery) : tool.description}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600 hidden sm:inline">
+                          <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                             {checked ? 'Aktiv' : 'Ausgeblendet'}
                           </span>
                           <label className="relative inline-flex items-center cursor-pointer">
@@ -810,7 +819,7 @@ const Layout = ({ children }: LayoutProps) => {
                               checked={checked}
                               onChange={(e) => setToolVisibility(tool.id, e.target.checked)}
                             />
-                            <div className="w-12 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500" />
+                            <div className="w-12 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:bg-red-500 dark:peer-checked:bg-red-600 peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600" />
                           </label>
                         </div>
                       </label>
@@ -819,21 +828,21 @@ const Layout = ({ children }: LayoutProps) => {
                     </div>
                   ) : (
                     <div className="text-center py-12 px-4">
-                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700">
                         <Search className="w-8 h-8 text-gray-400" />
                       </div>
-                      <p className="text-gray-600 font-medium mb-1">Keine Tools gefunden</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-gray-600 dark:text-dark-textMuted">Keine Tools gefunden</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-textMuted">
                         Versuche es mit einem anderen Suchbegriff
                       </p>
                     </div>
                   )}
                   
                   {filteredTools.length > 0 && (
-                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200 dark:border-dark-border">
                     <button
                       onClick={resetVisibility}
-                      className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                      className="text-sm font-semibold text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text transition-colors duration-200"
                     >
                       Alle anzeigen
                     </button>
@@ -847,10 +856,10 @@ const Layout = ({ children }: LayoutProps) => {
               {activeTab === 'users' && isAdmin && <UserManagement />}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-border px-6 pb-6 flex gap-2">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
               >
                 <LogOut className="w-4 h-4" />
                 Abmelden
@@ -860,7 +869,7 @@ const Layout = ({ children }: LayoutProps) => {
                   setSettingsOpen(false);
                   setActiveTab('tools');
                 }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
               >
                 Schließen
               </button>

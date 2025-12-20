@@ -458,7 +458,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className={`${getUnternehmenHeaderKlasse(rechnung.anUnternehmen)} text-white px-6 py-4 flex justify-between items-center`}>
           <div className="flex items-center gap-4">
@@ -473,13 +473,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                 <h2 className="text-xl font-bold">{rechnung.kreditorName}</h2>
                 <button
                   onClick={handleOpenKreditorDetail}
-                  className="bg-white/20 hover:bg-white/30 text-white rounded-lg px-4 py-2 transition-all flex items-center gap-2 text-sm font-semibold border-2 border-white/40 hover:border-white/60 shadow-lg hover:shadow-xl backdrop-blur-sm"
+                  className="bg-white dark:bg-dark-surface/20 hover:bg-white/30 text-white rounded-lg px-4 py-2 transition-all flex items-center gap-2 text-sm font-semibold border-2 border-white/40 hover:border-white/60 shadow-lg dark:shadow-dark-lg hover:shadow-xl backdrop-blur-sm"
                   title="Ansprechpartner verwalten"
                 >
                   <User className="w-5 h-5" />
                   <span>Ansprechpartner</span>
                   {kreditor?.ansprechpartner && kreditor.ansprechpartner.length > 0 && (
-                    <span className="bg-white/30 rounded-full px-2 py-0.5 text-xs font-bold">
+                    <span className="bg-white dark:bg-dark-surface/30 rounded-full px-2 py-0.5 text-xs font-bold">
                       {kreditor.ansprechpartner.length}
                     </span>
                   )}
@@ -512,7 +512,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             {offenerBetrag > 0 && (
               <button
                 onClick={handleKomplettBezahlt}
-                className="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-lg transition-colors flex items-center gap-2 font-semibold shadow-lg hover:shadow-xl"
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 rounded-lg transition-colors flex items-center gap-2 font-semibold shadow-lg dark:shadow-dark-lg hover:shadow-xl"
                 title="Rechnung als komplett bezahlt markieren"
               >
                 <PartyPopper className="w-4 h-4" />
@@ -521,7 +521,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             )}
             <button
               onClick={onEdit}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-white dark:bg-dark-surface/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
             >
               <Edit className="w-4 h-4" />
               Bearbeiten
@@ -541,7 +541,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
             {/* Linke Spalte - Übersicht */}
             <div className="lg:col-span-1 space-y-6">
               {/* Status & Betrag */}
-              <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 space-y-4">
                 <div className="flex justify-between items-start">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(rechnung.status)}`}>
                     {rechnung.status.replace('_', ' ')}
@@ -554,8 +554,8 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Gesamtbetrag</p>
-                  <p className="text-3xl font-bold text-gray-900">{formatCurrency(rechnung.summe)}</p>
+                  <p className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtbetrag</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-dark-text">{formatCurrency(rechnung.summe)}</p>
                 </div>
 
                 {/* Fortschrittsbalken */}
@@ -570,13 +570,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                       style={{ width: `${Math.min(prozentBezahlt, 100)}%` }}
                     ></div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1 text-right">{prozentBezahlt.toFixed(1)}% bezahlt</p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1 text-right">{prozentBezahlt.toFixed(1)}% bezahlt</p>
                 </div>
 
                 {/* Monatliche Rate */}
-                <div className="pt-4 border-t border-gray-200">
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                   <div className="flex justify-between items-center">
-                    <p className="text-sm text-gray-600">Monatliche Rate</p>
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">Monatliche Rate</p>
                     <button
                       onClick={() => setShowRateEdit(!showRateEdit)}
                       className="text-blue-600 hover:text-blue-700 text-sm"
@@ -592,7 +592,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                         value={neueRate}
                         onChange={(e) => setNeueRate(e.target.value)}
                         placeholder="Rate in €"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                       />
                       <button
                         onClick={handleUpdateRate}
@@ -602,16 +602,16 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                       </button>
                     </div>
                   ) : (
-                    <p className="text-lg font-semibold text-gray-900">
+                    <p className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                       {rechnung.monatlicheRate ? formatCurrency(rechnung.monatlicheRate) : '—'}
                     </p>
                   )}
                 </div>
 
                 {/* Ratenzahlung */}
-                <div className="pt-4 border-t border-gray-200">
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                   <div className="flex justify-between items-center">
-                    <p className="text-sm text-gray-600">Ratenzahlung</p>
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">Ratenzahlung</p>
                     <button
                       onClick={() => setShowRatenzahlungEdit(!showRatenzahlungEdit)}
                       className="text-indigo-600 hover:text-indigo-700 text-sm"
@@ -622,20 +622,20 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                   {showRatenzahlungEdit ? (
                     <div className="mt-2 space-y-2">
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">Rate fällig am</label>
+                        <label className="block text-xs text-gray-500 dark:text-dark-textMuted mb-1">Rate fällig am</label>
                         <input
                           type="date"
                           value={rateFaelligAm}
                           onChange={(e) => setRateFaelligAm(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-500 mb-1">Ratenzahlung Intervall</label>
+                        <label className="block text-xs text-gray-500 dark:text-dark-textMuted mb-1">Ratenzahlung Intervall</label>
                         <select
                           value={ratenzahlungInterval}
                           onChange={(e) => setRatenzahlungInterval(e.target.value as 'monatlich' | 'woechentlich')}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                         >
                           <option value="monatlich">Monatlich</option>
                           <option value="woechentlich">Wöchentlich</option>
@@ -655,12 +655,12 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                           <p className="text-sm font-medium text-indigo-700">
                             Rate fällig: {formatDate(rechnung.rateFaelligAm)}
                           </p>
-                          <p className="text-xs text-gray-500 capitalize">
+                          <p className="text-xs text-gray-500 dark:text-dark-textMuted capitalize">
                             Intervall: {rechnung.ratenzahlungInterval || 'monatlich'}
                           </p>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 mt-1">Keine Ratenzahlung eingerichtet</p>
+                        <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">Keine Ratenzahlung eingerichtet</p>
                       )}
                     </>
                   )}
@@ -668,18 +668,18 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
               </div>
 
               {/* Infos */}
-              <div className="bg-gray-50 rounded-xl p-5 space-y-3">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 space-y-3">
                 <div className="flex items-center gap-3">
-                  <Building2 className="w-5 h-5 text-gray-400" />
+                  <Building2 className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                   <div>
-                    <p className="text-xs text-gray-500">Unternehmen</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Unternehmen</p>
                     <p className="font-medium">{rechnung.anUnternehmen}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-gray-400" />
+                  <Calendar className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                   <div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">
                       {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm 
                         ? 'Rate fällig am' 
                         : 'Fälligkeitsdatum'}
@@ -690,7 +690,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                         : formatDate(rechnung.faelligkeitsdatum)}
                     </p>
                     {rechnung.status === 'in_ratenzahlung' && rechnung.rateFaelligAm && (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
                         (Original: {formatDate(rechnung.faelligkeitsdatum)})
                       </p>
                     )}
@@ -698,26 +698,26 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                 </div>
                 {rechnung.rechnungsdatum && (
                   <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-gray-400" />
+                    <FileText className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                     <div>
-                      <p className="text-xs text-gray-500">Rechnungsdatum</p>
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">Rechnungsdatum</p>
                       <p className="font-medium">{formatDate(rechnung.rechnungsdatum)}</p>
                     </div>
                   </div>
                 )}
                 <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-gray-400" />
+                  <Clock className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                   <div>
-                    <p className="text-xs text-gray-500">Kategorie</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Kategorie</p>
                     <p className="font-medium capitalize">{rechnung.kategorie}</p>
                   </div>
                 </div>
               </div>
 
               {/* Zahlungen/Tilgungen */}
-              <div className="bg-gray-50 rounded-xl p-5">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-green-600" />
                     Zahlungen / Tilgungen
                   </h3>
@@ -731,27 +731,27 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                 </div>
 
                 {showAddZahlung && (
-                  <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200 space-y-3">
+                  <div className="mb-4 p-3 bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border space-y-3">
                     <input
                       type="number"
                       step="0.01"
                       value={zahlungBetrag}
                       onChange={(e) => setZahlungBetrag(e.target.value)}
                       placeholder="Betrag in €"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                     />
                     <input
                       type="date"
                       value={zahlungDatum}
                       onChange={(e) => setZahlungDatum(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                     />
                     <input
                       type="text"
                       value={zahlungNotiz}
                       onChange={(e) => setZahlungNotiz(e.target.value)}
                       placeholder="Notiz (optional)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm"
                     />
                     <button
                       onClick={handleAddZahlung}
@@ -769,13 +769,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                       .map((zahlung) => (
                         <div
                           key={zahlung.id}
-                          className="flex justify-between items-center p-2 bg-white rounded-lg border border-gray-100"
+                          className="flex justify-between items-center p-2 bg-white dark:bg-dark-surface rounded-lg border border-gray-100"
                         >
                           <div>
                             <p className="font-medium text-green-600">{formatCurrency(zahlung.betrag)}</p>
-                            <p className="text-xs text-gray-500">{formatDate(zahlung.datum)}</p>
+                            <p className="text-xs text-gray-500 dark:text-dark-textMuted">{formatDate(zahlung.datum)}</p>
                             {zahlung.notiz && (
-                              <p className="text-xs text-gray-400">{zahlung.notiz}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500">{zahlung.notiz}</p>
                             )}
                           </div>
                           <button
@@ -787,7 +787,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                         </div>
                       ))
                   ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">Noch keine Zahlungen</p>
+                    <p className="text-sm text-gray-500 dark:text-dark-textMuted text-center py-4">Noch keine Zahlungen</p>
                   )}
                 </div>
               </div>
@@ -795,9 +795,9 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
             {/* Rechte Spalte - Aktivitäten */}
             <div className="lg:col-span-2">
-              <div className="bg-gray-50 rounded-xl p-5">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold text-gray-900 text-lg">Aktivitäten-Verlauf</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-dark-text text-lg">Aktivitäten-Verlauf</h3>
                   <div className="flex gap-2">
                     <input
                       type="file"
@@ -830,7 +830,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
                 {/* Schnelle Aktivitäts-Buttons */}
                 {showAddAktivitaet && (
-                  <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
+                  <div className="mb-4 p-4 bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border">
                     <div className="flex gap-2 mb-3">
                       <button
                         onClick={() => setAktivitaetTyp('email')}
@@ -869,19 +869,19 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                         aktivitaetTyp === 'telefonat' ? 'z.B. Telefonat mit Hr. Müller' :
                         'Titel der Aktivität...'
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg mb-2"
                     />
                     <textarea
                       value={aktivitaetBeschreibung}
                       onChange={(e) => setAktivitaetBeschreibung(e.target.value)}
                       placeholder="Details (optional)..."
                       rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-3"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg mb-3"
                     />
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => setShowAddAktivitaet(false)}
-                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                        className="px-4 py-2 text-gray-600 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg"
                       >
                         Abbrechen
                       </button>
@@ -902,13 +902,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                   {loading ? (
                     <div className="text-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
-                      <p className="text-gray-500 mt-2">Lade Aktivitäten...</p>
+                      <p className="text-gray-500 dark:text-dark-textMuted mt-2">Lade Aktivitäten...</p>
                     </div>
                   ) : aktivitaeten.length === 0 ? (
                     <div className="text-center py-8">
                       <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                      <p className="text-gray-500">Noch keine Aktivitäten</p>
-                      <p className="text-sm text-gray-400">Fügen Sie E-Mails, Telefonate oder Kommentare hinzu</p>
+                      <p className="text-gray-500 dark:text-dark-textMuted">Noch keine Aktivitäten</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500">Fügen Sie E-Mails, Telefonate oder Kommentare hinzu</p>
                     </div>
                   ) : (
                     aktivitaeten.map((aktivitaet) => (
@@ -938,13 +938,13 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                                           downloadUrl: aktivitaetService.getDateiDownloadUrl(dateiId),
                                         });
                                       }}
-                                      className="inline-flex items-center gap-1 px-2 py-1 bg-white/50 rounded text-sm hover:bg-white/80 transition-colors"
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-dark-surface/50 rounded text-sm hover:bg-white/80 transition-colors"
                                       title="Vorschau öffnen"
                                     >
                                       <Eye className="w-4 h-4" />
                                       {aktivitaet.dateiName}
                                       {aktivitaet.dateiGroesse && (
-                                        <span className="text-xs text-gray-500">
+                                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">
                                           ({formatFileSize(aktivitaet.dateiGroesse)})
                                         </span>
                                       )}
@@ -957,7 +957,7 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                           </div>
                           <button
                             onClick={() => handleDeleteAktivitaet(aktivitaet.id)}
-                            className="text-gray-400 hover:text-red-600 p-1"
+                            className="text-gray-400 dark:text-gray-500 hover:text-red-600 p-1"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

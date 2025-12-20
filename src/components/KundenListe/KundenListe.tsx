@@ -202,8 +202,8 @@ const KundenListe = () => {
     <div className="max-w-7xl mx-auto p-4 md:p-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kunden Liste</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Kunden Liste</h1>
+          <p className="text-gray-600 dark:text-dark-textMuted">
             Kunden mit Kernfeldern erfassen und direkt in Appwrite speichern.
           </p>
         </div>
@@ -219,20 +219,20 @@ const KundenListe = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 md:p-6 mb-6">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-md dark:shadow-dark-md p-4 md:p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-red-50 rounded-lg border border-red-100">
-            <div className="text-sm text-gray-600">Gesamt</div>
+            <div className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamt</div>
             <div className="text-2xl font-bold text-red-700">{kunden.length}</div>
           </div>
           <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
-            <div className="text-sm text-gray-600">Bestellen direkt</div>
+            <div className="text-sm text-gray-600 dark:text-dark-textMuted">Bestellen direkt</div>
             <div className="text-2xl font-bold text-orange-700">
               {kunden.filter((k) => k.bestelltDirekt).length}
             </div>
           </div>
           <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
-            <div className="text-sm text-gray-600">Ø Tonnen / Jahr</div>
+            <div className="text-sm text-gray-600 dark:text-dark-textMuted">Ø Tonnen / Jahr</div>
             <div className="text-2xl font-bold text-emerald-700">
               {kunden.length
                 ? Math.round(
@@ -244,26 +244,26 @@ const KundenListe = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-4 md:p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-md dark:shadow-dark-md p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
             <input
               value={suchbegriff}
               onChange={(e) => setSuchbegriff(e.target.value)}
               placeholder="Suchen nach Name, Ort oder Typ..."
-              className="w-full pl-10 pr-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+              className="w-full pl-10 pr-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
             />
           </div>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-gray-500">
+          <div className="flex items-center justify-center py-16 text-gray-500 dark:text-dark-textMuted">
             <Loader2 className="w-6 h-6 animate-spin mr-2" />
             Lädt Kunden...
           </div>
         ) : gefilterteKunden.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-textMuted">
             <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
             Keine Kunden vorhanden.
           </div>
@@ -271,32 +271,32 @@ const KundenListe = () => {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <tr className="bg-gray-50 dark:bg-gray-800">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Nr.
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Kunde
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Typ
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Bestellt direkt
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Tennisplätze
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Tonnen/Jahr
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Kontakt
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Bestellt über
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
                     Aktionen
                   </th>
                 </tr>
@@ -305,22 +305,22 @@ const KundenListe = () => {
                 {gefilterteKunden.map((kunde) => (
                   <tr
                     key={kunde.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 cursor-pointer"
                     onClick={() => openDetails(kunde)}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-mono font-semibold text-gray-900">
+                      <div className="font-mono font-semibold text-gray-900 dark:text-dark-text">
                         {kunde.kundennummer || kunde.id.substring(0, 8)}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{kunde.name}</div>
-                      <div className="text-sm text-gray-500">
+                      <div className="font-semibold text-gray-900 dark:text-dark-text">{kunde.name}</div>
+                      <div className="text-sm text-gray-500 dark:text-dark-textMuted">
                         {kunde.adresse.strasse}, {kunde.adresse.plz} {kunde.adresse.ort}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-800">
+                      <span className="inline-flex px-2 py-1 rounded text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-dark-text">
                         {TYP_LABELS[kunde.kundenTyp]}
                       </span>
                     </td>
@@ -328,17 +328,17 @@ const KundenListe = () => {
                       {kunde.bestelltDirekt ? (
                         <span className="text-emerald-600 font-semibold">Ja</span>
                       ) : (
-                        <span className="text-gray-600">Nein</span>
+                        <span className="text-gray-600 dark:text-dark-textMuted">Nein</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-800">{kunde.tennisplatzAnzahl}</td>
-                    <td className="px-4 py-3 text-gray-800">{kunde.tonnenProJahr}</td>
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="px-4 py-3 text-gray-800 dark:text-dark-text">{kunde.tennisplatzAnzahl}</td>
+                    <td className="px-4 py-3 text-gray-800 dark:text-dark-text">{kunde.tonnenProJahr}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-dark-textMuted">
                       {kunde.telefonnummer && <div>📞 {kunde.telefonnummer}</div>}
                       {kunde.email && <div>✉️ {kunde.email}</div>}
                       {kunde.ansprechpartner && <div>👤 {kunde.ansprechpartner}</div>}
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
+                    <td className="px-4 py-3 text-gray-700 dark:text-dark-textMuted">
                       {kunde.bestelltUeberIds.length === 0
                         ? '—'
                         : kunde.bestelltUeberIds
@@ -346,7 +346,7 @@ const KundenListe = () => {
                             .slice(0, 3)
                             .join(', ')}
                       {kunde.bestelltUeberIds.length > 3 && (
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 dark:text-dark-textMuted">
                           {' '}
                           +{kunde.bestelltUeberIds.length - 3} mehr
                         </span>
@@ -394,13 +394,13 @@ const KundenListe = () => {
 
       {showFormular && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
                   {bearbeiteId ? 'Kunde bearbeiten' : 'Neuen Kunden anlegen'}
                 </h2>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-dark-textMuted">
                   Pflichtfelder: Name, Kunden-Typ, Adressen & Bestell-Beziehung.
                 </p>
               </div>
@@ -409,7 +409,7 @@ const KundenListe = () => {
                   setShowFormular(false);
                   resetFormular();
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 dark:text-dark-textMuted hover:text-gray-700 dark:text-dark-textMuted"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -418,24 +418,24 @@ const KundenListe = () => {
             <div className="p-6 space-y-6">
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kundenname</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Kundenname</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                     placeholder="z.B. TC Musterstadt"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kundennummer</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Kundennummer</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={formData.kundennummer || ''}
                       onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
                       placeholder={bearbeiteId ? '' : 'Wird automatisch vergeben'}
-                      className="flex-1 p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                      className="flex-1 p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                     />
                     {!bearbeiteId && (
                       <button
@@ -449,19 +449,19 @@ const KundenListe = () => {
                     )}
                   </div>
                   {!bearbeiteId && !formData.kundennummer && (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
                       Kundennummer wird beim Speichern automatisch vergeben
                     </p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Kunden-Typ</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Kunden-Typ</label>
                   <select
                     value={formData.kundenTyp}
                     onChange={(e) =>
                       setFormData({ ...formData, kundenTyp: e.target.value as KundenTyp })
                     }
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   >
                     <option value="verein">Verein</option>
                     <option value="platzbauer">Platzbauer</option>
@@ -477,14 +477,14 @@ const KundenListe = () => {
                     type="checkbox"
                     checked={formData.bestelltDirekt}
                     onChange={(e) => setFormData({ ...formData, bestelltDirekt: e.target.checked })}
-                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
                   />
-                  <label htmlFor="bestelltDirekt" className="text-sm font-semibold text-gray-700">
+                  <label htmlFor="bestelltDirekt" className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                     Bestellt direkt
                   </label>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Tennisplätze (Anzahl)
                   </label>
                   <input
@@ -494,11 +494,11 @@ const KundenListe = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, tennisplatzAnzahl: Number(e.target.value) || 0 })
                     }
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Tonnen Abnahme pro Jahr
                   </label>
                   <input
@@ -509,14 +509,14 @@ const KundenListe = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, tonnenProJahr: Number(e.target.value) || 0 })
                     }
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-2 mb-3 text-gray-700 font-semibold">
+                <div className="p-4 rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-gray-800">
+                  <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-dark-textMuted font-semibold">
                     <Building2 className="w-4 h-4" />
                     Adresse
                   </div>
@@ -531,7 +531,7 @@ const KundenListe = () => {
                         })
                       }
                       placeholder="Straße"
-                      className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                      className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                     />
                     <div className="grid grid-cols-3 gap-3">
                       <input
@@ -549,7 +549,7 @@ const KundenListe = () => {
                           })
                         }
                         placeholder="PLZ"
-                        className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                        className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                       />
                       <input
                         type="text"
@@ -566,14 +566,14 @@ const KundenListe = () => {
                           })
                         }
                         placeholder="Ort"
-                        className="w-full col-span-2 p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                        className="w-full col-span-2 p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-2 mb-3 text-gray-700 font-semibold">
+                <div className="p-4 rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-gray-800">
+                  <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-dark-textMuted font-semibold">
                     <Building2 className="w-4 h-4" />
                     Lieferadresse (optional)
                   </div>
@@ -593,7 +593,7 @@ const KundenListe = () => {
                         })
                       }
                       placeholder="Straße"
-                      className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                      className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                     />
                     <div className="grid grid-cols-3 gap-3">
                       <input
@@ -611,7 +611,7 @@ const KundenListe = () => {
                           })
                         }
                         placeholder="PLZ"
-                        className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                        className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                       />
                       <input
                         type="text"
@@ -628,7 +628,7 @@ const KundenListe = () => {
                           })
                         }
                         placeholder="Ort"
-                        className="w-full col-span-2 p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                        className="w-full col-span-2 p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -637,10 +637,10 @@ const KundenListe = () => {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Bestellt über (andere Kunden)
                   </label>
-                  <div className="border border-gray-200 rounded-lg max-h-44 overflow-y-auto divide-y">
+                  <div className="border border-gray-200 dark:border-dark-border rounded-lg max-h-44 overflow-y-auto divide-y">
                     {kunden
                       .filter((k) => k.id !== bearbeiteId)
                       .map((k) => (
@@ -660,28 +660,28 @@ const KundenListe = () => {
                                 bestelltUeberIds: Array.from(aktuelle),
                               });
                             }}
-                            className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                            className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
                           />
                           <div>
-                            <div className="font-semibold text-gray-900">{k.name}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="font-semibold text-gray-900 dark:text-dark-text">{k.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                               {k.adresse.plz} {k.adresse.ort} • {TYP_LABELS[k.kundenTyp]}
                             </div>
                           </div>
                         </label>
                       ))}
                     {kunden.filter((k) => k.id !== bearbeiteId).length === 0 && (
-                      <div className="px-3 py-2 text-sm text-gray-500">Keine weiteren Kunden vorhanden.</div>
+                      <div className="px-3 py-2 text-sm text-gray-500 dark:text-dark-textMuted">Keine weiteren Kunden vorhanden.</div>
                     )}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Bemerkungen</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Bemerkungen</label>
                   <textarea
                     value={formData.bemerkungen || ''}
                     onChange={(e) => setFormData({ ...formData, bemerkungen: e.target.value })}
                     rows={7}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                     placeholder="Optionale Notizen zur Kundenbeziehung"
                   />
                 </div>
@@ -689,44 +689,44 @@ const KundenListe = () => {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <label className="block text-sm font-semibold text-gray-700">Kontakt</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Kontakt</label>
                   <input
                     type="text"
                     placeholder="Telefonnummer"
                     value={formData.telefonnummer || ''}
                     onChange={(e) => setFormData({ ...formData, telefonnummer: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                   <input
                     type="text"
                     placeholder="Ansprechpartner"
                     value={formData.ansprechpartner || ''}
                     onChange={(e) => setFormData({ ...formData, ansprechpartner: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                   <input
                     type="email"
                     placeholder="E-Mail"
                     value={formData.email || ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                 </div>
                 <div className="space-y-3">
-                  <label className="block text-sm font-semibold text-gray-700">Zahlungen</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Zahlungen</label>
                   <input
                     type="text"
                     placeholder="Zahlungsbedingungen"
                     value={formData.zahlungsbedingungen || ''}
                     onChange={(e) => setFormData({ ...formData, zahlungsbedingungen: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                   <input
                     type="text"
                     placeholder="Zahlungsverhalten (z.B. pünktlich)"
                     value={formData.zahlungsverhalten || ''}
                     onChange={(e) => setFormData({ ...formData, zahlungsverhalten: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                   <input
                     type="number"
@@ -736,14 +736,14 @@ const KundenListe = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, zahlungszielTage: Number(e.target.value) || 0 })
                     }
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-              <div className="text-sm text-gray-500">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+              <div className="text-sm text-gray-500 dark:text-dark-textMuted">
                 Diese Felder werden als Appwrite-Attribute gespeichert (inkl. Spalten).
               </div>
               <div className="flex gap-3">
@@ -752,7 +752,7 @@ const KundenListe = () => {
                     setShowFormular(false);
                     resetFormular();
                   }}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100"
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700"
                 >
                   Abbrechen
                 </button>
@@ -772,35 +772,35 @@ const KundenListe = () => {
 
       {detailKunde && (
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm z-50 flex items-start justify-center p-4">
-          <div className="bg-white w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden relative">
+          <div className="bg-white dark:bg-dark-surface w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden relative">
             <button
               onClick={() => {
                 setDetailKunde(null);
                 setAktivitaeten([]);
                 setAktivitaetForm({ typ: 'notiz', titel: '', beschreibung: '', file: null });
               }}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+              className="absolute top-4 right-4 text-gray-500 dark:text-dark-textMuted hover:text-gray-800 dark:text-dark-text"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="grid lg:grid-cols-3 gap-0">
               {/* Linke Spalte: Stammdaten */}
-              <div className="bg-gray-50 border-r border-gray-200 p-6 space-y-4">
+              <div className="bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-dark-border p-6 space-y-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Kunde</p>
-                  <h2 className="text-2xl font-bold text-gray-900 mt-1">{detailKunde.name}</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-dark-textMuted">Kunde</p>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mt-1">{detailKunde.name}</h2>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <span className="px-3 py-1 rounded-full bg-white border border-gray-200 text-sm">
+                    <span className="px-3 py-1 rounded-full bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border text-sm">
                       {TYP_LABELS[detailKunde.kundenTyp]}
                     </span>
-                    <span className="px-3 py-1 rounded-full bg-white border border-gray-200 text-sm">
+                    <span className="px-3 py-1 rounded-full bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border text-sm">
                       {detailKunde.bestelltDirekt ? 'Bestellt direkt' : 'Über Vermittler'}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2 text-sm text-gray-700">
+                <div className="space-y-2 text-sm text-gray-700 dark:text-dark-textMuted">
                   <div><span className="font-semibold">Ansprechpartner:</span> {detailKunde.ansprechpartner || '—'}</div>
                   <div><span className="font-semibold">Telefon:</span> {detailKunde.telefonnummer || '—'}</div>
                   <div><span className="font-semibold">E-Mail:</span> {detailKunde.email || '—'}</div>
@@ -810,37 +810,37 @@ const KundenListe = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-white border border-gray-200">
-                    <p className="text-xs text-gray-500">Tennisplätze</p>
-                    <p className="text-xl font-bold text-gray-900">{detailKunde.tennisplatzAnzahl}</p>
+                  <div className="p-3 rounded-xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Tennisplätze</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-dark-text">{detailKunde.tennisplatzAnzahl}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-gray-200">
-                    <p className="text-xs text-gray-500">Tonnen / Jahr</p>
-                    <p className="text-xl font-bold text-gray-900">{detailKunde.tonnenProJahr}</p>
+                  <div className="p-3 rounded-xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Tonnen / Jahr</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-dark-text">{detailKunde.tonnenProJahr}</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-gray-200">
-                    <p className="text-xs text-gray-500">Bestellt über</p>
-                    <p className="text-sm font-semibold text-gray-900">
+                  <div className="p-3 rounded-xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Bestellt über</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-dark-text">
                       {detailKunde.bestelltUeberIds.length === 0 ? 'Direkt' : `${detailKunde.bestelltUeberIds.length} Kunden`}
                     </p>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-gray-200">
-                    <p className="text-xs text-gray-500">Zahlungsziel</p>
-                    <p className="text-xl font-bold text-gray-900">{detailKunde.zahlungszielTage ?? 0} Tage</p>
-                    <p className="text-xs text-gray-600">{detailKunde.zahlungsverhalten || 'n/a'}</p>
+                  <div className="p-3 rounded-xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border">
+                    <p className="text-xs text-gray-500 dark:text-dark-textMuted">Zahlungsziel</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-dark-text">{detailKunde.zahlungszielTage ?? 0} Tage</p>
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted">{detailKunde.zahlungsverhalten || 'n/a'}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Adresse</p>
-                    <p className="text-sm text-gray-800 mt-1">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-dark-textMuted">Adresse</p>
+                    <p className="text-sm text-gray-800 dark:text-dark-text mt-1">
                       {detailKunde.adresse.strasse}, {detailKunde.adresse.plz} {detailKunde.adresse.ort}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Lieferadresse</p>
-                    <p className="text-sm text-gray-800 mt-1">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-dark-textMuted">Lieferadresse</p>
+                    <p className="text-sm text-gray-800 dark:text-dark-text mt-1">
                       {detailKunde.lieferadresse
                         ? `${detailKunde.lieferadresse.strasse}, ${detailKunde.lieferadresse.plz} ${detailKunde.lieferadresse.ort}`
                         : '—'}
@@ -850,33 +850,33 @@ const KundenListe = () => {
               </div>
 
               {/* Rechte Spalte: Aktivitäten */}
-              <div className="lg:col-span-2 p-6 space-y-6 bg-white">
+              <div className="lg:col-span-2 p-6 space-y-6 bg-white dark:bg-dark-surface">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Aktivitäten</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Aktivitäten</h3>
                   <button
                     onClick={() => ladeAktivitaeten(detailKunde.id)}
-                    className="text-sm text-gray-600 hover:text-gray-900"
+                    className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text"
                   >
                     Neu laden
                   </button>
                 </div>
 
                 {aktivitaetLoading ? (
-                  <div className="flex items-center text-gray-500">
+                  <div className="flex items-center text-gray-500 dark:text-dark-textMuted">
                     <Loader2 className="w-4 h-4 animate-spin mr-2" /> Lädt...
                   </div>
                 ) : aktivitaeten.length === 0 ? (
-                  <div className="text-sm text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3">
+                  <div className="text-sm text-gray-500 dark:text-dark-textMuted bg-gray-50 dark:bg-gray-800 border border-dashed border-gray-200 dark:border-dark-border rounded-lg p-3">
                     Noch keine Aktivitäten erfasst.
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                     {aktivitaeten.map((a) => (
-                      <div key={a.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                      <div key={a.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
                         <div className="flex justify-between items-start">
                           <div>
-                            <div className="text-sm font-semibold text-gray-900">{a.titel}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-sm font-semibold text-gray-900 dark:text-dark-text">{a.titel}</div>
+                            <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                               {a.typ} • {new Date(a.erstelltAm).toLocaleString('de-DE')}
                             </div>
                           </div>
@@ -888,7 +888,7 @@ const KundenListe = () => {
                           </button>
                         </div>
                         {a.beschreibung && (
-                          <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{a.beschreibung}</p>
+                          <p className="text-sm text-gray-700 dark:text-dark-textMuted mt-2 whitespace-pre-wrap">{a.beschreibung}</p>
                         )}
                         {a.dateiId && (
                           <a
@@ -906,14 +906,14 @@ const KundenListe = () => {
                   </div>
                 )}
 
-                <div className="p-4 rounded-2xl border border-gray-200 bg-gray-50 space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Aktivität hinzufügen</h3>
+                <div className="p-4 rounded-2xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-gray-800 space-y-3">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Aktivität hinzufügen</h3>
                   <select
                     value={aktivitaetForm.typ}
                     onChange={(e) =>
                       setAktivitaetForm({ ...aktivitaetForm, typ: e.target.value as KundenAktivitaetsTyp })
                     }
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none bg-white"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none bg-white dark:bg-dark-surface"
                   >
                     <option value="notiz">Notiz</option>
                     <option value="telefonat">Telefonat</option>
@@ -927,14 +927,14 @@ const KundenListe = () => {
                     placeholder="Titel"
                     value={aktivitaetForm.titel}
                     onChange={(e) => setAktivitaetForm({ ...aktivitaetForm, titel: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none bg-white"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none bg-white dark:bg-dark-surface"
                   />
                   <textarea
                     placeholder="Beschreibung"
                     value={aktivitaetForm.beschreibung}
                     onChange={(e) => setAktivitaetForm({ ...aktivitaetForm, beschreibung: e.target.value })}
                     rows={4}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none bg-white"
+                    className="w-full p-3 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none bg-white dark:bg-dark-surface"
                   />
                   {aktivitaetForm.typ === 'datei' && (
                     <input

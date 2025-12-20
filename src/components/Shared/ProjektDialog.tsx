@@ -66,19 +66,19 @@ const ProjektDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text flex items-center gap-2">
               <Layers className="w-7 h-7 text-green-600" />
               Neues Projekt erstellen
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Legen Sie ein neues Projekt für die Bestellabwicklung an</p>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">Legen Sie ein neues Projekt für die Bestellabwicklung an</p>
           </div>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
             disabled={saving}
           >
             <X className="w-6 h-6" />
@@ -118,7 +118,7 @@ const ProjektDialog = ({
 
           {/* Projektname */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               <Layers className="w-4 h-4 inline mr-1" />
               Projektname *
             </label>
@@ -126,18 +126,18 @@ const ProjektDialog = ({
               type="text"
               value={formData.projektName}
               onChange={(e) => setFormData({ ...formData, projektName: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-medium"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-medium"
               placeholder="z.B. TC Musterstadt - 2026"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
               Geben Sie einen aussagekräftigen Namen für das Projekt ein
             </p>
           </div>
 
           {/* Saisonjahr */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               <Calendar className="w-4 h-4 inline mr-1" />
               Saisonjahr *
             </label>
@@ -145,7 +145,7 @@ const ProjektDialog = ({
               type="number"
               value={formData.saisonjahr}
               onChange={(e) => setFormData({ ...formData, saisonjahr: parseInt(e.target.value) })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               min="2020"
               max="2099"
               required
@@ -155,7 +155,7 @@ const ProjektDialog = ({
           {/* Angefragte Menge & Preis */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 <Package className="w-4 h-4 inline mr-1" />
                 Angefragte Menge (Tonnen)
               </label>
@@ -164,12 +164,12 @@ const ProjektDialog = ({
                 step="0.1"
                 value={formData.angefragteMenge}
                 onChange={(e) => setFormData({ ...formData, angefragteMenge: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="z.B. 5.0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 <Euro className="w-4 h-4 inline mr-1" />
                 Preis pro Tonne (€)
               </label>
@@ -178,7 +178,7 @@ const ProjektDialog = ({
                 step="0.01"
                 value={formData.preisProTonne}
                 onChange={(e) => setFormData({ ...formData, preisProTonne: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="z.B. 450.00"
               />
             </div>
@@ -186,14 +186,14 @@ const ProjektDialog = ({
 
           {/* Bezugsweg */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               <User className="w-4 h-4 inline mr-1" />
               Bezugsweg
             </label>
             <select
               value={formData.bezugsweg}
               onChange={(e) => setFormData({ ...formData, bezugsweg: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">Bitte wählen</option>
               <option value="direkt">Direkt</option>
@@ -204,14 +204,14 @@ const ProjektDialog = ({
 
           {/* Notizen */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               Notizen
             </label>
             <textarea
               value={formData.notizen}
               onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Optionale Notizen zum Projekt..."
             />
           </div>
@@ -222,7 +222,7 @@ const ProjektDialog = ({
               type="button"
               onClick={onCancel}
               disabled={saving}
-              className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+              className="flex-1 px-6 py-3 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors font-medium disabled:opacity-50"
             >
               Abbrechen
             </button>

@@ -62,24 +62,24 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-gray-200">
+        <div className="flex items-start justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
               <div
                 className="w-4 h-4 rounded-full flex-shrink-0"
                 style={{ backgroundColor: termin.farbe || '#3b82f6' }}
               />
-              <h2 className="text-xl font-semibold text-gray-900">{termin.titel}</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">{termin.titel}</h2>
             </div>
             {termin.beschreibung && (
-              <p className="text-gray-600 text-sm mt-2">{termin.beschreibung}</p>
+              <p className="text-gray-600 dark:text-dark-textMuted text-sm mt-2">{termin.beschreibung}</p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors ml-4"
           >
             <X className="h-6 w-6" />
           </button>
@@ -89,17 +89,17 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
         <div className="p-6 space-y-4">
           {/* Datum und Zeit */}
           <div className="flex items-start space-x-3">
-            <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+            <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
             <div>
-              <div className="font-medium text-gray-900">
+              <div className="font-medium text-gray-900 dark:text-dark-text">
                 {format(startDatum, 'EEEE, d. MMMM yyyy', { locale: de })}
               </div>
               {termin.ganztaegig ? (
-                <div className="text-sm text-gray-600">Ganztägig</div>
+                <div className="text-sm text-gray-600 dark:text-dark-textMuted">Ganztägig</div>
               ) : (
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                   {format(startDatum, 'HH:mm')} - {format(endDatum, 'HH:mm')}
-                  <span className="ml-2 text-gray-500">({formatDauer(dauer)})</span>
+                  <span className="ml-2 text-gray-500 dark:text-dark-textMuted">({formatDauer(dauer)})</span>
                 </div>
               )}
             </div>
@@ -108,9 +108,9 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           {/* Ort */}
           {termin.ort && (
             <div className="flex items-start space-x-3">
-              <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
+              <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
               <div>
-                <div className="text-gray-900">{termin.ort}</div>
+                <div className="text-gray-900 dark:text-dark-text">{termin.ort}</div>
               </div>
             </div>
           )}
@@ -118,11 +118,11 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           {/* Wiederholung */}
           {termin.wiederholung && termin.wiederholung !== 'keine' && (
             <div className="flex items-start space-x-3">
-              <Repeat className="h-5 w-5 text-gray-400 mt-0.5" />
+              <Repeat className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
               <div>
-                <div className="text-gray-900">{formatWiederholung(termin.wiederholung)}</div>
+                <div className="text-gray-900 dark:text-dark-text">{formatWiederholung(termin.wiederholung)}</div>
                 {termin.wiederholungEnde && (
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                     Bis {format(new Date(termin.wiederholungEnde), 'd. MMMM yyyy', { locale: de })}
                   </div>
                 )}
@@ -133,9 +133,9 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           {/* Erinnerung */}
           {termin.erinnerung && termin.erinnerung > 0 && (
             <div className="flex items-start space-x-3">
-              <Bell className="h-5 w-5 text-gray-400 mt-0.5" />
+              <Bell className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
               <div>
-                <div className="text-gray-900">{formatErinnerung(termin.erinnerung)}</div>
+                <div className="text-gray-900 dark:text-dark-text">{formatErinnerung(termin.erinnerung)}</div>
               </div>
             </div>
           )}
@@ -143,10 +143,10 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           {/* Erstellt von */}
           {termin.erstelltVon && (
             <div className="flex items-start space-x-3">
-              <User className="h-5 w-5 text-gray-400 mt-0.5" />
+              <User className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
               <div>
-                <div className="text-gray-900">Erstellt von {termin.erstelltVon}</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-gray-900 dark:text-dark-text">Erstellt von {termin.erstelltVon}</div>
+                <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                   {format(new Date(termin.erstelltAm), 'd. MMM yyyy, HH:mm', { locale: de })}
                 </div>
               </div>
@@ -156,9 +156,9 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           {/* Letztes Update */}
           {termin.geaendertAm !== termin.erstelltAm && (
             <div className="flex items-start space-x-3">
-              <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
+              <Clock className="h-5 w-5 text-gray-400 dark:text-gray-500 mt-0.5" />
               <div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                   Zuletzt geändert: {format(new Date(termin.geaendertAm), 'd. MMM yyyy, HH:mm', { locale: de })}
                 </div>
               </div>
@@ -167,7 +167,7 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
         </div>
 
         {/* Aktionen */}
-        <div className="flex justify-between items-center p-6 border-t border-gray-200">
+        <div className="flex justify-between items-center p-6 border-t border-gray-200 dark:border-dark-border">
           <div>
             {showDeleteConfirm ? (
               <div className="flex items-center space-x-2">
@@ -180,7 +180,7 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 transition-colors"
+                  className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-dark-textMuted text-sm rounded hover:bg-gray-200 transition-colors"
                 >
                   Nein
                 </button>
@@ -199,7 +199,7 @@ const TerminDetails: React.FC<TerminDetailsProps> = ({
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-md transition-colors"
             >
               Schließen
             </button>

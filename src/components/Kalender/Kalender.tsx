@@ -137,12 +137,12 @@ const Kalender: React.FC = () => {
   const istHeute = isSameDay(aktuellesDatum, new Date());
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-white dark:bg-dark-surface">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+      <div className="flex-shrink-0 border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-semibold text-gray-900 flex items-center">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text flex items-center">
               <Calendar className="h-6 w-6 mr-2 text-blue-600" />
               Kalender
             </h1>
@@ -151,20 +151,20 @@ const Kalender: React.FC = () => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={navigateRueckwaerts}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-full transition-colors"
               >
-                <ChevronLeft className="h-5 w-5 text-gray-600" />
+                <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-dark-textMuted" />
               </button>
               
-              <h2 className="text-lg font-medium text-gray-900 min-w-[200px] text-center">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-dark-text min-w-[200px] text-center">
                 {getHeaderTitel()}
               </h2>
               
               <button
                 onClick={navigateVorwaerts}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-full transition-colors"
               >
-                <ChevronRight className="h-5 w-5 text-gray-600" />
+                <ChevronRight className="h-5 w-5 text-gray-600 dark:text-dark-textMuted" />
               </button>
             </div>
 
@@ -185,7 +185,7 @@ const Kalender: React.FC = () => {
 
           <div className="flex items-center space-x-3">
             {/* Ansicht Toggle */}
-            <div className="flex border border-gray-300 rounded-md overflow-hidden">
+            <div className="flex border border-gray-300 dark:border-dark-border rounded-md overflow-hidden">
               <button
                 onClick={() => setAnsicht('monat')}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
@@ -226,7 +226,7 @@ const Kalender: React.FC = () => {
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-600">Termine werden geladen...</p>
+              <p className="mt-2 text-gray-600 dark:text-dark-textMuted">Termine werden geladen...</p>
             </div>
           </div>
         ) : ansicht === 'monat' ? (

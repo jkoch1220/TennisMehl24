@@ -36,16 +36,16 @@ const DispoPlanung = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-dark-text mb-2">
             Dispo-Planung
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-dark-textMuted">
             Planung und Verwaltung von Lieferungen, Routen und Fahrzeugen
           </p>
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
+        <div className="border-b border-gray-200 dark:border-dark-border mb-6">
           <nav className="-mb-px flex space-x-8 overflow-x-auto">
             {tabs.map((tab) => {
               const Icon = tab.icon;

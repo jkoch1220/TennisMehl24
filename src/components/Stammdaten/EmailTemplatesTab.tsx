@@ -192,7 +192,7 @@ Koch Dienste`
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-3 text-gray-600">Lade E-Mail-Templates...</span>
+        <span className="ml-3 text-gray-600 dark:text-dark-textMuted">Lade E-Mail-Templates...</span>
       </div>
     );
   }
@@ -238,26 +238,26 @@ Koch Dienste`
 
         return (
           <div key={key} className={`bg-white rounded-xl shadow-sm border-2 ${colorClasses[color as keyof typeof colorClasses]} p-6`}>
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">{label}</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">{label}</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Betreff</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Betreff</label>
                 <input
                   type="text"
                   value={template.betreff}
                   onChange={(e) => handleBetreffChange(key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail-Content</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">E-Mail-Content</label>
                 <textarea
                   value={template.emailContent}
                   onChange={(e) => handleContentChange(key, e.target.value)}
                   rows={15}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
                   placeholder="E-Mail-Text hier eingeben..."
                 />
               </div>
@@ -271,7 +271,7 @@ Koch Dienste`
         <button
           onClick={handleSpeichern}
           disabled={speichert}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {speichert ? (
             <>

@@ -45,18 +45,18 @@ const PasswordChange: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-2">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2 mb-2">
           <Lock className="w-5 h-5" />
           Passwort ändern
         </h3>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 dark:text-dark-textMuted">
           Ändern Sie hier Ihr Passwort. Das neue Passwort muss mindestens 8 Zeichen lang sein.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="oldPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="oldPassword" className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
             Aktuelles Passwort
           </label>
           <input
@@ -64,7 +64,7 @@ const PasswordChange: React.FC = () => {
             type="password"
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
-            className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+            className="w-full p-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
             placeholder="Aktuelles Passwort eingeben"
             required
             disabled={isLoading}
@@ -72,7 +72,7 @@ const PasswordChange: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="newPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="newPassword" className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
             Neues Passwort
           </label>
           <input
@@ -80,7 +80,7 @@ const PasswordChange: React.FC = () => {
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+            className="w-full p-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
             placeholder="Neues Passwort eingeben"
             required
             disabled={isLoading}
@@ -89,7 +89,7 @@ const PasswordChange: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
             Neues Passwort bestätigen
           </label>
           <input
@@ -97,7 +97,7 @@ const PasswordChange: React.FC = () => {
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+            className="w-full p-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
             placeholder="Neues Passwort wiederholen"
             required
             disabled={isLoading}
@@ -124,7 +124,7 @@ const PasswordChange: React.FC = () => {
         <button
           type="submit"
           disabled={isLoading || !oldPassword || !newPassword || !confirmPassword}
-          className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md dark:shadow-dark-md"
         >
           {isLoading ? 'Wird geändert...' : 'Passwort ändern'}
         </button>

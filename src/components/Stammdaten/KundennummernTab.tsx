@@ -89,34 +89,34 @@ const KundennummernTab = () => {
             <Hash className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Kundennummern Generierung</h2>
-            <p className="text-gray-600">Automatische Vergabe von Kundennummern für die Kundenliste</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Kundennummern Generierung</h2>
+            <p className="text-gray-600 dark:text-dark-textMuted">Automatische Vergabe von Kundennummern für die Kundenliste</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Kunden gesamt</p>
-            <p className="text-3xl font-bold text-gray-900">{kunden.length}</p>
+          <div className="bg-white dark:bg-dark-surface rounded-lg p-4 shadow-sm">
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted">Kunden gesamt</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-dark-text">{kunden.length}</p>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Mit Kundennummer</p>
+          <div className="bg-white dark:bg-dark-surface rounded-lg p-4 shadow-sm">
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted">Mit Kundennummer</p>
             <p className="text-3xl font-bold text-green-600">{kundenMitNummer.length}</p>
           </div>
-          <div className="bg-white rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Ohne Kundennummer</p>
+          <div className="bg-white dark:bg-dark-surface rounded-lg p-4 shadow-sm">
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted">Ohne Kundennummer</p>
             <p className="text-3xl font-bold text-orange-600">{kundenOhneNummer.length}</p>
           </div>
         </div>
       </div>
 
       {/* Aktion */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Kundennummern generieren</h3>
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border p-6">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text mb-4">Kundennummern generieren</h3>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Startnummer für neue Kunden
             </label>
             <input
@@ -124,9 +124,9 @@ const KundennummernTab = () => {
               value={naechsteNummer}
               onChange={(e) => setNaechsteNummer(parseInt(e.target.value) || 231)}
               disabled={status === 'running'}
-              className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full md:w-64 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">
               Die erste Kundennummer beginnt bei 231. Die Nummern werden fortlaufend vergeben.
             </p>
           </div>
@@ -200,7 +200,7 @@ const KundennummernTab = () => {
             <button
               onClick={loadKunden}
               disabled={status === 'running' || loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
               Aktualisieren
@@ -210,28 +210,28 @@ const KundennummernTab = () => {
       </div>
 
       {/* Kundenliste */}
-      <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-        <div className="border-b border-gray-200 p-4 bg-gray-50">
-          <h3 className="text-lg font-bold text-gray-900">Kundenübersicht</h3>
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+        <div className="border-b border-gray-200 dark:border-dark-border p-4 bg-gray-50 dark:bg-gray-800">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text">Kundenübersicht</h3>
         </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-dark-border">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Kundennummer
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Name
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Typ
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Ort
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Status
                 </th>
               </tr>
@@ -239,14 +239,14 @@ const KundennummernTab = () => {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-dark-textMuted">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Lade Kunden...
                   </td>
                 </tr>
               ) : kunden.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-dark-textMuted">
                     Keine Kunden gefunden
                   </td>
                 </tr>
@@ -259,17 +259,17 @@ const KundennummernTab = () => {
                     return numA - numB;
                   })
                   .map((kunde) => (
-                    <tr key={kunde.id} className="hover:bg-gray-50">
+                    <tr key={kunde.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800">
                       <td className="px-4 py-3">
                         {kunde.kundennummer ? (
-                          <span className="font-mono font-semibold text-gray-900">
+                          <span className="font-mono font-semibold text-gray-900 dark:text-dark-text">
                             {kunde.kundennummer}
                           </span>
                         ) : (
-                          <span className="text-gray-400 italic">-</span>
+                          <span className="text-gray-400 dark:text-gray-500 italic">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{kunde.name}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-dark-text">{kunde.name}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -281,7 +281,7 @@ const KundennummernTab = () => {
                           {kunde.typ === 'verein' ? 'Verein' : 'Platzbauer'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-gray-600 dark:text-dark-textMuted">
                         {kunde.adresse.plz} {kunde.adresse.ort}
                       </td>
                       <td className="px-4 py-3">
@@ -307,8 +307,8 @@ const KundennummernTab = () => {
 
       {/* Info-Box */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold text-gray-900 mb-3">Über Kundennummern</h4>
-        <div className="space-y-2 text-sm text-gray-700">
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3">Über Kundennummern</h4>
+        <div className="space-y-2 text-sm text-gray-700 dark:text-dark-textMuted">
           <p>
             <strong>Automatische Vergabe:</strong> Kundennummern werden automatisch und fortlaufend
             vergeben, beginnend mit der Nummer 231.

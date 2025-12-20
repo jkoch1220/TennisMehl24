@@ -184,11 +184,11 @@ const WochenAnsicht: React.FC<WochenAnsichtProps> = ({
   }, [wochenTage, STUNDEN_HOEHE]);
 
   return (
-    <div className="h-full flex bg-white" ref={containerRef}>
+    <div className="h-full flex bg-white dark:bg-dark-surface" ref={containerRef}>
       {/* Zeit-Spalte */}
-      <div className="w-16 flex-shrink-0 border-r border-gray-200">
+      <div className="w-16 flex-shrink-0 border-r border-gray-200 dark:border-dark-border">
         {/* Header Spacer */}
-        <div className="h-16 border-b border-gray-200"></div>
+        <div className="h-16 border-b border-gray-200 dark:border-dark-border"></div>
         
         {/* Stunden */}
         {stunden.map((stunde) => (
@@ -197,7 +197,7 @@ const WochenAnsicht: React.FC<WochenAnsichtProps> = ({
             className="border-b border-gray-100 flex items-start justify-end pr-2 pt-1"
             style={{ height: `${STUNDEN_HOEHE}px` }}
           >
-            <span className="text-xs text-gray-500 font-medium">
+            <span className="text-xs text-gray-500 dark:text-dark-textMuted font-medium">
               {format(new Date().setHours(stunde, 0, 0, 0), 'HH:mm')}
             </span>
           </div>
@@ -207,7 +207,7 @@ const WochenAnsicht: React.FC<WochenAnsichtProps> = ({
       {/* Kalender Grid */}
       <div className="flex-1 flex flex-col">
         {/* Wochentage Header */}
-        <div className="h-16 grid grid-cols-7 border-b border-gray-200">
+        <div className="h-16 grid grid-cols-7 border-b border-gray-200 dark:border-dark-border">
           {wochenTage.map((tag) => {
             const istHeute = isToday(tag);
             
@@ -218,7 +218,7 @@ const WochenAnsicht: React.FC<WochenAnsichtProps> = ({
                   istHeute ? 'bg-blue-50' : 'bg-gray-50'
                 }`}
               >
-                <div className="text-xs text-gray-600 font-medium uppercase">
+                <div className="text-xs text-gray-600 dark:text-dark-textMuted font-medium uppercase">
                   {format(tag, 'EEE', { locale: de })}
                 </div>
                 <div
@@ -248,7 +248,7 @@ const WochenAnsicht: React.FC<WochenAnsichtProps> = ({
                 {wochenTage.map((tag, tagIndex) => (
                   <div
                     key={`${tagIndex}-${stunde}`}
-                    className="border-r border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                    className="border-r border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 cursor-pointer"
                     onClick={() => handleZeitSlotClick(tag, stunde)}
                   >
                     {/* 15-Minuten Intervalle */}

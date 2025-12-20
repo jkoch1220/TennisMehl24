@@ -91,19 +91,19 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
 
   if (sortierteTage.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-8 text-center">
         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-        <p className="text-gray-600">Keine fälligen Rechnungen in den nächsten {tageAnzeigen} Tagen</p>
+        <p className="text-gray-600 dark:text-dark-textMuted">Keine fälligen Rechnungen in den nächsten {tageAnzeigen} Tagen</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
       <div className="flex items-center gap-3 mb-6">
         <Calendar className="w-6 h-6 text-red-600" />
-        <h3 className="text-xl font-bold text-gray-900">Fälligkeits-Timeline</h3>
-        <span className="text-sm text-gray-500">(nächste {tageAnzeigen} Tage)</span>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text">Fälligkeits-Timeline</h3>
+        <span className="text-sm text-gray-500 dark:text-dark-textMuted">(nächste {tageAnzeigen} Tage)</span>
       </div>
 
       <div className="space-y-4">
@@ -132,15 +132,15 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                 <div className="flex items-center gap-3">
                   {getStatusIcon(tage)}
                   <div>
-                    <div className="font-semibold text-gray-900">{getTageLabel(tage)}</div>
-                    <div className="text-sm text-gray-600">
+                    <div className="font-semibold text-gray-900 dark:text-dark-text">{getTageLabel(tage)}</div>
+                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                       {formatDate(getRelevanteFaelligkeit(rechnungenFuerTag[0]))}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-gray-900">{formatCurrency(gesamtBetrag)}</div>
-                  <div className="text-sm text-gray-600">{rechnungenFuerTag.length} Rechnung(en)</div>
+                  <div className="font-bold text-gray-900 dark:text-dark-text">{formatCurrency(gesamtBetrag)}</div>
+                  <div className="text-sm text-gray-600 dark:text-dark-textMuted">{rechnungenFuerTag.length} Rechnung(en)</div>
                 </div>
               </div>
 
@@ -156,11 +156,11 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                     <div
                       key={rechnung.id}
                       onClick={() => onOpenDetail?.(rechnung)}
-                      className="bg-white rounded-lg p-3 flex justify-between items-center hover:shadow-md transition-all cursor-pointer hover:scale-[1.01]"
+                      className="bg-white dark:bg-dark-surface rounded-lg p-3 flex justify-between items-center hover:shadow-md dark:shadow-dark-md transition-all cursor-pointer hover:scale-[1.01]"
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{rechnung.kreditorName}</div>
-                        <div className="text-sm text-gray-600">
+                        <div className="font-medium text-gray-900 dark:text-dark-text">{rechnung.kreditorName}</div>
+                        <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                           {rechnung.betreff || rechnung.rechnungsnummer || 'Kein Betreff'}
                         </div>
                         <div className="flex gap-3 mt-1">
@@ -175,16 +175,16 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
                             </div>
                           )}
                           {gesamtBezahlt > 0 && (
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                               Bezahlt: {formatCurrency(gesamtBezahlt)} / {formatCurrency(rechnung.summe)}
                             </div>
                           )}
                         </div>
                       </div>
                       <div className="text-right ml-4">
-                        <div className="font-semibold text-gray-900">{formatCurrency(offenerBetrag)}</div>
+                        <div className="font-semibold text-gray-900 dark:text-dark-text">{formatCurrency(offenerBetrag)}</div>
                         {gesamtBezahlt > 0 && (
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                             von {formatCurrency(rechnung.summe)}
                           </div>
                         )}
@@ -218,27 +218,27 @@ const FaelligkeitsTimeline = ({ rechnungen, tageAnzeigen = 60, onOpenDetail }: F
       </div>
 
       {/* Legende */}
-      <div className="mt-6 pt-4 border-t border-gray-200">
+      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-border">
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-red-500 rounded"></div>
-            <span className="text-gray-600">Überfällig</span>
+            <span className="text-gray-600 dark:text-dark-textMuted">Überfällig</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-orange-500 rounded"></div>
-            <span className="text-gray-600">Heute fällig</span>
+            <span className="text-gray-600 dark:text-dark-textMuted">Heute fällig</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-            <span className="text-gray-600">Diese Woche</span>
+            <span className="text-gray-600 dark:text-dark-textMuted">Diese Woche</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-500 rounded"></div>
-            <span className="text-gray-600">Dieser Monat</span>
+            <span className="text-gray-600 dark:text-dark-textMuted">Dieser Monat</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-green-500 rounded"></div>
-            <span className="text-gray-600">Später</span>
+            <span className="text-gray-600 dark:text-dark-textMuted">Später</span>
           </div>
         </div>
       </div>

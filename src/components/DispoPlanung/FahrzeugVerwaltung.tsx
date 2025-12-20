@@ -96,10 +96,10 @@ const FahrzeugVerwaltung = () => {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         {/* Toolbar */}
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Fahrzeugverwaltung</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">Fahrzeugverwaltung</h2>
           <button
             onClick={() => {
               setBearbeiteFahrzeug(null);
@@ -139,7 +139,7 @@ const FahrzeugVerwaltung = () => {
 
         {/* Fahrzeuge Liste */}
         {fahrzeuge.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-textMuted">
             <Truck className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p>Keine Fahrzeuge vorhanden</p>
           </div>
@@ -148,14 +148,14 @@ const FahrzeugVerwaltung = () => {
             {fahrzeuge.map((fahrzeug) => (
               <div
                 key={fahrzeug.id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                       {fahrzeug.kennzeichen}
                     </h3>
-                    <p className="text-sm text-gray-600">{fahrzeug.typ}</p>
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">{fahrzeug.typ}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {fahrzeug.verfuegbarkeit.verfuegbar ? (
@@ -177,7 +177,7 @@ const FahrzeugVerwaltung = () => {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-2 text-sm text-gray-600">
+                <div className="space-y-2 text-sm text-gray-600 dark:text-dark-textMuted">
                   <div>Kapazität: {fahrzeug.kapazitaetTonnen} t</div>
                   {fahrzeug.fahrer && <div>Fahrer: {fahrzeug.fahrer}</div>}
                   <div>Verbrauch: {fahrzeug.stammdaten.dieselverbrauchDurchschnitt} L/100km</div>
@@ -192,16 +192,16 @@ const FahrzeugVerwaltung = () => {
       {/* Formular Modal */}
       {showFormular && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-6">
                 {bearbeiteFahrzeug ? 'Fahrzeug bearbeiten' : 'Neues Fahrzeug'}
               </h2>
               
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Kennzeichen
                     </label>
                     <input
@@ -212,7 +212,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Typ
                     </label>
                     <input
@@ -226,7 +226,7 @@ const FahrzeugVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Kapazität (Tonnen)
                   </label>
                   <NumberInput
@@ -239,7 +239,7 @@ const FahrzeugVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Fahrer
                   </label>
                   <input
@@ -250,13 +250,13 @@ const FahrzeugVerwaltung = () => {
                   />
                 </div>
 
-                <h3 className="text-lg font-semibold text-gray-900 mt-6 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mt-6 mb-4">
                   Stammdaten
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Dieselverbrauch (L/100km)
                     </label>
                     <NumberInput
@@ -276,7 +276,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Durchschnittsgeschwindigkeit (km/h)
                     </label>
                     <NumberInput
@@ -295,7 +295,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Dieselpreis (€/L)
                     </label>
                     <NumberInput
@@ -315,7 +315,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Verschleißpauschale (€/km)
                     </label>
                     <NumberInput
@@ -335,7 +335,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Beladungszeit (Minuten)
                     </label>
                     <NumberInput
@@ -354,7 +354,7 @@ const FahrzeugVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Abladungszeit (Minuten)
                     </label>
                     <NumberInput
@@ -390,19 +390,19 @@ const FahrzeugVerwaltung = () => {
                     }
                     className="w-4 h-4"
                   />
-                  <label htmlFor="verfuegbar" className="text-sm font-semibold text-gray-700">
+                  <label htmlFor="verfuegbar" className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                     Verfügbar
                   </label>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-4 mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-dark-border">
                 <button
                   onClick={() => {
                     setShowFormular(false);
                     setBearbeiteFahrzeug(null);
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Abbrechen
                 </button>

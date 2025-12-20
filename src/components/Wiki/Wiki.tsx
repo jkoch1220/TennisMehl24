@@ -264,12 +264,12 @@ const Wiki = () => {
       {/* Sidebar */}
       <div
         style={{ width: sidebarWidth }}
-        className="bg-white border-r border-gray-200 flex flex-col flex-shrink-0"
+        className="bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-dark-border flex flex-col flex-shrink-0"
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-gray-800">Wiki</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-dark-text">Wiki</h2>
             <button
               onClick={handleStartCreate}
               className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
@@ -281,13 +281,13 @@ const Wiki = () => {
 
           {/* Suche */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Seiten durchsuchen..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -295,7 +295,7 @@ const Wiki = () => {
         {/* Seitenliste */}
         <div className="flex-1 overflow-y-auto p-2">
           {filteredPages.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-textMuted">
               {searchQuery ? (
                 <p className="text-sm">Keine Seiten gefunden</p>
               ) : (
@@ -331,7 +331,7 @@ const Wiki = () => {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{page.title}</div>
                       {page.description && (
-                        <div className="text-xs text-gray-500 truncate">
+                        <div className="text-xs text-gray-500 dark:text-dark-textMuted truncate">
                           {page.description}
                         </div>
                       )}
@@ -347,19 +347,19 @@ const Wiki = () => {
                     }}
                     className="absolute right-10 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <MoreVertical className="w-4 h-4 text-gray-500" />
+                    <MoreVertical className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
                   </button>
 
                   {/* Dropdown Menü */}
                   {showPageMenu === page.$id && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 min-w-[120px]">
+                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-lg shadow-lg dark:shadow-dark-lg z-10 py-1 min-w-[120px]">
                       <button
                         onClick={() => {
                           setSelectedPage(page);
                           handleStartEdit();
                           setShowPageMenu(null);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700"
                       >
                         <Edit3 className="w-4 h-4" />
                         Bearbeiten
@@ -403,12 +403,12 @@ const Wiki = () => {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-800">
         {isEditing || isCreating ? (
           /* Editor Ansicht */
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Editor Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
                   {/* Icon Picker */}
@@ -416,7 +416,7 @@ const Wiki = () => {
                     type="text"
                     value={formIcon}
                     onChange={(e) => setFormIcon(e.target.value)}
-                    className="w-12 h-12 text-2xl text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    className="w-12 h-12 text-2xl text-center border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
                     maxLength={2}
                   />
                   {/* Titel */}
@@ -431,7 +431,7 @@ const Wiki = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCancel}
-                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
                   >
                     <X className="w-4 h-4" />
                     Abbrechen
@@ -452,7 +452,7 @@ const Wiki = () => {
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="Kurze Beschreibung (optional)..."
-                className="mt-2 w-full text-sm text-gray-500 border-none focus:outline-none focus:ring-0 bg-transparent"
+                className="mt-2 w-full text-sm text-gray-500 dark:text-dark-textMuted border-none focus:outline-none focus:ring-0 bg-transparent"
               />
             </div>
 
@@ -470,16 +470,16 @@ const Wiki = () => {
           /* Seiten Ansicht */
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <span className="text-3xl">{selectedPage.icon || '📄'}</span>
                   <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
                       {selectedPage.title}
                     </h1>
                     {selectedPage.description && (
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">
                         {selectedPage.description}
                       </p>
                     )}
@@ -496,7 +496,7 @@ const Wiki = () => {
                 </div>
               </div>
               {/* Meta Info */}
-              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+              <div className="flex items-center gap-4 mt-3 text-sm text-gray-500 dark:text-dark-textMuted">
                 {selectedPage.$updatedAt && (
                   <span className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
@@ -533,13 +533,13 @@ const Wiki = () => {
                 />
 
                 {/* Dateien Bereich */}
-                <div className="mt-8 border-t border-gray-200 pt-6">
+                <div className="mt-8 border-t border-gray-200 dark:border-dark-border pt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text flex items-center gap-2">
                       <File className="w-5 h-5" />
                       Anhänge ({files.length})
                     </h3>
-                    <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition-colors">
+                    <label className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg cursor-pointer transition-colors">
                       <Upload className="w-4 h-4" />
                       <span className="text-sm">Datei hochladen</span>
                       <input
@@ -552,7 +552,7 @@ const Wiki = () => {
                   </div>
 
                   {uploadingFile && (
-                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-textMuted mb-4">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
                       Datei wird hochgeladen...
                     </div>
@@ -563,14 +563,14 @@ const Wiki = () => {
                       {files.map((file) => (
                         <div
                           key={file.$id}
-                          className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                          className="flex items-center gap-3 p-3 bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border hover:border-gray-300 dark:border-dark-border transition-colors"
                         >
-                          <File className="w-8 h-8 text-gray-400 flex-shrink-0" />
+                          <File className="w-8 h-8 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-700 truncate">
+                            <div className="font-medium text-gray-700 dark:text-dark-textMuted truncate">
                               {file.fileName}
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-gray-500 dark:text-dark-textMuted">
                               {formatFileSize(file.size)} • {file.mimeType}
                             </div>
                           </div>
@@ -579,17 +579,17 @@ const Wiki = () => {
                               href={wikiFileService.getFileUrl(file.fileId)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-2 hover:bg-gray-100 rounded transition-colors"
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                               title="Anzeigen"
                             >
-                              <Eye className="w-4 h-4 text-gray-500" />
+                              <Eye className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
                             </a>
                             <a
                               href={wikiFileService.getDownloadUrl(file.fileId)}
-                              className="p-2 hover:bg-gray-100 rounded transition-colors"
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded transition-colors"
                               title="Herunterladen"
                             >
-                              <Download className="w-4 h-4 text-gray-500" />
+                              <Download className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
                             </a>
                             <button
                               onClick={() => handleDeleteFile(file)}
@@ -603,7 +603,7 @@ const Wiki = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">
+                    <div className="text-center py-8 text-gray-500 dark:text-dark-textMuted bg-white dark:bg-dark-surface rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
                       <File className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                       <p className="text-sm">Keine Dateien vorhanden</p>
                       <p className="text-xs mt-1">Lade Dateien hoch, um sie hier anzuzeigen</p>
@@ -618,10 +618,10 @@ const Wiki = () => {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h2 className="text-xl font-semibold text-gray-600 mb-2">
+              <h2 className="text-xl font-semibold text-gray-600 dark:text-dark-textMuted mb-2">
                 Willkommen im Wiki
               </h2>
-              <p className="text-gray-500 mb-4">
+              <p className="text-gray-500 dark:text-dark-textMuted mb-4">
                 Wähle eine Seite aus der Seitenleiste oder erstelle eine neue.
               </p>
               <button

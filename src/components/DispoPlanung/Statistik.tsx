@@ -75,10 +75,10 @@ const Statistik = () => {
   return (
     <div className="space-y-6">
       {/* Zeitraum Auswahl */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         <div className="flex items-center gap-4">
-          <label className="text-sm font-semibold text-gray-700">Zeitraum:</label>
-          <div className="flex bg-gray-100 rounded-lg p-1">
+          <label className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Zeitraum:</label>
+          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             {(['woche', 'monat', 'jahr'] as const).map((z) => (
               <button
                 key={z}
@@ -98,69 +98,69 @@ const Statistik = () => {
 
       {/* Statistik Karten */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <Package className="w-8 h-8 text-blue-500" />
-            <span className="text-2xl font-bold text-gray-900">
+            <span className="text-2xl font-bold text-gray-900 dark:text-dark-text">
               {statistik.gesamtLieferungen}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Gesamt Lieferungen</div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamt Lieferungen</div>
+          <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
             {statistik.gelieferteLieferungen} geliefert
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8 text-green-500" />
-            <span className="text-2xl font-bold text-gray-900">
+            <span className="text-2xl font-bold text-gray-900 dark:text-dark-text">
               {statistik.gesamtTonnen.toFixed(1)}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Gesamt Tonnen</div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamt Tonnen</div>
+          <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
             {statistik.gesamtPaletten} Paletten
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <Truck className="w-8 h-8 text-orange-500" />
-            <span className="text-2xl font-bold text-gray-900">
+            <span className="text-2xl font-bold text-gray-900 dark:text-dark-text">
               {statistik.gesamtRouten}
             </span>
           </div>
-          <div className="text-sm text-gray-600">Routen</div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-sm text-gray-600 dark:text-dark-textMuted">Routen</div>
+          <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
             {statistik.gesamtKilometer.toFixed(0)} km gefahren
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <Euro className="w-8 h-8 text-red-500" />
-            <span className="text-2xl font-bold text-gray-900">
+            <span className="text-2xl font-bold text-gray-900 dark:text-dark-text">
               {statistik.gesamtKosten.toFixed(0)} €
             </span>
           </div>
-          <div className="text-sm text-gray-600">Gesamtkosten</div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtkosten</div>
+          <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
             Ø {statistik.durchschnittlicheRouteKosten.toFixed(2)} € pro Route
           </div>
         </div>
       </div>
 
       {/* Status Übersicht */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Status-Übersicht</h3>
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4">Status-Übersicht</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {(['geplant', 'bestaetigt', 'beladen', 'unterwegs', 'geliefert', 'abgerechnet'] as const).map((status) => {
             const anzahl = lieferungen.filter((l) => l.status === status).length;
             return (
               <div key={status} className="text-center">
-                <div className="text-2xl font-bold text-gray-900">{anzahl}</div>
-                <div className="text-xs text-gray-600 capitalize">{status}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-dark-text">{anzahl}</div>
+                <div className="text-xs text-gray-600 dark:text-dark-textMuted capitalize">{status}</div>
               </div>
             );
           })}
@@ -168,28 +168,28 @@ const Statistik = () => {
       </div>
 
       {/* Letzte Routen */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Letzte Routen</h3>
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4">Letzte Routen</h3>
         {routen.length === 0 ? (
-          <p className="text-gray-500 text-sm">Keine Routen im ausgewählten Zeitraum</p>
+          <p className="text-gray-500 dark:text-dark-textMuted text-sm">Keine Routen im ausgewählten Zeitraum</p>
         ) : (
           <div className="space-y-2">
             {routen.slice(0, 5).map((route) => (
               <div
                 key={route.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
               >
                 <div>
-                  <div className="font-medium text-gray-900">{route.name}</div>
-                  <div className="text-sm text-gray-600">
+                  <div className="font-medium text-gray-900 dark:text-dark-text">{route.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                     {formatDatum(new Date(route.datum))} - {route.lieferungen.length} Lieferungen
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-gray-900">
+                  <div className="font-semibold text-gray-900 dark:text-dark-text">
                     {route.routeDetails.gesamtkosten.toFixed(2)} €
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-gray-600 dark:text-dark-textMuted">
                     {route.routeDetails.gesamtDistanz.toFixed(1)} km
                   </div>
                 </div>

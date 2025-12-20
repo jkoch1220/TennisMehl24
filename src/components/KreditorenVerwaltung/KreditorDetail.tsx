@@ -131,7 +131,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex justify-between items-center">
             <div className="flex items-center gap-4">
@@ -142,7 +142,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <div className="flex items-center gap-3">
-                <div className="bg-white/20 rounded-lg p-2">
+                <div className="bg-white dark:bg-dark-surface/20 rounded-lg p-2">
                   <Building2 className="w-6 h-6" />
                 </div>
                 <div>
@@ -167,16 +167,16 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
           <div className="flex-1 overflow-y-auto">
             <div className="p-6 space-y-6">
               {/* Kreditor-Informationen */}
-              <div className="bg-gray-50 rounded-xl p-5">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4 flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-blue-600" />
                   Kreditor-Informationen
                 </h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   {kreditor.kontakt?.adresse && (
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Adresse</p>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Adresse</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-dark-text">
                         {[
                           kreditor.kontakt.adresse.strasse,
                           kreditor.kontakt.adresse.plz,
@@ -187,24 +187,24 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                   )}
                   {(kreditor.telefon || kreditor.kontakt?.telefon) && (
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Telefon (Legacy)</p>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Telefon (Legacy)</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-dark-text">
                         {kreditor.telefon || kreditor.kontakt?.telefon}
                       </p>
                     </div>
                   )}
                   {kreditor.kontakt?.email && (
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">E-Mail (Legacy)</p>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">E-Mail (Legacy)</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-dark-text">
                         {kreditor.kontakt.email}
                       </p>
                     </div>
                   )}
                   {kreditor.notizen && (
                     <div className="md:col-span-2">
-                      <p className="text-xs text-gray-500 mb-1">Notizen</p>
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mb-1">Notizen</p>
+                      <p className="text-sm text-gray-900 dark:text-dark-text whitespace-pre-wrap">
                         {kreditor.notizen}
                       </p>
                     </div>
@@ -213,9 +213,9 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
               </div>
 
               {/* Ansprechpartner-Bereich */}
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-5">
+              <div className="bg-white dark:bg-dark-surface border-2 border-gray-200 dark:border-dark-border rounded-xl p-5">
                 <div className="flex justify-between items-center mb-5">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2">
                     <User className="w-5 h-5 text-blue-600" />
                     Ansprechpartner
                     {ansprechpartner.length > 0 && (
@@ -226,7 +226,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                   </h3>
                   <button
                     onClick={handleAddAnsprechpartner}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 font-medium shadow-lg hover:shadow-xl"
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all flex items-center gap-2 font-medium shadow-lg dark:shadow-dark-lg hover:shadow-xl"
                   >
                     <Plus className="w-4 h-4" />
                     Ansprechpartner anlegen
@@ -236,13 +236,13 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="text-gray-500 mt-2">Lade Ansprechpartner...</p>
+                    <p className="text-gray-500 dark:text-dark-textMuted mt-2">Lade Ansprechpartner...</p>
                   </div>
                 ) : ansprechpartner.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-dark-border">
                     <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-600 font-medium mb-1">Noch keine Ansprechpartner</p>
-                    <p className="text-sm text-gray-500 mb-4">
+                    <p className="text-gray-600 dark:text-dark-textMuted font-medium mb-1">Noch keine Ansprechpartner</p>
+                    <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-4">
                       Fügen Sie Ansprechpartner hinzu, um Kontakte zu verwalten
                     </p>
                     <button
@@ -258,7 +258,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                     {ansprechpartner.map((ap, index) => (
                       <div
                         key={ap.id}
-                        className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-lg transition-all group"
+                        className="bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 dark:border-dark-border rounded-xl p-5 hover:border-blue-300 hover:shadow-lg dark:shadow-dark-lg transition-all group"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
@@ -268,9 +268,9 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                               </div>
                               <div>
                                 {ap.titel && (
-                                  <span className="text-xs text-gray-500">{ap.titel}</span>
+                                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">{ap.titel}</span>
                                 )}
-                                <h4 className="font-semibold text-gray-900 text-lg">
+                                <h4 className="font-semibold text-gray-900 dark:text-dark-text text-lg">
                                   {ap.name}
                                 </h4>
                               </div>
@@ -296,8 +296,8 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
 
                         <div className="space-y-2">
                           {ap.email && (
-                            <div className="flex items-center gap-2 text-sm text-gray-700">
-                              <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-textMuted">
+                              <Mail className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                               <a
                                 href={`mailto:${ap.email}`}
                                 className="flex-1 hover:text-blue-600 transition-colors truncate"
@@ -306,7 +306,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                               </a>
                               <button
                                 onClick={() => handleCopy(ap.email!, index * 10 + 1)}
-                                className="text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                                className="text-gray-400 dark:text-gray-500 hover:text-blue-600 transition-colors flex-shrink-0"
                                 title="Kopieren"
                               >
                                 {copiedIndex === index * 10 + 1 ? (
@@ -318,8 +318,8 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                             </div>
                           )}
                           {ap.telefon && (
-                            <div className="flex items-center gap-2 text-sm text-gray-700">
-                              <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-textMuted">
+                              <Phone className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                               <a
                                 href={`tel:${ap.telefon}`}
                                 className="flex-1 hover:text-blue-600 transition-colors"
@@ -328,7 +328,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                               </a>
                               <button
                                 onClick={() => handleCopy(ap.telefon!, index * 10 + 2)}
-                                className="text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                                className="text-gray-400 dark:text-gray-500 hover:text-blue-600 transition-colors flex-shrink-0"
                                 title="Kopieren"
                               >
                                 {copiedIndex === index * 10 + 2 ? (
@@ -340,7 +340,7 @@ const KreditorDetail = ({ kreditor: initialKreditor, onClose, onUpdate }: Kredit
                             </div>
                           )}
                           {!ap.email && !ap.telefon && (
-                            <p className="text-xs text-gray-400 italic">
+                            <p className="text-xs text-gray-400 dark:text-gray-500 italic">
                               Keine Kontaktdaten vorhanden
                             </p>
                           )}

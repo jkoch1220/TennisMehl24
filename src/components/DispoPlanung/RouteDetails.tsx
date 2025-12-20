@@ -165,7 +165,7 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg p-6">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
         </div>
       </div>
@@ -174,15 +174,15 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
             {route ? 'Route bearbeiten' : 'Neue Route'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -193,7 +193,7 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
           {/* Basis-Informationen */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Name
               </label>
               <input
@@ -204,7 +204,7 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Fahrzeug
               </label>
               <select
@@ -223,7 +223,7 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
               Fahrer
             </label>
             <input
@@ -236,18 +236,18 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
 
           {/* Verfügbare Lieferungen */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
               Verfügbare Lieferungen
             </label>
-            <div className="border border-gray-200 rounded-lg p-4 max-h-64 overflow-y-auto">
+            <div className="border border-gray-200 dark:border-dark-border rounded-lg p-4 max-h-64 overflow-y-auto">
               {verfuegbareLieferungen.length === 0 ? (
-                <p className="text-gray-500 text-sm">Keine verfügbaren Lieferungen</p>
+                <p className="text-gray-500 dark:text-dark-textMuted text-sm">Keine verfügbaren Lieferungen</p>
               ) : (
                 <div className="space-y-2">
                   {verfuegbareLieferungen.map((lieferung) => (
                     <label
                       key={lieferung.id}
-                      className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                      className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 rounded cursor-pointer"
                     >
                       <input
                         type="checkbox"
@@ -269,10 +269,10 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
                         className="w-4 h-4"
                       />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">
+                        <div className="font-medium text-gray-900 dark:text-dark-text">
                           {lieferung.kundenname}
                         </div>
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                           {lieferung.adresse.plz} {lieferung.adresse.ort} -{' '}
                           {lieferung.lieferdetails.paletten} Paletten -{' '}
                           {lieferung.lieferdetails.tonnen.toFixed(2)} t
@@ -302,29 +302,29 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
           {/* Route Details */}
           {formData.optimiert && formData.routeDetails && (
             <div className="bg-blue-50 rounded-lg p-4 space-y-2">
-              <h3 className="font-semibold text-gray-900">Route-Details</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-dark-text">Route-Details</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Distanz:</span>{' '}
+                  <span className="text-gray-600 dark:text-dark-textMuted">Distanz:</span>{' '}
                   <span className="font-semibold">
                     {formData.routeDetails.gesamtDistanz.toFixed(1)} km
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Gesamtzeit:</span>{' '}
+                  <span className="text-gray-600 dark:text-dark-textMuted">Gesamtzeit:</span>{' '}
                   <span className="font-semibold">
                     {Math.round(formData.routeDetails.gesamtZeit / 60)}h{' '}
                     {formData.routeDetails.gesamtZeit % 60}m
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Dieselkosten:</span>{' '}
+                  <span className="text-gray-600 dark:text-dark-textMuted">Dieselkosten:</span>{' '}
                   <span className="font-semibold">
                     {formData.routeDetails.dieselkosten.toFixed(2)} €
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Gesamtkosten:</span>{' '}
+                  <span className="text-gray-600 dark:text-dark-textMuted">Gesamtkosten:</span>{' '}
                   <span className="font-semibold">
                     {formData.routeDetails.gesamtkosten.toFixed(2)} €
                   </span>
@@ -336,7 +336,7 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
           {/* Optimierte Reihenfolge */}
           {lieferungen.length > 0 && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">Lieferreihenfolge:</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-dark-text mb-2">Lieferreihenfolge:</h3>
               <div className="space-y-2">
                 {lieferungen.map((lieferung, index) => {
                   const stop = formData.zeitplan?.stops.find(
@@ -345,21 +345,21 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
                   return (
                     <div
                       key={lieferung.id}
-                      className="flex items-center justify-between bg-gray-50 rounded-lg p-3"
+                      className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-semibold text-gray-700">{index + 1}.</span>
+                        <span className="font-semibold text-gray-700 dark:text-dark-textMuted">{index + 1}.</span>
                         <div>
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-gray-900 dark:text-dark-text">
                             {lieferung.kundenname}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                             {lieferung.adresse.plz} {lieferung.adresse.ort}
                           </div>
                         </div>
                       </div>
                       {stop && (
-                        <div className="text-sm text-gray-600">
+                        <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                           {formatDatumZeit(stop.ankunft)}
                         </div>
                       )}
@@ -372,10 +372,10 @@ const RouteDetails = ({ route, datum, onClose }: RouteDetailsProps) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200 dark:border-dark-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             Abbrechen
           </button>

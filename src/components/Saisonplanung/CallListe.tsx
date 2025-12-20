@@ -177,17 +177,17 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
   if (offeneKunden.length === 0) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Call-Liste</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Call-Liste</h2>
+            <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted">
               <X className="w-6 h-6" />
             </button>
           </div>
           <div className="text-center py-12">
             <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-500" />
-            <p className="text-lg font-medium text-gray-900">Alle Kunden erledigt!</p>
-            <p className="text-sm text-gray-600 mt-2">Es gibt keine offenen Kunden mehr.</p>
+            <p className="text-lg font-medium text-gray-900 dark:text-dark-text">Alle Kunden erledigt!</p>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-2">Es gibt keine offenen Kunden mehr.</p>
           </div>
         </div>
       </div>
@@ -205,40 +205,40 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Call-Liste</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Call-Liste</h2>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">
               Kunde {currentIndex + 1} von {offeneKunden.length}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Filter */}
-        <div className="p-6 border-b border-gray-200 space-y-3">
+        <div className="p-6 border-b border-gray-200 dark:border-dark-border space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Suche</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Suche</label>
               <input
                 type="text"
                 value={filter.suche || ''}
                 onChange={(e) => setFilter({ ...filter, suche: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 placeholder="Name, Ort, PLZ"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Typ</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Typ</label>
               <select
                 value={filter.typ?.[0] || ''}
                 onChange={(e) =>
                   setFilter({ ...filter, typ: e.target.value ? [e.target.value as any] : undefined })
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Alle</option>
                 <option value="verein">Verein</option>
@@ -246,7 +246,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Status</label>
               <select
                 value={filter.status?.[0] || ''}
                 onChange={(e) =>
@@ -255,7 +255,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     status: e.target.value ? [e.target.value as GespraechsStatus] : undefined,
                   })
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Alle</option>
                 <option value="offen">Offen</option>
@@ -267,7 +267,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bezugsweg</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Bezugsweg</label>
               <select
                 value={filter.bezugsweg?.[0] || ''}
                 onChange={(e) =>
@@ -276,7 +276,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     bezugsweg: e.target.value ? [e.target.value as Bezugsweg] : undefined,
                   })
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Alle</option>
                 <option value="direkt">Direkt</option>
@@ -285,7 +285,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bundesland</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Bundesland</label>
               <select
                 value={filter.bundesland?.[0] || ''}
                 onChange={(e) =>
@@ -294,7 +294,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     bundesland: e.target.value ? [e.target.value] : undefined,
                   })
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Alle</option>
                 {bundeslaender.map((bl) => (
@@ -305,7 +305,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Platzbauer</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Platzbauer</label>
               <select
                 value={filter.platzbauerId || ''}
                 onChange={(e) =>
@@ -314,7 +314,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     platzbauerId: e.target.value || undefined,
                   })
                 }
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <option value="">Alle</option>
                 {platzbauerKunden.map((pb) => (
@@ -330,9 +330,9 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
         {currentKunde && (
           <div className="p-6 space-y-6">
             {/* Kunden-Info */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">{currentKunde.kunde.name}</h3>
-              <div className="text-sm text-gray-600 space-y-1">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-dark-text mb-2">{currentKunde.kunde.name}</h3>
+              <div className="text-sm text-gray-600 dark:text-dark-textMuted space-y-1">
                 <p>
                   {currentKunde.kunde.adresse.plz} {currentKunde.kunde.adresse.ort}
                 </p>
@@ -358,7 +358,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Angefragte Menge (t)
                   </label>
                   <input
@@ -371,12 +371,12 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                         angefragteMenge: e.target.value ? parseFloat(e.target.value) : undefined,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Preis pro Tonne (€)
                   </label>
                   <input
@@ -389,12 +389,12 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                         preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Bestellabsicht
                   </label>
                   <select
@@ -405,7 +405,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                         bestellabsicht: e.target.value as Bestellabsicht,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="">Bitte wählen</option>
                     <option value="bestellt">Bestellt</option>
@@ -415,7 +415,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Gesprächsstatus
                   </label>
                   <select
@@ -426,7 +426,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                         gespraechsstatus: e.target.value as GespraechsStatus,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="offen">Offen</option>
                     <option value="in_bearbeitung">In Bearbeitung</option>
@@ -435,7 +435,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bezugsweg</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Bezugsweg</label>
                   <select
                     value={formData.bezugsweg || ''}
                     onChange={(e) =>
@@ -445,7 +445,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                         platzbauerId: e.target.value === 'ueber_platzbauer' ? formData.platzbauerId : undefined,
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="">Bitte wählen</option>
                     <option value="direkt">Direkt</option>
@@ -456,7 +456,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
 
                 {formData.bezugsweg === 'ueber_platzbauer' && (
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Platzbauer
                     </label>
                     <select
@@ -464,7 +464,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                       onChange={(e) =>
                         setFormData({ ...formData, platzbauerId: e.target.value })
                       }
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="">Bitte wählen</option>
                       {platzbauerKunden.map((pb) => (
@@ -477,7 +477,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Frühestes Lieferdatum
                   </label>
                   <input
@@ -486,12 +486,12 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     onChange={(e) =>
                       setFormData({ ...formData, lieferfensterFrueh: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Spätestes Lieferdatum
                   </label>
                   <input
@@ -500,13 +500,13 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     onChange={(e) =>
                       setFormData({ ...formData, lieferfensterSpaet: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Gesprächsnotizen
                 </label>
                 <textarea
@@ -515,18 +515,18 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                     setFormData({ ...formData, gespraechsnotizen: e.target.value })
                   }
                   rows={4}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
             </div>
 
             {/* Navigation & Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-dark-border">
               <div className="flex gap-2">
                 <button
                   onClick={handlePrevious}
                   disabled={currentIndex === 0}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   <ChevronLeft className="w-5 h-5" />
                   Zurück
@@ -534,7 +534,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                 <button
                   onClick={handleNext}
                   disabled={currentIndex === offeneKunden.length - 1}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   Weiter
                   <ChevronRight className="w-5 h-5" />

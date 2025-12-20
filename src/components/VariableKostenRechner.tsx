@@ -168,7 +168,7 @@ const VariableKostenRechner = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Daten aus der Datenbank...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Daten aus der Datenbank...</p>
         </div>
       </div>
     );
@@ -270,22 +270,22 @@ const VariableKostenRechner = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.16)] transition-all duration-300 p-6 md:p-8 mb-6">
+        <div className="bg-white dark:bg-dark-surface rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(0,0,0,0.16)] transition-all duration-300 p-6 md:p-8 mb-6">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-3 rounded-2xl shadow-lg">
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-500 p-3 rounded-2xl shadow-lg dark:shadow-dark-lg">
                 <Calculator className="w-10 h-10 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-dark-text">
                   Variable Kosten Rechner
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">Ziegelmehl Herstellung 2026</p>
+                <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-1">Ziegelmehl Herstellung 2026</p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               {isSaving && (
-                <div className="text-sm text-gray-500 flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full shadow-sm">
+                <div className="text-sm text-gray-500 dark:text-dark-textMuted flex items-center gap-2 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-full shadow-sm">
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                   Speichere...
                 </div>
@@ -311,22 +311,22 @@ const VariableKostenRechner = () => {
             <div className="relative grid md:grid-cols-4 gap-6">
               <div>
                 <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Variable Kosten je t</p>
-                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.veraenderlicheKostenJeTonne)} €/t</p>
+                <p className="text-4xl font-bold drop-shadow-lg dark:shadow-dark-lg">{formatNumber(ergebnis.veraenderlicheKostenJeTonne)} €/t</p>
               </div>
               <div>
                 <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Fixkosten je t</p>
-                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(fixkostenJeTonne)} €/t</p>
+                <p className="text-4xl font-bold drop-shadow-lg dark:shadow-dark-lg">{formatNumber(fixkostenJeTonne)} €/t</p>
                 <p className="text-xs opacity-75 mt-1">
                   ({formatNumber(fixkostenProJahr)} € ÷ {geplanterUmsatz.toFixed(0)} t)
                 </p>
               </div>
               <div>
                 <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Herstellkosten je t</p>
-                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.herstellkostenJeTonne)} €/t</p>
+                <p className="text-4xl font-bold drop-shadow-lg dark:shadow-dark-lg">{formatNumber(ergebnis.herstellkostenJeTonne)} €/t</p>
               </div>
               <div>
                 <p className="text-sm opacity-90 mb-2 font-medium tracking-wide uppercase">Jahresgewinn</p>
-                <p className="text-4xl font-bold drop-shadow-lg">{formatNumber(ergebnis.jahresgewinn)} €</p>
+                <p className="text-4xl font-bold drop-shadow-lg dark:shadow-dark-lg">{formatNumber(ergebnis.jahresgewinn)} €</p>
                 <p className="text-sm opacity-90 mt-2">Umsatz: {formatNumber(jahresumsatz)} €</p>
               </div>
             </div>
@@ -335,7 +335,7 @@ const VariableKostenRechner = () => {
           {/* Jahresfixkosten Input - Automatisch vom Fixkosten-Rechner übernommen */}
           <div className="bg-gradient-to-r from-yellow-50 via-orange-50 to-amber-50 p-5 rounded-2xl border border-yellow-300 shadow-[0_4px_20px_rgba(251,191,36,0.15)] hover:shadow-[0_6px_30px_rgba(251,191,36,0.2)] transition-all duration-300 mb-6">
             <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 Jahresfixkosten (automatisch übernommen)
               </label>
@@ -351,7 +351,7 @@ const VariableKostenRechner = () => {
               <NumberInput
                 value={fixkostenProJahr}
                 onChange={(value) => setFixkostenProJahr(value)}
-                className="w-full p-3 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none bg-white shadow-sm"
+                className="w-full p-3 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none bg-white dark:bg-dark-surface shadow-sm"
                 step={0.01}
                 readOnly
                 title="Dieser Wert wird automatisch vom Fixkosten-Rechner übernommen"
@@ -362,7 +362,7 @@ const VariableKostenRechner = () => {
                 </span>
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-3 flex items-center gap-1.5 bg-white/50 p-2 rounded-lg">
+            <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-3 flex items-center gap-1.5 bg-white dark:bg-dark-surface/50 p-2 rounded-lg">
               <span className="inline-block w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
               Diese Jahresfixkosten werden automatisch vom{' '}
               <Link to="/fixkosten" className="text-blue-600 hover:underline font-semibold">
@@ -376,14 +376,14 @@ const VariableKostenRechner = () => {
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <ShoppingCart className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
                   Einkauf-Verteilung
                 </h3>
               </div>
-              <div className="bg-white rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
@@ -417,14 +417,14 @@ const VariableKostenRechner = () => {
 
             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
                   Verschleißteile-Verteilung
                 </h3>
               </div>
-              <div className="bg-white rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
@@ -460,14 +460,14 @@ const VariableKostenRechner = () => {
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <TrendingUp className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
                   Jahreskosten-Verteilung
                 </h3>
               </div>
-              <div className="bg-white rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={barData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -492,14 +492,14 @@ const VariableKostenRechner = () => {
 
             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_6px_30px_rgba(0,0,0,0.12)] transition-all duration-300 border border-gray-100 group">
               <div className="flex items-center gap-2 mb-6">
-                <div className="bg-gradient-to-br from-green-500 to-teal-600 p-2 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-green-500 to-teal-600 p-2 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Euro className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-dark-text">
                   Kosten je Tonne
                 </h3>
               </div>
-              <div className="bg-white rounded-xl p-4 shadow-inner">
+              <div className="bg-white dark:bg-dark-surface rounded-xl p-4 shadow-inner">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={kostenProTonneData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -528,10 +528,10 @@ const VariableKostenRechner = () => {
             {/* Lohnkosten */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50/50 p-6 rounded-2xl border border-blue-200 shadow-[0_4px_20px_rgba(59,130,246,0.15)] hover:shadow-[0_6px_30px_rgba(59,130,246,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Users className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
                   Lohnkosten
                 </h2>
               </div>
@@ -539,62 +539,62 @@ const VariableKostenRechner = () => {
               {/* Eingabefelder */}
               <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Lohn Helfer (€/Std)
                   </label>
                   <NumberInput
                     value={input.lohnkosten.stundenlohnHelfer}
                     onChange={(value) => updateLohnkosten('stundenlohnHelfer', value)}
-                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Stundenlohn für Helfer
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Lohn Facharbeiter (€/Std)
                   </label>
                   <NumberInput
                     value={input.lohnkosten.stundenlohnFacharbeiter}
                     onChange={(value) => updateLohnkosten('stundenlohnFacharbeiter', value)}
-                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Stundenlohn für Facharbeiter
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Produzierte Tonnen pro Arbeitsstunde
                   </label>
                   <NumberInput
                     value={input.lohnkosten.tonnenProArbeitsstunde}
                     onChange={(value) => updateLohnkosten('tonnenProArbeitsstunde', value)}
-                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Produktivität: Wie viele Tonnen werden pro Arbeitsstunde produziert?
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Verhältnis Helfer zu Facharbeiter
                   </label>
                   <NumberInput
                     value={input.lohnkosten.verhaeltnisHelferZuFacharbeiter}
                     onChange={(value) => updateLohnkosten('verhaeltnisHelferZuFacharbeiter', value)}
-                    className="w-full p-3 bg-white border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.1}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Beispiel: 0.5 = 1 Helfer auf 2 Facharbeiter (1:2), 1.0 = 1:1, 2.0 = 2:1
                   </p>
                 </div>
@@ -604,16 +604,16 @@ const VariableKostenRechner = () => {
               <div className="mt-6 p-5 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-xl shadow-inner border border-blue-200">
                 <div className="grid md:grid-cols-3 gap-4 mb-3">
                   <div>
-                    <p className="text-xs text-gray-600 mb-1">Benötigte Arbeitsstunden</p>
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Benötigte Arbeitsstunden</p>
                     <p className="text-lg font-semibold text-blue-700">
                       {ergebnis.benoetigteArbeitsstunden.toFixed(1)} Std
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                       ({geplanterUmsatz.toFixed(0)} t ÷ {input.lohnkosten.tonnenProArbeitsstunde} t/Std)
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Helfer</p>
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Jahreskosten Lohn Helfer</p>
                     <p className="text-lg font-semibold text-blue-700">
                       {(() => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
@@ -622,7 +622,7 @@ const VariableKostenRechner = () => {
                         return formatNumber(stundenHelfer * input.lohnkosten.stundenlohnHelfer);
                       })()} €
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                       {(() => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilHelfer = verhaeltnis / (1 + verhaeltnis);
@@ -632,7 +632,7 @@ const VariableKostenRechner = () => {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-600 mb-1">Jahreskosten Lohn Facharbeiter</p>
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mb-1">Jahreskosten Lohn Facharbeiter</p>
                     <p className="text-lg font-semibold text-blue-700">
                       {(() => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
@@ -641,7 +641,7 @@ const VariableKostenRechner = () => {
                         return formatNumber(stundenFacharbeiter * input.lohnkosten.stundenlohnFacharbeiter);
                       })()} €
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">
+                    <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                       {(() => {
                         const verhaeltnis = input.lohnkosten.verhaeltnisHelferZuFacharbeiter;
                         const anteilFacharbeiter = 1 / (1 + verhaeltnis);
@@ -652,7 +652,7 @@ const VariableKostenRechner = () => {
                   </div>
                 </div>
                 <div className="pt-3 border-t-2 border-blue-200">
-                  <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
                     <span>Jahreskosten Lohn gesamt:</span>
                     <span className="text-xl font-bold text-blue-800">{formatNumber(ergebnis.jahreskostenLohn)} €</span>
                   </p>
@@ -663,22 +663,22 @@ const VariableKostenRechner = () => {
             {/* Einkauf */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-6 rounded-2xl border border-green-200 shadow-[0_4px_20px_rgba(34,197,94,0.15)] hover:shadow-[0_6px_30px_rgba(34,197,94,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <ShoppingCart className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
                   Einkauf / Verbrauchsmaterial
                 </h2>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Diesel Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.dieselKostenProTonne}
                     onChange={(value) => updateEinkauf('dieselKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -687,17 +687,17 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Ziegelbruch Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.ziegelbruchKostenProTonne}
                     onChange={(value) => updateEinkauf('ziegelbruchKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Benötigte Menge: {ergebnis.benoetigteMengeZiegelbruch.toFixed(1)} t ({input.geplanterUmsatz} t Output × 0.75)
                   </p>
                   <p className="text-xs font-semibold text-green-700 mt-1">
@@ -705,13 +705,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Strom Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.stromKostenProTonne}
                     onChange={(value) => updateEinkauf('stromKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -720,13 +720,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Entsorgung Container Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.entsorgungContainerKostenProTonne}
                     onChange={(value) => updateEinkauf('entsorgungContainerKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -735,13 +735,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Gasflaschen Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.einkauf.gasflaschenKostenProTonne}
                     onChange={(value) => updateEinkauf('gasflaschenKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-green-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -751,7 +751,7 @@ const VariableKostenRechner = () => {
                 </div>
               </div>
               <div className="mt-6 p-4 bg-gradient-to-r from-green-100 to-emerald-100 rounded-xl shadow-inner border border-green-200">
-                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
                   <span>Jahreskosten Verbrauchsmaterial:</span>
                   <span className="text-lg text-green-700 font-bold">{formatNumber(ergebnis.jahreskostenVerbrauchsmaterial)} €</span>
                 </p>
@@ -761,41 +761,41 @@ const VariableKostenRechner = () => {
             {/* Verschleißteile */}
             <div className="bg-gradient-to-br from-yellow-50 to-amber-50/50 p-6 rounded-2xl border border-yellow-200 shadow-[0_4px_20px_rgba(251,191,36,0.15)] hover:shadow-[0_6px_30px_rgba(251,191,36,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-yellow-500 to-amber-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-yellow-500 to-amber-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
                   Verschleißteile
                 </h2>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Preis pro Hammer (€/Stück)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.preisProHammer}
                     onChange={(value) => updateVerschleiss('preisProHammer', value)}
-                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Einkaufspreis pro Hammer
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Verbrauch Hämmer pro Tonne
                   </label>
                   <NumberInput
                     value={input.verschleissteile.verbrauchHaemmerProTonne}
                     onChange={(value) => updateVerschleiss('verbrauchHaemmerProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Benötigte Hämmer: {ergebnis.benoetigteHaemmer.toFixed(0)} Stück ({input.geplanterUmsatz} t × {input.verschleissteile.verbrauchHaemmerProTonne})
                   </p>
                   <p className="text-xs font-semibold text-yellow-700 mt-1">
@@ -803,13 +803,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Siebkörbe Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.siebkoerbeKostenProTonne}
                     onChange={(value) => updateVerschleiss('siebkoerbeKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -818,13 +818,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Verschleißbleche Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.verschleissblecheKostenProTonne}
                     onChange={(value) => updateVerschleiss('verschleissblecheKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -833,13 +833,13 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Wellenlager Kosten pro Tonne (€/t)
                   </label>
                   <NumberInput
                     value={input.verschleissteile.wellenlagerKostenProTonne}
                     onChange={(value) => updateVerschleiss('wellenlagerKostenProTonne', value)}
-                    className="w-full p-3 bg-white border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full p-3 bg-white dark:bg-dark-surface border-2 border-yellow-200 rounded-xl focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-dark-md"
                     step={0.01}
                     min={0}
                   />
@@ -849,7 +849,7 @@ const VariableKostenRechner = () => {
                 </div>
               </div>
               <div className="mt-6 p-4 bg-gradient-to-r from-yellow-100 to-amber-100 rounded-xl shadow-inner border border-yellow-200">
-                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
                   <span>Jahreskosten Verschleiß:</span>
                   <span className="text-lg text-yellow-700 font-bold">{formatNumber(ergebnis.jahreskostenVerschleiss)} €</span>
                 </p>
@@ -859,15 +859,15 @@ const VariableKostenRechner = () => {
             {/* Sackware */}
             <div className="bg-gradient-to-br from-purple-50 to-violet-50/50 p-6 rounded-2xl border border-purple-200 shadow-[0_4px_20px_rgba(139,92,246,0.15)] hover:shadow-[0_6px_30px_rgba(139,92,246,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Settings className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">
                   Nur für Sackware
                 </h2>
               </div>
               <div className="mb-4 p-3 bg-purple-100 rounded-lg">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                   Paletten pro Tonne
                 </label>
                 <NumberInput
@@ -877,13 +877,13 @@ const VariableKostenRechner = () => {
                   step={0.01}
                   min={0}
                 />
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                   Anzahl Paletten pro produzierte Tonne (Standard: 1 Palette = 1 Tonne)
                 </p>
               </div>
               <div className="grid md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Paletten Kosten pro Palette (€/Palette)
                   </label>
                   <input
@@ -899,7 +899,7 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Säcke Kosten pro Palette (€/Palette)
                   </label>
                   <input
@@ -915,7 +915,7 @@ const VariableKostenRechner = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Schrumpfhauben Kosten pro Palette (€/Palette)
                   </label>
                   <input
@@ -935,7 +935,7 @@ const VariableKostenRechner = () => {
               {/* Neue Felder für abgepacktes TennisMehl */}
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Säcke pro Palette
                   </label>
                   <input
@@ -948,7 +948,7 @@ const VariableKostenRechner = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Sackpreis (€/Sack)
                   </label>
                   <input
@@ -961,7 +961,7 @@ const VariableKostenRechner = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Arbeitszeit Absacken je Sack (Stunden)
                   </label>
                   <input
@@ -974,7 +974,7 @@ const VariableKostenRechner = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Kosten pro Sack (€/Sack) - Berechnet
                   </label>
                   <input
@@ -984,14 +984,14 @@ const VariableKostenRechner = () => {
                     className="w-full p-2 border-2 border-purple-300 rounded-lg bg-purple-50 focus:outline-none"
                     step="0.01"
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Sackpreis + (Arbeitszeit × Stundenlohn)
                   </p>
                 </div>
               </div>
               
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                   Kosten je Tonne (€/t) - Berechnet
                 </label>
                 <input
@@ -1001,18 +1001,18 @@ const VariableKostenRechner = () => {
                   className="w-full md:w-1/3 p-2 border-2 border-purple-300 rounded-lg bg-purple-50 focus:outline-none"
                   step="0.01"
                 />
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                   Gesamtkosten Sackware / Geplanter Umsatz
                 </p>
               </div>
               <div className="mt-6 p-4 bg-gradient-to-r from-purple-100 to-violet-100 rounded-xl shadow-inner border border-purple-200">
-                <p className="text-sm font-semibold text-gray-700">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
                   Anzahl Paletten: <span className="text-purple-700">{ergebnis.anzahlPaletten.toFixed(0)}</span> ({geplanterUmsatz.toFixed(0)} t × {input.sackware.palettenProTonne} Paletten/t)
                 </p>
-                <p className="text-sm font-semibold text-gray-700 mt-1">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted mt-1">
                   Anzahl Säcke: <span className="text-purple-700">{(ergebnis.anzahlPaletten * input.sackware.saeckeProPalette).toFixed(0)}</span> ({ergebnis.anzahlPaletten.toFixed(0)} Paletten × {input.sackware.saeckeProPalette} Säcke/Palette)
                 </p>
-                <p className="text-sm font-semibold text-gray-700 mt-3 flex items-center justify-between border-t border-purple-200 pt-3">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted mt-3 flex items-center justify-between border-t border-purple-200 pt-3">
                   <span>Jahreskosten Sackware:</span>
                   <span className="text-lg text-purple-700 font-bold">{formatNumber(ergebnis.jahreskostenSackware)} €</span>
                 </p>
@@ -1022,39 +1022,39 @@ const VariableKostenRechner = () => {
             {/* Verkaufspreise und Umlage */}
             <div className="bg-gradient-to-br from-red-50 to-orange-50/50 p-6 rounded-2xl border border-red-200 shadow-[0_4px_20px_rgba(239,68,68,0.15)] hover:shadow-[0_6px_30px_rgba(239,68,68,0.2)] transition-all duration-300 group">
               <div className="flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-red-500 to-orange-600 p-2.5 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-300">
+                <div className="bg-gradient-to-br from-red-500 to-orange-600 p-2.5 rounded-xl shadow-md dark:shadow-dark-md group-hover:scale-110 transition-transform duration-300">
                   <Euro className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">Verkaufspreise und Umlage auf hergestelltes Ziegelmehl</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-dark-text">Verkaufspreise und Umlage auf hergestelltes Ziegelmehl</h2>
               </div>
               
               {/* Berechnete Felder */}
               <div className="grid md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-white p-4 rounded-lg border-2 border-red-300">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <div className="bg-white dark:bg-dark-surface p-4 rounded-lg border-2 border-red-300">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Geplanter Umsatz (Tonnen) - Berechnet
                   </label>
                   <input
                     type="number"
                     value={ergebnis.geplanterUmsatzBerechnet.toFixed(0)}
                     readOnly
-                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 text-lg font-bold text-red-700"
+                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 dark:bg-gray-800 text-lg font-bold text-red-700"
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Summe aller Verkaufspreis-Tonnen
                   </p>
                 </div>
-                <div className="bg-white p-4 rounded-lg border-2 border-red-300">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                <div className="bg-white dark:bg-dark-surface p-4 rounded-lg border-2 border-red-300">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                     Durchschnittlicher Verkaufspreis (€/t) - Berechnet
                   </label>
                   <input
                     type="number"
                     value={ergebnis.durchschnittlicherVerkaufspreisProTonne.toFixed(2)}
                     readOnly
-                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 text-lg font-bold text-red-700"
+                    className="w-full p-2 border-2 border-red-200 rounded-lg bg-gray-50 dark:bg-gray-800 text-lg font-bold text-red-700"
                   />
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                     Gewichteter Durchschnitt aus allen Verkaufspreisen
                   </p>
                 </div>
@@ -1062,13 +1062,13 @@ const VariableKostenRechner = () => {
 
               {/* Verkaufspreis-Eingaben */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Verkaufspreis-Eingaben (3 Stück)</h3>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-3">Verkaufspreis-Eingaben (3 Stück)</h3>
                 {input.verkaufspreise.map((verkaufspreis, index) => (
-                  <div key={index} className="bg-white p-4 rounded-lg border-2 border-red-200">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Verkaufspreis {index + 1}</h4>
+                  <div key={index} className="bg-white dark:bg-dark-surface p-4 rounded-lg border-2 border-red-200">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-3">Verkaufspreis {index + 1}</h4>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                           Tonnen
                         </label>
                         <input
@@ -1081,7 +1081,7 @@ const VariableKostenRechner = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
                           Preis pro Tonne (€/t)
                         </label>
                         <input
@@ -1092,7 +1092,7 @@ const VariableKostenRechner = () => {
                           min="0"
                           step="0.01"
                         />
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-gray-600 dark:text-dark-textMuted mt-1">
                           Gesamt: {(verkaufspreis.tonnen * verkaufspreis.preisProTonne).toFixed(2)} €
                         </p>
                       </div>
@@ -1102,7 +1102,7 @@ const VariableKostenRechner = () => {
               </div>
 
               <div className="mt-6 p-4 bg-gradient-to-r from-red-100 to-orange-100 rounded-xl shadow-inner border border-red-200">
-                <p className="text-sm font-semibold text-gray-700 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted flex items-center justify-between">
                   <span>Jahreskosten veränderlich ohne Sackware:</span>
                   <span className="text-lg text-red-700 font-bold">{formatNumber(ergebnis.jahreskostenVeraenderlichOhneSackware)} €</span>
                 </p>

@@ -225,7 +225,7 @@ const Anfragen = () => {
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Lade Anfragen...</p>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Anfragen...</p>
         </div>
       </div>
     );
@@ -235,15 +235,15 @@ const Anfragen = () => {
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-lg">
                 <Mail className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Anfragen</h1>
-                <p className="text-gray-600 mt-1">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Anfragen</h1>
+                <p className="text-gray-600 dark:text-dark-textMuted mt-1">
                   Automatisch erkannte E-Mail-Anfragen verwalten
                 </p>
               </div>
@@ -262,7 +262,7 @@ const Anfragen = () => {
           <div className="flex flex-col md:flex-row gap-4">
             {/* Status-Filter */}
             <div className="flex items-center gap-2 flex-wrap">
-              <Filter className="w-5 h-5 text-gray-500" />
+              <Filter className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
               <button
                 onClick={() => setStatusFilter('alle')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
@@ -290,13 +290,13 @@ const Anfragen = () => {
 
             {/* Suche */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Anfragen durchsuchen..."
-                className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               />
             </div>
           </div>
@@ -304,21 +304,21 @@ const Anfragen = () => {
 
         {/* Blueprint / Konzept-Sektion */}
         {showBlueprint && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-teal-200">
+          <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 mb-6 border-2 border-teal-200">
             <div className="flex items-center gap-2 mb-4">
               <BookOpen className="w-6 h-6 text-teal-600" />
-              <h2 className="text-2xl font-bold text-gray-900">Konzept: Automatische E-Mail-Anfragen-Verarbeitung</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Konzept: Automatische E-Mail-Anfragen-Verarbeitung</h2>
             </div>
 
             <div className="space-y-6">
               {/* Architektur */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
                   <Workflow className="w-5 h-5 text-teal-600" />
                   Architektur
                 </h3>
-                <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
-                  <div className="flex items-center gap-2 text-gray-700">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 font-mono text-sm">
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-dark-textMuted">
                     <span className="font-semibold">E-Mail-Postfach</span>
                     <span>→</span>
                     <span className="font-semibold">n8n Workflow</span>
@@ -332,7 +332,7 @@ const Anfragen = () => {
 
               {/* n8n Workflow */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-teal-600" />
                   n8n Workflow Setup
                 </h3>
@@ -353,7 +353,7 @@ const Anfragen = () => {
                       <li>Extrahiert: Kundenname, E-Mail, Telefon, Adresse, Menge, Artikel, Lieferdatum</li>
                       <li><strong>Fallback:</strong> RegEx-basierte Extraktion wenn kein AI verfügbar</li>
                     </ul>
-                    <div className="mt-3 bg-white rounded p-3 text-xs font-mono text-gray-700">
+                    <div className="mt-3 bg-white dark:bg-dark-surface rounded p-3 text-xs font-mono text-gray-700 dark:text-dark-textMuted">
                       <div className="font-semibold mb-1">AI-Prompt Beispiel:</div>
                       <div>Extrahiere strukturierte Daten aus E-Mail: Kundenname, Adresse, Menge, Artikel, Lieferdatum...</div>
                     </div>
@@ -372,7 +372,7 @@ const Anfragen = () => {
                     <h4 className="font-semibold text-teal-900 mb-2">4. Appwrite-Integration</h4>
                     <ul className="text-sm text-teal-800 space-y-1 list-disc list-inside">
                       <li>HTTP Request Node: POST zu Appwrite API</li>
-                      <li>Collection: <code className="bg-white px-1 rounded">anfragen</code></li>
+                      <li>Collection: <code className="bg-white dark:bg-dark-surface px-1 rounded">anfragen</code></li>
                       <li>Speichert: E-Mail-Daten + extrahierte Daten als JSON</li>
                     </ul>
                   </div>
@@ -381,7 +381,7 @@ const Anfragen = () => {
 
               {/* Workflow im Frontend */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
                   <Database className="w-5 h-5 text-teal-600" />
                   Workflow im Frontend
                 </h3>
@@ -430,16 +430,16 @@ const Anfragen = () => {
 
               {/* Appwrite Collection */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-3 flex items-center gap-2">
                   <Database className="w-5 h-5 text-teal-600" />
                   Appwrite Collection Schema
                 </h3>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                   <div className="text-sm space-y-2">
-                    <div><strong>Collection ID:</strong> <code className="bg-white px-2 py-1 rounded">anfragen</code></div>
+                    <div><strong>Collection ID:</strong> <code className="bg-white dark:bg-dark-surface px-2 py-1 rounded">anfragen</code></div>
                     <div className="mt-3">
                       <strong>Wichtige Attribute:</strong>
-                      <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700">
+                      <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700 dark:text-dark-textMuted">
                         <li><code>emailBetreff</code>, <code>emailAbsender</code>, <code>emailDatum</code>, <code>emailText</code></li>
                         <li><code>extrahierteDaten</code> (JSON-String mit kundenname, adresse, menge, etc.)</li>
                         <li><code>status</code> (neu, zugeordnet, angebot_erstellt, angebot_versendet, erledigt)</li>
@@ -460,7 +460,7 @@ const Anfragen = () => {
                   <li><strong>Testen:</strong> Test-E-Mail senden und prüfen ob Anfrage erstellt wird</li>
                   <li><strong>Workflow aktivieren:</strong> Automatische Verarbeitung starten</li>
                 </ol>
-                <div className="mt-4 p-3 bg-white rounded border border-yellow-200">
+                <div className="mt-4 p-3 bg-white dark:bg-dark-surface rounded border border-yellow-200">
                   <p className="text-xs text-yellow-700">
                     <strong>📄 Vollständige Dokumentation:</strong> Siehe <code>ANFRAGEN_BLUEPRINT.md</code> für detaillierte Anleitung, 
                     API-Beispiele, Sicherheitsrichtlinien und Troubleshooting.
@@ -478,7 +478,7 @@ const Anfragen = () => {
             return (
               <div
                 key={anfrage.id}
-                className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
+                className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
                 onClick={() => setSelectedAnfrage(anfrage)}
               >
                 <div className="flex items-start justify-between mb-4">
@@ -487,14 +487,14 @@ const Anfragen = () => {
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(anfrage.status)}`}>
                         {getStatusLabel(anfrage.status)}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 dark:text-dark-textMuted">
                         {new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}
                       </span>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-1">
                       {anfrage.emailBetreff}
                     </h3>
-                    <p className="text-sm text-gray-600 mb-2">
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-2">
                       Von: {anfrage.emailAbsender}
                     </p>
                   </div>
@@ -534,7 +534,7 @@ const Anfragen = () => {
                 )}
 
                 {/* Vorschau E-Mail-Text */}
-                <p className="text-sm text-gray-600 line-clamp-3 mb-4">
+                <p className="text-sm text-gray-600 dark:text-dark-textMuted line-clamp-3 mb-4">
                   {anfrage.emailText.substring(0, 150)}...
                 </p>
 
@@ -556,9 +556,9 @@ const Anfragen = () => {
         </div>
 
         {filteredAnfragen.length === 0 && !loading && (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <Mail className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 text-lg mb-2">
+          <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-12 text-center">
+            <Mail className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-dark-textMuted text-lg mb-2">
               {searchQuery ? 'Keine Anfragen gefunden' : 'Noch keine Anfragen vorhanden'}
             </p>
             {!searchQuery && (
@@ -656,16 +656,16 @@ const AnfrageDetailDialog = ({
 }: AnfrageDetailDialogProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Anfrage-Details</h2>
-            <p className="text-sm text-gray-600 mt-1">{anfrage.emailBetreff}</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Anfrage-Details</h2>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">{anfrage.emailBetreff}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -675,8 +675,8 @@ const AnfrageDetailDialog = ({
         <div className="p-6 space-y-6">
           {/* E-Mail-Informationen */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-3">E-Mail-Informationen</h3>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <h3 className="font-semibold text-gray-900 dark:text-dark-text mb-3">E-Mail-Informationen</h3>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
               <div><span className="font-medium">Von:</span> {anfrage.emailAbsender}</div>
               <div><span className="font-medium">Datum:</span> {new Date(anfrage.emailDatum).toLocaleString('de-DE')}</div>
               <div><span className="font-medium">Betreff:</span> {anfrage.emailBetreff}</div>
@@ -686,7 +686,7 @@ const AnfrageDetailDialog = ({
           {/* Extrahierte Daten */}
           {anfrage.extrahierteDaten && (
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Extrahierte Informationen</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-dark-text mb-3">Extrahierte Informationen</h3>
               <div className="bg-teal-50 rounded-lg p-4 space-y-3">
                 {anfrage.extrahierteDaten.kundenname && (
                   <div className="flex items-center gap-2">
@@ -735,9 +735,9 @@ const AnfrageDetailDialog = ({
 
           {/* E-Mail-Text */}
           <div>
-            <h3 className="font-semibold text-gray-900 mb-3">E-Mail-Text</h3>
-            <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <pre className="whitespace-pre-wrap text-sm text-gray-700">{anfrage.emailText}</pre>
+            <h3 className="font-semibold text-gray-900 dark:text-dark-text mb-3">E-Mail-Text</h3>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
+              <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-dark-textMuted">{anfrage.emailText}</pre>
             </div>
           </div>
 
@@ -764,7 +764,7 @@ const AnfrageDetailDialog = ({
           )}
 
           {/* Aktionen */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             {zugeordneterKunde && !anfrage.angebotId && (
               <button
                 onClick={onProjektErstellen}
@@ -840,22 +840,22 @@ const KundenAuswahlDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Kunde auswählen</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Kunde auswählen</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted">
             <X className="w-6 h-6" />
           </button>
         </div>
         <div className="p-6">
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
             <input
               type="text"
               value={suche}
               onChange={(e) => onSucheChange(e.target.value)}
               placeholder="Kunde suchen..."
-              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
+              className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -866,11 +866,11 @@ const KundenAuswahlDialog = ({
                 <button
                   key={kunde.id}
                   onClick={() => onKundeAuswaehlen(kunde.id, typ)}
-                  className="w-full text-left p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="w-full text-left p-4 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
                 >
-                  <div className="font-semibold text-gray-900">{kunde.name}</div>
+                  <div className="font-semibold text-gray-900 dark:text-dark-text">{kunde.name}</div>
                   {kunde.kundennummer && (
-                    <div className="text-sm text-gray-600">Nr: {kunde.kundennummer}</div>
+                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">Nr: {kunde.kundennummer}</div>
                   )}
                 </button>
               );
@@ -941,58 +941,58 @@ const ProjektErstellenDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Projekt erstellen</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={saving}>
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Projekt erstellen</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted" disabled={saving}>
             <X className="w-6 h-6" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Projektname</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Projektname</label>
             <input
               type="text"
               value={formData.projektName}
               onChange={(e) => setFormData({ ...formData, projektName: e.target.value })}
-              className="w-full p-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
+              className="w-full p-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Saisonjahr</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Saisonjahr</label>
             <input
               type="number"
               value={formData.saisonjahr}
               onChange={(e) => setFormData({ ...formData, saisonjahr: parseInt(e.target.value) })}
-              className="w-full p-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
+              className="w-full p-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Angefragte Menge (Tonnen)</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Angefragte Menge (Tonnen)</label>
             <input
               type="number"
               value={formData.angefragteMenge}
               onChange={(e) => setFormData({ ...formData, angefragteMenge: parseFloat(e.target.value) })}
-              className="w-full p-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
+              className="w-full p-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Preis pro Tonne (€)</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">Preis pro Tonne (€)</label>
             <input
               type="number"
               step="0.01"
               value={formData.preisProTonne}
               onChange={(e) => setFormData({ ...formData, preisProTonne: parseFloat(e.target.value) })}
-              className="w-full p-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500"
+              className="w-full p-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 dark:text-dark-textMuted rounded-lg hover:bg-gray-300 transition-colors"
               disabled={saving}
             >
               Abbrechen

@@ -182,7 +182,7 @@ const DeutschlandKarte = ({
   }, [onReset]);
 
   return (
-    <div className="relative w-full h-full bg-gray-50">
+    <div className="relative w-full h-full bg-gray-50 dark:bg-gray-800">
       <svg
         ref={svgRef}
         width="100%"
@@ -333,7 +333,7 @@ const DeutschlandKarte = ({
       </svg>
       
       {/* Zoom-Indikator */}
-      <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-2 text-xs text-gray-600">
+      <div className="absolute top-4 right-4 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-2 text-xs text-gray-600 dark:text-dark-textMuted">
         Zoom: {(zoom * 100).toFixed(0)}%
       </div>
     </div>

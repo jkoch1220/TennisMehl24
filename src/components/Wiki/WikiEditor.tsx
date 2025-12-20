@@ -131,7 +131,7 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
 
   // Horizontale Linie
   const handleInsertHR = () => {
-    document.execCommand('insertHTML', false, '<hr class="my-4 border-gray-300" />');
+    document.execCommand('insertHTML', false, '<hr class="my-4 border-gray-300 dark:border-dark-border" />');
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML);
     }
@@ -156,7 +156,7 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
   const handleBlockquote = () => {
     const selection = window.getSelection();
     const text = selection ? selection.toString() : '';
-    const quoteHtml = `<blockquote class="border-l-4 border-blue-500 pl-4 italic text-gray-600 my-2">${text || 'Zitat'}</blockquote>`;
+    const quoteHtml = `<blockquote class="border-l-4 border-blue-500 pl-4 italic text-gray-600 dark:text-dark-textMuted my-2">${text || 'Zitat'}</blockquote>`;
     document.execCommand('insertHTML', false, quoteHtml);
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML);
@@ -169,9 +169,9 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
   };
 
   return (
-    <div className="border border-gray-300 rounded-lg overflow-hidden bg-white">
+    <div className="border border-gray-300 dark:border-dark-border rounded-lg overflow-hidden bg-white dark:bg-dark-surface">
       {/* Toolbar */}
-      <div className="bg-gray-50 border-b border-gray-300 p-2 flex flex-wrap items-center gap-1">
+      <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-dark-border p-2 flex flex-wrap items-center gap-1">
         {/* Text Formatierung */}
         <ToolbarButton onClick={() => execCommand('bold')} title="Fett (Strg+B)">
           <Bold className="w-4 h-4" />
@@ -302,11 +302,11 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
       {/* Link Modal */}
       {showLinkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+          <div className="bg-white dark:bg-dark-surface rounded-lg p-6 w-full max-w-md shadow-xl">
             <h3 className="text-lg font-semibold mb-4">Link einfügen</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   URL
                 </label>
                 <input
@@ -314,12 +314,12 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Anzeigetext (optional)
                 </label>
                 <input
@@ -327,7 +327,7 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
                   value={linkText}
                   onChange={(e) => setLinkText(e.target.value)}
                   placeholder="Linktext..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -339,7 +339,7 @@ const WikiEditor = ({ content, onChange, placeholder = 'Beginne hier zu schreibe
                   setLinkUrl('');
                   setLinkText('');
                 }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded-lg transition-colors"
               >
                 Abbrechen
               </button>

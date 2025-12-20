@@ -110,12 +110,12 @@ const KundenVerwaltung = () => {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg p-6">
         {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
               <input
                 type="text"
                 placeholder="Kunden suchen..."
@@ -149,7 +149,7 @@ const KundenVerwaltung = () => {
 
         {/* Kunden Liste */}
         {gefilterteKunden.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-textMuted">
             <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p>Keine Kunden gefunden</p>
           </div>
@@ -158,14 +158,14 @@ const KundenVerwaltung = () => {
             {gefilterteKunden.map((kunde) => (
               <div
                 key={kunde.id}
-                className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="border border-gray-200 dark:border-dark-border rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">
                       {kunde.name}
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">
                       {kunde.kundennummer}
                     </p>
                   </div>
@@ -188,7 +188,7 @@ const KundenVerwaltung = () => {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-1 text-sm text-gray-600">
+                <div className="space-y-1 text-sm text-gray-600 dark:text-dark-textMuted">
                   <div>
                     📍 {kunde.adresse.strasse}, {kunde.adresse.plz} {kunde.adresse.ort}
                   </div>
@@ -219,16 +219,16 @@ const KundenVerwaltung = () => {
       {/* Formular Modal */}
       {showFormular && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-6">
                 {bearbeiteKunde ? 'Kunde bearbeiten' : 'Neuer Kunde'}
               </h2>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Kundennummer
                     </label>
                     <div className="flex gap-2">
@@ -253,13 +253,13 @@ const KundenVerwaltung = () => {
                       )}
                     </div>
                     {!bearbeiteKunde && !formData.kundennummer && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
                         Kundennummer wird beim Speichern automatisch vergeben
                       </p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Name
                     </label>
                     <input
@@ -272,7 +272,7 @@ const KundenVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Straße
                   </label>
                   <input
@@ -290,7 +290,7 @@ const KundenVerwaltung = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       PLZ
                     </label>
                     <input
@@ -306,7 +306,7 @@ const KundenVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Ort
                     </label>
                     <input
@@ -323,13 +323,13 @@ const KundenVerwaltung = () => {
                   </div>
                 </div>
 
-                <h3 className="text-lg font-semibold text-gray-900 mt-6 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mt-6 mb-4">
                   Kontakt
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Kontaktperson
                     </label>
                     <input
@@ -345,7 +345,7 @@ const KundenVerwaltung = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                       Telefon
                     </label>
                     <input
@@ -363,7 +363,7 @@ const KundenVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     E-Mail
                   </label>
                   <input
@@ -380,7 +380,7 @@ const KundenVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Kundentyp
                   </label>
                   <select
@@ -399,7 +399,7 @@ const KundenVerwaltung = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                     Lieferhinweise
                   </label>
                   <textarea
@@ -414,13 +414,13 @@ const KundenVerwaltung = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-4 mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-dark-border">
                 <button
                   onClick={() => {
                     setShowFormular(false);
                     setBearbeiteKunde(null);
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Abbrechen
                 </button>

@@ -136,15 +136,15 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
             {lieferung ? 'Lieferung bearbeiten' : 'Neue Lieferung'}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -154,7 +154,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
         <div className="p-6 space-y-6">
           {/* Kunde */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
               Kunde
             </label>
             {!neuerKunde ? (
@@ -199,7 +199,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
                 />
                 <button
                   onClick={() => setNeuerKunde(false)}
-                  className="text-sm text-gray-600 hover:text-gray-800"
+                  className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-800 dark:text-dark-text"
                 >
                   ← Zurück zur Auswahl
                 </button>
@@ -210,7 +210,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
           {/* Adresse */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Straße
               </label>
               <input
@@ -226,7 +226,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 PLZ
               </label>
               <input
@@ -242,7 +242,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Ort
               </label>
               <input
@@ -262,7 +262,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
           {/* Lieferdetails */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Warenart
               </label>
               <select
@@ -283,7 +283,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Kundentyp
               </label>
               <select
@@ -304,7 +304,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Paletten
               </label>
               <NumberInput
@@ -323,7 +323,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Gewicht (kg)
               </label>
               <NumberInput
@@ -347,7 +347,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
           {/* Zeitfenster */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Gewünschtes Datum
               </label>
               <input
@@ -366,7 +366,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Von
               </label>
               <input
@@ -388,7 +388,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Bis
               </label>
               <input
@@ -414,7 +414,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
           {/* Status & Priorität */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Status
               </label>
               <select
@@ -436,7 +436,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Priorität
               </label>
               <select
@@ -455,7 +455,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
                 Lieferart
               </label>
               <select
@@ -476,7 +476,7 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
 
           {/* Notizen */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
               Notizen
             </label>
             <textarea
@@ -495,10 +495,10 @@ const LieferungFormular = ({ lieferung, onClose }: LieferungFormularProps) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200 dark:border-dark-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 text-gray-700 dark:text-dark-textMuted bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             Abbrechen
           </button>

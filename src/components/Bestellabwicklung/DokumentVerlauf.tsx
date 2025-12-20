@@ -127,7 +127,7 @@ const DokumentVerlauf = ({
       <div className={`${config.hintergrund} ${config.border} border rounded-lg p-4`}>
         <div className="flex items-center gap-2">
           <Loader2 className={`h-4 w-4 animate-spin ${config.farbe}`} />
-          <span className="text-sm text-gray-600">Lade Dateiverlauf...</span>
+          <span className="text-sm text-gray-600 dark:text-dark-textMuted">Lade Dateiverlauf...</span>
         </div>
       </div>
     );
@@ -139,7 +139,7 @@ const DokumentVerlauf = ({
       <div className={`${config.hintergrund} ${config.border} border rounded-lg p-4`}>
         <div className="flex items-center gap-2">
           <History className={`h-4 w-4 ${config.farbe} opacity-50`} />
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-dark-textMuted">
             Noch keine {titel || dokumentTypConfig[dokumentTyp].label} erstellt
           </span>
         </div>
@@ -150,11 +150,11 @@ const DokumentVerlauf = ({
   return (
     <div className={`${config.hintergrund} ${config.border} border rounded-lg overflow-hidden`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 bg-white/50">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History className={`h-4 w-4 ${config.farbe}`} />
-            <span className="text-sm font-semibold text-gray-800">
+            <span className="text-sm font-semibold text-gray-800 dark:text-dark-text">
               {titel || `${dokumentTypConfig[dokumentTyp].label}-Verlauf`}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${config.hintergrund} ${config.farbe}`}>
@@ -182,7 +182,7 @@ const DokumentVerlauf = ({
                   
                   {/* Version Badge (für Angebote/AB/LS) */}
                   {eintrag.version && (
-                    <span className="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded">
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-200 text-gray-600 dark:text-dark-textMuted rounded">
                       v{eintrag.version}
                     </span>
                   )}
@@ -217,7 +217,7 @@ const DokumentVerlauf = ({
                 </div>
                 
                 {/* Datum und Betrag */}
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-dark-textMuted">
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     {formatDatum(eintrag.erstelltAm)}
@@ -244,7 +244,7 @@ const DokumentVerlauf = ({
                   href={eintrag.viewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  className="p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                   title="Ansehen"
                 >
                   <Eye className="h-4 w-4" />
@@ -253,7 +253,7 @@ const DokumentVerlauf = ({
                   href={eintrag.downloadUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                  className="p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-green-600 hover:bg-green-50 rounded transition-colors"
                   title="Herunterladen"
                 >
                   <Download className="h-4 w-4" />
@@ -268,7 +268,7 @@ const DokumentVerlauf = ({
       {hatMehrEintraege && (
         <button
           onClick={() => setAlleAnzeigen(!alleAnzeigen)}
-          className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white/50 transition-colors flex items-center justify-center gap-1 border-t border-gray-100"
+          className="w-full px-4 py-2 text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:text-dark-text hover:bg-white dark:bg-dark-surface/50 transition-colors flex items-center justify-center gap-1 border-t border-gray-100"
         >
           {alleAnzeigen ? (
             <>
@@ -286,8 +286,8 @@ const DokumentVerlauf = ({
       
       {/* Hinweis zur Aufbewahrung */}
       {verlauf.length > 0 && (dokumentTyp === 'rechnung' || dokumentTyp === 'stornorechnung') && (
-        <div className="px-4 py-2 bg-gray-100/50 border-t border-gray-200">
-          <p className="text-xs text-gray-500 flex items-center gap-1">
+        <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-dark-border">
+          <p className="text-xs text-gray-500 dark:text-dark-textMuted flex items-center gap-1">
             <FileText className="h-3 w-3" />
             Dokumente werden 10 Jahre aufbewahrt (GoBD)
           </p>

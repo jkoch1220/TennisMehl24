@@ -343,14 +343,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">
+      <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white dark:bg-dark-surface border-b border-gray-200 dark:border-dark-border p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">
             {kunde ? 'Kunde bearbeiten' : 'Neuer Kunde'}
           </h2>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-dark-textMuted transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -365,17 +365,17 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
           {/* Grunddaten */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Grunddaten</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Grunddaten</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Typ <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.typ || 'verein'}
                   onChange={(e) => setFormData({ ...formData, typ: e.target.value as KundenTyp })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   required
                 >
                   <option value="verein">Verein</option>
@@ -384,20 +384,20 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Kundennummer
                 </label>
                 <div className="flex gap-2">
@@ -406,7 +406,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     value={formData.kundennummer || ''}
                     onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })}
                     placeholder={kunde ? '' : 'Wird automatisch vergeben'}
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="flex-1 border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                   {!kunde && (
                     <button
@@ -420,24 +420,24 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   )}
                 </div>
                 {!kunde && !formData.kundennummer && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
                     Kundennummer wird beim Speichern automatisch vergeben
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">E-Mail</label>
                 <input
                   type="email"
                   value={formData.email || ''}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Zuletzt gezahlter Preis (€/t)
                 </label>
                 <input
@@ -450,12 +450,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       zuletztGezahlterPreis: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Tonnen abgenommen letztes Jahr
                 </label>
                 <input
@@ -468,12 +468,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       tonnenLetztesJahr: e.target.value ? parseFloat(e.target.value) : undefined,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Schüttstellen Anzahl
                 </label>
                 <input
@@ -487,12 +487,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       schuettstellenAnzahl: e.target.value ? parseInt(e.target.value) : undefined,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Belieferungsart
                 </label>
                 <select
@@ -503,7 +503,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       belieferungsart: e.target.value ? (e.target.value as Belieferungsart) : undefined,
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
                   <option value="">Bitte wählen</option>
                   <option value="nur_motorwagen">Nur Motorwagen</option>
@@ -521,9 +521,9 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     type="checkbox"
                     checked={formData.aktiv ?? true}
                     onChange={(e) => setFormData({ ...formData, aktiv: e.target.checked })}
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                    className="h-4 w-4 text-red-600 border-gray-300 dark:border-dark-border rounded"
                   />
-                  <label htmlFor="aktiv" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="aktiv" className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">
                     Aktiv
                   </label>
                 </div>
@@ -534,9 +534,9 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     type="checkbox"
                     checked={formData.abwerkspreis ?? false}
                     onChange={(e) => setFormData({ ...formData, abwerkspreis: e.target.checked })}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 border-gray-300 dark:border-dark-border rounded"
                   />
-                  <label htmlFor="abwerkspreis" className="text-sm font-medium text-gray-700">
+                  <label htmlFor="abwerkspreis" className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">
                     Abwerkspreis
                   </label>
                 </div>
@@ -545,7 +545,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
             {/* Adresse mit Autovervollständigung */}
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-gray-700">Adresse</h4>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-textMuted">Adresse</h4>
               <AdressAutocomplete
                 strasse={formData.adresse?.strasse || ''}
                 plz={formData.adresse?.plz || ''}
@@ -564,7 +564,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
             {formData.typ === 'verein' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                     Standard Bezugsweg
                   </label>
                   <select
@@ -579,7 +579,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                             : '',
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   >
                     <option value="direkt">Direkt</option>
                     <option value="direkt_instandsetzung">Direkt Instandsetzung</option>
@@ -588,7 +588,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 </div>
                 {formData.standardBezugsweg === 'ueber_platzbauer' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                       Standard Platzbauer
                     </label>
                     <select
@@ -596,7 +596,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       onChange={(e) =>
                         setFormData({ ...formData, standardPlatzbauerId: e.target.value })
                       }
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     >
                       <option value="">Bitte wählen</option>
                       {platzbauer.map((pb) => (
@@ -611,12 +611,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notizen</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Notizen</label>
               <textarea
                 value={formData.notizen || ''}
                 onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
                 rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
           </div>
@@ -625,14 +625,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           {formData.typ === 'verein' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Platzbauer-Zuordnung</h3>
-                <span className="text-xs text-gray-500">Mehrfachauswahl möglich</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Platzbauer-Zuordnung</h3>
+                <span className="text-xs text-gray-500 dark:text-dark-textMuted">Mehrfachauswahl möglich</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {platzbauer.map((pb) => (
                   <label
                     key={pb.id}
-                    className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2"
+                    className="flex items-center gap-2 border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2"
                   >
                     <input
                       type="checkbox"
@@ -646,9 +646,9 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                           );
                         }
                       }}
-                      className="h-4 w-4 text-red-600 border-gray-300 rounded"
+                      className="h-4 w-4 text-red-600 border-gray-300 dark:border-dark-border rounded"
                     />
-                    <span className="text-sm text-gray-700">{pb.name}</span>
+                    <span className="text-sm text-gray-700 dark:text-dark-textMuted">{pb.name}</span>
                   </label>
                 ))}
               </div>
@@ -658,15 +658,15 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           {/* Ansprechpartner */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Ansprechpartner</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Ansprechpartner</h3>
             </div>
 
             {ansprechpartner.map((ap, apIndex) => (
-              <div key={apIndex} className="border border-gray-200 rounded-lg p-4 space-y-3">
+              <div key={apIndex} className="border border-gray-200 dark:border-dark-border rounded-lg p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
                       <input
                         type="text"
                         value={ap.name || ''}
@@ -675,11 +675,11 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                           updated[apIndex] = { ...updated[apIndex], name: e.target.value };
                           setAnsprechpartner(updated);
                         }}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Rolle</label>
                       <input
                         type="text"
                         placeholder="z.B. Platzwart, Vorstand"
@@ -689,11 +689,11 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                           updated[apIndex] = { ...updated[apIndex], rolle: e.target.value };
                           setAnsprechpartner(updated);
                         }}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">E-Mail</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">E-Mail</label>
                       <input
                         type="email"
                         value={ap.email || ''}
@@ -702,7 +702,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                           updated[apIndex] = { ...updated[apIndex], email: e.target.value };
                           setAnsprechpartner(updated);
                         }}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
                   </div>
@@ -718,7 +718,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 {/* Telefonnummern */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">Telefonnummern</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Telefonnummern</label>
                     <button
                       type="button"
                       onClick={() => addTelefonnummer(apIndex)}
@@ -737,7 +737,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                         onChange={(e) =>
                           updateTelefonnummer(apIndex, telIndex, 'nummer', e.target.value)
                         }
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="flex-1 border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                       <input
                         type="text"
@@ -746,7 +746,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                         onChange={(e) =>
                           updateTelefonnummer(apIndex, telIndex, 'typ', e.target.value)
                         }
-                        className="w-32 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-32 border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                       <button
                         type="button"
@@ -762,21 +762,21 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
             ))}
 
             {/* Neuer Ansprechpartner */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+            <div className="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
                   <input
                     type="text"
                     value={neuerAnsprechpartner.name || ''}
                     onChange={(e) =>
                       setNeuerAnsprechpartner({ ...neuerAnsprechpartner, name: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rolle</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Rolle</label>
                   <input
                     type="text"
                     placeholder="z.B. Platzwart, Vorstand"
@@ -784,14 +784,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     onChange={(e) =>
                       setNeuerAnsprechpartner({ ...neuerAnsprechpartner, rolle: e.target.value })
                     }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                 </div>
               </div>
               <button
                 type="button"
                 onClick={addAnsprechpartner}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center justify-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Ansprechpartner hinzufügen
@@ -800,11 +800,11 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
             >
               Abbrechen
             </button>
@@ -823,21 +823,21 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
       {/* Duplikat-Warnung Modal */}
       {showDuplikatWarnung && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl max-w-2xl w-full p-6">
             <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Mögliche Duplikate gefunden</h3>
-            <p className="text-gray-700 mb-4">
+            <p className="text-gray-700 dark:text-dark-textMuted mb-4">
               Es wurden bereits Kunden mit ähnlichem Namen oder Adresse gefunden:
             </p>
             <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
               {duplikate.map((dup) => (
-                <div key={dup.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  <div className="font-semibold text-gray-900">{dup.name}</div>
-                  <div className="text-sm text-gray-600">
+                <div key={dup.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                  <div className="font-semibold text-gray-900 dark:text-dark-text">{dup.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-dark-textMuted">
                     {dup.adresse.strasse && `${dup.adresse.strasse}, `}
                     {dup.adresse.plz} {dup.adresse.ort}
                     {dup.adresse.bundesland && ` (${dup.adresse.bundesland})`}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
                     Typ: {dup.typ === 'verein' ? 'Verein' : 'Platzbauer'}
                     {dup.kundennummer && ` • Kundennummer: ${dup.kundennummer}`}
                   </div>
@@ -851,7 +851,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   setDuplikate([]);
                   setLoading(false);
                 }}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-6 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors"
               >
                 Abbrechen
               </button>

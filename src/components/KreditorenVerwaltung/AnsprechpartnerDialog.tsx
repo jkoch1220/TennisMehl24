@@ -77,7 +77,7 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div 
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200"
+        className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in duration-200"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
@@ -85,7 +85,7 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-white/20 rounded-lg p-2">
+              <div className="bg-white dark:bg-dark-surface/20 rounded-lg p-2">
                 <User className="w-6 h-6" />
               </div>
               <div>
@@ -99,7 +99,7 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
             </div>
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-2 transition-all"
+              className="text-white/80 hover:text-white hover:bg-white dark:bg-dark-surface/10 rounded-lg p-2 transition-all"
             >
               <X className="w-5 h-5" />
             </button>
@@ -110,8 +110,8 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
         <div className="p-6 space-y-5">
           {/* Name */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <User className="w-4 h-4 text-gray-500" />
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2 flex items-center gap-2">
+              <User className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
               Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -136,8 +136,8 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
 
           {/* Titel */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-gray-500" />
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
               Titel
             </label>
             <input
@@ -145,15 +145,15 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
               value={titel}
               onChange={(e) => setTitel(e.target.value)}
               placeholder="z.B. Herr, Frau, Dr., Geschäftsführer"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
-            <p className="text-gray-500 text-xs mt-1">Optional: Anrede oder Position</p>
+            <p className="text-gray-500 dark:text-dark-textMuted text-xs mt-1">Optional: Anrede oder Position</p>
           </div>
 
           {/* Email */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Mail className="w-4 h-4 text-gray-500" />
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2 flex items-center gap-2">
+              <Mail className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
               E-Mail
             </label>
             <input
@@ -174,14 +174,14 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
               </p>
             )}
             {!errors.email && (
-              <p className="text-gray-500 text-xs mt-1">Optional: E-Mail-Adresse</p>
+              <p className="text-gray-500 dark:text-dark-textMuted text-xs mt-1">Optional: E-Mail-Adresse</p>
             )}
           </div>
 
           {/* Telefon */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Phone className="w-4 h-4 text-gray-500" />
+            <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2 flex items-center gap-2">
+              <Phone className="w-4 h-4 text-gray-500 dark:text-dark-textMuted" />
               Telefonnummer
             </label>
             <input
@@ -189,30 +189,30 @@ const AnsprechpartnerDialog = ({ ansprechpartner, onSave, onClose }: Ansprechpar
               value={telefon}
               onChange={(e) => setTelefon(e.target.value)}
               placeholder="z.B. 0171 1234567"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
-            <p className="text-gray-500 text-xs mt-1">Optional: Telefonnummer</p>
+            <p className="text-gray-500 dark:text-dark-textMuted text-xs mt-1">Optional: Telefonnummer</p>
           </div>
 
           {/* Keyboard Shortcuts Hinweis */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
             <div className="text-xs text-blue-700">
-              <kbd className="px-2 py-1 bg-white rounded border text-xs font-mono">Ctrl/Cmd + Enter</kbd> zum Speichern • <kbd className="px-2 py-1 bg-white rounded border text-xs font-mono">Esc</kbd> zum Abbrechen
+              <kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border text-xs font-mono">Ctrl/Cmd + Enter</kbd> zum Speichern • <kbd className="px-2 py-1 bg-white dark:bg-dark-surface rounded border text-xs font-mono">Esc</kbd> zum Abbrechen
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t border-gray-200">
+        <div className="bg-gray-50 dark:bg-gray-800 px-6 py-4 flex justify-end gap-3 border-t border-gray-200 dark:border-dark-border">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition-all"
+            className="px-5 py-2.5 text-gray-700 dark:text-dark-textMuted bg-white dark:bg-dark-surface border-2 border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 font-medium transition-all"
           >
             Abbrechen
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all flex items-center gap-2 shadow-lg dark:shadow-dark-lg hover:shadow-xl"
           >
             <Save className="w-4 h-4" />
             {ansprechpartner ? 'Aktualisieren' : 'Anlegen'}
