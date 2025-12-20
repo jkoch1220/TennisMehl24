@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Menu, LogOut, Settings, Search, X, Command } from 'lucide-react';
+import { Home, Menu, LogOut, Settings, Search, X, Command, CheckSquare, LayoutDashboard, ClipboardList } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import VorschlagButton from './Tickets/VorschlagButton';
 import { ALL_TOOLS } from '../constants/tools';
@@ -664,8 +664,70 @@ const Layout = ({ children }: LayoutProps) => {
         )}
       </nav>
 
-      {/* Main Content */}
-      <main>{children}</main>
+      {/* Main Content - mit bottom padding für mobile Bottom-Nav */}
+      <main className="pb-20 sm:pb-0">{children}</main>
+
+      {/* Mobile Bottom Navigation - nur auf Mobile sichtbar */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border sm:hidden z-40 safe-area-bottom">
+        <div className="flex items-center justify-around h-16">
+          {/* Home */}
+          <Link
+            to="/"
+            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
+              location.pathname === '/'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            <Home className="w-6 h-6" />
+            <span className="text-xs mt-1 font-medium">Start</span>
+          </Link>
+
+          {/* TODOs - wichtigstes Tool */}
+          <Link
+            to="/todos"
+            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
+              location.pathname === '/todos'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            <CheckSquare className="w-6 h-6" />
+            <span className="text-xs mt-1 font-medium">TODOs</span>
+          </Link>
+
+          {/* Dashboard */}
+          <Link
+            to="/dashboard"
+            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
+              location.pathname === '/dashboard'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            <LayoutDashboard className="w-6 h-6" />
+            <span className="text-xs mt-1 font-medium">Dashboard</span>
+          </Link>
+
+          {/* Alle Tools */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full py-2 text-gray-500 dark:text-gray-400"
+          >
+            <ClipboardList className="w-6 h-6" />
+            <span className="text-xs mt-1 font-medium">Mehr</span>
+          </button>
+
+          {/* Einstellungen */}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full py-2 text-gray-500 dark:text-gray-400"
+          >
+            <Settings className="w-6 h-6" />
+            <span className="text-xs mt-1 font-medium">Settings</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Footer - nicht auf Dashboard-Seite anzeigen */}
       {location.pathname !== '/dashboard' && (
@@ -683,7 +745,7 @@ const Layout = ({ children }: LayoutProps) => {
 
       {/* Settings Modal */}
       {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:px-4 sm:py-6 lg:px-8">
           <div
             className="absolute inset-0 bg-black bg-opacity-40 backdrop-blur-sm"
             onClick={() => {
@@ -691,11 +753,16 @@ const Layout = ({ children }: LayoutProps) => {
               setActiveTab('tools');
             }}
           />
-          <div className="relative bg-white dark:bg-dark-surface rounded-lg shadow-xl dark:shadow-dark-xl border border-gray-200 dark:border-dark-border max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex justify-between items-start mb-6 p-6">
+          <div className="relative bg-white dark:bg-dark-surface rounded-t-2xl sm:rounded-lg shadow-xl dark:shadow-dark-xl border border-gray-200 dark:border-dark-border sm:max-w-4xl w-full max-h-[90vh] sm:max-h-[85vh] overflow-hidden mobile-modal-enter">
+            {/* Mobile Drag Handle */}
+            <div className="sm:hidden flex justify-center pt-2 pb-1">
+              <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+            </div>
+
+            <div className="flex justify-between items-start p-4 sm:p-6 sm:mb-2">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Settings</h2>
-                <p className="text-gray-600 dark:text-dark-textMuted">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-dark-text">Settings</h2>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-dark-textMuted">
                   Einstellungen und Verwaltung
                 </p>
               </div>
@@ -704,73 +771,73 @@ const Layout = ({ children }: LayoutProps) => {
                   setSettingsOpen(false);
                   setActiveTab('tools');
                 }}
-                className="text-gray-400 hover:text-gray-600 dark:text-dark-textMuted dark:hover:text-dark-text transition-colors duration-200"
+                className="p-2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted dark:hover:text-dark-text transition-colors duration-200 touch-target"
                 aria-label="Schließen"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 dark:border-dark-border px-6">
+            {/* Tabs - horizontal scrollbar auf Mobile */}
+            <div className="flex gap-1 sm:gap-2 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 overflow-x-auto scrollbar-hide">
               <button
                 onClick={() => setActiveTab('tools')}
-                className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+                className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === 'tools'
                     ? 'border-red-500 text-red-600 dark:text-red-400'
                     : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                 }`}
               >
-                Tool-Sichtbarkeit
+                Tools
               </button>
               <button
                 onClick={() => setActiveTab('password')}
-                className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+                className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === 'password'
                     ? 'border-red-500 text-red-600 dark:text-red-400'
                     : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                 }`}
               >
-                Passwort ändern
+                Passwort
               </button>
               {isAdmin && (
                 <button
                   onClick={() => setActiveTab('users')}
-                  className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+                  className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
                     activeTab === 'users'
                       ? 'border-red-500 text-red-600 dark:text-red-400'
                       : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
                   }`}
                 >
-                  Benutzerverwaltung
+                  Benutzer
                 </button>
               )}
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto pr-1 px-6 py-4">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 max-h-[60vh] sm:max-h-[65vh]">
               {activeTab === 'tools' && (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-600 dark:text-dark-textMuted">
-                    Tools ein- und ausblenden (lokale Browser-Einstellung)
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted">
+                    Tools ein- und ausblenden
                   </p>
-                  
+
                   {/* Suchfeld */}
                   <div className="relative mb-4">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
                       <input
                         ref={searchInputRef}
                         type="text"
                         value={toolSearchQuery}
                         onChange={(e) => setToolSearchQuery(e.target.value)}
-                        placeholder="Tools durchsuchen... (⌘K)"
-                        className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
+                        placeholder="Tools suchen..."
+                        className="w-full pl-9 sm:pl-10 pr-10 py-2.5 sm:py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200 text-base"
                       />
                       {toolSearchQuery && (
                         <button
                           onClick={() => setToolSearchQuery('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted p-1"
                           aria-label="Suche zurücksetzen"
                         >
                           <X className="w-4 h-4" />
@@ -778,8 +845,8 @@ const Layout = ({ children }: LayoutProps) => {
                       )}
                     </div>
                     {toolSearchQuery && (
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">
-                        {filteredTools.length} {filteredTools.length === 1 ? 'Tool gefunden' : 'Tools gefunden'}
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                        {filteredTools.length} {filteredTools.length === 1 ? 'Tool' : 'Tools'}
                       </p>
                     )}
                   </div>
@@ -793,24 +860,24 @@ const Layout = ({ children }: LayoutProps) => {
                     return (
                       <label
                         key={tool.id}
-                        className="flex items-center justify-between gap-4 bg-gray-50 dark:bg-dark-bg rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
+                        className="flex items-center justify-between gap-3 sm:gap-4 bg-gray-50 dark:bg-dark-bg rounded-lg p-3 sm:p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 cursor-pointer"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg bg-gradient-to-br ${tool.color} text-white`}>
-                            <Icon className="w-5 h-5" />
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <div className={`p-1.5 sm:p-2 rounded-lg bg-gradient-to-br ${tool.color} text-white flex-shrink-0`}>
+                            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                           </div>
-                          <div>
-                            <div className="font-semibold text-gray-900 dark:text-dark-text">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-gray-900 dark:text-dark-text text-sm sm:text-base truncate">
                               {toolSearchQuery ? highlightText(tool.name, toolSearchQuery) : tool.name}
                             </div>
-                            <div className="text-sm text-gray-600 dark:text-dark-textMuted">
+                            <div className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted hidden sm:block">
                               {toolSearchQuery ? highlightText(tool.description, toolSearchQuery) : tool.description}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600 dark:text-dark-textMuted">
-                            {checked ? 'Aktiv' : 'Ausgeblendet'}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted hidden sm:block">
+                            {checked ? 'Aktiv' : 'Aus'}
                           </span>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
@@ -819,7 +886,7 @@ const Layout = ({ children }: LayoutProps) => {
                               checked={checked}
                               onChange={(e) => setToolVisibility(tool.id, e.target.checked)}
                             />
-                            <div className="w-12 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:bg-red-500 dark:peer-checked:bg-red-600 peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600" />
+                            <div className="w-10 h-5 sm:w-12 sm:h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:bg-red-500 dark:peer-checked:bg-red-600 peer-checked:after:translate-x-5 sm:peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all dark:border-gray-600" />
                           </label>
                         </div>
                       </label>

@@ -161,7 +161,7 @@ export const wikiFileService = {
       const response = await databases.listDocuments(
         DATABASE_ID,
         WIKI_FILES_COLLECTION_ID,
-        [Query.equal('pageId', pageId), Query.limit(50)]
+        [Query.equal('pageId', [pageId]), Query.limit(50)]
       );
       return response.documents as unknown as WikiFile[];
     } catch (error) {

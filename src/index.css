@@ -40,3 +40,80 @@ body {
   background: rgb(71 85 105); /* slightly lighter */
 }
 
+/* Safe Area für iPhones mit Notch */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Touch-optimierte Buttons für Mobile */
+@media (max-width: 639px) {
+  /* Größere Touch-Targets auf Mobile */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smooth Scrolling für Mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Verhindere Zoom bei Input-Fokus auf iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Größere Checkbox/Radio für Touch */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+}
+
+/* Swipe-Karten Animation */
+.swipe-card {
+  transition: transform 0.2s ease-out;
+  touch-action: pan-y;
+}
+
+.swipe-card.swiping-left {
+  background: linear-gradient(to left, rgba(239, 68, 68, 0.1), transparent);
+}
+
+.swipe-card.swiping-right {
+  background: linear-gradient(to right, rgba(34, 197, 94, 0.1), transparent);
+}
+
+/* Mobile Modal Animation */
+@media (max-width: 639px) {
+  .mobile-modal-enter {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+/* Verbesserte Fokus-Stile für Touch */
+@media (hover: none) and (pointer: coarse) {
+  button:active,
+  a:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+  }
+}
+
