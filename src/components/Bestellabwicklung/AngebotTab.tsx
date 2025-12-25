@@ -493,15 +493,16 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       menge: 1,
       einheit: selectedArtikel.einheit,
       einzelpreis: preis,
+      einkaufspreis: selectedArtikel.einkaufspreis, // Für DB1-Berechnung
       streichpreis: selectedArtikel.streichpreis,
       gesamtpreis: preis,
     };
-    
+
     setAngebotsDaten(prev => ({
       ...prev,
       positionen: [...prev.positionen, neuePosition]
     }));
-    
+
     setShowArtikelAuswahl(false);
     setArtikelSuchtext('');
   };
@@ -512,8 +513,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     const selectedArtikel = universalArtikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    // Universal verwendet den Großhändlerpreis als Einkaufspreis
-    const preis = selectedArtikel.katalogPreisBrutto;
+    // Universal: Großhändlerpreis ist der Einkaufspreis (EK), Katalogpreis ist der Listenpreis
+    const verkaufspreis = selectedArtikel.katalogPreisBrutto;
+    const einkaufspreis = selectedArtikel.grosshaendlerPreisNetto;
 
     const neuePosition: Position = {
       id: Date.now().toString(),
@@ -522,8 +524,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       beschreibung: `Universal: ${selectedArtikel.verpackungseinheit}`,
       menge: 1,
       einheit: selectedArtikel.verpackungseinheit,
-      einzelpreis: preis,
-      gesamtpreis: preis,
+      einzelpreis: verkaufspreis,
+      einkaufspreis: einkaufspreis, // Großhändlerpreis als EK für DB1
+      gesamtpreis: verkaufspreis,
     };
 
     setAngebotsDaten(prev => ({
@@ -717,6 +720,30 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const berechnung = berechneDokumentSummen(angebotsDaten.positionen);
   const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
   const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
+
+  // DB1-Berechnung (intern - nur für UI, nicht im PDF)
+  const db1Berechnung = (() => {
+    let gesamtEK = 0;
+    let positionenMitEK = 0;
+
+    angebotsDaten.positionen.forEach(pos => {
+      if (pos.einkaufspreis !== undefined && pos.einkaufspreis !== null) {
+        gesamtEK += pos.einkaufspreis * pos.menge;
+        positionenMitEK++;
+      }
+    });
+
+    const db1 = berechnung.nettobetrag - gesamtEK;
+    const db1Prozent = berechnung.nettobetrag > 0 ? (db1 / berechnung.nettobetrag) * 100 : 0;
+
+    return {
+      gesamtEK,
+      db1,
+      db1Prozent,
+      positionenMitEK,
+      allePositionenHabenEK: positionenMitEK === angebotsDaten.positionen.length && angebotsDaten.positionen.length > 0,
+    };
+  })();
 
   // Lade-Indikator
   if (initialLaden || ladeStatus === 'laden') {
@@ -1651,6 +1678,41 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 </div>
               </div>
             </div>
+
+            {/* DB1-Anzeige (INTERN - nicht im PDF) */}
+            {db1Berechnung.positionenMitEK > 0 && (
+              <div className="border-t-2 border-dashed border-amber-300 dark:border-amber-700 pt-3 mt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded">
+                    INTERN
+                  </span>
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Deckungsbeitrag</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">Einkauf (EK):</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{db1Berechnung.gesamtEK.toFixed(2)} €</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">DB1:</span>
+                    <span className={`font-bold ${db1Berechnung.db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {db1Berechnung.db1.toFixed(2)} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">DB1-Marge:</span>
+                    <span className={`font-bold ${db1Berechnung.db1Prozent >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {db1Berechnung.db1Prozent.toFixed(1)} %
+                    </span>
+                  </div>
+                  {!db1Berechnung.allePositionenHabenEK && (
+                    <div className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                      ⚠ Nur {db1Berechnung.positionenMitEK} von {angebotsDaten.positionen.length} Positionen haben EK-Preis
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {angebotsDaten.skontoAktiviert && angebotsDaten.skonto && angebotsDaten.skonto.prozent > 0 && (
               <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">

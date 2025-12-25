@@ -24,6 +24,7 @@ const ArtikelVerwaltungTab = () => {
     beschreibung: '',
     einheit: 't',
     einzelpreis: undefined,
+    einkaufspreis: undefined,
     streichpreis: undefined,
   });
 
@@ -71,6 +72,7 @@ const ArtikelVerwaltungTab = () => {
       beschreibung: '',
       einheit: 't',
       einzelpreis: undefined,
+      einkaufspreis: undefined,
       streichpreis: undefined,
     });
   };
@@ -85,6 +87,7 @@ const ArtikelVerwaltungTab = () => {
       beschreibung: art.beschreibung || '',
       einheit: art.einheit,
       einzelpreis: art.einzelpreis,
+      einkaufspreis: art.einkaufspreis,
       streichpreis: art.streichpreis,
     });
   };
@@ -250,7 +253,7 @@ const ArtikelVerwaltungTab = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
-                Einzelpreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span>
+                Verkaufspreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span>
               </label>
               <input
                 type="number"
@@ -258,6 +261,20 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.einzelpreis ?? ''}
                 onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Optional - für Angebote auf Anfrage"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Einkaufspreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(intern, für DB1)</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.einkaufspreis ?? ''}
+                onChange={(e) => setFormData({ ...formData, einkaufspreis: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="Direkte Kosten für Deckungsbeitrag"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -340,9 +357,12 @@ const ArtikelVerwaltungTab = () => {
                       onClick={() => handleSortieren('einzelpreis')}
                       className="flex items-center gap-2 ml-auto text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider hover:text-blue-600"
                     >
-                      Einzelpreis
+                      VK-Preis
                       {sortField === 'einzelpreis' && <ArrowUpDown className="h-3 w-3" />}
                     </button>
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
+                    EK-Preis
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                     Aktionen
@@ -368,9 +388,17 @@ const ArtikelVerwaltungTab = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
-                        {art.einzelpreis !== undefined && art.einzelpreis !== null 
-                          ? `${art.einzelpreis.toFixed(2)} €` 
-                          : <span className="text-gray-400 dark:text-gray-500 italic">Preis auf Anfrage</span>
+                        {art.einzelpreis !== undefined && art.einzelpreis !== null
+                          ? `${art.einzelpreis.toFixed(2)} €`
+                          : <span className="text-gray-400 dark:text-gray-500 italic">a.A.</span>
+                        }
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm text-gray-600 dark:text-dark-textMuted">
+                        {art.einkaufspreis !== undefined && art.einkaufspreis !== null
+                          ? `${art.einkaufspreis.toFixed(2)} €`
+                          : <span className="text-gray-400 dark:text-gray-500">-</span>
                         }
                       </span>
                     </td>

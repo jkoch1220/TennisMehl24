@@ -7,6 +7,7 @@ export interface Position {
   menge: number;
   einheit: string;
   einzelpreis: number;
+  einkaufspreis?: number; // Optional - Einkaufspreis/direkte Kosten für DB1-Berechnung (nur intern)
   streichpreis?: number; // Optional - durchgestrichener Originalpreis für Rabattaktionen
   streichpreisGrund?: string; // Optional - Grund für den Rabatt (z.B. "Neukundenaktion", "Frühbucherpreis")
   gesamtpreis: number;
