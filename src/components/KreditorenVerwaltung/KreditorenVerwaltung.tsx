@@ -123,6 +123,13 @@ const KreditorenVerwaltung = () => {
     }
   };
 
+  const scrollToNaechsteFaelligkeiten = () => {
+    const element = document.getElementById('naechste-faelligkeiten');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
@@ -214,6 +221,7 @@ const KreditorenVerwaltung = () => {
               subtitle="Nächste 7 Tage"
               icon={Clock}
               color="yellow"
+              onClick={scrollToNaechsteFaelligkeiten}
             />
             <StatistikKarte
               title="Heute"
@@ -263,7 +271,7 @@ const KreditorenVerwaltung = () => {
 
         {/* Nächste Fälligkeiten */}
         {statistik && statistik.naechsteFaelligkeiten.length > 0 && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-6">
+          <div id="naechste-faelligkeiten" className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-lg p-6">
             <div className="flex items-center gap-3 mb-4">
               <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
               <h2 className="text-xl font-bold text-yellow-900 dark:text-yellow-300">Nächste Fälligkeiten (7 Tage)</h2>
@@ -464,9 +472,10 @@ interface StatistikKarteProps {
   subtitle: string;
   icon: React.ComponentType<{ className?: string }>;
   color: 'blue' | 'yellow' | 'red' | 'orange' | 'green';
+  onClick?: () => void;
 }
 
-const StatistikKarte = ({ title, value, subtitle, icon: Icon, color }: StatistikKarteProps) => {
+const StatistikKarte = ({ title, value, subtitle, icon: Icon, color, onClick }: StatistikKarteProps) => {
   const colorClasses = {
     blue: 'bg-blue-500',
     yellow: 'bg-yellow-500',
@@ -476,7 +485,10 @@ const StatistikKarte = ({ title, value, subtitle, icon: Icon, color }: Statistik
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6 hover:shadow-xl transition-shadow">
+    <div
+      className={`bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-slate-900/50 p-6 hover:shadow-xl transition-shadow ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 dark:text-slate-400">{title}</p>

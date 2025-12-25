@@ -354,48 +354,63 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
-  
-  // Prüfe ob genug Platz für Summen-Block (ca. 40mm Höhe)
-  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
+
+  // Berechnung immer durchführen (für Skonto etc.)
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
-  
-  const summenX = 125;
-  summenY += 10;
-  
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  
-  // Nettobetrag
-  doc.text('Nettobetrag:', summenX, summenY);
-  doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
-  
-  if (frachtUndVerpackung > 0) {
+
+  // Summen nur anzeigen wenn nicht ausgeblendet
+  if (!daten.endpreisAusblenden) {
+    // Prüfe ob genug Platz für Summen-Block (ca. 40mm Höhe)
+    summenY = await ensureSpace(doc, summenY, 40, stammdaten);
+
+    const summenX = 125;
+    summenY += 10;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    // Nettobetrag
+    doc.text('Nettobetrag:', summenX, summenY);
+    doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
+
+    if (frachtUndVerpackung > 0) {
+      summenY += 6;
+      doc.text('Fracht/Verpackung:', summenX, summenY);
+      doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    }
+
     summenY += 6;
-    doc.text('Fracht/Verpackung:', summenX, summenY);
-    doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    doc.text('MwSt. (19%):', summenX, summenY);
+    doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+
+    // Trennlinie
+    summenY += 2;
+    doc.setLineWidth(0.5);
+    doc.line(summenX, summenY, 180, summenY);
+
+    // Bruttobetrag
+    summenY += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Angebotssumme:', summenX, summenY);
+    doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+  } else if (daten.endpreisAlternativText) {
+    // Alternativtext anzeigen (z.B. "gemäß Menge")
+    summenY += 10;
+    const summenX = 125;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Angebotssumme:', summenX, summenY);
+    doc.text(daten.endpreisAlternativText, 180, summenY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
   }
-  
-  summenY += 6;
-  doc.text('MwSt. (19%):', summenX, summenY);
-  doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
-  
-  // Trennlinie
-  summenY += 2;
-  doc.setLineWidth(0.5);
-  doc.line(summenX, summenY, 180, summenY);
-  
-  // Bruttobetrag
-  summenY += 6;
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Angebotssumme:', summenX, summenY);
-  doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  
+
   // === Liefersaison-Hinweis (nur wenn aktiviert) ===
   if (daten.liefersaisonAnzeigen) {
     summenY += 12;

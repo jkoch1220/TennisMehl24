@@ -29,10 +29,15 @@ export interface ProjektStats {
   bestellteTonnen: number;      // Status: auftragsbestaetigung, lieferschein, rechnung
   angebotTonnen: number;        // Status: angebot, angebot_versendet
 
-  // Geldbeträge
+  // Geldbeträge (Umsatz)
   angebotsSumme: number;        // Summe aller Angebote
   bestellSumme: number;         // Summe der Bestellungen (AB+)
   bezahlteSumme: number;        // Summe der bezahlten Rechnungen
+
+  // Deckungsbeitrag (DB1 = Umsatz - Einkaufskosten)
+  angebotDB1: number;           // DB1 aus Angeboten
+  bestellDB1: number;           // DB1 aus Bestellungen
+  bezahltDB1: number;           // DB1 aus bezahlten Rechnungen
 
   // Anzahlen
   anzahlAngebote: number;

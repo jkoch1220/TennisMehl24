@@ -41,6 +41,9 @@ const KUNDEN_AKTIVITAETEN_COLLECTION_ID = 'kunden_aktivitaeten';
 const PROJEKTE_COLLECTION_ID = 'projekte';
 const ARTIKEL_COLLECTION_ID = 'artikel';
 const STAMMDATEN_COLLECTION_ID = 'stammdaten';
+const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
+const WIKI_FILES_COLLECTION_ID = 'wiki_files';
+const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
 
 const fixkostenFields = [
   { key: 'grundstueck_pacht', type: 'double' },
@@ -164,32 +167,32 @@ const stammdatenFields = [
   { key: 'firmenTelefon', type: 'string', size: 100, required: false },
   { key: 'firmenEmail', type: 'string', size: 320, required: false },
   { key: 'firmenWebsite', type: 'string', size: 500 },
-  
+
   // Geschäftsführung (Array für mehrere Geschäftsführer)
   { key: 'geschaeftsfuehrer', type: 'string', size: 500, required: false, array: true },
-  
+
   // Handelsregister
   { key: 'handelsregister', type: 'string', size: 200, required: false },
   { key: 'sitzGesellschaft', type: 'string', size: 200, required: false },
-  
+
   // Steuerdaten
   { key: 'steuernummer', type: 'string', size: 100 },
   { key: 'ustIdNr', type: 'string', size: 100, required: false },
-  
+
   // Bankdaten
   { key: 'bankname', type: 'string', size: 500, required: false },
   { key: 'iban', type: 'string', size: 100, required: false },
   { key: 'bic', type: 'string', size: 100, required: false },
-  
+
   // Werk/Verkauf (optional)
   { key: 'werkName', type: 'string', size: 500 },
   { key: 'werkStrasse', type: 'string', size: 500 },
   { key: 'werkPlz', type: 'string', size: 20 },
   { key: 'werkOrt', type: 'string', size: 200 },
-  
+
   // E-Mail-Templates (als JSON-String)
   { key: 'emailTemplates', type: 'string', size: 10000 },
-  
+
   // WICHTIG: Dokumentnummern-Zähler für Nummerierungssystem
   // Diese Felder werden verwendet, um eindeutige, fortlaufende Nummern zu generieren
   { key: 'angebotZaehler', type: 'integer', default: 0 },
@@ -197,10 +200,39 @@ const stammdatenFields = [
   { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
   { key: 'rechnungZaehler', type: 'integer', default: 0 },
   { key: 'jahr', type: 'integer', default: 2026 },
-  
+
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'aktualisiertAm', type: 'string', size: 50 },
+];
+
+// Wiki Pages Collection
+const wikiPagesFields = [
+  { key: 'title', type: 'string', size: 500, required: true },
+  { key: 'slug', type: 'string', size: 500, required: true },
+  { key: 'content', type: 'string', size: 100000 },
+  { key: 'description', type: 'string', size: 1000 },
+  { key: 'icon', type: 'string', size: 50 },
+  { key: 'category', type: 'string', size: 50 },
+  { key: 'tags', type: 'string', size: 2000 },
+  { key: 'parentId', type: 'string', size: 100 },
+  { key: 'sortOrder', type: 'integer', default: 0 },
+  { key: 'isPublished', type: 'boolean', default: true },
+  { key: 'isPinned', type: 'boolean', default: false },
+  { key: 'viewCount', type: 'integer', default: 0 },
+  { key: 'createdBy', type: 'string', size: 100 },
+  { key: 'lastEditedBy', type: 'string', size: 100 },
+];
+
+// Wiki Files Collection
+const wikiFilesFields = [
+  { key: 'pageId', type: 'string', size: 100, required: true },
+  { key: 'fileName', type: 'string', size: 500, required: true },
+  { key: 'fileId', type: 'string', size: 100, required: true },
+  { key: 'mimeType', type: 'string', size: 200 },
+  { key: 'size', type: 'integer' },
+  { key: 'uploadedBy', type: 'string', size: 100 },
+  { key: 'uploadTime', type: 'string', size: 50 },
 ];
 
 async function createField(collectionId, field) {
@@ -313,6 +345,95 @@ async function ensureCollection(collectionId, name) {
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
+async function ensureBucket(bucketId, name) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId,
+    'X-Appwrite-Key': apiKey,
+  };
+
+  const res = await fetch(
+    `${endpoint}/storage/buckets/${bucketId}`,
+    { method: 'GET', headers }
+  );
+
+  if (res.ok) {
+    console.log(`✓ Bucket existiert bereits: ${bucketId}`);
+    return;
+  }
+
+  if (res.status !== 404) {
+    console.warn(`⚠️ Konnte Bucket ${bucketId} nicht prüfen (${res.status}).`);
+    return;
+  }
+
+  console.log(`📦 Erstelle fehlenden Bucket ${bucketId} (${name}) ...`);
+  const createRes = await fetch(`${endpoint}/storage/buckets`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      bucketId,
+      name,
+      permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
+      fileSecurity: false,
+      maximumFileSize: 52428800, // 50MB
+      allowedFileExtensions: [],
+    }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.error(`❌ Bucket ${bucketId} konnte nicht angelegt werden:`, err.message || createRes.status);
+    return;
+  }
+  console.log(`✅ Bucket erstellt: ${bucketId}`);
+}
+
+async function ensureIndex(collectionId, indexKey, attributes) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId,
+    'X-Appwrite-Key': apiKey,
+  };
+
+  // Prüfen ob Index existiert
+  const res = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    { method: 'GET', headers }
+  );
+
+  if (res.ok) {
+    const data = await res.json();
+    const existingIndex = data.indexes?.find(idx => idx.key === indexKey);
+    if (existingIndex) {
+      console.log(`✓ Index existiert bereits: ${indexKey}`);
+      return;
+    }
+  }
+
+  console.log(`📇 Erstelle Index ${indexKey} für Collection ${collectionId} ...`);
+  const createRes = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        key: indexKey,
+        type: 'key',
+        attributes,
+        orders: attributes.map(() => 'ASC'),
+      }),
+    }
+  );
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.warn(`⚠️ Index ${indexKey} konnte nicht angelegt werden:`, err.message || createRes.status);
+    return;
+  }
+  console.log(`✅ Index erstellt: ${indexKey}`);
+}
+
 async function main() {
   console.log('🚀 Starte Appwrite Field Setup...\n');
   console.log(`Endpoint: ${endpoint}`);
@@ -327,6 +448,11 @@ async function main() {
     await ensureCollection(PROJEKTE_COLLECTION_ID, 'Projekte');
     await ensureCollection(ARTIKEL_COLLECTION_ID, 'Artikel');
     await ensureCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten');
+    await ensureCollection(WIKI_PAGES_COLLECTION_ID, 'Wiki Pages');
+    await ensureCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files');
+
+    // Erstelle Bucket für Wiki-Dateien
+    await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
 
     console.log('\n📝 Erstelle Felder...\n');
 
@@ -338,12 +464,21 @@ async function main() {
     await setupCollection(PROJEKTE_COLLECTION_ID, 'Projekte', projekteFields);
     await setupCollection(ARTIKEL_COLLECTION_ID, 'Artikel', artikelFields);
     await setupCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten', stammdatenFields);
+    await setupCollection(WIKI_PAGES_COLLECTION_ID, 'Wiki Pages', wikiPagesFields);
+    await setupCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files', wikiFilesFields);
+
+    // Warte kurz, damit Felder erstellt sind
+    console.log('\n⏳ Warte auf Feld-Erstellung...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Erstelle Indizes für Wiki
+    console.log('\n📇 Erstelle Indizes...\n');
+    await ensureIndex(WIKI_FILES_COLLECTION_ID, 'pageId_index', ['pageId']);
+    await ensureIndex(WIKI_PAGES_COLLECTION_ID, 'slug_index', ['slug']);
 
     console.log('\n✨ Setup abgeschlossen!');
     console.log('\n⚠️  WICHTIG: Warte einige Sekunden, bis Appwrite die Felder vollständig erstellt hat.');
     console.log('   Danach kannst du die App verwenden.\n');
-    console.log('📊 HINWEIS: Die Stammdaten-Collection enthält jetzt Zähler für die Dokumentnummerierung.');
-    console.log('   Diese sorgen dafür, dass Angebots-, Lieferschein- und Rechnungsnummern eindeutig sind.\n');
   } catch (error) {
     console.error('\n❌ Fehler beim Setup:', error);
     process.exit(1);

@@ -252,11 +252,66 @@ export const saisonplanungService = {
       this.deleteAktivitaetenFuerKunde(id),
     ]);
     await databases.deleteDocument(DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID, id);
-    
+
     // Cache invalidieren
     cacheService.invalidate('callliste');
     cacheService.invalidate('statistik');
     cacheService.invalidate('dashboard');
+  },
+
+  // Kunde anhand der Kundennummer finden
+  async loadKundeByKundennummer(kundennummer: string): Promise<SaisonKunde | null> {
+    if (!kundennummer) return null;
+
+    try {
+      // Lade alle Kunden und suche nach Kundennummer
+      const alleKunden = await this.loadAlleKunden();
+      const gefunden = alleKunden.find(
+        (k) => k.kundennummer?.toLowerCase() === kundennummer.toLowerCase()
+      );
+      return gefunden || null;
+    } catch (error) {
+      console.error('Fehler beim Suchen des Kunden nach Kundennummer:', error);
+      return null;
+    }
+  },
+
+  // Preis nach Rechnungsstellung aktualisieren (Last Year Price)
+  async aktualisiereKundenPreisNachRechnung(
+    kundennummer: string,
+    preisProTonne: number,
+    mengeInTonnen: number,
+    saisonjahr: number
+  ): Promise<void> {
+    if (!kundennummer || !preisProTonne) return;
+
+    try {
+      const kunde = await this.loadKundeByKundennummer(kundennummer);
+      if (!kunde) {
+        console.warn(`Kunde mit Kundennummer ${kundennummer} nicht in Saisonplanung gefunden`);
+        return;
+      }
+
+      // Preis-Historie aktualisieren
+      await updatePreisHistorie(
+        kunde.id,
+        preisProTonne,
+        saisonjahr,
+        this.updateKunde.bind(this),
+        this.loadKunde.bind(this)
+      );
+
+      // Tonnen letztes Jahr aktualisieren
+      if (mengeInTonnen > 0) {
+        await this.updateKunde(kunde.id, {
+          tonnenLetztesJahr: mengeInTonnen
+        });
+      }
+
+      console.log(`✓ Kundenpreis aktualisiert: ${kunde.name} - ${preisProTonne}€/t, ${mengeInTonnen}t (Saison ${saisonjahr})`);
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren des Kundenpreises:', error);
+    }
   },
 
   // ========== ANSPRECHPARTNER ==========

@@ -24,11 +24,43 @@ import { Projekt, DispoStatus } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, berechneRechnungsSummen } from './rechnungService';
+import { saisonplanungService } from './saisonplanungService';
 import jsPDF from 'jspdf';
 
 // Helper: PDF zu Blob konvertieren
 const pdfToBlob = (pdf: jsPDF): Blob => {
   return pdf.output('blob');
+};
+
+// Helper: Sauberen Dateinamen generieren
+// Format: "Typ Kundenname Jahr.pdf" z.B. "Angebot TC Musterstadt 2024.pdf"
+const generiereLesbaresDatatum = (datumString: string): string => {
+  try {
+    const datum = new Date(datumString);
+    return datum.getFullYear().toString();
+  } catch {
+    return new Date().getFullYear().toString();
+  }
+};
+
+const sanitizeFilename = (text: string): string => {
+  // Entferne/ersetze problematische Zeichen für Dateinamen
+  return text
+    .replace(/[<>:"/\\|?*]/g, '') // Verbotene Zeichen entfernen
+    .replace(/\s+/g, ' ')         // Mehrfache Leerzeichen zu einem
+    .trim();
+};
+
+const generiereLesDatname = (
+  dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung',
+  kundenname: string,
+  datum: string,
+  version?: number
+): string => {
+  const jahr = generiereLesbaresDatatum(datum);
+  const saubererName = sanitizeFilename(kundenname);
+  const versionSuffix = version && version > 1 ? ` v${version}` : '';
+  return `${dokumentTyp} ${saubererName} ${jahr}${versionSuffix}.pdf`;
 };
 
 // Helper: URLs generieren
@@ -123,8 +155,8 @@ export const speichereAngebot = async (
     // PDF generieren
     const pdf = await generiereAngebotPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Angebot_${daten.angebotsnummer}_v${neueVersion}.pdf`;
-    
+    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion);
+
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -132,12 +164,12 @@ export const speichereAngebot = async (
       ID.unique(),
       file
     );
-    
+
     // Bruttobetrag berechnen
     const summen = berechneRechnungsSummen(daten.positionen);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
-    
+
     // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
     const dokument = await databases.createDocument(
       DATABASE_ID,
@@ -177,12 +209,12 @@ export const aktualisiereAngebot = async (
     // Stattdessen erstellen wir eine neue Version
     
     const neueVersion = alteVersion + 1;
-    
+
     // Neues PDF generieren
     const pdf = await generiereAngebotPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Angebot_${daten.angebotsnummer}_v${neueVersion}.pdf`;
-    
+    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion);
+
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -236,8 +268,8 @@ export const speichereAuftragsbestaetigung = async (
     // PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Auftragsbestaetigung_${daten.auftragsbestaetigungsnummer}.pdf`;
-    
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum);
+
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -245,12 +277,12 @@ export const speichereAuftragsbestaetigung = async (
       ID.unique(),
       file
     );
-    
+
     // Bruttobetrag berechnen
     const summen = berechneRechnungsSummen(daten.positionen);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
-    
+
     // Dokument-Eintrag in DB erstellen
     const dokument = await databases.createDocument(
       DATABASE_ID,
@@ -309,8 +341,8 @@ export const aktualisiereAuftragsbestaetigung = async (
     // Neues PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Auftragsbestaetigung_${daten.auftragsbestaetigungsnummer}.pdf`;
-    
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum);
+
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -318,12 +350,12 @@ export const aktualisiereAuftragsbestaetigung = async (
       ID.unique(),
       file
     );
-    
+
     // Bruttobetrag berechnen
     const summen = berechneRechnungsSummen(daten.positionen);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
-    
+
     // Dokument-Eintrag aktualisieren
     const dokument = await databases.updateDocument(
       DATABASE_ID,
@@ -336,7 +368,7 @@ export const aktualisiereAuftragsbestaetigung = async (
         daten: JSON.stringify(daten)
       }
     );
-    
+
     return dokument as unknown as GespeichertesDokument;
   } catch (error) {
     console.error('Fehler beim Aktualisieren der Auftragsbestätigung:', error);
@@ -353,12 +385,12 @@ export const speichereLieferschein = async (
     // Prüfen ob bereits Lieferscheine existieren (für Versionierung)
     const bestehendeLieferscheine = await ladeDokumenteNachTyp(projektId, 'lieferschein');
     const neueVersion = bestehendeLieferscheine.length + 1;
-    
+
     // PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Lieferschein_${daten.lieferscheinnummer}_v${neueVersion}.pdf`;
-    
+    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion);
+
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -366,7 +398,7 @@ export const speichereLieferschein = async (
       ID.unique(),
       file
     );
-    
+
     // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
     const dokument = await databases.createDocument(
       DATABASE_ID,
@@ -382,7 +414,7 @@ export const speichereLieferschein = async (
         daten: JSON.stringify(daten)
       }
     );
-    
+
     // Setze Version manuell für Rückgabe (für UI)
     const result = dokument as unknown as GespeichertesDokument;
     result.version = neueVersion;
@@ -403,14 +435,14 @@ export const aktualisereLieferschein = async (
   try {
     // WICHTIG: Alte Datei wird NICHT gelöscht - sie bleibt im Archiv (GoBD-konform)
     // Stattdessen erstellen wir eine neue Version
-    
+
     const neueVersion = alteVersion + 1;
-    
+
     // Neues PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Lieferschein_${daten.lieferscheinnummer}_v${neueVersion}.pdf`;
-    
+    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion);
+
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -460,12 +492,12 @@ export const speichereRechnung = async (
     if (bestehendeRechnung) {
       throw new Error('Für dieses Projekt existiert bereits eine Rechnung. Rechnungen können nicht überschrieben werden.');
     }
-    
+
     // PDF generieren
     const pdf = await generiereRechnungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = `Rechnung_${daten.rechnungsnummer}.pdf`;
-    
+    const dateiname = generiereLesDatname('Rechnung', daten.kundenname, daten.rechnungsdatum);
+
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
@@ -473,10 +505,10 @@ export const speichereRechnung = async (
       ID.unique(),
       file
     );
-    
+
     // Bruttobetrag berechnen
     const summen = berechneRechnungsSummen(daten.positionen);
-    
+
     // Dokument-Eintrag in DB erstellen (FINAL!)
     const dokument = await databases.createDocument(
       DATABASE_ID,
@@ -493,7 +525,45 @@ export const speichereRechnung = async (
         daten: JSON.stringify(daten) // Für Archivierung
       }
     );
-    
+
+    // === PREIS IN KUNDENSTAMMDATEN AKTUALISIEREN (Last Year Price) ===
+    // Nach erfolgreicher Rechnungsstellung den Preis im Kunden hinterlegen
+    if (daten.kundennummer) {
+      try {
+        // Finde Positionen mit Tonnen-Einheit (t, to, Tonnen)
+        const tonnenPositionen = daten.positionen.filter(pos => {
+          const einheit = pos.einheit?.toLowerCase() || '';
+          return einheit === 't' || einheit === 'to' || einheit === 'tonnen' || einheit === 'tonne';
+        });
+
+        if (tonnenPositionen.length > 0) {
+          // Gesamtmenge in Tonnen
+          const gesamtMenge = tonnenPositionen.reduce((sum, pos) => sum + (pos.menge || 0), 0);
+
+          // Durchschnittspreis pro Tonne berechnen (gewichteter Durchschnitt)
+          const gesamtWert = tonnenPositionen.reduce((sum, pos) => sum + (pos.gesamtpreis || 0), 0);
+          const preisProTonne = gesamtMenge > 0 ? gesamtWert / gesamtMenge : 0;
+
+          // Saisonjahr aus Rechnungsdatum ermitteln
+          const rechnungsDatum = new Date(daten.rechnungsdatum);
+          const saisonjahr = rechnungsDatum.getFullYear();
+
+          // Kundenpreis aktualisieren (async, aber nicht await - soll Rechnungserstellung nicht blockieren)
+          saisonplanungService.aktualisiereKundenPreisNachRechnung(
+            daten.kundennummer,
+            Math.round(preisProTonne * 100) / 100, // Auf 2 Dezimalstellen runden
+            gesamtMenge,
+            saisonjahr
+          ).catch(error => {
+            console.error('Fehler beim Aktualisieren des Kundenpreises (non-blocking):', error);
+          });
+        }
+      } catch (priceUpdateError) {
+        // Preis-Update soll Rechnungserstellung nicht blockieren
+        console.error('Fehler beim Verarbeiten des Kundenpreises:', priceUpdateError);
+      }
+    }
+
     return dokument as unknown as GespeichertesDokument;
   } catch (error) {
     console.error('Fehler beim Speichern der Rechnung:', error);
@@ -547,8 +617,8 @@ export const speichereStornoRechnung = async (
     // Storno-PDF generieren (mit spezieller Kennzeichnung)
     const stornoPDF = await generiereStornoRechnungPDF(stornoDaten);
     const blob = pdfToBlob(stornoPDF);
-    const dateiname = `Stornorechnung_${stornoRechnungsnummer}.pdf`;
-    
+    const dateiname = generiereLesDatname('Stornorechnung', originalDaten.kundenname, stornoDaten.stornoDatum);
+
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(

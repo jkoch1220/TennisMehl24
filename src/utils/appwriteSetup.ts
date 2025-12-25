@@ -17,6 +17,9 @@ import {
   STAMMDATEN_COLLECTION_ID,
   LIEFERANTEN_COLLECTION_ID,
   KALENDER_COLLECTION_ID,
+  WIKI_PAGES_COLLECTION_ID,
+  WIKI_FILES_COLLECTION_ID,
+  WIKI_DATEIEN_BUCKET_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -24,7 +27,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '11'; // Updated: Kalender-Collection hinzugefügt
+const APPWRITE_SETUP_VERSION = '16'; // FORCE: wiki_files Collection + Index erstellen
 
 type FieldConfig = {
   key: string;
@@ -192,6 +195,121 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'aktualisiertAm', type: 'string', size: 50 },
 ];
 
+// Wiki Pages Collection
+const wikiPagesFields: FieldConfig[] = [
+  { key: 'title', type: 'string', size: 500, required: true },
+  { key: 'slug', type: 'string', size: 500, required: true },
+  { key: 'content', type: 'string', size: 100000 }, // HTML-Inhalt
+  { key: 'description', type: 'string', size: 1000 },
+  { key: 'icon', type: 'string', size: 50 },
+  { key: 'category', type: 'string', size: 50 },
+  { key: 'tags', type: 'string', size: 2000 }, // JSON Array als String
+  { key: 'parentId', type: 'string', size: 100 },
+  { key: 'sortOrder', type: 'integer', default: 0 },
+  { key: 'isPublished', type: 'boolean', default: true },
+  { key: 'isPinned', type: 'boolean', default: false },
+  { key: 'viewCount', type: 'integer', default: 0 },
+  { key: 'createdBy', type: 'string', size: 100 },
+  { key: 'lastEditedBy', type: 'string', size: 100 },
+];
+
+// Wiki Files Collection
+const wikiFilesFields: FieldConfig[] = [
+  { key: 'pageId', type: 'string', size: 100, required: true },
+  { key: 'fileName', type: 'string', size: 500, required: true },
+  { key: 'fileId', type: 'string', size: 100, required: true },
+  { key: 'mimeType', type: 'string', size: 200 },
+  { key: 'size', type: 'integer' },
+  { key: 'uploadedBy', type: 'string', size: 100 },
+  { key: 'uploadTime', type: 'string', size: 50 },
+];
+
+async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
+  if (!apiKey) return;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId!,
+    'X-Appwrite-Key': apiKey!,
+  };
+
+  // Prüfen ob Index existiert
+  const res = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    { method: 'GET', headers }
+  );
+
+  if (res.ok) {
+    const data = await res.json();
+    const existingIndex = data.indexes?.find((idx: { key: string }) => idx.key === indexKey);
+    if (existingIndex) return; // Index existiert bereits
+  }
+
+  console.log(`📇 Erstelle Index ${indexKey} für Collection ${collectionId} ...`);
+  const createRes = await fetch(
+    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        key: indexKey,
+        type,
+        attributes,
+        orders: attributes.map(() => 'ASC'),
+      }),
+    }
+  );
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.warn(`⚠️ Index ${indexKey} konnte nicht angelegt werden:`, err.message || createRes.status);
+    return;
+  }
+  console.log(`✅ Index erstellt: ${indexKey}`);
+}
+
+async function ensureBucket(bucketId: string, name: string) {
+  if (!apiKey) return;
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId!,
+    'X-Appwrite-Key': apiKey!,
+  };
+
+  const res = await fetch(
+    `${endpoint}/storage/buckets/${bucketId}`,
+    { method: 'GET', headers }
+  );
+  if (res.ok) return;
+  if (res.status !== 404) {
+    console.warn(`⚠️ Konnte Bucket ${bucketId} nicht prüfen (${res.status}).`);
+    return;
+  }
+
+  console.log(`📦 Erstelle fehlenden Bucket ${bucketId} (${name}) ...`);
+  const createRes = await fetch(`${endpoint}/storage/buckets`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      bucketId,
+      name,
+      permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
+      fileSecurity: false,
+      maximumFileSize: 52428800, // 50MB
+      allowedFileExtensions: [], // Alle erlauben
+    }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.error(
+      `❌ Bucket ${bucketId} konnte nicht angelegt werden:`,
+      err.message || createRes.status
+    );
+    return;
+  }
+  console.log(`✅ Bucket erstellt: ${bucketId}`);
+}
+
 async function ensureCollection(collectionId: string, name: string) {
   if (!apiKey) return;
   const headers = {
@@ -324,6 +442,8 @@ export async function setupAppwriteFields() {
       { id: STAMMDATEN_COLLECTION_ID, name: 'Stammdaten', fields: stammdatenFields },
       { id: LIEFERANTEN_COLLECTION_ID, name: 'Lieferanten', fields: lieferantenFields },
       { id: KALENDER_COLLECTION_ID, name: 'Kalender', fields: kalenderFields },
+      { id: WIKI_PAGES_COLLECTION_ID, name: 'Wiki Pages', fields: wikiPagesFields },
+      { id: WIKI_FILES_COLLECTION_ID, name: 'Wiki Files', fields: wikiFilesFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
@@ -334,7 +454,19 @@ export async function setupAppwriteFields() {
       }
     }
 
-    console.log('✅ Appwrite Field Setup (Kunden + Saison) abgeschlossen!');
+    // Wiki-Bucket erstellen
+    await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
+
+    // Warte kurz, damit Felder erstellt sind bevor Indizes angelegt werden
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Indizes für Wiki Files erstellen (für Query.equal auf pageId)
+    await ensureIndex(WIKI_FILES_COLLECTION_ID, 'pageId_index', ['pageId']);
+
+    // Index für Wiki Pages slug (für Query.equal auf slug)
+    await ensureIndex(WIKI_PAGES_COLLECTION_ID, 'slug_index', ['slug']);
+
+    console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
     console.error('❌ Fehler beim Appwrite Setup:', error);
   }

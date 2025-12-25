@@ -38,6 +38,7 @@ import { projektService } from '../../services/projektService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
+import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 
 interface AngebotTabProps {
   projekt?: Projekt;
@@ -298,10 +299,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             let positionId = initialePositionen.length + 1;
             let hinzugefuegteArtikel = 0;
             
+            // Berechne die Gesamttonnage für die Frachtkostenpauschale
+            const gesamtTonnage = projekt?.angefragteMenge || 0;
+
             for (const artikelnummer of standardArtikelNummern) {
               const artikel = alleArtikel.find(a => a.artikelnummer === artikelnummer);
-              
+
               if (artikel) {
+                // Für Frachtkostenpauschale: Preis automatisch basierend auf Tonnage berechnen
+                let einzelpreis = artikel.einzelpreis ?? 0;
+                if (artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
+                  einzelpreis = berechneFrachtkostenpauschale(gesamtTonnage);
+                  console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${einzelpreis}€`);
+                }
+
                 initialePositionen.push({
                   id: positionId.toString(),
                   artikelnummer: artikel.artikelnummer,
@@ -309,9 +320,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   beschreibung: artikel.beschreibung || '',
                   menge: 1,
                   einheit: artikel.einheit,
-                  einzelpreis: artikel.einzelpreis ?? 0,
+                  einzelpreis: einzelpreis,
                   streichpreis: artikel.streichpreis,
-                  gesamtpreis: artikel.einzelpreis ?? 0,
+                  gesamtpreis: einzelpreis,
                 });
                 positionId++;
                 hinzugefuegteArtikel++;
@@ -451,12 +462,38 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       ...neuePositionen[index],
       [field]: value
     };
-    
+
     if (field === 'menge' || field === 'einzelpreis') {
-      neuePositionen[index].gesamtpreis = 
+      neuePositionen[index].gesamtpreis =
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
-    
+
+    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
+    if (field === 'menge') {
+      // Berechne Gesamttonnage aller Positionen mit Einheit 't' oder 'to'
+      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+
+      // Finde und aktualisiere die Frachtkostenpauschale-Position
+      const frachtkostenIndex = neuePositionen.findIndex(
+        pos => pos.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER
+      );
+
+      if (frachtkostenIndex !== -1) {
+        const neuerPreis = berechneFrachtkostenpauschale(gesamtTonnage);
+        neuePositionen[frachtkostenIndex] = {
+          ...neuePositionen[frachtkostenIndex],
+          einzelpreis: neuerPreis,
+          gesamtpreis: neuePositionen[frachtkostenIndex].menge * neuerPreis,
+        };
+        console.log(`Frachtkostenpauschale aktualisiert: ${gesamtTonnage}t → ${neuerPreis}€`);
+      }
+    }
+
     setAngebotsDaten(prev => ({ ...prev, positionen: neuePositionen }));
   };
 
@@ -483,7 +520,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     const selectedArtikel = artikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    const preis = selectedArtikel.einzelpreis ?? 0;
+    let preis = selectedArtikel.einzelpreis ?? 0;
+
+    // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
+    if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
+      const gesamtTonnage = angebotsDaten.positionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+      preis = berechneFrachtkostenpauschale(gesamtTonnage);
+      console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${preis}€`);
+    }
 
     const neuePosition: Position = {
       id: Date.now().toString(),
@@ -756,54 +805,61 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
       {/* Linke Spalte - Formular */}
-      <div className="lg:col-span-3 space-y-6">
+      <div className="lg:col-span-3 space-y-4 sm:space-y-6">
         
         {/* STATUS-BANNER: Bereits hinterlegtes Dokument */}
         {gespeichertesDokument && !istBearbeitungsModus && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800 rounded-xl p-6 shadow-sm dark:shadow-dark-lg">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800 rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm dark:shadow-dark-lg">
+            <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+              <div className="flex-shrink-0 hidden sm:block">
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
                   <FileCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-green-800 dark:text-green-300">Angebot hinterlegt</h3>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 sm:hidden mb-2">
+                  <FileCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <h3 className="text-base font-semibold text-green-800 dark:text-green-300">Angebot hinterlegt</h3>
+                </div>
+                <h3 className="hidden sm:block text-lg font-semibold text-green-800 dark:text-green-300">Angebot hinterlegt</h3>
                 <p className="text-sm text-green-700 dark:text-green-400 mt-1">
                   <strong>{gespeichertesDokument.dokumentNummer}</strong>
-                  {gespeichertesDokument.version && ` (Version ${gespeichertesDokument.version})`}
-                  {' '}wurde am{' '}
-                  {gespeichertesDokument.$createdAt && new Date(gespeichertesDokument.$createdAt).toLocaleDateString('de-DE', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })} gespeichert.
+                  {gespeichertesDokument.version && ` (V${gespeichertesDokument.version})`}
+                  <span className="hidden sm:inline">
+                    {' '}wurde am{' '}
+                    {gespeichertesDokument.$createdAt && new Date(gespeichertesDokument.$createdAt).toLocaleDateString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })} gespeichert.
+                  </span>
                 </p>
                 {gespeichertesDokument.bruttobetrag && (
                   <p className="text-sm text-green-700 dark:text-green-400 mt-1">
                     Bruttobetrag: <strong>{gespeichertesDokument.bruttobetrag.toFixed(2)} €</strong>
                   </p>
                 )}
-                <div className="flex flex-wrap gap-3 mt-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-3 sm:mt-4">
                   <a
                     href={getFileDownloadUrl(gespeichertesDokument.dateiId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500 transition-colors text-sm font-medium shadow-lg dark:shadow-dark-lg"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-green-600 dark:bg-green-600 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-500 transition-colors text-sm font-medium shadow-lg dark:shadow-dark-lg min-h-[44px] sm:min-h-0"
                   >
                     <Download className="h-4 w-4" />
                     PDF herunterladen
                   </a>
                   <button
                     onClick={() => setIstBearbeitungsModus(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors text-sm font-medium"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors text-sm font-medium min-h-[44px] sm:min-h-0"
                   >
                     <Edit3 className="h-4 w-4" />
-                    Bearbeiten & neue Version
+                    <span className="sm:hidden">Neue Version</span>
+                    <span className="hidden sm:inline">Bearbeiten & neue Version</span>
                   </button>
                 </div>
               </div>
@@ -893,9 +949,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         )}
         
         {/* Angebotsinformationen */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Angebotsinformationen</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text mb-3 sm:mb-4">Angebotsinformationen</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Angebotsnummer</label>
               <input
@@ -911,7 +967,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 <input
                   type="date"
                   value={angebotsDaten.angebotsdatum}
-                  onChange={(e) => handleInputChange('angebotsdatum', e.target.value)}
+                  onChange={(e) => {
+                    const neuesDatum = e.target.value;
+                    handleInputChange('angebotsdatum', neuesDatum);
+                    // Gültig bis automatisch auf +30 Tage setzen
+                    const gueltigBis = new Date(neuesDatum);
+                    gueltigBis.setDate(gueltigBis.getDate() + 30);
+                    handleInputChange('gueltigBis', gueltigBis.toISOString().split('T')[0]);
+                  }}
                   className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                 />
                 <button
@@ -942,10 +1005,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Kundendaten */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Kundendaten</h2>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text mb-3 sm:mb-4">Kundendaten</h2>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kundennummer</label>
                 <input
@@ -968,13 +1031,15 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ihr Ansprechpartner (optional)</label>
-                <input
-                  type="text"
+                <select
                   value={angebotsDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
-                  placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                />
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
+                >
+                  <option value="">– Kein Ansprechpartner –</option>
+                  <option value="Julian Koch">Julian Koch</option>
+                  <option value="Luca Ramos de la Rosa">Luca Ramos de la Rosa</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden (optional)</label>
@@ -1018,22 +1083,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Lieferadresse */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
-            <label className="flex items-center gap-2 cursor-pointer">
+        <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text">Lieferadresse</h2>
+            <label className="flex items-center gap-2 cursor-pointer min-h-[44px] sm:min-h-0">
               <input
                 type="checkbox"
                 checked={angebotsDaten.lieferadresseAbweichend || false}
                 onChange={(e) => handleInputChange('lieferadresseAbweichend', e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
+                className="w-5 h-5 sm:w-4 sm:h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
               />
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abweichende Lieferadresse</span>
             </label>
           </div>
-          
+
           {angebotsDaten.lieferadresseAbweichend && (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
                 <input
@@ -1066,23 +1131,25 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         </div>
 
         {/* Angebotspositionen */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Angebotspositionen</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text">Angebotspositionen</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowArtikelAuswahl(!showArtikelAuswahl)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base min-h-[44px] sm:min-h-0"
               >
                 <Package className="h-4 w-4" />
-                Aus Artikel
+                <span className="sm:hidden">Artikel</span>
+                <span className="hidden sm:inline">Aus Artikel</span>
               </button>
               <button
                 onClick={addPosition}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base min-h-[44px] sm:min-h-0"
               >
                 <Plus className="h-4 w-4" />
-                Leere Position
+                <span className="sm:hidden">Leer</span>
+                <span className="hidden sm:inline">Leere Position</span>
               </button>
             </div>
           </div>
@@ -1434,7 +1501,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
                       <button
                         onClick={() => removePosition(index)}
-                        className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="mt-7 p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        title="Position löschen"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
@@ -1518,6 +1586,50 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           <p className="text-sm text-gray-500 dark:text-dark-textMuted">
             Wenn aktiviert, wird die Liefersaison (z.B. "KW 10 bis 12") auf dem Angebot gedruckt.
           </p>
+        </div>
+
+        {/* Endpreis ausblenden */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-start gap-3 mb-3">
+            <input
+              id="endpreisAusblenden"
+              type="checkbox"
+              checked={angebotsDaten.endpreisAusblenden || false}
+              onChange={(e) => handleInputChange('endpreisAusblenden', e.target.checked)}
+              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500 disabled:opacity-50"
+            />
+            <div className="flex-1">
+              <label
+                htmlFor="endpreisAusblenden"
+                className="block text-sm font-medium text-gray-900 dark:text-dark-text"
+              >
+                Endpreis ausblenden
+              </label>
+              <p className="mt-1 text-xs text-gray-600 dark:text-dark-textMuted">
+                Wenn aktiviert, wird im PDF keine Angebotssumme angezeigt. Nützlich wenn nur Einzelpreise angeboten werden sollen.
+              </p>
+            </div>
+          </div>
+
+          {angebotsDaten.endpreisAusblenden && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Alternativtext (optional)
+              </label>
+              <input
+                type="text"
+                value={angebotsDaten.endpreisAlternativText || ''}
+                onChange={(e) => handleInputChange('endpreisAlternativText', e.target.value)}
+                placeholder="z.B. 'gemäß Menge' oder leer lassen"
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent disabled:opacity-50"
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-dark-textMuted">
+                Wird statt der Summe angezeigt. Leer lassen für keinen Text.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Dieselpreiszuschlag */}
@@ -1640,8 +1752,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
       {/* Rechte Spalte - Zusammenfassung */}
       <div className="lg:col-span-2">
-        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 rounded-xl shadow-lg dark:shadow-dark-lg border border-blue-200 dark:border-blue-800 p-8 sticky top-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zusammenfassung</h2>
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 rounded-lg sm:rounded-xl shadow-lg dark:shadow-dark-lg border border-blue-200 dark:border-blue-800 p-4 sm:p-6 lg:p-8 sticky top-4 sm:top-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text mb-3 sm:mb-4">Zusammenfassung</h2>
 
           <div className="space-y-3">
             <div className="flex justify-between items-center">
@@ -1672,9 +1784,15 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <div className="border-t border-blue-200 dark:border-blue-800 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Angebotssumme:</span>
-                  <span className="text-3xl font-bold text-blue-600 dark:text-blue-400 break-all">
-                    {gesamtBrutto.toFixed(2)} €
-                  </span>
+                  {angebotsDaten.endpreisAusblenden ? (
+                    <span className="text-lg font-medium text-gray-500 dark:text-gray-400 italic">
+                      {angebotsDaten.endpreisAlternativText || '(ausgeblendet im PDF)'}
+                    </span>
+                  ) : (
+                    <span className="text-3xl font-bold text-blue-600 dark:text-blue-400 break-all">
+                      {gesamtBrutto.toFixed(2)} €
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1736,23 +1854,25 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           </div>
 
           {/* Buttons basierend auf Status */}
-          <div className="mt-6 space-y-3">
+          <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
             {/* Immer verfügbar: Nur PDF generieren */}
             <button
               onClick={generiereUndLadeAngebot}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 border-2 border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all"
+              className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 border-2 border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all text-sm sm:text-base min-h-[48px] sm:min-h-0"
             >
               <Download className="h-5 w-5" />
-              Nur PDF herunterladen
+              <span className="sm:hidden">PDF laden</span>
+              <span className="hidden sm:inline">Nur PDF herunterladen</span>
             </button>
 
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitAngebot}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl"
+              className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl text-sm sm:text-base min-h-[48px] sm:min-h-0"
             >
               <Mail className="h-5 w-5" />
-              E-Mail mit PDF öffnen
+              <span className="sm:hidden">E-Mail</span>
+              <span className="hidden sm:inline">E-Mail mit PDF öffnen</span>
             </button>
 
             {/* Haupt-Aktion basierend auf Status */}
@@ -1760,7 +1880,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <button
                 onClick={speichereUndHinterlegeAngebot}
                 disabled={ladeStatus === 'speichern'}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-500 dark:to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-400 dark:hover:to-cyan-400 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-500 dark:to-cyan-500 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 dark:hover:from-blue-400 dark:hover:to-cyan-400 transition-all shadow-lg dark:shadow-dark-glow-blue hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base min-h-[48px] sm:min-h-0"
               >
                 {ladeStatus === 'speichern' ? (
                   <>
@@ -1770,7 +1890,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 ) : (
                   <>
                     <FileCheck className="h-5 w-5" />
-                    {istBearbeitungsModus ? 'Als neue Version speichern' : 'Angebot speichern & hinterlegen'}
+                    <span className="sm:hidden">{istBearbeitungsModus ? 'Neue Version' : 'Speichern'}</span>
+                    <span className="hidden sm:inline">{istBearbeitungsModus ? 'Als neue Version speichern' : 'Angebot speichern & hinterlegen'}</span>
                   </>
                 )}
               </button>

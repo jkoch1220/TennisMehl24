@@ -91,7 +91,11 @@ export interface AngebotsDaten extends BaseDokument {
   
   // Liefersaison
   liefersaisonAnzeigen?: boolean;
-  
+
+  // Endpreis ausblenden (für Angebote mit variablen Mengen)
+  endpreisAusblenden?: boolean;
+  endpreisAlternativText?: string; // z.B. "gemäß Menge" oder leer lassen
+
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;

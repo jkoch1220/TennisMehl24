@@ -30,6 +30,21 @@ import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
+import MobileProjektView from './MobileProjektView';
+
+// Hook für Mobile-Erkennung
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+};
 
 // Tab-Konfiguration mit Dark Mode Farben (ohne Verloren - wird separat behandelt)
 const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; color: string; darkColor: string; bgColor: string; darkBgColor: string }[] = [
@@ -77,6 +92,7 @@ const saveSetting = <T,>(key: string, value: T): void => {
 
 const ProjektVerwaltung = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [projekteGruppiert, setProjekteGruppiert] = useState<{
     angebot: Projekt[];
     angebot_versendet: Projekt[];
@@ -385,6 +401,42 @@ const ProjektVerwaltung = () => {
     );
   }
 
+  // ==========================================
+  // MOBILE ANSICHT - Komplett neues UX-Konzept
+  // ==========================================
+  if (isMobile) {
+    return (
+      <MobileProjektView
+        projekteGruppiert={projekteGruppiert}
+        suche={suche}
+        setSuche={setSuche}
+        loading={loading}
+        saving={saving}
+        loadData={loadData}
+        onProjektClick={handleProjektClick}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        saisonjahr={saisonjahr}
+        filterProjekte={filterProjekte}
+        editModal={
+          showEditModal && editingProjekt ? (
+            <ProjektEditModal
+              projekt={editingProjekt}
+              onSave={handleSaveEdit}
+              onCancel={() => {
+                setShowEditModal(false);
+                setEditingProjekt(null);
+              }}
+            />
+          ) : undefined
+        }
+      />
+    );
+  }
+
+  // ==========================================
+  // DESKTOP ANSICHT - Originales Kanban-Board
+  // ==========================================
   return (
     <div className="p-6 max-w-[1900px] mx-auto">
       {/* Header */}

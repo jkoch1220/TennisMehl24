@@ -132,6 +132,9 @@ export const dashboardService = {
       let angebotsSumme = 0;
       let bestellSumme = 0;
       let bezahlteSumme = 0;
+      let angebotDB1 = 0;
+      let bestellDB1 = 0;
+      let bezahltDB1 = 0;
       let anzahlAngebote = 0;
       let anzahlBestellungen = 0;
       let anzahlBezahlt = 0;
@@ -161,6 +164,30 @@ export const dashboardService = {
               return daten.positionen.reduce((sum: number, pos: any) => {
                 return sum + (pos.menge || 0) * (pos.einzelpreis || 0);
               }, 0);
+            }
+          } catch {
+            // Ignorieren
+          }
+          return 0;
+        };
+
+        // Hilfsfunktion: Extrahiere DB1 (Umsatz - Einkaufskosten) aus Dokument-Daten
+        const extrahiereDB1 = (datenString: string | undefined): number => {
+          if (!datenString) return 0;
+          try {
+            const daten = typeof datenString === 'string' ? JSON.parse(datenString) : datenString;
+            if (daten.positionen && Array.isArray(daten.positionen)) {
+              let umsatz = 0;
+              let einkauf = 0;
+              for (const pos of daten.positionen) {
+                const menge = pos.menge || 0;
+                umsatz += menge * (pos.einzelpreis || 0);
+                // Einkaufspreis nur wenn vorhanden
+                if (pos.einkaufspreis !== undefined && pos.einkaufspreis !== null) {
+                  einkauf += menge * pos.einkaufspreis;
+                }
+              }
+              return umsatz - einkauf;
             }
           } catch {
             // Ignorieren
@@ -201,10 +228,12 @@ export const dashboardService = {
           case 'angebot_versendet': {
             const angebotSumme = extrahiereSumme(projektDaten.angebotsDaten);
             const angebotTonnenExtrahiert = extrahiereTonnen(projektDaten.angebotsDaten);
+            const db1 = extrahiereDB1(projektDaten.angebotsDaten);
             dokumentSumme = angebotSumme > 0 ? angebotSumme : fallbackSumme;
             dokumentTonnen = angebotTonnenExtrahiert > 0 ? angebotTonnenExtrahiert : menge;
             angebotTonnen += dokumentTonnen;
             angebotsSumme += dokumentSumme;
+            angebotDB1 += db1 > 0 ? db1 : dokumentSumme; // Fallback: wenn kein EK, dann Umsatz = DB1
             anzahlAngebote++;
             break;
           }
@@ -214,10 +243,14 @@ export const dashboardService = {
             const angebotSumme = extrahiereSumme(projektDaten.angebotsDaten);
             const abTonnen = extrahiereTonnen(projektDaten.auftragsbestaetigungsDaten);
             const angebotTonnenExtrahiert = extrahiereTonnen(projektDaten.angebotsDaten);
+            const abDB1 = extrahiereDB1(projektDaten.auftragsbestaetigungsDaten);
+            const angebotDBFallback = extrahiereDB1(projektDaten.angebotsDaten);
             dokumentSumme = abSumme > 0 ? abSumme : (angebotSumme > 0 ? angebotSumme : fallbackSumme);
             dokumentTonnen = abTonnen > 0 ? abTonnen : (angebotTonnenExtrahiert > 0 ? angebotTonnenExtrahiert : menge);
+            const db1 = abDB1 > 0 ? abDB1 : (angebotDBFallback > 0 ? angebotDBFallback : dokumentSumme);
             bestellteTonnen += dokumentTonnen;
             bestellSumme += dokumentSumme;
+            bestellDB1 += db1;
             anzahlBestellungen++;
             break;
           }
@@ -227,10 +260,14 @@ export const dashboardService = {
             const angebotSumme = extrahiereSumme(projektDaten.angebotsDaten);
             const lsTonnen = extrahiereTonnen(projektDaten.lieferscheinDaten);
             const abTonnen = extrahiereTonnen(projektDaten.auftragsbestaetigungsDaten);
+            const abDB1 = extrahiereDB1(projektDaten.auftragsbestaetigungsDaten);
+            const angebotDBFallback = extrahiereDB1(projektDaten.angebotsDaten);
             dokumentSumme = lsSumme > 0 ? lsSumme : (abSumme > 0 ? abSumme : (angebotSumme > 0 ? angebotSumme : fallbackSumme));
             dokumentTonnen = lsTonnen > 0 ? lsTonnen : (abTonnen > 0 ? abTonnen : menge);
+            const db1 = abDB1 > 0 ? abDB1 : (angebotDBFallback > 0 ? angebotDBFallback : dokumentSumme);
             bestellteTonnen += dokumentTonnen;
             bestellSumme += dokumentSumme;
+            bestellDB1 += db1;
             anzahlBestellungen++;
             break;
           }
@@ -240,10 +277,15 @@ export const dashboardService = {
             const abSumme = extrahiereSumme(projektDaten.auftragsbestaetigungsDaten);
             const reTonnen = extrahiereTonnen(projektDaten.rechnungsDaten);
             const lsTonnen = extrahiereTonnen(projektDaten.lieferscheinDaten);
+            const reDB1 = extrahiereDB1(projektDaten.rechnungsDaten);
+            const abDB1 = extrahiereDB1(projektDaten.auftragsbestaetigungsDaten);
+            const angebotDBFallback = extrahiereDB1(projektDaten.angebotsDaten);
             dokumentSumme = reSumme > 0 ? reSumme : (lsSumme > 0 ? lsSumme : (abSumme > 0 ? abSumme : fallbackSumme));
             dokumentTonnen = reTonnen > 0 ? reTonnen : (lsTonnen > 0 ? lsTonnen : menge);
+            const db1 = reDB1 > 0 ? reDB1 : (abDB1 > 0 ? abDB1 : (angebotDBFallback > 0 ? angebotDBFallback : dokumentSumme));
             bestellteTonnen += dokumentTonnen;
             bestellSumme += dokumentSumme;
+            bestellDB1 += db1;
             anzahlBestellungen++;
             break;
           }
@@ -253,10 +295,15 @@ export const dashboardService = {
             const abSumme = extrahiereSumme(projektDaten.auftragsbestaetigungsDaten);
             const reTonnen = extrahiereTonnen(projektDaten.rechnungsDaten);
             const lsTonnen = extrahiereTonnen(projektDaten.lieferscheinDaten);
+            const reDB1 = extrahiereDB1(projektDaten.rechnungsDaten);
+            const abDB1 = extrahiereDB1(projektDaten.auftragsbestaetigungsDaten);
+            const angebotDBFallback = extrahiereDB1(projektDaten.angebotsDaten);
             dokumentSumme = reSumme > 0 ? reSumme : (lsSumme > 0 ? lsSumme : (abSumme > 0 ? abSumme : fallbackSumme));
             dokumentTonnen = reTonnen > 0 ? reTonnen : (lsTonnen > 0 ? lsTonnen : menge);
+            const db1 = reDB1 > 0 ? reDB1 : (abDB1 > 0 ? abDB1 : (angebotDBFallback > 0 ? angebotDBFallback : dokumentSumme));
             verkaufteTonnen += dokumentTonnen;
             bezahlteSumme += dokumentSumme;
+            bezahltDB1 += db1;
             anzahlBezahlt++;
             break;
           }
@@ -273,6 +320,9 @@ export const dashboardService = {
         angebotsSumme,
         bestellSumme,
         bezahlteSumme,
+        angebotDB1,
+        bestellDB1,
+        bezahltDB1,
         anzahlAngebote,
         anzahlBestellungen,
         anzahlBezahlt,
@@ -287,6 +337,9 @@ export const dashboardService = {
         angebotsSumme: 0,
         bestellSumme: 0,
         bezahlteSumme: 0,
+        angebotDB1: 0,
+        bestellDB1: 0,
+        bezahltDB1: 0,
         anzahlAngebote: 0,
         anzahlBestellungen: 0,
         anzahlBezahlt: 0,

@@ -660,6 +660,40 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Projekt-Statistiken: Gewinn (DB1) */}
+          <div className="mb-6 sm:mb-10">
+            <h3 className="text-sm sm:text-lg font-bold text-gray-600 dark:text-dark-textMuted mb-3 sm:mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+              Gewinn (DB1)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
+              <StatKarte
+                titel="In Angeboten"
+                wert={formatEuro(stats.projektStats.angebotDB1)}
+                einheit="€"
+                icon={FileText}
+                farbe="from-indigo-400 to-indigo-600"
+                untertitel={stats.projektStats.angebotsSumme > 0 ? `${((stats.projektStats.angebotDB1 / stats.projektStats.angebotsSumme) * 100).toFixed(1)}% Marge` : undefined}
+              />
+              <StatKarte
+                titel="Bestellt"
+                wert={formatEuro(stats.projektStats.bestellDB1)}
+                einheit="€"
+                icon={ClipboardList}
+                farbe="from-purple-400 to-purple-600"
+                untertitel={stats.projektStats.bestellSumme > 0 ? `${((stats.projektStats.bestellDB1 / stats.projektStats.bestellSumme) * 100).toFixed(1)}% Marge` : undefined}
+              />
+              <StatKarte
+                titel="Bezahlt"
+                wert={formatEuro(stats.projektStats.bezahltDB1)}
+                einheit="€"
+                icon={TrendingUp}
+                farbe="from-emerald-400 to-emerald-600"
+                untertitel={stats.projektStats.bezahlteSumme > 0 ? `${((stats.projektStats.bezahltDB1 / stats.projektStats.bezahlteSumme) * 100).toFixed(1)}% Marge` : undefined}
+              />
+            </div>
+          </div>
+
           {/* Anfragen */}
           <div className="mb-6 sm:mb-10">
             <h3 className="text-sm sm:text-lg font-bold text-gray-600 dark:text-dark-textMuted mb-3 sm:mb-4 flex items-center gap-2">

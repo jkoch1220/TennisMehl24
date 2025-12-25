@@ -36,6 +36,7 @@ import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
+import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -357,7 +358,33 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       neuePositionen[index].gesamtpreis =
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
-    
+
+    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
+    if (field === 'menge') {
+      // Berechne Gesamttonnage aller Positionen mit Einheit 't' oder 'to'
+      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+
+      // Finde und aktualisiere die Frachtkostenpauschale-Position
+      const frachtkostenIndex = neuePositionen.findIndex(
+        pos => pos.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER
+      );
+
+      if (frachtkostenIndex !== -1) {
+        const neuerPreis = berechneFrachtkostenpauschale(gesamtTonnage);
+        neuePositionen[frachtkostenIndex] = {
+          ...neuePositionen[frachtkostenIndex],
+          einzelpreis: neuerPreis,
+          gesamtpreis: neuePositionen[frachtkostenIndex].menge * neuerPreis,
+        };
+        console.log(`Frachtkostenpauschale aktualisiert: ${gesamtTonnage}t → ${neuerPreis}€`);
+      }
+    }
+
     setAuftragsbestaetigungsDaten(prev => ({ ...prev, positionen: neuePositionen }));
   };
 
@@ -384,7 +411,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     const selectedArtikel = artikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    const preis = selectedArtikel.einzelpreis ?? 0;
+    let preis = selectedArtikel.einzelpreis ?? 0;
+
+    // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
+    if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
+      const gesamtTonnage = auftragsbestaetigungsDaten.positionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+      preis = berechneFrachtkostenpauschale(gesamtTonnage);
+      console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${preis}€`);
+    }
 
     const neuePosition: Position = {
       id: Date.now().toString(),
@@ -397,12 +436,12 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
       streichpreis: selectedArtikel.streichpreis,
       gesamtpreis: preis,
     };
-    
+
     setAuftragsbestaetigungsDaten(prev => ({
       ...prev,
       positionen: [...prev.positionen, neuePosition]
     }));
-    
+
     setShowArtikelAuswahl(false);
     setArtikelSuchtext('');
   };
@@ -767,14 +806,16 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ihr Ansprechpartner (optional)</label>
-                <input
-                  type="text"
+                <select
                   value={auftragsbestaetigungsDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  placeholder="z.B. Stefan Egner"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
-                />
+                >
+                  <option value="">– Kein Ansprechpartner –</option>
+                  <option value="Julian Koch">Julian Koch</option>
+                  <option value="Luca Ramos de la Rosa">Luca Ramos de la Rosa</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden (optional)</label>

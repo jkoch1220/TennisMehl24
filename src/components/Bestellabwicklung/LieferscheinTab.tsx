@@ -755,14 +755,16 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ihr Ansprechpartner (optional)</label>
-                <input
-                  type="text"
+                <select
                   value={lieferscheinDaten.ihreAnsprechpartner || ''}
                   onChange={(e) => handleInputChange('ihreAnsprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  placeholder="z.B. Stefan Egner"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                />
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                >
+                  <option value="">– Kein Ansprechpartner –</option>
+                  <option value="Julian Koch">Julian Koch</option>
+                  <option value="Luca Ramos de la Rosa">Luca Ramos de la Rosa</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden (optional)</label>
@@ -1063,7 +1065,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                       {(!gespeichertesDokument || istBearbeitungsModus) && (
                         <button
                           onClick={() => removePosition(index)}
-                          className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="mt-7 p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          title="Position löschen"
                         >
                           <Trash2 className="h-5 w-5" />
                         </button>
