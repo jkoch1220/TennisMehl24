@@ -1,5 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import SortablePosition from './SortablePosition';
 import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import jsPDF from 'jspdf';
@@ -78,12 +94,6 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
-  
-  // Drag & Drop State für Positionen
-  const [dragState, setDragState] = useState<{ draggedIndex: number | null; draggedOverIndex: number | null }>({
-    draggedIndex: null,
-    draggedOverIndex: null,
-  });
   
   // Artikel laden
   useEffect(() => {
@@ -424,39 +434,33 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     }));
   };
 
+  // @dnd-kit Sensors für Drag & Drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   // Drag & Drop Handler für Positionen
-  const handleDragStart = (index: number) => {
-    setDragState({ draggedIndex: index, draggedOverIndex: null });
-  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragState.draggedIndex !== null && dragState.draggedIndex !== index) {
-      setDragState(prev => ({ ...prev, draggedOverIndex: index }));
+    if (over && active.id !== over.id) {
+      hatGeaendert.current = true;
+      setLieferscheinDaten(prev => {
+        const oldIndex = prev.positionen.findIndex(p => p.id === active.id);
+        const newIndex = prev.positionen.findIndex(p => p.id === over.id);
+        return {
+          ...prev,
+          positionen: arrayMove(prev.positionen, oldIndex, newIndex),
+        };
+      });
     }
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    if (dragState.draggedIndex === null || dragState.draggedIndex === dropIndex) {
-      setDragState({ draggedIndex: null, draggedOverIndex: null });
-      return;
-    }
-
-    hatGeaendert.current = true;
-    const neuePositionen = [...lieferscheinDaten.positionen];
-    const [draggedPosition] = neuePositionen.splice(dragState.draggedIndex, 1);
-    neuePositionen.splice(dropIndex, 0, draggedPosition);
-
-    setLieferscheinDaten(prev => ({
-      ...prev,
-      positionen: neuePositionen
-    }));
-    setDragState({ draggedIndex: null, draggedOverIndex: null });
-  };
-
-  const handleDragEnd = () => {
-    setDragState({ draggedIndex: null, draggedOverIndex: null });
   };
 
   // Enter-Handler für Artikel-Suche
@@ -980,94 +984,96 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
             </div>
           )}
 
-          <div className="space-y-4">
-            {lieferscheinDaten.positionen.map((position, index) => (
-              <div
-                key={position.id}
-                draggable={!gespeichertesDokument || istBearbeitungsModus}
-                onDragStart={() => (!gespeichertesDokument || istBearbeitungsModus) && handleDragStart(index)}
-                onDragOver={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDragOver(e, index)}
-                onDrop={(e) => (!gespeichertesDokument || istBearbeitungsModus) && handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                className={`p-4 bg-gray-50 rounded-lg border border-gray-200 transition-all ${
-                  (!gespeichertesDokument || istBearbeitungsModus) ? 'cursor-move' : ''
-                } ${
-                  dragState.draggedIndex === index ? 'opacity-50' : ''
-                } ${
-                  dragState.draggedOverIndex === index ? 'border-2 border-green-500 shadow-lg' : ''
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel-Nr.</label>
-                        <input
-                          type="text"
-                          value={position.artikelnummer || ''}
-                          onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
-                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          placeholder="TM-001"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                        />
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={lieferscheinDaten.positionen.map(p => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-4">
+                {lieferscheinDaten.positionen.map((position, index) => (
+                  <SortablePosition
+                    key={position.id}
+                    id={position.id}
+                    disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                    accentColor="green"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel-Nr.</label>
+                            <input
+                              type="text"
+                              value={position.artikelnummer || ''}
+                              onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                              placeholder="TM-001"
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel</label>
+                            <input
+                              type="text"
+                              value={position.artikel}
+                              onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
+                              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                              placeholder="z.B. Tennismehl / Ziegelmehl"
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
+                            <input
+                              type="number"
+                              value={position.menge}
+                              onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einheit</label>
+                            <input
+                              type="text"
+                              value={position.einheit}
+                              onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
+                              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Beschreibung (optional)</label>
+                          <textarea
+                            value={position.beschreibung || ''}
+                            onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
+                            disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                            placeholder="Detaillierte Beschreibung der Position..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                          />
+                        </div>
                       </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel</label>
-                        <input
-                          type="text"
-                          value={position.artikel}
-                          onChange={(e) => handlePositionChange(index, 'artikel', e.target.value)}
-                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          placeholder="z.B. Tennismehl / Ziegelmehl"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
-                        <input
-                          type="number"
-                          value={position.menge}
-                          onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
-                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einheit</label>
-                        <input
-                          type="text"
-                          value={position.einheit}
-                          onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                        />
-                      </div>
+
+                      {(!gespeichertesDokument || istBearbeitungsModus) && (
+                        <button
+                          onClick={() => removePosition(index)}
+                          className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Beschreibung (optional)</label>
-                      <textarea
-                        value={position.beschreibung || ''}
-                        onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
-                        disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                        placeholder="Detaillierte Beschreibung der Position..."
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-                      />
-                    </div>
-                  </div>
-                  
-                  {(!gespeichertesDokument || istBearbeitungsModus) && (
-                    <button
-                      onClick={() => removePosition(index)}
-                      className="mt-7 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  )}
-                </div>
+                  </SortablePosition>
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         </div>
 
         {/* Empfangsbestätigung */}

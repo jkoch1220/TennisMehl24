@@ -20,7 +20,8 @@ import {
   Position,
   LieferscheinPosition
 } from '../types/bestellabwicklung';
-import { Projekt } from '../types/projekt';
+import { Projekt, DispoStatus } from '../types/projekt';
+import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import jsPDF from 'jspdf';
@@ -266,7 +267,25 @@ export const speichereAuftragsbestaetigung = async (
         daten: JSON.stringify(daten)
       }
     );
-    
+
+    // AUTOMATISCHER STATUS-WECHSEL: Projekt auf "lieferschein" setzen
+    // und dispoStatus auf "offen" damit es in der Dispo erscheint
+    try {
+      await projektService.updateProjekt(projektId, {
+        status: 'lieferschein',
+        dispoStatus: 'offen' as DispoStatus,
+        auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
+        auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
+        // Lieferdatum aus AB übernehmen wenn vorhanden
+        geplantesDatum: daten.lieferdatum || undefined,
+        // Menge aus Positionen berechnen
+        liefergewicht: daten.positionen?.reduce((sum, p) => sum + (p.menge || 0), 0) || undefined,
+      });
+      console.log('✅ Projekt-Status automatisch auf "lieferschein" gesetzt, erscheint nun in Dispo');
+    } catch (statusError) {
+      console.error('⚠️ Fehler beim automatischen Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
+    }
+
     return dokument as unknown as GespeichertesDokument;
   } catch (error) {
     console.error('Fehler beim Speichern der Auftragsbestätigung:', error);

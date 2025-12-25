@@ -53,10 +53,11 @@ class ProjektService {
     lieferschein: Projekt[];
     rechnung: Projekt[];
     bezahlt: Projekt[];
+    verloren: Projekt[];
   }> {
     try {
       const queries: string[] = [Query.orderDesc('erstelltAm'), Query.limit(1000)];
-      
+
       if (saisonjahr) {
         queries.push(Query.equal('saisonjahr', saisonjahr));
       }
@@ -71,6 +72,7 @@ class ProjektService {
         lieferschein: projekte.filter((p) => p.status === 'lieferschein'),
         rechnung: projekte.filter((p) => p.status === 'rechnung'),
         bezahlt: projekte.filter((p) => p.status === 'bezahlt'),
+        verloren: projekte.filter((p) => p.status === 'verloren'),
       };
     } catch (error) {
       console.error('Fehler beim Laden der gruppierten Projekte:', error);

@@ -22,7 +22,9 @@ const Layout = ({ children }: LayoutProps) => {
   const [toolSearchQuery, setToolSearchQuery] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchIndex, setGlobalSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const globalSearchResultRef = useRef<HTMLAnchorElement>(null);
   const globalSearchInputRef = useRef<HTMLInputElement>(null);
   const globalSearchRef = useRef<HTMLDivElement>(null);
   const { user, logout: authLogout, isAdmin, permissionsLoading } = useAuth();
@@ -195,12 +197,30 @@ const Layout = ({ children }: LayoutProps) => {
     );
   };
 
-  // Handler für Enter-Taste - öffnet das erste Ergebnis
-  const handleGlobalSearchEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && allSearchResults.length > 0) {
+  // Index zurücksetzen bei Suchtextänderung
+  useEffect(() => {
+    setGlobalSearchIndex(0);
+  }, [globalSearchQuery]);
+
+  // Ausgewähltes Suchergebnis in den sichtbaren Bereich scrollen
+  useEffect(() => {
+    if (globalSearchResultRef.current) {
+      globalSearchResultRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [globalSearchIndex]);
+
+  // Handler für Keyboard-Navigation in globaler Suche
+  const handleGlobalSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const firstResult = allSearchResults[0];
-      navigate(firstResult.href);
+      setGlobalSearchIndex(prev => Math.min(prev + 1, allSearchResults.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setGlobalSearchIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && allSearchResults.length > 0) {
+      e.preventDefault();
+      const selectedResult = allSearchResults[globalSearchIndex];
+      navigate(selectedResult.href);
       setGlobalSearchOpen(false);
       setGlobalSearchQuery('');
       setMobileMenuOpen(false);
@@ -254,7 +274,7 @@ const Layout = ({ children }: LayoutProps) => {
                         setGlobalSearchOpen(true);
                       }}
                       onFocus={() => setGlobalSearchOpen(true)}
-                      onKeyDown={handleGlobalSearchEnter}
+                      onKeyDown={handleGlobalSearchKeyDown}
                       placeholder="Tools suchen... (⌘K)"
                       className="w-full pl-10 pr-20 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                     />
@@ -284,10 +304,11 @@ const Layout = ({ children }: LayoutProps) => {
                           {allSearchResults.map((item, index) => {
                             const Icon = item.icon;
                             const isActive = location.pathname === item.href;
-                            const isFirst = index === 0;
+                            const isSelected = index === globalSearchIndex;
                             return (
                               <Link
                                 key={item.id}
+                                ref={isSelected ? globalSearchResultRef : null}
                                 to={item.href}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -297,17 +318,18 @@ const Layout = ({ children }: LayoutProps) => {
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
                                 }}
+                                onMouseEnter={() => setGlobalSearchIndex(index)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
                                   isActive
                                     ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
-                                    : isFirst
-                                    ? 'bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-750'
+                                    : isSelected
+                                    ? 'bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
                                 }`}
                               >
                                 <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                                  item.id === 'home' 
-                                    ? 'from-gray-500 to-gray-600' 
+                                  item.id === 'home'
+                                    ? 'from-gray-500 to-gray-600'
                                     : (item as any).color || 'from-gray-500 to-gray-600'
                                 } text-white flex-shrink-0`}>
                                   <Icon className="w-5 h-5" />
@@ -325,7 +347,7 @@ const Layout = ({ children }: LayoutProps) => {
                                 {isActive && (
                                   <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
                                 )}
-                                {isFirst && !isActive && (
+                                {isSelected && !isActive && (
                                   <div className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
                                     <span>Enter</span>
                                   </div>
@@ -334,10 +356,14 @@ const Layout = ({ children }: LayoutProps) => {
                             );
                           })}
                           {allSearchResults.length > 0 && (
-                            <div className="px-4 py-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500 dark:text-dark-textMuted">
+                            <div className="px-4 py-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500 dark:text-dark-textMuted flex items-center gap-3">
                               <span className="inline-flex items-center gap-1">
-                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700">Enter</kbd>
-                                <span>zum Öffnen</span>
+                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">↑↓</kbd>
+                                <span>navigieren</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Enter</kbd>
+                                <span>öffnen</span>
                               </span>
                             </div>
                           )}
@@ -392,7 +418,7 @@ const Layout = ({ children }: LayoutProps) => {
                         setGlobalSearchOpen(true);
                       }}
                       onFocus={() => setGlobalSearchOpen(true)}
-                      onKeyDown={handleGlobalSearchEnter}
+                      onKeyDown={handleGlobalSearchKeyDown}
                       placeholder="Suchen..."
                       className="w-full pl-8 pr-8 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                     />
@@ -415,12 +441,14 @@ const Layout = ({ children }: LayoutProps) => {
                     <div className="absolute top-full mt-1 w-full bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
                       {allSearchResults.length > 0 ? (
                         <div className="p-1">
-                          {allSearchResults.map((item) => {
+                          {allSearchResults.map((item, index) => {
                             const Icon = item.icon;
                             const isActive = location.pathname === item.href;
+                            const isSelected = index === globalSearchIndex;
                             return (
                               <Link
                                 key={item.id}
+                                ref={isSelected ? globalSearchResultRef : null}
                                 to={item.href}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -430,15 +458,18 @@ const Layout = ({ children }: LayoutProps) => {
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
                                 }}
+                                onMouseEnter={() => setGlobalSearchIndex(index)}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
                                   isActive
                                     ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                                    : isSelected
+                                    ? 'bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                               >
                                 <div className={`p-1.5 rounded-lg bg-gradient-to-br ${
-                                  item.id === 'home' 
-                                    ? 'from-gray-500 to-gray-600' 
+                                  item.id === 'home'
+                                    ? 'from-gray-500 to-gray-600'
                                     : (item as any).color || 'from-gray-500 to-gray-600'
                                 } text-white flex-shrink-0`}>
                                   <Icon className="w-4 h-4" />
@@ -547,7 +578,7 @@ const Layout = ({ children }: LayoutProps) => {
                     setGlobalSearchOpen(true);
                   }}
                   onFocus={() => setGlobalSearchOpen(true)}
-                  onKeyDown={handleGlobalSearchEnter}
+                  onKeyDown={handleGlobalSearchKeyDown}
                   placeholder="Tools suchen..."
                   className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                 />
@@ -570,12 +601,14 @@ const Layout = ({ children }: LayoutProps) => {
                 <div className="absolute left-4 right-4 top-full mt-2 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
                   {allSearchResults.length > 0 ? (
                     <div className="p-2">
-                      {allSearchResults.map((item) => {
+                      {allSearchResults.map((item, index) => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.href;
+                        const isSelected = index === globalSearchIndex;
                         return (
                           <Link
                             key={item.id}
+                            ref={isSelected ? globalSearchResultRef : null}
                             to={item.href}
                             onClick={() => {
                               setGlobalSearchOpen(false);
@@ -585,12 +618,14 @@ const Layout = ({ children }: LayoutProps) => {
                             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                               isActive
                                 ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
+                                : isSelected
+                                ? 'bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
                                 : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
                             }`}
                           >
                             <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                              item.id === 'home' 
-                                ? 'from-gray-500 to-gray-600' 
+                              item.id === 'home'
+                                ? 'from-gray-500 to-gray-600'
                                 : (item as any).color || 'from-gray-500 to-gray-600'
                             } text-white flex-shrink-0`}>
                               <Icon className="w-5 h-5" />
@@ -736,8 +771,10 @@ const Layout = ({ children }: LayoutProps) => {
         </footer>
       )}
 
-      {/* Global Vorschlag Button - nicht auf TODOs und Dashboard-Seite anzeigen */}
-      {location.pathname !== '/todos' && location.pathname !== '/dashboard' && <VorschlagButton />}
+      {/* Global Vorschlag Button - nicht auf Mobile, TODOs und Dashboard-Seite anzeigen */}
+      <div className="hidden sm:block">
+        {location.pathname !== '/todos' && location.pathname !== '/dashboard' && <VorschlagButton />}
+      </div>
 
       {/* Settings Modal */}
       {settingsOpen && (

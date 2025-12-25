@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash, Mail } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail, ShoppingBag } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
+import UniversaArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 
-type TabId = 'firmendaten' | 'artikel' | 'kundennummern' | 'emailTemplates';
+type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -18,14 +19,21 @@ const Stammdaten = () => {
       color: 'from-blue-600 to-cyan-600',
       description: 'Firmenname, Kontakt, Bankdaten, etc.'
     },
-    { 
-      id: 'artikel' as TabId, 
-      label: 'Artikelverwaltung', 
-      icon: Package, 
+    {
+      id: 'artikel' as TabId,
+      label: 'Artikelverwaltung',
+      icon: Package,
       color: 'from-purple-600 to-pink-600',
-      description: 'Standardartikel für Angebote'
+      description: 'Eigene Standardartikel'
     },
-    { 
+    {
+      id: 'universaArtikel' as TabId,
+      label: 'Universa Artikel',
+      icon: ShoppingBag,
+      color: 'from-orange-500 to-red-600',
+      description: 'Universal Sport Katalog'
+    },
+    {
       id: 'kundennummern' as TabId, 
       label: 'Kundennummern', 
       icon: Hash, 
@@ -89,6 +97,7 @@ const Stammdaten = () => {
       <div>
         {activeTab === 'firmendaten' && <FirmendatenTab />}
         {activeTab === 'artikel' && <ArtikelVerwaltungTab />}
+        {activeTab === 'universaArtikel' && <UniversaArtikelTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
       </div>
@@ -103,8 +112,12 @@ const Stammdaten = () => {
             Angebote, Lieferscheine) im Footer verwendet.
           </p>
           <p>
-            <strong>Artikelverwaltung:</strong> Standardartikel für die schnelle Angebotserstellung. 
+            <strong>Artikelverwaltung:</strong> Eigene Standardartikel für die schnelle Angebotserstellung.
             Die hier angelegten Artikel können bei der Erstellung von Angeboten direkt ausgewählt werden.
+          </p>
+          <p>
+            <strong>Universa Artikel:</strong> Artikelkatalog von Universal Sport GmbH.
+            Importieren Sie die Großhändler-/Katalogpreisliste als Excel-Datei, um alle Artikel mit aktuellen Preisen verfügbar zu haben.
           </p>
           <p>
             <strong>Kundennummern:</strong> Automatische Vergabe von eindeutigen Kundennummern für alle Kunden

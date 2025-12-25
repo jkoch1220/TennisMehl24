@@ -99,6 +99,22 @@ export interface PreisHistorienEintrag {
   geaendertAm: string;
 }
 
+// Zusatzbemerkung für Kunden (für Dispo relevant, wird über Jahre hinweg gespeichert)
+export interface KundenZusatzbemerkung {
+  id: string;
+  titel: string; // z.B. "Anfahrtshinweis", "Lieferzeit", "Besonderheit"
+  text: string;
+  kategorie: 'anfahrt' | 'lieferung' | 'fahrer' | 'dokumente' | 'sonstiges';
+  wichtig: boolean; // Wird dem Fahrer prominent angezeigt
+  gueltigAb?: string; // Optional: Ab wann gilt diese Bemerkung
+  gueltigBis?: string; // Optional: Bis wann gilt diese Bemerkung
+  erstelltAm: string;
+  erstelltVon?: string;
+  // Optional: Anhang (z.B. Anfahrtskarte als PDF)
+  anhangFileId?: string;
+  anhangDateiname?: string;
+}
+
 // Beziehung Verein ↔ Platzbauer
 export interface VereinPlatzbauerBeziehung {
   id: string;
@@ -152,6 +168,23 @@ export interface SaisonKunde {
   zahlungsziel?: number; // Zahlungsziel in Tagen (z.B. 14, 30)
   schuettstellenAnzahl?: number; // Anzahl der Schüttstellen
   belieferungsart?: Belieferungsart; // Art der Belieferung
+
+  // === DISPO-RELEVANTE FELDER ===
+  // Zusatzbemerkungen für Dispo (werden über Jahre hinweg gespeichert)
+  zusatzbemerkungen?: KundenZusatzbemerkung[];
+
+  // Standard-Lieferzeitfenster (falls bekannt)
+  standardLieferzeitfenster?: {
+    von: string; // z.B. "08:00"
+    bis: string; // z.B. "16:00"
+  };
+
+  // Anfahrtshinweise für Fahrer
+  anfahrtshinweise?: string;
+
+  // GPS-Koordinaten für Lieferadresse (für Routenplanung)
+  koordinaten?: [number, number]; // [longitude, latitude]
+
   erstelltAm: string;
   geaendertAm: string;
 }

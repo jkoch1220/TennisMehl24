@@ -331,12 +331,13 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
 
 /**
  * Formatiert einen Betrag als Währung
+ * Verwendet Non-Breaking Space (\u00A0) zwischen Zahl und €, damit kein Umbruch entsteht
  */
 export const formatWaehrung = (betrag: number): string => {
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR'
-  }).format(betrag);
+  }).format(betrag).replace(/ /g, '\u00A0');
 };
 
 /**
