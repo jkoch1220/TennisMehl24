@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Building2, Package, Database, Hash, Mail, ShoppingBag } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
-import UniversaArtikelTab from './UniversaArtikelTab';
+import UniversalArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 
@@ -28,7 +28,7 @@ const Stammdaten = () => {
     },
     {
       id: 'universaArtikel' as TabId,
-      label: 'Universa Artikel',
+      label: 'Universal Artikel',
       icon: ShoppingBag,
       color: 'from-orange-500 to-red-600',
       description: 'Universal Sport Katalog'
@@ -97,7 +97,7 @@ const Stammdaten = () => {
       <div>
         {activeTab === 'firmendaten' && <FirmendatenTab />}
         {activeTab === 'artikel' && <ArtikelVerwaltungTab />}
-        {activeTab === 'universaArtikel' && <UniversaArtikelTab />}
+        {activeTab === 'universaArtikel' && <UniversalArtikelTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
       </div>
@@ -116,7 +116,7 @@ const Stammdaten = () => {
             Die hier angelegten Artikel können bei der Erstellung von Angeboten direkt ausgewählt werden.
           </p>
           <p>
-            <strong>Universa Artikel:</strong> Artikelkatalog von Universal Sport GmbH.
+            <strong>Universal Artikel:</strong> Artikelkatalog von Universal Sport GmbH.
             Importieren Sie die Großhändler-/Katalogpreisliste als Excel-Datei, um alle Artikel mit aktuellen Preisen verfügbar zu haben.
           </p>
           <p>

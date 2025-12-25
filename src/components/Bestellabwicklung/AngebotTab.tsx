@@ -31,8 +31,8 @@ import {
   getFileDownloadUrl
 } from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
-import { UniversaArtikel } from '../../types/universaArtikel';
-import { sucheUniversaArtikel, getAlleUniversaArtikel } from '../../services/universaArtikelService';
+import { UniversalArtikel } from '../../types/universaArtikel';
+import { sucheUniversalArtikel, getAlleUniversalArtikel } from '../../services/universaArtikelService';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import DokumentVerlauf from './DokumentVerlauf';
@@ -84,12 +84,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     dieselpreiszuschlagText: '',
   });
   const [artikel, setArtikel] = useState<Artikel[]>([]);
-  const [universaArtikel, setUniversaArtikel] = useState<UniversaArtikel[]>([]);
+  const [universalArtikel, setUniversalArtikel] = useState<UniversalArtikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
   const [artikelTab, setArtikelTab] = useState<'eigene' | 'universa'>('eigene');
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
-  const [universaLaden, setUniversaLaden] = useState(false);
+  const [universalLaden, setUniversalLaden] = useState(false);
   const [ausgewaehlterIndex, setAusgewaehlterIndex] = useState<number>(0);
   const ausgewaehlteZeileRef = useRef<HTMLTableRowElement>(null);
   
@@ -123,28 +123,28 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     ladeArtikel();
   }, []);
 
-  // Universa-Artikel laden wenn Tab gewechselt wird
+  // Universal-Artikel laden wenn Tab gewechselt wird
   useEffect(() => {
-    const ladeUniversaArtikel = async () => {
+    const ladeUniversalArtikel = async () => {
       if (artikelTab !== 'universa' || !showArtikelAuswahl) return;
-      if (universaArtikel.length > 0 && !artikelSuchtext) return; // Schon geladen
+      if (universalArtikel.length > 0 && !artikelSuchtext) return; // Schon geladen
 
-      setUniversaLaden(true);
+      setUniversalLaden(true);
       try {
         if (artikelSuchtext.trim()) {
-          const ergebnisse = await sucheUniversaArtikel(artikelSuchtext);
-          setUniversaArtikel(ergebnisse);
+          const ergebnisse = await sucheUniversalArtikel(artikelSuchtext);
+          setUniversalArtikel(ergebnisse);
         } else {
-          const result = await getAlleUniversaArtikel('bezeichnung', 100);
-          setUniversaArtikel(result.artikel);
+          const result = await getAlleUniversalArtikel('bezeichnung', 100);
+          setUniversalArtikel(result.artikel);
         }
       } catch (error) {
-        console.error('Fehler beim Laden der Universa-Artikel:', error);
+        console.error('Fehler beim Laden der Universal-Artikel:', error);
       } finally {
-        setUniversaLaden(false);
+        setUniversalLaden(false);
       }
     };
-    ladeUniversaArtikel();
+    ladeUniversalArtikel();
   }, [artikelTab, showArtikelAuswahl, artikelSuchtext]);
 
   // Ausgewählten Index zurücksetzen bei Suchtext- oder Tab-Änderung
@@ -506,20 +506,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     setArtikelSuchtext('');
   };
 
-  // Position aus Universa-Artikel hinzufügen
-  const addPositionAusUniversaArtikel = (artikelId: string) => {
+  // Position aus Universal-Artikel hinzufügen
+  const addPositionAusUniversalArtikel = (artikelId: string) => {
     hatGeaendert.current = true;
-    const selectedArtikel = universaArtikel.find(a => a.$id === artikelId);
+    const selectedArtikel = universalArtikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    // Universa verwendet den Großhändlerpreis als Einkaufspreis
+    // Universal verwendet den Großhändlerpreis als Einkaufspreis
     const preis = selectedArtikel.katalogPreisBrutto;
 
     const neuePosition: Position = {
       id: Date.now().toString(),
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
-      beschreibung: `Universa: ${selectedArtikel.verpackungseinheit}`,
+      beschreibung: `Universal: ${selectedArtikel.verpackungseinheit}`,
       menge: 1,
       einheit: selectedArtikel.verpackungseinheit,
       einzelpreis: preis,
@@ -598,7 +598,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
   // Keyboard-Handler für Artikel-Suche (Pfeiltasten + Enter)
   const handleArtikelSucheKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    const aktuelleListeLaenge = artikelTab === 'eigene' ? gefilterteArtikel.length : universaArtikel.length;
+    const aktuelleListeLaenge = artikelTab === 'eigene' ? gefilterteArtikel.length : universalArtikel.length;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -613,10 +613,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         if (ausgewaehlterArtikel?.$id) {
           addPositionAusArtikel(ausgewaehlterArtikel.$id);
         }
-      } else if (artikelTab === 'universa' && universaArtikel.length > 0) {
-        const ausgewaehlterArtikel = universaArtikel[ausgewaehlterIndex];
+      } else if (artikelTab === 'universa' && universalArtikel.length > 0) {
+        const ausgewaehlterArtikel = universalArtikel[ausgewaehlterIndex];
         if (ausgewaehlterArtikel?.$id) {
-          addPositionAusUniversaArtikel(ausgewaehlterArtikel.$id);
+          addPositionAusUniversalArtikel(ausgewaehlterArtikel.$id);
         }
       }
     } else if (e.key === 'Escape') {
@@ -889,7 +889,13 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 />
                 <button
                   type="button"
-                  onClick={() => handleInputChange('angebotsdatum', new Date().toISOString().split('T')[0])}
+                  onClick={() => {
+                    const heute = new Date();
+                    const gueltigBis = new Date(heute);
+                    gueltigBis.setDate(gueltigBis.getDate() + 30);
+                    handleInputChange('angebotsdatum', heute.toISOString().split('T')[0]);
+                    handleInputChange('gueltigBis', gueltigBis.toISOString().split('T')[0]);
+                  }}
                   className="px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                 >
                   Heute
@@ -1092,7 +1098,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   }`}
                 >
                   <ShoppingBag className="h-4 w-4" />
-                  Universa Artikel
+                  Universal Artikel
                 </button>
               </div>
 
@@ -1201,7 +1207,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 </>
               )}
 
-              {/* Universa Artikel Tab */}
+              {/* Universal Artikel Tab */}
               {artikelTab === 'universa' && (
                 <div className="space-y-3">
                   {/* Suchfeld */}
@@ -1212,21 +1218,21 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                       value={artikelSuchtext}
                       onChange={(e) => setArtikelSuchtext(e.target.value)}
                       onKeyDown={handleArtikelSucheKeyDown}
-                      placeholder="Universa-Artikel suchen..."
+                      placeholder="Universal-Artikel suchen..."
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent"
                     />
                   </div>
 
-                  {/* Universa-Artikel-Tabelle */}
+                  {/* Universal-Artikel-Tabelle */}
                   <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
-                    {universaLaden ? (
+                    {universalLaden ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Lade Universa-Artikel...
+                        Lade Universal-Artikel...
                       </div>
-                    ) : universaArtikel.length === 0 ? (
+                    ) : universalArtikel.length === 0 ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
-                        {artikelSuchtext ? 'Keine Artikel gefunden' : 'Keine Universa-Artikel vorhanden. Importieren Sie zuerst die Preisliste in den Stammdaten.'}
+                        {artikelSuchtext ? 'Keine Artikel gefunden' : 'Keine Universal-Artikel vorhanden. Importieren Sie zuerst die Preisliste in den Stammdaten.'}
                       </div>
                     ) : (
                       <table className="w-full">
@@ -1241,7 +1247,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
-                          {universaArtikel.map((art, index) => (
+                          {universalArtikel.map((art, index) => (
                             <tr
                               key={art.$id}
                               ref={artikelTab === 'universa' && index === ausgewaehlterIndex ? ausgewaehlteZeileRef : null}
@@ -1252,7 +1258,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                               }`}
                               onClick={() => {
                                 setAusgewaehlterIndex(index);
-                                if (art.$id) addPositionAusUniversaArtikel(art.$id);
+                                if (art.$id) addPositionAusUniversalArtikel(art.$id);
                               }}
                             >
                               <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
@@ -1273,7 +1279,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    addPositionAusUniversaArtikel(art.$id!);
+                                    addPositionAusUniversalArtikel(art.$id!);
                                   }}
                                   className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 text-white text-sm rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors"
                                 >
@@ -1289,7 +1295,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
                   {/* Info-Zeile */}
                   <div className="text-xs text-gray-600 dark:text-dark-textMuted text-center">
-                    {universaArtikel.length} Universa-Artikel angezeigt
+                    {universalArtikel.length} Universal-Artikel angezeigt
                   </div>
                 </div>
               )}

@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Upload, Trash2, Search, ArrowUpDown, AlertCircle, CheckCircle2, FileSpreadsheet, Package, Loader2 } from 'lucide-react';
-import { UniversaArtikel } from '../../types/universaArtikel';
+import { UniversalArtikel, ImportProgress } from '../../types/universaArtikel';
 import {
-  getAlleUniversaArtikel,
-  sucheUniversaArtikel,
-  loescheAlleUniversaArtikel,
+  getAlleUniversalArtikel,
+  sucheUniversalArtikel,
+  loescheAlleUniversalArtikel,
   importiereExcel,
 } from '../../services/universaArtikelService';
 
 type SortField = 'artikelnummer' | 'bezeichnung' | 'katalogPreisBrutto';
 
-const UniversaArtikelTab = () => {
-  const [artikel, setArtikel] = useState<UniversaArtikel[]>([]);
+const UniversalArtikelTab = () => {
+  const [artikel, setArtikel] = useState<UniversalArtikel[]>([]);
   const [loading, setLoading] = useState(true);
   const [suchtext, setSuchtext] = useState('');
   const [sortField, setSortField] = useState<SortField>('artikelnummer');
@@ -19,31 +19,32 @@ const UniversaArtikelTab = () => {
   const [page, setPage] = useState(0);
   const [pageSize] = useState(50);
 
-  // Import State
+  // Import State mit Fortschritt
   const [importStatus, setImportStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [importMessage, setImportMessage] = useState<string>('');
   const [importDetails, setImportDetails] = useState<string[]>([]);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Artikel laden
-  const ladeArtikel = async () => {
+  const ladeArtikel = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getAlleUniversaArtikel(sortField, pageSize, page * pageSize);
+      const result = await getAlleUniversalArtikel(sortField, pageSize, page * pageSize);
       setArtikel(result.artikel);
       setTotal(result.total);
     } catch (error) {
-      console.error('Fehler beim Laden der Universa-Artikel:', error);
+      console.error('Fehler beim Laden der Universal-Artikel:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [sortField, page, pageSize]);
 
   useEffect(() => {
     if (!suchtext.trim()) {
       ladeArtikel();
     }
-  }, [sortField, page]);
+  }, [sortField, page, ladeArtikel, suchtext]);
 
   // Suche
   const handleSuche = async (text: string) => {
@@ -55,7 +56,7 @@ const UniversaArtikelTab = () => {
 
     setLoading(true);
     try {
-      const ergebnisse = await sucheUniversaArtikel(text);
+      const ergebnisse = await sucheUniversalArtikel(text);
       setArtikel(ergebnisse);
       setTotal(ergebnisse.length);
     } catch (error) {
@@ -71,6 +72,12 @@ const UniversaArtikelTab = () => {
     setPage(0);
   };
 
+  // Progress-Callback für Import
+  const handleImportProgress = useCallback((progress: ImportProgress) => {
+    setImportProgress(progress);
+    setImportMessage(progress.message);
+  }, []);
+
   // Excel-Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,11 +91,12 @@ const UniversaArtikelTab = () => {
     }
 
     setImportStatus('uploading');
-    setImportMessage('Importiere Artikel...');
+    setImportMessage('Starte Import...');
     setImportDetails([]);
+    setImportProgress(null);
 
     try {
-      const result = await importiereExcel(file, true); // true = alle ersetzen
+      const result = await importiereExcel(file, true, handleImportProgress);
 
       if (result.erfolg > 0) {
         setImportStatus('success');
@@ -112,6 +120,8 @@ const UniversaArtikelTab = () => {
       setImportMessage('Fehler beim Import: ' + (error?.message || 'Unbekannter Fehler'));
     }
 
+    setImportProgress(null);
+
     // File-Input zurücksetzen
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -120,13 +130,19 @@ const UniversaArtikelTab = () => {
 
   // Alle Artikel löschen
   const handleAlleLoeschen = async () => {
-    if (!confirm('Möchten Sie wirklich ALLE Universa-Artikel löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+    if (!confirm('Möchten Sie wirklich ALLE Universal-Artikel löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
       return;
     }
 
-    setLoading(true);
+    setImportStatus('uploading');
+    setImportMessage('Lösche Artikel...');
+    setImportProgress(null);
+
     try {
-      const geloescht = await loescheAlleUniversaArtikel();
+      const geloescht = await loescheAlleUniversalArtikel((progress) => {
+        setImportProgress(progress);
+        setImportMessage(progress.message);
+      });
       setImportStatus('success');
       setImportMessage(`${geloescht} Artikel gelöscht`);
       setArtikel([]);
@@ -135,21 +151,26 @@ const UniversaArtikelTab = () => {
       setImportStatus('error');
       setImportMessage('Fehler beim Löschen: ' + (error?.message || 'Unbekannter Fehler'));
     } finally {
-      setLoading(false);
+      setImportProgress(null);
     }
   };
 
-  // Status nach einiger Zeit ausblenden
+  // Status nach einiger Zeit ausblenden (nur bei Erfolg/Fehler, nicht während des Uploads)
   useEffect(() => {
     if (importStatus === 'success' || importStatus === 'error') {
       const timer = setTimeout(() => {
         setImportStatus('idle');
         setImportMessage('');
         setImportDetails([]);
-      }, 10000);
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [importStatus]);
+
+  // Fortschrittsbalken berechnen
+  const progressPercent = importProgress
+    ? Math.round((importProgress.current / Math.max(importProgress.total, 1)) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -161,7 +182,7 @@ const UniversaArtikelTab = () => {
               <div className="p-2 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg">
                 <Package className="h-5 w-5 text-white" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Universa Artikel</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Universal Artikel</h2>
             </div>
             <p className="text-gray-600 dark:text-dark-textMuted text-sm">
               Artikelkatalog von Universal Sport GmbH - Import aus Excel-Preisliste
@@ -178,11 +199,14 @@ const UniversaArtikelTab = () => {
                 onChange={(e) => handleSuche(e.target.value)}
                 placeholder="Artikel suchen..."
                 className="pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent w-full sm:w-64 bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text"
+                disabled={importStatus === 'uploading'}
               />
             </div>
 
             {/* Excel-Upload Button */}
-            <label className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors cursor-pointer whitespace-nowrap">
+            <label className={`flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg transition-colors whitespace-nowrap ${
+              importStatus === 'uploading' ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-red-700 cursor-pointer'
+            }`}>
               <Upload className="h-4 w-4" />
               Excel importieren
               <input
@@ -191,11 +215,12 @@ const UniversaArtikelTab = () => {
                 accept=".xlsx,.xls"
                 onChange={handleFileUpload}
                 className="hidden"
+                disabled={importStatus === 'uploading'}
               />
             </label>
 
             {/* Alle löschen Button */}
-            {total > 0 && (
+            {total > 0 && importStatus !== 'uploading' && (
               <button
                 onClick={handleAlleLoeschen}
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap"
@@ -227,7 +252,7 @@ const UniversaArtikelTab = () => {
         </div>
       </div>
 
-      {/* Import Status */}
+      {/* Import Status mit Fortschrittsbalken */}
       {importStatus !== 'idle' && (
         <div
           className={`rounded-xl p-4 ${
@@ -260,6 +285,38 @@ const UniversaArtikelTab = () => {
               >
                 {importMessage}
               </p>
+
+              {/* Fortschrittsbalken während des Imports */}
+              {importStatus === 'uploading' && importProgress && (
+                <div className="mt-3 space-y-2">
+                  {/* Phase-Anzeige */}
+                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                    <span className="capitalize">
+                      {importProgress.phase === 'parsing' && '📄 Excel verarbeiten'}
+                      {importProgress.phase === 'deleting' && '🗑️ Alte Artikel löschen'}
+                      {importProgress.phase === 'importing' && '📥 Artikel importieren'}
+                      {importProgress.phase === 'done' && '✓ Abgeschlossen'}
+                    </span>
+                    <span className="ml-auto font-mono">
+                      {importProgress.current}/{importProgress.total}
+                    </span>
+                  </div>
+
+                  {/* Progress-Bar */}
+                  <div className="w-full bg-blue-200 dark:bg-blue-900 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+
+                  {/* Prozent-Anzeige */}
+                  <div className="text-right text-sm font-semibold text-blue-800 dark:text-blue-300">
+                    {progressPercent}%
+                  </div>
+                </div>
+              )}
+
               {importDetails.length > 0 && (
                 <ul className="mt-2 text-sm space-y-1">
                   {importDetails.map((detail, i) => (
@@ -275,15 +332,15 @@ const UniversaArtikelTab = () => {
       )}
 
       {/* Info-Box für leere Liste */}
-      {!loading && artikel.length === 0 && !suchtext && (
+      {!loading && artikel.length === 0 && !suchtext && importStatus === 'idle' && (
         <div className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/40 dark:to-red-950/40 border border-orange-200 dark:border-orange-800 rounded-xl p-8 text-center">
           <FileSpreadsheet className="h-16 w-16 text-orange-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-2">
-            Keine Universa-Artikel vorhanden
+            Keine Universal-Artikel vorhanden
           </h3>
           <p className="text-gray-600 dark:text-dark-textMuted mb-4 max-w-md mx-auto">
-            Laden Sie die Universa Großhändler-/Katalogpreisliste als Excel-Datei hoch,
-            um die Artikel zu importieren.
+            Laden Sie die Universal Sport Großhändler-/Katalogpreisliste als Excel-Datei hoch,
+            um die Artikel zu importieren. Der Import unterstützt auch große Dateien mit 700+ Artikeln.
           </p>
           <label className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors cursor-pointer">
             <Upload className="h-5 w-5" />
@@ -408,14 +465,14 @@ const UniversaArtikelTab = () => {
                     <button
                       onClick={() => setPage(Math.max(0, page - 1))}
                       disabled={page === 0}
-                      className="px-3 py-1 text-sm border border-gray-300 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="px-3 py-1 text-sm border border-gray-300 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-dark-text"
                     >
                       Zurück
                     </button>
                     <button
                       onClick={() => setPage(page + 1)}
                       disabled={(page + 1) * pageSize >= total}
-                      className="px-3 py-1 text-sm border border-gray-300 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700"
+                      className="px-3 py-1 text-sm border border-gray-300 dark:border-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-dark-text"
                     >
                       Weiter
                     </button>
@@ -430,12 +487,13 @@ const UniversaArtikelTab = () => {
       {/* Info-Box */}
       <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
         <p className="text-sm text-orange-800 dark:text-orange-300">
-          <strong>Hinweis:</strong> Der Import ersetzt alle vorhandenen Universa-Artikel mit den Daten aus der Excel-Datei.
-          Die Preisliste von Universal Sport kann direkt hochgeladen werden - das System erkennt automatisch das Format.
+          <strong>Hinweis:</strong> Der Import ersetzt alle vorhandenen Universal-Artikel mit den Daten aus der Excel-Datei.
+          Die Preisliste von Universal Sport kann direkt hochgeladen werden - das System erkennt automatisch das Format
+          und importiert auch große Dateien mit 700+ Artikeln zuverlässig.
         </p>
       </div>
     </div>
   );
 };
 
-export default UniversaArtikelTab;
+export default UniversalArtikelTab;

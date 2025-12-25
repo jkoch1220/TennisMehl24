@@ -260,11 +260,25 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   doc.setFont('helvetica', 'bold');
   doc.text('Registergericht:', col3.x, footerY);
   doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.handelsregister, col3.x, footerY + lineHeight);
+
+  // Handelsregister intelligent umbrechen (z.B. "Würzburg HRB 18235" -> zwei Zeilen)
+  const hrb = stammdaten.handelsregister;
+  const hrbMatch = hrb.match(/^(.+?)\s*(HRB?\s*.+)$/i);
+  let hrbLineOffset = 1;
+  if (hrbMatch && hrbMatch[1] && hrbMatch[2]) {
+    // Aufteilen: Ort in Zeile 1, HRB-Nummer in Zeile 2
+    doc.text(hrbMatch[1].trim(), col3.x, footerY + lineHeight);
+    doc.text(hrbMatch[2].trim(), col3.x, footerY + lineHeight * 2);
+    hrbLineOffset = 2;
+  } else {
+    // Kein HRB gefunden -> alles in einer Zeile
+    doc.text(hrb, col3.x, footerY + lineHeight);
+  }
+
   doc.setFont('helvetica', 'bold');
-  doc.text('USt-ID:', col3.x, footerY + lineHeight * 2);
+  doc.text('USt-ID:', col3.x, footerY + lineHeight * (hrbLineOffset + 1));
   doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.ustIdNr, col3.x, footerY + lineHeight * 3);
+  doc.text(stammdaten.ustIdNr, col3.x, footerY + lineHeight * (hrbLineOffset + 2));
   
   // === Spalte 4: Werk/Verkauf (nur wenn vorhanden) ===
   let nextColIndex = 3;
