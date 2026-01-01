@@ -7,7 +7,10 @@ import {
   QSErgebnis,
   SIEB_TOLERANZEN,
   TrendDaten,
-  SiebanalyseFilter
+  SiebanalyseFilter,
+  MischKomponente,
+  MischErgebnis,
+  ProbenTyp,
 } from '../types/qualitaetssicherung';
 
 // Cache für Performance
@@ -21,6 +24,8 @@ function parseDocument(doc: Record<string, unknown>): Siebanalyse {
     id: doc.$id as string,
     chargenNummer: data.chargenNummer || '',
     pruefDatum: data.pruefDatum || '',
+    probenTyp: data.probenTyp || 'fertigprodukt',
+    hammerInfo: data.hammerInfo,
     kundeId: data.kundeId,
     projektId: data.projektId,
     kundeName: data.kundeName,
@@ -38,6 +43,9 @@ function parseDocument(doc: Record<string, unknown>): Siebanalyse {
     notizen: data.notizen,
     erstelltAm: data.erstelltAm || (doc.$createdAt as string),
     erstelltVon: data.erstelltVon,
+    istMischung: data.istMischung,
+    quellChargen: data.quellChargen,
+    mischVerhaeltnis: data.mischVerhaeltnis,
   };
 }
 
@@ -47,6 +55,8 @@ function toPayload(analyse: Siebanalyse): Record<string, unknown> {
     data: JSON.stringify({
       chargenNummer: analyse.chargenNummer,
       pruefDatum: analyse.pruefDatum,
+      probenTyp: analyse.probenTyp,
+      hammerInfo: analyse.hammerInfo,
       kundeId: analyse.kundeId,
       projektId: analyse.projektId,
       kundeName: analyse.kundeName,
@@ -57,12 +67,18 @@ function toPayload(analyse: Siebanalyse): Record<string, unknown> {
       notizen: analyse.notizen,
       erstelltAm: analyse.erstelltAm,
       erstelltVon: analyse.erstelltVon,
+      istMischung: analyse.istMischung,
+      quellChargen: analyse.quellChargen,
+      mischVerhaeltnis: analyse.mischVerhaeltnis,
     }),
   };
 }
 
 // PASS/FAIL Berechnung nach DIN 18035-5
-export function berechneErgebnis(siebwerte: Siebwerte): { ergebnis: QSErgebnis; abweichungen: string[] } {
+export function berechneErgebnis(
+  siebwerte: Siebwerte,
+  probenTyp: ProbenTyp = 'fertigprodukt'
+): { ergebnis: QSErgebnis; abweichungen: string[] } {
   const abweichungen: string[] = [];
 
   for (const toleranz of SIEB_TOLERANZEN) {
@@ -75,10 +91,108 @@ export function berechneErgebnis(siebwerte: Siebwerte): { ergebnis: QSErgebnis; 
     }
   }
 
+  // Bei Mischproben: kein PASS/FAIL, nur Dokumentation
+  if (probenTyp === 'mischprobe') {
+    return {
+      ergebnis: 'mischprobe',
+      abweichungen,
+    };
+  }
+
   return {
     ergebnis: abweichungen.length === 0 ? 'bestanden' : 'nicht_bestanden',
     abweichungen,
   };
+}
+
+// Mischungs-Berechnung: Kombiniert mehrere Chargen gewichtet
+export function berechneMischung(komponenten: MischKomponente[]): MischErgebnis {
+  if (komponenten.length === 0) {
+    throw new Error('Mindestens eine Komponente erforderlich');
+  }
+
+  // Prüfe ob Summe der Anteile 100% ergibt
+  const summeAnteile = komponenten.reduce((sum, k) => sum + k.anteil, 0);
+  if (Math.abs(summeAnteile - 100) > 0.1) {
+    throw new Error(`Summe der Anteile muss 100% ergeben (aktuell: ${summeAnteile}%)`);
+  }
+
+  // Gewichtete Durchschnittswerte berechnen
+  const siebe: (keyof Siebwerte)[] = ['mm2_0', 'mm1_0', 'mm0_63', 'mm0_315', 'mm0_125', 'mm0_063'];
+  const gemischteSiebwerte: Siebwerte = {
+    mm2_0: 100,
+    mm1_0: 0,
+    mm0_63: 0,
+    mm0_315: 0,
+    mm0_125: 0,
+    mm0_063: 0,
+  };
+
+  for (const sieb of siebe) {
+    if (sieb === 'mm2_0') continue; // 2.0mm ist immer 100%
+
+    let gewichteterWert = 0;
+    for (const komponente of komponenten) {
+      gewichteterWert += komponente.siebwerte[sieb] * (komponente.anteil / 100);
+    }
+    gemischteSiebwerte[sieb] = Math.round(gewichteterWert * 10) / 10;
+  }
+
+  // Ergebnis berechnen (als Fertigprodukt prüfen)
+  const { ergebnis, abweichungen } = berechneErgebnis(gemischteSiebwerte, 'fertigprodukt');
+
+  return {
+    komponenten,
+    gemischteSiebwerte,
+    ergebnis,
+    abweichungen,
+  };
+}
+
+// Optimale Mischung vorschlagen
+export function schlageOptimaleMischungVor(
+  verfuegbareChargen: Siebanalyse[]
+): { komponenten: MischKomponente[]; score: number } | null {
+  if (verfuegbareChargen.length < 2) return null;
+
+  // Finde Chargen mit zu feinem und zu grobem Material
+  const zuFein = verfuegbareChargen.filter(c =>
+    c.siebwerte.mm0_063 > 10 || c.siebwerte.mm0_125 > 35
+  );
+  const zuGrob = verfuegbareChargen.filter(c =>
+    c.siebwerte.mm0_063 < 5 || c.siebwerte.mm0_125 < 20
+  );
+
+  if (zuFein.length === 0 || zuGrob.length === 0) return null;
+
+  // Einfache Heuristik: Mische feinste mit gröbster Charge
+  const feinste = zuFein.reduce((a, b) =>
+    a.siebwerte.mm0_063 > b.siebwerte.mm0_063 ? a : b
+  );
+  const groebste = zuGrob.reduce((a, b) =>
+    a.siebwerte.mm0_063 < b.siebwerte.mm0_063 ? a : b
+  );
+
+  // Berechne optimales Verhältnis (binäre Suche)
+  let bestesMischung: MischKomponente[] | null = null;
+  let besterScore = Infinity;
+
+  for (let anteilFein = 10; anteilFein <= 90; anteilFein += 5) {
+    const komponenten: MischKomponente[] = [
+      { analyseId: feinste.id, chargenNummer: feinste.chargenNummer, anteil: anteilFein, siebwerte: feinste.siebwerte },
+      { analyseId: groebste.id, chargenNummer: groebste.chargenNummer, anteil: 100 - anteilFein, siebwerte: groebste.siebwerte },
+    ];
+
+    const ergebnis = berechneMischung(komponenten);
+    const score = ergebnis.abweichungen.length;
+
+    if (score < besterScore) {
+      besterScore = score;
+      bestesMischung = komponenten;
+    }
+  }
+
+  return bestesMischung ? { komponenten: bestesMischung, score: besterScore } : null;
 }
 
 // Chargen-Nummer generieren: CH-{Jahr}-{Laufnummer}
@@ -297,12 +411,15 @@ export const qsService = {
   // Neue Siebanalyse erstellen
   async createSiebanalyse(daten: NeueSiebanalyse): Promise<Siebanalyse> {
     const chargenNummer = await generiereChargenNummer();
-    const { ergebnis, abweichungen } = berechneErgebnis(daten.siebwerte);
+    const probenTyp = daten.probenTyp || 'fertigprodukt';
+    const { ergebnis, abweichungen } = berechneErgebnis(daten.siebwerte, probenTyp);
 
     const neueSiebanalyse: Siebanalyse = {
       id: daten.id || ID.unique(),
       chargenNummer,
       pruefDatum: daten.pruefDatum,
+      probenTyp,
+      hammerInfo: daten.hammerInfo,
       kundeId: daten.kundeId,
       projektId: daten.projektId,
       kundeName: daten.kundeName,
@@ -313,6 +430,9 @@ export const qsService = {
       notizen: daten.notizen,
       erstelltAm: new Date().toISOString(),
       erstelltVon: daten.erstelltVon,
+      istMischung: daten.istMischung,
+      quellChargen: daten.quellChargen,
+      mischVerhaeltnis: daten.mischVerhaeltnis,
     };
 
     const doc = await databases.createDocument(
@@ -333,12 +453,13 @@ export const qsService = {
       throw new Error('Siebanalyse nicht gefunden');
     }
 
-    // Bei Änderung der Siebwerte: Ergebnis neu berechnen
+    // Bei Änderung der Siebwerte oder ProbenTyp: Ergebnis neu berechnen
     let ergebnis = aktuell.ergebnis;
     let abweichungen = aktuell.abweichungen;
+    const probenTyp = daten.probenTyp || aktuell.probenTyp;
 
-    if (daten.siebwerte) {
-      const berechnung = berechneErgebnis(daten.siebwerte);
+    if (daten.siebwerte || daten.probenTyp) {
+      const berechnung = berechneErgebnis(daten.siebwerte || aktuell.siebwerte, probenTyp);
       ergebnis = berechnung.ergebnis;
       abweichungen = berechnung.abweichungen;
     }

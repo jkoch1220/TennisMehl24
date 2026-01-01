@@ -9,22 +9,41 @@ export interface Siebwerte {
   mm0_063: number; // 0.063mm - 0-10%
 }
 
-export type QSErgebnis = 'bestanden' | 'nicht_bestanden';
+export type QSErgebnis = 'bestanden' | 'nicht_bestanden' | 'mischprobe';
+
+// Probentyp: Mischprobe (Produktion) vs Fertigprodukt (Auslieferung)
+export type ProbenTyp = 'mischprobe' | 'fertigprodukt';
+
+// Hammer-Status im Produktionsprozess
+export type HammerStatus = 'frisch' | 'genutzt' | 'gedreht' | 'wechsel_faellig';
+
+export interface HammerInfo {
+  status: HammerStatus;
+  letzterWechsel?: string;      // ISO Datum
+  betriebsstunden?: number;
+  anzahlDrehungen?: number;     // 0, 1, 2, 3 (max 4 Seiten)
+}
 
 export interface Siebanalyse {
   id: string;
   chargenNummer: string;
   pruefDatum: string;
+  probenTyp: ProbenTyp;           // NEU: Mischprobe oder Fertigprodukt
+  hammerInfo?: HammerInfo;        // NEU: Hammer-Status bei Produktion
   kundeId?: string;
   projektId?: string;
-  kundeName?: string;      // Cached für Anzeige
-  projektName?: string;    // Cached für Anzeige
+  kundeName?: string;
+  projektName?: string;
   siebwerte: Siebwerte;
   ergebnis: QSErgebnis;
   abweichungen: string[];
   notizen?: string;
   erstelltAm: string;
   erstelltVon?: string;
+  // NEU: Für Mischungen
+  istMischung?: boolean;
+  quellChargen?: string[];        // IDs der gemischten Chargen
+  mischVerhaeltnis?: number[];    // Prozentuale Anteile
 }
 
 export type NeueSiebanalyse = Omit<Siebanalyse, 'id' | 'erstelltAm' | 'chargenNummer' | 'ergebnis' | 'abweichungen'> & {
@@ -64,6 +83,43 @@ export interface SiebanalyseFilter {
   ergebnis?: QSErgebnis | 'alle';
   zeitraum?: 'heute' | 'woche' | 'monat' | 'jahr' | 'alle';
   kundeId?: string;
+  probenTyp?: ProbenTyp | 'alle';
+  hammerStatus?: HammerStatus | 'alle';
+}
+
+// Mischungs-Berechnung
+export interface MischKomponente {
+  analyseId: string;
+  chargenNummer: string;
+  anteil: number;  // 0-100%
+  siebwerte: Siebwerte;
+}
+
+export interface MischErgebnis {
+  komponenten: MischKomponente[];
+  gemischteSiebwerte: Siebwerte;
+  ergebnis: QSErgebnis;
+  abweichungen: string[];
+}
+
+// DIN 18035-5 Diagramm-Daten
+export interface DINDiagrammPunkt {
+  siebweite: number;       // mm (für X-Achse, log)
+  siebLabel: string;       // "2,0" etc.
+  durchgang: number;       // % Siebdurchgang
+  minGrenze: number;       // DIN Min
+  maxGrenze: number;       // DIN Max
+  rueckstand?: number;     // % Rückstand (100 - Durchgang)
+}
+
+// Hammer-Statistik
+export interface HammerStatistik {
+  aktuellerStatus: HammerStatus;
+  letzterWechsel: string;
+  betriebsstundenSeitWechsel: number;
+  anzahlProbenSeitWechsel: number;
+  durchschnittlicheKoernung: Siebwerte;
+  empfehlung: 'weiter' | 'drehen' | 'wechseln';
 }
 
 // Trend-Daten
