@@ -236,6 +236,8 @@ export default function MischKalkulator({ alleAnalysen, onMischungSpeichern }: P
                         </p>
                         <p className="text-xs text-gray-500 dark:text-dark-textMuted">
                           {new Date(analyse.pruefDatum).toLocaleDateString('de-DE')}
+                          {' • '}
+                          {new Date(analyse.pruefDatum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                           {analyse.hammerInfo && ` • Hammer: ${analyse.hammerInfo.status}`}
                         </p>
                       </div>

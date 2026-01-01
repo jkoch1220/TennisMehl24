@@ -12,6 +12,7 @@ import {
   Package,
   RotateCcw,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { qsService, berechneErgebnis } from '../../services/qsService';
 import {
@@ -52,6 +53,9 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
     mm0_063: 5,
   });
   const [pruefDatum, setPruefDatum] = useState(new Date().toISOString().split('T')[0]);
+  const [pruefUhrzeit, setPruefUhrzeit] = useState(
+    new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false })
+  );
   const [notizen, setNotizen] = useState('');
   const [kundeId, setKundeId] = useState<string>('');
   const [projektId, setProjektId] = useState<string>('');
@@ -85,7 +89,13 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
     // Vorhandene Analyse laden
     if (analyse) {
       setSiebwerte(analyse.siebwerte);
-      setPruefDatum(analyse.pruefDatum.split('T')[0]);
+      // Datum und Uhrzeit parsen
+      const datumParts = analyse.pruefDatum.split('T');
+      setPruefDatum(datumParts[0]);
+      if (datumParts[1]) {
+        // Uhrzeit aus ISO-String extrahieren (HH:MM)
+        setPruefUhrzeit(datumParts[1].substring(0, 5));
+      }
       setNotizen(analyse.notizen || '');
       setKundeId(analyse.kundeId || '');
       setProjektId(analyse.projektId || '');
@@ -113,6 +123,9 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
       const kunde = kunden.find((k) => k.id === kundeId);
       const projekt = projekte.find((p) => p.id === projektId);
 
+      // Datum und Uhrzeit kombinieren zu ISO-String
+      const pruefDatumMitUhrzeit = `${pruefDatum}T${pruefUhrzeit}:00`;
+
       // Hammer-Info nur bei Mischproben
       const hammerInfo: HammerInfo | undefined =
         probenTyp === 'mischprobe'
@@ -125,7 +138,7 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
       if (analyse) {
         await qsService.updateSiebanalyse(analyse.id, {
           siebwerte,
-          pruefDatum,
+          pruefDatum: pruefDatumMitUhrzeit,
           notizen,
           probenTyp,
           hammerInfo,
@@ -137,7 +150,7 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
       } else {
         const neueDaten: NeueSiebanalyse = {
           siebwerte,
-          pruefDatum,
+          pruefDatum: pruefDatumMitUhrzeit,
           notizen,
           probenTyp,
           hammerInfo,
@@ -305,18 +318,33 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
             </div>
           )}
 
-          {/* Prüfdatum */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
-              Prüfdatum
-            </label>
-            <input
-              type="date"
-              value={pruefDatum}
-              onChange={(e) => setPruefDatum(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-emerald-500"
-              required
-            />
+          {/* Prüfdatum und Uhrzeit */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Prüfdatum
+              </label>
+              <input
+                type="date"
+                value={pruefDatum}
+                onChange={(e) => setPruefDatum(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-emerald-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                <Clock className="h-4 w-4 inline mr-1" />
+                Uhrzeit
+              </label>
+              <input
+                type="time"
+                value={pruefUhrzeit}
+                onChange={(e) => setPruefUhrzeit(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-emerald-500"
+                required
+              />
+            </div>
           </div>
 
           {/* Kunde & Projekt (nur bei Fertigprodukt) */}

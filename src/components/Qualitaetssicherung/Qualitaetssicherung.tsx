@@ -301,9 +301,13 @@ export default function Qualitaetssicherung() {
                             </p>
                             <p className="text-sm text-gray-500 dark:text-dark-textMuted">
                               {new Date(probe.pruefDatum).toLocaleDateString('de-DE')}
+                              {' • '}
+                              {new Date(probe.pruefDatum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
-                          {probe.ergebnis === 'bestanden' ? (
+                          {probe.ergebnis === 'mischprobe' ? (
+                            <Beaker className="h-5 w-5 text-amber-500" />
+                          ) : probe.ergebnis === 'bestanden' ? (
                             <CheckCircle className="h-5 w-5 text-green-500" />
                           ) : (
                             <XCircle className="h-5 w-5 text-red-500" />
@@ -437,6 +441,8 @@ export default function Qualitaetssicherung() {
                           </div>
                           <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-2">
                             {new Date(probe.pruefDatum).toLocaleDateString('de-DE')}
+                            {' • '}
+                            {new Date(probe.pruefDatum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                           <div className="text-xs text-gray-600 dark:text-dark-textMuted">
                             <span>0,063mm: {probe.siebwerte.mm0_063}%</span>

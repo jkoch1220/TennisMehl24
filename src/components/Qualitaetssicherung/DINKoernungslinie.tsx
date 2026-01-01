@@ -161,6 +161,8 @@ export default function DINKoernungslinie({
             </h3>
             <p className="text-sm text-gray-500 dark:text-dark-textMuted">
               {analyse.chargenNummer} • {new Date(analyse.pruefDatum).toLocaleDateString('de-DE')}
+              {' • '}
+              {new Date(analyse.pruefDatum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
               {analyse.probenTyp === 'mischprobe' && ' • Produktionsprobe'}
             </p>
           </div>

@@ -9,8 +9,10 @@ import {
   Eye,
   FileDown,
   Calendar,
+  Clock,
   User,
   Folder,
+  Beaker,
 } from 'lucide-react';
 import { Siebanalyse, SiebanalyseFilter } from '../../types/qualitaetssicherung';
 import { generateQSPruefbericht } from '../../utils/qsPdfHelpers';
@@ -178,9 +180,15 @@ export default function ProbenListe({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-textMuted">
-                      <Calendar className="h-4 w-4" />
-                      {new Date(analyse.pruefDatum).toLocaleDateString('de-DE')}
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-textMuted">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(analyse.pruefDatum).toLocaleDateString('de-DE')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-textMuted">
+                        <Clock className="h-3 w-3" />
+                        {new Date(analyse.pruefDatum).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
@@ -203,7 +211,12 @@ export default function ProbenListe({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {analyse.ergebnis === 'bestanden' ? (
+                    {analyse.ergebnis === 'mischprobe' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium">
+                        <Beaker className="h-3 w-3" />
+                        Mischprobe
+                      </span>
+                    ) : analyse.ergebnis === 'bestanden' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium">
                         <CheckCircle className="h-3 w-3" />
                         Bestanden
