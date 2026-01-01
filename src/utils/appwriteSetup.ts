@@ -20,6 +20,8 @@ import {
   WIKI_PAGES_COLLECTION_ID,
   WIKI_FILES_COLLECTION_ID,
   WIKI_DATEIEN_BUCKET_ID,
+  NEWSLETTER_COLLECTION_ID,
+  SIEBANALYSEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -27,7 +29,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '16'; // FORCE: wiki_files Collection + Index erstellen
+const APPWRITE_SETUP_VERSION = '18'; // Siebanalysen Collection für QS-Tool
 
 type FieldConfig = {
   key: string;
@@ -222,6 +224,26 @@ const wikiFilesFields: FieldConfig[] = [
   { key: 'size', type: 'integer' },
   { key: 'uploadedBy', type: 'string', size: 100 },
   { key: 'uploadTime', type: 'string', size: 50 },
+];
+
+// Newsletter Subscribers Collection
+const newsletterFields: FieldConfig[] = [
+  { key: 'email', type: 'string', size: 320, required: true },
+  { key: 'name', type: 'string', size: 200 },
+  { key: 'status', type: 'string', size: 20, required: true }, // 'active' | 'unsubscribed'
+  { key: 'unsubscribeToken', type: 'string', size: 100, required: true }, // Eindeutiger Token für Abmeldelink
+  { key: 'source', type: 'string', size: 50 }, // 'excel-import' | 'manual' | 'website'
+  { key: 'tags', type: 'string', size: 500 }, // Komma-getrennte Tags für Segmentierung
+  { key: 'notes', type: 'string', size: 1000 },
+  { key: 'subscribedAt', type: 'string', size: 50, required: true },
+  { key: 'unsubscribedAt', type: 'string', size: 50 },
+  { key: 'lastEmailSentAt', type: 'string', size: 50 },
+  { key: 'emailsSentCount', type: 'integer', default: 0 },
+];
+
+// Siebanalysen Collection für QS-Tool (Tennismehl 0/2 nach DIN 18035-5)
+const siebanalysenFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 50000 }, // Alle Daten als JSON
 ];
 
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
@@ -444,6 +466,8 @@ export async function setupAppwriteFields() {
       { id: KALENDER_COLLECTION_ID, name: 'Kalender', fields: kalenderFields },
       { id: WIKI_PAGES_COLLECTION_ID, name: 'Wiki Pages', fields: wikiPagesFields },
       { id: WIKI_FILES_COLLECTION_ID, name: 'Wiki Files', fields: wikiFilesFields },
+      { id: NEWSLETTER_COLLECTION_ID, name: 'Newsletter Subscribers', fields: newsletterFields },
+      { id: SIEBANALYSEN_COLLECTION_ID, name: 'Siebanalysen QS', fields: siebanalysenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
@@ -465,6 +489,11 @@ export async function setupAppwriteFields() {
 
     // Index für Wiki Pages slug (für Query.equal auf slug)
     await ensureIndex(WIKI_PAGES_COLLECTION_ID, 'slug_index', ['slug']);
+
+    // Indizes für Newsletter
+    await ensureIndex(NEWSLETTER_COLLECTION_ID, 'email_index', ['email']);
+    await ensureIndex(NEWSLETTER_COLLECTION_ID, 'token_index', ['unsubscribeToken'], 'unique');
+    await ensureIndex(NEWSLETTER_COLLECTION_ID, 'status_index', ['status']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

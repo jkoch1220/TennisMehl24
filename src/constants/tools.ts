@@ -14,6 +14,9 @@ import {
   Database,
   ClipboardList,
   Mail,
+  FileSpreadsheet,
+  Send,
+  TestTube2,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -153,6 +156,30 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/kalender',
     icon: Calendar,
     color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    id: 'excel-import',
+    name: 'Excel Import',
+    description: 'E-Mail-Adressen aus Excel-Dateien extrahieren (Duplikate entfernen)',
+    href: '/excel-import',
+    icon: FileSpreadsheet,
+    color: 'from-green-500 to-emerald-600',
+  },
+  {
+    id: 'newsletter',
+    name: 'Newsletter',
+    description: 'Newsletter-Empfänger verwalten mit Abmeldelinks und Excel-Import',
+    href: '/newsletter',
+    icon: Send,
+    color: 'from-purple-500 to-indigo-600',
+  },
+  {
+    id: 'qualitaetssicherung',
+    name: 'QS-Tool',
+    description: 'Siebanalysen nach DIN 18035-5 mit Körnungslinie und PDF-Prüfberichten',
+    href: '/qualitaetssicherung',
+    icon: TestTube2,
+    color: 'from-emerald-500 to-teal-600',
   },
 ];
 

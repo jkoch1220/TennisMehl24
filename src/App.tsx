@@ -24,53 +24,31 @@ import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung'
 import Stammdaten from './components/Stammdaten/Stammdaten';
 import Anfragen from './components/Anfragen/Anfragen';
 import Kalender from './components/Kalender/Kalender';
+import ExcelImport from './components/ExcelImport/ExcelImport';
+import Newsletter from './components/Newsletter/Newsletter';
+import Unsubscribe from './pages/Unsubscribe';
+import Qualitaetssicherung from './components/Qualitaetssicherung/Qualitaetssicherung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
-// App Content Komponente (braucht Auth Context)
-function AppContent() {
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    // Appwrite Auto-Setup (läuft einmal pro Tab, wenn API Key verfügbar)
-    if (import.meta.env.VITE_APPWRITE_API_KEY && typeof window !== 'undefined' && !sessionStorage.getItem('appwrite_setup_run')) {
-      sessionStorage.setItem('appwrite_setup_run', 'true');
-      setupAppwriteFields().catch(console.error);
-    }
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface flex items-center justify-center transition-colors duration-300">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 dark:border-dark-accent mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-dark-textMuted transition-colors duration-300">Lade...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
+// Authentifizierte App-Inhalte
+function AuthenticatedContent() {
   return (
-    <Router>
-      <Routes>
-        {/* Fullscreen Route ohne Layout - auch geschützt */}
-        <Route path="/call-liste" element={
-          <ProtectedRoute toolId="saisonplanung">
-            <CallListePage />
-          </ProtectedRoute>
-        } />
-        
-        {/* Normale Routes mit Layout */}
-        <Route path="/*" element={
-          <Layout>
-            <Routes>
-              {/* Startseite - immer zugänglich */}
-              <Route path="/" element={<Home />} />
-              
-              {/* Geschützte Tool-Routes */}
+    <Routes>
+      {/* Fullscreen Route ohne Layout - auch geschützt */}
+      <Route path="/call-liste" element={
+        <ProtectedRoute toolId="saisonplanung">
+          <CallListePage />
+        </ProtectedRoute>
+      } />
+
+      {/* Normale Routes mit Layout */}
+      <Route path="/*" element={
+        <Layout>
+          <Routes>
+            {/* Startseite - immer zugänglich */}
+            <Route path="/" element={<Home />} />
+
+            {/* Geschützte Tool-Routes */}
               <Route path="/dashboard" element={
                 <ProtectedRoute toolId="dashboard">
                   <Dashboard />
@@ -156,7 +134,22 @@ function AppContent() {
                   <Kalender />
                 </ProtectedRoute>
               } />
-              
+              <Route path="/excel-import" element={
+                <ProtectedRoute toolId="excel-import">
+                  <ExcelImport />
+                </ProtectedRoute>
+              } />
+              <Route path="/newsletter" element={
+                <ProtectedRoute toolId="newsletter">
+                  <Newsletter />
+                </ProtectedRoute>
+              } />
+              <Route path="/qualitaetssicherung" element={
+                <ProtectedRoute toolId="qualitaetssicherung">
+                  <Qualitaetssicherung />
+                </ProtectedRoute>
+              } />
+
               {/* Legacy route redirect - auch geschützt */}
               <Route path="/ziegelmehl" element={
                 <ProtectedRoute toolId="speditionskosten">
@@ -167,8 +160,37 @@ function AppContent() {
           </Layout>
         } />
       </Routes>
-    </Router>
   );
+}
+
+// App Content Komponente (braucht Auth Context)
+function AppContent() {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    // Appwrite Auto-Setup (läuft einmal pro Tab, wenn API Key verfügbar)
+    if (import.meta.env.VITE_APPWRITE_API_KEY && typeof window !== 'undefined' && !sessionStorage.getItem('appwrite_setup_run')) {
+      sessionStorage.setItem('appwrite_setup_run', 'true');
+      setupAppwriteFields().catch(console.error);
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface flex items-center justify-center transition-colors duration-300">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 dark:border-dark-accent mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-dark-textMuted transition-colors duration-300">Lade...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <AuthenticatedContent />;
 }
 
 // Main App mit Theme und Auth Provider
@@ -176,7 +198,15 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppContent />
+        <Router>
+          <Routes>
+            {/* ÖFFENTLICHE Route für Newsletter-Abmeldung (ohne Login!) */}
+            <Route path="/abmelden/:token" element={<Unsubscribe />} />
+
+            {/* Alle anderen Routes benötigen Authentifizierung */}
+            <Route path="/*" element={<AppContent />} />
+          </Routes>
+        </Router>
       </AuthProvider>
     </ThemeProvider>
   );

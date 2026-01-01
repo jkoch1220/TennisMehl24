@@ -34,6 +34,8 @@ export const LIEFERANTEN_COLLECTION_ID = 'lieferanten';
 export const ANFRAGEN_COLLECTION_ID = 'anfragen';
 export const KALENDER_COLLECTION_ID = 'kalender_termine';
 export const UNIVERSA_ARTIKEL_COLLECTION_ID = 'universa_artikel';
+export const NEWSLETTER_COLLECTION_ID = 'newsletter_subscribers';
+export const SIEBANALYSEN_COLLECTION_ID = 'siebanalysen';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -68,6 +70,8 @@ export const COLLECTIONS = {
   ANFRAGEN: ANFRAGEN_COLLECTION_ID,
   KALENDER: KALENDER_COLLECTION_ID,
   UNIVERSA_ARTIKEL: UNIVERSA_ARTIKEL_COLLECTION_ID,
+  NEWSLETTER: NEWSLETTER_COLLECTION_ID,
+  SIEBANALYSEN: SIEBANALYSEN_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
@@ -76,6 +80,7 @@ export const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
 export const KUNDEN_DATEIEN_BUCKET_ID = 'kunden-dateien';
 export const BESTELLABWICKLUNG_DATEIEN_BUCKET_ID = 'bestellabwicklung_dateien';
 export const PROJEKT_ANHAENGE_BUCKET_ID = 'projekt-anhaenge'; // Für Dispo: PDFs, Mails, Karten etc.
+export const KONKURRENTEN_DATEIEN_BUCKET_ID = 'konkurrenten-dateien'; // Für Konkurrenten: Bilder, Dokumente
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';
