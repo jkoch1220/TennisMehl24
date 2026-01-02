@@ -17,6 +17,50 @@ import {
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
 
+// === LEERES BRIEFPAPIER ===
+/**
+ * Generiert ein leeres Briefpapier-PDF mit Header (Logo) und Footer (Firmendaten)
+ * Ohne Tabelle, ohne Kundendaten - nur das Layout für Dienstleister/Lieferanten
+ */
+export const generiereBriefpapierPDF = async (stammdaten?: Stammdaten): Promise<jsPDF> => {
+  // Lade Stammdaten falls nicht übergeben
+  if (!stammdaten) {
+    stammdaten = await getStammdatenOderDefault();
+  }
+
+  const doc = new jsPDF();
+
+  // DIN 5008 Header mit Logo
+  await addDIN5008Header(doc, stammdaten);
+
+  // Absenderzeile für Fensterkuvert
+  addAbsenderzeile(doc, stammdaten);
+
+  // Werksadresse im Adressfeld (links oben)
+  let yPos = 50;
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+
+  // Prüfe ob Werksdaten vorhanden sind, sonst Firmendaten
+  const name = stammdaten.werkName || stammdaten.firmenname;
+  const strasse = stammdaten.werkStrasse || stammdaten.firmenstrasse;
+  const plz = stammdaten.werkPlz || stammdaten.firmenPlz;
+  const ort = stammdaten.werkOrt || stammdaten.firmenOrt;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(name, 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  yPos += 6;
+  doc.text(strasse, 25, yPos);
+  yPos += 5;
+  doc.text(`${plz} ${ort}`, 25, yPos);
+
+  // DIN 5008 Footer mit Firmendaten
+  addDIN5008Footer(doc, stammdaten);
+
+  return doc;
+};
+
 // === ANGEBOT ===
 export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Stammdaten): Promise<jsPDF> => {
   // Lade Stammdaten falls nicht übergeben

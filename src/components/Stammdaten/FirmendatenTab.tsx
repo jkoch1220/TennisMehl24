@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Save, Building2, MapPin, Phone, User, Briefcase, CreditCard, FileText, Plus, X } from 'lucide-react';
+import { Save, Building2, MapPin, Phone, User, Briefcase, CreditCard, FileText, Plus, X, Download } from 'lucide-react';
 import { Stammdaten, StammdatenInput } from '../../types/stammdaten';
 import { ladeStammdaten, speichereStammdaten, initialisiereStammdaten } from '../../services/stammdatenService';
+import { generiereBriefpapierPDF } from '../../services/dokumentService';
 
 const FirmendatenTab = () => {
   const [stammdaten, setStammdaten] = useState<Stammdaten | null>(null);
@@ -98,6 +99,16 @@ const FirmendatenTab = () => {
       alert('Fehler beim Speichern der Stammdaten');
     } finally {
       setSpeichert(false);
+    }
+  };
+
+  const handleBriefpapierDownload = async () => {
+    try {
+      const doc = await generiereBriefpapierPDF(stammdaten || undefined);
+      doc.save('Briefpapier_TennisMehl.pdf');
+    } catch (error) {
+      console.error('Fehler beim Generieren des Briefpapiers:', error);
+      alert('Fehler beim Generieren des Briefpapiers');
     }
   };
 
@@ -199,6 +210,14 @@ const FirmendatenTab = () => {
                 Mit Standardwerten initialisieren
               </button>
             )}
+            <button
+              onClick={handleBriefpapierDownload}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              title="Leeres Briefpapier als PDF herunterladen"
+            >
+              <Download className="h-4 w-4" />
+              Briefpapier PDF
+            </button>
             <button
               onClick={handleSpeichern}
               disabled={speichert}
