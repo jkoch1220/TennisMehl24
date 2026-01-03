@@ -4,6 +4,17 @@ export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetig
 // Dispo-Status für Projekte (Lieferplanung)
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
+// Lieferdatum-Typ (aus AB)
+export type LieferdatumTyp = 'fix' | 'spaetestens';
+
+// Belieferungsart
+export type Belieferungsart =
+  | 'nur_motorwagen'
+  | 'mit_haenger'
+  | 'abholung_ab_werk'
+  | 'palette_mit_ladekran'
+  | 'bigbag';
+
 // Projekt-Anhang (PDF, Mail, Dokumente)
 export interface ProjektAnhang {
   id: string;
@@ -84,6 +95,12 @@ export interface Projekt {
     von: string; // z.B. "08:00"
     bis: string; // z.B. "12:00"
   };
+
+  // Lieferdatum-Typ (fix oder spätestens bis)
+  lieferdatumTyp?: LieferdatumTyp;
+
+  // Belieferungsart (Motorwagen, Hänger, etc.)
+  belieferungsart?: Belieferungsart;
 
   // Dispo-Notizen (interne Kommunikation)
   dispoNotizen?: DispoNotiz[];

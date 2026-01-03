@@ -28,6 +28,8 @@ import ExcelImport from './components/ExcelImport/ExcelImport';
 import Newsletter from './components/Newsletter/Newsletter';
 import Unsubscribe from './pages/Unsubscribe';
 import Qualitaetssicherung from './components/Qualitaetssicherung/Qualitaetssicherung';
+import JulianKreditoren from './components/PrivatKreditoren/JulianKreditoren';
+import LucaKreditoren from './components/PrivatKreditoren/LucaKreditoren';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
 // Authentifizierte App-Inhalte
@@ -147,6 +149,16 @@ function AuthenticatedContent() {
               <Route path="/qualitaetssicherung" element={
                 <ProtectedRoute toolId="qualitaetssicherung">
                   <Qualitaetssicherung />
+                </ProtectedRoute>
+              } />
+              <Route path="/kreditoren-julian" element={
+                <ProtectedRoute toolId="kreditoren-julian">
+                  <JulianKreditoren />
+                </ProtectedRoute>
+              } />
+              <Route path="/kreditoren-luca" element={
+                <ProtectedRoute toolId="kreditoren-luca">
+                  <LucaKreditoren />
                 </ProtectedRoute>
               } />
 

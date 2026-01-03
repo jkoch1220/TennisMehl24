@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock, Truck } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -33,6 +33,8 @@ import {
 } from '../../services/bestellabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
+import { saisonplanungService } from '../../services/saisonplanungService';
+import { Belieferungsart } from '../../types/bestellabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
@@ -317,10 +319,34 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-        const lieferadressePlzOrt = projekt?.lieferadresse 
+        const lieferadressePlzOrt = projekt?.lieferadresse
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
-        
+
+        // Belieferungsart vom Kunden vorausfüllen
+        let belieferungsart: Belieferungsart | undefined = undefined;
+        let lieferzeitVon: string | undefined = undefined;
+        let lieferzeitBis: string | undefined = undefined;
+
+        if (projekt?.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde) {
+              belieferungsart = kunde.belieferungsart as Belieferungsart | undefined;
+              lieferzeitVon = kunde.standardLieferzeitfenster?.von;
+              lieferzeitBis = kunde.standardLieferzeitfenster?.bis;
+              if (belieferungsart) {
+                console.log('✅ Belieferungsart vom Kunden übernommen:', belieferungsart);
+              }
+              if (lieferzeitVon && lieferzeitBis) {
+                console.log('✅ Standard-Lieferzeitfenster vom Kunden übernommen:', lieferzeitVon, '-', lieferzeitBis);
+              }
+            }
+          } catch (error) {
+            console.warn('Kunde konnte nicht geladen werden für Belieferungsart-Vorausfüllung:', error);
+          }
+        }
+
         setAuftragsbestaetigungsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
@@ -335,6 +361,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           lieferadresseName: lieferadresseName,
           lieferadresseStrasse: lieferadresseStrasse,
           lieferadressePlzOrt: lieferadressePlzOrt,
+          // Vom Kunden vorausgefüllt
+          belieferungsart: prev.belieferungsart || belieferungsart,
+          lieferzeitVon: prev.lieferzeitVon || lieferzeitVon,
+          lieferzeitBis: prev.lieferzeitBis || lieferzeitBis,
         }));
       }
     };
@@ -784,13 +814,47 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               <CalendarDays className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Gewünschtes Lieferdatum</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Liefertermin & Belieferung</h2>
               <p className="text-sm text-gray-600 dark:text-dark-textMuted">Wird automatisch in die Dispo-Planung übernommen</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Lieferdatum-Typ Toggle */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Datum-Typ</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleInputChange('lieferdatumTyp', 'fix')}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  auftragsbestaetigungsDaten.lieferdatumTyp === 'fix' || !auftragsbestaetigungsDaten.lieferdatumTyp
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Fixes Datum
+              </button>
+              <button
+                type="button"
+                onClick={() => handleInputChange('lieferdatumTyp', 'spaetestens')}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens'
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Spätestens bis
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Lieferdatum</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                {auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens' ? 'Spätestens bis' : 'Lieferdatum'}
+              </label>
               <input
                 type="date"
                 value={auftragsbestaetigungsDaten.lieferdatum || ''}
@@ -802,7 +866,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                Zeitfenster von (optional)
+                Zeitfenster von
               </label>
               <input
                 type="time"
@@ -816,7 +880,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                Zeitfenster bis (optional)
+                Zeitfenster bis
               </label>
               <input
                 type="time"
@@ -827,14 +891,43 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                <Truck className="h-4 w-4" />
+                Belieferungsart
+              </label>
+              <select
+                value={auftragsbestaetigungsDaten.belieferungsart || ''}
+                onChange={(e) => handleInputChange('belieferungsart', e.target.value || undefined)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              >
+                <option value="">– Bitte wählen –</option>
+                <option value="nur_motorwagen">Nur Motorwagen</option>
+                <option value="mit_haenger">Mit Hänger</option>
+                <option value="abholung_ab_werk">Abholung ab Werk</option>
+                <option value="palette_mit_ladekran">Palette mit Ladekran</option>
+                <option value="bigbag">BigBag</option>
+              </select>
+            </div>
           </div>
           {auftragsbestaetigungsDaten.lieferdatum && (
             <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
               <span>
-                Lieferung geplant für: <strong>{new Date(auftragsbestaetigungsDaten.lieferdatum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>
+                {auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens' ? 'Lieferung spätestens bis: ' : 'Lieferung geplant für: '}
+                <strong>{new Date(auftragsbestaetigungsDaten.lieferdatum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>
                 {auftragsbestaetigungsDaten.lieferzeitVon && auftragsbestaetigungsDaten.lieferzeitBis && (
                   <> zwischen <strong>{auftragsbestaetigungsDaten.lieferzeitVon}</strong> und <strong>{auftragsbestaetigungsDaten.lieferzeitBis}</strong> Uhr</>
+                )}
+                {auftragsbestaetigungsDaten.belieferungsart && (
+                  <> | <strong>
+                    {auftragsbestaetigungsDaten.belieferungsart === 'nur_motorwagen' && 'Motorwagen'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'mit_haenger' && 'Mit Hänger'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'bigbag' && 'BigBag'}
+                  </strong></>
                 )}
               </span>
             </div>

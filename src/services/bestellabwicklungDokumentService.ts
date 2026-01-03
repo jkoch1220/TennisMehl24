@@ -20,7 +20,7 @@ import {
   Position,
   LieferscheinPosition
 } from '../types/bestellabwicklung';
-import { Projekt, DispoStatus } from '../types/projekt';
+import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, berechneRechnungsSummen } from './rechnungService';
@@ -315,8 +315,12 @@ export const speichereAuftragsbestaetigung = async (
         auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
         // Lieferdatum aus AB übernehmen wenn vorhanden
         geplantesDatum: daten.lieferdatum || undefined,
+        // Lieferdatum-Typ (fix oder spätestens)
+        lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
         // Lieferzeitfenster aus AB übernehmen wenn vorhanden
         lieferzeitfenster: lieferzeitfenster,
+        // Belieferungsart aus AB übernehmen
+        belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
         // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
         liefergewicht: daten.positionen?.reduce((sum, p) => {
           const einheit = p.einheit?.toLowerCase() || '';
@@ -328,10 +332,13 @@ export const speichereAuftragsbestaetigung = async (
       });
       console.log('✅ Projekt-Status automatisch auf "lieferschein" gesetzt, erscheint nun in Dispo');
       if (daten.lieferdatum) {
-        console.log(`✅ Lieferdatum ${daten.lieferdatum} für Dispo übernommen`);
+        console.log(`✅ Lieferdatum ${daten.lieferdatum} (${daten.lieferdatumTyp || 'fix'}) für Dispo übernommen`);
       }
       if (lieferzeitfenster) {
         console.log(`✅ Lieferzeitfenster ${lieferzeitfenster.von}-${lieferzeitfenster.bis} für Dispo übernommen`);
+      }
+      if (daten.belieferungsart) {
+        console.log(`✅ Belieferungsart ${daten.belieferungsart} für Dispo übernommen`);
       }
     } catch (statusError) {
       console.error('⚠️ Fehler beim automatischen Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
@@ -400,7 +407,9 @@ export const aktualisiereAuftragsbestaetigung = async (
 
         await projektService.updateProjekt(projektId, {
           geplantesDatum: daten.lieferdatum || undefined,
+          lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
           lieferzeitfenster: lieferzeitfenster,
+          belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
           liefergewicht: daten.positionen?.reduce((sum, p) => {
             const einheit = p.einheit?.toLowerCase() || '';
             if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {

@@ -101,13 +101,24 @@ export interface AngebotsDaten extends BaseDokument {
   eigentumsVorbehalt?: string;
 }
 
+// Lieferdatum-Typ für Auftragsbestätigung
+export type LieferdatumTyp = 'fix' | 'spaetestens';
+
+// Belieferungsart (importiert von saisonplanung, hier für Referenz)
+export type Belieferungsart =
+  | 'nur_motorwagen'
+  | 'mit_haenger'
+  | 'abholung_ab_werk'
+  | 'palette_mit_ladekran'
+  | 'bigbag';
+
 // AUFTRAGSBESTÄTIGUNG (ähnlich wie Angebot, aber als Bestätigung eines erteilten Auftrags)
 export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Auftragsbestätigungsinformationen
   auftragsbestaetigungsnummer: string;
   auftragsbestaetigungsdatum: string;
   kundennummerExtern?: string; // Bestellnummer/Referenznummer des Kunden
-  
+
   // Positionen
   positionen: Position[];
   
@@ -123,8 +134,10 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Lieferbedingungen
   lieferzeit?: string;
   lieferdatum?: string;
+  lieferdatumTyp?: LieferdatumTyp; // 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis
   lieferzeitVon?: string; // Zeitfenster von (z.B. "08:00")
   lieferzeitBis?: string; // Zeitfenster bis (z.B. "16:00")
+  belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
   frachtkosten?: number;
   verpackungskosten?: number;
   lieferbedingungenAktiviert?: boolean;

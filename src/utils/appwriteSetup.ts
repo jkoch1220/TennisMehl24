@@ -22,6 +22,13 @@ import {
   WIKI_DATEIEN_BUCKET_ID,
   NEWSLETTER_COLLECTION_ID,
   SIEBANALYSEN_COLLECTION_ID,
+  // Private Kreditoren Collections
+  PRIVAT_RECHNUNGEN_JULIAN_COLLECTION_ID,
+  PRIVAT_KREDITOREN_JULIAN_COLLECTION_ID,
+  PRIVAT_AKTIVITAETEN_JULIAN_COLLECTION_ID,
+  PRIVAT_RECHNUNGEN_LUCA_COLLECTION_ID,
+  PRIVAT_KREDITOREN_LUCA_COLLECTION_ID,
+  PRIVAT_AKTIVITAETEN_LUCA_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -29,7 +36,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '18'; // Siebanalysen Collection für QS-Tool
+const APPWRITE_SETUP_VERSION = '19'; // Private Kreditoren Collections für Julian und Luca
 
 type FieldConfig = {
   key: string;
@@ -243,6 +250,11 @@ const newsletterFields: FieldConfig[] = [
 
 // Siebanalysen Collection für QS-Tool (Tennismehl 0/2 nach DIN 18035-5)
 const siebanalysenFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 50000 }, // Alle Daten als JSON
+];
+
+// Private Kreditoren Collections (für Julian und Luca)
+const privatKreditorenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 50000 }, // Alle Daten als JSON
 ];
 
@@ -468,6 +480,14 @@ export async function setupAppwriteFields() {
       { id: WIKI_FILES_COLLECTION_ID, name: 'Wiki Files', fields: wikiFilesFields },
       { id: NEWSLETTER_COLLECTION_ID, name: 'Newsletter Subscribers', fields: newsletterFields },
       { id: SIEBANALYSEN_COLLECTION_ID, name: 'Siebanalysen QS', fields: siebanalysenFields },
+      // Private Kreditoren - Julian
+      { id: PRIVAT_RECHNUNGEN_JULIAN_COLLECTION_ID, name: 'Private Rechnungen Julian', fields: privatKreditorenFields },
+      { id: PRIVAT_KREDITOREN_JULIAN_COLLECTION_ID, name: 'Private Kreditoren Julian', fields: privatKreditorenFields },
+      { id: PRIVAT_AKTIVITAETEN_JULIAN_COLLECTION_ID, name: 'Private Aktivitäten Julian', fields: privatKreditorenFields },
+      // Private Kreditoren - Luca
+      { id: PRIVAT_RECHNUNGEN_LUCA_COLLECTION_ID, name: 'Private Rechnungen Luca', fields: privatKreditorenFields },
+      { id: PRIVAT_KREDITOREN_LUCA_COLLECTION_ID, name: 'Private Kreditoren Luca', fields: privatKreditorenFields },
+      { id: PRIVAT_AKTIVITAETEN_LUCA_COLLECTION_ID, name: 'Private Aktivitäten Luca', fields: privatKreditorenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
