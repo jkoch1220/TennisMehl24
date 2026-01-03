@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -775,6 +775,70 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               />
             </div>
           </div>
+        </div>
+
+        {/* GEWÜNSCHTES LIEFERDATUM - Prominent hervorgehoben */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 rounded-xl shadow-sm border-2 border-blue-200 dark:border-blue-800 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <CalendarDays className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Gewünschtes Lieferdatum</h2>
+              <p className="text-sm text-gray-600 dark:text-dark-textMuted">Wird automatisch in die Dispo-Planung übernommen</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Lieferdatum</label>
+              <input
+                type="date"
+                value={auftragsbestaetigungsDaten.lieferdatum || ''}
+                onChange={(e) => handleInputChange('lieferdatum', e.target.value)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                Zeitfenster von (optional)
+              </label>
+              <input
+                type="time"
+                value={auftragsbestaetigungsDaten.lieferzeitVon || ''}
+                onChange={(e) => handleInputChange('lieferzeitVon', e.target.value)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="08:00"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                Zeitfenster bis (optional)
+              </label>
+              <input
+                type="time"
+                value={auftragsbestaetigungsDaten.lieferzeitBis || ''}
+                onChange={(e) => handleInputChange('lieferzeitBis', e.target.value)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="16:00"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              />
+            </div>
+          </div>
+          {auftragsbestaetigungsDaten.lieferdatum && (
+            <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span>
+                Lieferung geplant für: <strong>{new Date(auftragsbestaetigungsDaten.lieferdatum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>
+                {auftragsbestaetigungsDaten.lieferzeitVon && auftragsbestaetigungsDaten.lieferzeitBis && (
+                  <> zwischen <strong>{auftragsbestaetigungsDaten.lieferzeitVon}</strong> und <strong>{auftragsbestaetigungsDaten.lieferzeitBis}</strong> Uhr</>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Kundendaten */}

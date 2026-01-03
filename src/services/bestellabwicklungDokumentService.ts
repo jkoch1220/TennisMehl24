@@ -303,6 +303,11 @@ export const speichereAuftragsbestaetigung = async (
     // AUTOMATISCHER STATUS-WECHSEL: Projekt auf "lieferschein" setzen
     // und dispoStatus auf "offen" damit es in der Dispo erscheint
     try {
+      // Lieferzeitfenster nur setzen wenn beide Werte vorhanden
+      const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
+        ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
+        : undefined;
+
       await projektService.updateProjekt(projektId, {
         status: 'lieferschein',
         dispoStatus: 'offen' as DispoStatus,
@@ -310,10 +315,24 @@ export const speichereAuftragsbestaetigung = async (
         auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
         // Lieferdatum aus AB übernehmen wenn vorhanden
         geplantesDatum: daten.lieferdatum || undefined,
-        // Menge aus Positionen berechnen
-        liefergewicht: daten.positionen?.reduce((sum, p) => sum + (p.menge || 0), 0) || undefined,
+        // Lieferzeitfenster aus AB übernehmen wenn vorhanden
+        lieferzeitfenster: lieferzeitfenster,
+        // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
+        liefergewicht: daten.positionen?.reduce((sum, p) => {
+          const einheit = p.einheit?.toLowerCase() || '';
+          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
+            return sum + (p.menge || 0);
+          }
+          return sum;
+        }, 0) || undefined,
       });
       console.log('✅ Projekt-Status automatisch auf "lieferschein" gesetzt, erscheint nun in Dispo');
+      if (daten.lieferdatum) {
+        console.log(`✅ Lieferdatum ${daten.lieferdatum} für Dispo übernommen`);
+      }
+      if (lieferzeitfenster) {
+        console.log(`✅ Lieferzeitfenster ${lieferzeitfenster.von}-${lieferzeitfenster.bis} für Dispo übernommen`);
+      }
     } catch (statusError) {
       console.error('⚠️ Fehler beim automatischen Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
     }
@@ -368,6 +387,33 @@ export const aktualisiereAuftragsbestaetigung = async (
         daten: JSON.stringify(daten)
       }
     );
+
+    // Bei Aktualisierung auch das Projekt mit neuem Lieferdatum/Zeitfenster aktualisieren
+    try {
+      const gespeichertesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
+      const projektId = (gespeichertesDokument as any).projektId;
+
+      if (projektId) {
+        const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
+          ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
+          : undefined;
+
+        await projektService.updateProjekt(projektId, {
+          geplantesDatum: daten.lieferdatum || undefined,
+          lieferzeitfenster: lieferzeitfenster,
+          liefergewicht: daten.positionen?.reduce((sum, p) => {
+            const einheit = p.einheit?.toLowerCase() || '';
+            if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
+              return sum + (p.menge || 0);
+            }
+            return sum;
+          }, 0) || undefined,
+        });
+        console.log('✅ Projekt Lieferdaten bei AB-Aktualisierung synchronisiert');
+      }
+    } catch (syncError) {
+      console.error('⚠️ Fehler beim Synchronisieren der Lieferdaten (AB wurde trotzdem aktualisiert):', syncError);
+    }
 
     return dokument as unknown as GespeichertesDokument;
   } catch (error) {

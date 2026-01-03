@@ -123,11 +123,13 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Lieferbedingungen
   lieferzeit?: string;
   lieferdatum?: string;
+  lieferzeitVon?: string; // Zeitfenster von (z.B. "08:00")
+  lieferzeitBis?: string; // Zeitfenster bis (z.B. "16:00")
   frachtkosten?: number;
   verpackungskosten?: number;
   lieferbedingungenAktiviert?: boolean;
   lieferbedingungen?: string;
-  
+
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;
