@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock, Truck } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock, Truck, AlertTriangle } from 'lucide-react';
+import StatusAenderungModal from '../Shared/StatusAenderungModal';
 import {
   DndContext,
   closestCenter,
@@ -91,6 +92,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
+
+  // Status-Änderung Bestätigung
+  const [zeigeStatusModal, setZeigeStatusModal] = useState(false);
+  const [statusModalLaden, setStatusModalLaden] = useState(false);
 
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -579,21 +584,54 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     }
   };
 
-  // Speichern in Appwrite
-  const speichereUndHinterlegeAuftragsbestaetigung = async () => {
+  // Handler für Speichern-Button: Zeigt Modal wenn nötig
+  const handleSpeichernClick = () => {
     if (!projekt?.$id) {
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
     }
-    
+
+    // Bei Aktualisierung: Direkt speichern (Status ändert sich nicht mehr)
+    if (gespeichertesDokument && istBearbeitungsModus) {
+      speichereUndHinterlegeAuftragsbestaetigung(false);
+      return;
+    }
+
+    // Bei Neu-Erstellung: Modal zeigen für Status-Bestätigung
+    setZeigeStatusModal(true);
+  };
+
+  // Speichern MIT Status-Änderung (nach Bestätigung)
+  const handleBestaetigtMitStatusAenderung = async () => {
+    setStatusModalLaden(true);
+    await speichereUndHinterlegeAuftragsbestaetigung(false);
+    setStatusModalLaden(false);
+    setZeigeStatusModal(false);
+  };
+
+  // Speichern OHNE Status-Änderung
+  const handleBestaetigtOhneStatusAenderung = async () => {
+    setStatusModalLaden(true);
+    await speichereUndHinterlegeAuftragsbestaetigung(true);
+    setStatusModalLaden(false);
+    setZeigeStatusModal(false);
+  };
+
+  // Speichern in Appwrite
+  const speichereUndHinterlegeAuftragsbestaetigung = async (ohneStatusAenderung: boolean) => {
+    if (!projekt?.$id) {
+      setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
+      return;
+    }
+
     try {
       setLadeStatus('speichern');
       setStatusMeldung(null);
-      
+
       let neuesDokument: GespeichertesDokument;
-      
+
       if (gespeichertesDokument && istBearbeitungsModus) {
-        // Aktualisieren
+        // Aktualisieren (Status ändert sich nicht mehr)
         neuesDokument = await aktualisiereAuftragsbestaetigung(
           gespeichertesDokument.$id!,
           gespeichertesDokument.dateiId,
@@ -602,10 +640,18 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung erfolgreich aktualisiert!' });
       } else {
         // Neu erstellen
-        neuesDokument = await speichereAuftragsbestaetigung(projekt.$id, auftragsbestaetigungsDaten);
-        setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung erfolgreich gespeichert und hinterlegt!' });
+        neuesDokument = await speichereAuftragsbestaetigung(
+          projekt.$id,
+          auftragsbestaetigungsDaten,
+          { ohneStatusAenderung }
+        );
+        if (ohneStatusAenderung) {
+          setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung gespeichert (Status unverändert).' });
+        } else {
+          setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung gespeichert! Projekt wurde zur Lieferschein-Phase verschoben.' });
+        }
       }
-      
+
       setGespeichertesDokument(neuesDokument);
       setIstBearbeitungsModus(false);
       setLadeStatus('bereit');
@@ -1547,7 +1593,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (
               <button
-                onClick={speichereUndHinterlegeAuftragsbestaetigung}
+                onClick={handleSpeichernClick}
                 disabled={ladeStatus === 'speichern'}
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg dark:shadow-dark-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -1605,6 +1651,20 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           }}
         />
       )}
+
+      {/* Status-Änderung Bestätigungs-Modal */}
+      <StatusAenderungModal
+        isOpen={zeigeStatusModal}
+        onClose={() => setZeigeStatusModal(false)}
+        onConfirm={handleBestaetigtMitStatusAenderung}
+        onConfirmOhneStatusAenderung={handleBestaetigtOhneStatusAenderung}
+        aktion="Auftragsbestätigung speichern"
+        vonStatus={projekt?.status || 'auftragsbestaetigung'}
+        nachStatus="lieferschein"
+        kundenname={auftragsbestaetigungsDaten.kundenname}
+        dokumentNummer={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
+        isLoading={statusModalLaden}
+      />
     </div>
   );
 };

@@ -262,7 +262,8 @@ export const aktualisiereAngebot = async (
 // === AUFTRAGSBESTÄTIGUNG ===
 export const speichereAuftragsbestaetigung = async (
   projektId: string,
-  daten: AuftragsbestaetigungsDaten
+  daten: AuftragsbestaetigungsDaten,
+  optionen?: { ohneStatusAenderung?: boolean }
 ): Promise<GespeichertesDokument> => {
   try {
     // PDF generieren
@@ -300,48 +301,61 @@ export const speichereAuftragsbestaetigung = async (
       }
     );
 
-    // AUTOMATISCHER STATUS-WECHSEL: Projekt auf "lieferschein" setzen
+    // STATUS-WECHSEL: Projekt auf "lieferschein" setzen (nur wenn nicht explizit deaktiviert)
     // und dispoStatus auf "offen" damit es in der Dispo erscheint
-    try {
-      // Lieferzeitfenster nur setzen wenn beide Werte vorhanden
-      const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
-        ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
-        : undefined;
+    if (!optionen?.ohneStatusAenderung) {
+      try {
+        // Lieferzeitfenster nur setzen wenn beide Werte vorhanden
+        const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
+          ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
+          : undefined;
 
-      await projektService.updateProjekt(projektId, {
-        status: 'lieferschein',
-        dispoStatus: 'offen' as DispoStatus,
-        auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
-        auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
-        // Lieferdatum aus AB übernehmen wenn vorhanden
-        geplantesDatum: daten.lieferdatum || undefined,
-        // Lieferdatum-Typ (fix oder spätestens)
-        lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
-        // Lieferzeitfenster aus AB übernehmen wenn vorhanden
-        lieferzeitfenster: lieferzeitfenster,
-        // Belieferungsart aus AB übernehmen
-        belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
-        // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
-        liefergewicht: daten.positionen?.reduce((sum, p) => {
-          const einheit = p.einheit?.toLowerCase() || '';
-          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
-            return sum + (p.menge || 0);
-          }
-          return sum;
-        }, 0) || undefined,
-      });
-      console.log('✅ Projekt-Status automatisch auf "lieferschein" gesetzt, erscheint nun in Dispo');
-      if (daten.lieferdatum) {
-        console.log(`✅ Lieferdatum ${daten.lieferdatum} (${daten.lieferdatumTyp || 'fix'}) für Dispo übernommen`);
+        await projektService.updateProjekt(projektId, {
+          status: 'lieferschein',
+          dispoStatus: 'offen' as DispoStatus,
+          auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
+          auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
+          // Lieferdatum aus AB übernehmen wenn vorhanden
+          geplantesDatum: daten.lieferdatum || undefined,
+          // Lieferdatum-Typ (fix oder spätestens)
+          lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
+          // Lieferzeitfenster aus AB übernehmen wenn vorhanden
+          lieferzeitfenster: lieferzeitfenster,
+          // Belieferungsart aus AB übernehmen
+          belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
+          // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
+          liefergewicht: daten.positionen?.reduce((sum, p) => {
+            const einheit = p.einheit?.toLowerCase() || '';
+            if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
+              return sum + (p.menge || 0);
+            }
+            return sum;
+          }, 0) || undefined,
+        });
+        console.log('✅ Projekt-Status auf "lieferschein" gesetzt, erscheint nun in Dispo');
+        if (daten.lieferdatum) {
+          console.log(`✅ Lieferdatum ${daten.lieferdatum} (${daten.lieferdatumTyp || 'fix'}) für Dispo übernommen`);
+        }
+        if (lieferzeitfenster) {
+          console.log(`✅ Lieferzeitfenster ${lieferzeitfenster.von}-${lieferzeitfenster.bis} für Dispo übernommen`);
+        }
+        if (daten.belieferungsart) {
+          console.log(`✅ Belieferungsart ${daten.belieferungsart} für Dispo übernommen`);
+        }
+      } catch (statusError) {
+        console.error('⚠️ Fehler beim Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
       }
-      if (lieferzeitfenster) {
-        console.log(`✅ Lieferzeitfenster ${lieferzeitfenster.von}-${lieferzeitfenster.bis} für Dispo übernommen`);
+    } else {
+      console.log('ℹ️ Status-Änderung übersprungen (ohneStatusAenderung=true)');
+      // Nur Metadaten aktualisieren, aber Status beibehalten
+      try {
+        await projektService.updateProjekt(projektId, {
+          auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
+          auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
+        });
+      } catch (updateError) {
+        console.error('⚠️ Fehler beim Aktualisieren der Metadaten:', updateError);
       }
-      if (daten.belieferungsart) {
-        console.log(`✅ Belieferungsart ${daten.belieferungsart} für Dispo übernommen`);
-      }
-    } catch (statusError) {
-      console.error('⚠️ Fehler beim automatischen Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
     }
 
     return dokument as unknown as GespeichertesDokument;

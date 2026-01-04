@@ -8,7 +8,11 @@ import PrivatRechnungsListe from './PrivatRechnungsListe';
 import PrivatRechnungsDetail from './PrivatRechnungsDetail';
 import PrivatFaelligkeitsTimeline from './PrivatFaelligkeitsTimeline';
 
-const PrivatKreditorenVerwaltung = () => {
+interface PrivatKreditorenVerwaltungProps {
+  hideHeader?: boolean;
+}
+
+const PrivatKreditorenVerwaltung = ({ hideHeader = false }: PrivatKreditorenVerwaltungProps) => {
   const { kreditorService, aktivitaetService, ownerName } = usePrivatKreditor();
 
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -115,23 +119,48 @@ const PrivatKreditorenVerwaltung = () => {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg">
-                <User className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">
-                  Private Kreditoren - {ownerName}
-                </h1>
-                <p className="text-gray-600 dark:text-slate-400 mt-1">
-                  Persönliche Rechnungsverwaltung
-                </p>
+        {!hideHeader && (
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg">
+                  <User className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">
+                    Private Kreditoren - {ownerName}
+                  </h1>
+                  <p className="text-gray-600 dark:text-slate-400 mt-1">
+                    Persönliche Rechnungsverwaltung
+                  </p>
+                </div>
               </div>
             </div>
+            <div className="flex gap-3 items-center flex-wrap">
+              <button
+                onClick={loadData}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+              >
+                <RefreshCw className="w-5 h-5" />
+                Aktualisieren
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedRechnung(null);
+                  setShowFormular(true);
+                }}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Neue Rechnung
+              </button>
+            </div>
           </div>
-          <div className="flex gap-3 items-center flex-wrap">
+        )}
+
+        {/* Action Buttons wenn Header versteckt */}
+        {hideHeader && (
+          <div className="flex gap-3 items-center justify-end flex-wrap">
             <button
               onClick={loadData}
               className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
@@ -150,7 +179,7 @@ const PrivatKreditorenVerwaltung = () => {
               Neue Rechnung
             </button>
           </div>
-        </div>
+        )}
 
         {/* Statistik-Karten */}
         {statistik && (
