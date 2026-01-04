@@ -508,11 +508,12 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBes
           </div>
         </div>
 
-        {/* Lieferdatum */}
+        {/* Lieferdatum & Belieferungsart */}
         <div className="text-center">
           {projekt.geplantesDatum ? (
             <div className="text-sm">
               <div className="font-medium text-gray-900 dark:text-white">
+                {projekt.lieferdatumTyp === 'spaetestens' && <span className="text-orange-600 dark:text-orange-400">bis </span>}
                 {new Date(projekt.geplantesDatum).toLocaleDateString('de-DE', {
                   weekday: 'short',
                   day: '2-digit',
@@ -527,6 +528,22 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBes
             </div>
           ) : (
             <span className="text-sm text-gray-400">Kein Datum</span>
+          )}
+          {/* Belieferungsart */}
+          {projekt.belieferungsart && (
+            <div className={`mt-1 text-xs px-2 py-0.5 rounded-full inline-block ${
+              projekt.belieferungsart === 'mit_haenger'
+                ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                : projekt.belieferungsart === 'nur_motorwagen'
+                ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+            }`}>
+              {projekt.belieferungsart === 'nur_motorwagen' && 'Motorwagen'}
+              {projekt.belieferungsart === 'mit_haenger' && 'mit Hänger'}
+              {projekt.belieferungsart === 'abholung_ab_werk' && 'Abholung'}
+              {projekt.belieferungsart === 'palette_mit_ladekran' && 'Ladekran'}
+              {projekt.belieferungsart === 'bigbag' && 'BigBag'}
+            </div>
           )}
         </div>
 
