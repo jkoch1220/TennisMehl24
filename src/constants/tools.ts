@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   Send,
   TestTube2,
+  Wallet,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -68,6 +69,22 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/kreditoren',
     icon: Receipt,
     color: 'from-red-600 to-red-800',
+  },
+  {
+    id: 'kreditoren-julian',
+    name: 'Kreditoren Julian',
+    description: 'Private Kreditorenverwaltung für Julian',
+    href: '/kreditoren-julian',
+    icon: Wallet,
+    color: 'from-purple-500 to-violet-600',
+  },
+  {
+    id: 'kreditoren-luca',
+    name: 'Kreditoren Luca',
+    description: 'Private Kreditorenverwaltung für Luca',
+    href: '/kreditoren-luca',
+    icon: Wallet,
+    color: 'from-purple-600 to-indigo-600',
   },
   {
     id: 'wiki',

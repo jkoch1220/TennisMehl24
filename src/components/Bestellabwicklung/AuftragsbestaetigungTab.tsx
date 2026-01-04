@@ -903,8 +903,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
               >
                 <option value="">– Bitte wählen –</option>
-                <option value="nur_motorwagen">Nur Motorwagen</option>
-                <option value="mit_haenger">Mit Hänger</option>
+                <option value="nur_motorwagen">Mit Motorwagen</option>
+                <option value="mit_haenger">Motorwagen mit Hänger</option>
                 <option value="abholung_ab_werk">Abholung ab Werk</option>
                 <option value="palette_mit_ladekran">Palette mit Ladekran</option>
                 <option value="bigbag">BigBag</option>
@@ -922,8 +922,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 )}
                 {auftragsbestaetigungsDaten.belieferungsart && (
                   <> | <strong>
-                    {auftragsbestaetigungsDaten.belieferungsart === 'nur_motorwagen' && 'Motorwagen'}
-                    {auftragsbestaetigungsDaten.belieferungsart === 'mit_haenger' && 'Mit Hänger'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'nur_motorwagen' && 'Mit Motorwagen'}
+                    {auftragsbestaetigungsDaten.belieferungsart === 'mit_haenger' && 'Motorwagen mit Hänger'}
                     {auftragsbestaetigungsDaten.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
                     {auftragsbestaetigungsDaten.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
                     {auftragsbestaetigungsDaten.belieferungsart === 'bigbag' && 'BigBag'}

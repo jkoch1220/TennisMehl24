@@ -984,27 +984,56 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   // === Lieferbedingungen ===
   summenY += 10;
-  
+
   // Prüfe Platz für Lieferbedingungen-Block
   summenY = await ensureSpace(doc, summenY, 25, stammdaten);
-  
+
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.text('Lieferbedingungen:', 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  
+
   summenY += 5;
   if (daten.lieferzeit) {
     doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
     summenY += 4;
   }
   if (daten.lieferdatum) {
-    doc.text(`Lieferdatum: ${formatDatum(daten.lieferdatum)}`, 25, summenY);
+    // Lieferdatum-Typ berücksichtigen (fix oder spätestens)
+    const lieferdatumLabel = daten.lieferdatumTyp === 'spaetestens' ? 'Lieferung spätestens bis' : 'Lieferdatum';
+    let lieferInfoText = `${lieferdatumLabel}: ${formatDatum(daten.lieferdatum)}`;
+
+    // Belieferungsart hinzufügen
+    if (daten.belieferungsart) {
+      const belieferungsartLabels: Record<string, string> = {
+        'nur_motorwagen': 'Mit Motorwagen',
+        'mit_haenger': 'Motorwagen mit Hänger',
+        'abholung_ab_werk': 'Abholung ab Werk',
+        'palette_mit_ladekran': 'Palette mit Ladekran',
+        'bigbag': 'BigBag'
+      };
+      const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
+      lieferInfoText += ` | ${belieferungsartLabel}`;
+    }
+
+    doc.text(lieferInfoText, 25, summenY);
+    summenY += 4;
+  } else if (daten.belieferungsart) {
+    // Nur Belieferungsart ohne Datum
+    const belieferungsartLabels: Record<string, string> = {
+      'nur_motorwagen': 'Mit Motorwagen',
+      'mit_haenger': 'Motorwagen mit Hänger',
+      'abholung_ab_werk': 'Abholung ab Werk',
+      'palette_mit_ladekran': 'Palette mit Ladekran',
+      'bigbag': 'BigBag'
+    };
+    const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
+    doc.text(`Belieferung: ${belieferungsartLabel}`, 25, summenY);
     summenY += 4;
   }
-  
+
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
     summenY += 2;
     const lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
