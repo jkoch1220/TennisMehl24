@@ -18,6 +18,7 @@ import {
   Send,
   TestTube2,
   Wallet,
+  Car,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -189,6 +190,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/qualitaetssicherung',
     icon: TestTube2,
     color: 'from-emerald-500 to-teal-600',
+  },
+  {
+    id: 'fahrtkosten',
+    name: 'Fahrtkosten',
+    description: 'Kilometer-Erfassung mit Quick-Add für wiederkehrende Strecken',
+    href: '/fahrtkosten',
+    icon: Car,
+    color: 'from-red-500 to-rose-600',
   },
 ];
 

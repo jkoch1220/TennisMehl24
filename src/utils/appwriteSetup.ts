@@ -29,6 +29,9 @@ import {
   PRIVAT_RECHNUNGEN_LUCA_COLLECTION_ID,
   PRIVAT_KREDITOREN_LUCA_COLLECTION_ID,
   PRIVAT_AKTIVITAETEN_LUCA_COLLECTION_ID,
+  // Fahrtkosten
+  FAHRTEN_COLLECTION_ID,
+  DEFAULT_STRECKEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -36,7 +39,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '19'; // Private Kreditoren Collections für Julian und Luca
+const APPWRITE_SETUP_VERSION = '20'; // Fahrtkosten Collections
 
 type FieldConfig = {
   key: string;
@@ -256,6 +259,37 @@ const siebanalysenFields: FieldConfig[] = [
 // Private Kreditoren Collections (für Julian und Luca)
 const privatKreditorenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 50000 }, // Alle Daten als JSON
+];
+
+// Fahrtkosten Collections
+const fahrtenFields: FieldConfig[] = [
+  { key: 'datum', type: 'string', size: 20, required: true },
+  { key: 'fahrer', type: 'string', size: 100, required: true },
+  { key: 'fahrerName', type: 'string', size: 200 },
+  { key: 'startort', type: 'string', size: 200, required: true },
+  { key: 'startAdresse', type: 'string', size: 500 },
+  { key: 'zielort', type: 'string', size: 200, required: true },
+  { key: 'zielAdresse', type: 'string', size: 500 },
+  { key: 'kilometer', type: 'double', required: true },
+  { key: 'kilometerPauschale', type: 'double', default: 0.30 },
+  { key: 'betrag', type: 'double' },
+  { key: 'hinpirsUndZurueck', type: 'boolean', default: false },
+  { key: 'zweck', type: 'string', size: 500 },
+  { key: 'notizen', type: 'string', size: 1000 },
+  { key: 'defaultStreckeId', type: 'string', size: 100 },
+  { key: 'erstelltAm', type: 'string', size: 50 },
+  { key: 'geaendertAm', type: 'string', size: 50 },
+];
+
+const defaultStreckenFields: FieldConfig[] = [
+  { key: 'name', type: 'string', size: 200, required: true },
+  { key: 'startort', type: 'string', size: 200, required: true },
+  { key: 'startAdresse', type: 'string', size: 500 },
+  { key: 'zielort', type: 'string', size: 200, required: true },
+  { key: 'zielAdresse', type: 'string', size: 500 },
+  { key: 'kilometer', type: 'double', required: true },
+  { key: 'istFavorit', type: 'boolean', default: false },
+  { key: 'sortierung', type: 'integer', default: 0 },
 ];
 
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
@@ -488,6 +522,9 @@ export async function setupAppwriteFields() {
       { id: PRIVAT_RECHNUNGEN_LUCA_COLLECTION_ID, name: 'Private Rechnungen Luca', fields: privatKreditorenFields },
       { id: PRIVAT_KREDITOREN_LUCA_COLLECTION_ID, name: 'Private Kreditoren Luca', fields: privatKreditorenFields },
       { id: PRIVAT_AKTIVITAETEN_LUCA_COLLECTION_ID, name: 'Private Aktivitäten Luca', fields: privatKreditorenFields },
+      // Fahrtkosten
+      { id: FAHRTEN_COLLECTION_ID, name: 'Fahrten', fields: fahrtenFields },
+      { id: DEFAULT_STRECKEN_COLLECTION_ID, name: 'Default Strecken', fields: defaultStreckenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
@@ -514,6 +551,10 @@ export async function setupAppwriteFields() {
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'email_index', ['email']);
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'token_index', ['unsubscribeToken'], 'unique');
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'status_index', ['status']);
+
+    // Indizes für Fahrtkosten
+    await ensureIndex(FAHRTEN_COLLECTION_ID, 'datum_index', ['datum']);
+    await ensureIndex(FAHRTEN_COLLECTION_ID, 'fahrer_index', ['fahrer']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

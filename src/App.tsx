@@ -29,6 +29,7 @@ import Newsletter from './components/Newsletter/Newsletter';
 import Unsubscribe from './pages/Unsubscribe';
 import Qualitaetssicherung from './components/Qualitaetssicherung/Qualitaetssicherung';
 import PrivatKreditorenAuswahl from './components/PrivatKreditoren/PrivatKreditorenAuswahl';
+import Fahrkostenabrechnung from './components/Fahrkostenabrechnung/Fahrkostenabrechnung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 
 // Authentifizierte App-Inhalte
@@ -153,6 +154,11 @@ function AuthenticatedContent() {
               <Route path="/privat-kreditoren" element={
                 <ProtectedRoute toolId="privat-kreditoren">
                   <PrivatKreditorenAuswahl />
+                </ProtectedRoute>
+              } />
+              <Route path="/fahrtkosten" element={
+                <ProtectedRoute toolId="fahrtkosten">
+                  <Fahrkostenabrechnung />
                 </ProtectedRoute>
               } />
 
