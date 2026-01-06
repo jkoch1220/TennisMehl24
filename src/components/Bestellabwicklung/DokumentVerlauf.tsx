@@ -78,23 +78,27 @@ const DokumentVerlauf = ({
   // Verlauf laden
   useEffect(() => {
     const ladeVerlauf = async () => {
+      console.log(`🔄 DokumentVerlauf: useEffect ausgelöst für ${dokumentTyp}, ladeZaehler=${ladeZaehler}, projektId=${projektId}`);
       if (!projektId) {
+        console.log(`⚠️ Keine projektId - Verlauf wird nicht geladen`);
         setVerlauf([]);
         setLadeStatus('bereit');
         return;
       }
-      
+
       try {
         setLadeStatus('laden');
+        console.log(`📥 Lade Verlauf für Projekt ${projektId}, Typ: ${dokumentTyp}...`);
         const daten = await ladeDokumentVerlauf(projektId, dokumentTyp);
+        console.log(`📄 Verlauf geladen: ${daten.length} Einträge`, daten);
         setVerlauf(daten);
         setLadeStatus('bereit');
       } catch (error) {
-        console.error('Fehler beim Laden des Dokumentverlaufs:', error);
+        console.error('❌ Fehler beim Laden des Dokumentverlaufs:', error);
         setLadeStatus('fehler');
       }
     };
-    
+
     ladeVerlauf();
   }, [projektId, dokumentTyp, ladeZaehler]);
   

@@ -126,6 +126,7 @@ const ladeDokumenteNachTyp = async (
   dokumentTyp: DokumentTyp
 ): Promise<GespeichertesDokument[]> => {
   try {
+    console.log(`🔎 Query: projektId=${projektId}, dokumentTyp=${dokumentTyp}`);
     const response = await databases.listDocuments(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -135,9 +136,10 @@ const ladeDokumenteNachTyp = async (
         Query.orderDesc('$createdAt')
       ]
     );
+    console.log(`✅ Query Ergebnis: ${response.documents.length} Dokumente gefunden`);
     return response.documents as unknown as GespeichertesDokument[];
   } catch (error) {
-    console.error(`Fehler beim Laden der Dokumente (Typ: ${dokumentTyp}):`, error);
+    console.error(`❌ Fehler beim Laden der Dokumente (Typ: ${dokumentTyp}):`, error);
     return [];
   }
 };
@@ -266,6 +268,10 @@ export const speichereAuftragsbestaetigung = async (
   optionen?: { ohneStatusAenderung?: boolean }
 ): Promise<GespeichertesDokument> => {
   try {
+    // Prüfen ob bereits ABs existieren (für Versionierung)
+    const bestehendeABs = await ladeDokumenteNachTyp(projektId, 'auftragsbestaetigung');
+    const neueVersion = bestehendeABs.length + 1;
+
     // PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
@@ -284,7 +290,8 @@ export const speichereAuftragsbestaetigung = async (
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
 
-    // Dokument-Eintrag in DB erstellen
+    // Dokument-Eintrag in DB erstellen (mit Versionierung)
+    console.log(`📝 Erstelle AB-Version ${neueVersion} für Projekt ${projektId}...`);
     const dokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -297,9 +304,11 @@ export const speichereAuftragsbestaetigung = async (
         dateiname,
         bruttobetrag,
         istFinal: false,
-        daten: JSON.stringify(daten)
+        daten: JSON.stringify(daten),
+        version: neueVersion // Versionierung hinzufügen
       }
     );
+    console.log(`✅ AB-Version ${neueVersion} erstellt:`, dokument.$id, `projektId: ${projektId}`);
 
     // STATUS-WECHSEL: Projekt auf "lieferschein" setzen (nur wenn nicht explizit deaktiviert)
     // und dispoStatus auf "offen" damit es in der Dispo erscheint
@@ -367,23 +376,27 @@ export const speichereAuftragsbestaetigung = async (
 
 export const aktualisiereAuftragsbestaetigung = async (
   dokumentId: string,
-  alteDateiId: string,
+  _alteDateiId: string, // Wird nicht mehr gelöscht - alte Versionen bleiben erhalten!
   daten: AuftragsbestaetigungsDaten
 ): Promise<GespeichertesDokument> => {
   try {
-    // Alte Datei löschen
-    try {
-      await storage.deleteFile(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID, alteDateiId);
-    } catch (e) {
-      console.warn('Alte Datei konnte nicht gelöscht werden:', e);
-    }
-    
+    // WICHTIG: Alte Datei wird NICHT gelöscht - alle Versionen werden aufbewahrt (GoBD)!
+    // Stattdessen wird das alte Dokument beibehalten und ein NEUES erstellt
+
+    // Projekt-ID aus dem alten Dokument holen
+    const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
+    const projektId = (altesDokument as any).projektId;
+
+    // Prüfen wie viele ABs bereits existieren (für Versionierung)
+    const bestehendeABs = await ladeDokumenteNachTyp(projektId, 'auftragsbestaetigung');
+    const neueVersion = bestehendeABs.length + 1;
+
     // Neues PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
     const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum);
 
-    // Neue Datei hochladen
+    // Neue Datei hochladen (alte bleibt erhalten!)
     const file = new File([blob], dateiname, { type: 'application/pdf' });
     const uploadedFile = await storage.createFile(
       BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
@@ -396,24 +409,28 @@ export const aktualisiereAuftragsbestaetigung = async (
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
 
-    // Dokument-Eintrag aktualisieren
-    const dokument = await databases.updateDocument(
+    // NEUES Dokument erstellen (nicht überschreiben!) - mit Versionsnummer
+    console.log(`📝 Erstelle neue AB-Version ${neueVersion} für Projekt ${projektId}...`);
+    const dokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      dokumentId,
+      ID.unique(),
       {
+        projektId,
+        dokumentTyp: 'auftragsbestaetigung',
+        dokumentNummer: daten.auftragsbestaetigungsnummer,
         dateiId: uploadedFile.$id,
         dateiname,
         bruttobetrag,
-        daten: JSON.stringify(daten)
+        istFinal: false,
+        daten: JSON.stringify(daten),
+        version: neueVersion // Versionierung hinzufügen
       }
     );
+    console.log(`✅ AB-Version ${neueVersion} erstellt:`, dokument.$id);
 
-    // Bei Aktualisierung auch das Projekt mit neuem Lieferdatum/Zeitfenster aktualisieren
+    // Projekt mit neuem Lieferdatum/Zeitfenster aktualisieren
     try {
-      const gespeichertesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
-      const projektId = (gespeichertesDokument as any).projektId;
-
       if (projektId) {
         const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
           ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
@@ -435,12 +452,12 @@ export const aktualisiereAuftragsbestaetigung = async (
         console.log('✅ Projekt Lieferdaten bei AB-Aktualisierung synchronisiert');
       }
     } catch (syncError) {
-      console.error('⚠️ Fehler beim Synchronisieren der Lieferdaten (AB wurde trotzdem aktualisiert):', syncError);
+      console.error('⚠️ Fehler beim Synchronisieren der Lieferdaten (AB wurde trotzdem gespeichert):', syncError);
     }
 
     return dokument as unknown as GespeichertesDokument;
   } catch (error) {
-    console.error('Fehler beim Aktualisieren der Auftragsbestätigung:', error);
+    console.error('Fehler beim Erstellen der neuen AB-Version:', error);
     throw error;
   }
 };
@@ -821,7 +838,9 @@ export const ladeDokumentVerlauf = async (
   dokumentTyp: DokumentTyp
 ): Promise<DokumentVerlaufEintrag[]> => {
   try {
+    console.log(`🔍 Lade Dokumentverlauf für Projekt ${projektId}, Typ: ${dokumentTyp}`);
     const dokumente = await ladeDokumenteNachTyp(projektId, dokumentTyp);
+    console.log(`📄 Gefundene Dokumente: ${dokumente.length}`, dokumente);
     
     // Bei Rechnungen auch Stornos laden
     let stornos: GespeichertesDokument[] = [];

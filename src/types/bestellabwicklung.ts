@@ -11,6 +11,7 @@ export interface Position {
   streichpreis?: number; // Optional - durchgestrichener Originalpreis für Rabattaktionen
   streichpreisGrund?: string; // Optional - Grund für den Rabatt (z.B. "Neukundenaktion", "Frühbucherpreis")
   gesamtpreis: number;
+  istBedarfsposition?: boolean; // Optional - Bedarfspositionen werden separat im Angebot angezeigt und NICHT in die Gesamtsumme eingerechnet
 }
 
 export interface LieferscheinPosition {

@@ -207,11 +207,15 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   yPos += 8;
   doc.setFontSize(10);
   doc.text('vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:', 25, yPos);
-  
-  // === Positionen Tabelle ===
+
+  // === Positionen aufteilen in reguläre und Bedarfspositionen ===
+  const regulaerePositionen = daten.positionen.filter(pos => !pos.istBedarfsposition);
+  const bedarfsPositionen = daten.positionen.filter(pos => pos.istBedarfsposition);
+
+  // === Positionen Tabelle (nur reguläre Positionen) ===
   yPos += 8;
-  
-  const tableData = daten.positionen.map(pos => {
+
+  const tableData = regulaerePositionen.map(pos => {
     // Bezeichnung mit Beschreibung (falls vorhanden)
     let bezeichnungMitBeschreibung = pos.bezeichnung;
     if (pos.beschreibung && pos.beschreibung.trim()) {
@@ -278,20 +282,20 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     didDrawCell: function(data: any) {
       // Streichpreis durchstreichen und Grund fett anzeigen (wenn vorhanden)
       if (data.column.index === 4 && data.section === 'body') {
-        const position = daten.positionen[data.row.index];
+        const position = regulaerePositionen[data.row.index];
         if (position && position.streichpreis && position.streichpreis > position.einzelpreis) {
           const cell = data.cell;
           const lines = cell.text;
-          
+
           // Prüfe ob ein Grund vorhanden ist (ORIGINAL aus dem Datenobjekt!)
           const streichpreisGrund = (position.streichpreisGrund ?? '').trim();
           const hasGrund = streichpreisGrund.length > 0;
-          
+
           // BOMBENSICHERE LOGIK: Finde die Zeile mit dem Streichpreis
           // Der Streichpreis ist IMMER formatiert als Währung (z.B. "125,50 €")
           const streichpreisFormatiert = formatWaehrung(position.streichpreis);
           let streichpreisLineIndex = -1;
-          
+
           // Suche die Zeile, die den Streichpreis enthält
           for (let i = 0; i < lines.length; i++) {
             if (lines[i] === streichpreisFormatiert) {
@@ -396,11 +400,102 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     }
   });
   
-  // === Summen ===
+  // === Bedarfspositionen-Tabelle (falls vorhanden) ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
-  // Berechnung immer durchführen (für Skonto etc.)
-  const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+  if (bedarfsPositionen.length > 0) {
+    summenY += 12;
+    summenY = await ensureSpace(doc, summenY, 50, stammdaten);
+
+    // Überschrift für Bedarfspositionen
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(237, 137, 54); // orange-500
+    doc.text('Optionale Bedarfspositionen', 25, summenY);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+
+    summenY += 3;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Diese Positionen sind nicht in der Angebotssumme enthalten.', 25, summenY);
+    doc.setTextColor(0, 0, 0);
+
+    summenY += 4;
+
+    const bedarfsTableData = bedarfsPositionen.map(pos => {
+      let bezeichnungMitBeschreibung = pos.bezeichnung;
+      if (pos.beschreibung && pos.beschreibung.trim()) {
+        bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
+      }
+      let einzelpreisText = formatWaehrung(pos.einzelpreis);
+      if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
+        if (pos.streichpreisGrund) {
+          einzelpreisText = pos.streichpreisGrund + '\n' + formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+        } else {
+          einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+        }
+      }
+      return [
+        pos.artikelnummer || '-',
+        bezeichnungMitBeschreibung,
+        pos.menge.toString(),
+        pos.einheit,
+        einzelpreisText,
+        formatWaehrung(pos.gesamtpreis)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: summenY,
+      margin: { left: 25, right: 20, top: 45, bottom: 30 },
+      head: [['Art.Nr.', 'Bezeichnung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
+      body: bedarfsTableData,
+      theme: 'striped',
+      rowPageBreak: 'avoid',
+      headStyles: {
+        fillColor: [237, 137, 54], // orange-500 für Bedarfspositionen
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 16, halign: 'left' },
+        1: { cellWidth: 68, valign: 'top' },
+        2: { cellWidth: 16, halign: 'right' },
+        3: { cellWidth: 16 },
+        4: { cellWidth: 22, halign: 'right', valign: 'top' },
+        5: { cellWidth: 22, halign: 'right', valign: 'top' }
+      },
+      didDrawPage: function(data) {
+        if (data.pageNumber > 1) {
+          addFollowPageHeader(doc, stammdaten);
+          addDIN5008Footer(doc, stammdaten);
+        }
+      }
+    });
+
+    // Bedarfspositionen-Summe (optional anzeigen)
+    const bedarfsNetto = bedarfsPositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+    const bedarfsBrutto = bedarfsNetto * 1.19;
+
+    summenY = (doc as any).lastAutoTable.finalY + 5;
+    doc.setFontSize(9);
+    doc.setTextColor(237, 137, 54);
+    doc.text(`Summe Bedarfspositionen: ${formatWaehrung(bedarfsNetto)} netto / ${formatWaehrung(bedarfsBrutto)} brutto`, 25, summenY);
+    doc.setTextColor(0, 0, 0);
+
+    summenY = (doc as any).lastAutoTable.finalY || summenY;
+  }
+
+  // === Summen (nur reguläre Positionen) ===
+
+  // Berechnung immer durchführen (für Skonto etc.) - NUR reguläre Positionen
+  const nettobetrag = regulaerePositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;

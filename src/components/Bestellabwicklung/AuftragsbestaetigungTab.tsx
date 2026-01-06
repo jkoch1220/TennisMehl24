@@ -652,10 +652,15 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         }
       }
 
+      console.log(`💾 AB gespeichert, Dokument-ID: ${neuesDokument.$id}, Projekt-ID: ${projekt.$id}`);
       setGespeichertesDokument(neuesDokument);
       setIstBearbeitungsModus(false);
       setLadeStatus('bereit');
-      setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
+      console.log(`🔄 Erhöhe verlaufLadeZaehler um 1...`);
+      setVerlaufLadeZaehler(prev => {
+        console.log(`📊 Alter Zähler: ${prev}, Neuer Zähler: ${prev + 1}`);
+        return prev + 1;
+      }); // Verlauf neu laden
 
       // Status-Meldung nach 5 Sekunden ausblenden
       setTimeout(() => setStatusMeldung(null), 5000);

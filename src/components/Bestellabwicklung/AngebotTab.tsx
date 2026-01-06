@@ -766,16 +766,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }
   };
 
-  const berechnung = berechneDokumentSummen(angebotsDaten.positionen);
+  // Positionen aufteilen in reguläre und Bedarfspositionen
+  const regulaerePositionen = angebotsDaten.positionen.filter(pos => !pos.istBedarfsposition);
+  const bedarfsPositionen = angebotsDaten.positionen.filter(pos => pos.istBedarfsposition);
+
+  // Berechnung NUR für reguläre Positionen (Bedarfspositionen werden NICHT in Gesamtsumme eingerechnet)
+  const berechnung = berechneDokumentSummen(regulaerePositionen);
+  const bedarfsBerechnung = berechneDokumentSummen(bedarfsPositionen);
   const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
   const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
 
-  // DB1-Berechnung (intern - nur für UI, nicht im PDF)
+  // DB1-Berechnung (intern - nur für UI, nicht im PDF) - nur reguläre Positionen
   const db1Berechnung = (() => {
     let gesamtEK = 0;
     let positionenMitEK = 0;
 
-    angebotsDaten.positionen.forEach(pos => {
+    regulaerePositionen.forEach(pos => {
       if (pos.einkaufspreis !== undefined && pos.einkaufspreis !== null) {
         gesamtEK += pos.einkaufspreis * pos.menge;
         positionenMitEK++;
@@ -790,7 +796,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       db1,
       db1Prozent,
       positionenMitEK,
-      allePositionenHabenEK: positionenMitEK === angebotsDaten.positionen.length && angebotsDaten.positionen.length > 0,
+      allePositionenHabenEK: positionenMitEK === regulaerePositionen.length && regulaerePositionen.length > 0,
     };
   })();
 
@@ -1407,7 +1413,25 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             >
               <div className="space-y-4">
                 {angebotsDaten.positionen.map((position, index) => (
-                  <SortablePosition key={position.id} id={position.id} accentColor="blue">
+                  <SortablePosition key={position.id} id={position.id} accentColor={position.istBedarfsposition ? 'orange' : 'blue'}>
+                    {/* Bedarfsposition-Toggle - kompakt oben rechts */}
+                    <div className="flex justify-end mb-2">
+                      <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg transition-colors ${
+                        position.istBedarfsposition
+                          ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={position.istBedarfsposition || false}
+                          onChange={(e) => handlePositionChange(index, 'istBedarfsposition', e.target.checked)}
+                          className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-600 rounded focus:ring-orange-500"
+                        />
+                        <span className="text-sm font-medium">
+                          {position.istBedarfsposition ? 'Bedarfsposition' : 'Als Bedarfsposition'}
+                        </span>
+                      </label>
+                    </div>
                     <div className="flex items-start gap-4">
                       <div className="flex-1 space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
@@ -1758,7 +1782,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           <div className="space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-gray-600 dark:text-dark-textMuted">Positionen:</span>
-              <span className="font-medium text-gray-900 dark:text-dark-text">{angebotsDaten.positionen.length}</span>
+              <span className="font-medium text-gray-900 dark:text-dark-text">
+                {regulaerePositionen.length}
+                {bedarfsPositionen.length > 0 && (
+                  <span className="ml-1 text-orange-600 dark:text-orange-400">
+                    (+{bedarfsPositionen.length} Bedarf)
+                  </span>
+                )}
+              </span>
             </div>
 
             <div className="border-t border-blue-200 dark:border-blue-800 pt-3">
@@ -1797,6 +1828,35 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               </div>
             </div>
 
+            {/* Bedarfspositionen-Anzeige (separat, NICHT in Summe enthalten) */}
+            {bedarfsPositionen.length > 0 && (
+              <div className="border-t-2 border-dashed border-orange-300 dark:border-orange-700 pt-3 mt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded">
+                    OPTIONAL
+                  </span>
+                  <span className="text-sm font-medium text-orange-700 dark:text-orange-400">Bedarfspositionen</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">Anzahl:</span>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">{bedarfsPositionen.length} Position(en)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">{bedarfsBerechnung.nettobetrag.toFixed(2)} €</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-400">Brutto:</span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">{(bedarfsBerechnung.nettobetrag * 1.19).toFixed(2)} €</span>
+                  </div>
+                  <p className="text-xs text-orange-600 dark:text-orange-500 mt-2 italic">
+                    Diese Positionen sind NICHT in der Angebotssumme enthalten und werden im PDF separat ausgewiesen.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* DB1-Anzeige (INTERN - nicht im PDF) */}
             {db1Berechnung.positionenMitEK > 0 && (
               <div className="border-t-2 border-dashed border-amber-300 dark:border-amber-700 pt-3 mt-3">
@@ -1825,7 +1885,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   </div>
                   {!db1Berechnung.allePositionenHabenEK && (
                     <div className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-                      ⚠ Nur {db1Berechnung.positionenMitEK} von {angebotsDaten.positionen.length} Positionen haben EK-Preis
+                      ⚠ Nur {db1Berechnung.positionenMitEK} von {regulaerePositionen.length} Positionen haben EK-Preis
                     </div>
                   )}
                 </div>

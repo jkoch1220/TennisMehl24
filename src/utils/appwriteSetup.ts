@@ -261,35 +261,13 @@ const privatKreditorenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 50000 }, // Alle Daten als JSON
 ];
 
-// Fahrtkosten Collections
+// Fahrtkosten Collections - nur "data" Feld für JSON
 const fahrtenFields: FieldConfig[] = [
-  { key: 'datum', type: 'string', size: 20, required: true },
-  { key: 'fahrer', type: 'string', size: 100, required: true },
-  { key: 'fahrerName', type: 'string', size: 200 },
-  { key: 'startort', type: 'string', size: 200, required: true },
-  { key: 'startAdresse', type: 'string', size: 500 },
-  { key: 'zielort', type: 'string', size: 200, required: true },
-  { key: 'zielAdresse', type: 'string', size: 500 },
-  { key: 'kilometer', type: 'double', required: true },
-  { key: 'kilometerPauschale', type: 'double', default: 0.30 },
-  { key: 'betrag', type: 'double' },
-  { key: 'hinpirsUndZurueck', type: 'boolean', default: false },
-  { key: 'zweck', type: 'string', size: 500 },
-  { key: 'notizen', type: 'string', size: 1000 },
-  { key: 'defaultStreckeId', type: 'string', size: 100 },
-  { key: 'erstelltAm', type: 'string', size: 50 },
-  { key: 'geaendertAm', type: 'string', size: 50 },
+  { key: 'data', type: 'string', size: 50000 },
 ];
 
 const defaultStreckenFields: FieldConfig[] = [
-  { key: 'name', type: 'string', size: 200, required: true },
-  { key: 'startort', type: 'string', size: 200, required: true },
-  { key: 'startAdresse', type: 'string', size: 500 },
-  { key: 'zielort', type: 'string', size: 200, required: true },
-  { key: 'zielAdresse', type: 'string', size: 500 },
-  { key: 'kilometer', type: 'double', required: true },
-  { key: 'istFavorit', type: 'boolean', default: false },
-  { key: 'sortierung', type: 'integer', default: 0 },
+  { key: 'data', type: 'string', size: 10000 },
 ];
 
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
@@ -551,10 +529,6 @@ export async function setupAppwriteFields() {
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'email_index', ['email']);
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'token_index', ['unsubscribeToken'], 'unique');
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'status_index', ['status']);
-
-    // Indizes für Fahrtkosten
-    await ensureIndex(FAHRTEN_COLLECTION_ID, 'datum_index', ['datum']);
-    await ensureIndex(FAHRTEN_COLLECTION_ID, 'fahrer_index', ['fahrer']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
