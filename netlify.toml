@@ -4,6 +4,11 @@
   command = "npm run build"
   publish = "dist"
 
+# Netlify Functions Konfiguration
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Secrets Scanning: Deaktiviere für Build-Output und öffentliche Werte
 # Die Werte erscheinen im Build-Output, weil Vite sie zur Build-Zeit einbettet
 # Das ist normal und erwartet. PROJECT_ID, PROJECT_NAME und ENDPOINT sind öffentlich.

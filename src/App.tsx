@@ -31,6 +31,7 @@ import Qualitaetssicherung from './components/Qualitaetssicherung/Qualitaetssich
 import PrivatKreditorenAuswahl from './components/PrivatKreditoren/PrivatKreditorenAuswahl';
 import Fahrkostenabrechnung from './components/Fahrkostenabrechnung/Fahrkostenabrechnung';
 import LogistikpartnerVerwaltung from './components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung';
+import EmailDashboard from './components/EmailDashboard/EmailDashboard';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -166,6 +167,11 @@ function AuthenticatedContent() {
               <Route path="/logistikpartner" element={
                 <ProtectedRoute toolId="logistikpartner">
                   <LogistikpartnerVerwaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/email-dashboard" element={
+                <ProtectedRoute toolId="email-dashboard">
+                  <EmailDashboard />
                 </ProtectedRoute>
               } />
 

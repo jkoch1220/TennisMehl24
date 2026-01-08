@@ -20,6 +20,7 @@ import {
   Wallet,
   Car,
   Truck,
+  Inbox,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -207,6 +208,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/logistikpartner',
     icon: Truck,
     color: 'from-blue-500 to-indigo-600',
+  },
+  {
+    id: 'email-dashboard',
+    name: 'Email Dashboard',
+    description: 'Alle Postfächer live überwachen mit Echtzeit-Updates',
+    href: '/email-dashboard',
+    icon: Inbox,
+    color: 'from-teal-500 to-cyan-600',
   },
 ];
 
