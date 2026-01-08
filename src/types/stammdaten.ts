@@ -38,7 +38,12 @@ export interface Stammdaten {
   
   // E-Mail-Templates (als JSON-String gespeichert)
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
-  
+
+  // Saison-Einstellungen
+  // Die Saison geht von November bis April (z.B. Nov 2025 - Apr 2026 = Saison 2026)
+  aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
+  saisonStartMonat?: number; // Standard: 11 (November)
+
   // Metadaten
   erstelltAm?: string;
   aktualisiertAm?: string;
@@ -65,4 +70,6 @@ export interface StammdatenInput {
   werkPlz?: string;
   werkOrt?: string;
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
+  aktuelleSaison?: number;
+  saisonStartMonat?: number;
 }

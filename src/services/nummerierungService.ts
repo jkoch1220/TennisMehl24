@@ -13,6 +13,54 @@ interface Zaehlerstaende {
 }
 
 /**
+ * Berechnet die aktuelle Saison basierend auf dem Monat.
+ * Die Saison geht von November bis April:
+ * - November 2025 - April 2026 = Saison 2026
+ * - Mai 2026 - Oktober 2026 = Saison 2026 (Nachsaison)
+ * - November 2026 - April 2027 = Saison 2027
+ *
+ * @param saisonStartMonat - Der Monat, ab dem die neue Saison beginnt (Standard: 11 = November)
+ * @returns Das aktuelle Saisonjahr
+ */
+export const berechneAktuelleSaison = (saisonStartMonat: number = 11): number => {
+  const heute = new Date();
+  const aktuellerMonat = heute.getMonth() + 1; // getMonth() ist 0-basiert
+  const aktuellesJahr = heute.getFullYear();
+
+  // Ab dem Startmonat (z.B. November) gehört es zur nächsten Saison
+  if (aktuellerMonat >= saisonStartMonat) {
+    return aktuellesJahr + 1;
+  }
+
+  return aktuellesJahr;
+};
+
+/**
+ * Lädt die konfigurierte Saison aus den Stammdaten oder berechnet sie automatisch
+ */
+export const getAktuelleSaison = async (): Promise<number> => {
+  try {
+    const stammdaten = await databases.getDocument(
+      DATABASE_ID,
+      STAMMDATEN_COLLECTION_ID,
+      STAMMDATEN_DOCUMENT_ID
+    );
+
+    // Wenn eine manuelle Saison konfiguriert ist, verwende diese
+    if (stammdaten.aktuelleSaison) {
+      return stammdaten.aktuelleSaison;
+    }
+
+    // Sonst berechne automatisch basierend auf dem konfigurierten Startmonat
+    const saisonStartMonat = stammdaten.saisonStartMonat || 11; // Standard: November
+    return berechneAktuelleSaison(saisonStartMonat);
+  } catch (error) {
+    // Fallback: Automatische Berechnung mit Standard-Startmonat
+    return berechneAktuelleSaison(11);
+  }
+};
+
+/**
  * Prüft, ob eine Dokumentnummer bereits in der Datenbank existiert
  */
 const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise<boolean> => {
@@ -57,22 +105,23 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
 
 /**
  * Generiert eine standardkonforme Dokumentnummer nach deutschem Muster
- * Format: PREFIX-LAUFNUMMER
+ * Format: PREFIX-LAUFNUMMER oder PREFIX-JAHR-LAUFNUMMER
  * Beispiele:
  * - ANG-0001 (Angebot)
- * - AB-0001 (Auftragsbestätigung)
+ * - AB-2026-0001 (Auftragsbestätigung mit Saisonjahr)
  * - LS-0001 (Lieferschein)
  * - RE-0001 (Rechnung)
- * 
+ *
  * WICHTIG: Diese Funktion prüft IMMER, ob die generierte Nummer bereits existiert,
  * um doppelte Nummern zu vermeiden!
  */
 export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise<string> => {
   const MAX_VERSUCHE = 100; // Verhindere Endlosschleifen
   let versuch = 0;
-  
+
   try {
-    const aktuellesJahr = 2026; // Aktuelle Saison
+    // Lade aktuelle Saison aus Stammdaten oder berechne automatisch
+    const aktuellesJahr = await getAktuelleSaison();
     
     // Hole die aktuellen Zählerstände
     let stammdaten: any;
@@ -159,15 +208,19 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
     // Schleife, um eine eindeutige Nummer zu finden
     while (versuch < MAX_VERSUCHE) {
       versuch++;
-      
+
       // Erhöhe den Zähler
       const neuerZaehler = zaehlerstaende[zaehlerFeld] + 1;
-      
+
       // Formatiere die Nummer mit führenden Nullen (4-stellig)
       const laufnummer = neuerZaehler.toString().padStart(4, '0');
-      
+
       // Generiere die vollständige Dokumentnummer
-      const dokumentnummer = `${prefix}-${laufnummer}`;
+      // AB-Nummern enthalten das Saisonjahr: AB-2026-0001
+      // Andere Dokumenttypen bleiben im alten Format: RE-0001
+      const dokumentnummer = typ === 'auftragsbestaetigung'
+        ? `${prefix}-${aktuellesJahr}-${laufnummer}`
+        : `${prefix}-${laufnummer}`;
       
       // KRITISCH: Prüfe, ob diese Nummer bereits existiert
       const existiert = await nummerExistiertBereits(dokumentnummer, typ);
@@ -203,7 +256,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
     // Verwende die letzten 4 Ziffern des Timestamps als Laufnummer
     const laufnummer = (timestamp % 10000).toString().padStart(4, '0');
     let prefix: string;
-    
+
     switch (typ) {
       case 'angebot':
         prefix = 'ANG';
@@ -223,10 +276,14 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       default:
         prefix = 'DOK';
     }
-    
-    const fallbackNummer = `${prefix}-${laufnummer}`;
+
+    // Auch im Fallback das Saisonjahr für AB einfügen
+    const fallbackSaison = berechneAktuelleSaison();
+    const fallbackNummer = typ === 'auftragsbestaetigung'
+      ? `${prefix}-${fallbackSaison}-${laufnummer}`
+      : `${prefix}-${laufnummer}`;
     console.error(`⚠️ Verwende Fallback-Nummer: ${fallbackNummer}`);
-    
+
     return fallbackNummer;
   }
 };
@@ -318,14 +375,16 @@ export const getZaehlerstaende = async (): Promise<Zaehlerstaende | null> => {
       STAMMDATEN_COLLECTION_ID,
       STAMMDATEN_DOCUMENT_ID
     );
-    
+
+    const aktuelleSaison = await getAktuelleSaison();
+
     return {
       angebotZaehler: stammdaten.angebotZaehler || 0,
       auftragsbestaetigungZaehler: stammdaten.auftragsbestaetigungZaehler || 0,
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
       stornoZaehler: stammdaten.stornoZaehler || 0,
-      jahr: stammdaten.jahr || 2026, // Aktuelle Saison
+      jahr: stammdaten.jahr || aktuelleSaison,
     };
   } catch (error) {
     console.error('Fehler beim Abrufen der Zählerstände:', error);

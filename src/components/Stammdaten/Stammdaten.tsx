@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash, Mail, ShoppingBag } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
 import UniversalArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
+import SaisonEinstellungenTab from './SaisonEinstellungenTab';
 
-type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates';
+type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -40,12 +41,19 @@ const Stammdaten = () => {
       color: 'from-green-600 to-emerald-600',
       description: 'Kundennummern generieren'
     },
-    { 
-      id: 'emailTemplates' as TabId, 
-      label: 'E-Mail-Templates', 
-      icon: Mail, 
+    {
+      id: 'emailTemplates' as TabId,
+      label: 'E-Mail-Templates',
+      icon: Mail,
       color: 'from-purple-600 to-indigo-600',
       description: 'E-Mail-Vorlagen bearbeiten'
+    },
+    {
+      id: 'saison' as TabId,
+      label: 'Saison',
+      icon: Calendar,
+      color: 'from-orange-600 to-amber-600',
+      description: 'Saison-Einstellungen'
     },
   ];
 
@@ -100,6 +108,7 @@ const Stammdaten = () => {
         {activeTab === 'universaArtikel' && <UniversalArtikelTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
+        {activeTab === 'saison' && <SaisonEinstellungenTab />}
       </div>
 
       {/* Info-Box über Stammdaten */}
@@ -123,8 +132,12 @@ const Stammdaten = () => {
             <strong>Kundennummern:</strong> Automatische Vergabe von eindeutigen Kundennummern für alle Kunden
             in der Kundenliste. Die Nummern beginnen bei 231 und werden fortlaufend vergeben.
           </p>
+          <p>
+            <strong>Saison:</strong> Konfiguration der aktuellen Saison für die Auftragsbestätigungsnummern.
+            AB-Nummern werden im Format AB-YYYY-0001 generiert, wobei YYYY das Saisonjahr ist.
+          </p>
           <p className="text-blue-700 font-medium mt-4">
-            💡 Tipp: Pflegen Sie Ihre Stammdaten sorgfältig, da diese zentral in vielen Bereichen verwendet werden.
+            Tipp: Pflegen Sie Ihre Stammdaten sorgfältig, da diese zentral in vielen Bereichen verwendet werden.
           </p>
         </div>
       </div>
