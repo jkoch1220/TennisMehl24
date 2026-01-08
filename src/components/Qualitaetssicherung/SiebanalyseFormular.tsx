@@ -13,17 +13,45 @@ import {
   RotateCcw,
   AlertTriangle,
   Clock,
+  Scale,
+  Percent,
 } from 'lucide-react';
 import { qsService, berechneErgebnis } from '../../services/qsService';
 import {
   Siebanalyse,
   Siebwerte,
+  SiebRueckstaende,
   SIEB_TOLERANZEN,
   NeueSiebanalyse,
   ProbenTyp,
   HammerStatus,
   HammerInfo,
 } from '../../types/qualitaetssicherung';
+
+// Berechnet Siebdurchgänge (%) aus Rückständen (g) und Probengewicht
+function berechneSiebdurchgang(probenGewicht: number, rueckstaende: SiebRueckstaende): Siebwerte {
+  if (probenGewicht <= 0) {
+    return { mm2_0: 100, mm1_0: 0, mm0_63: 0, mm0_315: 0, mm0_125: 0, mm0_063: 0 };
+  }
+
+  // Kumulierte Rückstände berechnen (von grob nach fein)
+  const kum2_0 = rueckstaende.mm2_0;
+  const kum1_0 = kum2_0 + rueckstaende.mm1_0;
+  const kum0_63 = kum1_0 + rueckstaende.mm0_63;
+  const kum0_315 = kum0_63 + rueckstaende.mm0_315;
+  const kum0_125 = kum0_315 + rueckstaende.mm0_125;
+  const kum0_063 = kum0_125 + rueckstaende.mm0_063;
+
+  // Siebdurchgang = (Gesamtgewicht - kumulierter Rückstand) / Gesamtgewicht * 100
+  return {
+    mm2_0: Math.round(((probenGewicht - kum2_0) / probenGewicht) * 1000) / 10,
+    mm1_0: Math.round(((probenGewicht - kum1_0) / probenGewicht) * 1000) / 10,
+    mm0_63: Math.round(((probenGewicht - kum0_63) / probenGewicht) * 1000) / 10,
+    mm0_315: Math.round(((probenGewicht - kum0_315) / probenGewicht) * 1000) / 10,
+    mm0_125: Math.round(((probenGewicht - kum0_125) / probenGewicht) * 1000) / 10,
+    mm0_063: Math.round(((probenGewicht - kum0_063) / probenGewicht) * 1000) / 10,
+  };
+}
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { projektService } from '../../services/projektService';
 import type { SaisonKunde } from '../../types/saisonplanung';
@@ -44,6 +72,25 @@ const HAMMER_STATUS_LABELS: Record<HammerStatus, { label: string; color: string;
 
 export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
+
+  // Eingabemodus: 'gewicht' (Gramm-Eingabe) oder 'prozent' (direkte Prozent-Eingabe)
+  const [eingabeModus, setEingabeModus] = useState<'gewicht' | 'prozent'>('gewicht');
+
+  // Probengewicht in Gramm
+  const [probenGewicht, setProbenGewicht] = useState<number>(500);
+
+  // Rückstände pro Sieb in Gramm
+  const [rueckstaende, setRueckstaende] = useState<SiebRueckstaende>({
+    mm2_0: 0,
+    mm1_0: 50,
+    mm0_63: 90,
+    mm0_315: 110,
+    mm0_125: 115,
+    mm0_063: 110,
+    durchgang: 25,
+  });
+
+  // Berechnete Siebwerte (Durchgang in %)
   const [siebwerte, setSiebwerte] = useState<Siebwerte>({
     mm2_0: 100,
     mm1_0: 90,
@@ -70,6 +117,20 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
   // Vorschau der Bewertung
   const bewertung = berechneErgebnis(siebwerte, probenTyp);
 
+  // Automatische Berechnung der Siebwerte bei Gewichts-Eingabe
+  useEffect(() => {
+    if (eingabeModus === 'gewicht' && probenGewicht > 0) {
+      const berechneteWerte = berechneSiebdurchgang(probenGewicht, rueckstaende);
+      setSiebwerte(berechneteWerte);
+    }
+  }, [eingabeModus, probenGewicht, rueckstaende]);
+
+  // Summe der Rückstände für Validierung
+  const summeRueckstaende = rueckstaende.mm2_0 + rueckstaende.mm1_0 + rueckstaende.mm0_63 +
+    rueckstaende.mm0_315 + rueckstaende.mm0_125 + rueckstaende.mm0_063 + rueckstaende.durchgang;
+  const gewichtsDifferenz = Math.abs(probenGewicht - summeRueckstaende);
+  const gewichtValide = gewichtsDifferenz < 1; // Toleranz 1g
+
   useEffect(() => {
     // Kunden und Projekte laden
     const loadData = async () => {
@@ -89,6 +150,15 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
     // Vorhandene Analyse laden
     if (analyse) {
       setSiebwerte(analyse.siebwerte);
+      // Gewichtsdaten laden falls vorhanden
+      if (analyse.probenGewicht && analyse.siebRueckstaende) {
+        setEingabeModus('gewicht');
+        setProbenGewicht(analyse.probenGewicht);
+        setRueckstaende(analyse.siebRueckstaende);
+      } else {
+        // Alte Daten ohne Gewicht: Prozent-Modus verwenden
+        setEingabeModus('prozent');
+      }
       // Datum und Uhrzeit parsen
       const datumParts = analyse.pruefDatum.split('T');
       setPruefDatum(datumParts[0]);
@@ -115,6 +185,14 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
     }));
   };
 
+  const handleRueckstandChange = (sieb: keyof SiebRueckstaende, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    setRueckstaende((prev) => ({
+      ...prev,
+      [sieb]: Math.max(0, numValue),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -135,6 +213,12 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
             }
           : undefined;
 
+      // Gewichtsdaten nur bei Gewichts-Modus speichern
+      const gewichtsDaten = eingabeModus === 'gewicht' ? {
+        probenGewicht,
+        siebRueckstaende: rueckstaende,
+      } : {};
+
       if (analyse) {
         await qsService.updateSiebanalyse(analyse.id, {
           siebwerte,
@@ -146,6 +230,7 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
           projektId: projektId || undefined,
           kundeName: kunde?.name,
           projektName: projekt?.projektName,
+          ...gewichtsDaten,
         });
       } else {
         const neueDaten: NeueSiebanalyse = {
@@ -158,6 +243,7 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
           projektId: projektId || undefined,
           kundeName: kunde?.name,
           projektName: projekt?.projektName,
+          ...gewichtsDaten,
         };
         await qsService.createSiebanalyse(neueDaten);
       }
@@ -389,59 +475,224 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
             </div>
           )}
 
-          {/* Siebwerte */}
+          {/* Eingabemodus Toggle */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">
-              Siebdurchgang [%] - DIN 18035-5
-            </h3>
-            <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 space-y-3">
-              {SIEB_TOLERANZEN.map((toleranz) => {
-                const wert = siebwerte[toleranz.sieb];
-                const inToleranz = wert >= toleranz.min && wert <= toleranz.max;
-                const isFixed = toleranz.sieb === 'mm2_0';
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Eingabemodus
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setEingabeModus('gewicht')}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                  eingabeModus === 'gewicht'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
+                }`}
+              >
+                <Scale className={`h-5 w-5 ${eingabeModus === 'gewicht' ? 'text-blue-600' : 'text-gray-400'}`} />
+                <div className="text-left">
+                  <p className={`font-medium text-sm ${eingabeModus === 'gewicht' ? 'text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-dark-text'}`}>
+                    Gewicht (Gramm)
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted">Rückstände wiegen</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEingabeModus('prozent')}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                  eingabeModus === 'prozent'
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
+                }`}
+              >
+                <Percent className={`h-5 w-5 ${eingabeModus === 'prozent' ? 'text-purple-600' : 'text-gray-400'}`} />
+                <div className="text-left">
+                  <p className={`font-medium text-sm ${eingabeModus === 'prozent' ? 'text-purple-700 dark:text-purple-400' : 'text-gray-700 dark:text-dark-text'}`}>
+                    Prozent direkt
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted">% Durchgang eingeben</p>
+                </div>
+              </button>
+            </div>
+          </div>
 
-                return (
-                  <div key={toleranz.sieb} className="flex items-center gap-4">
-                    <div className="w-20 text-sm font-medium text-gray-700 dark:text-dark-textMuted">
-                      {toleranz.label} {toleranz.einheit}
+          {/* Gewichts-Eingabe (nur bei gewicht-Modus) */}
+          {eingabeModus === 'gewicht' && (
+            <div className="space-y-4">
+              {/* Probengewicht */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <label className="block text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                  <Scale className="h-4 w-4 inline mr-1" />
+                  Probengewicht (Gesamtgewicht)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={probenGewicht}
+                    onChange={(e) => setProbenGewicht(parseFloat(e.target.value) || 0)}
+                    className="w-32 px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono"
+                  />
+                  <span className="text-blue-700 dark:text-blue-400 font-medium">g</span>
+                </div>
+              </div>
+
+              {/* Rückstände pro Sieb */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">
+                  Rückstände pro Sieb [g] - DIN 18035-5
+                </h3>
+                <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 space-y-3">
+                  {SIEB_TOLERANZEN.map((toleranz) => {
+                    const rueckstand = rueckstaende[toleranz.sieb];
+                    const durchgang = siebwerte[toleranz.sieb];
+                    const inToleranz = durchgang >= toleranz.min && durchgang <= toleranz.max;
+
+                    return (
+                      <div key={toleranz.sieb} className="flex items-center gap-3">
+                        <div className="w-16 text-sm font-medium text-gray-700 dark:text-dark-textMuted">
+                          {toleranz.label} mm
+                        </div>
+                        <div className="w-24">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={rueckstand}
+                            onChange={(e) => handleRueckstandChange(toleranz.sieb, e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono text-sm"
+                          />
+                        </div>
+                        <span className="text-gray-500 text-sm">g</span>
+                        <div className="text-gray-400 dark:text-dark-textMuted">→</div>
+                        <div className={`w-16 text-right font-mono text-sm px-2 py-1 rounded ${
+                          probenTyp === 'mischprobe'
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                            : inToleranz
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }`}>
+                          {durchgang}%
+                        </div>
+                        <div className="w-20 text-xs text-gray-500 dark:text-dark-textMuted">
+                          ({toleranz.min}-{toleranz.max}%)
+                        </div>
+                        <div className="w-5">
+                          {probenTyp === 'mischprobe' ? (
+                            <Beaker className="h-4 w-4 text-amber-500" />
+                          ) : inToleranz ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Durchgang (Feinanteil unter 0,063mm) */}
+                  <div className="flex items-center gap-3 pt-2 border-t border-gray-200 dark:border-dark-border">
+                    <div className="w-16 text-sm font-medium text-gray-700 dark:text-dark-textMuted">
+                      {'<'}0,063
                     </div>
-                    <div className="flex-1">
+                    <div className="w-24">
                       <input
                         type="number"
                         min="0"
-                        max="100"
                         step="0.1"
-                        value={wert}
-                        onChange={(e) => handleSiebwertChange(toleranz.sieb, e.target.value)}
-                        disabled={isFixed}
-                        className={`w-full px-3 py-2 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 ${
-                          isFixed
-                            ? 'bg-gray-100 dark:bg-slate-700 text-gray-500 cursor-not-allowed'
-                            : probenTyp === 'mischprobe'
-                            ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10'
-                            : inToleranz
-                            ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
-                            : 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
-                        } dark:text-dark-text`}
+                        value={rueckstaende.durchgang}
+                        onChange={(e) => handleRueckstandChange('durchgang', e.target.value)}
+                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono text-sm"
                       />
                     </div>
-                    <div className="w-24 text-xs text-gray-500 dark:text-dark-textMuted">
-                      {toleranz.min === toleranz.max ? `${toleranz.min}%` : `${toleranz.min} - ${toleranz.max}%`}
+                    <span className="text-gray-500 text-sm">g</span>
+                    <div className="text-gray-400 dark:text-dark-textMuted">→</div>
+                    <div className="text-xs text-gray-500 dark:text-dark-textMuted">
+                      Feinanteil (durchgefallen)
                     </div>
-                    <div className="w-6">
-                      {probenTyp === 'mischprobe' ? (
-                        <Beaker className="h-5 w-5 text-amber-500" />
-                      ) : inToleranz ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
+                  </div>
+
+                  {/* Summen-Kontrolle */}
+                  <div className={`flex items-center justify-between pt-3 mt-2 border-t-2 ${
+                    gewichtValide ? 'border-green-300 dark:border-green-700' : 'border-red-300 dark:border-red-700'
+                  }`}>
+                    <div className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">
+                      Summe Rückstände:
+                    </div>
+                    <div className={`font-mono font-bold ${
+                      gewichtValide ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {summeRueckstaende.toFixed(1)} g
+                      {!gewichtValide && (
+                        <span className="text-xs ml-2">
+                          (Differenz: {gewichtsDifferenz.toFixed(1)} g)
+                        </span>
                       )}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Prozent-Eingabe (nur bei prozent-Modus) */}
+          {eingabeModus === 'prozent' && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">
+                Siebdurchgang [%] - DIN 18035-5
+              </h3>
+              <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 space-y-3">
+                {SIEB_TOLERANZEN.map((toleranz) => {
+                  const wert = siebwerte[toleranz.sieb];
+                  const inToleranz = wert >= toleranz.min && wert <= toleranz.max;
+                  const isFixed = toleranz.sieb === 'mm2_0';
+
+                  return (
+                    <div key={toleranz.sieb} className="flex items-center gap-4">
+                      <div className="w-20 text-sm font-medium text-gray-700 dark:text-dark-textMuted">
+                        {toleranz.label} {toleranz.einheit}
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={wert}
+                          onChange={(e) => handleSiebwertChange(toleranz.sieb, e.target.value)}
+                          disabled={isFixed}
+                          className={`w-full px-3 py-2 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 ${
+                            isFixed
+                              ? 'bg-gray-100 dark:bg-slate-700 text-gray-500 cursor-not-allowed'
+                              : probenTyp === 'mischprobe'
+                              ? 'border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10'
+                              : inToleranz
+                              ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20'
+                              : 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
+                          } dark:text-dark-text`}
+                        />
+                      </div>
+                      <div className="w-24 text-xs text-gray-500 dark:text-dark-textMuted">
+                        {toleranz.min === toleranz.max ? `${toleranz.min}%` : `${toleranz.min} - ${toleranz.max}%`}
+                      </div>
+                      <div className="w-6">
+                        {probenTyp === 'mischprobe' ? (
+                          <Beaker className="h-5 w-5 text-amber-500" />
+                        ) : inToleranz ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-red-500" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Vorschau Ergebnis */}
           <div

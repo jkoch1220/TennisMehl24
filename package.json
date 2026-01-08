@@ -15,7 +15,8 @@
     "cleanup:users": "node scripts/cleanup-users.js",
     "cache:users": "node scripts/cache-users-helper.js",
     "setup:newsletter": "node scripts/setup-newsletter.js",
-    "setup:fahrtkosten": "npx tsx scripts/setup-fahrtkosten.ts"
+    "setup:fahrtkosten": "npx tsx scripts/setup-fahrtkosten.ts",
+    "setup:logistikpartner": "npx tsx scripts/setup-logistikpartner.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

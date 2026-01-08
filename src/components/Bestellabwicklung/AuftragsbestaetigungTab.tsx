@@ -358,7 +358,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: kundeInfo?.ansprechpartner,
+          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           auftragsbestaetigungsnummer: auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: projekt?.auftragsbestaetigungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,

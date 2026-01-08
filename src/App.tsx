@@ -30,7 +30,9 @@ import Unsubscribe from './pages/Unsubscribe';
 import Qualitaetssicherung from './components/Qualitaetssicherung/Qualitaetssicherung';
 import PrivatKreditorenAuswahl from './components/PrivatKreditoren/PrivatKreditorenAuswahl';
 import Fahrkostenabrechnung from './components/Fahrkostenabrechnung/Fahrkostenabrechnung';
+import LogistikpartnerVerwaltung from './components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
+import OfflineBanner from './components/OfflineBanner';
 
 // Authentifizierte App-Inhalte
 function AuthenticatedContent() {
@@ -161,6 +163,11 @@ function AuthenticatedContent() {
                   <Fahrkostenabrechnung />
                 </ProtectedRoute>
               } />
+              <Route path="/logistikpartner" element={
+                <ProtectedRoute toolId="logistikpartner">
+                  <LogistikpartnerVerwaltung />
+                </ProtectedRoute>
+              } />
 
               {/* Legacy route redirect - auch geschützt */}
               <Route path="/ziegelmehl" element={
@@ -210,6 +217,7 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <OfflineBanner />
         <Router>
           <Routes>
             {/* ÖFFENTLICHE Route für Newsletter-Abmeldung (ohne Login!) */}

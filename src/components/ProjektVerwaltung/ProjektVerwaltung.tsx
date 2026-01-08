@@ -756,37 +756,42 @@ const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
 
   if (kompakt) {
-    // Kompakte Ansicht - nur das Wichtigste
+    // Kompakte Ansicht - mit vollständigem Namen
     return (
       <div
         draggable
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
+        title={projekt.kundenname}
         className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-500 transition-all cursor-pointer group ${
           isVerloren ? 'opacity-60' : ''
         }`}
       >
-        <div className="flex items-center gap-2">
-          <GripVertical className="w-3 h-3 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted flex-shrink-0" />
-          <Building2 className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-          <span className="font-semibold text-sm text-gray-900 dark:text-dark-text truncate flex-1">
-            {projekt.kundenname}
-          </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-            {plz}
-          </span>
-          {projekt.kundennummer && (
-            <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 px-1.5 rounded flex-shrink-0">
-              {projekt.kundennummer}
+        <div className="flex items-start gap-2">
+          <GripVertical className="w-3 h-3 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted flex-shrink-0 mt-0.5" />
+          <Building2 className="w-3.5 h-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm text-gray-900 dark:text-dark-text leading-tight block">
+              {projekt.kundenname}
             </span>
-          )}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {plz}
+            </span>
+            {projekt.kundennummer && (
+              <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 px-1.5 rounded">
+                {projekt.kundennummer}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Normale Ansicht - Vereinsname prominenter
+  // Normale Ansicht - Vereinsname prominenter und vollständig sichtbar
   return (
     <div
       draggable
@@ -801,24 +806,25 @@ const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick
       <div className="flex items-start gap-2 mb-1.5">
         <GripVertical className="w-4 h-4 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          {/* Vereinsname - Hauptelement */}
-          <div className="flex items-center gap-1.5 mb-1">
-            <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0" />
-            <h4 className="font-bold text-gray-900 dark:text-white text-base leading-tight truncate">
+          {/* Vereinsname - Hauptelement (vollständig sichtbar) */}
+          <div className="flex items-start gap-1.5 mb-1">
+            <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+            <h4 className="font-bold text-gray-900 dark:text-white text-base leading-tight">
               {projekt.kundenname}
             </h4>
           </div>
 
-          {/* PLZ & Ort */}
-          <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            <span className="font-medium">{plz}</span>
-            <span className="truncate">{ort}</span>
+          {/* PLZ & Ort - vollständig */}
+          <div className="flex items-start gap-1.5 text-xs text-gray-600 dark:text-gray-400 ml-[22px]">
+            <MapPin className="w-3 h-3 flex-shrink-0 mt-0.5" />
+            <span>
+              <span className="font-medium">{plz}</span> {ort}
+            </span>
           </div>
 
           {/* Kundennummer falls vorhanden */}
           {projekt.kundennummer && (
-            <span className="inline-block mt-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-800">
+            <span className="inline-block mt-1 ml-[22px] px-2 py-0.5 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-800">
               Nr. {projekt.kundennummer}
             </span>
           )}

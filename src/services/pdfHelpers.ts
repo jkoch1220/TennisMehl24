@@ -165,7 +165,7 @@ export const addAbsenderzeile = (doc: jsPDF, stammdaten: Stammdaten) => {
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   // DIN 5008 konformer linker Abstand (25mm)
-  doc.text(`${stammdaten.firmenname} · ${stammdaten.firmenstrasse} · ${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, 25, 45);
+  doc.text(`${stammdaten.firmenname} · ${formatStrasseHausnummer(stammdaten.firmenstrasse)} · ${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, 25, 45);
 };
 
 // === DIN 5008: Footer mit Stammdaten ===
@@ -237,7 +237,7 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   doc.text('Verwaltung:', col1.x, footerY);
   doc.setFont('helvetica', 'normal');
   doc.text(stammdaten.firmenname, col1.x, footerY + lineHeight);
-  doc.text(stammdaten.firmenstrasse, col1.x, footerY + lineHeight * 2);
+  doc.text(formatStrasseHausnummer(stammdaten.firmenstrasse), col1.x, footerY + lineHeight * 2);
   doc.text(`${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`, col1.x, footerY + lineHeight * 3);
   
   // === Spalte 2: Geschäftsführer ===
@@ -288,7 +288,7 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
     doc.text('Werk/Verkauf:', col4.x, footerY);
     doc.setFont('helvetica', 'normal');
     doc.text(stammdaten.werkName!, col4.x, footerY + lineHeight);
-    doc.text(stammdaten.werkStrasse!, col4.x, footerY + lineHeight * 2);
+    doc.text(formatStrasseHausnummer(stammdaten.werkStrasse!), col4.x, footerY + lineHeight * 2);
     doc.text(`${stammdaten.werkPlz} ${stammdaten.werkOrt}`, col4.x, footerY + lineHeight * 3);
     nextColIndex = 4;
   }
@@ -341,6 +341,25 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   doc.text(ibanLine1, colBank.x, footerY + lineHeight * 2);
   doc.text(ibanLine2, colBank.x, footerY + lineHeight * 3);
   doc.text(`BIC: ${stammdaten.bic}`, colBank.x, footerY + lineHeight * 4);
+};
+
+/**
+ * Formatiert eine Straßenadresse mit Hausnummer, sodass die Hausnummer NIEMALS umbrechen kann.
+ * Ersetzt das letzte Leerzeichen vor der Hausnummer durch ein Non-Breaking Space (\u00A0).
+ *
+ * Beispiele:
+ * - "Musterstraße 12a" → "Musterstraße\u00A012a"
+ * - "Am Großen Anger 5" → "Am Großen Anger\u00A05"
+ * - "Lange Straße 123-125" → "Lange Straße\u00A0123-125"
+ */
+export const formatStrasseHausnummer = (strasse: string): string => {
+  if (!strasse) return '';
+
+  // Regex: Findet das letzte Leerzeichen gefolgt von einer Hausnummer
+  // Hausnummer = Zahl (evtl. mit Buchstaben wie 12a, 12b) oder Bereich (12-14)
+  const hausnummerRegex = /\s+(\d+[\w\-\/]*)\s*$/;
+
+  return strasse.replace(hausnummerRegex, '\u00A0$1');
 };
 
 /**

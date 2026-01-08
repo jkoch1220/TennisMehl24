@@ -9,6 +9,17 @@ export interface Siebwerte {
   mm0_063: number; // 0.063mm - 0-10%
 }
 
+// Rückstände in Gramm pro Sieb (für genaue Prozentsatz-Berechnung)
+export interface SiebRueckstaende {
+  mm2_0: number;   // Rückstand auf 2,0mm Sieb in g
+  mm1_0: number;   // Rückstand auf 1,0mm Sieb in g
+  mm0_63: number;  // Rückstand auf 0,63mm Sieb in g
+  mm0_315: number; // Rückstand auf 0,315mm Sieb in g
+  mm0_125: number; // Rückstand auf 0,125mm Sieb in g
+  mm0_063: number; // Rückstand auf 0,063mm Sieb in g
+  durchgang: number; // Was durch 0,063mm durchgeht (Feinanteil) in g
+}
+
 export type QSErgebnis = 'bestanden' | 'nicht_bestanden' | 'mischprobe';
 
 // Probentyp: Mischprobe (Produktion) vs Fertigprodukt (Auslieferung)
@@ -34,7 +45,9 @@ export interface Siebanalyse {
   projektId?: string;
   kundeName?: string;
   projektName?: string;
-  siebwerte: Siebwerte;
+  siebwerte: Siebwerte;           // Berechnete Siebdurchgänge in %
+  probenGewicht?: number;         // Gesamtgewicht der Probe in g
+  siebRueckstaende?: SiebRueckstaende; // Rückstände pro Sieb in g
   ergebnis: QSErgebnis;
   abweichungen: string[];
   notizen?: string;

@@ -8,6 +8,7 @@ interface ProjektDialogProps {
   kundennummer?: string;
   kundenstrasse?: string;
   kundenPlzOrt: string;
+  ansprechpartner?: string;
   angefragteMenge?: number;
   preisProTonne?: number;
   bezugsweg?: string;
@@ -22,6 +23,7 @@ const ProjektDialog = ({
   kundennummer,
   kundenstrasse,
   kundenPlzOrt,
+  ansprechpartner,
   angefragteMenge,
   preisProTonne,
   bezugsweg,
@@ -53,6 +55,7 @@ const ProjektDialog = ({
       kundenname: kundenname,
       kundenstrasse: kundenstrasse || '',
       kundenPlzOrt: kundenPlzOrt,
+      ansprechpartner: ansprechpartner || undefined,
       saisonjahr: formData.saisonjahr,
       status: 'angebot',
       angefragteMenge: formData.angefragteMenge || undefined,

@@ -12,7 +12,8 @@ import {
   ensureSpace,
   formatWaehrung as formatWaehrungHelper,
   formatDatum as formatDatumHelper,
-  getTextHeight
+  getTextHeight,
+  formatStrasseHausnummer
 } from './pdfHelpers';
 
 // Gemeinsame Berechnungsfunktion
@@ -155,7 +156,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.text(daten.kundenname, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 25, yPos);
+  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
   yPos += 5;
   doc.text(daten.kundenPlzOrt, 25, yPos);
   
@@ -185,7 +186,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     doc.text(daten.lieferadresseName, lieferX, lieferYPos);
     doc.setFont('helvetica', 'normal');
     lieferYPos += 5;
-    doc.text(daten.lieferadresseStrasse || '', lieferX, lieferYPos);
+    doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos);
     lieferYPos += 4;
     doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
   }

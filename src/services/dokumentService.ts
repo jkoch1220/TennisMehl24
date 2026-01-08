@@ -12,7 +12,8 @@ import {
   formatWaehrung,
   formatDatum,
   getTextHeight,
-  getLiefersaisonText
+  getLiefersaisonText,
+  formatStrasseHausnummer
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
@@ -51,7 +52,7 @@ export const generiereBriefpapierPDF = async (stammdaten?: Stammdaten): Promise<
   doc.text(name, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(strasse, 25, yPos);
+  doc.text(formatStrasseHausnummer(strasse), 25, yPos);
   yPos += 5;
   doc.text(`${plz} ${ort}`, 25, yPos);
 
@@ -132,7 +133,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.text(daten.kundenname, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 25, yPos);
+  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
   yPos += 5;
   doc.text(daten.kundenPlzOrt, 25, yPos);
   
@@ -176,7 +177,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     yPos += 6;
     
     if (daten.lieferadresseStrasse) {
-      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
       yPos += 5;
     }
     
@@ -764,7 +765,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(daten.kundenname, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 25, yPos);
+  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
   yPos += 5;
   doc.text(daten.kundenPlzOrt, 25, yPos);
   
@@ -808,7 +809,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     yPos += 6;
     
     if (daten.lieferadresseStrasse) {
-      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
       yPos += 5;
     }
     
@@ -1288,7 +1289,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(daten.kundenname, 25, yPos);
   doc.setFont('helvetica', 'normal');
   yPos += 6;
-  doc.text(daten.kundenstrasse, 25, yPos);
+  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
   yPos += 5;
   doc.text(daten.kundenPlzOrt, 25, yPos);
   
@@ -1332,7 +1333,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     yPos += 6;
     
     if (daten.lieferadresseStrasse) {
-      doc.text(daten.lieferadresseStrasse, 25, yPos);
+      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
       yPos += 5;
     }
     

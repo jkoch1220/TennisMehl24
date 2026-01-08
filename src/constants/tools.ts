@@ -19,6 +19,7 @@ import {
   TestTube2,
   Wallet,
   Car,
+  Truck,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -198,6 +199,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/fahrtkosten',
     icon: Car,
     color: 'from-red-500 to-rose-600',
+  },
+  {
+    id: 'logistikpartner',
+    name: 'Logistikpartner',
+    description: 'Speditionen und Transportpartner mit Fahrzeugen, Liefergebieten und Preisen',
+    href: '/logistikpartner',
+    icon: Truck,
+    color: 'from-blue-500 to-indigo-600',
   },
 ];
 

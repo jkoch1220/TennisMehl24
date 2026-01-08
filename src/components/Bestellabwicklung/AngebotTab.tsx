@@ -366,7 +366,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: kundeInfo?.ansprechpartner,
+          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           angebotsnummer: angebotsnummer,
           angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           gueltigBis: gueltigBis.toISOString().split('T')[0],
@@ -1434,8 +1434,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="flex-1 space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-                          <div>
+                        {/* Zeile 1: Artikelnummer + Bezeichnung (viel Platz für Bezeichnung) */}
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel-Nr.</label>
                             <input
                               type="text"
@@ -1445,16 +1446,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                             />
                           </div>
-                          <div className="md:col-span-2">
+                          <div className="md:col-span-10">
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Bezeichnung</label>
-                            <input
-                              type="text"
+                            <textarea
                               value={position.bezeichnung}
                               onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
-                              placeholder="z.B. Tennismehl / Ziegelmehl"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
+                              placeholder="z.B. Tennismehl / Ziegelmehl 0-2mm, lose verladen, nach DIN 18035-5"
+                              rows={2}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent resize-none"
                             />
                           </div>
+                        </div>
+
+                        {/* Zeile 2: Menge, Einheit, Preise */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
                             <input
@@ -1510,34 +1515,41 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                             />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Gesamtpreis</label>
+                            <div className="px-3 py-2 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-right font-semibold text-gray-900 dark:text-dark-text">
+                              {position.gesamtpreis.toFixed(2)} €
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Beschreibung (optional)</label>
-                          <textarea
-                            value={position.beschreibung || ''}
-                            onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
-                            placeholder="Detaillierte Beschreibung der Position..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-                          />
-                        </div>
+
+                        {/* Zeile 3: Beschreibung (optional, aufklappbar) */}
+                        <details className="group">
+                          <summary className="cursor-pointer text-sm font-medium text-gray-600 dark:text-dark-textMuted hover:text-gray-800 dark:hover:text-dark-text flex items-center gap-1">
+                            <span className="group-open:rotate-90 transition-transform">▶</span>
+                            Beschreibung {position.beschreibung ? '(vorhanden)' : '(optional)'}
+                          </summary>
+                          <div className="mt-2">
+                            <textarea
+                              value={position.beschreibung || ''}
+                              onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
+                              placeholder="Detaillierte Beschreibung der Position..."
+                              rows={3}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
+                            />
+                          </div>
+                        </details>
                       </div>
 
                       <button
                         onClick={() => removePosition(index)}
-                        className="mt-7 p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        className="p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                         title="Position löschen"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
 
-                    <div className="mt-2 text-right">
-                      <span className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtpreis: </span>
-                      <span className="text-lg font-semibold text-gray-900 dark:text-dark-text">
-                        {position.gesamtpreis.toFixed(2)} €
-                      </span>
-                    </div>
                   </SortablePosition>
                 ))}
               </div>

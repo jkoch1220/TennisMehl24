@@ -329,7 +329,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: kundeInfo?.ansprechpartner,
+          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           rechnungsnummer: rechnungsnummer,
           rechnungsdatum: projekt?.rechnungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           leistungsdatum: heute.toISOString().split('T')[0],

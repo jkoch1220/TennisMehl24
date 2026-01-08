@@ -332,7 +332,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: kundeInfo?.ansprechpartner,
+          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
