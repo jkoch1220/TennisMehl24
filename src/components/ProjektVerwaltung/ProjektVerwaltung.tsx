@@ -564,6 +564,7 @@ const ProjektVerwaltung = () => {
                 count={count}
                 dragOverTab={dragOverTab}
                 kompakteAnsicht={kompakteAnsicht}
+                kundenMap={kundenMap}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -585,6 +586,7 @@ const ProjektVerwaltung = () => {
               count={gesamtVerloren}
               dragOverTab={dragOverTab}
               kompakteAnsicht={kompakteAnsicht}
+              kundenMap={kundenMap}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -640,6 +642,7 @@ interface KanbanSpalteProps {
   count: number;
   dragOverTab: ProjektStatus | null;
   kompakteAnsicht: boolean;
+  kundenMap: Map<string, SaisonKunde>;
   onDragOver: (e: DragEvent, tab: ProjektStatus) => void;
   onDragLeave: () => void;
   onDrop: (e: DragEvent, tab: ProjektStatus) => void;
@@ -658,6 +661,7 @@ const KanbanSpalte = ({
   count,
   dragOverTab,
   kompakteAnsicht,
+  kundenMap,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -719,6 +723,7 @@ const KanbanSpalte = ({
                 projekt={projekt}
                 status={tab.id}
                 kompakt={kompakteAnsicht}
+                aktuellerKundenname={projekt.kundeId ? kundenMap.get(projekt.kundeId)?.name : undefined}
                 onDragStart={(e) => onDragStart(e, projekt)}
                 onDragEnd={onDragEnd}
                 onClick={() => onProjektClick(projekt)}
@@ -740,6 +745,7 @@ interface ProjektCardProps {
   projekt: Projekt;
   status: ProjektStatus;
   kompakt: boolean;
+  aktuellerKundenname?: string;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -749,11 +755,13 @@ interface ProjektCardProps {
   isVerloren?: boolean;
 }
 
-const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
   // Extrahiere PLZ aus kundenPlzOrt
   const plzMatch = projekt.kundenPlzOrt?.match(/^(\d{5})/);
   const plz = plzMatch ? plzMatch[1] : '';
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
+  // Verwende aktuellen Kundennamen aus Kundendaten, falls vorhanden
+  const kundenname = aktuellerKundenname || projekt.kundenname;
 
   if (kompakt) {
     // Kompakte Ansicht - mit vollständigem Namen
@@ -763,7 +771,7 @@ const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onClick={onClick}
-        title={projekt.kundenname}
+        title={kundenname}
         className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-500 transition-all cursor-pointer group ${
           isVerloren ? 'opacity-60' : ''
         }`}
@@ -773,7 +781,7 @@ const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick
           <Building2 className="w-3.5 h-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <span className="font-semibold text-sm text-gray-900 dark:text-dark-text leading-tight block">
-              {projekt.kundenname}
+              {kundenname}
             </span>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -810,7 +818,7 @@ const ProjektCard = ({ projekt, status, kompakt, onDragStart, onDragEnd, onClick
           <div className="flex items-start gap-1.5 mb-1">
             <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
             <h4 className="font-bold text-gray-900 dark:text-white text-base leading-tight">
-              {projekt.kundenname}
+              {kundenname}
             </h4>
           </div>
 

@@ -4,6 +4,7 @@ import { DokumentTyp } from '../../types/bestellabwicklung';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import AngebotTab from './AngebotTab';
 import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
@@ -14,9 +15,10 @@ const Bestellabwicklung = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
   const [projekt, setProjekt] = useState<Projekt | null>(null);
+  const [aktuellerKundenname, setAktuellerKundenname] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Projekt laden
+
+  // Projekt und aktuellen Kundennamen laden
   useEffect(() => {
     const loadProjekt = async () => {
       if (!projektId) {
@@ -28,7 +30,19 @@ const Bestellabwicklung = () => {
         setLoading(true);
         const loadedProjekt = await projektService.getProjekt(projektId);
         setProjekt(loadedProjekt);
-        
+
+        // Aktuellen Kundennamen laden, falls kundeId vorhanden
+        if (loadedProjekt.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(loadedProjekt.kundeId);
+            if (kunde) {
+              setAktuellerKundenname(kunde.name);
+            }
+          } catch (error) {
+            console.warn('Konnte aktuellen Kundennamen nicht laden:', error);
+          }
+        }
+
         // Tab basierend auf Projekt-Status setzen
         if (loadedProjekt.status === 'angebot' || loadedProjekt.status === 'angebot_versendet') {
           setActiveTab('angebot');
@@ -108,7 +122,7 @@ const Bestellabwicklung = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Bestellabwicklung</h1>
             <p className="text-gray-600 dark:text-dark-textMuted mt-1">
-              {projekt.kundenname} • {projekt.kundenPlzOrt}
+              {aktuellerKundenname || projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
           </div>
         </div>
