@@ -269,3 +269,68 @@ export const getUnreadCount = async (
 
 // Check if running in dev mode
 export const isInDevMode = (): boolean => isDevMode;
+
+// ============== UNIFIED INBOX ==============
+
+export interface UnifiedEmail extends Email {
+  accountEmail: string;
+  accountName: string;
+}
+
+// Get emails from ALL accounts at once (for unified inbox)
+export const getAllEmails = async (limit: number = 10): Promise<UnifiedEmail[]> => {
+  const accounts = await getAccounts();
+
+  // Parallel alle Konten abfragen für beste Performance
+  const results = await Promise.allSettled(
+    accounts.map(async (account) => {
+      try {
+        const emails = await getEmails(account.email, 'INBOX', limit);
+        return emails.map((email) => ({
+          ...email,
+          accountEmail: account.email,
+          accountName: account.name,
+        }));
+      } catch (error) {
+        console.error(`Fehler bei ${account.email}:`, error);
+        return [];
+      }
+    })
+  );
+
+  // Alle erfolgreichen Ergebnisse zusammenführen
+  const allEmails: UnifiedEmail[] = [];
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      allEmails.push(...result.value);
+    }
+  });
+
+  // Nach Datum sortieren (neueste zuerst)
+  allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return allEmails;
+};
+
+// Get total unread count across all accounts
+export const getTotalUnreadCount = async (): Promise<{ total: number; byAccount: Map<string, number> }> => {
+  const accounts = await getAccounts();
+  const byAccount = new Map<string, number>();
+  let total = 0;
+
+  const results = await Promise.allSettled(
+    accounts.map(async (account) => {
+      const count = await getUnreadCount(account.email);
+      return { email: account.email, count };
+    })
+  );
+
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      byAccount.set(result.value.email, result.value.count);
+      total += result.value.count;
+    }
+  });
+
+  return { total, byAccount };
+};
