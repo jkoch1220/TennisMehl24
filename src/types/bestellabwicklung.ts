@@ -202,7 +202,7 @@ export interface DokumentBerechnung {
   bruttobetrag: number;
 }
 
-export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung' | 'proformarechnung';
 
 // Status einer Rechnung im Workflow
 export type RechnungsStatus = 'aktiv' | 'storniert';
@@ -212,7 +212,7 @@ export type RechnungsStatus = 'aktiv' | 'storniert';
 export interface GespeichertesDokument {
   $id?: string;
   projektId: string;
-  dokumentTyp: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
+  dokumentTyp: DokumentTyp;
   dokumentNummer: string;
   dateiId: string;
   dateiname: string;
@@ -239,10 +239,15 @@ export interface StornoRechnungsDaten extends Omit<RechnungsDaten, 'rechnungsnum
   stornoGrund: string;
 }
 
+// Proforma-Rechnung Daten
+export interface ProformaRechnungsDaten extends Omit<RechnungsDaten, 'rechnungsnummer'> {
+  proformaRechnungsnummer: string;
+}
+
 // Typ für die UI-Darstellung eines Dokuments
 export interface DokumentAnzeige {
   id: string;
-  typ: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
+  typ: DokumentTyp;
   nummer: string;
   dateiname: string;
   erstelltAm: Date; // Wird aus $createdAt gemappt

@@ -1,7 +1,7 @@
 import { databases, DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID, PROJEKTE_COLLECTION_ID } from '../config/appwrite';
 import { Query } from 'appwrite';
 
-export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung' | 'proformarechnung';
 
 interface Zaehlerstaende {
   angebotZaehler: number;
@@ -9,6 +9,7 @@ interface Zaehlerstaende {
   lieferscheinZaehler: number;
   rechnungZaehler: number;
   stornoZaehler: number;
+  proformaZaehler: number;
   jahr: number;
 }
 
@@ -83,10 +84,13 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
       case 'stornorechnung':
         feldName = 'stornoRechnungsnummer';
         break;
+      case 'proformarechnung':
+        feldName = 'proformaRechnungsnummer';
+        break;
       default:
         return false;
     }
-    
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       PROJEKTE_COLLECTION_ID,
@@ -112,6 +116,7 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
  * - LS-2026-0001 (Lieferschein)
  * - RE-2026-0001 (Rechnung)
  * - STORNO-2026-0001 (Stornorechnung)
+ * - PRO-2026-0001 (Proforma-Rechnung)
  *
  * Das Saisonjahr wird aus den Stammdaten geladen oder automatisch berechnet.
  *
@@ -148,6 +153,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
             lieferscheinZaehler: 0,
             rechnungZaehler: 0,
             stornoZaehler: 0,
+            proformaZaehler: 0,
             jahr: aktuellesJahr,
           }
         );
@@ -164,9 +170,10 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
       stornoZaehler: stammdaten.stornoZaehler || 0,
+      proformaZaehler: stammdaten.proformaZaehler || 0,
       jahr: gespeichertesJahr,
     };
-    
+
     if (gespeichertesJahr < aktuellesJahr) {
       // Neues Jahr: Zähler zurücksetzen
       zaehlerstaende = {
@@ -175,6 +182,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
         lieferscheinZaehler: 0,
         rechnungZaehler: 0,
         stornoZaehler: 0,
+        proformaZaehler: 0,
         jahr: aktuellesJahr,
       };
     }
@@ -203,6 +211,10 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       case 'stornorechnung':
         prefix = 'STORNO';
         zaehlerFeld = 'stornoZaehler';
+        break;
+      case 'proformarechnung':
+        prefix = 'PRO';
+        zaehlerFeld = 'proformaZaehler';
         break;
       default:
         throw new Error(`Unbekannter Dokumenttyp: ${typ}`);
@@ -273,6 +285,9 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       case 'stornorechnung':
         prefix = 'STORNO';
         break;
+      case 'proformarechnung':
+        prefix = 'PRO';
+        break;
       default:
         prefix = 'DOK';
     }
@@ -324,15 +339,18 @@ export const pruefeDokumentnummer = async (
       case 'stornorechnung':
         feldName = 'stornoRechnungsnummer';
         break;
+      case 'proformarechnung':
+        feldName = 'proformaRechnungsnummer';
+        break;
       default:
         return { existiert: false };
     }
-    
+
     const queries = [
       Query.equal(feldName, nummer.trim()),
       Query.limit(1)
     ];
-    
+
     // Wenn projektId angegeben ist, schließe dieses Projekt aus der Suche aus
     // (z.B. beim Bearbeiten eines existierenden Projekts)
     if (projektId) {
@@ -382,6 +400,7 @@ export const getZaehlerstaende = async (): Promise<Zaehlerstaende | null> => {
       lieferscheinZaehler: stammdaten.lieferscheinZaehler || 0,
       rechnungZaehler: stammdaten.rechnungZaehler || 0,
       stornoZaehler: stammdaten.stornoZaehler || 0,
+      proformaZaehler: stammdaten.proformaZaehler || 0,
       jahr: stammdaten.jahr || aktuelleSaison,
     };
   } catch (error) {

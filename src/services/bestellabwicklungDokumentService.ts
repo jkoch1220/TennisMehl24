@@ -17,13 +17,14 @@ import {
   LieferscheinDaten,
   RechnungsDaten,
   StornoRechnungsDaten,
+  ProformaRechnungsDaten,
   Position,
   LieferscheinPosition
 } from '../types/bestellabwicklung';
 import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
-import { generiereRechnungPDF, berechneRechnungsSummen } from './rechnungService';
+import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import { saisonplanungService } from './saisonplanungService';
 import jsPDF from 'jspdf';
 
@@ -52,7 +53,7 @@ const sanitizeFilename = (text: string): string => {
 };
 
 const generiereLesDatname = (
-  dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung',
+  dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung' | 'Proformarechnung',
   kundenname: string,
   datum: string,
   version?: number
@@ -655,6 +656,69 @@ export const speichereRechnung = async (
     console.error('Fehler beim Speichern der Rechnung:', error);
     throw error;
   }
+};
+
+// === PROFORMA-RECHNUNG (NICHT FINAL - MEHRFACH ERSTELLBAR) ===
+// Proforma-Rechnungen sind Vorabrechnungen für Vorkasse oder Zollzwecke.
+// Sie sind NICHT steuerlich relevant und können mehrfach erstellt werden.
+export const speichereProformaRechnung = async (
+  projektId: string,
+  daten: ProformaRechnungsDaten
+): Promise<GespeichertesDokument> => {
+  try {
+    // Prüfen ob bereits Proforma-Rechnungen existieren (für Versionierung)
+    const bestehendeProformas = await ladeDokumenteNachTyp(projektId, 'proformarechnung');
+    const neueVersion = bestehendeProformas.length + 1;
+
+    // PDF generieren
+    const pdf = await generiereProformaRechnungPDF(daten);
+    const blob = pdfToBlob(pdf);
+    const dateiname = generiereLesDatname('Proformarechnung', daten.kundenname, daten.rechnungsdatum, neueVersion);
+
+    // Datei in Storage hochladen
+    const file = new File([blob], dateiname, { type: 'application/pdf' });
+    const uploadedFile = await storage.createFile(
+      BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+
+    // Bruttobetrag berechnen
+    const summen = berechneRechnungsSummen(daten.positionen);
+
+    // Dokument-Eintrag in DB erstellen (NICHT FINAL - kann mehrfach erstellt werden)
+    const dokument = await databases.createDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      {
+        projektId,
+        dokumentTyp: 'proformarechnung',
+        dokumentNummer: daten.proformaRechnungsnummer,
+        dateiId: uploadedFile.$id,
+        dateiname,
+        bruttobetrag: summen.bruttobetrag,
+        istFinal: false, // Proforma-Rechnungen sind NICHT final
+        daten: JSON.stringify(daten)
+      }
+    );
+
+    // Setze Version manuell für Rückgabe (für UI)
+    const result = dokument as unknown as GespeichertesDokument;
+    result.version = neueVersion;
+
+    console.log(`✅ Proforma-Rechnung ${daten.proformaRechnungsnummer} gespeichert (Version ${neueVersion})`);
+
+    return result;
+  } catch (error) {
+    console.error('Fehler beim Speichern der Proforma-Rechnung:', error);
+    throw error;
+  }
+};
+
+// Lade alle Proforma-Rechnungen für ein Projekt (für Verlaufsanzeige)
+export const ladeProformaRechnungen = async (projektId: string): Promise<GespeichertesDokument[]> => {
+  return ladeDokumenteNachTyp(projektId, 'proformarechnung');
 };
 
 // === STORNORECHNUNG (FINAL - UNVERÄNDERBAR!) ===

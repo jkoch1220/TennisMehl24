@@ -61,6 +61,12 @@ const dokumentTypConfig: Record<DokumentTyp, {
     hintergrund: 'bg-purple-50',
     border: 'border-purple-200',
     label: 'Storno'
+  },
+  proformarechnung: {
+    farbe: 'text-blue-700',
+    hintergrund: 'bg-blue-50',
+    border: 'border-blue-200',
+    label: 'Proforma'
   }
 };
 

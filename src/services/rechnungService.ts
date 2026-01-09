@@ -569,3 +569,361 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
 // Helper-Funktionen aus pdfHelpers verwenden
 const formatWaehrung = formatWaehrungHelper;
 const formatDatum = formatDatumHelper;
+
+// Interface für Proforma-Rechnung (erweitert RechnungsDaten mit proformaRechnungsnummer)
+export interface ProformaRechnungsDaten extends Omit<RechnungsDaten, 'rechnungsnummer'> {
+  proformaRechnungsnummer: string;
+}
+
+/**
+ * Generiert eine Proforma-Rechnung als PDF
+ * Eine Proforma-Rechnung ist eine Vorabrechnung für Vorkasse oder Zollzwecke.
+ * Sie ist keine echte Rechnung und begründet keine Zahlungspflicht.
+ */
+export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten, stammdaten?: Stammdaten): Promise<jsPDF> => {
+  // Lade Stammdaten falls nicht übergeben
+  if (!stammdaten) {
+    stammdaten = await getStammdatenOderDefault();
+  }
+
+  const doc = new jsPDF();
+
+  // Farben - Blau für Proforma zur Unterscheidung
+  const primaryColor: [number, number, number] = [37, 99, 235]; // blue-600
+
+  // DIN 5008 Header
+  await addDIN5008Header(doc, stammdaten);
+
+  // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
+  let infoYPos = 55;
+  let yPos = 55;
+  const infoX = 130;
+
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Proforma-Nr.:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(daten.proformaRechnungsnummer, infoX, infoYPos + 4);
+  doc.setFont('helvetica', 'normal');
+
+  infoYPos += 12;
+  doc.setTextColor(100, 100, 100);
+  doc.text('Datum:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.text(formatDatum(daten.rechnungsdatum), infoX, infoYPos + 4);
+
+  if (daten.kundennummer) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Kundennummer:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.kundennummer, infoX, infoYPos + 4);
+  }
+
+  if (daten.projektnummer) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Projektnummer:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.projektnummer, infoX, infoYPos + 4);
+  }
+
+  if (daten.ihreAnsprechpartner) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Ihr Ansprechpartner:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
+  }
+
+  // DIN 5008 Absenderzeile
+  addAbsenderzeile(doc, stammdaten);
+
+  // === DIN 5008: EMPFÄNGERADRESSE ===
+  yPos = 50;
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(daten.kundenname, 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  yPos += 6;
+  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
+  yPos += 5;
+  doc.text(daten.kundenPlzOrt, 25, yPos);
+
+  // Ansprechpartner
+  if (daten.ansprechpartner) {
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+  }
+
+  // === Lieferadresse (falls abweichend) ===
+  if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
+    let lieferYPos = 50;
+    const lieferX = 120;
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Lieferadresse:', lieferX, lieferYPos);
+    lieferYPos += 5;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    doc.setFont('helvetica', 'normal');
+    lieferYPos += 5;
+    doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos);
+    lieferYPos += 4;
+    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+  }
+
+  // === DIN 5008: BETREFF - PROFORMA-RECHNUNG ===
+  yPos = 95;
+  doc.setFontSize(12);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`PROFORMA-RECHNUNG Nr. ${daten.proformaRechnungsnummer}`, 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+
+  // === Anrede ===
+  yPos += 10;
+  doc.setFontSize(10);
+  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+
+  // === Einleitungstext ===
+  yPos += 8;
+  doc.setFontSize(10);
+  doc.text('für die geplante Lieferung stellen wir Ihnen folgende Positionen in Rechnung:', 25, yPos);
+
+  // === Positionen Tabelle ===
+  yPos += 8;
+
+  const tableData = daten.positionen.map(pos => {
+    let bezeichnungMitBeschreibung = pos.bezeichnung;
+    if (pos.beschreibung && pos.beschreibung.trim()) {
+      bezeichnungMitBeschreibung += '\n' + pos.beschreibung;
+    }
+
+    let einzelpreisText = formatWaehrung(pos.einzelpreis);
+    if (pos.streichpreis && pos.streichpreis > pos.einzelpreis) {
+      if (pos.streichpreisGrund) {
+        einzelpreisText = pos.streichpreisGrund + '\n' + formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      } else {
+        einzelpreisText = formatWaehrung(pos.streichpreis) + '\n' + formatWaehrung(pos.einzelpreis);
+      }
+    }
+
+    return [
+      pos.artikelnummer || '-',
+      bezeichnungMitBeschreibung,
+      pos.menge.toString(),
+      pos.einheit,
+      einzelpreisText,
+      formatWaehrung(pos.gesamtpreis)
+    ];
+  });
+
+  autoTable(doc, {
+    startY: yPos,
+    margin: { left: 25, right: 20, top: 45, bottom: 30 },
+    head: [['Art.Nr.', 'Leistung', 'Menge', 'Einh.', 'Stückpr.', 'Gesamt']],
+    body: tableData,
+    theme: 'striped',
+    rowPageBreak: 'avoid',
+    headStyles: {
+      fillColor: primaryColor,
+      textColor: [255, 255, 255],
+      fontSize: 9,
+      fontStyle: 'bold'
+    },
+    styles: {
+      fontSize: 9,
+      cellPadding: 3
+    },
+    columnStyles: {
+      0: { cellWidth: 16, halign: 'left' },
+      1: { cellWidth: 68, halign: 'left', valign: 'top' },
+      2: { cellWidth: 16, halign: 'right' },
+      3: { cellWidth: 16, halign: 'center' },
+      4: { cellWidth: 22, halign: 'right', valign: 'top' },
+      5: { cellWidth: 22, halign: 'right', valign: 'top' }
+    },
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        addFollowPageHeader(doc, stammdaten);
+        addDIN5008Footer(doc, stammdaten);
+      }
+    }
+  });
+
+  // === Summen ===
+  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  const berechnung = berechneRechnungsSummen(daten.positionen);
+
+  summenY = await ensureSpace(doc, summenY, 50, stammdaten);
+
+  const summenX = 125;
+  summenY += 10;
+
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+
+  doc.text('Nettobetrag:', summenX, summenY);
+  doc.text(formatWaehrung(berechnung.nettobetrag), 180, summenY, { align: 'right' });
+
+  summenY += 6;
+  doc.text(`MwSt. (${berechnung.umsatzsteuersatz}%):`, summenX, summenY);
+  doc.text(formatWaehrung(berechnung.umsatzsteuer), 180, summenY, { align: 'right' });
+
+  summenY += 2;
+  doc.setLineWidth(0.5);
+  doc.line(summenX, summenY, 180, summenY);
+
+  summenY += 6;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Gesamtbetrag:', summenX, summenY);
+  doc.text(formatWaehrung(berechnung.bruttobetrag), 180, summenY, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+
+  // === WICHTIGER HINWEIS: Proforma ===
+  summenY += 15;
+  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
+
+  // Hinweis-Box
+  doc.setFillColor(254, 243, 199); // amber-100
+  doc.setDrawColor(245, 158, 11); // amber-500
+  doc.setLineWidth(0.5);
+  doc.roundedRect(25, summenY - 4, 160, 18, 2, 2, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(146, 64, 14); // amber-800
+  doc.setFont('helvetica', 'bold');
+  doc.text('Hinweis: Dies ist eine Proforma-Rechnung', 30, summenY + 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Diese Proforma-Rechnung dient zur Vorauszahlung und ist keine steuerlich relevante Rechnung.', 30, summenY + 7);
+  doc.text('Nach Zahlungseingang erhalten Sie eine ordnungsgemäße Rechnung.', 30, summenY + 11);
+
+  summenY += 20;
+
+  // === Zahlungsbedingungen ===
+  summenY += 8;
+  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
+
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Zahlungsinformationen:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  summenY += 5;
+  doc.text('Bitte überweisen Sie den Gesamtbetrag vor der Lieferung auf unser Konto.', 25, summenY);
+
+  // === Bankdaten mit EPC-QR-Code ===
+  summenY += 10;
+  const bankdatenStartY = summenY;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Bankverbindung:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  summenY += 5;
+  doc.text(`Bank: ${stammdaten.bankname}`, 25, summenY);
+  summenY += 4;
+  doc.text(`IBAN: ${stammdaten.iban}`, 25, summenY);
+  summenY += 4;
+  doc.text(`BIC: ${stammdaten.bic}`, 25, summenY);
+
+  // === EPC-QR-Code ===
+  try {
+    const verwendungszweck = `Proforma ${daten.proformaRechnungsnummer}`;
+    const epcString = generiereEPCString(
+      stammdaten.firmenname,
+      stammdaten.iban,
+      stammdaten.bic,
+      berechnung.bruttobetrag,
+      verwendungszweck
+    );
+
+    const qrDataUrl = await QRCode.toDataURL(epcString, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 256
+    });
+
+    const qrSize = 35;
+    const qrX = 145;
+    const qrY = bankdatenStartY - 5;
+
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GiroCode', qrX + qrSize/2, qrY - 2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Zum Bezahlen', qrX + qrSize/2, qrY + qrSize + 3, { align: 'center' });
+    doc.text('scannen', qrX + qrSize/2, qrY + qrSize + 6, { align: 'center' });
+  } catch (error) {
+    console.error('Fehler beim Generieren des QR-Codes:', error);
+  }
+
+  // === Zahlungshinweis ===
+  summenY += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const hinweisText = `Bitte verwenden Sie "${daten.proformaRechnungsnummer}" als Verwendungszweck.`;
+  doc.text(hinweisText, 25, summenY);
+
+  // === Bemerkung ===
+  if (daten.bemerkung) {
+    summenY += 10;
+
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+
+    summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Bemerkung:', 25, summenY);
+    summenY += 5;
+    doc.text(bemerkungLines, 25, summenY);
+    summenY += (bemerkungLines.length * 4);
+  }
+
+  // === Grußformel ===
+  summenY += 12;
+  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
+
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  summenY += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.text(stammdaten.firmenname, 25, summenY);
+  doc.setFont('helvetica', 'normal');
+
+  // Footer auf allen Seiten
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
+  }
+
+  return doc;
+};

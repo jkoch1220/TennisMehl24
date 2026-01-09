@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -16,13 +16,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
-import { RechnungsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
-import { generiereRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
+import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/bestellabwicklung';
+import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import {
   ladeDokumentNachTyp,
   speichereRechnung,
   speichereStornoRechnung,
+  speichereProformaRechnung,
   kannNeueRechnungErstellen,
   ladeDokumentDaten,
   getFileDownloadUrl,
@@ -90,6 +91,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
   const [stornoInProgress, setStornoInProgress] = useState(false);
   const [neueRechnungMoeglich, setNeueRechnungMoeglich] = useState(false);
   const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0); // Trigger für Verlauf-Neuladen
+
+  // Proforma-Rechnung Status
+  const [proformaInProgress, setProformaInProgress] = useState(false);
+  const [proformaVerlaufZaehler, setProformaVerlaufZaehler] = useState(0);
 
   // Auto-Save Status (nur für Entwürfe, Rechnungen sind final!)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -430,6 +435,54 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     } catch (error) {
       console.error('Fehler beim Generieren der Rechnung:', error);
       alert('Fehler beim Generieren der Rechnung: ' + (error as Error).message);
+    }
+  };
+
+  // === PROFORMA-RECHNUNG ERSTELLEN UND SPEICHERN ===
+  const erstelleProformaRechnung = async () => {
+    if (!projekt?.$id) {
+      setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
+      return;
+    }
+
+    if (rechnungsDaten.positionen.length === 0) {
+      setStatusMeldung({ typ: 'fehler', text: 'Bitte fügen Sie mindestens eine Position hinzu.' });
+      return;
+    }
+
+    try {
+      setProformaInProgress(true);
+      setStatusMeldung(null);
+
+      // Proforma-Nummer generieren
+      const proformaNummer = await generiereNaechsteDokumentnummer('proformarechnung');
+
+      // Proforma-Daten zusammenstellen
+      const proformaDaten: ProformaRechnungsDaten = {
+        ...rechnungsDaten,
+        proformaRechnungsnummer: proformaNummer,
+      };
+
+      // Proforma-Rechnung speichern (generiert PDF und speichert in Appwrite)
+      await speichereProformaRechnung(projekt.$id, proformaDaten);
+
+      // PDF auch direkt herunterladen
+      const pdf = await generiereProformaRechnungPDF(proformaDaten);
+      pdf.save(`Proforma-Rechnung_${proformaNummer}.pdf`);
+
+      setStatusMeldung({
+        typ: 'erfolg',
+        text: `Proforma-Rechnung ${proformaNummer} erstellt und gespeichert!`
+      });
+      setProformaVerlaufZaehler(prev => prev + 1); // Verlauf neu laden
+
+      // Status-Meldung nach 5 Sekunden ausblenden
+      setTimeout(() => setStatusMeldung(null), 5000);
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Proforma-Rechnung:', error);
+      setStatusMeldung({ typ: 'fehler', text: 'Fehler: ' + (error as Error).message });
+    } finally {
+      setProformaInProgress(false);
     }
   };
 
@@ -1365,6 +1418,27 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
               Entwurf herunterladen
             </button>
 
+            {/* Proforma-Rechnung erstellen (für Vorkasse) */}
+            {projekt?.$id && !gespeichertesDokument && (
+              <button
+                onClick={erstelleProformaRechnung}
+                disabled={proformaInProgress || rechnungsDaten.positionen.length === 0}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {proformaInProgress ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Erstelle Proforma...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    Proforma-Rechnung erstellen (Vorkasse)
+                  </>
+                )}
+              </button>
+            )}
+
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitRechnung}
@@ -1435,7 +1509,20 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             )}
           </div>
           
-          {/* Dateiverlauf */}
+          {/* Proforma-Verlauf */}
+          {projekt?.$id && (
+            <div className="mt-6">
+              <DokumentVerlauf
+                projektId={projekt.$id}
+                dokumentTyp="proformarechnung"
+                titel="Proforma-Rechnungen"
+                maxAnzeige={3}
+                ladeZaehler={proformaVerlaufZaehler}
+              />
+            </div>
+          )}
+
+          {/* Rechnungs-Verlauf */}
           {projekt?.$id && (
             <div className="mt-6">
               <DokumentVerlauf
