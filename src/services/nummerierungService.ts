@@ -105,12 +105,15 @@ const nummerExistiertBereits = async (nummer: string, typ: DokumentTyp): Promise
 
 /**
  * Generiert eine standardkonforme Dokumentnummer nach deutschem Muster
- * Format: PREFIX-LAUFNUMMER oder PREFIX-JAHR-LAUFNUMMER
+ * Format: PREFIX-SAISONJAHR-LAUFNUMMER
  * Beispiele:
- * - ANG-0001 (Angebot)
- * - AB-2026-0001 (Auftragsbestätigung mit Saisonjahr)
- * - LS-0001 (Lieferschein)
- * - RE-0001 (Rechnung)
+ * - ANG-2026-0001 (Angebot)
+ * - AB-2026-0001 (Auftragsbestätigung)
+ * - LS-2026-0001 (Lieferschein)
+ * - RE-2026-0001 (Rechnung)
+ * - STORNO-2026-0001 (Stornorechnung)
+ *
+ * Das Saisonjahr wird aus den Stammdaten geladen oder automatisch berechnet.
  *
  * WICHTIG: Diese Funktion prüft IMMER, ob die generierte Nummer bereits existiert,
  * um doppelte Nummern zu vermeiden!
@@ -216,11 +219,8 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
       const laufnummer = neuerZaehler.toString().padStart(4, '0');
 
       // Generiere die vollständige Dokumentnummer
-      // AB-Nummern enthalten das Saisonjahr: AB-2026-0001
-      // Andere Dokumenttypen bleiben im alten Format: RE-0001
-      const dokumentnummer = typ === 'auftragsbestaetigung'
-        ? `${prefix}-${aktuellesJahr}-${laufnummer}`
-        : `${prefix}-${laufnummer}`;
+      // Alle Dokumenttypen enthalten das Saisonjahr: ANG-2026-0001, AB-2026-0001, LS-2026-0001, RE-2026-0001
+      const dokumentnummer = `${prefix}-${aktuellesJahr}-${laufnummer}`;
       
       // KRITISCH: Prüfe, ob diese Nummer bereits existiert
       const existiert = await nummerExistiertBereits(dokumentnummer, typ);
@@ -277,11 +277,9 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
         prefix = 'DOK';
     }
 
-    // Auch im Fallback das Saisonjahr für AB einfügen
+    // Im Fallback das Saisonjahr für alle Dokumenttypen einfügen
     const fallbackSaison = berechneAktuelleSaison();
-    const fallbackNummer = typ === 'auftragsbestaetigung'
-      ? `${prefix}-${fallbackSaison}-${laufnummer}`
-      : `${prefix}-${laufnummer}`;
+    const fallbackNummer = `${prefix}-${fallbackSaison}-${laufnummer}`;
     console.error(`⚠️ Verwende Fallback-Nummer: ${fallbackNummer}`);
 
     return fallbackNummer;
