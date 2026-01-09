@@ -100,24 +100,29 @@ export async function loescheArtikel(id: string): Promise<void> {
   );
 }
 
-// Artikel suchen (Volltextsuche in Bezeichnung und Beschreibung)
+// Artikel suchen (clientseitige Suche in Artikelnummer, Bezeichnung und Beschreibung)
 export async function sucheArtikel(suchtext: string): Promise<Artikel[]> {
   if (!suchtext.trim()) {
     return getAlleArtikel();
   }
 
   try {
-    // Suche in Bezeichnung
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      ARTIKEL_COLLECTION_ID,
-      [
-        Query.search('bezeichnung', suchtext),
-        Query.limit(50),
-      ]
-    );
+    // Alle Artikel laden
+    const alleArtikel = await getAlleArtikel();
 
-    return response.documents as unknown as Artikel[];
+    // Suchtext normalisieren
+    const suchLower = suchtext.toLowerCase().trim();
+
+    // Clientseitig filtern
+    return alleArtikel.filter(artikel => {
+      const artikelnummer = (artikel.artikelnummer || '').toLowerCase();
+      const bezeichnung = (artikel.bezeichnung || '').toLowerCase();
+      const beschreibung = (artikel.beschreibung || '').toLowerCase();
+
+      return artikelnummer.includes(suchLower) ||
+             bezeichnung.includes(suchLower) ||
+             beschreibung.includes(suchLower);
+    });
   } catch (error) {
     console.error('Fehler beim Suchen von Artikeln:', error);
     return [];

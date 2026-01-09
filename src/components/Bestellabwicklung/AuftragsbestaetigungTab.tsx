@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Clock, Truck } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck } from 'lucide-react';
 import StatusAenderungModal from '../Shared/StatusAenderungModal';
 import {
   DndContext,
@@ -558,7 +558,9 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     try {
       console.log('Generiere Auftragsbestätigung (nur Download)...', auftragsbestaetigungsDaten);
       const pdf = await generiereAuftragsbestaetigungPDF(auftragsbestaetigungsDaten);
-      pdf.save(`Auftragsbestaetigung_${auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}.pdf`);
+      const jahr = new Date(auftragsbestaetigungsDaten.auftragsbestaetigungsdatum || Date.now()).getFullYear();
+      const kundenname = (auftragsbestaetigungsDaten.kundenname || 'Unbekannt').replace(/[<>:"/\\|?*]/g, '');
+      pdf.save(`Auftragsbestaetigung ${kundenname} ${jahr}.pdf`);
       console.log('Auftragsbestätigung erfolgreich generiert!');
     } catch (error) {
       console.error('Fehler beim Generieren der Auftragsbestätigung:', error);
@@ -870,77 +872,55 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             </div>
           </div>
 
-          {/* Lieferdatum-Typ Toggle */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Datum-Typ</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleInputChange('lieferdatumTyp', 'fix')}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  auftragsbestaetigungsDaten.lieferdatumTyp === 'fix' || !auftragsbestaetigungsDaten.lieferdatumTyp
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                Fixes Datum
-              </button>
-              <button
-                type="button"
-                onClick={() => handleInputChange('lieferdatumTyp', 'spaetestens')}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens'
-                    ? 'bg-orange-600 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                Spätestens bis
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Spätestens KW */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
-                {auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens' ? 'Spätestens bis' : 'Lieferdatum'}
+                Spätestens KW
               </label>
-              <input
-                type="date"
-                value={auftragsbestaetigungsDaten.lieferdatum || ''}
-                onChange={(e) => handleInputChange('lieferdatum', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={auftragsbestaetigungsDaten.lieferKW || ''}
+                  onChange={(e) => handleInputChange('lieferKW', e.target.value ? parseInt(e.target.value) : undefined)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="flex-1 px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                >
+                  <option value="">KW</option>
+                  {Array.from({ length: 53 }, (_, i) => i + 1).map(kw => (
+                    <option key={kw} value={kw}>KW {kw}</option>
+                  ))}
+                </select>
+                <select
+                  value={auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}
+                  onChange={(e) => handleInputChange('lieferKWJahr', parseInt(e.target.value))}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-20 px-2 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                >
+                  {[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            {/* Bevorzugter Wochentag */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                Zeitfenster von
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Bevorzugter Tag
               </label>
-              <input
-                type="time"
-                value={auftragsbestaetigungsDaten.lieferzeitVon || ''}
-                onChange={(e) => handleInputChange('lieferzeitVon', e.target.value)}
+              <select
+                value={auftragsbestaetigungsDaten.bevorzugterTag || ''}
+                onChange={(e) => handleInputChange('bevorzugterTag', e.target.value || undefined)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                placeholder="08:00"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                Zeitfenster bis
-              </label>
-              <input
-                type="time"
-                value={auftragsbestaetigungsDaten.lieferzeitBis || ''}
-                onChange={(e) => handleInputChange('lieferzeitBis', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                placeholder="16:00"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
-              />
+              >
+                <option value="">– Egal –</option>
+                <option value="montag">Montag</option>
+                <option value="dienstag">Dienstag</option>
+                <option value="mittwoch">Mittwoch</option>
+                <option value="donnerstag">Donnerstag</option>
+                <option value="freitag">Freitag</option>
+                <option value="samstag">Samstag</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
@@ -962,14 +942,20 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               </select>
             </div>
           </div>
-          {auftragsbestaetigungsDaten.lieferdatum && (
-            <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center gap-2 text-sm text-blue-800 dark:text-blue-200">
+          {auftragsbestaetigungsDaten.lieferKW && (
+            <div className="mt-3 p-3 rounded-lg flex items-center gap-2 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
               <span>
-                {auftragsbestaetigungsDaten.lieferdatumTyp === 'spaetestens' ? 'Lieferung spätestens bis: ' : 'Lieferung geplant für: '}
-                <strong>{new Date(auftragsbestaetigungsDaten.lieferdatum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</strong>
-                {auftragsbestaetigungsDaten.lieferzeitVon && auftragsbestaetigungsDaten.lieferzeitBis && (
-                  <> zwischen <strong>{auftragsbestaetigungsDaten.lieferzeitVon}</strong> und <strong>{auftragsbestaetigungsDaten.lieferzeitBis}</strong> Uhr</>
+                Lieferung spätestens: <strong>KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong>
+                {auftragsbestaetigungsDaten.bevorzugterTag && (
+                  <> | Bevorzugt: <strong>
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'montag' && 'Montag'}
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'dienstag' && 'Dienstag'}
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'mittwoch' && 'Mittwoch'}
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'donnerstag' && 'Donnerstag'}
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'freitag' && 'Freitag'}
+                    {auftragsbestaetigungsDaten.bevorzugterTag === 'samstag' && 'Samstag'}
+                  </strong></>
                 )}
                 {auftragsbestaetigungsDaten.belieferungsart && (
                   <> | <strong>
@@ -1441,7 +1427,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
 
         {/* Zahlungsbedingungen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Zahlungsbedingungen</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Zahlungsbedingungen</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={auftragsbestaetigungsDaten.zahlungsbedingungenAusblenden || false}
+                onChange={(e) => handleInputChange('zahlungsbedingungenAusblenden', e.target.checked)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600 dark:text-dark-textMuted">Im PDF ausblenden</span>
+            </label>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Zahlungsziel</label>

@@ -199,6 +199,8 @@ const stammdatenFields = [
   { key: 'auftragsbestaetigungZaehler', type: 'integer', default: 0 },
   { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
   { key: 'rechnungZaehler', type: 'integer', default: 0 },
+  { key: 'stornoZaehler', type: 'integer', default: 0 },
+  { key: 'proformaZaehler', type: 'integer', default: 0 },
   { key: 'jahr', type: 'integer', default: 2026 },
 
   // Metadaten

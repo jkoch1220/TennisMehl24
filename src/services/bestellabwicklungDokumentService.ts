@@ -100,6 +100,7 @@ export const ladeDokumentNachTyp = async (
   dokumentTyp: DokumentTyp
 ): Promise<GespeichertesDokument | null> => {
   try {
+    // Lade alle Dokumente dieses Typs für das Projekt
     const response = await databases.listDocuments(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -107,14 +108,25 @@ export const ladeDokumentNachTyp = async (
         Query.equal('projektId', projektId),
         Query.equal('dokumentTyp', dokumentTyp),
         Query.orderDesc('$createdAt'),
-        Query.limit(1)
+        Query.limit(100) // Alle laden um die neueste Version zu finden
       ]
     );
-    
-    if (response.documents.length > 0) {
-      return response.documents[0] as unknown as GespeichertesDokument;
+
+    if (response.documents.length === 0) {
+      return null;
     }
-    return null;
+
+    // Finde das Dokument mit der höchsten Versionsnummer
+    // Falls kein version-Feld existiert, nimm das zuerst geladene (neuestes nach $createdAt)
+    const dokumente = response.documents as unknown as GespeichertesDokument[];
+    const neuestesDokument = dokumente.reduce((neuestes, aktuell) => {
+      const neuesteVersion = (neuestes as any).version || 0;
+      const aktuelleVersion = (aktuell as any).version || 0;
+      return aktuelleVersion > neuesteVersion ? aktuell : neuestes;
+    }, dokumente[0]);
+
+    console.log(`📄 Lade ${dokumentTyp}: Version ${(neuestesDokument as any).version || 1} von ${dokumente.length} Versionen`);
+    return neuestesDokument;
   } catch (error) {
     console.error(`Fehler beim Laden des ${dokumentTyp}:`, error);
     return null;
@@ -327,8 +339,13 @@ export const speichereAuftragsbestaetigung = async (
           auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
           // Lieferdatum aus AB übernehmen wenn vorhanden
           geplantesDatum: daten.lieferdatum || undefined,
-          // Lieferdatum-Typ (fix oder spätestens)
+          // Lieferdatum-Typ (fix, spätestens oder spätestens KW)
           lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
+          // KW-Felder für spätestens-KW-Modus
+          lieferKW: daten.lieferKW || undefined,
+          lieferKWJahr: daten.lieferKWJahr || undefined,
+          // Bevorzugter Wochentag
+          bevorzugterTag: daten.bevorzugterTag || undefined,
           // Lieferzeitfenster aus AB übernehmen wenn vorhanden
           lieferzeitfenster: lieferzeitfenster,
           // Belieferungsart aus AB übernehmen
@@ -440,6 +457,9 @@ export const aktualisiereAuftragsbestaetigung = async (
         await projektService.updateProjekt(projektId, {
           geplantesDatum: daten.lieferdatum || undefined,
           lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
+          lieferKW: daten.lieferKW || undefined,
+          lieferKWJahr: daten.lieferKWJahr || undefined,
+          bevorzugterTag: daten.bevorzugterTag || undefined,
           lieferzeitfenster: lieferzeitfenster,
           belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
           liefergewicht: daten.positionen?.reduce((sum, p) => {

@@ -606,30 +606,33 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // Prüfe Platz für Zahlungsbedingungen-Block (ca. 20mm)
   summenY = await ensureSpace(doc, summenY, 20, stammdaten);
   
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Zahlungsbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  
-  summenY += 5;
-  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
-  
-  if (daten.skonto) {
-    summenY += 4;
-    const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
-    doc.text(
-      `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
-      25,
-      summenY
-    );
+  // Zahlungsbedingungen nur anzeigen wenn nicht ausgeblendet
+  if (!daten.zahlungsbedingungenAusblenden) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Zahlungsbedingungen:', 25, summenY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    summenY += 5;
+    doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
+
+    if (daten.skonto) {
+      summenY += 4;
+      const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
+      doc.text(
+        `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
+        25,
+        summenY
+      );
+    }
+
+    if (daten.zahlungsart) {
+      summenY += 4;
+      doc.text(`Zahlungsart: ${daten.zahlungsart}`, 25, summenY);
+    }
   }
-  
-  if (daten.zahlungsart) {
-    summenY += 4;
-    doc.text(`Zahlungsart: ${daten.zahlungsart}`, 25, summenY);
-  }
-  
+
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;
@@ -1096,37 +1099,52 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
     summenY += 4;
   }
-  if (daten.lieferdatum) {
-    // Lieferdatum-Typ berücksichtigen (fix oder spätestens)
-    const lieferdatumLabel = daten.lieferdatumTyp === 'spaetestens' ? 'Lieferung spätestens bis' : 'Lieferdatum';
-    let lieferInfoText = `${lieferdatumLabel}: ${formatDatum(daten.lieferdatum)}`;
+  // Liefertermin-Informationen aufbauen
+  const wochentagLabels: Record<string, string> = {
+    'montag': 'Montag',
+    'dienstag': 'Dienstag',
+    'mittwoch': 'Mittwoch',
+    'donnerstag': 'Donnerstag',
+    'freitag': 'Freitag',
+    'samstag': 'Samstag'
+  };
+  const belieferungsartLabels: Record<string, string> = {
+    'nur_motorwagen': 'Mit Motorwagen',
+    'mit_haenger': 'Motorwagen mit Hänger',
+    'abholung_ab_werk': 'Abholung ab Werk',
+    'palette_mit_ladekran': 'Palette mit Ladekran',
+    'bigbag': 'BigBag'
+  };
+
+  if (daten.lieferKW) {
+    // KW-basierter Liefertermin
+    const jahr = daten.lieferKWJahr || new Date().getFullYear();
+    let lieferInfoText = `Lieferung spätestens: KW ${daten.lieferKW}/${jahr}`;
+
+    // Bevorzugter Wochentag hinzufügen
+    if (daten.bevorzugterTag) {
+      lieferInfoText += ` | Bevorzugt: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`;
+    }
 
     // Belieferungsart hinzufügen
     if (daten.belieferungsart) {
-      const belieferungsartLabels: Record<string, string> = {
-        'nur_motorwagen': 'Mit Motorwagen',
-        'mit_haenger': 'Motorwagen mit Hänger',
-        'abholung_ab_werk': 'Abholung ab Werk',
-        'palette_mit_ladekran': 'Palette mit Ladekran',
-        'bigbag': 'BigBag'
-      };
       const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
       lieferInfoText += ` | ${belieferungsartLabel}`;
     }
 
     doc.text(lieferInfoText, 25, summenY);
     summenY += 4;
-  } else if (daten.belieferungsart) {
-    // Nur Belieferungsart ohne Datum
-    const belieferungsartLabels: Record<string, string> = {
-      'nur_motorwagen': 'Mit Motorwagen',
-      'mit_haenger': 'Motorwagen mit Hänger',
-      'abholung_ab_werk': 'Abholung ab Werk',
-      'palette_mit_ladekran': 'Palette mit Ladekran',
-      'bigbag': 'BigBag'
-    };
-    const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
-    doc.text(`Belieferung: ${belieferungsartLabel}`, 25, summenY);
+  } else if (daten.belieferungsart || daten.bevorzugterTag) {
+    // Nur Belieferungsart/bevorzugter Tag ohne KW
+    let lieferInfoText = 'Belieferung:';
+    if (daten.bevorzugterTag) {
+      lieferInfoText += ` Bevorzugt: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`;
+    }
+    if (daten.belieferungsart) {
+      const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
+      lieferInfoText += daten.bevorzugterTag ? ` | ${belieferungsartLabel}` : ` ${belieferungsartLabel}`;
+    }
+    doc.text(lieferInfoText, 25, summenY);
     summenY += 4;
   }
 
@@ -1143,35 +1161,38 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   }
   
   // === Zahlungsbedingungen ===
-  summenY += 5;
-  
-  // Prüfe Platz für Zahlungsbedingungen-Block
-  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Zahlungsbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  
-  summenY += 5;
-  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
-  
-  if (daten.skontoAktiviert && daten.skonto) {
-    summenY += 4;
-    const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
-    doc.text(
-      `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
-      25,
-      summenY
-    );
+  // Nur anzeigen wenn nicht ausgeblendet
+  if (!daten.zahlungsbedingungenAusblenden) {
+    summenY += 5;
+
+    // Prüfe Platz für Zahlungsbedingungen-Block
+    summenY = await ensureSpace(doc, summenY, 20, stammdaten);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Zahlungsbedingungen:', 25, summenY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    summenY += 5;
+    doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
+
+    if (daten.skontoAktiviert && daten.skonto) {
+      summenY += 4;
+      const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
+      doc.text(
+        `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
+        25,
+        summenY
+      );
+    }
+
+    if (daten.zahlungsart) {
+      summenY += 4;
+      doc.text(`Zahlungsart: ${daten.zahlungsart}`, 25, summenY);
+    }
   }
-  
-  if (daten.zahlungsart) {
-    summenY += 4;
-    doc.text(`Zahlungsart: ${daten.zahlungsart}`, 25, summenY);
-  }
-  
+
   // === Bemerkung ===
   if (daten.bemerkung) {
     summenY += 10;

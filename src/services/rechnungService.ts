@@ -434,28 +434,31 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // Prüfe Platz für Zahlungsbedingungen + Bankdaten + QR-Code (ca. 45mm)
   summenY = await ensureSpace(doc, summenY, 45, stammdaten);
-  
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Zahlungsbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  
-  summenY += 5;
-  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
-  
-  // Skonto nur anzeigen wenn aktiviert
-  if (daten.skontoAktiviert && daten.skonto) {
-    summenY += 4;
-    const skontoBetrag = berechnung.bruttobetrag * (1 - daten.skonto.prozent / 100);
-    doc.text(
-      `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
-      25,
-      summenY
-    );
+
+  // Zahlungsbedingungen nur anzeigen wenn nicht ausgeblendet
+  if (!daten.zahlungsbedingungenAusblenden) {
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Zahlungsbedingungen:', 25, summenY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    summenY += 5;
+    doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
+
+    // Skonto nur anzeigen wenn aktiviert
+    if (daten.skontoAktiviert && daten.skonto) {
+      summenY += 4;
+      const skontoBetrag = berechnung.bruttobetrag * (1 - daten.skonto.prozent / 100);
+      doc.text(
+        `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
+        25,
+        summenY
+      );
+    }
   }
-  
+
   // === Bankdaten mit EPC-QR-Code ===
   summenY += 8;
   const bankdatenStartY = summenY;

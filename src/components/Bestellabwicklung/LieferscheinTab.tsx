@@ -479,7 +479,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     try {
       console.log('Generiere Lieferschein (nur Download)...', lieferscheinDaten);
       const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
-      pdf.save(`Lieferschein_${lieferscheinDaten.lieferscheinnummer}.pdf`);
+      const jahr = new Date(lieferscheinDaten.lieferdatum || Date.now()).getFullYear();
+      const kundenname = (lieferscheinDaten.kundenname || 'Unbekannt').replace(/[<>:"/\\|?*]/g, '');
+      pdf.save(`Lieferschein ${kundenname} ${jahr}.pdf`);
       console.log('Lieferschein erfolgreich generiert!');
     } catch (error) {
       console.error('Fehler beim Generieren des Lieferscheins:', error);

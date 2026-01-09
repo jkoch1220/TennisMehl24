@@ -70,6 +70,7 @@ export interface AngebotsDaten extends BaseDokument {
   positionen: Position[];
   
   // Zahlungsbedingungen
+  zahlungsbedingungenAusblenden?: boolean; // Zahlungsbedingungen im PDF ausblenden
   zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
   zahlungsart?: string;
   skontoAktiviert?: boolean;
@@ -77,7 +78,7 @@ export interface AngebotsDaten extends BaseDokument {
     prozent: number;
     tage: number;
   };
-  
+
   // Lieferbedingungen
   lieferzeit?: string;
   lieferdatum?: string;
@@ -103,7 +104,10 @@ export interface AngebotsDaten extends BaseDokument {
 }
 
 // Lieferdatum-Typ für Auftragsbestätigung
-export type LieferdatumTyp = 'fix' | 'spaetestens';
+export type LieferdatumTyp = 'fix' | 'spaetestens' | 'spaetestens_kw';
+
+// Wochentage für bevorzugten Liefertag
+export type Wochentag = 'montag' | 'dienstag' | 'mittwoch' | 'donnerstag' | 'freitag' | 'samstag';
 
 // Belieferungsart (importiert von saisonplanung, hier für Referenz)
 export type Belieferungsart =
@@ -122,8 +126,9 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
 
   // Positionen
   positionen: Position[];
-  
+
   // Zahlungsbedingungen
+  zahlungsbedingungenAusblenden?: boolean; // Zahlungsbedingungen im PDF ausblenden
   zahlungsziel: string;
   zahlungsart?: string;
   skontoAktiviert?: boolean;
@@ -131,11 +136,14 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
     prozent: number;
     tage: number;
   };
-  
+
   // Lieferbedingungen
   lieferzeit?: string;
   lieferdatum?: string;
-  lieferdatumTyp?: LieferdatumTyp; // 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis
+  lieferdatumTyp?: LieferdatumTyp; // 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis, 'spaetestens_kw' = Spätestens KW
+  lieferKW?: number; // Kalenderwoche (1-53) wenn lieferdatumTyp = 'spaetestens_kw'
+  lieferKWJahr?: number; // Jahr der Kalenderwoche (für Jahreswechsel)
+  bevorzugterTag?: Wochentag; // Bevorzugter Wochentag für die Lieferung
   lieferzeitVon?: string; // Zeitfenster von (z.B. "08:00")
   lieferzeitBis?: string; // Zeitfenster bis (z.B. "16:00")
   belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
@@ -184,8 +192,9 @@ export interface RechnungsDaten extends BaseDokument {
   
   // Positionen
   positionen: Position[];
-  
+
   // Zahlungsbedingungen
+  zahlungsbedingungenAusblenden?: boolean; // Zahlungsbedingungen im PDF ausblenden
   zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
   skontoAktiviert?: boolean;
   skonto?: {

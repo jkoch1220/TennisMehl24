@@ -5,7 +5,10 @@ export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetig
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
 // Lieferdatum-Typ (aus AB)
-export type LieferdatumTyp = 'fix' | 'spaetestens';
+export type LieferdatumTyp = 'fix' | 'spaetestens' | 'spaetestens_kw';
+
+// Wochentage für bevorzugten Liefertag
+export type Wochentag = 'montag' | 'dienstag' | 'mittwoch' | 'donnerstag' | 'freitag' | 'samstag';
 
 // Belieferungsart
 export type Belieferungsart =
@@ -97,8 +100,15 @@ export interface Projekt {
     bis: string; // z.B. "12:00"
   };
 
-  // Lieferdatum-Typ (fix oder spätestens bis)
+  // Lieferdatum-Typ (fix oder spätestens bis oder spätestens KW)
   lieferdatumTyp?: LieferdatumTyp;
+
+  // Kalenderwoche für spätestens-KW-Modus
+  lieferKW?: number;
+  lieferKWJahr?: number;
+
+  // Bevorzugter Wochentag für Lieferung
+  bevorzugterTag?: Wochentag;
 
   // Belieferungsart (Motorwagen, Hänger, etc.)
   belieferungsart?: Belieferungsart;
