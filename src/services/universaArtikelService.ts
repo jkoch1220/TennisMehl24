@@ -312,24 +312,35 @@ async function getAlleArtikelFuerSuche(): Promise<UniversalArtikel[]> {
   return alleArtikel;
 }
 
-// Normalisiere Text für Suche (lowercase, Umlaute, Sonderzeichen)
+// Normalisiere Text für Suche (lowercase, behält mehr Zeichen)
 function normalizeText(text: string): string {
   return text
     .toLowerCase()
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
     .replace(/ß/g, 'ss')
-    .replace(/[^a-z0-9]/g, ' ')
+    .trim();
+}
+
+// Einfachere Normalisierung für Token-Matching
+function normalizeForMatch(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9äöüß]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 // Tokenisiere Suchtext in einzelne Wörter
 function tokenize(text: string): string[] {
-  return normalizeText(text)
+  return normalizeForMatch(text)
     .split(' ')
-    .filter(token => token.length >= 2); // Mindestens 2 Zeichen
+    .filter(token => token.length >= 1); // Auch einzelne Zeichen für Artikelnummern
 }
 
 // Berechne Relevanz-Score für einen Artikel
@@ -339,9 +350,14 @@ function calculateScore(artikel: UniversalArtikel, suchTokens: string[]): number
   const bezeichnung = normalizeText(artikel.bezeichnung || '');
   const artikelnummer = normalizeText(artikel.artikelnummer || '');
   const verpackungseinheit = normalizeText(artikel.verpackungseinheit || '');
+  const seite = String(artikel.seiteKatalog || '');
+  const preisGH = String(artikel.grosshaendlerPreisNetto || '');
+  const preisNetto = String(artikel.katalogPreisNetto || '');
+  const preisBrutto = String(artikel.katalogPreisBrutto || '');
 
   // Alle Felder kombiniert für Token-Matching
-  const allFields = `${bezeichnung} ${artikelnummer} ${verpackungseinheit}`;
+  const allFields = `${bezeichnung} ${artikelnummer} ${verpackungseinheit} ${seite} ${preisGH} ${preisNetto} ${preisBrutto}`;
+  const allFieldsNormalized = normalizeForMatch(allFields);
 
   let totalScore = 0;
   let matchedTokens = 0;
@@ -349,29 +365,32 @@ function calculateScore(artikel: UniversalArtikel, suchTokens: string[]): number
   for (const token of suchTokens) {
     let tokenScore = 0;
 
-    // 1. Exakte Wort-Übereinstimmung in Bezeichnung (höchster Score)
-    const bezeichnungWords = bezeichnung.split(' ');
-    if (bezeichnungWords.some(word => word === token)) {
+    // 1. Exakte Übereinstimmung in Artikelnummer (höchster Score)
+    if (artikelnummer === token) {
+      tokenScore = 150;
+    }
+    // 2. Artikelnummer enthält Token
+    else if (artikelnummer.includes(token)) {
+      tokenScore = 120;
+    }
+    // 3. Exakte Wort-Übereinstimmung in Bezeichnung
+    else if (bezeichnung.split(/\s+/).some(word => word === token)) {
       tokenScore = 100;
     }
-    // 2. Wort beginnt mit Token in Bezeichnung
-    else if (bezeichnungWords.some(word => word.startsWith(token))) {
+    // 4. Wort beginnt mit Token in Bezeichnung
+    else if (bezeichnung.split(/\s+/).some(word => word.startsWith(token))) {
       tokenScore = 80;
     }
-    // 3. Exakte Übereinstimmung in Artikelnummer
-    else if (artikelnummer === token || artikelnummer.includes(token)) {
-      tokenScore = 90;
-    }
-    // 4. Token ist irgendwo in Bezeichnung enthalten
+    // 5. Token ist irgendwo in Bezeichnung enthalten
     else if (bezeichnung.includes(token)) {
       tokenScore = 60;
     }
-    // 5. Token ist in Verpackungseinheit
+    // 6. Token ist in Verpackungseinheit
     else if (verpackungseinheit.includes(token)) {
       tokenScore = 40;
     }
-    // 6. Token ist irgendwo enthalten
-    else if (allFields.includes(token)) {
+    // 7. Token ist irgendwo in den Feldern enthalten
+    else if (allFieldsNormalized.includes(token)) {
       tokenScore = 20;
     }
 
@@ -381,16 +400,25 @@ function calculateScore(artikel: UniversalArtikel, suchTokens: string[]): number
     }
   }
 
-  // Alle Tokens müssen matchen!
-  if (matchedTokens < suchTokens.length) {
+  // Mindestens ein Token muss matchen
+  if (matchedTokens === 0) {
     return 0;
   }
 
+  // Bonus basierend auf wie viele Tokens gematched haben
+  const matchRatio = matchedTokens / suchTokens.length;
+  totalScore = totalScore * matchRatio;
+
+  // Extra Bonus wenn ALLE Tokens matchen
+  if (matchedTokens === suchTokens.length) {
+    totalScore += 100;
+  }
+
   // Bonus für kürzere Bezeichnungen (exaktere Treffer)
-  const lengthBonus = Math.max(0, 50 - bezeichnung.length / 2);
+  const lengthBonus = Math.max(0, 30 - bezeichnung.length / 3);
 
   // Bonus wenn alle Suchbegriffe nah beieinander sind
-  const consecutiveBonus = checkConsecutiveMatch(bezeichnung, suchTokens) ? 50 : 0;
+  const consecutiveBonus = matchedTokens === suchTokens.length && checkConsecutiveMatch(bezeichnung, suchTokens) ? 50 : 0;
 
   return totalScore + lengthBonus + consecutiveBonus;
 }
@@ -416,10 +444,13 @@ export async function sucheUniversalArtikel(suchtext: string): Promise<Universal
     return result.artikel;
   }
 
+  // Suchtext normalisieren
+  const normalizedSearch = normalizeText(suchtext);
+
   // Tokenisiere Suchtext
   const suchTokens = tokenize(suchtext);
 
-  if (suchTokens.length === 0) {
+  if (suchTokens.length === 0 && normalizedSearch.length === 0) {
     const result = await getAlleUniversalArtikel('bezeichnung', 50);
     return result.artikel;
   }
@@ -429,15 +460,35 @@ export async function sucheUniversalArtikel(suchtext: string): Promise<Universal
 
   // Score für jeden Artikel berechnen
   const artikelMitScore = alleArtikel
-    .map(artikel => ({
-      artikel,
-      score: calculateScore(artikel, suchTokens)
-    }))
+    .map(artikel => {
+      // Berechne Token-basierenden Score
+      let score = suchTokens.length > 0 ? calculateScore(artikel, suchTokens) : 0;
+
+      // Zusätzliche direkte String-Suche (für Sonderzeichen, Artikelnummern etc.)
+      const artikelStr = `${artikel.artikelnummer} ${artikel.bezeichnung} ${artikel.verpackungseinheit}`.toLowerCase();
+
+      // Bonus wenn der gesamte Suchtext (nicht tokenisiert) enthalten ist
+      if (artikelStr.includes(normalizedSearch)) {
+        score += 200;
+      }
+
+      // Bonus wenn Artikelnummer exakt matched
+      if (artikel.artikelnummer.toLowerCase() === normalizedSearch) {
+        score += 500;
+      }
+
+      // Bonus wenn Artikelnummer mit Suchtext beginnt
+      if (artikel.artikelnummer.toLowerCase().startsWith(normalizedSearch)) {
+        score += 300;
+      }
+
+      return { artikel, score };
+    })
     .filter(item => item.score > 0) // Nur Treffer
     .sort((a, b) => b.score - a.score); // Nach Score sortieren (höchster zuerst)
 
-  // Top 50 Ergebnisse zurückgeben
-  return artikelMitScore.slice(0, 50).map(item => item.artikel);
+  // Top 100 Ergebnisse zurückgeben (mehr Ergebnisse)
+  return artikelMitScore.slice(0, 100).map(item => item.artikel);
 }
 
 // Schnelle Suche für Autocomplete (nur Top 10)
