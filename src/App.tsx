@@ -32,6 +32,7 @@ import PrivatKreditorenAuswahl from './components/PrivatKreditoren/PrivatKredito
 import Fahrkostenabrechnung from './components/Fahrkostenabrechnung/Fahrkostenabrechnung';
 import LogistikpartnerVerwaltung from './components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung';
 import EmailDashboard from './components/EmailDashboard/EmailDashboard';
+import Instandhaltung from './components/Instandhaltung/Instandhaltung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -172,6 +173,11 @@ function AuthenticatedContent() {
               <Route path="/email-dashboard" element={
                 <ProtectedRoute toolId="email-dashboard">
                   <EmailDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/instandhaltung" element={
+                <ProtectedRoute toolId="instandhaltung">
+                  <Instandhaltung />
                 </ProtectedRoute>
               } />
 
