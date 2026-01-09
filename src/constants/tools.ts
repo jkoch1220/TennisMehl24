@@ -21,6 +21,7 @@ import {
   Car,
   Truck,
   Inbox,
+  Wrench,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -216,6 +217,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/email-dashboard',
     icon: Inbox,
     color: 'from-teal-500 to-cyan-600',
+  },
+  {
+    id: 'instandhaltung',
+    name: 'Instandhaltung',
+    description: 'Tägliche, wöchentliche und monatliche Begehungen der Produktionsanlage',
+    href: '/instandhaltung',
+    icon: Wrench,
+    color: 'from-orange-500 to-red-600',
   },
 ];
 

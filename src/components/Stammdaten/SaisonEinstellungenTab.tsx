@@ -170,7 +170,7 @@ const SaisonEinstellungenTab = () => {
               <ul className="list-disc list-inside space-y-1 text-blue-700 dark:text-blue-400">
                 <li>Die Saison beginnt im {MONATE.find(m => m.value === formData.saisonStartMonat)?.label} und endet im April des Folgejahres</li>
                 <li>Beispiel: {MONATE.find(m => m.value === formData.saisonStartMonat)?.label} 2025 - April 2026 = <strong>Saison 2026</strong></li>
-                <li>AB-Nummern werden im Format <strong>AB-{aktuelleSaison}-0001</strong> generiert</li>
+                <li>Alle Dokumentnummern werden im Format <strong>PREFIX-{aktuelleSaison}-0001</strong> generiert</li>
               </ul>
             </div>
           </div>
@@ -235,21 +235,21 @@ const SaisonEinstellungenTab = () => {
       <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-4">Nummern-Vorschau</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-1">Angebot</p>
-            <p className="font-mono font-bold text-gray-900 dark:text-dark-text">ANG-0001</p>
+          <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-4 text-center border-2 border-orange-300 dark:border-orange-700">
+            <p className="text-sm text-orange-600 dark:text-orange-400 mb-1">Angebot</p>
+            <p className="font-mono font-bold text-orange-700 dark:text-orange-300">ANG-{aktuelleSaison}-0001</p>
           </div>
           <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-4 text-center border-2 border-orange-300 dark:border-orange-700">
             <p className="text-sm text-orange-600 dark:text-orange-400 mb-1">Auftragsbestätigung</p>
             <p className="font-mono font-bold text-orange-700 dark:text-orange-300">AB-{aktuelleSaison}-0001</p>
           </div>
-          <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-1">Lieferschein</p>
-            <p className="font-mono font-bold text-gray-900 dark:text-dark-text">LS-0001</p>
+          <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-4 text-center border-2 border-orange-300 dark:border-orange-700">
+            <p className="text-sm text-orange-600 dark:text-orange-400 mb-1">Lieferschein</p>
+            <p className="font-mono font-bold text-orange-700 dark:text-orange-300">LS-{aktuelleSaison}-0001</p>
           </div>
-          <div className="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-1">Rechnung</p>
-            <p className="font-mono font-bold text-gray-900 dark:text-dark-text">RE-0001</p>
+          <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-4 text-center border-2 border-orange-300 dark:border-orange-700">
+            <p className="text-sm text-orange-600 dark:text-orange-400 mb-1">Rechnung</p>
+            <p className="font-mono font-bold text-orange-700 dark:text-orange-300">RE-{aktuelleSaison}-0001</p>
           </div>
         </div>
       </div>

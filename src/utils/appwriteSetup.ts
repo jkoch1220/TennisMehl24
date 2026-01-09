@@ -32,6 +32,9 @@ import {
   // Fahrtkosten
   FAHRTEN_COLLECTION_ID,
   DEFAULT_STRECKEN_COLLECTION_ID,
+  // Instandhaltung
+  INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID,
+  INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -39,7 +42,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '20'; // Fahrtkosten Collections
+const APPWRITE_SETUP_VERSION = '21'; // Instandhaltung Collections
 
 type FieldConfig = {
   key: string;
@@ -268,6 +271,19 @@ const fahrtenFields: FieldConfig[] = [
 
 const defaultStreckenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },
+];
+
+// Instandhaltung Checklisten Collection - Checklist-Item-Definitionen
+const instandhaltungChecklistenFields: FieldConfig[] = [
+  { key: 'frequenz', type: 'string', size: 50, required: true }, // Für Index: 'taeglich' | 'woechentlich' | 'monatlich'
+  { key: 'data', type: 'string', size: 50000, required: true },  // JSON blob mit allen Daten
+];
+
+// Instandhaltung Begehungen Collection - Begehungs-Sessions
+const instandhaltungBegehungenFields: FieldConfig[] = [
+  { key: 'frequenz', type: 'string', size: 50, required: true }, // Für Index
+  { key: 'status', type: 'string', size: 50, required: true },   // Für Index: 'in_bearbeitung' | 'abgeschlossen' | 'abgebrochen'
+  { key: 'data', type: 'string', size: 100000, required: true }, // JSON blob mit Checklist-Snapshot
 ];
 
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
@@ -503,6 +519,9 @@ export async function setupAppwriteFields() {
       // Fahrtkosten
       { id: FAHRTEN_COLLECTION_ID, name: 'Fahrten', fields: fahrtenFields },
       { id: DEFAULT_STRECKEN_COLLECTION_ID, name: 'Default Strecken', fields: defaultStreckenFields },
+      // Instandhaltung
+      { id: INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID, name: 'Instandhaltung Checklisten', fields: instandhaltungChecklistenFields },
+      { id: INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, name: 'Instandhaltung Begehungen', fields: instandhaltungBegehungenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
@@ -529,6 +548,11 @@ export async function setupAppwriteFields() {
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'email_index', ['email']);
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'token_index', ['unsubscribeToken'], 'unique');
     await ensureIndex(NEWSLETTER_COLLECTION_ID, 'status_index', ['status']);
+
+    // Indizes für Instandhaltung
+    await ensureIndex(INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID, 'frequenz_index', ['frequenz']);
+    await ensureIndex(INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, 'frequenz_index', ['frequenz']);
+    await ensureIndex(INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, 'status_index', ['status']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
