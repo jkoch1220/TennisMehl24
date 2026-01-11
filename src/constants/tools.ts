@@ -22,6 +22,7 @@ import {
   Truck,
   Inbox,
   Wrench,
+  CalendarClock,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -225,6 +226,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/instandhaltung',
     icon: Wrench,
     color: 'from-orange-500 to-red-600',
+  },
+  {
+    id: 'schichtplanung',
+    name: 'Schichtplanung',
+    description: 'Mitarbeiter-Schichten planen mit Drag & Drop Wochenkalender',
+    href: '/schichtplanung',
+    icon: CalendarClock,
+    color: 'from-violet-500 to-purple-600',
   },
 ];
 

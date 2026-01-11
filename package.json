@@ -18,7 +18,8 @@
     "cache:users": "node scripts/cache-users-helper.js",
     "setup:newsletter": "node scripts/setup-newsletter.js",
     "setup:fahrtkosten": "npx tsx scripts/setup-fahrtkosten.ts",
-    "setup:logistikpartner": "npx tsx scripts/setup-logistikpartner.ts"
+    "setup:logistikpartner": "npx tsx scripts/setup-logistikpartner.ts",
+    "setup:schichtplanung": "node scripts/setup-schichtplanung.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -33,6 +33,7 @@ import Fahrkostenabrechnung from './components/Fahrkostenabrechnung/Fahrkostenab
 import LogistikpartnerVerwaltung from './components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung';
 import EmailDashboard from './components/EmailDashboard/EmailDashboard';
 import Instandhaltung from './components/Instandhaltung/Instandhaltung';
+import Schichtplanung from './components/Schichtplanung/Schichtplanung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -178,6 +179,11 @@ function AuthenticatedContent() {
               <Route path="/instandhaltung" element={
                 <ProtectedRoute toolId="instandhaltung">
                   <Instandhaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/schichtplanung" element={
+                <ProtectedRoute toolId="schichtplanung">
+                  <Schichtplanung />
                 </ProtectedRoute>
               } />
 

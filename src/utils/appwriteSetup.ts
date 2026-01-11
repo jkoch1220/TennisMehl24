@@ -35,6 +35,9 @@ import {
   // Instandhaltung
   INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID,
   INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID,
+  // Schichtplanung
+  SCHICHT_MITARBEITER_COLLECTION_ID,
+  SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -42,7 +45,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '21'; // Instandhaltung Collections
+const APPWRITE_SETUP_VERSION = '22'; // Schichtplanung Collections
 
 type FieldConfig = {
   key: string;
@@ -286,6 +289,19 @@ const instandhaltungBegehungenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 100000, required: true }, // JSON blob mit Checklist-Snapshot
 ];
 
+// Schichtplanung Collections
+const schichtMitarbeiterFields: FieldConfig[] = [
+  { key: 'istAktiv', type: 'boolean', default: true },           // Für Filter aktive MA
+  { key: 'data', type: 'string', size: 50000, required: true },  // JSON blob mit allen MA-Daten
+];
+
+const schichtZuweisungenFields: FieldConfig[] = [
+  { key: 'datum', type: 'string', size: 20, required: true },         // ISO-Datum für Range-Queries
+  { key: 'mitarbeiterId', type: 'string', size: 100, required: true }, // Für Filter nach MA
+  { key: 'schichtTyp', type: 'string', size: 50, required: true },    // Für Filter nach Schichttyp
+  { key: 'data', type: 'string', size: 10000, required: true },       // JSON blob mit Details
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -522,6 +538,9 @@ export async function setupAppwriteFields() {
       // Instandhaltung
       { id: INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID, name: 'Instandhaltung Checklisten', fields: instandhaltungChecklistenFields },
       { id: INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, name: 'Instandhaltung Begehungen', fields: instandhaltungBegehungenFields },
+      // Schichtplanung
+      { id: SCHICHT_MITARBEITER_COLLECTION_ID, name: 'Schicht Mitarbeiter', fields: schichtMitarbeiterFields },
+      { id: SCHICHT_ZUWEISUNGEN_COLLECTION_ID, name: 'Schicht Zuweisungen', fields: schichtZuweisungenFields },
     ];
 
     for (const { id, name, fields } of kundenCollections) {
@@ -553,6 +572,12 @@ export async function setupAppwriteFields() {
     await ensureIndex(INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID, 'frequenz_index', ['frequenz']);
     await ensureIndex(INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, 'frequenz_index', ['frequenz']);
     await ensureIndex(INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, 'status_index', ['status']);
+
+    // Indizes für Schichtplanung
+    await ensureIndex(SCHICHT_MITARBEITER_COLLECTION_ID, 'istAktiv_index', ['istAktiv']);
+    await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'datum_index', ['datum']);
+    await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'mitarbeiterId_index', ['mitarbeiterId']);
+    await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'schichtTyp_index', ['schichtTyp']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
