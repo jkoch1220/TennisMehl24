@@ -275,10 +275,15 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
     doc.text(hrb, col3.x, footerY + lineHeight);
   }
 
+  // USt-ID hat Vorrang vor Steuernummer (sobald vorhanden, ersetzt sie die Steuernummer)
+  const hatUstId = stammdaten.ustIdNr && stammdaten.ustIdNr.trim() !== '';
+  const steuerLabel = hatUstId ? 'USt-ID:' : 'Steuernummer:';
+  const steuerWert = hatUstId ? stammdaten.ustIdNr : (stammdaten.steuernummer || '');
+
   doc.setFont('helvetica', 'bold');
-  doc.text('USt-ID:', col3.x, footerY + lineHeight * (hrbLineOffset + 1));
+  doc.text(steuerLabel, col3.x, footerY + lineHeight * (hrbLineOffset + 1));
   doc.setFont('helvetica', 'normal');
-  doc.text(stammdaten.ustIdNr, col3.x, footerY + lineHeight * (hrbLineOffset + 2));
+  doc.text(steuerWert, col3.x, footerY + lineHeight * (hrbLineOffset + 2));
   
   // === Spalte 4: Werk/Verkauf (nur wenn vorhanden) ===
   let nextColIndex = 3;
