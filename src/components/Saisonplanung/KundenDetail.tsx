@@ -701,7 +701,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             kundenstrasse={kunde.kunde.adresse.strasse}
             kundenPlzOrt={`${kunde.kunde.adresse.plz} ${kunde.kunde.adresse.ort}`}
             angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
-            preisProTonne={kunde.aktuelleSaison?.preisProTonne || kunde.kunde.zuletztGezahlterPreis}
+            preisProTonne={kunde.aktuelleSaison?.preisProTonne || (kunde.kunde.zuletztGezahlterPreis ? Math.round(kunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
             bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}
             onSave={handleSaveProjekt}
             onCancel={() => setShowProjektDialog(false)}

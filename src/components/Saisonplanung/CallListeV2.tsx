@@ -599,7 +599,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
           kundenPlzOrt={`${projektKunde.kunde.adresse.plz} ${projektKunde.kunde.adresse.ort}`}
           ansprechpartner={projektKunde.ansprechpartner?.find(ap => ap.aktiv)?.name}
           angefragteMenge={projektKunde.aktuelleSaison?.angefragteMenge}
-          preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || projektKunde.kunde.zuletztGezahlterPreis}
+          preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || (projektKunde.kunde.zuletztGezahlterPreis ? Math.round(projektKunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
           bezugsweg={projektKunde.aktuelleSaison?.bezugsweg || projektKunde.kunde.standardBezugsweg}
           onSave={handleSaveProjekt}
           onCancel={() => {
