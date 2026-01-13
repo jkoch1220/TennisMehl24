@@ -17,6 +17,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
+import NumericInput from '../Shared/NumericInput';
 import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -1285,10 +1286,9 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
-                            <input
-                              type="number"
+                            <NumericInput
                               value={position.menge}
-                              onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePositionChange(index, 'menge', val)}
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                             />
@@ -1334,11 +1334,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einzelpreis (€)</label>
-                            <input
-                              type="number"
-                              step="0.01"
+                            <NumericInput
                               value={position.einzelpreis}
-                              onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
+                              step="0.01"
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                             />
@@ -1397,11 +1396,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Frachtkosten (€)</label>
-              <input
-                type="number"
+              <NumericInput
+                value={auftragsbestaetigungsDaten.frachtkosten || 0}
+                onChange={(val) => handleInputChange('frachtkosten', val)}
                 step="0.01"
-                value={auftragsbestaetigungsDaten.frachtkosten || ''}
-                onChange={(e) => handleInputChange('frachtkosten', parseFloat(e.target.value) || 0)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               />
@@ -1479,26 +1477,24 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Skonto %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={auftragsbestaetigungsDaten.skonto?.prozent || ''}
-                      onChange={(e) => handleInputChange('skonto', {
-                        prozent: parseFloat(e.target.value) || 0,
+                    <NumericInput
+                      value={auftragsbestaetigungsDaten.skonto?.prozent || 0}
+                      onChange={(val) => handleInputChange('skonto', {
+                        prozent: val,
                         tage: auftragsbestaetigungsDaten.skonto?.tage || 7
                       })}
+                      step="0.01"
                       disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tage</label>
-                    <input
-                      type="number"
-                      value={auftragsbestaetigungsDaten.skonto?.tage || ''}
-                      onChange={(e) => handleInputChange('skonto', {
+                    <NumericInput
+                      value={auftragsbestaetigungsDaten.skonto?.tage || 0}
+                      onChange={(val) => handleInputChange('skonto', {
                         prozent: auftragsbestaetigungsDaten.skonto?.prozent || 0,
-                        tage: parseInt(e.target.value) || 0
+                        tage: val
                       })}
                       disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"

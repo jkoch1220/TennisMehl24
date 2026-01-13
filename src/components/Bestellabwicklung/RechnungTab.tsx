@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
+import NumericInput from '../Shared/NumericInput';
 import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/bestellabwicklung';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -1201,10 +1202,9 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
-                            <input
-                              type="number"
+                            <NumericInput
                               value={position.menge}
-                              onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePositionChange(index, 'menge', val)}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                             />
                           </div>
@@ -1246,11 +1246,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einzelpreis (€)</label>
-                            <input
-                              type="number"
-                              step="0.01"
+                            <NumericInput
                               value={position.einzelpreis}
-                              onChange={(e) => handlePositionChange(index, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
+                              step="0.01"
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                             />
                           </div>
@@ -1334,25 +1333,23 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Skonto %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={rechnungsDaten.skonto?.prozent || ''}
-                      onChange={(e) => handleInputChange('skonto', {
-                        prozent: parseFloat(e.target.value) || 0,
+                    <NumericInput
+                      value={rechnungsDaten.skonto?.prozent || 0}
+                      onChange={(val) => handleInputChange('skonto', {
+                        prozent: val,
                         tage: rechnungsDaten.skonto?.tage || 7
                       })}
+                      step="0.01"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tage</label>
-                    <input
-                      type="number"
-                      value={rechnungsDaten.skonto?.tage || ''}
-                      onChange={(e) => handleInputChange('skonto', {
+                    <NumericInput
+                      value={rechnungsDaten.skonto?.tage || 0}
+                      onChange={(val) => handleInputChange('skonto', {
                         prozent: rechnungsDaten.skonto?.prozent || 0,
-                        tage: parseInt(e.target.value) || 0
+                        tage: val
                       })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                     />

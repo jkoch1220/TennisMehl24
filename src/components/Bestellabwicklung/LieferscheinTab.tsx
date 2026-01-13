@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
+import NumericInput from '../Shared/NumericInput';
 import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/bestellabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import jsPDF from 'jspdf';
@@ -1032,10 +1033,9 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
-                            <input
-                              type="number"
+                            <NumericInput
                               value={position.menge}
-                              onChange={(e) => handlePositionChange(index, 'menge', parseFloat(e.target.value) || 0)}
+                              onChange={(val) => handlePositionChange(index, 'menge', val)}
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                             />
