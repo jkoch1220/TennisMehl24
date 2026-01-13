@@ -945,28 +945,34 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           {auftragsbestaetigungsDaten.lieferKW && (
             <div className="mt-3 p-3 rounded-lg flex items-center gap-2 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <span>
-                Lieferung spätestens: <strong>KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong>
+              <div className="flex flex-col gap-1">
+                <span>
+                  Bevorzugte Liefer-KW: <strong>KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong>
+                </span>
                 {auftragsbestaetigungsDaten.bevorzugterTag && (
-                  <> | Bevorzugt: <strong>
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'montag' && 'Montag'}
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'dienstag' && 'Dienstag'}
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'mittwoch' && 'Mittwoch'}
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'donnerstag' && 'Donnerstag'}
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'freitag' && 'Freitag'}
-                    {auftragsbestaetigungsDaten.bevorzugterTag === 'samstag' && 'Samstag'}
-                  </strong></>
+                  <span>
+                    Bevorzugter Tag: <strong>
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'montag' && 'Montag'}
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'dienstag' && 'Dienstag'}
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'mittwoch' && 'Mittwoch'}
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'donnerstag' && 'Donnerstag'}
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'freitag' && 'Freitag'}
+                      {auftragsbestaetigungsDaten.bevorzugterTag === 'samstag' && 'Samstag'}
+                    </strong>
+                  </span>
                 )}
                 {auftragsbestaetigungsDaten.belieferungsart && (
-                  <> | <strong>
-                    {auftragsbestaetigungsDaten.belieferungsart === 'nur_motorwagen' && 'Mit Motorwagen'}
-                    {auftragsbestaetigungsDaten.belieferungsart === 'mit_haenger' && 'Motorwagen mit Hänger'}
-                    {auftragsbestaetigungsDaten.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
-                    {auftragsbestaetigungsDaten.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
-                    {auftragsbestaetigungsDaten.belieferungsart === 'bigbag' && 'BigBag'}
-                  </strong></>
+                  <span>
+                    Belieferungsart: <strong>
+                      {auftragsbestaetigungsDaten.belieferungsart === 'nur_motorwagen' && 'Mit Motorwagen'}
+                      {auftragsbestaetigungsDaten.belieferungsart === 'mit_haenger' && 'Motorwagen mit Hänger'}
+                      {auftragsbestaetigungsDaten.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
+                      {auftragsbestaetigungsDaten.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
+                      {auftragsbestaetigungsDaten.belieferungsart === 'bigbag' && 'BigBag'}
+                    </strong>
+                  </span>
                 )}
-              </span>
+              </div>
             </div>
           )}
         </div>

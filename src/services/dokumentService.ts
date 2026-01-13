@@ -1119,33 +1119,32 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   if (daten.lieferKW) {
     // KW-basierter Liefertermin
     const jahr = daten.lieferKWJahr || new Date().getFullYear();
-    let lieferInfoText = `Lieferung spätestens: KW ${daten.lieferKW}/${jahr}`;
+    doc.text(`Bevorzugte Liefer-KW: ${daten.lieferKW}/${jahr}`, 25, summenY);
+    summenY += 4;
 
-    // Bevorzugter Wochentag hinzufügen
+    // Bevorzugter Wochentag als separate Zeile
     if (daten.bevorzugterTag) {
-      lieferInfoText += ` | Bevorzugt: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`;
+      doc.text(`Bevorzugter Tag: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`, 25, summenY);
+      summenY += 4;
     }
 
-    // Belieferungsart hinzufügen
+    // Belieferungsart als separate Zeile
     if (daten.belieferungsart) {
       const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
-      lieferInfoText += ` | ${belieferungsartLabel}`;
+      doc.text(`Belieferungsart: ${belieferungsartLabel}`, 25, summenY);
+      summenY += 4;
     }
-
-    doc.text(lieferInfoText, 25, summenY);
-    summenY += 4;
   } else if (daten.belieferungsart || daten.bevorzugterTag) {
     // Nur Belieferungsart/bevorzugter Tag ohne KW
-    let lieferInfoText = 'Belieferung:';
     if (daten.bevorzugterTag) {
-      lieferInfoText += ` Bevorzugt: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`;
+      doc.text(`Bevorzugter Tag: ${wochentagLabels[daten.bevorzugterTag] || daten.bevorzugterTag}`, 25, summenY);
+      summenY += 4;
     }
     if (daten.belieferungsart) {
       const belieferungsartLabel = belieferungsartLabels[daten.belieferungsart] || daten.belieferungsart;
-      lieferInfoText += daten.bevorzugterTag ? ` | ${belieferungsartLabel}` : ` ${belieferungsartLabel}`;
+      doc.text(`Belieferungsart: ${belieferungsartLabel}`, 25, summenY);
+      summenY += 4;
     }
-    doc.text(lieferInfoText, 25, summenY);
-    summenY += 4;
   }
 
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
