@@ -45,6 +45,72 @@ const parseDate = (dateStr: string | undefined): Date | null => {
   return isNaN(date.getTime()) ? null : date;
 };
 
+// Hilfsfunktion: JSON sicher parsen
+const safeParseJSON = (jsonStr: string | undefined): Record<string, unknown> | null => {
+  if (!jsonStr) return null;
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+};
+
+// Hilfsfunktion: Datum aus Projekt extrahieren (mit Fallbacks)
+const getAngebotsdatum = (projekt: Projekt): Date | null => {
+  // 1. Direkt vom Projekt
+  let date = parseDate(projekt.angebotsdatum);
+  if (date) return date;
+
+  // 2. Aus JSON-Daten
+  const angebotsDaten = safeParseJSON(projekt.angebotsDaten);
+  if (angebotsDaten?.angebotsdatum) {
+    date = parseDate(angebotsDaten.angebotsdatum as string);
+    if (date) return date;
+  }
+
+  // 3. Fallback: erstelltAm wenn Status angebot oder höher
+  if (['angebot', 'angebot_versendet', 'auftragsbestaetigung', 'lieferschein', 'rechnung', 'bezahlt'].includes(projekt.status)) {
+    return parseDate(projekt.erstelltAm);
+  }
+  return null;
+};
+
+const getABDatum = (projekt: Projekt): Date | null => {
+  let date = parseDate(projekt.auftragsbestaetigungsdatum);
+  if (date) return date;
+
+  const abDaten = safeParseJSON(projekt.auftragsbestaetigungsDaten);
+  if (abDaten?.auftragsbestaetigungsdatum) {
+    date = parseDate(abDaten.auftragsbestaetigungsdatum as string);
+    if (date) return date;
+  }
+  return null;
+};
+
+const getLieferscheindatum = (projekt: Projekt): Date | null => {
+  let date = parseDate(projekt.lieferdatum);
+  if (date) return date;
+
+  const lsDaten = safeParseJSON(projekt.lieferscheinDaten);
+  if (lsDaten?.lieferdatum) {
+    date = parseDate(lsDaten.lieferdatum as string);
+    if (date) return date;
+  }
+  return null;
+};
+
+const getRechnungsdatum = (projekt: Projekt): Date | null => {
+  let date = parseDate(projekt.rechnungsdatum);
+  if (date) return date;
+
+  const reDaten = safeParseJSON(projekt.rechnungsDaten);
+  if (reDaten?.rechnungsdatum) {
+    date = parseDate(reDaten.rechnungsdatum as string);
+    if (date) return date;
+  }
+  return null;
+};
+
 // Hilfsfunktion: Monat aus Datum extrahieren
 const getMonthKey = (date: Date): string => {
   const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -81,7 +147,7 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     ...projekteGruppiert.verloren,
   ], [projekteGruppiert]);
 
-  // Statistik-Daten berechnen
+  // Statistik-Daten berechnen (mit Fallbacks aus JSON-Daten und erstelltAm)
   const stats = useMemo(() => {
     const angeboteDaten: { date: Date; projekt: Projekt }[] = [];
     const abDaten: { date: Date; projekt: Projekt }[] = [];
@@ -89,26 +155,26 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     const rechnungDaten: { date: Date; projekt: Projekt }[] = [];
 
     alleProjekte.forEach(projekt => {
-      // Angebotsdatum
-      const angebotDate = parseDate(projekt.angebotsdatum);
+      // Angebotsdatum (mit Fallback auf erstelltAm)
+      const angebotDate = getAngebotsdatum(projekt);
       if (angebotDate) {
         angeboteDaten.push({ date: angebotDate, projekt });
       }
 
-      // Auftragsbestätigungsdatum
-      const abDate = parseDate(projekt.auftragsbestaetigungsdatum);
+      // Auftragsbestätigungsdatum (mit Fallback aus JSON)
+      const abDate = getABDatum(projekt);
       if (abDate) {
         abDaten.push({ date: abDate, projekt });
       }
 
-      // Lieferscheindatum
-      const lsDate = parseDate(projekt.lieferdatum);
+      // Lieferscheindatum (mit Fallback aus JSON)
+      const lsDate = getLieferscheindatum(projekt);
       if (lsDate) {
         lieferscheinDaten.push({ date: lsDate, projekt });
       }
 
-      // Rechnungsdatum
-      const reDate = parseDate(projekt.rechnungsdatum);
+      // Rechnungsdatum (mit Fallback aus JSON)
+      const reDate = getRechnungsdatum(projekt);
       if (reDate) {
         rechnungDaten.push({ date: reDate, projekt });
       }
@@ -215,10 +281,10 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     };
 
     alleProjekte.forEach(projekt => {
-      const angebotDate = parseDate(projekt.angebotsdatum);
-      const abDate = parseDate(projekt.auftragsbestaetigungsdatum);
-      const lsDate = parseDate(projekt.lieferdatum);
-      const reDate = parseDate(projekt.rechnungsdatum);
+      const angebotDate = getAngebotsdatum(projekt);
+      const abDate = getABDatum(projekt);
+      const lsDate = getLieferscheindatum(projekt);
+      const reDate = getRechnungsdatum(projekt);
 
       // Angebot → AB
       if (angebotDate && abDate) {
