@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -42,6 +42,8 @@ import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
+import { berechneFremdlieferungRoute } from '../../utils/routeCalculation';
+import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
 
 interface AngebotTabProps {
   projekt?: Projekt;
@@ -110,6 +112,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
   // Platzbauer-Auswahl
   const [platzbauer, setPlatzbauer] = useState<SaisonKunde[]>([]);
+
+  // Lieferkosten-Vorschlag
+  const [lieferkostenBerechnung, setLieferkostenBerechnung] = useState<{
+    isLoading: boolean;
+    ergebnis: FremdlieferungRoutenBerechnung | null;
+    tonnage: number;
+    plz: string;
+  }>({ isLoading: false, ergebnis: null, tonnage: 0, plz: '' });
 
   // Auto-Save Status
   const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -403,10 +413,11 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
 
-        // DISPO-Ansprechpartner und Platzbauer vom Kunden laden (falls vorhanden)
+        // DISPO-Ansprechpartner, Platzbauer und Ansprechpartner vom Kunden laden (falls vorhanden)
         let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
         let platzbauerId: string | undefined = projekt?.platzbauerId;
         let platzbauername: string | undefined = undefined;
+        let kundenAnsprechpartner: string | undefined = projekt?.ansprechpartner || kundeInfo?.ansprechpartner;
         if (projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
@@ -418,6 +429,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             if (!platzbauerId && kunde?.standardPlatzbauerId) {
               platzbauerId = kunde.standardPlatzbauerId;
               console.log('✅ Platzbauer vom Kunden geladen:', platzbauerId);
+            }
+            // Ansprechpartner vom Kunden laden falls noch nicht gesetzt
+            if (!kundenAnsprechpartner) {
+              try {
+                const ansprechpartnerListe = await saisonplanungService.loadAnsprechpartnerFuerKunde(projekt.kundeId);
+                const ersterAktiver = ansprechpartnerListe.find(ap => ap.aktiv);
+                if (ersterAktiver) {
+                  kundenAnsprechpartner = ersterAktiver.name;
+                  console.log('✅ Ansprechpartner vom Kunden geladen:', kundenAnsprechpartner);
+                }
+              } catch (apError) {
+                console.warn('Ansprechpartner konnten nicht geladen werden:', apError);
+              }
             }
           } catch (error) {
             console.warn('Kunde konnte nicht für DISPO-Ansprechpartner/Platzbauer geladen werden:', error);
@@ -442,7 +466,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
+          ansprechpartner: kundenAnsprechpartner,
           angebotsnummer: angebotsnummer,
           angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           gueltigBis: gueltigBis.toISOString().split('T')[0],
@@ -514,6 +538,66 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       }
     };
   }, [angebotsDaten, speichereAutomatisch, initialLaden, gespeichertesDokument]);
+
+  // Lieferkosten-Vorschlag berechnen wenn PLZ und Tonnage vorhanden
+  useEffect(() => {
+    const berechneLieferkosten = async () => {
+      // PLZ aus Lieferadresse oder Kundenadresse extrahieren
+      const plzOrt = angebotsDaten.lieferadresseAbweichend && angebotsDaten.lieferadressePlzOrt
+        ? angebotsDaten.lieferadressePlzOrt
+        : angebotsDaten.kundenPlzOrt;
+
+      // PLZ extrahieren (erste 5 Ziffern)
+      const plzMatch = plzOrt?.match(/\d{5}/);
+      const plz = plzMatch ? plzMatch[0] : '';
+
+      // Tonnage aus den Positionen berechnen (alle Positionen mit Einheit 't' oder 'to')
+      const tonnage = angebotsDaten.positionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+
+      // Nur berechnen wenn PLZ gültig (5 Ziffern) und Tonnage > 0
+      if (plz.length !== 5 || tonnage <= 0) {
+        setLieferkostenBerechnung({ isLoading: false, ergebnis: null, tonnage: 0, plz: '' });
+        return;
+      }
+
+      // Nur neu berechnen wenn sich PLZ oder Tonnage geändert haben
+      if (plz === lieferkostenBerechnung.plz && tonnage === lieferkostenBerechnung.tonnage && lieferkostenBerechnung.ergebnis) {
+        return;
+      }
+
+      setLieferkostenBerechnung(prev => ({ ...prev, isLoading: true, plz, tonnage }));
+
+      try {
+        // Fremdlieferung-Stammdaten mit 105€ Stundensatz
+        const fremdlieferungStammdaten: FremdlieferungStammdaten = {
+          stundenlohn: 105.0,
+          durchschnittsgeschwindigkeit: 60.0,
+          beladungszeit: 30,
+          abladungszeit: 30,
+          anzahlAbladestellen: 1,
+          pausenzeit: 45,
+          lkwLadungInTonnen: tonnage,
+        };
+
+        const START_PLZ = '97828'; // Marktheidenfeld
+        const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
+
+        setLieferkostenBerechnung({ isLoading: false, ergebnis, tonnage, plz });
+      } catch (error) {
+        console.error('Fehler bei Lieferkosten-Berechnung:', error);
+        setLieferkostenBerechnung(prev => ({ ...prev, isLoading: false, ergebnis: null }));
+      }
+    };
+
+    // Debounce die Berechnung um 500ms
+    const timeout = setTimeout(berechneLieferkosten, 500);
+    return () => clearTimeout(timeout);
+  }, [angebotsDaten.kundenPlzOrt, angebotsDaten.lieferadressePlzOrt, angebotsDaten.lieferadresseAbweichend, angebotsDaten.positionen]);
 
   // Dieselpreiszuschlag: Wenn aktiviert und noch kein Text gesetzt, automatisch Standardtext hinterlegen
   useEffect(() => {
@@ -2027,7 +2111,66 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       </div>
 
       {/* Rechte Spalte - Zusammenfassung */}
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 space-y-4">
+        {/* Vorgeschlagene Lieferkosten */}
+        {(lieferkostenBerechnung.isLoading || lieferkostenBerechnung.ergebnis) && (
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-lg sm:rounded-xl shadow-lg dark:shadow-dark-lg border border-purple-200 dark:border-purple-800 p-4 sm:p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Truck className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-dark-text">Vorgeschlagene Lieferkosten</h3>
+            </div>
+
+            {lieferkostenBerechnung.isLoading ? (
+              <div className="flex items-center gap-2 py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                <span className="text-sm text-gray-600 dark:text-dark-textMuted">Berechne Route...</span>
+              </div>
+            ) : lieferkostenBerechnung.ergebnis && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Ziel-PLZ:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-dark-text">{lieferkostenBerechnung.plz}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Tonnage:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-dark-text">{lieferkostenBerechnung.tonnage.toFixed(1)} t</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Distanz:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-dark-text">{lieferkostenBerechnung.ergebnis.distanz.toFixed(0)} km</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Gesamtzeit:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-dark-text">
+                      {Math.floor(lieferkostenBerechnung.ergebnis.gesamtzeit / 60)}h {Math.round(lieferkostenBerechnung.ergebnis.gesamtzeit % 60)}min
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-purple-200 dark:border-purple-700 pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-dark-textMuted">Lieferkosten (105 €/h):</span>
+                    <span className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                      {lieferkostenBerechnung.ergebnis.lohnkosten.toFixed(2)} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-gray-500 dark:text-gray-400 text-sm">Pro Tonne:</span>
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">
+                      {(lieferkostenBerechnung.ergebnis.lohnkosten / lieferkostenBerechnung.tonnage).toFixed(2)} €/t
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                  Fremdlieferung ab Marktheidenfeld (Hin- und Rückfahrt)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/40 dark:to-cyan-950/40 rounded-lg sm:rounded-xl shadow-lg dark:shadow-dark-lg border border-blue-200 dark:border-blue-800 p-4 sm:p-6 lg:p-8 sticky top-4 sm:top-6">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text mb-3 sm:mb-4">Zusammenfassung</h2>
 
