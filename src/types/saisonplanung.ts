@@ -185,6 +185,12 @@ export interface SaisonKunde {
   // GPS-Koordinaten für Lieferadresse (für Routenplanung)
   koordinaten?: [number, number]; // [longitude, latitude]
 
+  // DISPO-Ansprechpartner (z.B. Platzwart für Lieferungen)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
+
   erstelltAm: string;
   geaendertAm: string;
 }

@@ -128,6 +128,12 @@ export interface Projekt {
   anzahlPaletten?: number;
   liefergewicht?: number; // in Tonnen
 
+  // DISPO-Ansprechpartner (z.B. Platzwart für diese Lieferung)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
+
   // === ENDE DISPO-FELDER ===
 
   // Bestellabwicklungsdaten (als JSON)

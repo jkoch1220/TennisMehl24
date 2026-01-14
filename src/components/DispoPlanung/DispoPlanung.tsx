@@ -22,6 +22,8 @@ import {
   Download,
   Trash2,
   Navigation,
+  Phone,
+  User,
 } from 'lucide-react';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -508,6 +510,27 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBes
           </div>
         </div>
 
+        {/* DISPO-Ansprechpartner */}
+        {(projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name) && (
+          <div className="min-w-[150px]">
+            <div className="text-sm">
+              <div className="flex items-center gap-1 text-purple-700 dark:text-purple-400 font-medium">
+                <User className="w-3 h-3" />
+                {projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name}
+              </div>
+              {(projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon) && (
+                <a
+                  href={`tel:${projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}`}
+                  className="flex items-center gap-1 text-purple-600 dark:text-purple-300 hover:underline"
+                >
+                  <Phone className="w-3 h-3" />
+                  {projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Lieferdatum & Belieferungsart */}
         <div className="text-center">
           {projekt.geplantesDatum ? (
@@ -961,6 +984,30 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
 
           {activeTab === 'bemerkungen' && (
             <div className="space-y-4">
+              {/* DISPO-Ansprechpartner */}
+              {(projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name) && (
+                <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <h4 className="font-medium text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    DISPO-Ansprechpartner (vor Ort)
+                  </h4>
+                  <div className="flex items-center gap-4">
+                    <span className="text-purple-700 dark:text-purple-200 font-medium">
+                      {projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name}
+                    </span>
+                    {(projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon) && (
+                      <a
+                        href={`tel:${projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}`}
+                        className="flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-800 rounded-lg text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-700 transition-colors"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Kundenanfahrt */}
               {kunde?.anfahrtshinweise && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">

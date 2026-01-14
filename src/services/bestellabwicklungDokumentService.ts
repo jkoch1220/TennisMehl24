@@ -358,6 +358,8 @@ export const speichereAuftragsbestaetigung = async (
             }
             return sum;
           }, 0) || undefined,
+          // DISPO-Ansprechpartner aus AB übernehmen
+          dispoAnsprechpartner: daten.dispoAnsprechpartner?.name ? daten.dispoAnsprechpartner : undefined,
         });
         console.log('✅ Projekt-Status auf "lieferschein" gesetzt, erscheint nun in Dispo');
         if (daten.lieferdatum) {
@@ -368,6 +370,9 @@ export const speichereAuftragsbestaetigung = async (
         }
         if (daten.belieferungsart) {
           console.log(`✅ Belieferungsart ${daten.belieferungsart} für Dispo übernommen`);
+        }
+        if (daten.dispoAnsprechpartner?.name) {
+          console.log(`✅ DISPO-Ansprechpartner ${daten.dispoAnsprechpartner.name} für Dispo übernommen`);
         }
       } catch (statusError) {
         console.error('⚠️ Fehler beim Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);

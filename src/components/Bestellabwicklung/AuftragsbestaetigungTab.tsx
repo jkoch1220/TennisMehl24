@@ -329,10 +329,11 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
 
-        // Belieferungsart vom Kunden vorausfüllen
+        // Belieferungsart und DISPO-Ansprechpartner vom Kunden vorausfüllen
         let belieferungsart: Belieferungsart | undefined = undefined;
         let lieferzeitVon: string | undefined = undefined;
         let lieferzeitBis: string | undefined = undefined;
+        let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
 
         if (projekt?.kundeId) {
           try {
@@ -341,15 +342,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               belieferungsart = kunde.belieferungsart as Belieferungsart | undefined;
               lieferzeitVon = kunde.standardLieferzeitfenster?.von;
               lieferzeitBis = kunde.standardLieferzeitfenster?.bis;
+              dispoAnsprechpartner = kunde.dispoAnsprechpartner;
               if (belieferungsart) {
                 console.log('✅ Belieferungsart vom Kunden übernommen:', belieferungsart);
               }
               if (lieferzeitVon && lieferzeitBis) {
                 console.log('✅ Standard-Lieferzeitfenster vom Kunden übernommen:', lieferzeitVon, '-', lieferzeitBis);
               }
+              if (dispoAnsprechpartner?.name) {
+                console.log('✅ DISPO-Ansprechpartner vom Kunden übernommen:', dispoAnsprechpartner.name);
+              }
             }
           } catch (error) {
-            console.warn('Kunde konnte nicht geladen werden für Belieferungsart-Vorausfüllung:', error);
+            console.warn('Kunde konnte nicht geladen werden für Vorausfüllung:', error);
           }
         }
 
@@ -371,6 +376,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           belieferungsart: prev.belieferungsart || belieferungsart,
           lieferzeitVon: prev.lieferzeitVon || lieferzeitVon,
           lieferzeitBis: prev.lieferzeitBis || lieferzeitBis,
+          dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
         }));
       }
     };
@@ -665,6 +671,20 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         return prev + 1;
       }); // Verlauf neu laden
 
+      // DISPO-Ansprechpartner beim Kunden speichern, wenn gewünscht
+      if (auftragsbestaetigungsDaten.dispoAnsprechpartnerBeimKundenSpeichern &&
+          auftragsbestaetigungsDaten.dispoAnsprechpartner?.name &&
+          projekt.kundeId) {
+        try {
+          await saisonplanungService.updateKunde(projekt.kundeId, {
+            dispoAnsprechpartner: auftragsbestaetigungsDaten.dispoAnsprechpartner
+          });
+          console.log('✅ DISPO-Ansprechpartner beim Kunden gespeichert');
+        } catch (error) {
+          console.warn('DISPO-Ansprechpartner konnte nicht beim Kunden gespeichert werden:', error);
+        }
+      }
+
       // Status-Meldung nach 5 Sekunden ausblenden
       setTimeout(() => setStatusMeldung(null), 5000);
     } catch (error) {
@@ -943,6 +963,61 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
               </select>
             </div>
           </div>
+
+          {/* DISPO-Ansprechpartner */}
+          <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              DISPO-Ansprechpartner (für Lieferung vor Ort)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={auftragsbestaetigungsDaten.dispoAnsprechpartner?.name || ''}
+                  onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                    ...auftragsbestaetigungsDaten.dispoAnsprechpartner,
+                    name: e.target.value,
+                  })}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. Herr Müller (Platzwart)"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Telefonnummer
+                </label>
+                <input
+                  type="tel"
+                  value={auftragsbestaetigungsDaten.dispoAnsprechpartner?.telefon || ''}
+                  onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                    ...auftragsbestaetigungsDaten.dispoAnsprechpartner,
+                    telefon: e.target.value,
+                  })}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. 0171 1234567"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={auftragsbestaetigungsDaten.dispoAnsprechpartnerBeimKundenSpeichern || false}
+                  onChange={(e) => handleInputChange('dispoAnsprechpartnerBeimKundenSpeichern', e.target.checked)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Beim Kunden als Standard-DISPO-Ansprechpartner speichern
+              </label>
+            </div>
+          </div>
+
           {auftragsbestaetigungsDaten.lieferKW && (
             <div className="mt-3 p-3 rounded-lg flex items-center gap-2 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />

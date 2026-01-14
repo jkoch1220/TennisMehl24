@@ -147,6 +147,14 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   lieferzeitVon?: string; // Zeitfenster von (z.B. "08:00")
   lieferzeitBis?: string; // Zeitfenster bis (z.B. "16:00")
   belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
+
+  // DISPO-Ansprechpartner (z.B. Platzwart vor Ort)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
+  dispoAnsprechpartnerBeimKundenSpeichern?: boolean; // Flag ob der Ansprechpartner beim Kunden hinterlegt werden soll
+
   frachtkosten?: number;
   verpackungskosten?: number;
   lieferbedingungenAktiviert?: boolean;
