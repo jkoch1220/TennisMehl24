@@ -1267,7 +1267,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             Platzbauer-Zuordnung
           </h2>
           <p className="text-sm text-green-700 dark:text-green-400 mb-4">
-            Platzbauer, über den dieser Kunde beliefert wird. Wird beim Kunden und Projekt hinterlegt.
+            Platzbauer, über den dieser Kunde beliefert wird. Wird sofort beim Kunden gespeichert.
           </p>
           <div>
             <label className="block text-sm font-medium text-green-800 dark:text-green-300 mb-1">
@@ -1275,11 +1275,35 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             </label>
             <select
               value={angebotsDaten.platzbauerId || ''}
-              onChange={(e) => {
-                const selectedId = e.target.value;
+              onChange={async (e) => {
+                const selectedId = e.target.value || undefined;
                 const selectedPlatzbauer = platzbauer.find(pb => pb.id === selectedId);
-                handleInputChange('platzbauerId', selectedId || undefined);
+                handleInputChange('platzbauerId', selectedId);
                 handleInputChange('platzbauername', selectedPlatzbauer?.name || undefined);
+
+                // Sofort beim Kunden speichern
+                if (projekt?.kundeId) {
+                  try {
+                    await saisonplanungService.updateKunde(projekt.kundeId, {
+                      standardPlatzbauerId: selectedId || '',
+                    });
+                    console.log('✅ Platzbauer beim Kunden gespeichert:', selectedPlatzbauer?.name || 'Keiner');
+                  } catch (error) {
+                    console.error('Fehler beim Speichern des Platzbauers:', error);
+                  }
+                }
+
+                // Auch beim Projekt speichern
+                if (projekt?.$id) {
+                  try {
+                    await projektService.updateProjekt(projekt.$id, {
+                      platzbauerId: selectedId,
+                    });
+                    console.log('✅ Platzbauer beim Projekt gespeichert');
+                  } catch (error) {
+                    console.error('Fehler beim Speichern des Platzbauers beim Projekt:', error);
+                  }
+                }
               }}
               className="w-full px-3 py-2 border border-green-300 dark:border-green-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
