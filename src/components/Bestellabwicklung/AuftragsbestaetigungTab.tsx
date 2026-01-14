@@ -894,23 +894,35 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Spätestens KW */}
-            <div>
+            {/* Liefertermin KW */}
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
-                Spätestens KW
+                Liefertermin (Kalenderwoche)
               </label>
               <div className="flex gap-2">
+                {/* Typ-Auswahl: In KW oder Spätestens KW */}
+                <select
+                  value={auftragsbestaetigungsDaten.lieferdatumTyp === 'kw' ? 'kw' : 'spaetestens_kw'}
+                  onChange={(e) => handleInputChange('lieferdatumTyp', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-36 px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800 font-medium"
+                >
+                  <option value="kw">In KW</option>
+                  <option value="spaetestens_kw">Spätestens KW</option>
+                </select>
+                {/* KW-Auswahl */}
                 <select
                   value={auftragsbestaetigungsDaten.lieferKW || ''}
                   onChange={(e) => handleInputChange('lieferKW', e.target.value ? parseInt(e.target.value) : undefined)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   className="flex-1 px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
                 >
-                  <option value="">KW</option>
+                  <option value="">– KW wählen –</option>
                   {Array.from({ length: 53 }, (_, i) => i + 1).map(kw => (
                     <option key={kw} value={kw}>KW {kw}</option>
                   ))}
                 </select>
+                {/* Jahr-Auswahl */}
                 <select
                   value={auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}
                   onChange={(e) => handleInputChange('lieferKWJahr', parseInt(e.target.value))}
@@ -922,6 +934,11 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   ))}
                 </select>
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {auftragsbestaetigungsDaten.lieferdatumTyp === 'kw'
+                  ? 'Feste KW: Lieferung erfolgt in dieser Kalenderwoche'
+                  : 'Flexibel: Lieferung kann früher erfolgen, spätestens jedoch in dieser KW'}
+              </p>
             </div>
             {/* Bevorzugter Wochentag */}
             <div>
@@ -1019,11 +1036,19 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           </div>
 
           {auftragsbestaetigungsDaten.lieferKW && (
-            <div className="mt-3 p-3 rounded-lg flex items-center gap-2 text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200">
+            <div className={`mt-3 p-3 rounded-lg flex items-center gap-2 text-sm ${
+              auftragsbestaetigungsDaten.lieferdatumTyp === 'kw'
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200'
+                : 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200'
+            }`}>
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
               <div className="flex flex-col gap-1">
                 <span>
-                  Bevorzugte Liefer-KW: <strong>KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong>
+                  {auftragsbestaetigungsDaten.lieferdatumTyp === 'kw' ? (
+                    <>Lieferung <strong>in KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong> (feste KW)</>
+                  ) : (
+                    <>Lieferung <strong>spätestens KW {auftragsbestaetigungsDaten.lieferKW}/{auftragsbestaetigungsDaten.lieferKWJahr || new Date().getFullYear()}</strong> (flexibel)</>
+                  )}
                 </span>
                 {auftragsbestaetigungsDaten.bevorzugterTag && (
                   <span>

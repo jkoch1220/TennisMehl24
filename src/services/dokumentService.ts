@@ -1119,7 +1119,10 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   if (daten.lieferKW) {
     // KW-basierter Liefertermin
     const jahr = daten.lieferKWJahr || new Date().getFullYear();
-    doc.text(`Bevorzugte Liefer-KW: ${daten.lieferKW}/${jahr}`, 25, summenY);
+    const kwText = daten.lieferdatumTyp === 'kw'
+      ? `Lieferung in KW ${daten.lieferKW}/${jahr}`
+      : `Lieferung bevorzugt bis KW ${daten.lieferKW}/${jahr}`;
+    doc.text(kwText, 25, summenY);
     summenY += 4;
 
     // Bevorzugter Wochentag als separate Zeile

@@ -110,7 +110,11 @@ export interface AngebotsDaten extends BaseDokument {
 }
 
 // Lieferdatum-Typ für Auftragsbestätigung
-export type LieferdatumTyp = 'fix' | 'spaetestens' | 'spaetestens_kw';
+// - 'fix' = Fixes Datum (z.B. 15.03.2025)
+// - 'spaetestens' = Spätestens bis Datum (z.B. spätestens 15.03.2025)
+// - 'kw' = In Kalenderwoche X (feste KW)
+// - 'spaetestens_kw' = Spätestens bis Kalenderwoche X (flexibel)
+export type LieferdatumTyp = 'fix' | 'spaetestens' | 'kw' | 'spaetestens_kw';
 
 // Wochentage für bevorzugten Liefertag
 export type Wochentag = 'montag' | 'dienstag' | 'mittwoch' | 'donnerstag' | 'freitag' | 'samstag';

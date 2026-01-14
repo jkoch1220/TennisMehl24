@@ -5,7 +5,9 @@ export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetig
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
 // Lieferdatum-Typ (aus AB)
-export type LieferdatumTyp = 'fix' | 'spaetestens' | 'spaetestens_kw';
+// - 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis Datum
+// - 'kw' = In KW X (fix), 'spaetestens_kw' = Spätestens bis KW X (flexibel)
+export type LieferdatumTyp = 'fix' | 'spaetestens' | 'kw' | 'spaetestens_kw';
 
 // Wochentage für bevorzugten Liefertag
 export type Wochentag = 'montag' | 'dienstag' | 'mittwoch' | 'donnerstag' | 'freitag' | 'samstag';

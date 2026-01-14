@@ -533,7 +533,30 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBes
 
         {/* Lieferdatum & Belieferungsart */}
         <div className="text-center">
-          {projekt.geplantesDatum ? (
+          {projekt.lieferKW ? (
+            // KW-basierter Liefertermin
+            <div className="text-sm">
+              <div className={`font-medium ${
+                projekt.lieferdatumTyp === 'kw'
+                  ? 'text-green-700 dark:text-green-400'
+                  : 'text-blue-700 dark:text-blue-400'
+              }`}>
+                {projekt.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}
+                KW {projekt.lieferKW}
+              </div>
+              {projekt.bevorzugterTag && (
+                <div className="text-xs text-gray-500">
+                  {projekt.bevorzugterTag === 'montag' && 'Mo'}
+                  {projekt.bevorzugterTag === 'dienstag' && 'Di'}
+                  {projekt.bevorzugterTag === 'mittwoch' && 'Mi'}
+                  {projekt.bevorzugterTag === 'donnerstag' && 'Do'}
+                  {projekt.bevorzugterTag === 'freitag' && 'Fr'}
+                  {projekt.bevorzugterTag === 'samstag' && 'Sa'}
+                </div>
+              )}
+            </div>
+          ) : projekt.geplantesDatum ? (
+            // Datums-basierter Liefertermin
             <div className="text-sm">
               <div className="font-medium text-gray-900 dark:text-white">
                 {projekt.lieferdatumTyp === 'spaetestens' && <span className="text-orange-600 dark:text-orange-400">bis </span>}
