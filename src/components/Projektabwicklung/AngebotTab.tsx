@@ -179,6 +179,18 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }
   }, [ausgewaehlterIndex]);
 
+  // Hilfsfunktion: Platzbauer-Name laden
+  const ladePlatzbauernamen = async (platzbauerId: string | undefined): Promise<string | undefined> => {
+    if (!platzbauerId) return undefined;
+    try {
+      const pb = await saisonplanungService.loadKunde(platzbauerId);
+      return pb?.name;
+    } catch (error) {
+      console.warn('Platzbauer-Name konnte nicht geladen werden:', error);
+      return undefined;
+    }
+  };
+
   // Gespeichertes Dokument und Entwurf laden
   useEffect(() => {
     const ladeGespeichertenEntwurf = async () => {
@@ -187,34 +199,38 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         setLadeStatus('bereit');
         return;
       }
-      
+
       try {
         setLadeStatus('laden');
-        
+
         // Erst prüfen ob ein finalisiertes Angebot existiert
         const dokument = await ladeDokumentNachTyp(projekt.$id, 'angebot');
-        
+
         if (dokument) {
           setGespeichertesDokument(dokument);
           // Lade gespeicherte Daten für Bearbeitung
           const gespeicherteDaten = ladeDokumentDaten<AngebotsDaten>(dokument);
           if (gespeicherteDaten) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
-            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
-              ? gespeicherteDaten.lieferadresseAbweichend 
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend
+              ? gespeicherteDaten.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherteDaten.lieferadresseName 
-              ? gespeicherteDaten.lieferadresseName 
+            const lieferadresseName = gespeicherteDaten.lieferadresseName
+              ? gespeicherteDaten.lieferadresseName
               : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
-              ? gespeicherteDaten.lieferadresseStrasse 
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse
+              ? gespeicherteDaten.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
-              ? gespeicherteDaten.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
+              ? gespeicherteDaten.lieferadressePlzOrt
+              : (projekt?.lieferadresse
                 ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
                 : undefined);
-            
+
+            // Platzbauer-Name laden falls ID vorhanden aber Name fehlt
+            const platzbauerId = gespeicherteDaten.platzbauerId || projekt?.platzbauerId;
+            const platzbauername = gespeicherteDaten.platzbauername || await ladePlatzbauernamen(platzbauerId);
+
             setAngebotsDaten({
               ...gespeicherteDaten,
               kundennummer: gespeicherteDaten.kundennummer || projekt?.kundennummer,
@@ -225,30 +241,36 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               lieferadresseName: lieferadresseName,
               lieferadresseStrasse: lieferadresseStrasse,
               lieferadressePlzOrt: lieferadressePlzOrt,
+              platzbauerId: platzbauerId,
+              platzbauername: platzbauername,
             });
           }
           setSpeicherStatus('gespeichert');
         } else {
           // Kein finalisiertes Angebot - versuche Entwurf zu laden
           const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
-          
+
           if (gespeicherterEntwurf) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
-            const lieferadresseAbweichend = gespeicherterEntwurf.lieferadresseAbweichend 
-              ? gespeicherterEntwurf.lieferadresseAbweichend 
+            const lieferadresseAbweichend = gespeicherterEntwurf.lieferadresseAbweichend
+              ? gespeicherterEntwurf.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherterEntwurf.lieferadresseName 
-              ? gespeicherterEntwurf.lieferadresseName 
+            const lieferadresseName = gespeicherterEntwurf.lieferadresseName
+              ? gespeicherterEntwurf.lieferadresseName
               : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherterEntwurf.lieferadresseStrasse 
-              ? gespeicherterEntwurf.lieferadresseStrasse 
+            const lieferadresseStrasse = gespeicherterEntwurf.lieferadresseStrasse
+              ? gespeicherterEntwurf.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherterEntwurf.lieferadressePlzOrt 
-              ? gespeicherterEntwurf.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
+            const lieferadressePlzOrt = gespeicherterEntwurf.lieferadressePlzOrt
+              ? gespeicherterEntwurf.lieferadressePlzOrt
+              : (projekt?.lieferadresse
                 ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
                 : undefined);
-            
+
+            // Platzbauer-Name laden falls ID vorhanden aber Name fehlt
+            const platzbauerId = gespeicherterEntwurf.platzbauerId || projekt?.platzbauerId;
+            const platzbauername = gespeicherterEntwurf.platzbauername || await ladePlatzbauernamen(platzbauerId);
+
             setAngebotsDaten({
               ...gespeicherterEntwurf,
               kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
@@ -259,6 +281,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               lieferadresseName: lieferadresseName,
               lieferadresseStrasse: lieferadresseStrasse,
               lieferadressePlzOrt: lieferadressePlzOrt,
+              platzbauerId: platzbauerId,
+              platzbauername: platzbauername,
             });
             setSpeicherStatus('gespeichert');
           } else {
@@ -266,7 +290,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             await ladeVonProjekt();
           }
         }
-        
+
         setLadeStatus('bereit');
       } catch (error) {
         console.error('Fehler beim Laden des Entwurfs:', error);
