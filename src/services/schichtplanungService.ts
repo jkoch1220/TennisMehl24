@@ -440,20 +440,44 @@ export const schichtplanungService = {
     const ma = mitarbeiter.find((m) => m.id === neueZuweisung.mitarbeiterId);
     const schichtConfig = getSchichtConfig(einstellungen);
 
-    // 1. Doppelbelegung am selben Tag
-    const gleichenTag = bestehendeZuweisungen.filter(
+    // 1. Echte Doppelbelegung (gleiche Schicht am selben Tag) - nur das ist ein Fehler
+    const gleicheSchicht = bestehendeZuweisungen.filter(
       (z) =>
         z.datum === neueZuweisung.datum &&
         z.mitarbeiterId === neueZuweisung.mitarbeiterId &&
+        z.schichtTyp === neueZuweisung.schichtTyp &&
         z.status !== 'krank' &&
         z.status !== 'urlaub'
     );
 
-    if (gleichenTag.length > 0) {
+    if (gleicheSchicht.length > 0) {
       konflikte.push({
         typ: 'doppelbelegung',
         schwere: 'fehler',
-        nachricht: `${ma?.vorname} ${ma?.nachname} hat bereits eine Schicht an diesem Tag`,
+        nachricht: `${ma?.vorname} ${ma?.nachname} ist bereits für diese Schicht eingeplant`,
+        mitarbeiterId: neueZuweisung.mitarbeiterId,
+        datum: neueZuweisung.datum,
+        schichtTyp: neueZuweisung.schichtTyp,
+      });
+    }
+
+    // 1b. Mehrfachschichten am selben Tag - nur Warnung (Doppel-/Dreifachschicht)
+    const andereSchichtenAmTag = bestehendeZuweisungen.filter(
+      (z) =>
+        z.datum === neueZuweisung.datum &&
+        z.mitarbeiterId === neueZuweisung.mitarbeiterId &&
+        z.schichtTyp !== neueZuweisung.schichtTyp &&
+        z.status !== 'krank' &&
+        z.status !== 'urlaub'
+    );
+
+    if (andereSchichtenAmTag.length > 0) {
+      const schichtNamen = andereSchichtenAmTag.map(z => schichtConfig[z.schichtTyp].name).join(', ');
+      const anzahlSchichten = andereSchichtenAmTag.length + 1;
+      konflikte.push({
+        typ: 'doppelbelegung',
+        schwere: 'warnung',
+        nachricht: `${anzahlSchichten}-fach Schicht: ${ma?.vorname} ${ma?.nachname} arbeitet bereits ${schichtNamen}`,
         mitarbeiterId: neueZuweisung.mitarbeiterId,
         datum: neueZuweisung.datum,
         schichtTyp: neueZuweisung.schichtTyp,

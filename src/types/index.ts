@@ -245,4 +245,3 @@ export interface NeuerLieferant {
   lkw: string;
   lieferVolumen: number;
 }
-

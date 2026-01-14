@@ -45,7 +45,22 @@ export const fahrkostenService = {
       DATABASE_ID,
       FAHRTEN_COLLECTION_ID,
       id,
-      { data: JSON.stringify(fahrt) }
+      {
+        datum: fahrt.datum,
+        fahrer: fahrt.fahrer,
+        fahrerName: fahrt.fahrerName,
+        startort: fahrt.startort,
+        startAdresse: fahrt.startAdresse,
+        zielort: fahrt.zielort,
+        zielAdresse: fahrt.zielAdresse,
+        kilometer: fahrt.kilometer,
+        kilometerPauschale: fahrt.kilometerPauschale,
+        betrag: fahrt.betrag,
+        hinpirsUndZurueck: fahrt.hinpirsUndZurueck,
+        zweck: fahrt.zweck || null,
+        notizen: fahrt.notizen || null,
+        defaultStreckeId: fahrt.defaultStreckeId || null,
+      }
     );
 
     return fahrt;
@@ -74,7 +89,22 @@ export const fahrkostenService = {
       DATABASE_ID,
       FAHRTEN_COLLECTION_ID,
       id,
-      { data: JSON.stringify(aktualisiert) }
+      {
+        datum: aktualisiert.datum,
+        fahrer: aktualisiert.fahrer,
+        fahrerName: aktualisiert.fahrerName,
+        startort: aktualisiert.startort,
+        startAdresse: aktualisiert.startAdresse,
+        zielort: aktualisiert.zielort,
+        zielAdresse: aktualisiert.zielAdresse,
+        kilometer: aktualisiert.kilometer,
+        kilometerPauschale: aktualisiert.kilometerPauschale,
+        betrag: aktualisiert.betrag,
+        hinpirsUndZurueck: aktualisiert.hinpirsUndZurueck,
+        zweck: aktualisiert.zweck || null,
+        notizen: aktualisiert.notizen || null,
+        defaultStreckeId: aktualisiert.defaultStreckeId || null,
+      }
     );
 
     return aktualisiert;
@@ -122,7 +152,16 @@ export const fahrkostenService = {
       DATABASE_ID,
       DEFAULT_STRECKEN_COLLECTION_ID,
       id,
-      { data: JSON.stringify(neueStrecke) }
+      {
+        name: neueStrecke.name,
+        startort: neueStrecke.startort,
+        startAdresse: neueStrecke.startAdresse,
+        zielort: neueStrecke.zielort,
+        zielAdresse: neueStrecke.zielAdresse,
+        kilometer: neueStrecke.kilometer,
+        istFavorit: neueStrecke.istFavorit,
+        sortierung: neueStrecke.sortierung,
+      }
     );
 
     return neueStrecke;
@@ -143,7 +182,16 @@ export const fahrkostenService = {
       DATABASE_ID,
       DEFAULT_STRECKEN_COLLECTION_ID,
       id,
-      { data: JSON.stringify(aktualisiert) }
+      {
+        name: aktualisiert.name,
+        startort: aktualisiert.startort,
+        startAdresse: aktualisiert.startAdresse,
+        zielort: aktualisiert.zielort,
+        zielAdresse: aktualisiert.zielAdresse,
+        kilometer: aktualisiert.kilometer,
+        istFavorit: aktualisiert.istFavorit,
+        sortierung: aktualisiert.sortierung,
+      }
     );
 
     return aktualisiert;
@@ -194,22 +242,9 @@ export const fahrkostenService = {
   // ==================== HELPERS ====================
 
   parseFahrtDocument(doc: Record<string, unknown>): Fahrt {
-    // Daten aus JSON "data" Feld parsen
-    if (doc.data && typeof doc.data === 'string') {
-      try {
-        const parsed = JSON.parse(doc.data) as Fahrt;
-        return {
-          ...parsed,
-          id: doc.$id as string || parsed.id,
-        };
-      } catch {
-        console.error('Fehler beim Parsen der Fahrt-Daten');
-      }
-    }
-
-    // Fallback: Direkte Felder (falls vorhanden)
+    // Direkte Felder aus Appwrite
     return {
-      id: doc.$id as string || doc.id as string,
+      id: doc.$id as string,
       datum: doc.datum as string || '',
       fahrer: doc.fahrer as string || '',
       fahrerName: doc.fahrerName as string || '',
@@ -224,28 +259,15 @@ export const fahrkostenService = {
       zweck: doc.zweck as string | undefined,
       notizen: doc.notizen as string | undefined,
       defaultStreckeId: doc.defaultStreckeId as string | undefined,
-      erstelltAm: doc.erstelltAm as string || doc.$createdAt as string || '',
-      geaendertAm: doc.geaendertAm as string || doc.$updatedAt as string || '',
+      erstelltAm: doc.$createdAt as string || '',
+      geaendertAm: doc.$updatedAt as string || '',
     };
   },
 
   parseDefaultStreckeDocument(doc: Record<string, unknown>): DefaultStrecke {
-    // Daten aus JSON "data" Feld parsen
-    if (doc.data && typeof doc.data === 'string') {
-      try {
-        const parsed = JSON.parse(doc.data) as DefaultStrecke;
-        return {
-          ...parsed,
-          id: doc.$id as string || parsed.id,
-        };
-      } catch {
-        console.error('Fehler beim Parsen der Strecken-Daten');
-      }
-    }
-
-    // Fallback: Direkte Felder
+    // Direkte Felder aus Appwrite
     return {
-      id: doc.$id as string || doc.id as string,
+      id: doc.$id as string,
       name: doc.name as string || '',
       startort: doc.startort as string || '',
       startAdresse: doc.startAdresse as string || '',

@@ -49,23 +49,60 @@ async function ensureCollection(collectionId: string, name: string) {
   }
 }
 
-async function ensureAttribute(collectionId: string, key: string, size: number) {
+async function ensureStringAttribute(collectionId: string, key: string, size: number, required: boolean = false) {
   try {
     await databases.getAttribute(DATABASE_ID, collectionId, key);
-    console.log(`✅ Attribut ${key} existiert bereits`);
+    console.log(`  ✅ ${key} (string) existiert`);
   } catch (error: unknown) {
     if ((error as { code?: number }).code === 404) {
-      console.log(`📝 Erstelle Attribut ${key}...`);
-      await databases.createStringAttribute(
-        DATABASE_ID,
-        collectionId,
-        key,
-        size,
-        false // nicht required
-      );
-      console.log(`✅ Attribut ${key} erstellt`);
-      // Warten bis Attribut bereit ist
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log(`  📝 Erstelle ${key} (string)...`);
+      await databases.createStringAttribute(DATABASE_ID, collectionId, key, size, required);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function ensureFloatAttribute(collectionId: string, key: string, required: boolean = false) {
+  try {
+    await databases.getAttribute(DATABASE_ID, collectionId, key);
+    console.log(`  ✅ ${key} (float) existiert`);
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 404) {
+      console.log(`  📝 Erstelle ${key} (float)...`);
+      await databases.createFloatAttribute(DATABASE_ID, collectionId, key, required);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function ensureBooleanAttribute(collectionId: string, key: string, required: boolean = false) {
+  try {
+    await databases.getAttribute(DATABASE_ID, collectionId, key);
+    console.log(`  ✅ ${key} (boolean) existiert`);
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 404) {
+      console.log(`  📝 Erstelle ${key} (boolean)...`);
+      await databases.createBooleanAttribute(DATABASE_ID, collectionId, key, required);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function ensureIntegerAttribute(collectionId: string, key: string, required: boolean = false) {
+  try {
+    await databases.getAttribute(DATABASE_ID, collectionId, key);
+    console.log(`  ✅ ${key} (integer) existiert`);
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 404) {
+      console.log(`  📝 Erstelle ${key} (integer)...`);
+      await databases.createIntegerAttribute(DATABASE_ID, collectionId, key, required);
+      await new Promise(resolve => setTimeout(resolve, 1500));
     } else {
       throw error;
     }
@@ -80,10 +117,33 @@ async function main() {
     await ensureCollection(FAHRTEN_COLLECTION_ID, 'Fahrten');
     await ensureCollection(DEFAULT_STRECKEN_COLLECTION_ID, 'Default Strecken');
 
-    // Attribute erstellen
-    console.log('\n📝 Erstelle Attribute...');
-    await ensureAttribute(FAHRTEN_COLLECTION_ID, 'data', 50000);
-    await ensureAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'data', 10000);
+    // Fahrten Attribute
+    console.log('\n📝 Fahrten Attribute:');
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'datum', 20, true);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrer', 100, true);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrerName', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'startort', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'startAdresse', 500, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zielort', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zielAdresse', 500, false);
+    await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'kilometer', false);
+    await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'kilometerPauschale', false);
+    await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'betrag', false);
+    await ensureBooleanAttribute(FAHRTEN_COLLECTION_ID, 'hinpirsUndZurueck', false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zweck', 500, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'notizen', 2000, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'defaultStreckeId', 100, false);
+
+    // Default Strecken Attribute
+    console.log('\n📝 Default Strecken Attribute:');
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'name', 200, true);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'startort', 200, false);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'startAdresse', 500, false);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'zielort', 200, false);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'zielAdresse', 500, false);
+    await ensureFloatAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'kilometer', false);
+    await ensureBooleanAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'istFavorit', false);
+    await ensureIntegerAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'sortierung', false);
 
     console.log('\n✅ Fahrtkosten Setup abgeschlossen!');
     console.log('Die Collections sind jetzt bereit.');
