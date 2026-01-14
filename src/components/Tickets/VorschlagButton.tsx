@@ -33,7 +33,6 @@ const VorschlagButton = () => {
       await ticketService.createTicket(formData, user?.$id, user?.name);
       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
       setShowForm(false);
-      alert('Vorschlag erfolgreich angelegt!');
     } catch (error) {
       console.error('Fehler beim Erstellen des Tickets:', error);
       alert('Fehler beim Erstellen des Vorschlags.');
