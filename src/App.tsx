@@ -19,7 +19,7 @@ import VorschlaegeNeu from './components/Tickets/VorschlaegeNeu';
 import Todos from './components/Todos/Todos';
 import Wiki from './components/Wiki/Wiki';
 import KundenKarte from './pages/KundenKarte';
-import Bestellabwicklung from './components/Bestellabwicklung/Bestellabwicklung';
+import Projektabwicklung from './components/Projektabwicklung/Projektabwicklung';
 import ProjektVerwaltung from './components/ProjektVerwaltung/ProjektVerwaltung';
 import Stammdaten from './components/Stammdaten/Stammdaten';
 import Anfragen from './components/Anfragen/Anfragen';
@@ -101,9 +101,9 @@ function AuthenticatedContent() {
                   <KundenKarte />
                 </ProtectedRoute>
               } />
-              <Route path="/bestellabwicklung/:projektId" element={
+              <Route path="/projektabwicklung/:projektId" element={
                 <ProtectedRoute toolId="projekt-verwaltung">
-                  <Bestellabwicklung />
+                  <Projektabwicklung />
                 </ProtectedRoute>
               } />
               <Route path="/projekt-verwaltung" element={

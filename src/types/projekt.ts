@@ -42,7 +42,7 @@ export interface DispoNotiz {
   wichtig?: boolean;
 }
 
-// Projekt für Bestellabwicklung
+// Projekt für Projektabwicklung
 export interface Projekt {
   id: string;
   $id?: string; // Appwrite Document ID
@@ -138,7 +138,7 @@ export interface Projekt {
 
   // === ENDE DISPO-FELDER ===
 
-  // Bestellabwicklungsdaten (als JSON)
+  // Projektabwicklungsdaten (als JSON)
   angebotsDaten?: string; // JSON-serialisierte AngebotsDaten
   auftragsbestaetigungsDaten?: string; // JSON-serialisierte AuftragsbestaetigungsDaten
   lieferscheinDaten?: string; // JSON-serialisierte LieferscheinDaten

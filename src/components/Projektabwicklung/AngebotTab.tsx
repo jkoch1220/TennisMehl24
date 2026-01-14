@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
-import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
+import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -30,13 +30,14 @@ import {
   aktualisiereAngebot,
   ladeDokumentDaten,
   getFileDownloadUrl
-} from '../../services/bestellabwicklungDokumentService';
+} from '../../services/projektabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { UniversalArtikel } from '../../types/universaArtikel';
 import { sucheUniversalArtikel, getAlleUniversalArtikel } from '../../services/universaArtikelService';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { SaisonKunde } from '../../types/saisonplanung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
@@ -106,7 +107,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
-  
+
+  // Platzbauer-Auswahl
+  const [platzbauer, setPlatzbauer] = useState<SaisonKunde[]>([]);
+
   // Auto-Save Status
   const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const [initialLaden, setInitialLaden] = useState(true);
@@ -124,6 +128,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       }
     };
     ladeArtikel();
+  }, []);
+
+  // Platzbauer laden
+  useEffect(() => {
+    const ladePlatzbauer = async () => {
+      try {
+        const alleKunden = await saisonplanungService.loadAlleKunden();
+        setPlatzbauer(alleKunden.filter((k) => k.typ === 'platzbauer'));
+      } catch (error) {
+        console.error('Fehler beim Laden der Platzbauer:', error);
+      }
+    };
+    ladePlatzbauer();
   }, []);
 
   // Universal-Artikel laden wenn Tab gewechselt wird
@@ -362,8 +379,10 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
 
-        // DISPO-Ansprechpartner vom Kunden laden (falls vorhanden)
+        // DISPO-Ansprechpartner und Platzbauer vom Kunden laden (falls vorhanden)
         let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
+        let platzbauerId: string | undefined = projekt?.platzbauerId;
+        let platzbauername: string | undefined = undefined;
         if (projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
@@ -371,8 +390,25 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               dispoAnsprechpartner = kunde.dispoAnsprechpartner;
               console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
             }
+            // Platzbauer vom Kunden laden falls nicht bereits im Projekt
+            if (!platzbauerId && kunde?.standardPlatzbauerId) {
+              platzbauerId = kunde.standardPlatzbauerId;
+              console.log('✅ Platzbauer vom Kunden geladen:', platzbauerId);
+            }
           } catch (error) {
-            console.warn('Kunde konnte nicht für DISPO-Ansprechpartner geladen werden:', error);
+            console.warn('Kunde konnte nicht für DISPO-Ansprechpartner/Platzbauer geladen werden:', error);
+          }
+        }
+        // Platzbauer-Name laden falls ID vorhanden
+        if (platzbauerId) {
+          try {
+            const pb = await saisonplanungService.loadKunde(platzbauerId);
+            if (pb) {
+              platzbauername = pb.name;
+              console.log('✅ Platzbauer-Name geladen:', platzbauername);
+            }
+          } catch (error) {
+            console.warn('Platzbauer-Name konnte nicht geladen werden:', error);
           }
         }
 
@@ -392,10 +428,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           lieferadresseStrasse: lieferadresseStrasse,
           lieferadressePlzOrt: lieferadressePlzOrt,
           dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
+          platzbauerId: prev.platzbauerId || platzbauerId,
+          platzbauername: prev.platzbauername || platzbauername,
         }));
       }
     };
-    
+
     ladeGespeichertenEntwurf();
   }, [projekt?.$id]);
 
@@ -743,6 +781,23 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }
   };
 
+  // Manuelles Setzen des Status auf "Angebot versendet" (z.B. nach manuellem Versand per WhatsApp/Brief)
+  const setzeStatusAngebotVersendet = async () => {
+    if (!projekt?.$id) {
+      setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt.' });
+      return;
+    }
+
+    try {
+      await projektService.updateProjektStatus(projekt.$id, 'angebot_versendet');
+      setStatusMeldung({ typ: 'erfolg', text: 'Status auf "Angebot versendet" gesetzt!' });
+      setTimeout(() => setStatusMeldung(null), 5000);
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren des Projektstatus:', error);
+      setStatusMeldung({ typ: 'fehler', text: 'Fehler beim Setzen des Status.' });
+    }
+  };
+
   // Speichern in Appwrite (mit Versionierung)
   const speichereUndHinterlegeAngebot = async () => {
     if (!projekt?.$id) {
@@ -776,15 +831,34 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       setLadeStatus('bereit');
       setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
 
-      // DISPO-Ansprechpartner beim Kunden hinterlegen (wenn ausgefüllt)
-      if (angebotsDaten.dispoAnsprechpartner?.name && projekt.kundeId) {
+      // DISPO-Ansprechpartner und Platzbauer beim Kunden hinterlegen (wenn ausgefüllt)
+      if (projekt.kundeId) {
         try {
-          await saisonplanungService.updateKunde(projekt.kundeId, {
-            dispoAnsprechpartner: angebotsDaten.dispoAnsprechpartner
-          });
-          console.log('✅ DISPO-Ansprechpartner beim Kunden gespeichert');
+          const updateDaten: Record<string, unknown> = {};
+          if (angebotsDaten.dispoAnsprechpartner?.name) {
+            updateDaten.dispoAnsprechpartner = angebotsDaten.dispoAnsprechpartner;
+          }
+          if (angebotsDaten.platzbauerId) {
+            updateDaten.standardPlatzbauerId = angebotsDaten.platzbauerId;
+          }
+          if (Object.keys(updateDaten).length > 0) {
+            await saisonplanungService.updateKunde(projekt.kundeId, updateDaten);
+            console.log('✅ Kundendaten aktualisiert (DISPO-Ansprechpartner/Platzbauer)');
+          }
         } catch (error) {
-          console.warn('DISPO-Ansprechpartner konnte nicht beim Kunden gespeichert werden:', error);
+          console.warn('Kundendaten konnten nicht aktualisiert werden:', error);
+        }
+      }
+
+      // Platzbauer beim Projekt hinterlegen
+      if (angebotsDaten.platzbauerId) {
+        try {
+          await projektService.updateProjekt(projekt.$id, {
+            platzbauerId: angebotsDaten.platzbauerId
+          });
+          console.log('✅ Platzbauer beim Projekt gespeichert');
+        } catch (error) {
+          console.warn('Platzbauer konnte nicht beim Projekt gespeichert werden:', error);
         }
       }
 
@@ -1159,6 +1233,44 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Platzbauer-Auswahl */}
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg sm:rounded-xl shadow-sm border-2 border-green-300 dark:border-green-700 p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-green-800 dark:text-green-300 mb-3 sm:mb-4 flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5" />
+            Platzbauer-Zuordnung
+          </h2>
+          <p className="text-sm text-green-700 dark:text-green-400 mb-4">
+            Platzbauer, über den dieser Kunde beliefert wird. Wird beim Kunden und Projekt hinterlegt.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-green-800 dark:text-green-300 mb-1">
+              Platzbauer auswählen
+            </label>
+            <select
+              value={angebotsDaten.platzbauerId || ''}
+              onChange={(e) => {
+                const selectedId = e.target.value;
+                const selectedPlatzbauer = platzbauer.find(pb => pb.id === selectedId);
+                handleInputChange('platzbauerId', selectedId || undefined);
+                handleInputChange('platzbauername', selectedPlatzbauer?.name || undefined);
+              }}
+              className="w-full px-3 py-2 border border-green-300 dark:border-green-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            >
+              <option value="">-- Kein Platzbauer --</option>
+              {platzbauer.map((pb) => (
+                <option key={pb.id} value={pb.id}>
+                  {pb.name} {pb.adresse?.ort ? `(${pb.adresse.ort})` : ''}
+                </option>
+              ))}
+            </select>
+            {angebotsDaten.platzbauerId && angebotsDaten.platzbauername && (
+              <p className="mt-2 text-sm text-green-600 dark:text-green-400">
+                Ausgewählt: {angebotsDaten.platzbauername}
+              </p>
+            )}
           </div>
         </div>
 
@@ -2026,6 +2138,18 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               <span className="sm:hidden">E-Mail</span>
               <span className="hidden sm:inline">E-Mail mit PDF öffnen</span>
             </button>
+
+            {/* Status auf "Angebot versendet" setzen */}
+            {projekt?.$id && (
+              <button
+                onClick={setzeStatusAngebotVersendet}
+                className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border-2 border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-all text-sm sm:text-base min-h-[48px] sm:min-h-0"
+              >
+                <Send className="h-5 w-5" />
+                <span className="sm:hidden">Versendet</span>
+                <span className="hidden sm:inline">Status: Angebot versendet</span>
+              </button>
+            )}
 
             {/* Haupt-Aktion basierend auf Status */}
             {(!gespeichertesDokument || istBearbeitungsModus) && projekt?.$id && (

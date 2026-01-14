@@ -164,10 +164,10 @@ const DispoPlanung = () => {
     setShowDetailModal(true);
   };
 
-  // Zur Bestellabwicklung navigieren
-  const goToBestellabwicklung = (projekt: Projekt) => {
+  // Zur Projektabwicklung navigieren
+  const goToProjektabwicklung = (projekt: Projekt) => {
     const projektId = (projekt as any).$id || projekt.id;
-    navigate(`/bestellabwicklung/${projektId}`);
+    navigate(`/projektabwicklung/${projektId}`);
   };
 
   // Statistiken berechnen
@@ -341,7 +341,7 @@ const DispoPlanung = () => {
                 kunde={projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined}
                 onStatusChange={(status) => updateDispoStatus(projekt, status)}
                 onOpenDetail={() => openProjektDetail(projekt)}
-                onGoToBestellabwicklung={() => goToBestellabwicklung(projekt)}
+                onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
               />
             ))
           )}
@@ -432,10 +432,10 @@ interface AuftragsZeileProps {
   kunde?: SaisonKunde;
   onStatusChange: (status: DispoStatus) => void;
   onOpenDetail: () => void;
-  onGoToBestellabwicklung: () => void;
+  onGoToProjektabwicklung: () => void;
 }
 
-const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBestellabwicklung }: AuftragsZeileProps) => {
+const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToProjektabwicklung }: AuftragsZeileProps) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const status = projekt.dispoStatus || 'offen';
   const statusConfig = DISPO_STATUS_CONFIG[status];
@@ -622,9 +622,9 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToBes
             <Eye className="w-5 h-5" />
           </button>
           <button
-            onClick={onGoToBestellabwicklung}
+            onClick={onGoToProjektabwicklung}
             className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-            title="Zur Bestellabwicklung"
+            title="Zur Projektabwicklung"
           >
             <FileText className="w-5 h-5" />
           </button>

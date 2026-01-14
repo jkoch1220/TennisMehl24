@@ -315,9 +315,9 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
     const bestehendesProjekt = await projektService.getProjektFuerKunde(kunde.kunde.id, saisonjahr);
 
     if (bestehendesProjekt) {
-      // Projekt existiert bereits, direkt zur Bestellabwicklung navigieren
+      // Projekt existiert bereits, direkt zur Projektabwicklung navigieren
       const projektId = (bestehendesProjekt as any).$id || bestehendesProjekt.id;
-      navigate(`/bestellabwicklung/${projektId}`);
+      navigate(`/projektabwicklung/${projektId}`);
     } else {
       // Dialog öffnen für neues Projekt
       setProjektKunde(kunde);

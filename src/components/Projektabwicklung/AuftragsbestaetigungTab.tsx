@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
-import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument } from '../../types/bestellabwicklung';
+import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -32,11 +32,11 @@ import {
   speichereEntwurf,
   ladeEntwurf,
   ladePositionenVonVorherigem
-} from '../../services/bestellabwicklungDokumentService';
+} from '../../services/projektabwicklungDokumentService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import { saisonplanungService } from '../../services/saisonplanungService';
-import { Belieferungsart } from '../../types/bestellabwicklung';
+import { Belieferungsart } from '../../types/projektabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';

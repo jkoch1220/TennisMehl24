@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
-import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/bestellabwicklung';
+import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import jsPDF from 'jspdf';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -30,7 +30,7 @@ import {
   speichereEntwurf,
   ladeEntwurf,
   ladePositionenVonVorherigem
-} from '../../services/bestellabwicklungDokumentService';
+} from '../../services/projektabwicklungDokumentService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';

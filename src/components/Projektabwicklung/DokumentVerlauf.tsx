@@ -13,8 +13,8 @@ import {
   History,
   Ban
 } from 'lucide-react';
-import { DokumentVerlaufEintrag, DokumentTyp } from '../../types/bestellabwicklung';
-import { ladeDokumentVerlauf } from '../../services/bestellabwicklungDokumentService';
+import { DokumentVerlaufEintrag, DokumentTyp } from '../../types/projektabwicklung';
+import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentService';
 
 interface DokumentVerlaufProps {
   projektId: string;

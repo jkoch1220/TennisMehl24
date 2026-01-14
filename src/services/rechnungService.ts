@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
-import { RechnungsDaten, DokumentBerechnung, Position } from '../types/bestellabwicklung';
+import { RechnungsDaten, DokumentBerechnung, Position } from '../types/projektabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
 import {

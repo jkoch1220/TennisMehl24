@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
-import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/bestellabwicklung';
+import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/projektabwicklung';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import {
@@ -31,7 +31,7 @@ import {
   speichereEntwurf,
   ladeEntwurf,
   ladePositionenVonVorherigem
-} from '../../services/bestellabwicklungDokumentService';
+} from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';

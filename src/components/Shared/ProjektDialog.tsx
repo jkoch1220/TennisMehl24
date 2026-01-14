@@ -77,7 +77,7 @@ const ProjektDialog = ({
               <Layers className="w-7 h-7 text-green-600" />
               Neues Projekt erstellen
             </h2>
-            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">Legen Sie ein neues Projekt für die Bestellabwicklung an</p>
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted mt-1">Legen Sie ein neues Projekt für die Projektabwicklung an</p>
           </div>
           <button
             onClick={onCancel}

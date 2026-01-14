@@ -107,6 +107,10 @@ export interface AngebotsDaten extends BaseDokument {
     name: string;
     telefon: string;
   };
+
+  // Platzbauer (wird beim Kunden und Projekt gespeichert, nicht im PDF gedruckt)
+  platzbauerId?: string;
+  platzbauername?: string; // Nur für Anzeige
 }
 
 // Lieferdatum-Typ für Auftragsbestätigung

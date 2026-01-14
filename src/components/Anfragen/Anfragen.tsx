@@ -165,8 +165,8 @@ const Anfragen = () => {
       setSelectedAnfrage(null);
       loadAnfragen();
       
-      // Navigiere zur Bestellabwicklung
-      navigate(`/bestellabwicklung/${neuesProjekt.id}`);
+      // Navigiere zur Projektabwicklung
+      navigate(`/projektabwicklung/${neuesProjekt.id}`);
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       alert('Fehler beim Erstellen des Projekts.');
@@ -412,7 +412,7 @@ const Anfragen = () => {
                       3. Angebot versenden
                     </h4>
                     <p className="text-sm text-green-800">
-                      Angebot in Bestellabwicklung erstellen und als versendet markieren
+                      Angebot in Projektabwicklung erstellen und als versendet markieren
                     </p>
                   </div>
 
@@ -779,8 +779,8 @@ const AnfrageDetailDialog = ({
                 <button
                   onClick={() => {
                     onClose();
-                    // Navigiere zur Bestellabwicklung
-                    window.location.href = `/bestellabwicklung/${anfrage.angebotId}`;
+                    // Navigiere zur Projektabwicklung
+                    window.location.href = `/projektabwicklung/${anfrage.angebotId}`;
                   }}
                   className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                 >

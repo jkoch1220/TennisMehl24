@@ -20,7 +20,7 @@ import {
   ProformaRechnungsDaten,
   Position,
   LieferscheinPosition
-} from '../types/bestellabwicklung';
+} from '../types/projektabwicklung';
 import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';

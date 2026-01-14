@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft } from 'lucide-react';
-import { DokumentTyp } from '../../types/bestellabwicklung';
+import { DokumentTyp } from '../../types/projektabwicklung';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -10,7 +10,7 @@ import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
 
-const Bestellabwicklung = () => {
+const Projektabwicklung = () => {
   const { projektId } = useParams<{ projektId: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
@@ -84,7 +84,7 @@ const Bestellabwicklung = () => {
           <AlertCircle className="h-16 w-16 text-orange-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-2">Kein Projekt ausgewählt</h2>
           <p className="text-gray-600 dark:text-dark-textMuted mb-6">
-            Die Bestellabwicklung kann nur über ein Projekt geöffnet werden.
+            Die Projektabwicklung kann nur über ein Projekt geöffnet werden.
           </p>
           <button
             onClick={() => navigate('/projekt-verwaltung')}
@@ -120,7 +120,7 @@ const Bestellabwicklung = () => {
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Bestellabwicklung</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Projektabwicklung</h1>
             <p className="text-gray-600 dark:text-dark-textMuted mt-1">
               {aktuellerKundenname || projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
@@ -163,4 +163,4 @@ const Bestellabwicklung = () => {
   );
 };
 
-export default Bestellabwicklung;
+export default Projektabwicklung;

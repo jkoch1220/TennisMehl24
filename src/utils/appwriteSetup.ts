@@ -134,7 +134,7 @@ const projekteFields: FieldConfig[] = [
   { key: 'status', type: 'string', size: 50, required: true },
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
-  { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Bestellabwicklungsdaten
+  { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Projektabwicklungsdaten
 ];
 
 const artikelFields: FieldConfig[] = [

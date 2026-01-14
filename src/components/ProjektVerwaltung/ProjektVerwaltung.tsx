@@ -312,7 +312,7 @@ const ProjektVerwaltung = () => {
   // Projekt-Klick Handler - Öffnet Formular
   const handleProjektClick = (projekt: Projekt) => {
     const projektId = (projekt as any).$id || projekt.id;
-    navigate(`/bestellabwicklung/${projektId}`);
+    navigate(`/projektabwicklung/${projektId}`);
   };
 
   // Edit-Handler

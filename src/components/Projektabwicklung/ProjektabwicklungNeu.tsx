@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FileText, FileCheck, Truck, ArrowLeft, MapPin, Package, Euro, ChevronDown, ChevronUp } from 'lucide-react';
-import { DokumentTyp } from '../../types/bestellabwicklung';
+import { DokumentTyp } from '../../types/projektabwicklung';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import AngebotTab from './AngebotTab';
@@ -22,7 +22,7 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-const Bestellabwicklung = () => {
+const Projektabwicklung = () => {
   const { projektId } = useParams<{ projektId: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -245,7 +245,7 @@ const Bestellabwicklung = () => {
             <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-dark-text truncate">Bestellabwicklung</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-dark-text truncate">Projektabwicklung</h1>
             <p className="text-sm sm:text-base text-gray-600 dark:text-dark-textMuted mt-0.5 sm:mt-1 truncate">
               {projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
@@ -287,4 +287,4 @@ const Bestellabwicklung = () => {
   );
 };
 
-export default Bestellabwicklung;
+export default Projektabwicklung;

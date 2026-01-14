@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
-import ArtikelVerwaltungTab from '../Bestellabwicklung/ArtikelVerwaltungTab';
+import ArtikelVerwaltungTab from '../Projektabwicklung/ArtikelVerwaltungTab';
 import UniversalArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';

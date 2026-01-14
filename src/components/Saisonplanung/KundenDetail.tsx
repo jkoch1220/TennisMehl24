@@ -88,7 +88,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
 
   const handleProjektClick = (projekt: Projekt) => {
     const projektId = (projekt as any).$id || projekt.id;
-    navigate(`/bestellabwicklung/${projektId}`);
+    navigate(`/projektabwicklung/${projektId}`);
   };
 
   const handleAddAktivitaet = async () => {
@@ -494,7 +494,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 <Layers className="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500" />
                 <p className="text-gray-600 dark:text-slate-400 mb-2">Noch keine Projekte vorhanden</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
-                  Erstellen Sie ein neues Projekt, um mit der Bestellabwicklung zu beginnen.
+                  Erstellen Sie ein neues Projekt, um mit der Projektabwicklung zu beginnen.
                 </p>
               </div>
             ) : (

@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten } from '../types/bestellabwicklung';
+import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten } from '../types/projektabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
 import {
