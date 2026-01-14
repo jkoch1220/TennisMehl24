@@ -101,6 +101,12 @@ export interface AngebotsDaten extends BaseDokument {
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;
+
+  // DISPO-Ansprechpartner (wird beim Kunden gespeichert, nicht im PDF gedruckt)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
 }
 
 // Lieferdatum-Typ für Auftragsbestätigung

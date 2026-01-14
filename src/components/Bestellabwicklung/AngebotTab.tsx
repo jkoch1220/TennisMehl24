@@ -36,6 +36,7 @@ import { UniversalArtikel } from '../../types/universaArtikel';
 import { sucheUniversalArtikel, getAlleUniversalArtikel } from '../../services/universaArtikelService';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
@@ -357,10 +358,24 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-        const lieferadressePlzOrt = projekt?.lieferadresse 
+        const lieferadressePlzOrt = projekt?.lieferadresse
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
-        
+
+        // DISPO-Ansprechpartner vom Kunden laden (falls vorhanden)
+        let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
+        if (projekt?.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde?.dispoAnsprechpartner?.name) {
+              dispoAnsprechpartner = kunde.dispoAnsprechpartner;
+              console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
+            }
+          } catch (error) {
+            console.warn('Kunde konnte nicht für DISPO-Ansprechpartner geladen werden:', error);
+          }
+        }
+
         setAngebotsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
@@ -376,6 +391,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           lieferadresseName: lieferadresseName,
           lieferadresseStrasse: lieferadresseStrasse,
           lieferadressePlzOrt: lieferadressePlzOrt,
+          dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
         }));
       }
     };
@@ -759,7 +775,19 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       setIstBearbeitungsModus(false);
       setLadeStatus('bereit');
       setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
-      
+
+      // DISPO-Ansprechpartner beim Kunden hinterlegen (wenn ausgefüllt)
+      if (angebotsDaten.dispoAnsprechpartner?.name && projekt.kundeId) {
+        try {
+          await saisonplanungService.updateKunde(projekt.kundeId, {
+            dispoAnsprechpartner: angebotsDaten.dispoAnsprechpartner
+          });
+          console.log('✅ DISPO-Ansprechpartner beim Kunden gespeichert');
+        } catch (error) {
+          console.warn('DISPO-Ansprechpartner konnte nicht beim Kunden gespeichert werden:', error);
+        }
+      }
+
       // Status-Meldung nach 5 Sekunden ausblenden
       setTimeout(() => setStatusMeldung(null), 5000);
     } catch (error) {
@@ -1086,6 +1114,49 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 value={angebotsDaten.kundenPlzOrt}
                 onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* DISPO-Ansprechpartner - prominenter Bereich */}
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg sm:rounded-xl shadow-sm border-2 border-purple-300 dark:border-purple-700 p-4 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-semibold text-purple-800 dark:text-purple-300 mb-3 sm:mb-4 flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            DISPO-Ansprechpartner (für Lieferung)
+          </h2>
+          <p className="text-sm text-purple-700 dark:text-purple-400 mb-4">
+            Ansprechpartner vor Ort für die Lieferung (z.B. Platzwart). Wird beim Kunden hinterlegt und in der Dispo-Planung angezeigt.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                value={angebotsDaten.dispoAnsprechpartner?.name || ''}
+                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                  ...angebotsDaten.dispoAnsprechpartner,
+                  name: e.target.value,
+                })}
+                placeholder="z.B. Herr Müller (Platzwart)"
+                className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
+                Telefonnummer
+              </label>
+              <input
+                type="tel"
+                value={angebotsDaten.dispoAnsprechpartner?.telefon || ''}
+                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                  ...angebotsDaten.dispoAnsprechpartner,
+                  telefon: e.target.value,
+                })}
+                placeholder="z.B. 0171 1234567"
+                className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
           </div>
