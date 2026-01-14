@@ -4,10 +4,10 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
+  pointerWithin,
 } from '@dnd-kit/core';
 import {
   CalendarClock,
@@ -19,6 +19,8 @@ import {
   BarChart3,
   AlertTriangle,
   Users,
+  LayoutGrid,
+  Clock,
 } from 'lucide-react';
 import { schichtplanungService } from '../../services/schichtplanungService';
 import {
@@ -34,13 +36,18 @@ import {
   DEFAULT_SCHICHT_EINSTELLUNGEN,
   SchichtEinstellungen,
   WOCHENTAGE,
+  zeitZuMinuten,
+  minutenZuZeit,
 } from '../../types/schichtplanung';
 import WochenKalender from './WochenKalender';
+import WochenTimeline from './WochenTimeline';
 import MitarbeiterListe from './MitarbeiterListe';
 import MitarbeiterDialog from './MitarbeiterDialog';
 import StatistikPanel from './StatistikPanel';
 import SchichtEinstellungenDialog from './SchichtEinstellungenDialog';
 import MitarbeiterChip from './MitarbeiterChip';
+import NeueSchichtDialog from './NeueSchichtDialog';
+import TrashDropZone from './TrashDropZone';
 
 export default function Schichtplanung() {
   // State
@@ -52,15 +59,25 @@ export default function Schichtplanung() {
   const [konflikte, setKonflikte] = useState<Konflikt[]>([]);
   const [einstellungen, setEinstellungen] = useState<SchichtEinstellungen>(DEFAULT_SCHICHT_EINSTELLUNGEN);
 
+  // View Mode: 'kalender' (alte Ansicht) oder 'timeline' (neue 24h Ansicht)
+  const [viewMode, setViewMode] = useState<'kalender' | 'timeline'>('timeline');
+
   // Dialogs
   const [showMitarbeiterDialog, setShowMitarbeiterDialog] = useState(false);
   const [showStatistik, setShowStatistik] = useState(false);
   const [showEinstellungen, setShowEinstellungen] = useState(false);
   const [editMitarbeiter, setEditMitarbeiter] = useState<Mitarbeiter | null>(null);
 
+  // Neue Schicht Dialog
+  const [neueSchichtDialog, setNeueSchichtDialog] = useState<{
+    datum: string;
+    startZeit: string;
+    endZeit: string;
+  } | null>(null);
+
   // Drag & Drop State
   const [activeDragItem, setActiveDragItem] = useState<{
-    type: 'mitarbeiter' | 'zuweisung';
+    type: 'mitarbeiter' | 'zuweisung' | 'schicht';
     mitarbeiter?: Mitarbeiter;
     zuweisung?: SchichtZuweisung;
   } | null>(null);
@@ -69,10 +86,21 @@ export default function Schichtplanung() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     })
   );
+
+  // Track mouse position for drop calculation
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePosition({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   // Daten laden
   const ladeDaten = useCallback(async () => {
@@ -158,6 +186,12 @@ export default function Schichtplanung() {
         zuweisung: dragData.zuweisung,
         mitarbeiter: mitarbeiter.find((m) => m.id === dragData.zuweisung.mitarbeiterId),
       });
+    } else if (dragData?.type === 'schicht') {
+      setActiveDragItem({
+        type: 'schicht',
+        zuweisung: dragData.zuweisung,
+        mitarbeiter: dragData.mitarbeiter,
+      });
     }
   };
 
@@ -168,14 +202,125 @@ export default function Schichtplanung() {
     if (!over) return;
 
     const dropData = over.data.current;
-    if (!dropData?.datum || !dropData?.schichtTyp) return;
-
-    const { datum, schichtTyp } = dropData as { datum: string; schichtTyp: SchichtTyp };
-
     const dragData = active.data.current;
     if (!dragData) return;
 
     try {
+      // Trash Drop - Schicht löschen
+      if (dropData?.type === 'trash') {
+        if (dragData.type === 'schicht' || dragData.type === 'zuweisung') {
+          const zuweisung = dragData.zuweisung as SchichtZuweisung;
+          await handleZuweisungDelete(zuweisung.id);
+        }
+        return;
+      }
+
+      // Timeline Drop
+      if (dropData?.type === 'timeline') {
+        const { datum, getDropTime } = dropData as {
+          datum: string;
+          getDropTime?: (clientY: number) => string;
+        };
+
+        // Berechne Drop-Zeit aus Mausposition
+        const dropTime = getDropTime ? getDropTime(mousePosition.y) : '08:00';
+
+        if (dragData.type === 'mitarbeiter') {
+          // Mitarbeiter auf Timeline gedroppt -> direkt Schicht erstellen (8h)
+          const ma = dragData.mitarbeiter as Mitarbeiter;
+          const startMinuten = zeitZuMinuten(dropTime);
+          const endMinuten = Math.min(startMinuten + 480, 24 * 60); // 8 Stunden
+
+          // Schichttyp basierend auf Startzeit bestimmen
+          const stunde = Math.floor(startMinuten / 60);
+          let schichtTyp: SchichtTyp = 'fruehschicht';
+          if (stunde >= 5 && stunde < 12) schichtTyp = 'fruehschicht';
+          else if (stunde >= 12 && stunde < 20) schichtTyp = 'spaetschicht';
+          else schichtTyp = 'nachtschicht';
+
+          const neueStartZeit = dropTime;
+          const neueEndZeit = minutenZuZeit(endMinuten);
+
+          // Optimistisch zur UI hinzufügen
+          const tempId = `temp-${Date.now()}`;
+          const neueZuweisung: SchichtZuweisung = {
+            id: tempId,
+            mitarbeiterId: ma.id,
+            schichtTyp,
+            datum,
+            startZeit: neueStartZeit,
+            endZeit: neueEndZeit,
+            status: 'geplant',
+            erstelltAm: new Date().toISOString(),
+            geaendertAm: new Date().toISOString(),
+          };
+          setZuweisungen(prev => [...prev, neueZuweisung]);
+
+          // Server-Call und echte ID bekommen
+          const echteZuweisung = await schichtplanungService.erstelleZuweisung({
+            mitarbeiterId: ma.id,
+            schichtTyp,
+            datum,
+            startZeit: neueStartZeit,
+            endZeit: neueEndZeit,
+            status: 'geplant',
+          });
+
+          // Temp-ID durch echte ID ersetzen
+          setZuweisungen(prev => prev.map(z =>
+            z.id === tempId ? echteZuweisung : z
+          ));
+        } else if (dragData.type === 'schicht') {
+          // Schicht verschieben (Tag und/oder Zeit)
+          const zuweisung = dragData.zuweisung as SchichtZuweisung;
+          const zeiten = zuweisung.startZeit && zuweisung.endZeit
+            ? { startZeit: zuweisung.startZeit, endZeit: zuweisung.endZeit }
+            : { startZeit: DEFAULT_SCHICHT_EINSTELLUNGEN[zuweisung.schichtTyp].startZeit,
+                endZeit: DEFAULT_SCHICHT_EINSTELLUNGEN[zuweisung.schichtTyp].endZeit };
+
+          // Berechne Dauer der Schicht (bei Nachtschicht über Mitternacht)
+          let dauerMinuten = zeitZuMinuten(zeiten.endZeit) - zeitZuMinuten(zeiten.startZeit);
+          if (dauerMinuten <= 0) dauerMinuten += 24 * 60; // Über Mitternacht
+          if (dauerMinuten <= 0) dauerMinuten = 480; // Fallback 8h
+
+          const neueStartMinuten = zeitZuMinuten(dropTime);
+          let neueEndMinuten = neueStartMinuten + dauerMinuten;
+
+          // Wenn über Mitternacht, auf 24:00 begrenzen
+          if (neueEndMinuten > 24 * 60) {
+            neueEndMinuten = 24 * 60;
+          }
+
+          const neueStartZeit = dropTime;
+          const neueEndZeit = minutenZuZeit(neueEndMinuten);
+
+          // Nur updaten wenn sich was geändert hat
+          if (zuweisung.datum !== datum || zeiten.startZeit !== neueStartZeit) {
+            // Optimistisches Update
+            setZuweisungen(prev => prev.map(z =>
+              z.id === zuweisung.id
+                ? { ...z, datum, startZeit: neueStartZeit, endZeit: neueEndZeit }
+                : z
+            ));
+
+            // Server Update
+            await schichtplanungService.verschiebeZuweisung(
+              zuweisung.id,
+              datum,
+              zuweisung.schichtTyp,
+              neueStartZeit,
+              neueEndZeit
+            );
+          }
+        }
+        return;
+      }
+
+      // Kalender Drop (alte Ansicht)
+      if (!dropData?.datum || !dropData?.schichtTyp) return;
+
+      const { datum, schichtTyp } = dropData as { datum: string; schichtTyp: SchichtTyp };
+
       if (dragData.type === 'mitarbeiter') {
         // Neuen Mitarbeiter zuweisen
         const ma = dragData.mitarbeiter as Mitarbeiter;
@@ -226,6 +371,78 @@ export default function Schichtplanung() {
     }
   };
 
+  // Timeline Handler - Optimistisches Update für smooth UX
+  const handleZuweisungResize = async (id: string, startZeit: string, endZeit: string) => {
+    // Optimistisches Update - sofort UI aktualisieren ohne Server-Call
+    setZuweisungen(prev => prev.map(z =>
+      z.id === id ? { ...z, startZeit, endZeit } : z
+    ));
+  };
+
+  // Finale Speicherung beim Loslassen
+  const handleZuweisungResizeEnd = async (id: string, startZeit: string, endZeit: string) => {
+    try {
+      await schichtplanungService.aktualisiereSchichtZeiten(id, startZeit, endZeit);
+      // Statistiken neu berechnen ohne vollen Reload
+      const stats = schichtplanungService.berechneWochenStatistiken(zuweisungen, mitarbeiter, einstellungen);
+      setStatistik(stats);
+    } catch (error) {
+      console.error('Fehler beim Resize:', error);
+      // Bei Fehler: Daten neu laden um konsistent zu bleiben
+      await ladeDaten();
+    }
+  };
+
+  // Move Handler - Optimistisches Update für smooth UX (wie Resize)
+  const handleZuweisungMove = async (id: string, startZeit: string, endZeit: string) => {
+    // Optimistisches Update - sofort UI aktualisieren ohne Server-Call
+    setZuweisungen(prev => prev.map(z =>
+      z.id === id ? { ...z, startZeit, endZeit } : z
+    ));
+  };
+
+  // Finale Speicherung beim Loslassen des Move
+  const handleZuweisungMoveEnd = async (id: string, startZeit: string, endZeit: string) => {
+    try {
+      await schichtplanungService.aktualisiereSchichtZeiten(id, startZeit, endZeit);
+      // Statistiken neu berechnen ohne vollen Reload
+      const stats = schichtplanungService.berechneWochenStatistiken(zuweisungen, mitarbeiter, einstellungen);
+      setStatistik(stats);
+    } catch (error) {
+      console.error('Fehler beim Move:', error);
+      // Bei Fehler: Daten neu laden um konsistent zu bleiben
+      await ladeDaten();
+    }
+  };
+
+  const handleNeueSchicht = (datum: string, startZeit: string, endZeit: string) => {
+    setNeueSchichtDialog({ datum, startZeit, endZeit });
+  };
+
+  const handleNeueSchichtSave = async (
+    mitarbeiterId: string,
+    schichtTyp: SchichtTyp,
+    startZeit: string,
+    endZeit: string
+  ) => {
+    if (!neueSchichtDialog) return;
+
+    try {
+      await schichtplanungService.erstelleZuweisung({
+        mitarbeiterId,
+        schichtTyp,
+        datum: neueSchichtDialog.datum,
+        startZeit,
+        endZeit,
+        status: 'geplant',
+      });
+      setNeueSchichtDialog(null);
+      await ladeDaten();
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Schicht:', error);
+    }
+  };
+
   // Mitarbeiter Dialog Handler
   const handleMitarbeiterSave = async (ma: Mitarbeiter) => {
     if (editMitarbeiter) {
@@ -250,16 +467,30 @@ export default function Schichtplanung() {
     }
   };
 
-  // Zuweisung löschen
+  // Zuweisung löschen - Optimistisches Update
   const handleZuweisungDelete = async (zuweisungId: string) => {
-    await schichtplanungService.loescheZuweisung(zuweisungId);
-    await ladeDaten();
+    // Optimistisch aus UI entfernen
+    setZuweisungen(prev => prev.filter(z => z.id !== zuweisungId));
+    try {
+      await schichtplanungService.loescheZuweisung(zuweisungId);
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      await ladeDaten(); // Bei Fehler neu laden
+    }
   };
 
-  // Zuweisung Status ändern
+  // Zuweisung Status ändern - Optimistisches Update
   const handleZuweisungStatusChange = async (zuweisungId: string, status: SchichtZuweisung['status']) => {
-    await schichtplanungService.aktualisiereZuweisung(zuweisungId, { status });
-    await ladeDaten();
+    // Optimistisch in UI aktualisieren
+    setZuweisungen(prev => prev.map(z =>
+      z.id === zuweisungId ? { ...z, status } : z
+    ));
+    try {
+      await schichtplanungService.aktualisiereZuweisung(zuweisungId, { status });
+    } catch (error) {
+      console.error('Fehler beim Status-Update:', error);
+      await ladeDaten(); // Bei Fehler neu laden
+    }
   };
 
   // Einstellungen speichern
@@ -307,7 +538,7 @@ export default function Schichtplanung() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={pointerWithin}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -363,6 +594,36 @@ export default function Schichtplanung() {
 
               {/* Actions */}
               <div className="flex items-center gap-2">
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-gray-100 dark:bg-dark-hover rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('timeline')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      viewMode === 'timeline'
+                        ? 'bg-white dark:bg-dark-surface text-violet-600 shadow-sm'
+                        : 'text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                    title="24h Timeline-Ansicht"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Timeline</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('kalender')}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      viewMode === 'kalender'
+                        ? 'bg-white dark:bg-dark-surface text-violet-600 shadow-sm'
+                        : 'text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                    title="Klassische Kalender-Ansicht"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Kalender</span>
+                  </button>
+                </div>
+
+                <div className="w-px h-6 bg-gray-300 dark:bg-dark-border mx-1" />
+
                 <button
                   onClick={wocheKopieren}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-dark-hover dark:hover:bg-dark-border text-gray-700 dark:text-dark-text text-sm font-medium transition-colors"
@@ -441,19 +702,38 @@ export default function Schichtplanung() {
                   onEdit={handleMitarbeiterEdit}
                   onDelete={handleMitarbeiterDelete}
                 />
+
+                {/* Mülleimer - nur sichtbar wenn Schicht gezogen wird */}
+                <TrashDropZone isActive={activeDragItem?.type === 'schicht' || activeDragItem?.type === 'zuweisung'} />
               </div>
             </div>
 
-            {/* Kalender */}
-            <div className="flex-1 min-w-0">
-              <WochenKalender
-                montag={aktuelleWoche}
-                zuweisungen={zuweisungen}
-                mitarbeiter={mitarbeiter}
-                einstellungen={einstellungen}
-                onZuweisungDelete={handleZuweisungDelete}
-                onZuweisungStatusChange={handleZuweisungStatusChange}
-              />
+            {/* Kalender / Timeline */}
+            <div className="flex-1 min-w-0 flex flex-col" style={{ height: viewMode === 'timeline' ? 'calc(100vh - 200px)' : 'auto' }}>
+              {viewMode === 'timeline' ? (
+                <WochenTimeline
+                  montag={aktuelleWoche}
+                  zuweisungen={zuweisungen}
+                  mitarbeiter={mitarbeiter}
+                  einstellungen={einstellungen}
+                  onZuweisungDelete={handleZuweisungDelete}
+                  onZuweisungStatusChange={handleZuweisungStatusChange}
+                  onZuweisungResize={handleZuweisungResize}
+                  onZuweisungResizeEnd={handleZuweisungResizeEnd}
+                  onZuweisungMove={handleZuweisungMove}
+                  onZuweisungMoveEnd={handleZuweisungMoveEnd}
+                  onNeueSchicht={handleNeueSchicht}
+                />
+              ) : (
+                <WochenKalender
+                  montag={aktuelleWoche}
+                  zuweisungen={zuweisungen}
+                  mitarbeiter={mitarbeiter}
+                  einstellungen={einstellungen}
+                  onZuweisungDelete={handleZuweisungDelete}
+                  onZuweisungStatusChange={handleZuweisungStatusChange}
+                />
+              )}
             </div>
 
             {/* Statistik Sidebar */}
@@ -497,6 +777,18 @@ export default function Schichtplanung() {
             einstellungen={einstellungen}
             onSave={handleEinstellungenSave}
             onClose={() => setShowEinstellungen(false)}
+          />
+        )}
+
+        {neueSchichtDialog && (
+          <NeueSchichtDialog
+            datum={neueSchichtDialog.datum}
+            startZeit={neueSchichtDialog.startZeit}
+            endZeit={neueSchichtDialog.endZeit}
+            mitarbeiter={mitarbeiter}
+            einstellungen={einstellungen}
+            onSave={handleNeueSchichtSave}
+            onClose={() => setNeueSchichtDialog(null)}
           />
         )}
       </div>

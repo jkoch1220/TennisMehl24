@@ -48,6 +48,8 @@ export interface SchichtZuweisung {
   mitarbeiterId: string;
   schichtTyp: SchichtTyp;
   datum: string; // ISO date string (YYYY-MM-DD)
+  startZeit: string; // HH:MM format - Startzeit der Schicht
+  endZeit: string; // HH:MM format - Endzeit der Schicht
   status: SchichtStatus;
   notizen?: string;
   erstelltAm: string;
@@ -55,9 +57,34 @@ export interface SchichtZuweisung {
   geaendertAm: string;
 }
 
-export type NeueSchichtZuweisung = Omit<SchichtZuweisung, 'id' | 'erstelltAm' | 'geaendertAm'> & {
+export type NeueSchichtZuweisung = Omit<SchichtZuweisung, 'id' | 'erstelltAm' | 'geaendertAm' | 'startZeit' | 'endZeit'> & {
   id?: string;
+  startZeit?: string; // Optional - wird auf Standard gesetzt falls nicht angegeben
+  endZeit?: string;   // Optional - wird auf Standard gesetzt falls nicht angegeben
 };
+
+// Helper: Zeit zu Minuten seit Mitternacht
+export function zeitZuMinuten(zeit: string | undefined): number {
+  if (!zeit) return 0;
+  const [h, m] = zeit.split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Helper: Minuten zu Zeit-String
+export function minutenZuZeit(minuten: number): string {
+  const h = Math.floor(minuten / 60) % 24;
+  const m = minuten % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+// Helper: Standard-Zeiten für Schichttyp
+export function getStandardZeiten(schichtTyp: SchichtTyp, einstellungen?: SchichtEinstellungen): { startZeit: string; endZeit: string } {
+  const settings = einstellungen || DEFAULT_SCHICHT_EINSTELLUNGEN;
+  return {
+    startZeit: settings[schichtTyp].startZeit,
+    endZeit: settings[schichtTyp].endZeit,
+  };
+}
 
 // Schicht-Definition (konfigurierbar)
 export interface SchichtDefinition {

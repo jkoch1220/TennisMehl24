@@ -21,6 +21,8 @@ import {
   berechneFairnessScore,
   SchichtEinstellungen,
   DEFAULT_SCHICHT_EINSTELLUNGEN,
+  getStandardZeiten,
+  berechneStunden,
 } from '../types/schichtplanung';
 
 export const schichtplanungService = {
@@ -216,9 +218,16 @@ export const schichtplanungService = {
     const id = ID.unique();
     const jetzt = new Date().toISOString();
 
+    // Standard-Zeiten setzen wenn nicht angegeben
+    const standardZeiten = getStandardZeiten(zuweisung.schichtTyp);
+    const startZeit = zuweisung.startZeit || standardZeiten.startZeit;
+    const endZeit = zuweisung.endZeit || standardZeiten.endZeit;
+
     const neueZuweisung: SchichtZuweisung = {
       ...zuweisung,
       id,
+      startZeit,
+      endZeit,
       erstelltAm: jetzt,
       geaendertAm: jetzt,
     };
@@ -276,12 +285,28 @@ export const schichtplanungService = {
   async verschiebeZuweisung(
     id: string,
     neuesDatum: string,
-    neuerSchichtTyp: SchichtTyp
+    neuerSchichtTyp: SchichtTyp,
+    neueStartZeit?: string,
+    neueEndZeit?: string
   ): Promise<SchichtZuweisung> {
-    return this.aktualisiereZuweisung(id, {
+    const updates: Partial<SchichtZuweisung> = {
       datum: neuesDatum,
       schichtTyp: neuerSchichtTyp,
-    });
+    };
+
+    if (neueStartZeit) updates.startZeit = neueStartZeit;
+    if (neueEndZeit) updates.endZeit = neueEndZeit;
+
+    return this.aktualisiereZuweisung(id, updates);
+  },
+
+  // Aktualisiere Schichtzeiten (für Resize)
+  async aktualisiereSchichtZeiten(
+    id: string,
+    startZeit: string,
+    endZeit: string
+  ): Promise<SchichtZuweisung> {
+    return this.aktualisiereZuweisung(id, { startZeit, endZeit });
   },
 
   // ==================== BATCH OPERATIONEN ====================
@@ -311,6 +336,8 @@ export const schichtplanungService = {
         mitarbeiterId: quelle.mitarbeiterId,
         schichtTyp: quelle.schichtTyp,
         datum: formatDatum(neuesDatum),
+        startZeit: quelle.startZeit,
+        endZeit: quelle.endZeit,
         status: 'geplant',
         notizen: quelle.notizen,
       });
@@ -365,9 +392,13 @@ export const schichtplanungService = {
       // Krank und Urlaub zählen nicht als Arbeitsstunden
       if (z.status === 'krank' || z.status === 'urlaub') continue;
 
-      const config = schichtConfig[z.schichtTyp];
+      // Berechne Stunden basierend auf startZeit/endZeit wenn vorhanden, sonst Standard
+      const dauer = z.startZeit && z.endZeit
+        ? berechneStunden(z.startZeit, z.endZeit)
+        : schichtConfig[z.schichtTyp].dauer;
+
       stundenProMitarbeiter[z.mitarbeiterId] =
-        (stundenProMitarbeiter[z.mitarbeiterId] || 0) + config.dauer;
+        (stundenProMitarbeiter[z.mitarbeiterId] || 0) + dauer;
       schichtenProMitarbeiter[z.mitarbeiterId] =
         (schichtenProMitarbeiter[z.mitarbeiterId] || 0) + 1;
     }
@@ -527,10 +558,20 @@ export const schichtplanungService = {
       });
 
       const aktuelleStunden = wochenZuweisungen.reduce(
-        (sum, z) => sum + schichtConfig[z.schichtTyp].dauer,
+        (sum, z) => {
+          const dauer = z.startZeit && z.endZeit
+            ? berechneStunden(z.startZeit, z.endZeit)
+            : schichtConfig[z.schichtTyp].dauer;
+          return sum + dauer;
+        },
         0
       );
-      const neueStunden = aktuelleStunden + schichtConfig[neueZuweisung.schichtTyp].dauer;
+
+      // Berechne Stunden der neuen Zuweisung
+      const neueZuweisungDauer = neueZuweisung.startZeit && neueZuweisung.endZeit
+        ? berechneStunden(neueZuweisung.startZeit, neueZuweisung.endZeit)
+        : schichtConfig[neueZuweisung.schichtTyp].dauer;
+      const neueStunden = aktuelleStunden + neueZuweisungDauer;
 
       if (neueStunden > ma.maxStundenProWoche) {
         konflikte.push({
