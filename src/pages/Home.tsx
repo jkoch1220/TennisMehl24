@@ -1,11 +1,37 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, BarChart3, TrendingUp, AlertTriangle, Wrench, X, ChevronRight, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, BarChart3, TrendingUp, AlertTriangle, Wrench, X, ChevronRight, Circle, ChevronDown, ChevronUp, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Loader2, Boxes, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { filterAllowedTools } from '../services/permissionsService';
 import { ALL_TOOLS } from '../constants/tools';
 import { instandhaltungService } from '../services/instandhaltungService';
 import { OverdueInfo, FREQUENZ_CONFIG, InstandhaltungFrequenz, InstandhaltungChecklistItem } from '../types/instandhaltung';
+import { dashboardService } from '../services/dashboardService';
+import type { DashboardStats } from '../types/dashboard';
+
+// Wetter-Icon basierend auf WMO Weather Code
+const getWeatherIcon = (code: number) => {
+  if (code === 0) return <Sun className="w-6 h-6 text-yellow-500" />;
+  if (code <= 3) return <Cloud className="w-6 h-6 text-gray-400" />;
+  if (code <= 49) return <Cloud className="w-6 h-6 text-gray-500" />;
+  if (code <= 69) return <CloudRain className="w-6 h-6 text-blue-500" />;
+  if (code <= 79) return <CloudSnow className="w-6 h-6 text-blue-300" />;
+  if (code <= 99) return <CloudLightning className="w-6 h-6 text-yellow-600" />;
+  return <Cloud className="w-6 h-6 text-gray-400" />;
+};
+
+interface WeatherDay {
+  date: string;
+  tempMax: number;
+  tempMin: number;
+  precipitation: number;
+  weatherCode: number;
+}
+
+interface WeatherData {
+  daily: WeatherDay[];
+  location: string;
+}
 
 const Home = () => {
   const { user } = useAuth();
@@ -18,6 +44,68 @@ const Home = () => {
     monatlich: [],
   });
   const [expandedFrequenz, setExpandedFrequenz] = useState<InstandhaltungFrequenz | null>(null);
+
+  // Wetter-State
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+
+  // Dashboard-Stats State
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Wetter laden (Open-Meteo API - kostenlos, kein API-Key nötig)
+  useEffect(() => {
+    const loadWeather = async () => {
+      try {
+        // Koordinaten für Ostwestfalen-Lippe Region (Bielefeld als Zentrum)
+        const lat = 52.03;
+        const lon = 8.53;
+
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe/Berlin&forecast_days=10`
+        );
+
+        if (!response.ok) throw new Error('Wetter konnte nicht geladen werden');
+
+        const data = await response.json();
+
+        const daily: WeatherDay[] = data.daily.time.map((date: string, i: number) => ({
+          date,
+          tempMax: Math.round(data.daily.temperature_2m_max[i]),
+          tempMin: Math.round(data.daily.temperature_2m_min[i]),
+          precipitation: data.daily.precipitation_sum[i],
+          weatherCode: data.daily.weathercode[i],
+        }));
+
+        setWeatherData({
+          daily,
+          location: 'Ostwestfalen-Lippe',
+        });
+      } catch (error) {
+        console.error('Fehler beim Laden des Wetters:', error);
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    loadWeather();
+  }, []);
+
+  // Dashboard-Stats laden
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const stats = await dashboardService.getDashboardStats();
+        setDashboardStats(stats);
+      } catch (error) {
+        console.error('Fehler beim Laden der Dashboard-Stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    loadStats();
+  }, []);
 
   // Prüfe Überfälligkeiten beim Laden der Seite
   useEffect(() => {
@@ -109,7 +197,7 @@ const Home = () => {
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         {/* Hero Section */}
-        <div className="text-center mb-12 mt-8">
+        <div className="text-center mb-8 mt-8">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-dark-text mb-4 transition-colors duration-300">
             TennisMehl24 Kalkulationstools
           </h1>
@@ -117,6 +205,150 @@ const Home = () => {
             Professionelle Tools für Preisberechnungen, Kalkulationen und
             Analysen
           </p>
+        </div>
+
+        {/* Wetter und Statistiken */}
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          {/* 10-Tage Wetterbericht */}
+          <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 border border-transparent dark:border-dark-border">
+            <div className="flex items-center gap-2 mb-4">
+              <Cloud className="w-6 h-6 text-blue-500" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
+                10-Tage Wetterbericht
+              </h2>
+              {weatherData && (
+                <span className="text-sm text-gray-500 dark:text-dark-textMuted ml-auto">
+                  {weatherData.location}
+                </span>
+              )}
+            </div>
+
+            {weatherLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              </div>
+            ) : weatherData ? (
+              <div className="overflow-x-auto -mx-2">
+                <div className="flex gap-2 pb-2 px-2" style={{ minWidth: 'max-content' }}>
+                  {weatherData.daily.map((day, index) => {
+                    const date = new Date(day.date);
+                    const isToday = index === 0;
+                    const dayName = isToday ? 'Heute' : date.toLocaleDateString('de-DE', { weekday: 'short' });
+                    const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+                    return (
+                      <div
+                        key={day.date}
+                        className={`flex flex-col items-center p-3 rounded-lg min-w-[80px] ${
+                          isToday
+                            ? 'bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-700'
+                            : 'bg-gray-50 dark:bg-dark-border'
+                        }`}
+                      >
+                        <span className={`text-xs font-semibold ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-dark-textMuted'}`}>
+                          {dayName}
+                        </span>
+                        <span className="text-xs text-gray-400 dark:text-dark-textMuted">{dateStr}</span>
+                        <div className="my-2">{getWeatherIcon(day.weatherCode)}</div>
+                        <div className="flex gap-1 text-sm">
+                          <span className="font-bold text-red-500">{day.tempMax}°</span>
+                          <span className="text-gray-400">/</span>
+                          <span className="text-blue-500">{day.tempMin}°</span>
+                        </div>
+                        {day.precipitation > 0 && (
+                          <span className="text-xs text-blue-500 mt-1">
+                            {day.precipitation.toFixed(1)}mm
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-dark-textMuted text-center py-4">
+                Wetter konnte nicht geladen werden
+              </p>
+            )}
+          </div>
+
+          {/* Dashboard Statistiken */}
+          <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 border border-transparent dark:border-dark-border">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-6 h-6 text-green-500" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
+                Saison {dashboardStats?.saisonjahr || new Date().getFullYear()}
+              </h2>
+            </div>
+
+            {statsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+              </div>
+            ) : dashboardStats ? (
+              <div className="grid grid-cols-2 gap-4">
+                {/* Verkaufte Tonnen */}
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">Verkauft</span>
+                  </div>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {dashboardStats.projektStats.verkaufteTonnen.toLocaleString('de-DE')} t
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                    {dashboardStats.projektStats.anzahlBezahlt} Projekte bezahlt
+                  </p>
+                </div>
+
+                {/* Bestellt */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">Bestellt</span>
+                  </div>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                    {dashboardStats.projektStats.bestellteTonnen.toLocaleString('de-DE')} t
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                    {dashboardStats.projektStats.anzahlBestellungen} Bestellungen
+                  </p>
+                </div>
+
+                {/* Lager Ziegelmehl */}
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Boxes className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">Lager (Schütt)</span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {dashboardStats.lagerBestand.ziegelmehlSchuettware.toLocaleString('de-DE')} t
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                    Ziegelmehl Schüttware
+                  </p>
+                </div>
+
+                {/* Kapazität */}
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-medium text-gray-600 dark:text-dark-textMuted">Kapazität</span>
+                  </div>
+                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    {(dashboardStats.lagerBestand.verfuegbareTonnen || 0).toLocaleString('de-DE')} t
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                    Verfügbar diese Saison
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-dark-textMuted text-center py-4">
+                Statistiken konnten nicht geladen werden
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Tools Grid */}
