@@ -57,9 +57,9 @@ const Home = () => {
   useEffect(() => {
     const loadWeather = async () => {
       try {
-        // Koordinaten für Ostwestfalen-Lippe Region (Bielefeld als Zentrum)
-        const lat = 52.03;
-        const lon = 8.53;
+        // Koordinaten für Altfeld, Marktheidenfeld (Unterfranken)
+        const lat = 49.85;
+        const lon = 9.58;
 
         const response = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe/Berlin&forecast_days=10`
@@ -79,7 +79,7 @@ const Home = () => {
 
         setWeatherData({
           daily,
-          location: 'Ostwestfalen-Lippe',
+          location: 'Altfeld, Marktheidenfeld',
         });
       } catch (error) {
         console.error('Fehler beim Laden des Wetters:', error);
