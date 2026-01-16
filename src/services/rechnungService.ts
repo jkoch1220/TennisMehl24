@@ -398,12 +398,12 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   const berechnung = berechneRechnungsSummen(daten.positionen);
-  
-  // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 50mm)
-  summenY = await ensureSpace(doc, summenY, 50, stammdaten);
-  
+
+  // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 45mm)
+  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
+
   const summenX = 125;
-  summenY += 10;
+  summenY += 6;
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -430,10 +430,10 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.setFont('helvetica', 'normal');
   
   // === Zahlungsbedingungen ===
-  summenY += 15;
-  
-  // Prüfe Platz für Zahlungsbedingungen + Bankdaten + QR-Code (ca. 45mm)
-  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
+  summenY += 10;
+
+  // Prüfe Platz für Zahlungsbedingungen + Bankdaten + QR-Code (ca. 40mm)
+  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
 
   // Zahlungsbedingungen nur anzeigen wenn nicht ausgeblendet
   if (!daten.zahlungsbedingungenAusblenden) {
@@ -520,41 +520,42 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   }
   
   // === Zahlungshinweis ===
-  summenY += 8;
+  summenY += 6;
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   const hinweisText = 'Bitte verwenden Sie für die Zahlung die angegebene Rechnungsnummer als Verwendungszweck, damit wir Ihre Zahlung korrekt zuordnen können.';
   const hinweisLines = doc.splitTextToSize(hinweisText, 115); // Breite reduziert wegen QR-Code
   doc.text(hinweisLines, 25, summenY);
-  
+  summenY += (hinweisLines.length * 4); // Höhe des Hinweistextes addieren
+
   // === Bemerkung ===
   if (daten.bemerkung) {
-    summenY += 10;
-    
+    summenY += 6;
+
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
-    
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+
     // Prüfe Platz für Bemerkung
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
-    
+
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
-    summenY += 5;
+    summenY += 4;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
-  
+
   // === Grußformel ===
-  summenY += 12;
-  
+  summenY += 8;
+
   // Prüfe Platz für Grußformel
   summenY = await ensureSpace(doc, summenY, 10, stammdaten);
-  
+
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Mit freundlichen Grüßen', 25, summenY);
-  summenY += 5;
+  summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
@@ -770,10 +771,10 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   const berechnung = berechneRechnungsSummen(daten.positionen);
 
-  summenY = await ensureSpace(doc, summenY, 50, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
 
   const summenX = 125;
-  summenY += 10;
+  summenY += 6;
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -797,8 +798,8 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   doc.setFont('helvetica', 'normal');
 
   // === WICHTIGER HINWEIS: Proforma ===
-  summenY += 15;
-  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
+  summenY += 10;
+  summenY = await ensureSpace(doc, summenY, 22, stammdaten);
 
   // Hinweis-Box
   doc.setFillColor(254, 243, 199); // amber-100
@@ -815,11 +816,11 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   doc.text('Diese Proforma-Rechnung dient zur Vorauszahlung und ist keine steuerlich relevante Rechnung.', 30, summenY + 7);
   doc.text('Nach Zahlungseingang erhalten Sie eine ordnungsgemäße Rechnung.', 30, summenY + 11);
 
-  summenY += 20;
+  summenY += 18;
 
   // === Zahlungsbedingungen ===
-  summenY += 8;
-  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
+  summenY += 6;
+  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -828,11 +829,11 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
 
-  summenY += 5;
+  summenY += 4;
   doc.text('Bitte überweisen Sie den Gesamtbetrag vor der Lieferung auf unser Konto.', 25, summenY);
 
   // === Bankdaten mit EPC-QR-Code ===
-  summenY += 10;
+  summenY += 8;
   const bankdatenStartY = summenY;
 
   doc.setFontSize(10);
@@ -886,7 +887,7 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   }
 
   // === Zahlungshinweis ===
-  summenY += 8;
+  summenY += 6;
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   const hinweisText = `Bitte verwenden Sie "${daten.proformaRechnungsnummer}" als Verwendungszweck.`;
@@ -894,29 +895,29 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
 
   // === Bemerkung ===
   if (daten.bemerkung) {
-    summenY += 10;
+    summenY += 6;
 
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
 
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
 
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
-    summenY += 5;
+    summenY += 4;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
 
   // === Grußformel ===
-  summenY += 12;
+  summenY += 8;
   summenY = await ensureSpace(doc, summenY, 10, stammdaten);
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Mit freundlichen Grüßen', 25, summenY);
-  summenY += 5;
+  summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');

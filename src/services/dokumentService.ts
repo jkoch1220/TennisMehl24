@@ -405,8 +405,8 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
   if (bedarfsPositionen.length > 0) {
-    summenY += 12;
-    summenY = await ensureSpace(doc, summenY, 50, stammdaten);
+    summenY += 8;
+    summenY = await ensureSpace(doc, summenY, 45, stammdaten);
 
     // Überschrift für Bedarfspositionen
     doc.setFontSize(11);
@@ -504,11 +504,11 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
 
   // Summen nur anzeigen wenn nicht ausgeblendet
   if (!daten.endpreisAusblenden) {
-    // Prüfe ob genug Platz für Summen-Block (ca. 40mm Höhe)
-    summenY = await ensureSpace(doc, summenY, 40, stammdaten);
+    // Prüfe ob genug Platz für Summen-Block (ca. 35mm Höhe)
+    summenY = await ensureSpace(doc, summenY, 35, stammdaten);
 
     const summenX = 125;
-    summenY += 10;
+    summenY += 6;
 
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
@@ -541,7 +541,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.setFont('helvetica', 'normal');
   } else if (daten.endpreisAlternativText) {
     // Alternativtext anzeigen (z.B. "gemäß Menge")
-    summenY += 10;
+    summenY += 6;
     const summenX = 125;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -553,8 +553,8 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
 
   // === Liefersaison-Hinweis (nur wenn aktiviert) ===
   if (daten.liefersaisonAnzeigen) {
-    summenY += 12;
-    summenY = await ensureSpace(doc, summenY, 10, stammdaten);
+    summenY += 8;
+    summenY = await ensureSpace(doc, summenY, 8, stammdaten);
     
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
@@ -566,10 +566,10 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   }
   
   // === Lieferbedingungen ===
-  summenY += 10;
-  
-  // Prüfe Platz für Lieferbedingungen-Block (ca. 25mm)
-  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
+  summenY += 6;
+
+  // Prüfe Platz für Lieferbedingungen-Block (ca. 20mm)
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -635,28 +635,28 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
 
   // === Bemerkung ===
   if (daten.bemerkung) {
-    summenY += 10;
-    
+    summenY += 6;
+
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
-    
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+
     // Prüfe Platz für Bemerkung
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
-    
+
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
-    summenY += 5;
+    summenY += 4;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
-  
+
   // === Dieselpreiszuschlag ===
   if (daten.dieselpreiszuschlagAktiviert && daten.dieselpreiszuschlagText) {
-    summenY += 10;
+    summenY += 6;
 
     const dieselLines = doc.splitTextToSize(daten.dieselpreiszuschlagText, 160);
-    const dieselHeight = getTextHeight(dieselLines) + 5;
+    const dieselHeight = getTextHeight(dieselLines) + 4;
 
     // Prüfe Platz für Dieselpreiszuschlag
     summenY = await ensureSpace(doc, summenY, dieselHeight, stammdaten);
@@ -664,23 +664,23 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Dieselpreiszuschlag:', 25, summenY);
-    summenY += 5;
+    summenY += 4;
     doc.text(dieselLines, 25, summenY);
     summenY += (dieselLines.length * 4);
   }
-  
+
   // === Grußformel ===
-  summenY += 12;
-  
-  // Prüfe Platz für Grußformel (ca. 15mm)
-  summenY = await ensureSpace(doc, summenY, 15, stammdaten);
-  
+  summenY += 8;
+
+  // Prüfe Platz für Grußformel (ca. 12mm)
+  summenY = await ensureSpace(doc, summenY, 12, stammdaten);
+
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Wir freuen uns auf Ihre Rückmeldung und verbleiben', 25, summenY);
-  summenY += 5;
+  summenY += 4;
   doc.text('mit freundlichen Grüßen', 25, summenY);
-  summenY += 5;
+  summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
@@ -1029,15 +1029,15 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   
   // Prüfe ob genug Platz für Summen-Block
-  summenY = await ensureSpace(doc, summenY, 40, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 35, stammdaten);
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
-  
+
   const summenX = 125;
-  summenY += 10;
+  summenY += 6;
   
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -1070,9 +1070,9 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.setFont('helvetica', 'normal');
   
   // === Liefersaison-Hinweis ===
-  summenY += 12;
-  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
-  
+  summenY += 8;
+  summenY = await ensureSpace(doc, summenY, 8, stammdaten);
+
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   doc.setFont('helvetica', 'italic');
@@ -1080,12 +1080,12 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(liefersaisonText, 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
-  
+
   // === Lieferbedingungen ===
-  summenY += 10;
+  summenY += 6;
 
   // Prüfe Platz für Lieferbedingungen-Block
-  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
@@ -1197,34 +1197,34 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
 
   // === Bemerkung ===
   if (daten.bemerkung) {
-    summenY += 10;
-    
+    summenY += 6;
+
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
-    
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+
     // Prüfe Platz für Bemerkung
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
-    
+
     doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
     doc.text('Bemerkung:', 25, summenY);
-    summenY += 5;
+    summenY += 4;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
-  
+
   // === Grußformel ===
-  summenY += 12;
-  
+  summenY += 8;
+
   // Prüfe Platz für Grußformel
-  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
-  
+  summenY = await ensureSpace(doc, summenY, 15, stammdaten);
+
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.text('Wir danken für Ihr Vertrauen und freuen uns auf eine erfolgreiche Zusammenarbeit.', 25, summenY);
-  summenY += 8;
-  doc.text('Mit freundlichen Grüßen', 25, summenY);
   summenY += 5;
+  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  summenY += 4;
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');

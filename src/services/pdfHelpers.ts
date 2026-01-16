@@ -29,7 +29,7 @@ export const PAGE_MARGINS = {
   left: 25,   // DIN 5008: 24,1mm (aufgerundet auf 25mm)
   right: 20,  // DIN 5008: mindestens 20mm
   top: 17,    // DIN 5008: 16,9mm (aufgerundet auf 17mm)
-  bottom: 35, // Platz für professionellen Footer mit IBAN
+  bottom: 30, // Platz für Footer (kompakter)
 };
 
 /**
@@ -38,8 +38,8 @@ export const PAGE_MARGINS = {
  */
 export const getMaxContentY = (doc: jsPDF): number => {
   const pageHeight = doc.internal.pageSize.height;
-  // Footer beginnt 22mm vom unteren Rand, Trennlinie bei 27mm, wir lassen 5mm Puffer
-  return pageHeight - 32;
+  // Footer beginnt 20mm vom unteren Rand - kompakteres Layout
+  return pageHeight - 28;
 };
 
 /**
@@ -172,7 +172,7 @@ export const addAbsenderzeile = (doc: jsPDF, stammdaten: Stammdaten) => {
 export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   const pageHeight = doc.internal.pageSize.height;
   const pageWidth = doc.internal.pageSize.width;
-  const footerY = pageHeight - 22;
+  const footerY = pageHeight - 20; // Kompakter: 20mm statt 22mm
   
   // DIN 5008 konforme Margins
   const marginLeft = 25;  // DIN 5008: 24,1mm (aufgerundet)
@@ -181,23 +181,23 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   // Trennlinie über Footer - volle Breite
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.4);
-  doc.line(marginLeft, footerY - 5, pageWidth - marginRight, footerY - 5);
-  
+  doc.line(marginLeft, footerY - 3, pageWidth - marginRight, footerY - 3);
+
   // Seitennummerierung (nur bei mehrseitigen Dokumenten)
   const currentPage = doc.getCurrentPageInfo().pageNumber;
   const totalPages = doc.getNumberOfPages();
-  
+
   if (totalPages > 1) {
-    doc.setFontSize(7);
+    doc.setFontSize(6);
     doc.setTextColor(120, 120, 120);
     doc.setFont('helvetica', 'normal');
     const pageText = `Seite ${currentPage} von ${totalPages}`;
     const pageTextWidth = doc.getTextWidth(pageText);
     // Zentriert über der Trennlinie
-    doc.text(pageText, (pageWidth - pageTextWidth) / 2, footerY - 7);
+    doc.text(pageText, (pageWidth - pageTextWidth) / 2, footerY - 5);
   }
-  
-  doc.setFontSize(6.5);
+
+  doc.setFontSize(6);
   doc.setTextColor(70, 70, 70);
   
   // Prüfe ob Werk/Verkauf vorhanden ist
@@ -229,7 +229,7 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
     });
   }
   
-  const lineHeight = 3.2;
+  const lineHeight = 2.9; // Kompakter
   
   // === Spalte 1: Verwaltung ===
   const col1 = columns[0];
