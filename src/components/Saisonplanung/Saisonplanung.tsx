@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X } from 'lucide-react';
+import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X, FileX } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonplanungStatistik,
@@ -8,6 +8,7 @@ import {
   KundenTyp,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { projektService } from '../../services/projektService';
 import KundenFormular from './KundenFormular';
 import KundenDetail from './KundenDetail';
 import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
@@ -24,23 +25,47 @@ const Saisonplanung = () => {
   const [saisonjahr] = useState(2026); // Aktuelle Saison
   const [searchText, setSearchText] = useState('');
 
+  // Filter-States
+  const [filterOhneProjekt, setFilterOhneProjekt] = useState(false);
+  const [filterKundenTyp, setFilterKundenTyp] = useState<KundenTyp | ''>('');
+  const [kundenMitProjekt, setKundenMitProjekt] = useState<Set<string>>(new Set());
+
+  // Projekte laden um zu prüfen welche Kunden bereits ein Projekt haben
+  const ladeProjekte = useCallback(async () => {
+    try {
+      const projekte = await projektService.getAllProjekte(saisonjahr);
+      // Sammle sowohl kundeId als auch kundennummer für den Abgleich
+      const kundenIds = new Set<string>();
+      projekte.forEach((p) => {
+        if (p.kundeId) kundenIds.add(p.kundeId);
+        if (p.kundennummer) kundenIds.add(p.kundennummer);
+      });
+      setKundenMitProjekt(kundenIds);
+    } catch (error) {
+      console.error('Fehler beim Laden der Projekte:', error);
+    }
+  }, [saisonjahr]);
+
   // OPTIMIERT: useCallback verhindert unnötige Re-Renders
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       // OPTIMIERT: Eine kombinierte Abfrage statt zwei separate
       // Reduziert von ~1.200 Queries auf nur ~4 Queries!
-      const { callListe, statistik: statistikData } = 
+      const { callListe, statistik: statistikData } =
         await saisonplanungService.loadSaisonplanungDashboard({}, saisonjahr);
-      
+
       setKunden(callListe);
       setStatistik(statistikData);
+
+      // Projekte laden für Filter
+      await ladeProjekte();
     } catch (error) {
       console.error('Fehler beim Laden der Daten:', error);
     } finally {
       setLoading(false);
     }
-  }, [saisonjahr]);
+  }, [saisonjahr, ladeProjekte]);
 
   useEffect(() => {
     loadData();
@@ -103,18 +128,39 @@ const Saisonplanung = () => {
     }
   };
 
-  // Gefilterte Kunden basierend auf Suchtext
-  const filteredKunden = kunden.filter((kunde) => {
-    if (!searchText.trim()) return true;
-    
-    const search = searchText.toLowerCase();
+  // Prüft ob ein Kunde bereits ein Projekt hat
+  const hatProjekt = (kunde: SaisonKundeMitDaten): boolean => {
     return (
-      kunde.kunde.name.toLowerCase().includes(search) ||
-      kunde.kunde.adresse.ort.toLowerCase().includes(search) ||
-      kunde.kunde.adresse.plz.toLowerCase().includes(search) ||
-      kunde.kunde.adresse.bundesland?.toLowerCase().includes(search) ||
-      kunde.kunde.adresse.strasse?.toLowerCase().includes(search)
+      kundenMitProjekt.has(kunde.kunde.id) ||
+      (kunde.kunde.kundennummer ? kundenMitProjekt.has(kunde.kunde.kundennummer) : false)
     );
+  };
+
+  // Gefilterte Kunden basierend auf Suchtext und Filtern
+  const filteredKunden = kunden.filter((kunde) => {
+    // Textsuche
+    if (searchText.trim()) {
+      const search = searchText.toLowerCase();
+      const matchesSearch =
+        kunde.kunde.name.toLowerCase().includes(search) ||
+        kunde.kunde.adresse.ort.toLowerCase().includes(search) ||
+        kunde.kunde.adresse.plz.toLowerCase().includes(search) ||
+        kunde.kunde.adresse.bundesland?.toLowerCase().includes(search) ||
+        kunde.kunde.adresse.strasse?.toLowerCase().includes(search);
+      if (!matchesSearch) return false;
+    }
+
+    // Filter: Nur Kunden ohne Projekt
+    if (filterOhneProjekt && hatProjekt(kunde)) {
+      return false;
+    }
+
+    // Filter: Nach Kundentyp
+    if (filterKundenTyp && kunde.kunde.typ !== filterKundenTyp) {
+      return false;
+    }
+
+    return true;
   });
 
   if (loading) {
@@ -245,23 +291,82 @@ const Saisonplanung = () => {
               </div>
             </div>
             
-            {/* Suchfeld */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-              <input
-                type="text"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Kunde suchen (Name, Ort, PLZ, Bundesland...)"
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-              />
-              {searchText && (
-                <button
-                  onClick={() => setSearchText('')}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-slate-400"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+            {/* Suchfeld und Filter */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+                  <input
+                    type="text"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Kunde suchen (Name, Ort, PLZ, Bundesland...)"
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                  {searchText && (
+                    <button
+                      onClick={() => setSearchText('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={filterKundenTyp}
+                    onChange={(e) => setFilterKundenTyp(e.target.value as KundenTyp | '')}
+                    className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white dark:bg-slate-800"
+                  >
+                    <option value="">Alle Typen</option>
+                    <option value="verein">Verein</option>
+                    <option value="platzbauer">Platzbauer</option>
+                  </select>
+                  <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={filterOhneProjekt}
+                      onChange={(e) => setFilterOhneProjekt(e.target.checked)}
+                      className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                    />
+                    <FileX className="w-4 h-4 text-orange-500" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap">
+                      Ohne Projekt
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Aktive Filter anzeigen */}
+              {(filterOhneProjekt || filterKundenTyp) && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 dark:text-slate-400">Aktive Filter:</span>
+                  {filterKundenTyp && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                      {filterKundenTyp === 'verein' ? 'Verein' : 'Platzbauer'}
+                      <button onClick={() => setFilterKundenTyp('')} className="hover:text-blue-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filterOhneProjekt && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded">
+                      Ohne Projekt
+                      <button onClick={() => setFilterOhneProjekt(false)} className="hover:text-orange-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setFilterKundenTyp('');
+                      setFilterOhneProjekt(false);
+                    }}
+                    className="text-red-600 hover:text-red-700 text-xs underline ml-2"
+                  >
+                    Alle zurücksetzen
+                  </button>
+                </div>
               )}
             </div>
           </div>
