@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Menu, LogOut, Settings, Search, X, Command, CheckSquare, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { Home, Menu, LogOut, Settings, Search, X, Command, CheckSquare, LayoutDashboard, ClipboardList, Bell, Wrench, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import VorschlagButton from './Tickets/VorschlagButton';
 import { ALL_TOOLS } from '../constants/tools';
@@ -8,6 +8,36 @@ import { filterAllowedTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import ThemeToggle from './ThemeToggle';
+
+// Erinnerungs-Einstellungen Typ
+interface ReminderSettings {
+  instandhaltungEnabled: boolean;
+  kalenderEnabled: boolean;
+}
+
+// Standard-Einstellungen
+const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  instandhaltungEnabled: true,
+  kalenderEnabled: true,
+};
+
+// Erinnerungs-Einstellungen aus localStorage laden
+const loadReminderSettings = (): ReminderSettings => {
+  try {
+    const stored = localStorage.getItem('tm_reminder_settings_v1');
+    if (stored) {
+      return { ...DEFAULT_REMINDER_SETTINGS, ...JSON.parse(stored) };
+    }
+  } catch {
+    // Ignoriere Parsing-Fehler
+  }
+  return DEFAULT_REMINDER_SETTINGS;
+};
+
+// Erinnerungs-Einstellungen in localStorage speichern
+const saveReminderSettings = (settings: ReminderSettings): void => {
+  localStorage.setItem('tm_reminder_settings_v1', JSON.stringify(settings));
+};
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,7 +48,7 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tools' | 'password' | 'users'>('tools');
+  const [activeTab, setActiveTab] = useState<'tools' | 'password' | 'users' | 'reminders'>('tools');
   const [toolSearchQuery, setToolSearchQuery] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -28,6 +58,15 @@ const Layout = ({ children }: LayoutProps) => {
   const globalSearchInputRef = useRef<HTMLInputElement>(null);
   const globalSearchRef = useRef<HTMLDivElement>(null);
   const { user, logout: authLogout, isAdmin, permissionsLoading } = useAuth();
+
+  // Erinnerungs-Einstellungen
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(() => loadReminderSettings());
+
+  const updateReminderSetting = (key: keyof ReminderSettings, value: boolean) => {
+    const newSettings = { ...reminderSettings, [key]: value };
+    setReminderSettings(newSettings);
+    saveReminderSettings(newSettings);
+  };
   
   // Tools basierend auf User-Berechtigungen filtern (nur wenn Permissions geladen)
   const enabledTools = permissionsLoading ? [] : filterAllowedTools(user, ALL_TOOLS);
@@ -824,6 +863,16 @@ const Layout = ({ children }: LayoutProps) => {
                 Tools
               </button>
               <button
+                onClick={() => setActiveTab('reminders')}
+                className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
+                  activeTab === 'reminders'
+                    ? 'border-red-500 text-red-600 dark:text-red-400'
+                    : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
+                }`}
+              >
+                Erinnerungen
+              </button>
+              <button
                 onClick={() => setActiveTab('password')}
                 className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === 'password'
@@ -954,6 +1003,88 @@ const Layout = ({ children }: LayoutProps) => {
               {activeTab === 'password' && <PasswordChange />}
 
               {activeTab === 'users' && isAdmin && <UserManagement />}
+
+              {activeTab === 'reminders' && (
+                <div className="space-y-4">
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted">
+                    Erinnerungs-Popups beim Start der Anwendung ein- oder ausschalten
+                  </p>
+
+                  <div className="space-y-3">
+                    {/* Instandhaltung Erinnerung */}
+                    <label className="flex items-center justify-between gap-4 bg-gray-50 dark:bg-dark-bg rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 cursor-pointer">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex-shrink-0">
+                          <Wrench className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-gray-900 dark:text-dark-text text-sm sm:text-base">
+                            Instandhaltung
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted">
+                            Erinnerung bei überfälligen Begehungen
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted hidden sm:block">
+                          {reminderSettings.instandhaltungEnabled ? 'Aktiv' : 'Aus'}
+                        </span>
+                        <div className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={reminderSettings.instandhaltungEnabled}
+                            onChange={(e) => updateReminderSetting('instandhaltungEnabled', e.target.checked)}
+                          />
+                          <div className="w-10 h-5 sm:w-12 sm:h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:bg-red-500 dark:peer-checked:bg-red-600 peer-checked:after:translate-x-5 sm:peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all dark:border-gray-600" />
+                        </div>
+                      </div>
+                    </label>
+
+                    {/* Kalender Erinnerung */}
+                    <label className="flex items-center justify-between gap-4 bg-gray-50 dark:bg-dark-bg rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 cursor-pointer">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white flex-shrink-0">
+                          <Calendar className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-gray-900 dark:text-dark-text text-sm sm:text-base">
+                            Kalendertermine
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted">
+                            Erinnerung bei anstehenden Terminen (nächste 7 Tage)
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-xs sm:text-sm text-gray-600 dark:text-dark-textMuted hidden sm:block">
+                          {reminderSettings.kalenderEnabled ? 'Aktiv' : 'Aus'}
+                        </span>
+                        <div className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={reminderSettings.kalenderEnabled}
+                            onChange={(e) => updateReminderSetting('kalenderEnabled', e.target.checked)}
+                          />
+                          <div className="w-10 h-5 sm:w-12 sm:h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-red-400 rounded-full peer peer-checked:bg-red-500 dark:peer-checked:bg-red-600 peer-checked:after:translate-x-5 sm:peer-checked:after:translate-x-6 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-5 sm:after:w-5 after:transition-all dark:border-gray-600" />
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-border">
+                    <div className="flex items-start gap-3 text-sm text-gray-500 dark:text-dark-textMuted">
+                      <Bell className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <p>
+                        Erinnerungs-Popups werden beim Öffnen der Startseite angezeigt.
+                        Nach dem Schließen erscheinen sie erst am nächsten Tag wieder.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-border px-6 pb-6 flex gap-2">

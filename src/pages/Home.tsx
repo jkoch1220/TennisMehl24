@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, BarChart3, TrendingUp, AlertTriangle, Wrench, X, ChevronRight, Circle, ChevronDown, ChevronUp, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Loader2, Boxes, CheckCircle } from 'lucide-react';
+import { Package, BarChart3, TrendingUp, AlertTriangle, Wrench, X, ChevronRight, Circle, ChevronDown, ChevronUp, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Loader2, Boxes, CheckCircle, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { filterAllowedTools } from '../services/permissionsService';
 import { ALL_TOOLS } from '../constants/tools';
@@ -8,6 +8,33 @@ import { instandhaltungService } from '../services/instandhaltungService';
 import { OverdueInfo, FREQUENZ_CONFIG, InstandhaltungFrequenz, InstandhaltungChecklistItem } from '../types/instandhaltung';
 import { dashboardService } from '../services/dashboardService';
 import type { DashboardStats } from '../types/dashboard';
+import { terminService } from '../services/terminService';
+import type { Termin } from '../types/termin';
+
+// Erinnerungs-Einstellungen Typ
+interface ReminderSettings {
+  instandhaltungEnabled: boolean;
+  kalenderEnabled: boolean;
+}
+
+// Standard-Einstellungen
+const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  instandhaltungEnabled: true,
+  kalenderEnabled: true,
+};
+
+// Erinnerungs-Einstellungen aus localStorage laden
+const loadReminderSettings = (): ReminderSettings => {
+  try {
+    const stored = localStorage.getItem('tm_reminder_settings_v1');
+    if (stored) {
+      return { ...DEFAULT_REMINDER_SETTINGS, ...JSON.parse(stored) };
+    }
+  } catch {
+    // Ignoriere Parsing-Fehler
+  }
+  return DEFAULT_REMINDER_SETTINGS;
+};
 
 // Wetter-Icon basierend auf WMO Weather Code
 const getWeatherIcon = (code: number) => {
@@ -37,13 +64,20 @@ const Home = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [overdueInfos, setOverdueInfos] = useState<OverdueInfo[]>([]);
-  const [showOverduePopup, setShowOverduePopup] = useState(false);
+  const [showReminderPopup, setShowReminderPopup] = useState(false);
   const [checklistItems, setChecklistItems] = useState<Record<InstandhaltungFrequenz, InstandhaltungChecklistItem[]>>({
     taeglich: [],
     woechentlich: [],
     monatlich: [],
   });
   const [expandedFrequenz, setExpandedFrequenz] = useState<InstandhaltungFrequenz | null>(null);
+
+  // Kalender-Termine State
+  const [upcomingTermine, setUpcomingTermine] = useState<Termin[]>([]);
+  const [expandedTermine, setExpandedTermine] = useState(false);
+
+  // Erinnerungs-Einstellungen
+  const [reminderSettings] = useState<ReminderSettings>(() => loadReminderSettings());
 
   // Wetter-State
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
@@ -57,9 +91,9 @@ const Home = () => {
   useEffect(() => {
     const loadWeather = async () => {
       try {
-        // Koordinaten für Ostwestfalen-Lippe Region (Bielefeld als Zentrum)
-        const lat = 52.03;
-        const lon = 8.53;
+        // Koordinaten für Altfeld/Marktheidenfeld (Unterfranken)
+        const lat = 49.85;
+        const lon = 9.60;
 
         const response = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&timezone=Europe/Berlin&forecast_days=10`
@@ -79,7 +113,7 @@ const Home = () => {
 
         setWeatherData({
           daily,
-          location: 'Ostwestfalen-Lippe',
+          location: 'Altfeld/Marktheidenfeld',
         });
       } catch (error) {
         console.error('Fehler beim Laden des Wetters:', error);
@@ -107,60 +141,130 @@ const Home = () => {
     loadStats();
   }, []);
 
-  // Prüfe Überfälligkeiten beim Laden der Seite
+  // Prüfe Erinnerungen beim Laden der Seite (Instandhaltung + Kalender)
   useEffect(() => {
-    const checkOverdue = async () => {
-      // Nur prüfen wenn User Zugriff auf Instandhaltung hat
-      const hasAccess = filterAllowedTools(user, ALL_TOOLS).some(t => t.id === 'instandhaltung');
-      if (!hasAccess) return;
-
+    const checkReminders = async () => {
       // Prüfen ob Popup heute schon dismissed wurde (Session-basiert)
-      const dismissedToday = sessionStorage.getItem('instandhaltung_popup_dismissed');
+      const dismissedToday = sessionStorage.getItem('reminder_popup_dismissed');
       if (dismissedToday === new Date().toDateString()) {
         return;
       }
 
-      try {
-        const infos = await instandhaltungService.pruefeUeberfaellig();
-        const ueberfaellige = infos.filter(info => info.istUeberfaellig);
-        setOverdueInfos(ueberfaellige);
+      let hasInstandhaltungReminders = false;
+      let hasKalenderReminders = false;
 
-        if (ueberfaellige.length > 0) {
-          // Lade Checklist-Items für alle überfälligen Frequenzen
-          const itemsMap: Record<InstandhaltungFrequenz, InstandhaltungChecklistItem[]> = {
-            taeglich: [],
-            woechentlich: [],
-            monatlich: [],
-          };
+      // Instandhaltung prüfen (wenn aktiviert)
+      if (reminderSettings.instandhaltungEnabled) {
+        const hasAccess = filterAllowedTools(user, ALL_TOOLS).some(t => t.id === 'instandhaltung');
+        if (hasAccess) {
+          try {
+            const infos = await instandhaltungService.pruefeUeberfaellig();
+            const ueberfaellige = infos.filter(info => info.istUeberfaellig);
+            setOverdueInfos(ueberfaellige);
 
-          for (const info of ueberfaellige) {
-            const items = await instandhaltungService.ladeChecklistItemsNachFrequenz(info.frequenz);
-            itemsMap[info.frequenz] = items;
-          }
+            if (ueberfaellige.length > 0) {
+              hasInstandhaltungReminders = true;
+              // Lade Checklist-Items für alle überfälligen Frequenzen
+              const itemsMap: Record<InstandhaltungFrequenz, InstandhaltungChecklistItem[]> = {
+                taeglich: [],
+                woechentlich: [],
+                monatlich: [],
+              };
 
-          setChecklistItems(itemsMap);
-          setShowOverduePopup(true);
-          // Erste überfällige Frequenz automatisch expandieren
-          if (ueberfaellige.length > 0) {
-            setExpandedFrequenz(ueberfaellige[0].frequenz);
+              for (const info of ueberfaellige) {
+                const items = await instandhaltungService.ladeChecklistItemsNachFrequenz(info.frequenz);
+                itemsMap[info.frequenz] = items;
+              }
+
+              setChecklistItems(itemsMap);
+              // Erste überfällige Frequenz automatisch expandieren
+              setExpandedFrequenz(ueberfaellige[0].frequenz);
+            }
+          } catch (error) {
+            console.error('Fehler beim Prüfen der Instandhaltung:', error);
           }
         }
-      } catch (error) {
-        console.error('Fehler beim Prüfen der Instandhaltung:', error);
+      }
+
+      // Kalender-Termine prüfen (wenn aktiviert)
+      if (reminderSettings.kalenderEnabled) {
+        const hasKalenderAccess = filterAllowedTools(user, ALL_TOOLS).some(t => t.id === 'kalender');
+        if (hasKalenderAccess) {
+          try {
+            // Lade Termine für die nächsten 7 Tage
+            const heute = new Date();
+            heute.setHours(0, 0, 0, 0);
+            const inSiebenTagen = new Date(heute);
+            inSiebenTagen.setDate(inSiebenTagen.getDate() + 7);
+            inSiebenTagen.setHours(23, 59, 59, 999);
+
+            const termine = await terminService.loadTermineImZeitraum(
+              heute.toISOString(),
+              inSiebenTagen.toISOString()
+            );
+
+            // Filtere nur zukünftige Termine (ab jetzt)
+            const jetzt = new Date();
+            const zukuenftigeTermine = termine.filter(t => new Date(t.startDatum) >= jetzt);
+
+            setUpcomingTermine(zukuenftigeTermine);
+            if (zukuenftigeTermine.length > 0) {
+              hasKalenderReminders = true;
+            }
+          } catch (error) {
+            console.error('Fehler beim Laden der Kalendertermine:', error);
+          }
+        }
+      }
+
+      // Popup anzeigen wenn es Erinnerungen gibt
+      if (hasInstandhaltungReminders || hasKalenderReminders) {
+        setShowReminderPopup(true);
       }
     };
 
-    checkOverdue();
-  }, [user]);
+    checkReminders();
+  }, [user, reminderSettings]);
 
   const handleDismissPopup = () => {
-    setShowOverduePopup(false);
-    sessionStorage.setItem('instandhaltung_popup_dismissed', new Date().toDateString());
+    setShowReminderPopup(false);
+    sessionStorage.setItem('reminder_popup_dismissed', new Date().toDateString());
   };
 
   const handleGoToInstandhaltung = () => {
-    setShowOverduePopup(false);
+    setShowReminderPopup(false);
     navigate('/instandhaltung');
+  };
+
+  const handleGoToKalender = () => {
+    setShowReminderPopup(false);
+    navigate('/kalender');
+  };
+
+  // Formatiere Termin-Datum
+  const formatTerminDatum = (termin: Termin): string => {
+    const startDate = new Date(termin.startDatum);
+    const heute = new Date();
+    heute.setHours(0, 0, 0, 0);
+    const morgen = new Date(heute);
+    morgen.setDate(morgen.getDate() + 1);
+
+    const terminTag = new Date(startDate);
+    terminTag.setHours(0, 0, 0, 0);
+
+    if (terminTag.getTime() === heute.getTime()) {
+      if (termin.ganztaegig) return 'Heute (ganztägig)';
+      return `Heute, ${startDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+    }
+    if (terminTag.getTime() === morgen.getTime()) {
+      if (termin.ganztaegig) return 'Morgen (ganztägig)';
+      return `Morgen, ${startDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+    }
+
+    const wochentag = startDate.toLocaleDateString('de-DE', { weekday: 'short' });
+    const datum = startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    if (termin.ganztaegig) return `${wochentag}, ${datum} (ganztägig)`;
+    return `${wochentag}, ${datum}, ${startDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
   };
 
   const formatLetzteBegehung = (info: OverdueInfo): string => {
@@ -421,24 +525,26 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Instandhaltung Überfällig Popup */}
-      {showOverduePopup && overdueInfos.length > 0 && (
+      {/* Erinnerungs-Popup (Instandhaltung + Kalender) */}
+      {showReminderPopup && (overdueInfos.length > 0 || upcomingTermine.length > 0) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-dark-surface rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-            {/* Header mit Warnung */}
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-white/20 rounded-xl">
                   <AlertTriangle className="w-8 h-8 text-white" />
                 </div>
                 <div className="flex-1">
                   <h2 className="text-xl font-bold text-white">
-                    Instandhaltung überfällig!
+                    Erinnerungen
                   </h2>
                   <p className="text-white/90 mt-1">
-                    {overdueInfos.length === 1
-                      ? 'Eine Begehung muss durchgeführt werden'
-                      : `${overdueInfos.length} Begehungen müssen durchgeführt werden`}
+                    {overdueInfos.length > 0 && upcomingTermine.length > 0
+                      ? `${overdueInfos.length} Instandhaltung${overdueInfos.length > 1 ? 'en' : ''} & ${upcomingTermine.length} Termin${upcomingTermine.length > 1 ? 'e' : ''}`
+                      : overdueInfos.length > 0
+                      ? `${overdueInfos.length} überfällige Begehung${overdueInfos.length > 1 ? 'en' : ''}`
+                      : `${upcomingTermine.length} anstehende${upcomingTermine.length > 1 ? ' Termine' : 'r Termin'}`}
                   </p>
                 </div>
                 <button
@@ -450,109 +556,188 @@ const Home = () => {
               </div>
             </div>
 
-            {/* Liste der überfälligen Begehungen mit Checklist-Punkten */}
-            <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-              {overdueInfos.map((info) => {
-                const config = FREQUENZ_CONFIG[info.frequenz];
-                const items = checklistItems[info.frequenz] || [];
-                const isExpanded = expandedFrequenz === info.frequenz;
+            {/* Inhalt */}
+            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Instandhaltung Sektion */}
+              {overdueInfos.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wrench className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      Überfällige Instandhaltung
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {overdueInfos.map((info) => {
+                      const config = FREQUENZ_CONFIG[info.frequenz];
+                      const items = checklistItems[info.frequenz] || [];
+                      const isExpanded = expandedFrequenz === info.frequenz;
 
-                return (
-                  <div
-                    key={info.frequenz}
-                    className="bg-gray-50 dark:bg-dark-border rounded-xl overflow-hidden"
-                  >
-                    {/* Header - klickbar zum Expandieren */}
-                    <button
-                      onClick={() => setExpandedFrequenz(isExpanded ? null : info.frequenz)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-gray-100 dark:hover:bg-dark-surface transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${config.color} flex items-center justify-center flex-shrink-0`}>
-                          <Wrench className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {config.label}e Begehung
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-dark-textMuted">
-                            {formatLetzteBegehung(info)}
-                            {info.tageUeberfaellig > 0 && (
-                              <span className="text-red-500 ml-1">
-                                ({info.tageUeberfaellig} {info.tageUeberfaellig === 1 ? 'Tag' : 'Tage'} überfällig)
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {items.length > 0 && (
-                          <span className="text-xs font-medium text-gray-500 dark:text-dark-textMuted bg-gray-200 dark:bg-dark-surface px-2 py-1 rounded-full">
-                            {items.length} Punkte
-                          </span>
-                        )}
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-5 h-5 text-gray-400" />
-                        )}
-                      </div>
-                    </button>
-
-                    {/* Expandierte Checklist-Punkte */}
-                    {isExpanded && items.length > 0 && (
-                      <div className="px-4 pb-4 space-y-2">
-                        <div className="border-t border-gray-200 dark:border-dark-surface pt-3">
-                          <p className="text-xs font-medium text-gray-500 dark:text-dark-textMuted mb-2 uppercase tracking-wide">
-                            Zu erledigende Punkte:
-                          </p>
-                          <div className="space-y-1.5">
-                            {items.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-start gap-2 text-sm"
-                              >
-                                <Circle className="w-4 h-4 text-gray-300 dark:text-dark-border flex-shrink-0 mt-0.5" />
-                                <div>
-                                  <span className="text-gray-700 dark:text-gray-300">
-                                    {item.titel}
-                                  </span>
-                                  {item.beschreibung && (
-                                    <p className="text-xs text-gray-400 dark:text-dark-textMuted mt-0.5">
-                                      {item.beschreibung}
-                                    </p>
-                                  )}
-                                </div>
+                      return (
+                        <div
+                          key={info.frequenz}
+                          className="bg-amber-50 dark:bg-amber-900/20 rounded-xl overflow-hidden border border-amber-200 dark:border-amber-800"
+                        >
+                          <button
+                            onClick={() => setExpandedFrequenz(isExpanded ? null : info.frequenz)}
+                            className="w-full flex items-center justify-between p-3 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-lg bg-gradient-to-r ${config.color} flex items-center justify-center flex-shrink-0`}>
+                                <Wrench className="w-4 h-4 text-white" />
                               </div>
-                            ))}
+                              <div className="text-left">
+                                <p className="font-medium text-gray-900 dark:text-white text-sm">
+                                  {config.label}e Begehung
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                                  {formatLetzteBegehung(info)}
+                                  {info.tageUeberfaellig > 0 && (
+                                    <span className="text-red-500 ml-1">
+                                      ({info.tageUeberfaellig} {info.tageUeberfaellig === 1 ? 'Tag' : 'Tage'} überfällig)
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {items.length > 0 && (
+                                <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                                  {items.length}
+                                </span>
+                              )}
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              )}
+                            </div>
+                          </button>
+
+                          {isExpanded && items.length > 0 && (
+                            <div className="px-3 pb-3 space-y-1.5 border-t border-amber-200 dark:border-amber-800 pt-2">
+                              {items.map((item) => (
+                                <div key={item.id} className="flex items-start gap-2 text-xs">
+                                  <Circle className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5" />
+                                  <span className="text-gray-700 dark:text-gray-300">{item.titel}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Kalender-Termine Sektion */}
+              {upcomingTermine.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setExpandedTermine(!expandedTermine)}
+                    className="flex items-center justify-between w-full mb-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-blue-500" />
+                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                        Anstehende Termine
+                      </h3>
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">
+                        {upcomingTermine.length}
+                      </span>
+                    </div>
+                    {expandedTermine ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+
+                  {expandedTermine && (
+                    <div className="space-y-2">
+                      {upcomingTermine.slice(0, 5).map((termin) => (
+                        <div
+                          key={termin.id}
+                          className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: termin.farbe || '#3b82f6' }}
+                            >
+                              <Clock className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                {termin.titel}
+                              </p>
+                              <p className="text-xs text-blue-600 dark:text-blue-400">
+                                {formatTerminDatum(termin)}
+                              </p>
+                              {termin.ort && (
+                                <p className="text-xs text-gray-500 dark:text-dark-textMuted truncate">
+                                  {termin.ort}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Keine Items vorhanden */}
-                    {isExpanded && items.length === 0 && (
-                      <div className="px-4 pb-4">
-                        <p className="text-sm text-gray-400 dark:text-dark-textMuted italic">
-                          Keine Checklist-Punkte definiert
+                      ))}
+                      {upcomingTermine.length > 5 && (
+                        <p className="text-xs text-center text-gray-500 dark:text-dark-textMuted">
+                          +{upcomingTermine.length - 5} weitere Termine
                         </p>
+                      )}
+                    </div>
+                  )}
+
+                  {!expandedTermine && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: upcomingTermine[0].farbe || '#3b82f6' }}
+                        >
+                          <Clock className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                            {upcomingTermine[0].titel}
+                          </p>
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            {formatTerminDatum(upcomingTermine[0])}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Actions */}
             <div className="p-4 border-t border-gray-100 dark:border-dark-border space-y-2">
-              <button
-                onClick={handleGoToInstandhaltung}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:shadow-lg active:scale-98 transition-all"
-              >
-                <Wrench className="w-5 h-5" />
-                <span>Jetzt zur Instandhaltung</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              {overdueInfos.length > 0 && (
+                <button
+                  onClick={handleGoToInstandhaltung}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-xl hover:shadow-lg active:scale-98 transition-all"
+                >
+                  <Wrench className="w-5 h-5" />
+                  <span>Zur Instandhaltung</span>
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+              {upcomingTermine.length > 0 && (
+                <button
+                  onClick={handleGoToKalender}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold rounded-xl hover:shadow-lg active:scale-98 transition-all"
+                >
+                  <Calendar className="w-5 h-5" />
+                  <span>Zum Kalender</span>
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
               <button
                 onClick={handleDismissPopup}
                 className="w-full px-4 py-3 text-gray-600 dark:text-dark-textMuted font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
