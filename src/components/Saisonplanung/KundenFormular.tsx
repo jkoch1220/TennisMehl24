@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2, Hash } from 'lucide-react';
+import { X, Save, Plus, Trash2, Hash, MapPin, FileText, Truck } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   NeuerSaisonKunde,
@@ -30,12 +30,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     typ: 'verein',
     name: '',
     kundennummer: '',
-    adresse: {
+    // Neue Struktur: Lieferadresse ist die Hauptadresse
+    lieferadresse: {
       strasse: '',
       plz: '',
       ort: '',
       bundesland: '',
     },
+    rechnungsadresse: undefined, // Optional abweichend
     email: '',
     notizen: '',
     aktiv: true,
@@ -49,6 +51,9 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     schuettstellenAnzahl: undefined,
     belieferungsart: undefined,
   });
+
+  // State für abweichende Adressen (Liefer- vs. Rechnungsadresse unterschiedlich)
+  const [abweichendeAdressen, setAbweichendeAdressen] = useState(false);
 
   const [ansprechpartner, setAnsprechpartner] = useState<NeuerAnsprechpartner[]>([]);
   const [neuerAnsprechpartner, setNeuerAnsprechpartner] = useState<Partial<NeuerAnsprechpartner>>({
@@ -65,11 +70,19 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
   useEffect(() => {
     if (kunde) {
+      // Bestimme ob Adressen abweichen (Liefer- != Rechnungsadresse)
+      const adressenAbweichend = kunde.kunde.rechnungsadresse &&
+        kunde.kunde.lieferadresse &&
+        (kunde.kunde.rechnungsadresse.strasse !== kunde.kunde.lieferadresse.strasse ||
+         kunde.kunde.rechnungsadresse.plz !== kunde.kunde.lieferadresse.plz ||
+         kunde.kunde.rechnungsadresse.ort !== kunde.kunde.lieferadresse.ort);
+
       setFormData({
         typ: kunde.kunde.typ,
         name: kunde.kunde.name,
         kundennummer: kunde.kunde.kundennummer || '',
-        adresse: kunde.kunde.adresse,
+        lieferadresse: kunde.kunde.lieferadresse,
+        rechnungsadresse: adressenAbweichend ? kunde.kunde.rechnungsadresse : undefined,
         email: kunde.kunde.email || '',
         notizen: kunde.kunde.notizen || '',
         aktiv: kunde.kunde.aktiv,
@@ -82,6 +95,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         schuettstellenAnzahl: kunde.kunde.schuettstellenAnzahl,
         belieferungsart: kunde.kunde.belieferungsart,
       });
+      // Zeige separate Felder wenn Adressen abweichen
+      setAbweichendeAdressen(!!adressenAbweichend);
       setAnsprechpartner(
         kunde.ansprechpartner.map((ap) => ({
           ...ap,
@@ -101,7 +116,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         typ: 'verein',
         name: '',
         kundennummer: '',
-        adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
+        lieferadresse: { strasse: '', plz: '', ort: '', bundesland: '' },
+        rechnungsadresse: undefined,
         email: '',
         notizen: '',
         aktiv: true,
@@ -113,6 +129,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         abwerkspreis: false,
         belieferungsart: undefined,
       });
+      setAbweichendeAdressen(false);
       setAnsprechpartner([]);
       setZugeordnetePlatzbauer([]);
     }
@@ -164,12 +181,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         return;
       }
 
-      // Duplikatsprüfung nur bei neuen Kunden
+      // Duplikatsprüfung nur bei neuen Kunden (nutzt Lieferadresse)
       if (!kunde && !ignoreDuplikate) {
         const gefundeneDuplikate = await saisonplanungService.pruefeDuplikat(
           formData.name || '',
-          formData.adresse?.plz || '',
-          formData.adresse?.ort || ''
+          formData.lieferadresse?.plz || '',
+          formData.lieferadresse?.ort || ''
         );
         
         if (gefundeneDuplikate.length > 0) {
@@ -187,13 +204,21 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         kundenDaten.kundennummer = neueNummer;
       }
 
+      // Stelle sicher, dass beide Adressen gesetzt sind
+      const lieferadresse = kundenDaten.lieferadresse || { strasse: '', plz: '', ort: '', bundesland: '' };
+      // Rechnungsadresse = Lieferadresse wenn nicht explizit abweichend
+      const rechnungsadresse = abweichendeAdressen && kundenDaten.rechnungsadresse?.strasse
+        ? kundenDaten.rechnungsadresse
+        : lieferadresse;
+
       let kundeId: string;
 
       if (kunde) {
         // Update bestehender Kunde
         const updated = await saisonplanungService.updateKunde(kunde.kunde.id, {
           ...kundenDaten,
-          adresse: kundenDaten.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          lieferadresse,
+          rechnungsadresse,
           standardPlatzbauerId:
             kundenDaten.standardBezugsweg === 'ueber_platzbauer'
               ? kundenDaten.standardPlatzbauerId
@@ -204,7 +229,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         // Erstelle neuen Kunden
         const created = await saisonplanungService.createKunde({
           ...kundenDaten,
-          adresse: kundenDaten.adresse || { strasse: '', plz: '', ort: '', bundesland: '' },
+          lieferadresse,
+          rechnungsadresse,
           standardPlatzbauerId:
             kundenDaten.standardBezugsweg === 'ueber_platzbauer'
               ? kundenDaten.standardPlatzbauerId
@@ -543,22 +569,104 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
               </div>
             </div>
 
-            {/* Adresse mit Autovervollständigung */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-400">Adresse</h4>
-              <AdressAutocomplete
-                strasse={formData.adresse?.strasse || ''}
-                plz={formData.adresse?.plz || ''}
-                ort={formData.adresse?.ort || ''}
-                bundesland={formData.adresse?.bundesland || ''}
-                onAdresseChange={(adresse: { strasse: string; plz: string; ort: string; bundesland?: string }) =>
-                  setFormData({
-                    ...formData,
-                    adresse,
-                  })
-                }
+            {/* Adresse - Standard: eine Adresse für Liefer- und Rechnungsadresse */}
+            {!abweichendeAdressen && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-400 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-red-600" />
+                  Adresse <span className="text-red-500">*</span>
+                </h4>
+                <AdressAutocomplete
+                  strasse={formData.lieferadresse?.strasse || ''}
+                  plz={formData.lieferadresse?.plz || ''}
+                  ort={formData.lieferadresse?.ort || ''}
+                  bundesland={formData.lieferadresse?.bundesland || ''}
+                  onAdresseChange={(adresse: { strasse: string; plz: string; ort: string; bundesland?: string }) =>
+                    setFormData({
+                      ...formData,
+                      lieferadresse: adresse,
+                    })
+                  }
+                />
+                <p className="text-xs text-gray-500 dark:text-slate-500">
+                  Diese Adresse wird als Liefer- und Rechnungsadresse verwendet.
+                </p>
+              </div>
+            )}
+
+            {/* Checkbox: Adressen abweichend? */}
+            <div className="flex items-center gap-3 py-2">
+              <input
+                id="abweichendeAdressen"
+                type="checkbox"
+                checked={abweichendeAdressen}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setAbweichendeAdressen(checked);
+                  if (checked) {
+                    // Initialisiere Rechnungsadresse mit Lieferadresse
+                    setFormData({
+                      ...formData,
+                      rechnungsadresse: formData.lieferadresse
+                        ? { ...formData.lieferadresse }
+                        : { strasse: '', plz: '', ort: '', bundesland: '' },
+                    });
+                  } else {
+                    // Lösche separate Rechnungsadresse
+                    setFormData({ ...formData, rechnungsadresse: undefined });
+                  }
+                }}
+                className="h-4 w-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded"
               />
+              <label htmlFor="abweichendeAdressen" className="text-sm font-medium text-gray-700 dark:text-slate-400">
+                Lieferadresse und Rechnungsadresse sind unterschiedlich
+              </label>
             </div>
+
+            {/* Separate Adressen wenn abweichend */}
+            {abweichendeAdressen && (
+              <div className="space-y-4 border-l-4 border-blue-200 dark:border-blue-800 pl-4">
+                {/* Lieferadresse */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-400 flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-green-600" />
+                    Lieferadresse / Standort <span className="text-red-500">*</span>
+                  </h4>
+                  <AdressAutocomplete
+                    strasse={formData.lieferadresse?.strasse || ''}
+                    plz={formData.lieferadresse?.plz || ''}
+                    ort={formData.lieferadresse?.ort || ''}
+                    bundesland={formData.lieferadresse?.bundesland || ''}
+                    onAdresseChange={(adresse: { strasse: string; plz: string; ort: string; bundesland?: string }) =>
+                      setFormData({
+                        ...formData,
+                        lieferadresse: adresse,
+                      })
+                    }
+                  />
+                </div>
+
+                {/* Rechnungsadresse */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-400 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    Rechnungsadresse <span className="text-red-500">*</span>
+                  </h4>
+                  <AdressAutocomplete
+                    strasse={formData.rechnungsadresse?.strasse || ''}
+                    plz={formData.rechnungsadresse?.plz || ''}
+                    ort={formData.rechnungsadresse?.ort || ''}
+                    bundesland={formData.rechnungsadresse?.bundesland || ''}
+                    onAdresseChange={(adresse: { strasse: string; plz: string; ort: string; bundesland?: string }) =>
+                      setFormData({
+                        ...formData,
+                        rechnungsadresse: adresse,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Standard-Bezugsweg für Vereine */}
             {formData.typ === 'verein' && (
@@ -833,9 +941,9 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <div key={dup.id} className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
                   <div className="font-semibold text-gray-900 dark:text-slate-100">{dup.name}</div>
                   <div className="text-sm text-gray-600 dark:text-slate-400">
-                    {dup.adresse.strasse && `${dup.adresse.strasse}, `}
-                    {dup.adresse.plz} {dup.adresse.ort}
-                    {dup.adresse.bundesland && ` (${dup.adresse.bundesland})`}
+                    {dup.lieferadresse.strasse && `${dup.lieferadresse.strasse}, `}
+                    {dup.lieferadresse.plz} {dup.lieferadresse.ort}
+                    {dup.lieferadresse.bundesland && ` (${dup.lieferadresse.bundesland})`}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                     Typ: {dup.typ === 'verein' ? 'Verein' : 'Platzbauer'}

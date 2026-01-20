@@ -38,6 +38,8 @@ import {
   // Schichtplanung
   SCHICHT_MITARBEITER_COLLECTION_ID,
   SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
+  // Chat
+  CHAT_NACHRICHTEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -45,7 +47,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '22'; // Schichtplanung Collections
+const APPWRITE_SETUP_VERSION = '23'; // Chat-Nachrichten Collection
 
 type FieldConfig = {
   key: string;
@@ -302,6 +304,17 @@ const schichtZuweisungenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000, required: true },       // JSON blob mit Details
 ];
 
+// Chat-Nachrichten Collection (Salesforce-ähnlicher Projekt-Chat)
+const chatNachrichtenFields: FieldConfig[] = [
+  { key: 'projektId', type: 'string', size: 100, required: true },     // Für Filter nach Projekt
+  { key: 'text', type: 'string', size: 5000, required: true },         // Nachrichtentext
+  { key: 'mentions', type: 'string', size: 100, array: true },         // Array von User-IDs
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'erstelltVon', type: 'string', size: 100, required: true },   // User-ID
+  { key: 'erstelltVonName', type: 'string', size: 200, required: true }, // User-Name für Anzeige
+  { key: 'data', type: 'string', size: 10000 },                        // JSON backup
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -388,7 +401,7 @@ async function ensureBucket(bucketId: string, name: string) {
   console.log(`✅ Bucket erstellt: ${bucketId}`);
 }
 
-async function ensureCollection(collectionId: string, name: string) {
+async function ensureCollection(collectionId: string, name: string, permissions?: string[]) {
   if (!apiKey) return;
   const headers = {
     'Content-Type': 'application/json',
@@ -413,8 +426,8 @@ async function ensureCollection(collectionId: string, name: string) {
     body: JSON.stringify({
       collectionId,
       name,
-      documentSecurity: true,
-      permissions: [],
+      documentSecurity: !permissions?.length, // Document-Security nur wenn keine Collection-Permissions
+      permissions: permissions || [],
     }),
   });
 
@@ -503,7 +516,7 @@ export async function setupAppwriteFields() {
 
   try {
     // Nur Kunden-relevante Felder anlegen, um 404-Schleifen zu vermeiden
-    const kundenCollections: Array<{ id: string; name: string; fields: FieldConfig[] }> = [
+    const kundenCollections: Array<{ id: string; name: string; fields: FieldConfig[]; permissions?: string[] }> = [
       { id: KUNDEN_COLLECTION_ID, name: 'Kunden', fields: kundenFields },
       { id: KUNDEN_AKTIVITAETEN_COLLECTION_ID, name: 'Kunden Aktivitäten', fields: kundenAktivitaetenFields },
       { id: SAISON_KUNDEN_COLLECTION_ID, name: 'Saison Kunden', fields: saisonKundenFields },
@@ -541,10 +554,17 @@ export async function setupAppwriteFields() {
       // Schichtplanung
       { id: SCHICHT_MITARBEITER_COLLECTION_ID, name: 'Schicht Mitarbeiter', fields: schichtMitarbeiterFields },
       { id: SCHICHT_ZUWEISUNGEN_COLLECTION_ID, name: 'Schicht Zuweisungen', fields: schichtZuweisungenFields },
+      // Chat - alle eingeloggten User können lesen und schreiben
+      {
+        id: CHAT_NACHRICHTEN_COLLECTION_ID,
+        name: 'Chat Nachrichten',
+        fields: chatNachrichtenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
-    for (const { id, name, fields } of kundenCollections) {
-      await ensureCollection(id, name);
+    for (const { id, name, fields, permissions } of kundenCollections) {
+      await ensureCollection(id, name, permissions);
       for (const field of fields) {
         await createFieldViaAPI(id, field);
         await new Promise((resolve) => setTimeout(resolve, 200));
@@ -578,6 +598,10 @@ export async function setupAppwriteFields() {
     await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'datum_index', ['datum']);
     await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'mitarbeiterId_index', ['mitarbeiterId']);
     await ensureIndex(SCHICHT_ZUWEISUNGEN_COLLECTION_ID, 'schichtTyp_index', ['schichtTyp']);
+
+    // Indizes für Chat-Nachrichten
+    await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'projektId_index', ['projektId']);
+    await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'erstelltVon_index', ['erstelltVon']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

@@ -203,8 +203,8 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
     const s = suche.toLowerCase();
     return kunden.filter(k =>
       k.kunde.name.toLowerCase().includes(s) ||
-      k.kunde.adresse.ort.toLowerCase().includes(s) ||
-      k.kunde.adresse.plz.includes(s) ||
+      k.kunde.lieferadresse.ort.toLowerCase().includes(s) ||
+      k.kunde.lieferadresse.plz.includes(s) ||
       k.ansprechpartner.some(ap =>
         ap.name.toLowerCase().includes(s) ||
         ap.telefonnummern.some(tel => tel.nummer.includes(s))
@@ -595,8 +595,8 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
           kundenname={projektKunde.kunde.name}
           kundeId={projektKunde.kunde.id}
           kundennummer={projektKunde.kunde.kundennummer}
-          kundenstrasse={projektKunde.kunde.adresse.strasse}
-          kundenPlzOrt={`${projektKunde.kunde.adresse.plz} ${projektKunde.kunde.adresse.ort}`}
+          kundenstrasse={projektKunde.kunde.lieferadresse.strasse}
+          kundenPlzOrt={`${projektKunde.kunde.lieferadresse.plz} ${projektKunde.kunde.lieferadresse.ort}`}
           ansprechpartner={projektKunde.ansprechpartner?.find(ap => ap.aktiv)?.name}
           angefragteMenge={projektKunde.aktuelleSaison?.angefragteMenge}
           preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || (projektKunde.kunde.zuletztGezahlterPreis ? Math.round(projektKunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
@@ -690,7 +690,7 @@ const KundenCard = ({ kunde, status, onDragStart, onDragEnd, onErreicht, onNicht
           <h4 className="font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{kunde.kunde.name}</h4>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             <MapPin className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}</span>
+            <span className="truncate">{kunde.kunde.lieferadresse.plz} {kunde.kunde.lieferadresse.ort}</span>
           </div>
           {kunde.kunde.typ === 'platzbauer' && (
             <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium rounded-md">
@@ -894,7 +894,7 @@ const ErgebnisModal = ({
               <div>
                 <h3 className="font-semibold text-slate-900 dark:text-white">{kunde.kunde.name}</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
+                  {kunde.kunde.lieferadresse.plz} {kunde.kunde.lieferadresse.ort}
                 </p>
                 {kunde.ansprechpartner[0] && (
                   <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">

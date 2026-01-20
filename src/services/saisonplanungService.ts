@@ -116,17 +116,28 @@ export const saisonplanungService = {
         SAISON_KUNDEN_COLLECTION_ID,
         [Query.limit(5000), Query.orderDesc('$createdAt')]
       );
-      return response.documents.map((doc) =>
-        parseDocument<SaisonKunde>(doc, {
+      return response.documents.map((doc) => {
+        const emptyAdresse = { strasse: '', plz: '', ort: '', bundesland: '' };
+        const parsed = parseDocument<SaisonKunde>(doc, {
           id: doc.$id,
           typ: 'verein',
           name: '',
-          adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
+          rechnungsadresse: emptyAdresse,
+          lieferadresse: emptyAdresse,
           aktiv: true,
           erstelltAm: doc.$createdAt,
           geaendertAm: doc.$updatedAt || doc.$createdAt,
-        })
-      );
+        });
+        // Backwards-Compatibility: Falls nur adresse vorhanden, nutze diese
+        if (parsed.adresse && (!parsed.rechnungsadresse?.strasse || !parsed.lieferadresse?.strasse)) {
+          return {
+            ...parsed,
+            rechnungsadresse: parsed.rechnungsadresse?.strasse ? parsed.rechnungsadresse : parsed.adresse,
+            lieferadresse: parsed.lieferadresse?.strasse ? parsed.lieferadresse : parsed.adresse,
+          };
+        }
+        return parsed;
+      });
     } catch (error) {
       console.error('Fehler beim Laden der Kunden:', error);
       return [];
@@ -140,15 +151,26 @@ export const saisonplanungService = {
         SAISON_KUNDEN_COLLECTION_ID,
         id
       );
-      return parseDocument<SaisonKunde>(doc, {
+      const emptyAdresse = { strasse: '', plz: '', ort: '', bundesland: '' };
+      const parsed = parseDocument<SaisonKunde>(doc, {
         id: doc.$id,
         typ: 'verein',
         name: '',
-        adresse: { strasse: '', plz: '', ort: '', bundesland: '' },
+        rechnungsadresse: emptyAdresse,
+        lieferadresse: emptyAdresse,
         aktiv: true,
         erstelltAm: doc.$createdAt,
         geaendertAm: doc.$updatedAt || doc.$createdAt,
       });
+      // Backwards-Compatibility: Falls nur adresse vorhanden, nutze diese
+      if (parsed.adresse && (!parsed.rechnungsadresse?.strasse || !parsed.lieferadresse?.strasse)) {
+        return {
+          ...parsed,
+          rechnungsadresse: parsed.rechnungsadresse?.strasse ? parsed.rechnungsadresse : parsed.adresse,
+          lieferadresse: parsed.lieferadresse?.strasse ? parsed.lieferadresse : parsed.adresse,
+        };
+      }
+      return parsed;
     } catch (error) {
       console.error('Fehler beim Laden des Kunden:', error);
       return null;
@@ -157,15 +179,20 @@ export const saisonplanungService = {
 
   async createKunde(kunde: NeuerSaisonKunde): Promise<SaisonKunde> {
     const jetzt = new Date().toISOString();
+    const emptyAdresse = { strasse: '', plz: '', ort: '', bundesland: '' };
+    // Bestimme die Adressen (Backwards-Compatibility: nutze adresse als Fallback)
+    const basisAdresse = kunde.adresse || emptyAdresse;
     const neuerKunde: SaisonKunde = {
       ...kunde,
       id: kunde.id || ID.unique(),
-      adresse: {
-        strasse: kunde.adresse?.strasse || '',
-        plz: kunde.adresse?.plz || '',
-        ort: kunde.adresse?.ort || '',
-        bundesland: kunde.adresse?.bundesland || '',
-      },
+      rechnungsadresse: kunde.rechnungsadresse?.strasse
+        ? kunde.rechnungsadresse
+        : { ...basisAdresse },
+      lieferadresse: kunde.lieferadresse?.strasse
+        ? kunde.lieferadresse
+        : { ...basisAdresse },
+      // Behalte adresse für Backwards-Compatibility
+      adresse: basisAdresse,
       aktiv: kunde.aktiv !== undefined ? kunde.aktiv : true,
       beziehtUeberUnsPlatzbauer: kunde.beziehtUeberUnsPlatzbauer ?? false,
       abwerkspreis: kunde.abwerkspreis ?? false,
@@ -199,19 +226,28 @@ export const saisonplanungService = {
       throw new Error(`Kunde ${id} nicht gefunden`);
     }
 
+    // Rechnungsadresse aktualisieren
+    const neueRechnungsadresse = kunde.rechnungsadresse !== undefined
+      ? kunde.rechnungsadresse
+      : aktuell.rechnungsadresse;
+
+    // Lieferadresse aktualisieren
+    const neueLieferadresse = kunde.lieferadresse !== undefined
+      ? kunde.lieferadresse
+      : aktuell.lieferadresse;
+
+    // Backwards-Compatibility: Falls adresse übergeben wird, nutze diese auch
+    const neueAdresse = kunde.adresse !== undefined
+      ? kunde.adresse
+      : aktuell.adresse;
+
     const aktualisiert: SaisonKunde = {
       ...aktuell,
       ...kunde,
       id,
-      adresse: {
-        strasse: kunde.adresse?.strasse || aktuell.adresse.strasse,
-        plz: kunde.adresse?.plz || aktuell.adresse.plz,
-        ort: kunde.adresse?.ort || aktuell.adresse.ort,
-        bundesland:
-          kunde.adresse?.bundesland !== undefined
-            ? kunde.adresse?.bundesland
-            : aktuell.adresse.bundesland,
-      },
+      rechnungsadresse: neueRechnungsadresse,
+      lieferadresse: neueLieferadresse,
+      adresse: neueAdresse, // Für Backwards-Compatibility
       beziehtUeberUnsPlatzbauer:
         kunde.beziehtUeberUnsPlatzbauer !== undefined
           ? kunde.beziehtUeberUnsPlatzbauer
@@ -1028,23 +1064,23 @@ export const saisonplanungService = {
       gefilterteKunden = gefilterteKunden.filter((k) => filter.typ!.includes(k.typ));
     }
 
-    // Bundesland-Filter
+    // Bundesland-Filter (nutzt lieferadresse als Standort)
     if (filter.bundesland && filter.bundesland.length > 0) {
       gefilterteKunden = gefilterteKunden.filter((k) =>
         filter.bundesland!.some(
           (bundesland) =>
-            (k.adresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
+            (k.lieferadresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
         )
       );
     }
 
-    // Such-Filter
+    // Such-Filter (nutzt lieferadresse als Standort)
     if (filter.suche) {
       const suche = filter.suche.toLowerCase();
       gefilterteKunden = gefilterteKunden.filter(
         (k) =>
           k.name.toLowerCase().includes(suche) ||
-          k.adresse.ort.toLowerCase().includes(suche) ||
+          k.lieferadresse.ort.toLowerCase().includes(suche) ||
           k.kundennummer?.toLowerCase().includes(suche)
       );
     }
@@ -1291,23 +1327,23 @@ export const saisonplanungService = {
       gefilterteKunden = gefilterteKunden.filter((k) => filter.typ!.includes(k.typ));
     }
 
-    // Bundesland-Filter
+    // Bundesland-Filter (nutzt lieferadresse als Standort)
     if (filter.bundesland && filter.bundesland.length > 0) {
       gefilterteKunden = gefilterteKunden.filter((k) =>
         filter.bundesland!.some(
           (bundesland) =>
-            (k.adresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
+            (k.lieferadresse.bundesland || '').toLowerCase() === bundesland.toLowerCase()
         )
       );
     }
 
-    // Such-Filter
+    // Such-Filter (nutzt lieferadresse als Standort)
     if (filter.suche) {
       const suche = filter.suche.toLowerCase();
       gefilterteKunden = gefilterteKunden.filter(
         (k) =>
           k.name.toLowerCase().includes(suche) ||
-          k.adresse.ort.toLowerCase().includes(suche) ||
+          k.lieferadresse.ort.toLowerCase().includes(suche) ||
           k.kundennummer?.toLowerCase().includes(suche)
       );
     }
@@ -1631,12 +1667,13 @@ export const saisonplanungService = {
 
     return alleKunden.filter((k) => {
       const kundeNameLower = k.name.toLowerCase().trim();
-      const kundePlz = k.adresse.plz.trim();
-      const kundeOrt = k.adresse.ort.toLowerCase().trim();
+      // Nutze lieferadresse als Standort für Duplikat-Prüfung
+      const kundePlz = k.lieferadresse.plz.trim();
+      const kundeOrt = k.lieferadresse.ort.toLowerCase().trim();
 
       // Exakte Namensübereinstimmung
       const nameMatch = kundeNameLower === nameLower;
-      
+
       // Adressübereinstimmung (PLZ + Ort)
       const adresseMatch = kundePlz === plzTrimmed && kundeOrt === ortLower;
 

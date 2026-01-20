@@ -157,7 +157,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{kunde.kunde.name}</h2>
             <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-              {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
+              {kunde.kunde.lieferadresse.plz} {kunde.kunde.lieferadresse.ort}
             </p>
           </div>
           <div className="flex gap-2">
@@ -196,10 +196,10 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   </span>
                 </div>
               )}
-              {kunde.kunde.adresse.bundesland && (
+              {kunde.kunde.lieferadresse.bundesland && (
                 <div>
                   <span className="font-medium text-gray-700 dark:text-slate-400">Bundesland:</span>{' '}
-                  <span className="text-gray-900 dark:text-slate-100">{kunde.kunde.adresse.bundesland}</span>
+                  <span className="text-gray-900 dark:text-slate-100">{kunde.kunde.lieferadresse.bundesland}</span>
                 </div>
               )}
               {kunde.kunde.kundennummer && (
@@ -698,8 +698,8 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             kundenname={kunde.kunde.name}
             kundeId={kunde.kunde.id}
             kundennummer={kunde.kunde.kundennummer}
-            kundenstrasse={kunde.kunde.adresse.strasse}
-            kundenPlzOrt={`${kunde.kunde.adresse.plz} ${kunde.kunde.adresse.ort}`}
+            kundenstrasse={kunde.kunde.lieferadresse.strasse}
+            kundenPlzOrt={`${kunde.kunde.lieferadresse.plz} ${kunde.kunde.lieferadresse.ort}`}
             angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
             preisProTonne={kunde.aktuelleSaison?.preisProTonne || (kunde.kunde.zuletztGezahlterPreis ? Math.round(kunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
             bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}

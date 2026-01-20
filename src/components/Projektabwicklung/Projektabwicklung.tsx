@@ -1,24 +1,54 @@
 import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft } from 'lucide-react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import { DokumentTyp } from '../../types/projektabwicklung';
+import { ProjektStatus } from '../../types/projekt';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
+import { SaisonKunde } from '../../types/saisonplanung';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import AngebotTab from './AngebotTab';
 import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
+import KundenDetailPopup from '../Shared/KundenDetailPopup';
+import KundenAdressenEditor from './KundenAdressenEditor';
+import ProjektChat from './ProjektChat';
+
+// Status-Konfiguration für das Kanban-Board
+const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string }> = {
+  angebot: { label: 'Angebot', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' },
+  angebot_versendet: { label: 'Angebot versendet', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300' },
+  auftragsbestaetigung: { label: 'Auftragsbestätigung', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' },
+  lieferschein: { label: 'Lieferung', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+  rechnung: { label: 'Rechnung', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' },
+  bezahlt: { label: 'Bezahlt', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' },
+  verloren: { label: 'Verloren', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+};
 
 const Projektabwicklung = () => {
   const { projektId } = useParams<{ projektId: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
   const [projekt, setProjekt] = useState<Projekt | null>(null);
-  const [aktuellerKundenname, setAktuellerKundenname] = useState<string | null>(null);
+  const [kunde, setKunde] = useState<SaisonKunde | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showKundenPopup, setShowKundenPopup] = useState(false);
+  const [showAdressenEditor, setShowAdressenEditor] = useState(false);
 
-  // Projekt und aktuellen Kundennamen laden
+  // Kunde laden (separate Funktion für Reload)
+  const loadKunde = async (kundeId: string) => {
+    try {
+      const loadedKunde = await saisonplanungService.loadKunde(kundeId);
+      if (loadedKunde) {
+        setKunde(loadedKunde);
+      }
+    } catch (error) {
+      console.warn('Konnte Kundendaten nicht laden:', error);
+    }
+  };
+
+  // Projekt und Kundendaten laden
   useEffect(() => {
     const loadProjekt = async () => {
       if (!projektId) {
@@ -31,16 +61,9 @@ const Projektabwicklung = () => {
         const loadedProjekt = await projektService.getProjekt(projektId);
         setProjekt(loadedProjekt);
 
-        // Aktuellen Kundennamen laden, falls kundeId vorhanden
+        // Kundendaten vollständig laden, falls kundeId vorhanden
         if (loadedProjekt.kundeId) {
-          try {
-            const kunde = await saisonplanungService.loadKunde(loadedProjekt.kundeId);
-            if (kunde) {
-              setAktuellerKundenname(kunde.name);
-            }
-          } catch (error) {
-            console.warn('Konnte aktuellen Kundennamen nicht laden:', error);
-          }
+          await loadKunde(loadedProjekt.kundeId);
         }
 
         // Tab basierend auf Projekt-Status setzen
@@ -63,6 +86,13 @@ const Projektabwicklung = () => {
 
     loadProjekt();
   }, [projektId]);
+
+  // Handler für Adressen-Update
+  const handleAdressenUpdate = () => {
+    if (projekt?.kundeId) {
+      loadKunde(projekt.kundeId);
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -105,7 +135,10 @@ const Projektabwicklung = () => {
   ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="flex h-[calc(100vh-64px)]">
+      {/* Hauptinhalt */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
@@ -120,13 +153,109 @@ const Projektabwicklung = () => {
             <FileText className="h-8 w-8 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Projektabwicklung</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Projektabwicklung</h1>
+              {/* Status-Badge */}
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${STATUS_CONFIG[projekt.status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                {STATUS_CONFIG[projekt.status]?.label || projekt.status}
+              </span>
+            </div>
             <p className="text-gray-600 dark:text-dark-textMuted mt-1">
-              {aktuellerKundenname || projekt.kundenname} • {projekt.kundenPlzOrt}
+              {kunde?.name || projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
           </div>
         </div>
+
+        {/* Kunden-Button */}
+        {projekt.kundeId && (
+          <button
+            onClick={() => setShowKundenPopup(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            title="Kundendaten anzeigen"
+          >
+            <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+            <span className="text-gray-700 dark:text-gray-300 font-medium">Kunde</span>
+          </button>
+        )}
       </div>
+
+      {/* Adressen-Section - Immer sichtbar wenn Kunde vorhanden */}
+      {projekt.kundeId && kunde && (
+        <div className="mb-6">
+          {/* Kompakte Adress-Übersicht mit Bearbeiten-Buttons */}
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800/50 dark:to-slate-900/50 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <MapPin className="w-5 h-5 text-red-600" />
+                <h3 className="font-semibold">Adressen</h3>
+              </div>
+              <button
+                onClick={() => setShowAdressenEditor(!showAdressenEditor)}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1"
+              >
+                {showAdressenEditor ? 'Schließen' : 'Erweitert'}
+                {showAdressenEditor ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Kompakte Adress-Anzeige */}
+            {!showAdressenEditor && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Lieferadresse */}
+                <div className="flex items-start gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-green-200 dark:border-green-900/50">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <Truck className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-green-700 dark:text-green-400 mb-1">Lieferadresse</div>
+                    <div className="text-sm text-gray-900 dark:text-white font-medium truncate">
+                      {kunde.lieferadresse.strasse}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {kunde.lieferadresse.plz} {kunde.lieferadresse.ort}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rechnungsadresse */}
+                <div className="flex items-start gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-blue-200 dark:border-blue-900/50">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">
+                      Rechnungsadresse
+                      {kunde.rechnungsadresse.strasse === kunde.lieferadresse.strasse &&
+                       kunde.rechnungsadresse.plz === kunde.lieferadresse.plz && (
+                        <span className="ml-2 text-gray-500 dark:text-gray-400">(= Lieferadresse)</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-900 dark:text-white font-medium truncate">
+                      {kunde.rechnungsadresse.strasse}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {kunde.rechnungsadresse.plz} {kunde.rechnungsadresse.ort}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Erweiterter Editor */}
+            {showAdressenEditor && (
+              <div className="mt-4 animate-in slide-in-from-top-2 duration-200">
+                <KundenAdressenEditor
+                  kundeId={projekt.kundeId}
+                  kundeName={kunde.name}
+                  rechnungsadresse={kunde.rechnungsadresse}
+                  lieferadresse={kunde.lieferadresse}
+                  onUpdate={handleAdressenUpdate}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
@@ -159,6 +288,22 @@ const Projektabwicklung = () => {
         {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} />}
         {activeTab === 'rechnung' && <RechnungTab projekt={projekt} />}
       </div>
+
+      {/* Kunden-Detail-Popup */}
+      {showKundenPopup && projekt.kundeId && (
+        <KundenDetailPopup
+          kundeId={projekt.kundeId}
+          onClose={() => setShowKundenPopup(false)}
+        />
+      )}
+        </div>
+      </div>
+
+      {/* Chat-Seitenleiste */}
+      <ProjektChat
+        projektId={projekt.id}
+        projektName={projekt.projektName || projekt.kundenname}
+      />
     </div>
   );
 };

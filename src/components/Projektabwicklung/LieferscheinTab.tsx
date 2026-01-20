@@ -475,21 +475,6 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     }
   };
 
-  // Nur PDF generieren und herunterladen (ohne Speicherung)
-  const generiereUndLadeLieferschein = async () => {
-    try {
-      console.log('Generiere Lieferschein (nur Download)...', lieferscheinDaten);
-      const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
-      const jahr = new Date(lieferscheinDaten.lieferdatum || Date.now()).getFullYear();
-      const kundenname = (lieferscheinDaten.kundenname || 'Unbekannt').replace(/[<>:"/\\|?*]/g, '');
-      pdf.save(`Lieferschein ${kundenname} ${jahr}.pdf`);
-      console.log('Lieferschein erfolgreich generiert!');
-    } catch (error) {
-      console.error('Fehler beim Generieren des Lieferscheins:', error);
-      alert('Fehler beim Generieren des Lieferscheins: ' + (error as Error).message);
-    }
-  };
-
   // PDF generieren und E-Mail-Formular öffnen
   const oeffneEmailMitLieferschein = async () => {
     try {
@@ -1147,15 +1132,6 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
 
           {/* Buttons basierend auf Status */}
           <div className="mt-6 space-y-3">
-            {/* Immer verfügbar: Nur PDF generieren */}
-            <button
-              onClick={generiereUndLadeLieferschein}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-green-700 dark:text-green-400 border-2 border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-950/50 transition-all"
-            >
-              <Download className="h-5 w-5" />
-              Nur PDF herunterladen
-            </button>
-
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitLieferschein}
@@ -1220,6 +1196,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           dokumentNummer={lieferscheinDaten.lieferscheinnummer}
           kundenname={lieferscheinDaten.kundenname}
           kundennummer={lieferscheinDaten.kundennummer}
+          projektId={projekt?.$id}
+          standardEmpfaenger={projekt?.kundenEmail}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);

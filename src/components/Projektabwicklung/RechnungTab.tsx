@@ -1558,6 +1558,8 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           dokumentNummer={rechnungsDaten.rechnungsnummer}
           kundenname={rechnungsDaten.kundenname}
           kundennummer={rechnungsDaten.kundennummer}
+          projektId={projekt?.$id}
+          standardEmpfaenger={projekt?.kundenEmail}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);

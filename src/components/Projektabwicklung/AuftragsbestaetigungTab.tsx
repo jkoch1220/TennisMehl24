@@ -560,21 +560,6 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     }
   };
 
-  // Nur PDF generieren und herunterladen (ohne Speicherung)
-  const generiereUndLadeAuftragsbestaetigung = async () => {
-    try {
-      console.log('Generiere Auftragsbestätigung (nur Download)...', auftragsbestaetigungsDaten);
-      const pdf = await generiereAuftragsbestaetigungPDF(auftragsbestaetigungsDaten);
-      const jahr = new Date(auftragsbestaetigungsDaten.auftragsbestaetigungsdatum || Date.now()).getFullYear();
-      const kundenname = (auftragsbestaetigungsDaten.kundenname || 'Unbekannt').replace(/[<>:"/\\|?*]/g, '');
-      pdf.save(`Auftragsbestaetigung ${kundenname} ${jahr}.pdf`);
-      console.log('Auftragsbestätigung erfolgreich generiert!');
-    } catch (error) {
-      console.error('Fehler beim Generieren der Auftragsbestätigung:', error);
-      alert('Fehler beim Generieren der Auftragsbestätigung: ' + (error as Error).message);
-    }
-  };
-
   // PDF generieren und E-Mail-Formular öffnen
   const oeffneEmailMitAuftragsbestaetigung = async () => {
     try {
@@ -1677,15 +1662,6 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           
           {/* Buttons basierend auf Status */}
           <div className="mt-6 space-y-3">
-            {/* Immer verfügbar: Nur PDF generieren */}
-            <button
-              onClick={generiereUndLadeAuftragsbestaetigung}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-700 text-orange-700 dark:text-orange-400 border-2 border-orange-300 dark:border-orange-500/50 rounded-lg hover:bg-orange-50 dark:hover:bg-slate-600 transition-all"
-            >
-              <Download className="h-5 w-5" />
-              Nur PDF herunterladen
-            </button>
-            
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitAuftragsbestaetigung}
@@ -1750,6 +1726,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
           dokumentNummer={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
           kundenname={auftragsbestaetigungsDaten.kundenname}
           kundennummer={auftragsbestaetigungsDaten.kundennummer}
+          projektId={projekt?.$id}
+          standardEmpfaenger={projekt?.kundenEmail}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);

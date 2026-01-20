@@ -52,6 +52,7 @@ export interface Projekt {
   kundenname: string;
   kundenstrasse: string;
   kundenPlzOrt: string;
+  kundenEmail?: string;
   ansprechpartner?: string;
   lieferadresse?: {
     strasse: string;

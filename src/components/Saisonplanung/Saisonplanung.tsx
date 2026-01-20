@@ -28,6 +28,7 @@ const Saisonplanung = () => {
   // Filter-States
   const [filterOhneProjekt, setFilterOhneProjekt] = useState(false);
   const [filterKundenTyp, setFilterKundenTyp] = useState<KundenTyp | ''>('');
+  const [filterPlatzbauer, setFilterPlatzbauer] = useState<string>(''); // Platzbauer-ID
   const [kundenMitProjekt, setKundenMitProjekt] = useState<Set<string>>(new Set());
 
   // Projekte laden um zu prüfen welche Kunden bereits ein Projekt haben
@@ -143,10 +144,10 @@ const Saisonplanung = () => {
       const search = searchText.toLowerCase();
       const matchesSearch =
         kunde.kunde.name.toLowerCase().includes(search) ||
-        kunde.kunde.adresse.ort.toLowerCase().includes(search) ||
-        kunde.kunde.adresse.plz.toLowerCase().includes(search) ||
-        kunde.kunde.adresse.bundesland?.toLowerCase().includes(search) ||
-        kunde.kunde.adresse.strasse?.toLowerCase().includes(search);
+        kunde.kunde.lieferadresse.ort.toLowerCase().includes(search) ||
+        kunde.kunde.lieferadresse.plz.toLowerCase().includes(search) ||
+        kunde.kunde.lieferadresse.bundesland?.toLowerCase().includes(search) ||
+        kunde.kunde.lieferadresse.strasse?.toLowerCase().includes(search);
       if (!matchesSearch) return false;
     }
 
@@ -158,6 +159,14 @@ const Saisonplanung = () => {
     // Filter: Nach Kundentyp
     if (filterKundenTyp && kunde.kunde.typ !== filterKundenTyp) {
       return false;
+    }
+
+    // Filter: Nach Platzbauer
+    if (filterPlatzbauer) {
+      const platzbauerId = kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId;
+      if (platzbauerId !== filterPlatzbauer) {
+        return false;
+      }
     }
 
     return true;
@@ -281,111 +290,226 @@ const Saisonplanung = () => {
         )}
 
         {/* Kundenliste */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-dark-lg">
-          <div className="border-b border-gray-200 dark:border-slate-700 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Kundenliste</h2>
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400">
-                <Filter className="w-4 h-4" />
-                <span>{filteredKunden.length} von {kunden.length} Kunden</span>
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-2xl shadow-xl dark:shadow-2xl border border-gray-200/50 dark:border-slate-700/50">
+          {/* Header mit Glassmorphism */}
+          <div className="border-b border-gray-200/50 dark:border-slate-700/50 p-6 pb-4">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-slate-100 tracking-tight">Kundenliste</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                  {filteredKunden.length === kunden.length
+                    ? `${kunden.length} Kunden`
+                    : `${filteredKunden.length} von ${kunden.length} Kunden`}
+                </p>
               </div>
+              {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer || searchText) && (
+                <button
+                  onClick={() => {
+                    setFilterKundenTyp('');
+                    setFilterPlatzbauer('');
+                    setFilterOhneProjekt(false);
+                    setSearchText('');
+                  }}
+                  className="text-sm font-medium text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
+                >
+                  Alle Filter zurücksetzen
+                </button>
+              )}
             </div>
-            
-            {/* Suchfeld und Filter */}
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col md:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-                  <input
-                    type="text"
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    placeholder="Kunde suchen (Name, Ort, PLZ, Bundesland...)"
-                    className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  />
-                  {searchText && (
+
+            {/* Suchfeld - Apple Style */}
+            <div className="relative mb-5">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Suchen..."
+                className="w-full pl-12 pr-12 py-3 bg-gray-100/80 dark:bg-slate-700/50 border-0 rounded-xl text-gray-900 dark:text-slate-100 placeholder-gray-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:bg-white dark:focus:bg-slate-700 transition-all duration-200"
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText('')}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 bg-gray-400 dark:bg-slate-500 rounded-full flex items-center justify-center hover:bg-gray-500 dark:hover:bg-slate-400 transition-colors duration-200"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Section */}
+            <div className="space-y-4">
+              {/* Kundentyp - Segmented Control */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 min-w-[80px]">Typ</span>
+                <div className="inline-flex p-1 bg-gray-100 dark:bg-slate-700/50 rounded-xl">
+                  {[
+                    { value: '', label: 'Alle' },
+                    { value: 'verein', label: 'Vereine' },
+                    { value: 'platzbauer', label: 'Platzbauer' },
+                  ].map((option) => (
                     <button
-                      onClick={() => setSearchText('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600"
+                      key={option.value}
+                      onClick={() => setFilterKundenTyp(option.value as KundenTyp | '')}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                        filterKundenTyp === option.value
+                          ? 'bg-white dark:bg-slate-600 text-gray-900 dark:text-slate-100 shadow-sm'
+                          : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                      }`}
                     >
-                      <X className="w-5 h-5" />
+                      {option.label}
                     </button>
-                  )}
+                  ))}
                 </div>
-                <div className="flex items-center gap-3">
+              </div>
+
+              {/* Platzbauer - Elegantes Dropdown */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 min-w-[80px]">Platzbauer</span>
+                <div className="relative">
                   <select
-                    value={filterKundenTyp}
-                    onChange={(e) => setFilterKundenTyp(e.target.value as KundenTyp | '')}
-                    className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 bg-white dark:bg-slate-800"
+                    value={filterPlatzbauer}
+                    onChange={(e) => setFilterPlatzbauer(e.target.value)}
+                    className={`appearance-none pl-4 pr-10 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50 ${
+                      filterPlatzbauer
+                        ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-2 border-red-200 dark:border-red-800'
+                        : 'bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 border-2 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'
+                    }`}
                   >
-                    <option value="">Alle Typen</option>
-                    <option value="verein">Verein</option>
-                    <option value="platzbauer">Platzbauer</option>
+                    <option value="">Alle Platzbauer</option>
+                    {kunden
+                      .filter((k) => k.kunde.typ === 'platzbauer')
+                      .sort((a, b) => a.kunde.name.localeCompare(b.kunde.name))
+                      .map((pb) => (
+                        <option key={pb.kunde.id} value={pb.kunde.id}>
+                          {pb.kunde.name}
+                        </option>
+                      ))}
                   </select>
-                  <label className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800">
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className={`w-4 h-4 ${filterPlatzbauer ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {filterPlatzbauer && (
+                  <button
+                    onClick={() => setFilterPlatzbauer('')}
+                    className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors duration-200"
+                  >
+                    Zurücksetzen
+                  </button>
+                )}
+              </div>
+
+              {/* Ohne Projekt - Toggle Switch */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 min-w-[80px]">Status</span>
+                <label className="inline-flex items-center gap-3 cursor-pointer group">
+                  <div className="relative">
                     <input
                       type="checkbox"
                       checked={filterOhneProjekt}
                       onChange={(e) => setFilterOhneProjekt(e.target.checked)}
-                      className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                      className="sr-only peer"
                     />
-                    <FileX className="w-4 h-4 text-orange-500" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap">
-                      Ohne Projekt
-                    </span>
-                  </label>
-                </div>
+                    <div className={`w-11 h-6 rounded-full transition-all duration-300 ${
+                      filterOhneProjekt
+                        ? 'bg-gradient-to-r from-orange-400 to-orange-500'
+                        : 'bg-gray-200 dark:bg-slate-600'
+                    }`}></div>
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${
+                      filterOhneProjekt ? 'translate-x-5' : 'translate-x-0'
+                    }`}></div>
+                  </div>
+                  <span className={`text-sm font-medium transition-colors duration-200 ${
+                    filterOhneProjekt
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : 'text-gray-600 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-slate-200'
+                  }`}>
+                    Nur ohne Projekt
+                  </span>
+                </label>
               </div>
-
-              {/* Aktive Filter anzeigen */}
-              {(filterOhneProjekt || filterKundenTyp) && (
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-500 dark:text-slate-400">Aktive Filter:</span>
-                  {filterKundenTyp && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
-                      {filterKundenTyp === 'verein' ? 'Verein' : 'Platzbauer'}
-                      <button onClick={() => setFilterKundenTyp('')} className="hover:text-blue-600">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterOhneProjekt && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded">
-                      Ohne Projekt
-                      <button onClick={() => setFilterOhneProjekt(false)} className="hover:text-orange-600">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                  <button
-                    onClick={() => {
-                      setFilterKundenTyp('');
-                      setFilterOhneProjekt(false);
-                    }}
-                    className="text-red-600 hover:text-red-700 text-xs underline ml-2"
-                  >
-                    Alle zurücksetzen
-                  </button>
-                </div>
-              )}
             </div>
+
+            {/* Aktive Filter Pills */}
+            {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer) && (
+              <div className="flex items-center gap-2 mt-5 pt-4 border-t border-gray-200/50 dark:border-slate-700/50 flex-wrap">
+                <span className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Aktiv:</span>
+                {filterKundenTyp && (
+                  <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40 text-blue-700 dark:text-blue-300 rounded-full text-sm font-medium shadow-sm">
+                    {filterKundenTyp === 'verein' ? 'Vereine' : 'Platzbauer'}
+                    <button
+                      onClick={() => setFilterKundenTyp('')}
+                      className="w-5 h-5 rounded-full bg-blue-200/50 dark:bg-blue-700/50 hover:bg-blue-300 dark:hover:bg-blue-600 flex items-center justify-center transition-colors duration-200"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {filterPlatzbauer && (
+                  <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 text-red-700 dark:text-red-300 rounded-full text-sm font-medium shadow-sm">
+                    <Users className="w-3.5 h-3.5" />
+                    {kunden.find((k) => k.kunde.id === filterPlatzbauer)?.kunde.name || 'Unbekannt'}
+                    <button
+                      onClick={() => setFilterPlatzbauer('')}
+                      className="w-5 h-5 rounded-full bg-red-200/50 dark:bg-red-700/50 hover:bg-red-300 dark:hover:bg-red-600 flex items-center justify-center transition-colors duration-200"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {filterOhneProjekt && (
+                  <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/40 text-orange-700 dark:text-orange-300 rounded-full text-sm font-medium shadow-sm">
+                    <FileX className="w-3.5 h-3.5" />
+                    Ohne Projekt
+                    <button
+                      onClick={() => setFilterOhneProjekt(false)}
+                      className="w-5 h-5 rounded-full bg-orange-200/50 dark:bg-orange-700/50 hover:bg-orange-300 dark:hover:bg-orange-600 flex items-center justify-center transition-colors duration-200"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="p-6">
             {kunden.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-                <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
-                <p className="text-lg font-medium">Keine Kunden gefunden</p>
-                <p className="text-sm mt-2">Erstellen Sie den ersten Kunden, um zu beginnen.</p>
+              <div className="text-center py-16">
+                <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-700 dark:to-slate-600 rounded-2xl flex items-center justify-center">
+                  <Building2 className="w-8 h-8 text-gray-400 dark:text-slate-400" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">Keine Kunden vorhanden</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                  Erstellen Sie den ersten Kunden, um mit der Planung zu beginnen.
+                </p>
               </div>
             ) : filteredKunden.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-                <Search className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
-                <p className="text-lg font-medium">Keine Kunden gefunden</p>
-                <p className="text-sm mt-2">Keine Kunden entsprechen Ihrer Suche "{searchText}"</p>
+              <div className="text-center py-16">
+                <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-700 dark:to-slate-600 rounded-2xl flex items-center justify-center">
+                  <Search className="w-8 h-8 text-gray-400 dark:text-slate-400" />
+                </div>
+                <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">Keine Ergebnisse</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                  Keine Kunden entsprechen den aktuellen Filterkriterien.
+                </p>
+                <button
+                  onClick={() => {
+                    setFilterKundenTyp('');
+                    setFilterPlatzbauer('');
+                    setFilterOhneProjekt(false);
+                    setSearchText('');
+                  }}
+                  className="mt-4 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
+                >
+                  Filter zurücksetzen
+                </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {filteredKunden.map((kunde) => (
                   <KundenKarte
                     key={kunde.kunde.id}
@@ -445,24 +569,28 @@ interface StatistikKarteProps {
 }
 
 const StatistikKarte = ({ title, value, subtitle, icon: Icon, color }: StatistikKarteProps) => {
-  const colorClasses = {
-    blue: 'bg-blue-500',
-    yellow: 'bg-yellow-500',
-    red: 'bg-red-500',
-    orange: 'bg-orange-500',
-    green: 'bg-green-500',
+  const colorConfig = {
+    blue: { bg: 'bg-blue-500', gradient: 'from-blue-400 to-blue-600', light: 'bg-blue-50 dark:bg-blue-900/20' },
+    yellow: { bg: 'bg-amber-500', gradient: 'from-amber-400 to-amber-600', light: 'bg-amber-50 dark:bg-amber-900/20' },
+    red: { bg: 'bg-red-500', gradient: 'from-red-400 to-red-600', light: 'bg-red-50 dark:bg-red-900/20' },
+    orange: { bg: 'bg-orange-500', gradient: 'from-orange-400 to-orange-600', light: 'bg-orange-50 dark:bg-orange-900/20' },
+    green: { bg: 'bg-emerald-500', gradient: 'from-emerald-400 to-emerald-600', light: 'bg-emerald-50 dark:bg-emerald-900/20' },
   };
 
+  const colors = colorConfig[color];
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-slate-400">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 mt-2">{value}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{subtitle}</p>
+    <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-2xl shadow-sm hover:shadow-md border border-gray-100 dark:border-slate-700/50 p-5 transition-all duration-300 group">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-slate-100 tracking-tight">{value}</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">{subtitle}</p>
         </div>
-        <div className={`${colorClasses[color]} rounded-lg p-3`}>
-          <Icon className="w-6 h-6 text-white" />
+        <div className={`${colors.light} rounded-xl p-2.5 group-hover:scale-110 transition-transform duration-300`}>
+          <div className={`bg-gradient-to-br ${colors.gradient} rounded-lg p-2`}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
         </div>
       </div>
     </div>
@@ -478,87 +606,97 @@ interface KundenKarteProps {
 }
 
 const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps) => {
-  const statusColors: Record<GespraechsStatus, string> = {
-    offen: 'bg-yellow-100 text-yellow-800',
-    in_bearbeitung: 'bg-blue-100 text-blue-800',
-    erledigt: 'bg-green-100 text-green-800',
-  };
-
-  const typLabels: Record<KundenTyp, string> = {
-    verein: 'Verein',
-    platzbauer: 'Platzbauer',
+  const statusConfig: Record<GespraechsStatus, { bg: string; text: string; dot: string }> = {
+    offen: { bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-400' },
+    in_bearbeitung: { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-400' },
+    erledigt: { bg: 'bg-emerald-50 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-400' },
   };
 
   const status = kunde.aktuelleSaison?.gespraechsstatus || 'offen';
   const angefragteMenge = kunde.aktuelleSaison?.angefragteMenge;
   const preis = kunde.kunde.zuletztGezahlterPreis || kunde.aktuelleSaison?.preisProTonne;
+  const statusStyle = statusConfig[status];
 
   return (
     <div
-      className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md dark:shadow-dark-md transition-shadow cursor-pointer"
+      className="group bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-xl p-4 hover:bg-gray-50/50 dark:hover:bg-slate-700/30 hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-200 cursor-pointer"
       onClick={onOpenDetail}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{kunde.kunde.name}</h3>
-            <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-slate-400">
-              {typLabels[kunde.kunde.typ]}
-            </span>
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[status]}`}>
-              {status === 'offen' ? 'Offen' : status === 'in_bearbeitung' ? 'In Bearbeitung' : 'Erledigt'}
-            </span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          {/* Header */}
+          <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 truncate">{kunde.kunde.name}</h3>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md ${
+                kunde.kunde.typ === 'platzbauer'
+                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                  : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-slate-400'
+              }`}>
+                {kunde.kunde.typ === 'verein' ? 'Verein' : 'Platzbauer'}
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-md ${statusStyle.bg} ${statusStyle.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`}></span>
+                {status === 'offen' ? 'Offen' : status === 'in_bearbeitung' ? 'In Bearbeitung' : 'Erledigt'}
+              </span>
+            </div>
           </div>
-          <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
-            <p>
-              {kunde.kunde.adresse.plz} {kunde.kunde.adresse.ort}
-            </p>
-            {kunde.kunde.adresse.bundesland && (
-              <p className="text-xs text-gray-500 dark:text-slate-400">{kunde.kunde.adresse.bundesland}</p>
-            )}
+
+          {/* Details Grid */}
+          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400 flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {kunde.kunde.lieferadresse.plz} {kunde.kunde.lieferadresse.ort}
+              {kunde.kunde.lieferadresse.bundesland && (
+                <span className="text-gray-400 dark:text-slate-500">· {kunde.kunde.lieferadresse.bundesland}</span>
+              )}
+            </span>
             {kunde.ansprechpartner.length > 0 && (
-              <p className="text-xs text-gray-500 dark:text-slate-400">
-                {kunde.ansprechpartner.length} Ansprechpartner
-              </p>
+              <span className="inline-flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {kunde.ansprechpartner.length}
+              </span>
             )}
             {angefragteMenge && (
-              <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
-                Angefragt: {angefragteMenge.toFixed(1)} t
-              </p>
+              <span className="inline-flex items-center gap-1 font-medium text-gray-700 dark:text-slate-300">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                {angefragteMenge.toFixed(1)} t
+              </span>
             )}
             {preis && (
-              <p className="text-xs text-gray-500 dark:text-slate-400">Preis: {preis.toFixed(2)} €/t</p>
-            )}
-            {(kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg) && (
-              <p className="text-xs text-gray-500 dark:text-slate-400">
-                Bezugsweg:{' '}
-                {kunde.aktuelleSaison?.bezugsweg
-                  ? kunde.aktuelleSaison.bezugsweg === 'direkt'
-                    ? 'Direkt'
-                    : kunde.aktuelleSaison.bezugsweg === 'direkt_instandsetzung'
-                    ? 'Direkt Instandsetzung'
-                    : 'Platzbauer'
-                  : kunde.kunde.standardBezugsweg === 'direkt'
-                  ? 'Direkt (Standard)'
-                  : kunde.kunde.standardBezugsweg === 'direkt_instandsetzung'
-                  ? 'Direkt Instandsetzung (Standard)'
-                  : 'Platzbauer (Standard)'}
-              </p>
+              <span className="inline-flex items-center gap-1">
+                {preis.toFixed(2)} €/t
+              </span>
             )}
           </div>
         </div>
-        <div className="flex gap-2 ml-4" onClick={(e) => e.stopPropagation()}>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onEdit}
-            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
+            title="Bearbeiten"
           >
-            Bearbeiten
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
           </button>
           <button
             onClick={onDelete}
-            className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors duration-200"
+            title="Löschen"
           >
-            Löschen
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         </div>
       </div>

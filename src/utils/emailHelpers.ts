@@ -147,14 +147,14 @@ export const erstelleMailtoLink = (
  * @param dokumentNummer Nummer des Dokuments
  * @param kundenname Name des Kunden
  * @param kundennummer Kundennummer (optional)
- * @returns Objekt mit Betreff und Text
+ * @returns Objekt mit Betreff und Text (HTML oder Plain-Text)
  */
 export const generiereStandardEmail = async (
   dokumentTyp: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung',
   dokumentNummer: string,
   kundenname: string,
   kundennummer?: string
-): Promise<{ betreff: string; text: string }> => {
+): Promise<{ betreff: string; text: string; html?: string; signatur?: string }> => {
   const templates = await ladeEmailTemplates();
   const template = templates[dokumentTyp];
 
@@ -170,15 +170,29 @@ export const generiereStandardEmail = async (
     kundennummer
   );
 
+  // Prüfe ob neues HTML-Format oder altes Plain-Text Format
+  const hasHtmlContent = !!template.htmlContent;
+  const contentSource = template.htmlContent || template.emailContent || '';
+
   // E-Mail-Content generieren (Platzhalter ersetzen)
   const text = ersetzePlatzhalter(
-    template.emailContent || '',
+    contentSource,
     dokumentNummer,
     kundenname,
     kundennummer
   );
 
-  return { betreff, text };
+  // Signatur auch ersetzen falls vorhanden
+  const signatur = template.signatur
+    ? ersetzePlatzhalter(template.signatur, dokumentNummer, kundenname, kundennummer)
+    : undefined;
+
+  return {
+    betreff,
+    text,
+    html: hasHtmlContent ? text : undefined,
+    signatur,
+  };
 };
 
 /**

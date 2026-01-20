@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import Imap from 'imap';
 import { simpleParser } from 'mailparser';
+import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 // .env laden
@@ -20,7 +21,7 @@ app.use(cors({
   origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Konfiguration aus .env
 const IMAP_HOST = process.env.EMAIL_IMAP_HOST || 'web3.ipp-webspace.net';
@@ -320,10 +321,132 @@ app.get('/.netlify/functions/email-api', async (req, res) => {
   }
 });
 
+// SMTP-Konfiguration
+const SMTP_HOST = process.env.EMAIL_SMTP_HOST || 'web3.ipp-webspace.net';
+const SMTP_PORT = parseInt(process.env.EMAIL_SMTP_PORT || '465');
+const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
+
+// Hilfsfunktion: HTML zu Plain-Text
+const stripHtml = (html) => {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+// SMTP Email-Versand Endpoint
+app.post('/.netlify/functions/email-send', async (req, res) => {
+  try {
+    const { to, from, replyTo, subject, htmlBody, textBody, pdfBase64, pdfFilename, testMode } = req.body;
+
+    // Validierung
+    if (!to || !from || !subject || !htmlBody) {
+      return res.status(400).json({
+        error: 'Missing required fields: to, from, subject, htmlBody',
+      });
+    }
+
+    // Finde das E-Mail-Konto für den Absender
+    const senderAccount = EMAIL_ACCOUNTS.find((a) => a.email === from);
+    if (!senderAccount) {
+      return res.status(400).json({
+        error: `Sender account not found: ${from}`,
+        availableAccounts: EMAIL_ACCOUNTS.map((a) => a.email),
+      });
+    }
+
+    // Testmodus - echten Empfänger ersetzen
+    const actualRecipient = testMode ? TEST_EMAIL_ADDRESS : to;
+    const testModeActive = testMode === true;
+
+    // Betreff im Testmodus anpassen
+    const actualSubject = testModeActive
+      ? `[TEST - Original an: ${to}] ${subject}`
+      : subject;
+
+    // Nodemailer Transporter erstellen
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: true,
+      auth: {
+        user: senderAccount.email,
+        pass: senderAccount.password,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    // E-Mail-Optionen
+    const mailOptions = {
+      from: `"${senderAccount.name}" <${senderAccount.email}>`,
+      to: actualRecipient,
+      replyTo: replyTo || senderAccount.email,
+      subject: actualSubject,
+      html: htmlBody,
+      text: textBody || stripHtml(htmlBody),
+    };
+
+    // PDF-Anhang hinzufügen falls vorhanden
+    if (pdfBase64 && pdfFilename) {
+      const maxSizeBytes = 10 * 1024 * 1024;
+      const base64SizeBytes = (pdfBase64.length * 3) / 4;
+
+      if (base64SizeBytes > maxSizeBytes) {
+        return res.status(400).json({
+          error: 'PDF too large. Maximum size is 10MB.',
+          actualSize: `${(base64SizeBytes / 1024 / 1024).toFixed(2)}MB`,
+        });
+      }
+
+      mailOptions.attachments = [
+        {
+          filename: pdfFilename,
+          content: Buffer.from(pdfBase64, 'base64'),
+          contentType: 'application/pdf',
+        },
+      ];
+    }
+
+    // E-Mail senden
+    console.log(`📤 Sending email from ${senderAccount.email} to ${actualRecipient}...`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully. MessageId: ${info.messageId}`);
+
+    return res.json({
+      success: true,
+      messageId: info.messageId,
+      testModeActive,
+      actualRecipient,
+      originalRecipient: to,
+    });
+  } catch (error) {
+    console.error('❌ Email send error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to send email',
+      message: error.message,
+      code: error.code,
+    });
+  }
+});
+
 // Server starten
 app.listen(PORT, () => {
   console.log(`\n📧 Email Dev Server läuft auf http://localhost:${PORT}`);
-  console.log(`   ${EMAIL_ACCOUNTS.length} Email-Konten konfiguriert\n`);
+  console.log(`   ${EMAIL_ACCOUNTS.length} Email-Konten konfiguriert`);
+  console.log(`   SMTP: ${SMTP_HOST}:${SMTP_PORT}\n`);
 
   if (EMAIL_ACCOUNTS.length === 0) {
     console.log('⚠️  Keine Email-Konten in .env gefunden!');

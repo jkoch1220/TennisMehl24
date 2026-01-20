@@ -215,7 +215,7 @@ const Anfragen = () => {
         id: saisonKunde.id,
         name: saisonKunde.name,
         kundennummer: saisonKunde.kundennummer,
-        adresse: saisonKunde.adresse,
+        adresse: saisonKunde.lieferadresse, // Nutze Lieferadresse als Standort
       } : null;
     }
   };

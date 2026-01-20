@@ -840,21 +840,6 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     }
   };
 
-  // Nur PDF generieren und herunterladen (ohne Speicherung)
-  const generiereUndLadeAngebot = async () => {
-    try {
-      console.log('Generiere Angebot (nur Download)...', angebotsDaten);
-      const pdf = await generiereAngebotPDF(angebotsDaten);
-      const jahr = new Date(angebotsDaten.angebotsdatum || Date.now()).getFullYear();
-      const kundenname = (angebotsDaten.kundenname || 'Unbekannt').replace(/[<>:"/\\|?*]/g, '');
-      pdf.save(`Angebot ${kundenname} ${jahr}.pdf`);
-      console.log('Angebot erfolgreich generiert!');
-    } catch (error) {
-      console.error('Fehler beim Generieren des Angebots:', error);
-      alert('Fehler beim Generieren des Angebots: ' + (error as Error).message);
-    }
-  };
-
   // PDF generieren und E-Mail-Formular öffnen
   const oeffneEmailMitAngebot = async () => {
     try {
@@ -2310,16 +2295,6 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
           {/* Buttons basierend auf Status */}
           <div className="mt-4 sm:mt-6 space-y-2 sm:space-y-3">
-            {/* Immer verfügbar: Nur PDF generieren */}
-            <button
-              onClick={generiereUndLadeAngebot}
-              className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 border-2 border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-all text-sm sm:text-base min-h-[48px] sm:min-h-0"
-            >
-              <Download className="h-5 w-5" />
-              <span className="sm:hidden">PDF laden</span>
-              <span className="hidden sm:inline">Nur PDF herunterladen</span>
-            </button>
-
             {/* E-Mail mit PDF öffnen */}
             <button
               onClick={oeffneEmailMitAngebot}
@@ -2398,6 +2373,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           dokumentNummer={angebotsDaten.angebotsnummer}
           kundenname={angebotsDaten.kundenname}
           kundennummer={angebotsDaten.kundennummer}
+          projektId={projekt?.$id}
+          standardEmpfaenger={projekt?.kundenEmail}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);

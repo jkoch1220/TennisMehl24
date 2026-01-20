@@ -34,7 +34,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
       if (!filter.bezugsweg.includes(bezug)) return false;
     }
     if (filter.bundesland && filter.bundesland.length > 0) {
-      const bl = (k.kunde.adresse.bundesland || '').toLowerCase();
+      const bl = (k.kunde.lieferadresse.bundesland || '').toLowerCase();
       if (!filter.bundesland.some((b) => b.toLowerCase() === bl)) return false;
     }
     if (filter.platzbauerId) {
@@ -48,8 +48,8 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
       if (
         !(
           k.kunde.name.toLowerCase().includes(s) ||
-          k.kunde.adresse.ort.toLowerCase().includes(s) ||
-          k.kunde.adresse.plz.toLowerCase().includes(s)
+          k.kunde.lieferadresse.ort.toLowerCase().includes(s) ||
+          k.kunde.lieferadresse.plz.toLowerCase().includes(s)
         )
       ) {
         return false;
@@ -198,7 +198,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
   const bundeslaender = Array.from(
     new Set(
       kunden
-        .map((k) => k.kunde.adresse.bundesland)
+        .map((k) => k.kunde.lieferadresse.bundesland)
         .filter((b): b is string => !!b && b.trim().length > 0)
     )
   );
@@ -334,7 +334,7 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
               <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-2">{currentKunde.kunde.name}</h3>
               <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
                 <p>
-                  {currentKunde.kunde.adresse.plz} {currentKunde.kunde.adresse.ort}
+                  {currentKunde.kunde.lieferadresse.plz} {currentKunde.kunde.lieferadresse.ort}
                 </p>
                 {currentKunde.ansprechpartner.length > 0 && (
                   <div className="mt-2">

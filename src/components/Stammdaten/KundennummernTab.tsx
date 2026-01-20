@@ -282,7 +282,7 @@ const KundennummernTab = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-dark-textMuted">
-                        {kunde.adresse.plz} {kunde.adresse.ort}
+                        {kunde.lieferadresse.plz} {kunde.lieferadresse.ort}
                       </td>
                       <td className="px-4 py-3">
                         {kunde.kundennummer ? (

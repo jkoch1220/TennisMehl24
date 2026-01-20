@@ -152,7 +152,11 @@ export interface SaisonKunde {
   typ: KundenTyp;
   name: string;
   kundennummer?: string;
-  adresse: Adresse;
+  // NEUE STRUKTUR: Rechnungs- und Lieferadresse sind jetzt die primären Felder
+  rechnungsadresse: Adresse; // Rechnungsadresse (Pflichtfeld)
+  lieferadresse: Adresse; // Lieferadresse/Standort (Pflichtfeld)
+  /** @deprecated Wird durch rechnungsadresse/lieferadresse ersetzt. Nur für Backwards-Compatibility. */
+  adresse?: Adresse; // Altes Feld, wird nach Migration entfernt
   email?: string;
   notizen?: string;
   aktiv: boolean;

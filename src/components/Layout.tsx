@@ -8,6 +8,7 @@ import { filterAllowedTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import ThemeToggle from './ThemeToggle';
+import GlobalChatDropdown from './Shared/GlobalChatDropdown';
 
 // Erinnerungs-Einstellungen Typ
 interface ReminderSettings {
@@ -573,6 +574,9 @@ const Layout = ({ children }: LayoutProps) => {
                 <Settings className="w-4 h-4 text-gray-400 dark:text-gray-300" />
               </button>
               
+              {/* Global Chat Dropdown */}
+              <GlobalChatDropdown />
+
               {/* Theme Toggle - ganz rechts */}
               <ThemeToggle />
               

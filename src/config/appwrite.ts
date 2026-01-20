@@ -39,6 +39,7 @@ export const SIEBANALYSEN_COLLECTION_ID = 'siebanalysen';
 export const FAHRTEN_COLLECTION_ID = 'fahrten';
 export const DEFAULT_STRECKEN_COLLECTION_ID = 'default_strecken';
 export const LOGISTIKPARTNER_COLLECTION_ID = 'logistikpartner';
+export const CHAT_NACHRICHTEN_COLLECTION_ID = 'chat_nachrichten';
 
 // Instandhaltung Collections
 export const INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID = 'instandhaltung_checklisten';
@@ -94,6 +95,7 @@ export const COLLECTIONS = {
   FAHRTEN: FAHRTEN_COLLECTION_ID,
   DEFAULT_STRECKEN: DEFAULT_STRECKEN_COLLECTION_ID,
   LOGISTIKPARTNER: LOGISTIKPARTNER_COLLECTION_ID,
+  CHAT_NACHRICHTEN: CHAT_NACHRICHTEN_COLLECTION_ID,
   // Instandhaltung
   INSTANDHALTUNG_CHECKLISTEN: INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID,
   INSTANDHALTUNG_BEGEHUNGEN: INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID,
@@ -124,8 +126,11 @@ export const STAMMDATEN_DOCUMENT_ID = 'stammdaten_data';
 
 const client = new Client();
 
-const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
-const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+export const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT;
+export const PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+
+const endpoint = APPWRITE_ENDPOINT;
+const projectId = PROJECT_ID;
 
 if (!endpoint || !projectId) {
   console.error('❌ Appwrite Konfiguration fehlt!');

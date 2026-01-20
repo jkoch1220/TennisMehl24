@@ -56,12 +56,11 @@ const generiereLesDatname = (
   dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung' | 'Proformarechnung',
   kundenname: string,
   datum: string,
-  version?: number
+  _version?: number
 ): string => {
   const jahr = generiereLesbaresDatatum(datum);
   const saubererName = sanitizeFilename(kundenname);
-  const versionSuffix = version && version > 1 ? ` v${version}` : '';
-  return `${dokumentTyp} ${saubererName} ${jahr}${versionSuffix}.pdf`;
+  return `${dokumentTyp} ${saubererName} ${jahr}.pdf`;
 };
 
 // Helper: URLs generieren
