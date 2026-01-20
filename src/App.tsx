@@ -34,6 +34,7 @@ import LogistikpartnerVerwaltung from './components/LogistikpartnerVerwaltung/Lo
 import EmailDashboard from './components/EmailDashboard/EmailDashboard';
 import Instandhaltung from './components/Instandhaltung/Instandhaltung';
 import Schichtplanung from './components/Schichtplanung/Schichtplanung';
+import ProduktionsTracker from './components/ProduktionsTracker/ProduktionsTracker';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -184,6 +185,11 @@ function AuthenticatedContent() {
               <Route path="/schichtplanung" element={
                 <ProtectedRoute toolId="schichtplanung">
                   <Schichtplanung />
+                </ProtectedRoute>
+              } />
+              <Route path="/produktion" element={
+                <ProtectedRoute toolId="produktion">
+                  <ProduktionsTracker />
                 </ProtectedRoute>
               } />
 

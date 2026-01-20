@@ -40,6 +40,8 @@ import {
   SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
   // Chat
   CHAT_NACHRICHTEN_COLLECTION_ID,
+  // Produktion
+  PRODUKTION_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -47,7 +49,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '23'; // Chat-Nachrichten Collection
+const APPWRITE_SETUP_VERSION = '24'; // Produktion Collection
 
 type FieldConfig = {
   key: string;
@@ -315,6 +317,11 @@ const chatNachrichtenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },                        // JSON backup
 ];
 
+// Produktion Collection - Produktionseinträge mit Tonnen pro Tag
+const produktionFields: FieldConfig[] = [
+  { key: 'data', type: 'string', size: 100000, required: true },       // JSON blob mit allen Einträgen
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -559,6 +566,13 @@ export async function setupAppwriteFields() {
         id: CHAT_NACHRICHTEN_COLLECTION_ID,
         name: 'Chat Nachrichten',
         fields: chatNachrichtenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      // Produktion - Produktionseinträge
+      {
+        id: PRODUKTION_COLLECTION_ID,
+        name: 'Produktion Einträge',
+        fields: produktionFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
     ];

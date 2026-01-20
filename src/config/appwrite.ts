@@ -57,6 +57,9 @@ export const PRIVAT_AKTIVITAETEN_LUCA_COLLECTION_ID = 'privat_aktivitaeten_luca'
 export const SCHICHT_MITARBEITER_COLLECTION_ID = 'schicht_mitarbeiter';
 export const SCHICHT_ZUWEISUNGEN_COLLECTION_ID = 'schicht_zuweisungen';
 
+// Produktion Collection
+export const PRODUKTION_COLLECTION_ID = 'produktion_eintraege';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -109,6 +112,8 @@ export const COLLECTIONS = {
   // Schichtplanung
   SCHICHT_MITARBEITER: SCHICHT_MITARBEITER_COLLECTION_ID,
   SCHICHT_ZUWEISUNGEN: SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
+  // Produktion
+  PRODUKTION: PRODUKTION_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
