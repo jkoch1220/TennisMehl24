@@ -23,6 +23,7 @@ import {
   Inbox,
   Wrench,
   CalendarClock,
+  Factory,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -234,6 +235,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/schichtplanung',
     icon: CalendarClock,
     color: 'from-violet-500 to-purple-600',
+  },
+  {
+    id: 'produktion',
+    name: 'Produktion',
+    description: 'Produzierte Tonnen erfassen mit mobilem Swipe-Picker',
+    href: '/produktion',
+    icon: Factory,
+    color: 'from-orange-500 to-amber-600',
   },
 ];
 
