@@ -270,7 +270,7 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     const endpoint = process.env.VITE_APPWRITE_ENDPOINT || process.env.APPWRITE_ENDPOINT;
     const projectId = process.env.VITE_APPWRITE_PROJECT_ID || process.env.APPWRITE_PROJECT_ID;
-    const apiKey = process.env.APPWRITE_API_KEY;
+    const apiKey = process.env.VITE_APPWRITE_API_KEY || process.env.APPWRITE_API_KEY;
 
     if (!endpoint || !projectId || !apiKey) {
       console.error('Appwrite Konfiguration fehlt:', { endpoint: !!endpoint, projectId: !!projectId, apiKey: !!apiKey });
