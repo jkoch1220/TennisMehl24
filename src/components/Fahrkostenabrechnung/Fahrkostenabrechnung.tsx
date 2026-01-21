@@ -4,6 +4,7 @@ import {
   Trash2, Edit3, Zap, Route, Download,
   X, Check, ArrowRight
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../contexts/AuthContext';
 import { fahrkostenService } from '../../services/fahrkostenService';
 import { Fahrt, DefaultStrecke, NeueFahrt, DEFAULT_KILOMETER_PAUSCHALE } from '../../types/fahrtkosten';
@@ -169,6 +170,81 @@ export default function Fahrkostenabrechnung() {
   const monatsSummary = fahrkostenService.berechneMonatsZusammenfassung(fahrten, selectedMonat);
   const alleMonatsSummaries = fahrkostenService.gruppiereNachMonat(fahrten);
 
+  // Excel Export
+  const handleExcelExport = () => {
+    if (monatsSummary.fahrten.length === 0) return;
+
+    const monatLabel = new Date(selectedMonat + '-01').toLocaleDateString('de-DE', {
+      month: 'long',
+      year: 'numeric'
+    });
+
+    // Daten für Excel vorbereiten
+    const excelData = monatsSummary.fahrten.map((fahrt, index) => ({
+      'Nr.': index + 1,
+      'Datum': new Date(fahrt.datum).toLocaleDateString('de-DE'),
+      'Fahrer': fahrt.fahrerName,
+      'Start': fahrt.startort,
+      'Ziel': fahrt.zielort,
+      'Hin+Rück': fahrt.hinpirsUndZurueck ? 'Ja' : 'Nein',
+      'Kilometer': fahrt.kilometer,
+      'Pauschale (€/km)': fahrt.kilometerPauschale.toFixed(2),
+      'Betrag (€)': fahrt.betrag.toFixed(2),
+      'Zweck': fahrt.zweck || '',
+    }));
+
+    // Zusammenfassungszeile hinzufügen
+    excelData.push({
+      'Nr.': '',
+      'Datum': '',
+      'Fahrer': '',
+      'Start': '',
+      'Ziel': '',
+      'Hin+Rück': '',
+      'Kilometer': '',
+      'Pauschale (€/km)': '',
+      'Betrag (€)': '',
+      'Zweck': '',
+    } as unknown as typeof excelData[0]);
+
+    excelData.push({
+      'Nr.': '',
+      'Datum': '',
+      'Fahrer': '',
+      'Start': '',
+      'Ziel': 'GESAMT:',
+      'Hin+Rück': '',
+      'Kilometer': monatsSummary.gesamtKilometer,
+      'Pauschale (€/km)': '',
+      'Betrag (€)': monatsSummary.gesamtBetrag.toFixed(2),
+      'Zweck': `${monatsSummary.anzahlFahrten} Fahrten`,
+    } as unknown as typeof excelData[0]);
+
+    // Worksheet und Workbook erstellen
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Spaltenbreiten anpassen
+    ws['!cols'] = [
+      { wch: 5 },   // Nr.
+      { wch: 12 },  // Datum
+      { wch: 15 },  // Fahrer
+      { wch: 20 },  // Start
+      { wch: 20 },  // Ziel
+      { wch: 10 },  // Hin+Rück
+      { wch: 12 },  // Kilometer
+      { wch: 15 },  // Pauschale
+      { wch: 12 },  // Betrag
+      { wch: 25 },  // Zweck
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, monatLabel);
+
+    // Dateiname: Fahrtkosten_Januar_2024.xlsx
+    const dateiname = `Fahrtkosten_${monatLabel.replace(' ', '_')}.xlsx`;
+    XLSX.writeFile(wb, dateiname);
+  };
+
   // Favorit-Strecken (für Quick-Add)
   const favoritStrecken = defaultStrecken.filter(s => s.istFavorit);
 
@@ -255,7 +331,12 @@ export default function Fahrkostenabrechnung() {
                 </option>
               )}
             </select>
-            <button className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+            <button
+              onClick={handleExcelExport}
+              disabled={monatsSummary.fahrten.length === 0}
+              className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Als Excel herunterladen"
+            >
               <Download className="w-5 h-5" />
             </button>
           </div>
