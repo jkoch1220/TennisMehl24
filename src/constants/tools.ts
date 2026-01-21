@@ -24,6 +24,7 @@ import {
   Wrench,
   CalendarClock,
   Factory,
+  HardHat,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -67,6 +68,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/projekt-verwaltung',
     icon: Layers,
     color: 'from-purple-500 to-indigo-600',
+  },
+  {
+    id: 'platzbauer-verwaltung',
+    name: 'Platzbauer-Verwaltung',
+    description: 'Platzbauer verwalten mit Vereinen, Saisonprojekten und Nachträgen',
+    href: '/platzbauer-verwaltung',
+    icon: HardHat,
+    color: 'from-amber-500 to-orange-600',
   },
   {
     id: 'kreditoren',

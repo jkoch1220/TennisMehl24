@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Plus, Trash2, Hash, MapPin, FileText, Truck } from 'lucide-react';
+import { X, Save, Plus, Trash2, Hash, MapPin, FileText, Truck, Copy, Check } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   NeuerSaisonKunde,
@@ -25,6 +25,19 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
   const [error, setError] = useState<string | null>(null);
   const [duplikate, setDuplikate] = useState<SaisonKunde[]>([]);
   const [showDuplikatWarnung, setShowDuplikatWarnung] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Kopier-Funktion mit visuellem Feedback
+  const copyToClipboard = async (text: string, fieldId: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      console.error('Kopieren fehlgeschlagen:', err);
+    }
+  };
 
   const [formData, setFormData] = useState<Partial<NeuerSaisonKunde>>({
     typ: 'verein',
@@ -50,6 +63,10 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     zahlungsziel: 14,
     schuettstellenAnzahl: undefined,
     belieferungsart: undefined,
+    // Dispo-relevante Felder
+    standardLieferzeitfenster: undefined,
+    anfahrtshinweise: '',
+    dispoAnsprechpartner: undefined,
   });
 
   // State für abweichende Adressen (Liefer- vs. Rechnungsadresse unterschiedlich)
@@ -94,6 +111,10 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         abwerkspreis: kunde.kunde.abwerkspreis || false,
         schuettstellenAnzahl: kunde.kunde.schuettstellenAnzahl,
         belieferungsart: kunde.kunde.belieferungsart,
+        zahlungsziel: kunde.kunde.zahlungsziel ?? 14,
+        standardLieferzeitfenster: kunde.kunde.standardLieferzeitfenster,
+        anfahrtshinweise: kunde.kunde.anfahrtshinweise || '',
+        dispoAnsprechpartner: kunde.kunde.dispoAnsprechpartner,
       });
       // Zeige separate Felder wenn Adressen abweichen
       setAbweichendeAdressen(!!adressenAbweichend);
@@ -128,6 +149,10 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         beziehtUeberUnsPlatzbauer: false,
         abwerkspreis: false,
         belieferungsart: undefined,
+        zahlungsziel: 14,
+        standardLieferzeitfenster: undefined,
+        anfahrtshinweise: '',
+        dispoAnsprechpartner: undefined,
       });
       setAbweichendeAdressen(false);
       setAnsprechpartner([]);
@@ -181,6 +206,13 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         return;
       }
 
+      // Validiere Platzbauer-Pflichtfeld bei Bezugsweg "über Platzbauer"
+      if (formData.standardBezugsweg === 'ueber_platzbauer' && !formData.standardPlatzbauerId) {
+        setError('Bei Bezugsweg "Platzbauer" muss ein Platzbauer ausgewählt werden');
+        setLoading(false);
+        return;
+      }
+
       // Duplikatsprüfung nur bei neuen Kunden (nutzt Lieferadresse)
       if (!kunde && !ignoreDuplikate) {
         const gefundeneDuplikate = await saisonplanungService.pruefeDuplikat(
@@ -202,6 +234,20 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
       if (!kunde && !kundenDaten.kundennummer) {
         const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
         kundenDaten.kundennummer = neueNummer;
+      }
+
+      // Bereinige optionale Felder
+      // Leere Lieferzeitfenster entfernen
+      if (kundenDaten.standardLieferzeitfenster &&
+          !kundenDaten.standardLieferzeitfenster.von &&
+          !kundenDaten.standardLieferzeitfenster.bis) {
+        kundenDaten.standardLieferzeitfenster = undefined;
+      }
+      // Leerer Dispo-Ansprechpartner entfernen
+      if (kundenDaten.dispoAnsprechpartner &&
+          !kundenDaten.dispoAnsprechpartner.name &&
+          !kundenDaten.dispoAnsprechpartner.telefon) {
+        kundenDaten.dispoAnsprechpartner = undefined;
       }
 
       // Stelle sicher, dass beide Adressen gesetzt sind
@@ -454,12 +500,28 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
-                <input
-                  type="email"
-                  value={formData.email || ''}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  {formData.email && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(formData.email || '', 'kunde-email')}
+                      className={`px-3 py-2 rounded-lg transition-colors flex items-center ${
+                        copiedField === 'kunde-email'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                      title="E-Mail kopieren"
+                    >
+                      {copiedField === 'kunde-email' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -697,22 +759,32 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 {formData.standardBezugsweg === 'ueber_platzbauer' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
-                      Standard Platzbauer
+                      Standard Platzbauer <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={formData.standardPlatzbauerId || ''}
                       onChange={(e) =>
                         setFormData({ ...formData, standardPlatzbauerId: e.target.value })
                       }
-                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      required
+                      className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                        !formData.standardPlatzbauerId
+                          ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/10'
+                          : 'border-gray-300 dark:border-slate-700'
+                      }`}
                     >
-                      <option value="">Bitte wählen</option>
+                      <option value="">Bitte wählen (Pflichtfeld)</option>
                       {platzbauer.map((pb) => (
                         <option key={pb.id} value={pb.id}>
                           {pb.name}
                         </option>
                       ))}
                     </select>
+                    {!formData.standardPlatzbauerId && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Bitte wählen Sie einen Platzbauer aus
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -724,6 +796,149 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 value={formData.notizen || ''}
                 onChange={(e) => setFormData({ ...formData, notizen: e.target.value })}
                 rows={3}
+                className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+          </div>
+
+          {/* Belieferung & Dispo */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+              <Truck className="w-5 h-5 text-green-600" />
+              Belieferung & Dispo
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Zahlungsziel (Tage)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.zahlungsziel ?? 14}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      zahlungsziel: e.target.value ? parseInt(e.target.value) : 14,
+                    })
+                  }
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Lieferzeitfenster von
+                </label>
+                <input
+                  type="time"
+                  value={formData.standardLieferzeitfenster?.von || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      standardLieferzeitfenster: {
+                        von: e.target.value,
+                        bis: formData.standardLieferzeitfenster?.bis || '',
+                      },
+                    })
+                  }
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Lieferzeitfenster bis
+                </label>
+                <input
+                  type="time"
+                  value={formData.standardLieferzeitfenster?.bis || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      standardLieferzeitfenster: {
+                        von: formData.standardLieferzeitfenster?.von || '',
+                        bis: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
+
+            {/* Dispo-Ansprechpartner */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Dispo-Ansprechpartner (Name)
+                </label>
+                <input
+                  type="text"
+                  placeholder="z.B. Platzwart Herr Müller"
+                  value={formData.dispoAnsprechpartner?.name || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      dispoAnsprechpartner: {
+                        name: e.target.value,
+                        telefon: formData.dispoAnsprechpartner?.telefon || '',
+                      },
+                    })
+                  }
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Dispo-Ansprechpartner (Telefon)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    placeholder="z.B. 0171 1234567"
+                    value={formData.dispoAnsprechpartner?.telefon || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        dispoAnsprechpartner: {
+                          name: formData.dispoAnsprechpartner?.name || '',
+                          telefon: e.target.value,
+                        },
+                      })
+                    }
+                    className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  {formData.dispoAnsprechpartner?.telefon && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(formData.dispoAnsprechpartner?.telefon || '', 'dispo-telefon')}
+                      className={`px-3 py-2 rounded-lg transition-colors flex items-center ${
+                        copiedField === 'dispo-telefon'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                      title="Telefonnummer kopieren"
+                    >
+                      {copiedField === 'dispo-telefon' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                Anfahrtshinweise (für Fahrer)
+              </label>
+              <textarea
+                value={formData.anfahrtshinweise || ''}
+                onChange={(e) => setFormData({ ...formData, anfahrtshinweise: e.target.value })}
+                rows={2}
+                placeholder="z.B. Zufahrt über Hintereingang, Tor-Code: 1234, Schlüssel im Kasten..."
                 className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
@@ -802,16 +1017,32 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
-                      <input
-                        type="email"
-                        value={ap.email || ''}
-                        onChange={(e) => {
-                          const updated = [...ansprechpartner];
-                          updated[apIndex] = { ...updated[apIndex], email: e.target.value };
-                          setAnsprechpartner(updated);
-                        }}
-                        className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={ap.email || ''}
+                          onChange={(e) => {
+                            const updated = [...ansprechpartner];
+                            updated[apIndex] = { ...updated[apIndex], email: e.target.value };
+                            setAnsprechpartner(updated);
+                          }}
+                          className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        />
+                        {ap.email && (
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(ap.email || '', `ap-email-${apIndex}`)}
+                            className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
+                              copiedField === `ap-email-${apIndex}`
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                            }`}
+                            title="E-Mail kopieren"
+                          >
+                            {copiedField === `ap-email-${apIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button
@@ -854,12 +1085,26 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                         onChange={(e) =>
                           updateTelefonnummer(apIndex, telIndex, 'typ', e.target.value)
                         }
-                        className="w-32 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        className="w-28 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
+                      {tel.nummer && (
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(tel.nummer || '', `ap-tel-${apIndex}-${telIndex}`)}
+                          className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
+                            copiedField === `ap-tel-${apIndex}-${telIndex}`
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                          }`}
+                          title="Telefonnummer kopieren"
+                        >
+                          {copiedField === `ap-tel-${apIndex}-${telIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => removeTelefonnummer(apIndex, telIndex)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-600 hover:text-red-800 px-1"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>

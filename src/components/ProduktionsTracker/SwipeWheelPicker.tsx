@@ -96,7 +96,6 @@ const triggerHaptic = (pattern: 'tick' | 'heavy' | 'success' | 'limit' | 'drag')
 // Physics constants
 const MOMENTUM_MULTIPLIER = 0.92;  // Decay rate
 const MIN_VELOCITY = 0.5;          // Stop threshold
-const SNAP_SPRING = 0.3;           // Snap animation speed
 const SENSITIVITY = 8;             // Pixels per unit
 
 const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({

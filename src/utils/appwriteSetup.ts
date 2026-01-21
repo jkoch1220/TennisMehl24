@@ -42,6 +42,9 @@ import {
   CHAT_NACHRICHTEN_COLLECTION_ID,
   // Produktion
   PRODUKTION_COLLECTION_ID,
+  // Platzbauer-Verwaltung
+  PLATZBAUER_PROJEKTE_COLLECTION_ID,
+  PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -49,7 +52,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '24'; // Produktion Collection
+const APPWRITE_SETUP_VERSION = '25'; // Produktion + Platzbauer-Verwaltung Collections
 
 type FieldConfig = {
   key: string;
@@ -322,6 +325,28 @@ const produktionFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 100000, required: true },       // JSON blob mit allen Einträgen
 ];
 
+// Platzbauer-Projekte Collection (Saisonprojekte und Nachträge für Platzbauer)
+const platzbauerProjekteFields: FieldConfig[] = [
+  { key: 'platzbauerId', type: 'string', size: 100, required: true },   // Für Filter nach Platzbauer
+  { key: 'platzbauerName', type: 'string', size: 255, required: true }, // Für Anzeige
+  { key: 'saisonjahr', type: 'integer', required: true },               // Für Filter nach Jahr
+  { key: 'status', type: 'string', size: 50, required: true },          // Für Filter nach Status
+  { key: 'typ', type: 'string', size: 50, required: true },             // 'saisonprojekt' | 'nachtrag'
+  { key: 'hauptprojektId', type: 'string', size: 100 },                 // Bei Nachträgen: Referenz
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  { key: 'data', type: 'string', size: 100000, required: true },        // JSON mit allen Details
+];
+
+// Projekt-Zuordnungen Collection (Vereinsprojekt -> Platzbauerprojekt)
+const projektZuordnungenFields: FieldConfig[] = [
+  { key: 'vereinsProjektId', type: 'string', size: 100, required: true },     // Für Filter
+  { key: 'platzbauerprojektId', type: 'string', size: 100, required: true },  // Für Filter
+  { key: 'position', type: 'integer', required: true },                        // Reihenfolge
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'data', type: 'string', size: 10000 },                                // JSON backup
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -575,6 +600,19 @@ export async function setupAppwriteFields() {
         fields: produktionFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Platzbauer-Verwaltung
+      {
+        id: PLATZBAUER_PROJEKTE_COLLECTION_ID,
+        name: 'Platzbauer Projekte',
+        fields: platzbauerProjekteFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      {
+        id: PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
+        name: 'Projekt Zuordnungen',
+        fields: projektZuordnungenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -616,6 +654,16 @@ export async function setupAppwriteFields() {
     // Indizes für Chat-Nachrichten
     await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'projektId_index', ['projektId']);
     await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'erstelltVon_index', ['erstelltVon']);
+
+    // Indizes für Platzbauer-Projekte
+    await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'platzbauerId_index', ['platzbauerId']);
+    await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'saisonjahr_index', ['saisonjahr']);
+    await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'typ_index', ['typ']);
+
+    // Indizes für Projekt-Zuordnungen
+    await ensureIndex(PROJEKT_ZUORDNUNGEN_COLLECTION_ID, 'vereinsProjektId_index', ['vereinsProjektId']);
+    await ensureIndex(PROJEKT_ZUORDNUNGEN_COLLECTION_ID, 'platzbauerprojektId_index', ['platzbauerprojektId']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

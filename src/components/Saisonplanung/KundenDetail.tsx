@@ -698,8 +698,8 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             kundenname={kunde.kunde.name}
             kundeId={kunde.kunde.id}
             kundennummer={kunde.kunde.kundennummer}
-            kundenstrasse={kunde.kunde.lieferadresse.strasse}
-            kundenPlzOrt={`${kunde.kunde.lieferadresse.plz} ${kunde.kunde.lieferadresse.ort}`}
+            kundenstrasse={kunde.kunde.rechnungsadresse.strasse}
+            kundenPlzOrt={`${kunde.kunde.rechnungsadresse.plz} ${kunde.kunde.rechnungsadresse.ort}`}
             angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
             preisProTonne={kunde.aktuelleSaison?.preisProTonne || (kunde.kunde.zuletztGezahlterPreis ? Math.round(kunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
             bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}

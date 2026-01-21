@@ -60,6 +60,12 @@ export const SCHICHT_ZUWEISUNGEN_COLLECTION_ID = 'schicht_zuweisungen';
 // Produktion Collection
 export const PRODUKTION_COLLECTION_ID = 'produktion_eintraege';
 
+// Platzbauer-Verwaltung Collections
+export const PLATZBAUER_PROJEKTE_COLLECTION_ID = 'platzbauer_projekte';
+export const PROJEKT_ZUORDNUNGEN_COLLECTION_ID = 'projekt_zuordnungen';
+export const PLATZBAUER_DOKUMENTE_COLLECTION_ID = 'platzbauer_dokumente';
+export const PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID = 'platzbauer_lieferscheine';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -112,8 +118,13 @@ export const COLLECTIONS = {
   // Schichtplanung
   SCHICHT_MITARBEITER: SCHICHT_MITARBEITER_COLLECTION_ID,
   SCHICHT_ZUWEISUNGEN: SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
-  // Produktion
+// Produktion
   PRODUKTION: PRODUKTION_COLLECTION_ID,
+  // Platzbauer-Verwaltung
+  PLATZBAUER_PROJEKTE: PLATZBAUER_PROJEKTE_COLLECTION_ID,
+  PROJEKT_ZUORDNUNGEN: PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
+  PLATZBAUER_DOKUMENTE: PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+  PLATZBAUER_LIEFERSCHEINE: PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
@@ -123,6 +134,7 @@ export const KUNDEN_DATEIEN_BUCKET_ID = 'kunden-dateien';
 export const BESTELLABWICKLUNG_DATEIEN_BUCKET_ID = 'bestellabwicklung_dateien';
 export const PROJEKT_ANHAENGE_BUCKET_ID = 'projekt-anhaenge'; // Für Dispo: PDFs, Mails, Karten etc.
 export const KONKURRENTEN_DATEIEN_BUCKET_ID = 'konkurrenten-dateien'; // Für Konkurrenten: Bilder, Dokumente
+export const PLATZBAUER_DATEIEN_BUCKET_ID = 'platzbauer-dateien'; // Für Platzbauer: Angebote, ABs, Rechnungen, Lieferscheine
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';

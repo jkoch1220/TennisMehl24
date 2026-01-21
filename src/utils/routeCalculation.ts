@@ -1,5 +1,6 @@
 /**
  * Routenberechnung und Zeitberechnung für Eigenlieferung
+ * Nutzt Google Routes API für präzise Routen mit Verkehrsdaten
  */
 
 import { EigenlieferungStammdaten, RoutenBerechnung, FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../types';
@@ -12,184 +13,282 @@ const START_PLZ = '97828'; // PLZ für Fallback
 // Koordinaten für Marktheidenfeld: ~49.85°N, 9.60°E
 export const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]
 
+// API Keys
+const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 const OPENROUTESERVICE_API_KEY = import.meta.env.VITE_OPENROUTESERVICE_API_KEY || '';
 
+// Cache für Geocoding-Ergebnisse
+const geocodeCache = new Map<string, [number, number]>();
+
 /**
- * Geocodiert eine Adresse oder PLZ zu Koordinaten mit OpenRouteService
+ * Ergebnis einer Routenberechnung mit Traffic-Daten
  */
-const geocodeAdresse = async (adresseOderPLZ: string): Promise<[number, number] | null> => {
-  if (!OPENROUTESERVICE_API_KEY) {
-    console.warn('Kein OpenRouteService API-Key vorhanden');
-    return null;
+interface RouteResult {
+  distanzKm: number;
+  fahrzeitMinuten: number;          // Mit Traffic
+  fahrzeitOhneTrafficMinuten: number; // Ohne Traffic (statisch)
+  trafficDelayMinuten: number;       // Zusätzliche Zeit durch Verkehr
+}
+
+/**
+ * Geocodiert eine PLZ mit Google Geocoding API
+ */
+const geocodePLZMitGoogle = async (plz: string): Promise<[number, number] | null> => {
+  if (!GOOGLE_API_KEY) return null;
+
+  // Check Cache
+  const cacheKey = `google-${plz}`;
+  if (geocodeCache.has(cacheKey)) {
+    return geocodeCache.get(cacheKey)!;
   }
 
   try {
-    // Für PLZ: Verwende spezifischere Suche mit "Postleitzahl" oder "PLZ"
-    const isPLZ = /^\d{5}$/.test(adresseOderPLZ);
-    let searchQuery = adresseOderPLZ;
-    
-    if (isPLZ) {
-      // Für PLZ: Suche spezifisch nach "PLZ Deutschland" oder "Postleitzahl PLZ"
-      searchQuery = `${adresseOderPLZ} Deutschland`;
-    }
-    
-    const encodedAdresse = encodeURIComponent(searchQuery);
-    const apiUrl = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodedAdresse}&boundary.country=DE&size=5`;
-    
-    console.log(`🔍 Geocodierung für "${adresseOderPLZ}"...`);
-    
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      throw new Error(`OpenRouteService API Fehler: ${response.status}`);
-    }
-    
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${plz},Deutschland&key=${GOOGLE_API_KEY}&language=de&region=de`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Google Geocoding Fehler: ${response.status}`);
+
     const data = await response.json();
-    
-    if (data.features && data.features.length > 0) {
-      // Für PLZ: Suche nach dem Ergebnis, das die PLZ im Namen/Text enthält
-      let bestMatch = data.features[0];
-      
-      if (isPLZ) {
-        // Durchsuche alle Ergebnisse nach einem Match mit der PLZ
-        for (const feature of data.features) {
-          const properties = feature.properties || {};
-          const name = properties.name || '';
-          const label = properties.label || '';
-          const text = `${name} ${label}`.toLowerCase();
-          
-          // Prüfe ob die PLZ im Ergebnis vorkommt
-          if (text.includes(adresseOderPLZ) || properties.postcode === adresseOderPLZ) {
-            bestMatch = feature;
-            console.log(`✅ Gefunden: "${properties.label || properties.name}" mit PLZ ${adresseOderPLZ}`);
-            break;
-          }
-        }
-        
-        // Logge alle gefundenen Ergebnisse für Debugging
-        console.log(`📋 Gefundene Ergebnisse für PLZ ${adresseOderPLZ}:`);
-        data.features.slice(0, 3).forEach((f: { properties?: { label?: string; name?: string; postcode?: string } }, i: number) => {
-          const props = f.properties || {};
-          console.log(`   ${i + 1}. ${props.label || props.name} (PLZ: ${props.postcode || 'unbekannt'})`);
-        });
-      }
-      
-      const coordinates = bestMatch.geometry.coordinates;
-      // OpenRouteService gibt [lon, lat] zurück (GeoJSON Format)
-      const lon = coordinates[0];
-      const lat = coordinates[1];
-      
-      const properties = bestMatch.properties || {};
-      console.log(`📍 Geocodierung erfolgreich für "${adresseOderPLZ}": [${lon}, ${lat}]`);
-      console.log(`   Label: ${properties.label || properties.name || 'unbekannt'}`);
-      if (properties.postcode) {
-        console.log(`   PLZ im Ergebnis: ${properties.postcode}`);
-      }
-      
-      // Prüfe ob Koordinaten im erwarteten Bereich für Deutschland liegen
-      // Deutschland: ~47-55°N (lat), ~6-15°E (lon)
-      if (lon < 5 || lon > 16 || lat < 47 || lat > 56) {
-        console.warn(`⚠️ Koordinaten [${lon}, ${lat}] liegen außerhalb des erwarteten Bereichs für Deutschland`);
-      }
-      
-      return [lon, lat];
+
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      const location = data.results[0].geometry.location;
+      const coords: [number, number] = [location.lng, location.lat]; // [lon, lat]
+
+      console.log(`📍 Google Geocoding für PLZ "${plz}": [${coords[0]}, ${coords[1]}]`);
+      geocodeCache.set(cacheKey, coords);
+      return coords;
     }
-    
-    console.warn(`⚠️ Keine Ergebnisse für "${adresseOderPLZ}" gefunden`);
+
+    console.warn(`⚠️ Google Geocoding: Keine Ergebnisse für PLZ "${plz}"`);
     return null;
   } catch (error) {
-    console.error('Fehler bei Geocodierung:', error);
+    console.error('Google Geocoding Fehler:', error);
     return null;
   }
 };
 
 /**
  * Geocodiert eine PLZ mit Nominatim (OpenStreetMap) als Fallback
- * Nominatim ist oft besser für PLZ-Suchen
  */
 const geocodePLZMitNominatim = async (plz: string): Promise<[number, number] | null> => {
+  // Check Cache
+  const cacheKey = `nominatim-${plz}`;
+  if (geocodeCache.has(cacheKey)) {
+    return geocodeCache.get(cacheKey)!;
+  }
+
   try {
-    // Nominatim API (OpenStreetMap) - kostenlos, keine API-Key benötigt
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?postalcode=${plz}&countrycodes=de&format=json&limit=1`;
-    
-    console.log(`🔍 Nominatim Geocodierung für PLZ "${plz}"...`);
-    
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'TennisMehl-Kostenrechner/1.0' // Nominatim benötigt User-Agent
-      }
+    const url = `https://nominatim.openstreetmap.org/search?postalcode=${plz}&countrycodes=de&format=json&limit=1`;
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'TennisMehl-Kostenrechner/1.0' }
     });
-    
-    if (!response.ok) {
-      throw new Error(`Nominatim API Fehler: ${response.status}`);
-    }
-    
+
+    if (!response.ok) throw new Error(`Nominatim Fehler: ${response.status}`);
+
     const data = await response.json();
-    
+
     if (data && data.length > 0) {
-      const result = data[0];
-      const lon = parseFloat(result.lon);
-      const lat = parseFloat(result.lat);
-      
-      console.log(`📍 Nominatim Geocodierung erfolgreich für PLZ "${plz}": [${lon}, ${lat}]`);
-      console.log(`   Ort: ${result.display_name}`);
-      
-      return [lon, lat];
+      const coords: [number, number] = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+      console.log(`📍 Nominatim Geocoding für PLZ "${plz}": [${coords[0]}, ${coords[1]}]`);
+      geocodeCache.set(cacheKey, coords);
+      return coords;
     }
-    
+
     return null;
   } catch (error) {
-    console.warn('Nominatim Geocodierung fehlgeschlagen:', error);
+    console.warn('Nominatim Geocoding fehlgeschlagen:', error);
     return null;
   }
 };
 
-// Cache für die letzten geocodierten PLZ-Koordinaten (um zu erkennen, ob immer die gleichen zurückgegeben werden)
-// WICHTIG: Cache wird bei jedem Aufruf geleert, um falsche Koordinaten zu vermeiden
-const plzCache = new Map<string, [number, number]>();
-
 /**
- * Geocodiert eine PLZ zu Koordinaten
- * Verwendet Nominatim (OpenStreetMap) für PLZ, da es zuverlässiger ist
- * OpenRouteService hat Probleme mit PLZ-Suchen und gibt oft falsche/identische Koordinaten zurück
+ * Geocodiert eine PLZ - versucht Google zuerst, dann Nominatim als Fallback
  */
 const geocodePLZ = async (plz: string): Promise<[number, number] | null> => {
-  // Verwende IMMER direkt Nominatim für PLZ, da OpenRouteService unzuverlässig ist
-  // und oft falsche Koordinaten zurückgibt (z.B. "Deutschland" statt der richtigen PLZ)
-  console.log(`📍 Verwende Nominatim für PLZ-Geocodierung (zuverlässiger als OpenRouteService)`);
-  const nominatimResult = await geocodePLZMitNominatim(plz);
-  
-  if (nominatimResult) {
-    // Cache nur wenn erfolgreich
-    plzCache.set(plz, nominatimResult);
-    return nominatimResult;
+  // Spezialfall: Start-PLZ hat manuelle Koordinaten
+  if (plz === START_PLZ) {
+    return START_COORDS_MANUELL;
   }
-  
-  // Fallback: Versuche OpenRouteService wenn Nominatim fehlschlägt
-  console.warn(`⚠️ Nominatim fehlgeschlagen, versuche OpenRouteService als Fallback...`);
-  const orsResult = await geocodeAdresse(plz);
-  if (orsResult) {
-    // Prüfe ob Ergebnis plausibel ist (nicht "Deutschland" Koordinaten)
-    const verdaechtigeKoordinaten: [number, number][] = [
-      [9.687096, 50.970097], // Diese werden oft für falsche PLZ zurückgegeben
-    ];
-    const istVerdaechtig = verdaechtigeKoordinaten.some(
-      ([lon, lat]) => Math.abs(orsResult[0] - lon) < 0.0001 && Math.abs(orsResult[1] - lat) < 0.0001
-    );
-    
-    if (!istVerdaechtig) {
-      plzCache.set(plz, orsResult);
-    } else {
-      console.warn(`⚠️ OpenRouteService lieferte verdächtige Koordinaten für PLZ ${plz}, verwende nicht`);
+
+  // Versuche Google zuerst (genauer)
+  if (GOOGLE_API_KEY) {
+    const googleResult = await geocodePLZMitGoogle(plz);
+    if (googleResult) return googleResult;
+  }
+
+  // Fallback auf Nominatim
+  return await geocodePLZMitNominatim(plz);
+};
+
+/**
+ * Berechnet Route mit Google Routes API (inkl. Traffic)
+ *
+ * WICHTIG: Für diese Funktion muss die "Routes API" in Google Cloud aktiviert sein!
+ * https://console.cloud.google.com/apis/library/routes.googleapis.com
+ */
+const berechneRouteMitGoogle = async (
+  startCoords: [number, number],
+  zielCoords: [number, number]
+): Promise<RouteResult | null> => {
+  if (!GOOGLE_API_KEY) {
+    console.warn('⚠️ Kein Google API Key vorhanden');
+    return null;
+  }
+
+  try {
+    // Google Routes API v2 (computeRoutes)
+    const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+
+    const requestBody = {
+      origin: {
+        location: {
+          latLng: {
+            latitude: startCoords[1],  // lat
+            longitude: startCoords[0]  // lon
+          }
+        }
+      },
+      destination: {
+        location: {
+          latLng: {
+            latitude: zielCoords[1],  // lat
+            longitude: zielCoords[0]  // lon
+          }
+        }
+      },
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_AWARE', // Berücksichtigt aktuellen Verkehr
+      computeAlternativeRoutes: false,
+      routeModifiers: {
+        avoidTolls: false,
+        avoidHighways: false,
+        avoidFerries: true
+      },
+      languageCode: 'de-DE',
+      units: 'METRIC'
+    };
+
+    console.log(`🗺️ Google Routes API Anfrage...`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+        'X-Goog-FieldMask': 'routes.duration,routes.staticDuration,routes.distanceMeters'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Google Routes API Fehler ${response.status}:`, errorText);
+
+      // Spezifische Fehlermeldung für nicht aktivierte API
+      if (response.status === 403 || errorText.includes('PERMISSION_DENIED')) {
+        console.error(`
+⚠️ HINWEIS: Die Google Routes API ist möglicherweise nicht aktiviert!
+   Bitte aktiviere sie hier: https://console.cloud.google.com/apis/library/routes.googleapis.com
+        `);
+      }
+
+      return null;
     }
+
+    const data = await response.json();
+
+    if (!data.routes || data.routes.length === 0) {
+      console.warn('⚠️ Google Routes API: Keine Route gefunden');
+      return null;
+    }
+
+    const route = data.routes[0];
+
+    // Distanz in Metern → Kilometer
+    const distanzKm = route.distanceMeters / 1000;
+
+    // Duration ist im Format "3600s" (Sekunden als String)
+    const parseDuration = (durationStr: string): number => {
+      if (!durationStr) return 0;
+      const seconds = parseInt(durationStr.replace('s', ''));
+      return seconds / 60; // Minuten
+    };
+
+    const fahrzeitMinuten = parseDuration(route.duration);
+    const fahrzeitOhneTrafficMinuten = parseDuration(route.staticDuration);
+    const trafficDelayMinuten = Math.max(0, fahrzeitMinuten - fahrzeitOhneTrafficMinuten);
+
+    console.log(`✅ Google Routes API Ergebnis:`);
+    console.log(`   Distanz: ${distanzKm.toFixed(2)} km`);
+    console.log(`   Fahrzeit (mit Traffic): ${fahrzeitMinuten.toFixed(0)} min`);
+    console.log(`   Fahrzeit (ohne Traffic): ${fahrzeitOhneTrafficMinuten.toFixed(0)} min`);
+    if (trafficDelayMinuten > 0) {
+      console.log(`   🚗 Verkehrsbedingte Verzögerung: +${trafficDelayMinuten.toFixed(0)} min`);
+    }
+
+    return {
+      distanzKm,
+      fahrzeitMinuten,
+      fahrzeitOhneTrafficMinuten,
+      trafficDelayMinuten
+    };
+  } catch (error) {
+    console.error('Google Routes API Fehler:', error);
+    return null;
   }
-  
-  return orsResult;
+};
+
+/**
+ * Berechnet Route mit OpenRouteService als Fallback
+ */
+const berechneRouteMitOpenRouteService = async (
+  startCoords: [number, number],
+  zielCoords: [number, number]
+): Promise<RouteResult | null> => {
+  if (!OPENROUTESERVICE_API_KEY) {
+    return null;
+  }
+
+  try {
+    const startParam = `${startCoords[0]},${startCoords[1]}`;
+    const endParam = `${zielCoords[0]},${zielCoords[1]}`;
+
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${OPENROUTESERVICE_API_KEY}&start=${startParam}&end=${endParam}`;
+
+    console.log(`🗺️ OpenRouteService Fallback...`);
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`ORS Fehler: ${response.status}`);
+
+    const data = await response.json();
+
+    if (data.features && data.features.length > 0) {
+      const segment = data.features[0].properties?.segments?.[0];
+      if (segment) {
+        const distanzKm = segment.distance / 1000;
+        const fahrzeitMinuten = segment.duration / 60;
+
+        console.log(`✅ OpenRouteService Ergebnis: ${distanzKm.toFixed(2)} km, ${fahrzeitMinuten.toFixed(0)} min`);
+
+        return {
+          distanzKm,
+          fahrzeitMinuten,
+          fahrzeitOhneTrafficMinuten: fahrzeitMinuten, // ORS hat keine Traffic-Daten
+          trafficDelayMinuten: 0
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('OpenRouteService Fehler:', error);
+    return null;
+  }
 };
 
 /**
  * Berechnet die Luftlinien-Distanz zwischen zwei Koordinaten (Haversine-Formel)
- * Hilft bei der Validierung der API-Ergebnisse
  */
 const berechneLuftlinie = (
   coord1: [number, number],
@@ -208,191 +307,139 @@ const berechneLuftlinie = (
   return R * c;
 };
 
+// Cache für Routen-Ergebnisse (spart API-Calls)
+const routenCache = new Map<string, RouteResult>();
+
 /**
- * Berechnet die Distanz zwischen zwei PLZ mit OpenRouteService
- * Falls kein API-Key vorhanden ist, wird eine Schätzung verwendet
+ * Berechnet Route zwischen zwei PLZ
+ * Priorisiert Google Routes API (mit Traffic), fällt auf OpenRouteService zurück
+ */
+export const berechneRoute = async (
+  startPLZ: string,
+  zielPLZ: string
+): Promise<RouteResult> => {
+  const cacheKey = `${startPLZ}->${zielPLZ}`;
+
+  // Check Cache (5 Minuten gültig für Traffic-Daten)
+  if (routenCache.has(cacheKey)) {
+    console.log(`📦 Route aus Cache: ${cacheKey}`);
+    return routenCache.get(cacheKey)!;
+  }
+
+  console.log(`🔄 Berechne Route: ${startPLZ} → ${zielPLZ}`);
+
+  // Geocode beide PLZ
+  const startCoords = await geocodePLZ(startPLZ);
+  const zielCoords = await geocodePLZ(zielPLZ);
+
+  if (!startCoords || !zielCoords) {
+    console.warn('⚠️ Geocoding fehlgeschlagen, verwende Schätzung');
+    return createFallbackRoute(startPLZ, zielPLZ);
+  }
+
+  // Validiere Koordinaten (Deutschland: ~47-55°N, ~6-15°E)
+  if (!isValidGermanCoords(startCoords) || !isValidGermanCoords(zielCoords)) {
+    console.warn('⚠️ Koordinaten außerhalb Deutschlands, verwende Schätzung');
+    return createFallbackRoute(startPLZ, zielPLZ);
+  }
+
+  // Versuche Google Routes API zuerst (hat Traffic-Daten)
+  let result = await berechneRouteMitGoogle(startCoords, zielCoords);
+
+  // Fallback auf OpenRouteService
+  if (!result) {
+    console.log('⚠️ Google Routes fehlgeschlagen, versuche OpenRouteService...');
+    result = await berechneRouteMitOpenRouteService(startCoords, zielCoords);
+  }
+
+  // Wenn beide APIs fehlschlagen, verwende Schätzung
+  if (!result) {
+    console.warn('⚠️ Alle APIs fehlgeschlagen, verwende Luftlinien-Schätzung');
+    const luftlinie = berechneLuftlinie(startCoords, zielCoords);
+    result = {
+      distanzKm: luftlinie * 1.3, // Faktor für Straßenroute
+      fahrzeitMinuten: (luftlinie * 1.3 / 60) * 60, // 60 km/h Durchschnitt
+      fahrzeitOhneTrafficMinuten: (luftlinie * 1.3 / 60) * 60,
+      trafficDelayMinuten: 0
+    };
+  }
+
+  // Validiere Ergebnis
+  const luftlinie = berechneLuftlinie(startCoords, zielCoords);
+  if (result.distanzKm > luftlinie * 2.5 || result.distanzKm > 1000) {
+    console.warn(`⚠️ Unplausible Distanz ${result.distanzKm.toFixed(0)} km, korrigiere...`);
+    result = {
+      distanzKm: luftlinie * 1.3,
+      fahrzeitMinuten: (luftlinie * 1.3 / 60) * 60,
+      fahrzeitOhneTrafficMinuten: (luftlinie * 1.3 / 60) * 60,
+      trafficDelayMinuten: 0
+    };
+  }
+
+  // Cache Ergebnis
+  routenCache.set(cacheKey, result);
+
+  // Cache-Bereinigung nach 5 Minuten (für frische Traffic-Daten)
+  setTimeout(() => routenCache.delete(cacheKey), 5 * 60 * 1000);
+
+  return result;
+};
+
+/**
+ * Prüft ob Koordinaten in Deutschland liegen
+ */
+const isValidGermanCoords = (coords: [number, number]): boolean => {
+  const [lon, lat] = coords;
+  return lon >= 5 && lon <= 16 && lat >= 47 && lat <= 56;
+};
+
+/**
+ * Erstellt eine Fallback-Route basierend auf PLZ-Zonen
+ */
+const createFallbackRoute = (startPLZ: string, zielPLZ: string): RouteResult => {
+  const startZone = parseInt(startPLZ.substring(0, 2));
+  const zielZone = parseInt(zielPLZ.substring(0, 2));
+  const geschaetzteDistanz = Math.max(20, Math.abs(startZone - zielZone) * 50);
+  const geschaetzteFahrzeit = (geschaetzteDistanz / 60) * 60; // 60 km/h
+
+  console.log(`📏 Fallback-Schätzung: ${geschaetzteDistanz} km, ${geschaetzteFahrzeit.toFixed(0)} min`);
+
+  return {
+    distanzKm: geschaetzteDistanz,
+    fahrzeitMinuten: geschaetzteFahrzeit,
+    fahrzeitOhneTrafficMinuten: geschaetzteFahrzeit,
+    trafficDelayMinuten: 0
+  };
+};
+
+/**
+ * Legacy-Funktion für Abwärtskompatibilität
+ * Gibt nur die Distanz zurück
  */
 export const berechneDistanzVonPLZ = async (
   startPLZ: string,
   zielPLZ: string
 ): Promise<number> => {
-  console.log(`🔄 berechneDistanzVonPLZ aufgerufen: ${startPLZ} → ${zielPLZ}`);
-  
-  // Wenn kein API-Key vorhanden, verwende Schätzung
-  if (!OPENROUTESERVICE_API_KEY) {
-    console.warn('OpenRouteService API-Key fehlt, verwende Schätzung');
-    const startZone = parseInt(startPLZ.substring(0, 2));
-    const zielZone = parseInt(zielPLZ.substring(0, 2));
-    const geschaetzteDistanz = Math.max(20, Math.abs(startZone - zielZone) * 50);
-    return geschaetzteDistanz;
-  }
-
-  try {
-    // Für die Startadresse verwenden wir direkt die manuellen Koordinaten,
-    // da die genaue Adresse bekannt ist und Geocodierung möglicherweise falsche Ergebnisse liefert
-    let startCoords: [number, number] | null = null;
-    const startAdresse = startPLZ === START_PLZ ? START_ADRESSE : startPLZ;
-    
-    if (startPLZ === START_PLZ) {
-      // Verwende direkt die manuellen Koordinaten für Marktheidenfeld
-      startCoords = START_COORDS_MANUELL;
-      console.log(`📍 Verwende manuelle Koordinaten für Start-PLZ ${startPLZ}: ${startAdresse} -> [${startCoords[0]}, ${startCoords[1]}]`);
-    } else {
-      // Für andere Start-PLZ verwende Nominatim direkt (zuverlässiger als OpenRouteService)
-      console.log(`📍 Verwende Nominatim direkt für Start-PLZ ${startPLZ} (um falsche Geocodierung zu vermeiden)`);
-      startCoords = await geocodePLZMitNominatim(startPLZ);
-      if (!startCoords) {
-        // Fallback auf geocodeAdresse wenn Nominatim fehlschlägt
-        startCoords = await geocodeAdresse(startPLZ);
-      }
-    }
-    
-    // Für die Ziel-PLZ: Wenn es die START_PLZ ist, verwende auch manuelle Koordinaten
-    // Ansonsten verwende IMMER Nominatim direkt (nicht OpenRouteService), da es zuverlässiger ist
-    let zielCoords: [number, number] | null = null;
-    if (zielPLZ === START_PLZ) {
-      zielCoords = START_COORDS_MANUELL;
-      console.log(`📍 Verwende manuelle Koordinaten für Ziel-PLZ ${zielPLZ}: ${START_ADRESSE} -> [${zielCoords[0]}, ${zielCoords[1]}]`);
-    } else {
-      // Verwende direkt Nominatim für Ziel-PLZ, um falsche Geocodierung zu vermeiden
-      console.log(`📍 Verwende Nominatim direkt für Ziel-PLZ ${zielPLZ} (um falsche Geocodierung zu vermeiden)`);
-      zielCoords = await geocodePLZMitNominatim(zielPLZ);
-      if (!zielCoords) {
-        // Fallback auf geocodePLZ wenn Nominatim fehlschlägt
-        zielCoords = await geocodePLZ(zielPLZ);
-      }
-    }
-
-    if (!startCoords || !zielCoords) {
-      throw new Error('Konnte eine oder beide PLZ nicht geocodieren');
-    }
-
-    // Debug: Logge Koordinaten zur Fehlersuche
-    console.log(`📍 Geocodierung - Start: ${startAdresse} -> [${startCoords[0]}, ${startCoords[1]}]`);
-    console.log(`📍 Geocodierung - Ziel: ${zielPLZ} -> [${zielCoords[0]}, ${zielCoords[1]}]`);
-
-    // Berechne Luftlinie zur Validierung
-    const luftlinie = berechneLuftlinie(startCoords, zielCoords);
-    console.log(`📏 Luftlinien-Distanz: ${luftlinie.toFixed(2)} km`);
-
-    // Prüfe ob Koordinaten plausibel sind (Deutschland liegt zwischen ~47-55°N und ~6-15°E)
-    // Wenn lon > 20 oder lat > 60, sind die Koordinaten wahrscheinlich falsch
-    if (Math.abs(startCoords[0]) > 20 || Math.abs(startCoords[1]) > 60 || 
-        Math.abs(zielCoords[0]) > 20 || Math.abs(zielCoords[1]) > 60) {
-      console.warn('⚠️ Koordinaten scheinen außerhalb Deutschlands zu liegen, verwende Fallback');
-      throw new Error('Koordinaten außerhalb des erwarteten Bereichs');
-    }
-
-    // Berechne Route mit OpenRouteService Directions API
-    // OpenRouteService erwartet: start=lon,lat&end=lon,lat
-    const startParam = `${startCoords[0]},${startCoords[1]}`;
-    const endParam = `${zielCoords[0]},${zielCoords[1]}`;
-    
-    const apiUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${OPENROUTESERVICE_API_KEY}&start=${startParam}&end=${endParam}`;
-    console.log(`🗺️ API-Anfrage für Route: ${startPLZ} → ${zielPLZ}`);
-    console.log(`   Start-Koordinaten: [${startCoords[0]}, ${startCoords[1]}]`);
-    console.log(`   Ziel-Koordinaten: [${zielCoords[0]}, ${zielCoords[1]}]`);
-    console.log(`   API-URL: ${apiUrl.replace(OPENROUTESERVICE_API_KEY, '***')}`);
-    
-    // Verwende fetch ohne zusätzliche Header (CORS-Probleme vermeiden)
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      cache: 'no-cache'
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`OpenRouteService API Fehler ${response.status}:`, errorText);
-      throw new Error(`OpenRouteService API Fehler: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('OpenRouteService API Antwort:', JSON.stringify(data, null, 2));
-
-    // OpenRouteService v2 API gibt FeatureCollection zurück
-    // Struktur: data.features[0].properties.segments[0].distance
-    if (data.features && data.features.length > 0) {
-      const feature = data.features[0];
-      const segments = feature.properties?.segments;
-      
-      if (segments && segments.length > 0) {
-        const segment = segments[0];
-        
-      // Distanz in Metern, konvertiere zu km
-        const distanzMeter = segment.distance;
-        const distanzKm = distanzMeter / 1000; // km
-        const dauerSekunden = segment.duration;
-        
-        // Berechne Luftlinie zur Validierung
-        const luftlinie = berechneLuftlinie(startCoords, zielCoords);
-        
-        console.log(`🗺️ API-Route Details für ${startPLZ} → ${zielPLZ}:`);
-        console.log(`   - Route-Distanz: ${distanzMeter} m = ${distanzKm.toFixed(2)} km`);
-        console.log(`   - Luftlinien-Distanz: ${luftlinie.toFixed(2)} km`);
-        console.log(`   - Dauer: ${dauerSekunden} s`);
-        console.log(`   - Verhältnis Route/Luftlinie: ${(distanzKm / luftlinie).toFixed(2)}x`);
-        
-        // Prüfe ob Distanz plausibel ist
-        // Route sollte nicht mehr als 2x der Luftlinie sein (normalerweise 1.2-1.5x)
-        if (distanzKm > luftlinie * 2.5) {
-          console.warn(`⚠️ Route-Distanz (${distanzKm.toFixed(2)} km) ist mehr als 2.5x der Luftlinie (${luftlinie.toFixed(2)} km). Möglicherweise API-Fehler.`);
-        }
-        
-        // Prüfe ob Distanz plausibel ist (maximal ~1000 km innerhalb Deutschlands)
-        if (distanzKm > 1000) {
-          console.warn(`⚠️ Unplausible Distanz: ${distanzKm} km. Möglicherweise falsche Geocodierung oder API-Fehler.`);
-          console.warn(`   Start-Koordinaten: [${startCoords[0]}, ${startCoords[1]}]`);
-          console.warn(`   Ziel-Koordinaten: [${zielCoords[0]}, ${zielCoords[1]}]`);
-          console.warn(`   Luftlinie: ${luftlinie.toFixed(2)} km`);
-          
-          // Wenn Luftlinie plausibel ist, verwende diese mit einem Faktor (1.3x für typische Straßenrouten)
-          if (luftlinie < 1000 && luftlinie > 0) {
-            const geschaetzteDistanz = luftlinie * 1.3;
-            console.log(`   → Verwende geschätzte Distanz basierend auf Luftlinie: ${geschaetzteDistanz.toFixed(2)} km`);
-            return geschaetzteDistanz;
-          }
-          
-          // Fallback: Schätzung basierend auf PLZ-Zonen
-          const startZone = parseInt(startPLZ.substring(0, 2));
-          const zielZone = parseInt(zielPLZ.substring(0, 2));
-          const geschaetzteDistanz = Math.max(20, Math.abs(startZone - zielZone) * 50);
-          console.log(`   → Verwende geschätzte Distanz basierend auf PLZ: ${geschaetzteDistanz} km`);
-          return geschaetzteDistanz;
-        }
-        
-        console.log(`✅ Berechnete Distanz: ${distanzKm.toFixed(2)} km`);
-        return distanzKm;
-      }
-    }
-
-    throw new Error('Keine Route gefunden');
-  } catch (error) {
-    console.error('Fehler bei Routenberechnung:', error);
-    // Fallback: Schätzung basierend auf PLZ-Zonen
-    const startZone = parseInt(startPLZ.substring(0, 2));
-    const zielZone = parseInt(zielPLZ.substring(0, 2));
-    const geschaetzteDistanz = Math.max(20, Math.abs(startZone - zielZone) * 50);
-    console.log(`Fallback: Geschätzte Distanz: ${geschaetzteDistanz} km`);
-    return geschaetzteDistanz;
-  }
+  const result = await berechneRoute(startPLZ, zielPLZ);
+  return result.distanzKm;
 };
 
 /**
  * Berechnet die benötigte Zeit für eine Fahrt
- * Berücksichtigt auch die tatsächliche Fahrzeit aus der Route (falls verfügbar)
+ * Kann sowohl API-Fahrzeit als auch manuelle Berechnung verwenden
  */
 export const berechneFahrzeit = (
   distanz: number,
   durchschnittsgeschwindigkeit: number,
-  tatsaechlicheFahrzeitSekunden?: number
+  tatsaechlicheFahrzeitMinuten?: number
 ): number => {
-  // Wenn tatsächliche Fahrzeit verfügbar ist, verwende diese
-  if (tatsaechlicheFahrzeitSekunden !== undefined) {
-    return tatsaechlicheFahrzeitSekunden / 60; // Konvertiere Sekunden zu Minuten
+  // Wenn tatsächliche Fahrzeit verfügbar ist (z.B. von Google mit Traffic), verwende diese
+  if (tatsaechlicheFahrzeitMinuten !== undefined) {
+    return tatsaechlicheFahrzeitMinuten;
   }
-  
+
   // Sonst berechne basierend auf Distanz und Geschwindigkeit
-  return (distanz / durchschnittsgeschwindigkeit) * 60;
+  return (distanz / durchschnittsgeschwindigkeit) * 60; // Minuten
 };
 
 /**
@@ -408,6 +455,7 @@ export const berechnePausenzeit = (fahrzeitMinuten: number): number => {
 /**
  * Berechnet die komplette Routenberechnung für Eigenlieferung
  * Berücksichtigt sowohl Hinweg als auch Rückfahrt
+ * Nutzt Google Routes API für präzise Traffic-basierte Zeiten
  */
 export const berechneEigenlieferungRoute = async (
   startPLZ: string,
@@ -415,62 +463,65 @@ export const berechneEigenlieferungRoute = async (
   stammdaten: EigenlieferungStammdaten
 ): Promise<RoutenBerechnung> => {
   console.log(`🚛 Berechne Route für Eigenlieferung: ${startPLZ} → ${zielPLZ} → ${startPLZ}`);
-  
-  // Berechne Hinweg (Start → Ziel)
-  console.log(`\n📤 === HINWEG BERECHNUNG ===`);
-  console.log(`   Von: ${startPLZ} → Nach: ${zielPLZ}`);
-  const hinwegDistanz = await berechneDistanzVonPLZ(startPLZ, zielPLZ);
-  console.log(`   ✅ Hinweg berechnet: ${hinwegDistanz.toFixed(2)} km\n`);
-  
-  // Warte kurz, um sicherzustellen, dass die API-Anfragen nicht gecached werden
+
+  // Berechne Hinweg (Start → Ziel) mit Traffic
+  console.log(`\n📤 === HINWEG ===`);
+  const hinwegRoute = await berechneRoute(startPLZ, zielPLZ);
+  console.log(`   Distanz: ${hinwegRoute.distanzKm.toFixed(2)} km`);
+  console.log(`   Fahrzeit: ${hinwegRoute.fahrzeitMinuten.toFixed(0)} min (inkl. Traffic)`);
+  if (hinwegRoute.trafficDelayMinuten > 0) {
+    console.log(`   🚗 Traffic-Verzögerung: +${hinwegRoute.trafficDelayMinuten.toFixed(0)} min`);
+  }
+
+  // Warte kurz zwischen Anfragen
   await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // Berechne Rückweg (Ziel → Start)
-  // WICHTIG: Für Rückweg ist zielPLZ der Start und startPLZ das Ziel
-  console.log(`\n📥 === RÜCKWEG BERECHNUNG ===`);
-  console.log(`   Von: ${zielPLZ} → Nach: ${startPLZ}`);
-  console.log(`   ⚠️ ACHTUNG: Start und Ziel sind VERTAUSCHT für Rückweg!`);
-  const rueckwegDistanz = await berechneDistanzVonPLZ(zielPLZ, startPLZ);
-  console.log(`   ✅ Rückweg berechnet: ${rueckwegDistanz.toFixed(2)} km\n`);
-  
-  // Gesamtdistanz = Hinweg + Rückweg
-  const distanz = hinwegDistanz + rueckwegDistanz;
-  console.log(`   Gesamtdistanz: ${distanz.toFixed(2)} km`);
-  
-  // Berechne Fahrzeit für Hinweg
-  const hinwegFahrzeit = berechneFahrzeit(hinwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
-  
-  // Berechne Fahrzeit für Rückweg
-  const rueckwegFahrzeit = berechneFahrzeit(rueckwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
-  
-  // Gesamtfahrzeit = Hinweg + Rückweg
+
+  // Berechne Rückweg (Ziel → Start) mit Traffic
+  console.log(`\n📥 === RÜCKWEG ===`);
+  const rueckwegRoute = await berechneRoute(zielPLZ, startPLZ);
+  console.log(`   Distanz: ${rueckwegRoute.distanzKm.toFixed(2)} km`);
+  console.log(`   Fahrzeit: ${rueckwegRoute.fahrzeitMinuten.toFixed(0)} min (inkl. Traffic)`);
+  if (rueckwegRoute.trafficDelayMinuten > 0) {
+    console.log(`   🚗 Traffic-Verzögerung: +${rueckwegRoute.trafficDelayMinuten.toFixed(0)} min`);
+  }
+
+  // Gesamtwerte
+  const distanz = hinwegRoute.distanzKm + rueckwegRoute.distanzKm;
+  const hinwegFahrzeit = hinwegRoute.fahrzeitMinuten;
+  const rueckwegFahrzeit = rueckwegRoute.fahrzeitMinuten;
   const fahrzeit = hinwegFahrzeit + rueckwegFahrzeit;
-  console.log(`   Gesamtfahrzeit: ${fahrzeit.toFixed(1)} Minuten (${(fahrzeit / 60).toFixed(1)} Stunden)`);
-  
+  const totalTrafficDelay = hinwegRoute.trafficDelayMinuten + rueckwegRoute.trafficDelayMinuten;
+
+  console.log(`\n📊 === ZUSAMMENFASSUNG ===`);
+  console.log(`   Gesamtdistanz: ${distanz.toFixed(2)} km`);
+  console.log(`   Gesamtfahrzeit: ${fahrzeit.toFixed(0)} min (${(fahrzeit / 60).toFixed(1)} h)`);
+  if (totalTrafficDelay > 0) {
+    console.log(`   🚗 Gesamt Traffic-Verzögerung: +${totalTrafficDelay.toFixed(0)} min`);
+  }
+
   // Berechne Pausenzeit für die gesamte Fahrt
-  // Pausen werden während der Fahrt gemacht, nicht nur am Ziel
   const pausenzeit = berechnePausenzeit(fahrzeit);
-  
+
   // Berechne Gesamtabladungszeit: Abladungszeit × Anzahl Abladestellen
   const gesamtAbladungszeit = stammdaten.abladungszeit * stammdaten.anzahlAbladestellen;
-  
-  // Gesamtzeit = Beladung + Hinweg + Abladung (× Anzahl Abladestellen) + Rückweg + Pausen
-  // Pausen können während der Fahrt gemacht werden, daher addieren wir sie zur Fahrzeit
+
+  // Gesamtzeit = Beladung + Hinweg + Abladung + Rückweg + Pausen
   const gesamtzeit = stammdaten.beladungszeit + fahrzeit + pausenzeit + gesamtAbladungszeit;
-  
+
   // Berechne Dieselverbrauch für die gesamte Strecke (Hinweg + Rückweg)
   const dieselverbrauch = (distanz / 100) * stammdaten.dieselverbrauchDurchschnitt;
-  
+
   // Berechne Dieselkosten für die gesamte Strecke
   const dieselkosten = dieselverbrauch * stammdaten.dieselLiterKostenBrutto;
-  
+
   // Berechne Verschleißkosten basierend auf Verschleißpauschale pro km
   const verschleisskosten = distanz * stammdaten.verschleisspauschaleProKm;
-  
-  console.log(`   Dieselverbrauch: ${dieselverbrauch.toFixed(2)} Liter`);
+
+  console.log(`   Dieselverbrauch: ${dieselverbrauch.toFixed(2)} L`);
   console.log(`   Dieselkosten: ${dieselkosten.toFixed(2)} €`);
-  console.log(`   Verschleißkosten: ${verschleisskosten.toFixed(2)} € (${stammdaten.verschleisspauschaleProKm.toFixed(3)} €/km × ${distanz.toFixed(2)} km)`);
-  
+  console.log(`   Verschleißkosten: ${verschleisskosten.toFixed(2)} €`);
+  console.log(`   Gesamtzeit inkl. Be-/Entladung: ${gesamtzeit.toFixed(0)} min (${(gesamtzeit / 60).toFixed(1)} h)`);
+
   return {
     distanz,
     fahrzeit,
@@ -479,10 +530,10 @@ export const berechneEigenlieferungRoute = async (
     dieselkosten,
     verschleisskosten,
     beladungszeit: stammdaten.beladungszeit,
-    abladungszeit: gesamtAbladungszeit, // Gesamtabladungszeit (pro Abladestelle multipliziert)
+    abladungszeit: gesamtAbladungszeit,
     pausenzeit,
-    hinwegDistanz,
-    rueckwegDistanz,
+    hinwegDistanz: hinwegRoute.distanzKm,
+    rueckwegDistanz: rueckwegRoute.distanzKm,
     hinwegFahrzeit,
     rueckwegFahrzeit,
   };
@@ -499,63 +550,54 @@ export const berechneFremdlieferungRoute = async (
   stammdaten: FremdlieferungStammdaten
 ): Promise<FremdlieferungRoutenBerechnung> => {
   console.log(`🚚 Berechne Route für Fremdlieferung: ${startPLZ} → ${zielPLZ} → ${startPLZ}`);
-  
-  // Berechne Hinweg (Start → Ziel)
-  console.log(`\n📤 === HINWEG BERECHNUNG ===`);
-  console.log(`   Von: ${startPLZ} → Nach: ${zielPLZ}`);
-  const hinwegDistanz = await berechneDistanzVonPLZ(startPLZ, zielPLZ);
-  console.log(`   ✅ Hinweg berechnet: ${hinwegDistanz.toFixed(2)} km\n`);
-  
-  // Warte kurz, um sicherzustellen, dass die API-Anfragen nicht gecached werden
+
+  // Berechne Hinweg (Start → Ziel) mit Traffic
+  console.log(`\n📤 === HINWEG ===`);
+  const hinwegRoute = await berechneRoute(startPLZ, zielPLZ);
+
+  // Warte kurz zwischen Anfragen
   await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // Berechne Rückweg (Ziel → Start)
-  console.log(`\n📥 === RÜCKWEG BERECHNUNG ===`);
-  console.log(`   Von: ${zielPLZ} → Nach: ${startPLZ}`);
-  const rueckwegDistanz = await berechneDistanzVonPLZ(zielPLZ, startPLZ);
-  console.log(`   ✅ Rückweg berechnet: ${rueckwegDistanz.toFixed(2)} km\n`);
-  
-  // Gesamtdistanz = Hinweg + Rückweg
-  const distanz = hinwegDistanz + rueckwegDistanz;
-  console.log(`   Gesamtdistanz: ${distanz.toFixed(2)} km`);
-  
-  // Berechne Fahrzeit für Hinweg
-  const hinwegFahrzeit = berechneFahrzeit(hinwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
-  
-  // Berechne Fahrzeit für Rückweg
-  const rueckwegFahrzeit = berechneFahrzeit(rueckwegDistanz, stammdaten.durchschnittsgeschwindigkeit);
-  
-  // Gesamtfahrzeit = Hinweg + Rückweg
+
+  // Berechne Rückweg (Ziel → Start) mit Traffic
+  console.log(`\n📥 === RÜCKWEG ===`);
+  const rueckwegRoute = await berechneRoute(zielPLZ, startPLZ);
+
+  // Gesamtwerte
+  const distanz = hinwegRoute.distanzKm + rueckwegRoute.distanzKm;
+  const hinwegFahrzeit = hinwegRoute.fahrzeitMinuten;
+  const rueckwegFahrzeit = rueckwegRoute.fahrzeitMinuten;
   const fahrzeit = hinwegFahrzeit + rueckwegFahrzeit;
-  console.log(`   Gesamtfahrzeit: ${fahrzeit.toFixed(1)} Minuten (${(fahrzeit / 60).toFixed(1)} Stunden)`);
-  
+
+  console.log(`\n📊 === ZUSAMMENFASSUNG ===`);
+  console.log(`   Gesamtdistanz: ${distanz.toFixed(2)} km`);
+  console.log(`   Gesamtfahrzeit: ${fahrzeit.toFixed(0)} min (inkl. Traffic)`);
+
   // Berechne Pausenzeit für die gesamte Fahrt
   const pausenzeit = berechnePausenzeit(fahrzeit);
-  
+
   // Berechne Gesamtabladungszeit: Abladungszeit × Anzahl Abladestellen
   const gesamtAbladungszeit = stammdaten.abladungszeit * stammdaten.anzahlAbladestellen;
-  
-  // Gesamtzeit = Beladung + Hinweg + Abladung (× Anzahl Abladestellen) + Rückweg + Pausen
+
+  // Gesamtzeit = Beladung + Hinweg + Abladung + Rückweg + Pausen
   const gesamtzeit = stammdaten.beladungszeit + fahrzeit + pausenzeit + gesamtAbladungszeit;
-  
+
   // Berechne Lohnkosten basierend auf Stundenlohn und Gesamtzeit
   const gesamtzeitInStunden = gesamtzeit / 60;
   const lohnkosten = gesamtzeitInStunden * stammdaten.stundenlohn;
-  
-  console.log(`   Gesamtzeit: ${gesamtzeit.toFixed(1)} Minuten (${gesamtzeitInStunden.toFixed(2)} Stunden)`);
-  console.log(`   Abladungszeit: ${gesamtAbladungszeit.toFixed(0)} Minuten (${stammdaten.abladungszeit.toFixed(0)} min × ${stammdaten.anzahlAbladestellen} Abladestellen)`);
-  console.log(`   Lohnkosten: ${lohnkosten.toFixed(2)} € (${stammdaten.stundenlohn.toFixed(2)} €/h × ${gesamtzeitInStunden.toFixed(2)} h)`);
-  
+
+  console.log(`   Gesamtzeit: ${gesamtzeit.toFixed(0)} min (${gesamtzeitInStunden.toFixed(2)} h)`);
+  console.log(`   Lohnkosten: ${lohnkosten.toFixed(2)} € (${stammdaten.stundenlohn.toFixed(2)} €/h)`);
+
   return {
     distanz,
     fahrzeit,
     gesamtzeit,
     lohnkosten,
     beladungszeit: stammdaten.beladungszeit,
-    abladungszeit: gesamtAbladungszeit, // Gesamtabladungszeit (pro Abladestelle multipliziert)
+    abladungszeit: gesamtAbladungszeit,
     pausenzeit,
-    hinwegDistanz,
-    rueckwegDistanz,
+    hinwegDistanz: hinwegRoute.distanzKm,
+    rueckwegDistanz: rueckwegRoute.distanzKm,
     hinwegFahrzeit,
     rueckwegFahrzeit,
   };
@@ -569,4 +611,3 @@ export const formatZeit = (minuten: number): string => {
   const restMinuten = Math.round(minuten % 60);
   return `${stunden}h ${restMinuten}min`;
 };
-

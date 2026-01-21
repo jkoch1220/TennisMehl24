@@ -35,6 +35,7 @@ import EmailDashboard from './components/EmailDashboard/EmailDashboard';
 import Instandhaltung from './components/Instandhaltung/Instandhaltung';
 import Schichtplanung from './components/Schichtplanung/Schichtplanung';
 import ProduktionsTracker from './components/ProduktionsTracker/ProduktionsTracker';
+import PlatzbauerverwaltungPage from './components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -85,6 +86,11 @@ function AuthenticatedContent() {
               <Route path="/saisonplanung" element={
                 <ProtectedRoute toolId="saisonplanung">
                   <Saisonplanung />
+                </ProtectedRoute>
+              } />
+              <Route path="/platzbauer-verwaltung" element={
+                <ProtectedRoute toolId="platzbauer-verwaltung">
+                  <PlatzbauerverwaltungPage />
                 </ProtectedRoute>
               } />
               <Route path="/kreditoren" element={

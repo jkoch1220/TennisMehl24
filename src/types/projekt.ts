@@ -145,6 +145,11 @@ export interface Projekt {
   lieferscheinDaten?: string; // JSON-serialisierte LieferscheinDaten
   rechnungsDaten?: string; // JSON-serialisierte RechnungsDaten
   
+  // === PLATZBAUER-ZUORDNUNG ===
+  // Wenn dieses Projekt einem Platzbauer-Saisonprojekt zugeordnet ist
+  istPlatzbauerprojekt?: boolean;
+  zugeordnetesPlatzbauerprojektId?: string;
+
   // Timestamps
   erstelltAm: string;
   geaendertAm: string;

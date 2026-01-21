@@ -3,6 +3,7 @@ import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus } from '../types/projekt';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
+import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
@@ -237,14 +238,65 @@ class ProjektService {
         dokument
       );
 
+      let erstelltesProjekt: Projekt;
       if (response.data && typeof response.data === 'string') {
         try {
-          return { ...JSON.parse(response.data), $id: response.$id };
+          erstelltesProjekt = { ...JSON.parse(response.data), $id: response.$id };
         } catch {
-          return neuesProjekt;
+          erstelltesProjekt = neuesProjekt;
+        }
+      } else {
+        erstelltesProjekt = neuesProjekt;
+      }
+
+      // ===== AUTOMATISCHE PLATZBAUER-ZUORDNUNG =====
+      // Prüfe ob der Kunde über einen Platzbauer bezieht
+      if (projekt.kundeId && projekt.saisonjahr) {
+        try {
+          const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+          if (kunde && kunde.standardBezugsweg === 'ueber_platzbauer' && kunde.standardPlatzbauerId) {
+            console.log('Auto-Zuordnung: Verein bezieht über Platzbauer', kunde.standardPlatzbauerId);
+
+            // Prüfe ob Platzbauer ein Saisonprojekt hat, sonst erstelle eines
+            const platzbauerprojekte = await platzbauerverwaltungService.loadProjekteFuerPlatzbauer(
+              kunde.standardPlatzbauerId,
+              projekt.saisonjahr
+            );
+
+            // Finde das Saisonprojekt (nicht Nachtrag)
+            let saisonprojekt = platzbauerprojekte.find(p => p.typ === 'saisonprojekt');
+
+            if (!saisonprojekt) {
+              // Erstelle Saisonprojekt für diesen Platzbauer
+              console.log('Erstelle Saisonprojekt für Platzbauer:', kunde.standardPlatzbauerId);
+              saisonprojekt = await platzbauerverwaltungService.createPlatzbauerprojekt(
+                kunde.standardPlatzbauerId,
+                projekt.saisonjahr,
+                { status: 'angebot' }
+              );
+            }
+
+            // Ordne Vereinsprojekt dem Platzbauerprojekt zu
+            await platzbauerverwaltungService.ordneVereinsprojektZu(
+              erstelltesProjekt.id,
+              saisonprojekt.id
+            );
+
+            // Aktualisiere das Projekt mit der Zuordnung
+            erstelltesProjekt = await this.updateProjekt(erstelltesProjekt.id, {
+              istPlatzbauerprojekt: true,
+              zugeordnetesPlatzbauerprojektId: saisonprojekt.id,
+            });
+
+            console.log('Vereinsprojekt dem Platzbauer-Saisonprojekt zugeordnet:', saisonprojekt.id);
+          }
+        } catch (zuordnungError) {
+          console.error('Fehler bei automatischer Platzbauer-Zuordnung:', zuordnungError);
+          // Projekt wurde trotzdem erstellt, nur Zuordnung fehlgeschlagen
         }
       }
-      return neuesProjekt;
+
+      return erstelltesProjekt;
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       throw error;
