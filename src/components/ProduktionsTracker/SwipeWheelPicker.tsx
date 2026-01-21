@@ -395,17 +395,17 @@ const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
   return (
     <div className="flex flex-col items-center w-full">
       {/* Quick Select Buttons */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4">
         {quickValues.map((v) => (
           <button
             key={v}
             onClick={() => handleQuickValue(v)}
             className={`
-              px-4 py-2.5 rounded-xl font-semibold text-sm
+              px-3.5 py-2 rounded-xl font-semibold text-sm
               transition-all duration-200 transform active:scale-95
               ${value === v
                 ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/40 scale-105'
-                : 'bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 shadow-md hover:shadow-lg hover:scale-102'
+                : 'bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 shadow-md'
               }
             `}
           >
@@ -420,14 +420,13 @@ const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
         <button
           onClick={() => handleIncrement(step)}
           className="
-            w-full flex justify-center py-3
+            w-full flex justify-center py-2
             text-gray-400 dark:text-gray-500
             active:text-orange-500 active:scale-110
             transition-all duration-150
-            hover:text-orange-400
           "
         >
-          <ChevronUp className="w-10 h-10 stroke-[2.5]" />
+          <ChevronUp className="w-8 h-8 stroke-[2.5]" />
         </button>
 
         {/* 3D Wheel */}
@@ -438,17 +437,20 @@ const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
           onTouchEnd={handleTouchEnd}
           onMouseDown={handleMouseDown}
           className={`
-            relative h-72 overflow-hidden select-none
+            relative h-56 overflow-hidden select-none
             ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
           `}
           style={{
             perspective: '800px',
             perspectiveOrigin: 'center center',
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
           }}
         >
           {/* Edge Gradients - stronger for 3D depth */}
-          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-orange-50 via-orange-50/95 dark:from-gray-900 dark:via-gray-900/95 to-transparent z-20 pointer-events-none" />
-          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-orange-50 via-orange-50/95 dark:from-gray-900 dark:via-gray-900/95 to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-orange-50 via-orange-50/95 dark:from-gray-900 dark:via-gray-900/95 to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-orange-50 via-orange-50/95 dark:from-gray-900 dark:via-gray-900/95 to-transparent z-20 pointer-events-none" />
 
           {/* Center Selection Highlight */}
           <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-[72px] z-10 pointer-events-none">
@@ -543,29 +545,20 @@ const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
         <button
           onClick={() => handleIncrement(-step)}
           className="
-            w-full flex justify-center py-3
+            w-full flex justify-center py-2
             text-gray-400 dark:text-gray-500
             active:text-orange-500 active:scale-110
             transition-all duration-150
-            hover:text-orange-400
           "
         >
-          <ChevronDown className="w-10 h-10 stroke-[2.5]" />
+          <ChevronDown className="w-8 h-8 stroke-[2.5]" />
         </button>
 
         {/* Unit Label */}
-        <div className="text-center mt-2">
-          <span className="text-2xl font-semibold text-gray-500 dark:text-gray-400">{unit}</span>
+        <div className="text-center mt-1">
+          <span className="text-xl font-semibold text-gray-500 dark:text-gray-400">{unit}</span>
         </div>
       </div>
-
-      {/* Instruction Text */}
-      <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-4 h-4 rounded bg-gray-200 dark:bg-gray-700 text-xs flex items-center justify-center">↕</span>
-          Swipe oder scroll zum Anpassen
-        </span>
-      </p>
     </div>
   );
 };
