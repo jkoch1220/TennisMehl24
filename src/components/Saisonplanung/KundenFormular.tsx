@@ -984,20 +984,226 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Ansprechpartner</h3>
             </div>
 
-            {ansprechpartner.map((ap, apIndex) => (
-              <div key={apIndex} className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Wenn keine Ansprechpartner vorhanden: Direktes Formular für den ersten */}
+            {ansprechpartner.length === 0 ? (
+              <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={neuerAnsprechpartner.name || ''}
+                      onChange={(e) =>
+                        setNeuerAnsprechpartner({ ...neuerAnsprechpartner, name: e.target.value })
+                      }
+                      onBlur={() => {
+                        // Automatisch zur Liste hinzufügen wenn Name ausgefüllt
+                        if (neuerAnsprechpartner.name) {
+                          setAnsprechpartner([{
+                            ...(neuerAnsprechpartner as NeuerAnsprechpartner),
+                            telefonnummern: neuerAnsprechpartner.telefonnummern && neuerAnsprechpartner.telefonnummern.length > 0
+                              ? neuerAnsprechpartner.telefonnummern
+                              : [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
+                          }]);
+                          setNeuerAnsprechpartner({
+                            name: '',
+                            rolle: '',
+                            email: '',
+                            telefonnummern: [{ nummer: '', typ: 'Mobil', beschreibung: '' }],
+                            bevorzugterKontaktweg: 'telefon',
+                            notizen: '',
+                            aktiv: true,
+                          });
+                        }
+                      }}
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Rolle</label>
+                    <input
+                      type="text"
+                      placeholder="z.B. Platzwart, Vorstand"
+                      value={neuerAnsprechpartner.rolle || ''}
+                      onChange={(e) =>
+                        setNeuerAnsprechpartner({ ...neuerAnsprechpartner, rolle: e.target.value })
+                      }
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
+                    <input
+                      type="email"
+                      value={neuerAnsprechpartner.email || ''}
+                      onChange={(e) =>
+                        setNeuerAnsprechpartner({ ...neuerAnsprechpartner, email: e.target.value })
+                      }
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Telefon</label>
+                    <input
+                      type="tel"
+                      placeholder="z.B. 0171 1234567"
+                      value={neuerAnsprechpartner.telefonnummern?.[0]?.nummer || ''}
+                      onChange={(e) =>
+                        setNeuerAnsprechpartner({
+                          ...neuerAnsprechpartner,
+                          telefonnummern: [{ nummer: e.target.value, typ: 'Mobil', beschreibung: '' }],
+                        })
+                      }
+                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {ansprechpartner.map((ap, apIndex) => (
+                  <div key={apIndex} className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={ap.name || ''}
+                            onChange={(e) => {
+                              const updated = [...ansprechpartner];
+                              updated[apIndex] = { ...updated[apIndex], name: e.target.value };
+                              setAnsprechpartner(updated);
+                            }}
+                            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Rolle</label>
+                          <input
+                            type="text"
+                            placeholder="z.B. Platzwart, Vorstand"
+                            value={ap.rolle || ''}
+                            onChange={(e) => {
+                              const updated = [...ansprechpartner];
+                              updated[apIndex] = { ...updated[apIndex], rolle: e.target.value };
+                              setAnsprechpartner(updated);
+                            }}
+                            className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              value={ap.email || ''}
+                              onChange={(e) => {
+                                const updated = [...ansprechpartner];
+                                updated[apIndex] = { ...updated[apIndex], email: e.target.value };
+                                setAnsprechpartner(updated);
+                              }}
+                              className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            />
+                            {ap.email && (
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(ap.email || '', `ap-email-${apIndex}`)}
+                                className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
+                                  copiedField === `ap-email-${apIndex}`
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                                }`}
+                                title="E-Mail kopieren"
+                              >
+                                {copiedField === `ap-email-${apIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {ansprechpartner.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeAnsprechpartner(apIndex)}
+                          className="ml-4 text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Telefonnummern */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-700 dark:text-slate-400">Telefonnummern</label>
+                        <button
+                          type="button"
+                          onClick={() => addTelefonnummer(apIndex)}
+                          className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Hinzufügen
+                        </button>
+                      </div>
+                      {(ap.telefonnummern || []).map((tel, telIndex) => (
+                        <div key={telIndex} className="flex gap-2">
+                          <input
+                            type="tel"
+                            placeholder="Nummer"
+                            value={tel.nummer || ''}
+                            onChange={(e) =>
+                              updateTelefonnummer(apIndex, telIndex, 'nummer', e.target.value)
+                            }
+                            className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Typ (z.B. Mobil)"
+                            value={tel.typ || ''}
+                            onChange={(e) =>
+                              updateTelefonnummer(apIndex, telIndex, 'typ', e.target.value)
+                            }
+                            className="w-28 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                          {tel.nummer && (
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(tel.nummer || '', `ap-tel-${apIndex}-${telIndex}`)}
+                              className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
+                                copiedField === `ap-tel-${apIndex}-${telIndex}`
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                              }`}
+                              title="Telefonnummer kopieren"
+                            >
+                              {copiedField === `ap-tel-${apIndex}-${telIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeTelefonnummer(apIndex, telIndex)}
+                            className="text-red-600 hover:text-red-800 px-1"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Neuer Ansprechpartner - nur bei mehreren anzeigen */}
+                <div className="border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Name</label>
                       <input
                         type="text"
-                        value={ap.name || ''}
-                        onChange={(e) => {
-                          const updated = [...ansprechpartner];
-                          updated[apIndex] = { ...updated[apIndex], name: e.target.value };
-                          setAnsprechpartner(updated);
-                        }}
+                        value={neuerAnsprechpartner.name || ''}
+                        onChange={(e) =>
+                          setNeuerAnsprechpartner({ ...neuerAnsprechpartner, name: e.target.value })
+                        }
                         className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
                     </div>
@@ -1006,150 +1212,25 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                       <input
                         type="text"
                         placeholder="z.B. Platzwart, Vorstand"
-                        value={ap.rolle || ''}
-                        onChange={(e) => {
-                          const updated = [...ansprechpartner];
-                          updated[apIndex] = { ...updated[apIndex], rolle: e.target.value };
-                          setAnsprechpartner(updated);
-                        }}
+                        value={neuerAnsprechpartner.rolle || ''}
+                        onChange={(e) =>
+                          setNeuerAnsprechpartner({ ...neuerAnsprechpartner, rolle: e.target.value })
+                        }
                         className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="email"
-                          value={ap.email || ''}
-                          onChange={(e) => {
-                            const updated = [...ansprechpartner];
-                            updated[apIndex] = { ...updated[apIndex], email: e.target.value };
-                            setAnsprechpartner(updated);
-                          }}
-                          className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                        />
-                        {ap.email && (
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(ap.email || '', `ap-email-${apIndex}`)}
-                            className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
-                              copiedField === `ap-email-${apIndex}`
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                            }`}
-                            title="E-Mail kopieren"
-                          >
-                            {copiedField === `ap-email-${apIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          </button>
-                        )}
-                      </div>
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeAnsprechpartner(apIndex)}
-                    className="ml-4 text-red-600 hover:text-red-800"
+                    onClick={addAnsprechpartner}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center justify-center gap-2"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Plus className="w-5 h-5" />
+                    Weiteren Ansprechpartner hinzufügen
                   </button>
                 </div>
-
-                {/* Telefonnummern */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700 dark:text-slate-400">Telefonnummern</label>
-                    <button
-                      type="button"
-                      onClick={() => addTelefonnummer(apIndex)}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Hinzufügen
-                    </button>
-                  </div>
-                  {(ap.telefonnummern || []).map((tel, telIndex) => (
-                    <div key={telIndex} className="flex gap-2">
-                      <input
-                        type="tel"
-                        placeholder="Nummer"
-                        value={tel.nummer || ''}
-                        onChange={(e) =>
-                          updateTelefonnummer(apIndex, telIndex, 'nummer', e.target.value)
-                        }
-                        className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Typ (z.B. Mobil)"
-                        value={tel.typ || ''}
-                        onChange={(e) =>
-                          updateTelefonnummer(apIndex, telIndex, 'typ', e.target.value)
-                        }
-                        className="w-28 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      />
-                      {tel.nummer && (
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(tel.nummer || '', `ap-tel-${apIndex}-${telIndex}`)}
-                          className={`px-2.5 py-2 rounded-lg transition-colors flex items-center ${
-                            copiedField === `ap-tel-${apIndex}-${telIndex}`
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                          }`}
-                          title="Telefonnummer kopieren"
-                        >
-                          {copiedField === `ap-tel-${apIndex}-${telIndex}` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeTelefonnummer(apIndex, telIndex)}
-                        className="text-red-600 hover:text-red-800 px-1"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Neuer Ansprechpartner */}
-            <div className="border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={neuerAnsprechpartner.name || ''}
-                    onChange={(e) =>
-                      setNeuerAnsprechpartner({ ...neuerAnsprechpartner, name: e.target.value })
-                    }
-                    className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Rolle</label>
-                  <input
-                    type="text"
-                    placeholder="z.B. Platzwart, Vorstand"
-                    value={neuerAnsprechpartner.rolle || ''}
-                    onChange={(e) =>
-                      setNeuerAnsprechpartner({ ...neuerAnsprechpartner, rolle: e.target.value })
-                    }
-                    className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={addAnsprechpartner}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Ansprechpartner hinzufügen
-              </button>
-            </div>
+              </>
+            )}
           </div>
 
           {/* Buttons */}

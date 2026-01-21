@@ -738,10 +738,11 @@ const Layout = ({ children }: LayoutProps) => {
         )}
       </nav>
 
-      {/* Main Content - mit bottom padding für mobile Bottom-Nav */}
-      <main className="pb-20 sm:pb-0">{children}</main>
+      {/* Main Content - mit bottom padding für mobile Bottom-Nav (außer auf Produktion) */}
+      <main className={location.pathname === '/produktion' ? '' : 'pb-20 sm:pb-0'}>{children}</main>
 
-      {/* Mobile Bottom Navigation - nur auf Mobile sichtbar */}
+      {/* Mobile Bottom Navigation - nur auf Mobile sichtbar, nicht auf Produktion-Seite */}
+      {location.pathname !== '/produktion' && (
       <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border sm:hidden z-40 safe-area-bottom">
         <div className="flex items-center justify-around h-16">
           {/* Home */}
@@ -802,6 +803,7 @@ const Layout = ({ children }: LayoutProps) => {
           </button>
         </div>
       </nav>
+      )}
 
       {/* Footer - nicht auf Dashboard-Seite anzeigen */}
       {location.pathname !== '/dashboard' && (

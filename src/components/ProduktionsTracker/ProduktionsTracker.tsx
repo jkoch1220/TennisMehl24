@@ -406,7 +406,7 @@ const MobileProduktionsTracker: React.FC<{
           step={1}
           unit="Tonnen"
           quickValues={[5, 10, 25, 50]}
-          sensitivity={12}
+          sensitivity={18}
         />
       </div>
 
