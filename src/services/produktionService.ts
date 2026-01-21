@@ -80,16 +80,28 @@ export const produktionService = {
     }
   },
 
-  // Neuen Eintrag hinzufügen
-  async addEintrag(tonnen: number, notiz?: string): Promise<ProduktionsEintrag> {
+  // Neuen Eintrag hinzufügen (mit optionalem Datum für rückwirkende Einträge)
+  async addEintrag(tonnen: number, datumParam?: string, notiz?: string): Promise<ProduktionsEintrag> {
     const jetzt = new Date();
-    const datum = jetzt.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Verwende übergebenes Datum oder heute
+    const datum = datumParam || jetzt.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Bei rückwirkendem Eintrag: Zeitpunkt auf Mittag des Tages setzen
+    let zeitpunkt: string;
+    if (datumParam && datumParam !== jetzt.toISOString().split('T')[0]) {
+      // Rückwirkender Eintrag - setze auf 12:00 Uhr des Tages
+      zeitpunkt = `${datumParam}T12:00:00.000Z`;
+    } else {
+      // Aktueller Eintrag - nutze aktuelle Uhrzeit
+      zeitpunkt = jetzt.toISOString();
+    }
 
     const neuerEintrag: ProduktionsEintrag = {
       id: ID.unique(),
       datum,
       tonnen,
-      zeitpunkt: jetzt.toISOString(),
+      zeitpunkt,
       notiz,
     };
 

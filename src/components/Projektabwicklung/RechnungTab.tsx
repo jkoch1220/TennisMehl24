@@ -294,12 +294,12 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         if (initialePositionen.length === 0) {
           const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
           const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
-          
+
           if (angefragteMenge && preisProTonne) {
             initialePositionen.push({
               id: '1',
-              artikelnummer: 'TM-ZM',
-              bezeichnung: 'Tennismehl / Ziegelmehl',
+              artikelnummer: 'TM-ZM-02',
+              bezeichnung: 'Tennissand 0/2',
               menge: angefragteMenge,
               einheit: 't',
               einzelpreis: preisProTonne,

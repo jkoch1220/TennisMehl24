@@ -568,16 +568,28 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // === Lieferbedingungen ===
   summenY += 6;
 
-  // Prüfe Platz für Lieferbedingungen-Block (ca. 20mm)
-  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
-  
+  // Berechne die GESAMTE Höhe des Lieferbedingungen-Blocks BEVOR wir rendern
+  let lieferbedingungenBlockHeight = 5; // Überschrift
+  if (daten.lieferzeit) lieferbedingungenBlockHeight += 4;
+  if (daten.lieferdatum) lieferbedingungenBlockHeight += 4;
+
+  let lieferbedingungenLines: string[] = [];
+  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
+    lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
+    lieferbedingungenBlockHeight += 2 + getTextHeight(lieferbedingungenLines);
+  }
+
+  // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
+  summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
+
+  // Jetzt rendern - alles bleibt zusammen
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
   doc.text('Lieferbedingungen:', 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  
+
   summenY += 5;
   if (daten.lieferzeit) {
     doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
@@ -587,27 +599,28 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.text(`Lieferdatum: ${formatDatum(daten.lieferdatum)}`, 25, summenY);
     summenY += 4;
   }
-  
+
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
     summenY += 2;
-    const lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
-    const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
-    
-    // Prüfe ob genug Platz für Lieferbedingungen-Text
-    summenY = await ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
-    
     doc.text(lieferbedingungenLines, 25, summenY);
-    summenY += lieferbedingungenHeight;
+    summenY += getTextHeight(lieferbedingungenLines);
   }
   
   // === Zahlungsbedingungen ===
   summenY += 5;
-  
-  // Prüfe Platz für Zahlungsbedingungen-Block (ca. 20mm)
-  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
-  
+
   // Zahlungsbedingungen nur anzeigen wenn nicht ausgeblendet
   if (!daten.zahlungsbedingungenAusblenden) {
+    // Berechne die GESAMTE Höhe des Zahlungsbedingungen-Blocks BEVOR wir rendern
+    let zahlungsbedingungenBlockHeight = 5; // Überschrift
+    zahlungsbedingungenBlockHeight += 4; // Zahlungsziel
+    if (daten.skonto) zahlungsbedingungenBlockHeight += 4;
+    if (daten.zahlungsart) zahlungsbedingungenBlockHeight += 4;
+
+    // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
+    summenY = await ensureSpace(doc, summenY, zahlungsbedingungenBlockHeight, stammdaten);
+
+    // Jetzt rendern - alles bleibt zusammen
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Zahlungsbedingungen:', 25, summenY);
@@ -1084,22 +1097,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   // === Lieferbedingungen ===
   summenY += 6;
 
-  // Prüfe Platz für Lieferbedingungen-Block
-  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
-
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Lieferbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-
-  summenY += 5;
-  if (daten.lieferzeit) {
-    doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
-    summenY += 4;
-  }
-  // Liefertermin-Informationen aufbauen
+  // Liefertermin-Informationen Labels
   const wochentagLabels: Record<string, string> = {
     'montag': 'Montag',
     'dienstag': 'Dienstag',
@@ -1115,6 +1113,41 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     'palette_mit_ladekran': 'Palette mit Ladekran',
     'bigbag': 'BigBag'
   };
+
+  // Berechne die GESAMTE Höhe des Lieferbedingungen-Blocks BEVOR wir rendern
+  let lieferbedingungenBlockHeight = 5; // Überschrift
+  if (daten.lieferzeit) lieferbedingungenBlockHeight += 4;
+  if (daten.lieferKW) {
+    lieferbedingungenBlockHeight += 4; // KW-Text
+    if (daten.bevorzugterTag) lieferbedingungenBlockHeight += 4;
+    if (daten.belieferungsart) lieferbedingungenBlockHeight += 4;
+  } else if (daten.belieferungsart || daten.bevorzugterTag) {
+    if (daten.bevorzugterTag) lieferbedingungenBlockHeight += 4;
+    if (daten.belieferungsart) lieferbedingungenBlockHeight += 4;
+  }
+
+  let lieferbedingungenLines: string[] = [];
+  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
+    lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
+    lieferbedingungenBlockHeight += 2 + getTextHeight(lieferbedingungenLines);
+  }
+
+  // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
+  summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
+
+  // Jetzt rendern - alles bleibt zusammen
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Lieferbedingungen:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  summenY += 5;
+  if (daten.lieferzeit) {
+    doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
+    summenY += 4;
+  }
 
   if (daten.lieferKW) {
     // KW-basierter Liefertermin
@@ -1152,14 +1185,8 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
 
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
     summenY += 2;
-    const lieferbedingungenLines = doc.splitTextToSize(daten.lieferbedingungen, 160);
-    const lieferbedingungenHeight = getTextHeight(lieferbedingungenLines);
-    
-    // Prüfe ob genug Platz für Lieferbedingungen-Text
-    summenY = await ensureSpace(doc, summenY, lieferbedingungenHeight, stammdaten);
-    
     doc.text(lieferbedingungenLines, 25, summenY);
-    summenY += lieferbedingungenHeight;
+    summenY += getTextHeight(lieferbedingungenLines);
   }
   
   // === Zahlungsbedingungen ===
@@ -1167,9 +1194,16 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   if (!daten.zahlungsbedingungenAusblenden) {
     summenY += 5;
 
-    // Prüfe Platz für Zahlungsbedingungen-Block
-    summenY = await ensureSpace(doc, summenY, 20, stammdaten);
+    // Berechne die GESAMTE Höhe des Zahlungsbedingungen-Blocks BEVOR wir rendern
+    let zahlungsbedingungenBlockHeight = 5; // Überschrift
+    zahlungsbedingungenBlockHeight += 4; // Zahlungsziel
+    if (daten.skontoAktiviert && daten.skonto) zahlungsbedingungenBlockHeight += 4;
+    if (daten.zahlungsart) zahlungsbedingungenBlockHeight += 4;
 
+    // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
+    summenY = await ensureSpace(doc, summenY, zahlungsbedingungenBlockHeight, stammdaten);
+
+    // Jetzt rendern - alles bleibt zusammen
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Zahlungsbedingungen:', 25, summenY);

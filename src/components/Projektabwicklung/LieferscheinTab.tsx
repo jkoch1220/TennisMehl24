@@ -293,12 +293,12 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         // Fallback: Wenn keine Positionen von AB, versuche aus Projektdaten
         if (initialePositionen.length === 0) {
           const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
-          
+
           if (angefragteMenge) {
             initialePositionen.push({
               id: '1',
-              artikelnummer: 'TM-ZM',
-              artikel: 'Tennismehl / Ziegelmehl',
+              artikelnummer: 'TM-ZM-02',
+              artikel: 'Tennissand 0/2',
               beschreibung: '',
               menge: angefragteMenge,
               einheit: 't',

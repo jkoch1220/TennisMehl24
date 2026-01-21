@@ -9,6 +9,7 @@ interface SwipeWheelPickerProps {
   step?: number;
   unit?: string;
   quickValues?: number[];
+  sensitivity?: number; // Pixels pro Einheit (höher = weniger empfindlich)
 }
 
 // Audio Context singleton for tick sounds
@@ -96,7 +97,7 @@ const triggerHaptic = (pattern: 'tick' | 'heavy' | 'success' | 'limit' | 'drag')
 // Physics constants
 const MOMENTUM_MULTIPLIER = 0.92;  // Decay rate
 const MIN_VELOCITY = 0.5;          // Stop threshold
-const SENSITIVITY = 8;             // Pixels per unit
+const DEFAULT_SENSITIVITY = 8;     // Default pixels per unit
 
 const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
   value,
@@ -106,7 +107,10 @@ const SwipeWheelPicker: React.FC<SwipeWheelPickerProps> = ({
   step = 1,
   unit = 'Tonnen',
   quickValues = [5, 10, 25, 50],
+  sensitivity = DEFAULT_SENSITIVITY,
 }) => {
+  // Verwende sensitivity prop statt Konstante
+  const SENSITIVITY = sensitivity;
   // State
   const [isDragging, setIsDragging] = useState(false);
   const [displayOffset, setDisplayOffset] = useState(0); // Visual offset during drag

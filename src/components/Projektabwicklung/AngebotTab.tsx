@@ -321,17 +321,51 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         const initialePositionen: Position[] = [];
         const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
         const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
-        
+
+        // Lade Hauptartikel TM-ZM-02 aus den Stammdaten
         if (angefragteMenge && preisProTonne) {
-          initialePositionen.push({
-            id: '1',
-            artikelnummer: 'TM-ZM',
-            bezeichnung: 'Tennismehl / Ziegelmehl',
-            menge: angefragteMenge,
-            einheit: 't',
-            einzelpreis: preisProTonne,
-            gesamtpreis: angefragteMenge * preisProTonne,
-          });
+          try {
+            const alleArtikel = await getAlleArtikel();
+            const hauptArtikel = alleArtikel.find(a => a.artikelnummer === 'TM-ZM-02');
+
+            if (hauptArtikel) {
+              initialePositionen.push({
+                id: '1',
+                artikelnummer: hauptArtikel.artikelnummer,
+                bezeichnung: hauptArtikel.bezeichnung,
+                beschreibung: hauptArtikel.beschreibung || '',
+                menge: angefragteMenge,
+                einheit: hauptArtikel.einheit || 't',
+                einzelpreis: preisProTonne,
+                streichpreis: hauptArtikel.streichpreis,
+                gesamtpreis: angefragteMenge * preisProTonne,
+              });
+            } else {
+              // Fallback falls Artikel nicht gefunden
+              console.warn('Artikel TM-ZM-02 nicht in Stammdaten gefunden. Bitte Artikel anlegen.');
+              initialePositionen.push({
+                id: '1',
+                artikelnummer: 'TM-ZM-02',
+                bezeichnung: 'Tennissand 0/2',
+                menge: angefragteMenge,
+                einheit: 't',
+                einzelpreis: preisProTonne,
+                gesamtpreis: angefragteMenge * preisProTonne,
+              });
+            }
+          } catch (error) {
+            console.error('Fehler beim Laden des Hauptartikels:', error);
+            // Fallback bei Fehler
+            initialePositionen.push({
+              id: '1',
+              artikelnummer: 'TM-ZM-02',
+              bezeichnung: 'Tennissand 0/2',
+              menge: angefragteMenge,
+              einheit: 't',
+              einzelpreis: preisProTonne,
+              gesamtpreis: angefragteMenge * preisProTonne,
+            });
+          }
         }
         
         // Für Kunden mit Bezugsweg "direkt": Standard-Artikel hinzufügen
