@@ -25,6 +25,7 @@ import {
   CalendarClock,
   Factory,
   HardHat,
+  Banknote,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -84,6 +85,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/kreditoren',
     icon: Receipt,
     color: 'from-red-600 to-red-800',
+  },
+  {
+    id: 'debitoren',
+    name: 'Debitoren-Verwaltung',
+    description: 'Offene Forderungen von Vereinen verwalten mit Mahnwesen und Zahlungsverfolgung',
+    href: '/debitoren',
+    icon: Banknote,
+    color: 'from-green-600 to-emerald-700',
   },
   {
     id: 'privat-kreditoren',

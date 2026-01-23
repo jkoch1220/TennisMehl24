@@ -36,6 +36,7 @@ import Instandhaltung from './components/Instandhaltung/Instandhaltung';
 import Schichtplanung from './components/Schichtplanung/Schichtplanung';
 import ProduktionsTracker from './components/ProduktionsTracker/ProduktionsTracker';
 import PlatzbauerverwaltungPage from './components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage';
+import DebitorenVerwaltung from './components/DebitorenVerwaltung/DebitorenVerwaltung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 
@@ -96,6 +97,11 @@ function AuthenticatedContent() {
               <Route path="/kreditoren" element={
                 <ProtectedRoute toolId="kreditoren">
                   <KreditorenVerwaltung />
+                </ProtectedRoute>
+              } />
+              <Route path="/debitoren" element={
+                <ProtectedRoute toolId="debitoren">
+                  <DebitorenVerwaltung />
                 </ProtectedRoute>
               } />
               <Route path="/konkurrenten" element={

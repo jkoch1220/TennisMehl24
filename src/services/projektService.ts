@@ -122,7 +122,7 @@ class ProjektService {
         Query.equal('saisonjahr', saisonjahr),
         Query.limit(1),
       ]);
-      
+
       if (response.documents.length > 0) {
         return response.documents[0] as unknown as Projekt;
       }
@@ -130,6 +130,32 @@ class ProjektService {
     } catch (error) {
       console.error('Fehler beim Laden des Projekts für Kunde:', error);
       throw error;
+    }
+  }
+
+  // ALLE Projekte für einen Kunden laden (über alle Saisonjahre)
+  // KRITISCH: Verwendet kundeId statt kundenname für zuverlässige Verknüpfung
+  async loadProjekteFuerKundeId(kundeId: string): Promise<Projekt[]> {
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, [
+        Query.equal('kundeId', kundeId),
+        Query.orderDesc('saisonjahr'),
+        Query.limit(100),
+      ]);
+
+      return response.documents.map(doc => {
+        if (doc.data && typeof doc.data === 'string') {
+          try {
+            return { ...JSON.parse(doc.data), $id: doc.$id };
+          } catch {
+            return doc as unknown as Projekt;
+          }
+        }
+        return doc as unknown as Projekt;
+      });
+    } catch (error) {
+      console.error('Fehler beim Laden der Projekte für KundeId:', error);
+      return [];
     }
   }
 

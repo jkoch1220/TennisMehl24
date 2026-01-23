@@ -26,13 +26,14 @@ import {
   Building2,
   BarChart3,
 } from 'lucide-react';
-import { Projekt, ProjektStatus } from '../../types/projekt';
+import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
+import { fuzzySearch } from '../../utils/fuzzySearch';
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
@@ -120,6 +121,8 @@ const ProjektVerwaltung = () => {
   const [saisonjahr] = useState(2026); // Aktuelle Saison
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [verlorenProjekt, setVerlorenProjekt] = useState<Projekt | null>(null);
+  const [showVerlorenModal, setShowVerlorenModal] = useState(false);
   const [showVerlorenSpalte, setShowVerlorenSpalteState] = useState(() =>
     loadSetting(STORAGE_KEYS.showVerlorenSpalte, false)
   );
@@ -191,45 +194,49 @@ const ProjektVerwaltung = () => {
     loadData();
   }, [loadData]);
 
-  // Filter-Funktion - durchsucht Projekt UND verknüpften Kunden
+  // ULTIMATE FUZZY SEARCH - Filter-Funktion mit Ähnlichkeitssuche
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    if (!suche) return projekte;
-    const suchbegriffe = suche.toLowerCase().trim().split(/\s+/);
+    if (!suche.trim()) return projekte;
 
-    return projekte.filter(p => {
-      // Hole verknüpften Kunden aus der Map
-      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
+    const results = fuzzySearch<Projekt>(
+      projekte,
+      suche,
+      (p) => {
+        // Hole verknüpften Kunden aus der Map
+        const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
 
-      // Alle durchsuchbaren Felder sammeln (Projekt + Kunde)
-      const felder = [
-        // Projekt-Felder
-        p.kundenname || '',
-        p.projektName || '',
-        p.kundenstrasse || '',
-        p.kundenPlzOrt || '',
-        p.kundennummer ? String(p.kundennummer) : '',
-        p.angebotsnummer || '',
-        p.auftragsbestaetigungsnummer || '',
-        p.rechnungsnummer || '',
-        p.lieferscheinnummer || '',
-        p.lieferadresse?.strasse || '',
-        p.lieferadresse?.plz || '',
-        p.lieferadresse?.ort || '',
-        // Kunden-Felder (aus SaisonKunde)
-        kunde?.name || '',
-        kunde?.kundennummer || '',
-        kunde?.adresse?.strasse || '',
-        kunde?.adresse?.plz || '',
-        kunde?.adresse?.ort || '',
-        kunde?.email || '',
-      ].map(f => f.toLowerCase());
+        return [
+          // Projekt-Felder mit Gewichtung
+          { field: 'kundenname', value: p.kundenname || '', weight: 2.0 },
+          { field: 'projektName', value: p.projektName || '', weight: 1.5 },
+          { field: 'kundennummer', value: p.kundennummer ? String(p.kundennummer) : '', weight: 1.5 },
+          { field: 'kundenPlzOrt', value: p.kundenPlzOrt || '', weight: 1.2 },
+          { field: 'kundenstrasse', value: p.kundenstrasse || '', weight: 0.8 },
+          { field: 'angebotsnummer', value: p.angebotsnummer || '', weight: 1.3 },
+          { field: 'auftragsbestaetigungsnummer', value: p.auftragsbestaetigungsnummer || '', weight: 1.3 },
+          { field: 'rechnungsnummer', value: p.rechnungsnummer || '', weight: 1.3 },
+          { field: 'lieferscheinnummer', value: p.lieferscheinnummer || '', weight: 1.3 },
+          { field: 'lieferadresse_strasse', value: p.lieferadresse?.strasse || '', weight: 0.7 },
+          { field: 'lieferadresse_plz', value: p.lieferadresse?.plz || '', weight: 1.0 },
+          { field: 'lieferadresse_ort', value: p.lieferadresse?.ort || '', weight: 1.2 },
+          // Kunden-Felder (aus SaisonKunde Map - aktueller Name!)
+          { field: 'kunde_name', value: kunde?.name || '', weight: 2.0 },
+          { field: 'kunde_kundennummer', value: kunde?.kundennummer || '', weight: 1.5 },
+          { field: 'kunde_adresse_strasse', value: kunde?.adresse?.strasse || '', weight: 0.7 },
+          { field: 'kunde_adresse_plz', value: kunde?.adresse?.plz || '', weight: 1.0 },
+          { field: 'kunde_adresse_ort', value: kunde?.adresse?.ort || '', weight: 1.2 },
+          { field: 'kunde_email', value: kunde?.email || '', weight: 0.8 },
+        ];
+      },
+      {
+        minScore: 0.25,
+        fuzzyThreshold: 0.6,
+        maxResults: 1000,
+        matchAll: true,
+      }
+    );
 
-      // Kombinierter Suchtext
-      const suchtext = felder.join(' ');
-
-      // Alle Suchbegriffe müssen gefunden werden (AND-Verknüpfung)
-      return suchbegriffe.every(begriff => suchtext.includes(begriff));
-    });
+    return results.map(r => r.item);
   }, [suche, kundenMap]);
 
   // Alle Projekte mit Angebot für die Angebotsliste
@@ -299,14 +306,35 @@ const ProjektVerwaltung = () => {
     }
   };
 
-  // Projekt als verloren markieren
-  const handleMarkAsLost = async (e: React.MouseEvent, projekt: Projekt) => {
+  // Projekt als verloren markieren - öffnet Modal zur Grundauswahl
+  const handleMarkAsLost = (e: React.MouseEvent, projekt: Projekt) => {
     e.stopPropagation();
-    const bestaetigung = window.confirm(
-      `Möchtest du das Projekt "${projekt.kundenname}" als verloren markieren?`
-    );
-    if (!bestaetigung) return;
-    await updateStatus(projekt, 'verloren');
+    setVerlorenProjekt(projekt);
+    setShowVerlorenModal(true);
+  };
+
+  // Wird aufgerufen wenn im Modal ein Grund ausgewählt wurde
+  const handleVerlorenConfirm = async (grund: VerlorenGrund, grundText?: string) => {
+    if (!verlorenProjekt) return;
+
+    setSaving(true);
+    try {
+      const documentId = (verlorenProjekt as any).$id || verlorenProjekt.id;
+      // Aktualisiere Projekt mit Status und Grund
+      await projektService.updateProjekt(documentId, {
+        status: 'verloren',
+        verlorenGrund: grund,
+        verlorenGrundText: grund === 'sonstiges' ? grundText : undefined,
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Markieren als verloren:', error);
+      alert('Fehler beim Speichern. Bitte erneut versuchen.');
+    } finally {
+      setSaving(false);
+      setShowVerlorenModal(false);
+      setVerlorenProjekt(null);
+    }
   };
 
   // Projekt-Klick Handler - Öffnet Formular
@@ -646,6 +674,18 @@ const ProjektVerwaltung = () => {
           onCancel={() => {
             setShowEditModal(false);
             setEditingProjekt(null);
+          }}
+        />
+      )}
+
+      {/* Verloren-Grund Modal */}
+      {showVerlorenModal && verlorenProjekt && (
+        <VerlorenGrundModal
+          projekt={verlorenProjekt}
+          onConfirm={handleVerlorenConfirm}
+          onCancel={() => {
+            setShowVerlorenModal(false);
+            setVerlorenProjekt(null);
           }}
         />
       )}
@@ -1059,6 +1099,7 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
     kundenstrasse: projekt.kundenstrasse,
     kundenPlzOrt: projekt.kundenPlzOrt,
     kundennummer: projekt.kundennummer || '',
+    ansprechpartner: projekt.ansprechpartner || '',
     angefragteMenge: projekt.angefragteMenge || 0,
     preisProTonne: projekt.preisProTonne || 0,
     bezugsweg: projekt.bezugsweg || '',
@@ -1096,6 +1137,7 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
       kundenstrasse: formData.kundenstrasse,
       kundenPlzOrt: formData.kundenPlzOrt,
       kundennummer: formData.kundennummer || undefined,
+      ansprechpartner: formData.ansprechpartner || undefined,
       angefragteMenge: formData.angefragteMenge || undefined,
       preisProTonne: formData.preisProTonne || undefined,
       bezugsweg: formData.bezugsweg || undefined,
@@ -1164,6 +1206,20 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
                 Die Kundennummer dient als Verknüpfung zum Projekt.
               </p>
             )}
+          </div>
+
+          {/* Ansprechpartner beim Kunden */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+              Ansprechpartner beim Kunden <span className="text-xs text-gray-500 dark:text-dark-textSubtle">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={formData.ansprechpartner}
+              onChange={(e) => setFormData({ ...formData, ansprechpartner: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-dark-textSubtle focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
+              placeholder="z.B. Herr Müller, Platzwart"
+            />
           </div>
 
           {/* Straße */}
@@ -1265,6 +1321,112 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
               className="flex-1 px-6 py-3 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium"
             >
               Abbrechen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Verloren-Grund-Modal Komponente
+interface VerlorenGrundModalProps {
+  projekt: Projekt;
+  onConfirm: (grund: VerlorenGrund, grundText?: string) => void;
+  onCancel: () => void;
+}
+
+const VerlorenGrundModal = ({ projekt, onConfirm, onCancel }: VerlorenGrundModalProps) => {
+  const [selectedGrund, setSelectedGrund] = useState<VerlorenGrund | null>(null);
+  const [grundText, setGrundText] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGrund) return;
+    onConfirm(selectedGrund, grundText);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-slate-700">
+        {/* Header */}
+        <div className="border-b border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 dark:bg-red-950/50 rounded-lg">
+              <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Projekt als verloren markieren</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{projekt.kundenname}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6">
+          <p className="text-gray-700 dark:text-gray-300 mb-4">Warum wurde das Projekt verloren?</p>
+
+          <div className="space-y-2">
+            {VERLOREN_GRUENDE.map((grund) => (
+              <label
+                key={grund.value}
+                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                  selectedGrund === grund.value
+                    ? 'border-red-500 bg-red-50 dark:bg-red-950/30 dark:border-red-400'
+                    : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="verlorenGrund"
+                  value={grund.value}
+                  checked={selectedGrund === grund.value}
+                  onChange={() => setSelectedGrund(grund.value)}
+                  className="w-4 h-4 text-red-600 focus:ring-red-500"
+                />
+                <span className={`font-medium ${
+                  selectedGrund === grund.value
+                    ? 'text-red-700 dark:text-red-300'
+                    : 'text-gray-700 dark:text-gray-300'
+                }`}>
+                  {grund.label}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {/* Freitext bei "Sonstiges" */}
+          {selectedGrund === 'sonstiges' && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Grund beschreiben
+              </label>
+              <textarea
+                value={grundText}
+                onChange={(e) => setGrundText(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Was ist passiert?"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div className="flex gap-3 mt-6">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedGrund || (selectedGrund === 'sonstiges' && !grundText.trim())}
+              className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium disabled:cursor-not-allowed"
+            >
+              Als verloren markieren
             </button>
           </div>
         </form>

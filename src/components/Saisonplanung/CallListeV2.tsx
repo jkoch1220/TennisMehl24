@@ -39,6 +39,7 @@ import { NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
 import { client, DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { fuzzySearch } from '../../utils/fuzzySearch';
 
 interface CallListeV2Props {
   saisonjahr: number;
@@ -197,20 +198,42 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
     };
   }, [loadData]);
 
-  // Filter-Funktion
-  const filterKunden = (kunden: SaisonKundeMitDaten[]) => {
-    if (!suche) return kunden;
-    const s = suche.toLowerCase();
-    return kunden.filter(k =>
-      k.kunde.name.toLowerCase().includes(s) ||
-      k.kunde.lieferadresse.ort.toLowerCase().includes(s) ||
-      k.kunde.lieferadresse.plz.includes(s) ||
-      k.ansprechpartner.some(ap =>
-        ap.name.toLowerCase().includes(s) ||
-        ap.telefonnummern.some(tel => tel.nummer.includes(s))
-      )
+  // ULTIMATE FUZZY SEARCH - Filter-Funktion
+  const filterKunden = useCallback((kunden: SaisonKundeMitDaten[]) => {
+    if (!suche.trim()) return kunden;
+
+    const results = fuzzySearch<SaisonKundeMitDaten>(
+      kunden,
+      suche,
+      (kunde) => [
+        { field: 'name', value: kunde.kunde.name, weight: 2.0 },
+        { field: 'ort', value: kunde.kunde.lieferadresse.ort, weight: 1.5 },
+        { field: 'plz', value: kunde.kunde.lieferadresse.plz, weight: 1.2 },
+        { field: 'bundesland', value: kunde.kunde.lieferadresse.bundesland || '', weight: 1.0 },
+        { field: 'kundennummer', value: kunde.kunde.kundennummer || '', weight: 1.5 },
+        ...kunde.ansprechpartner.map((ap, i) => ({
+          field: `ansprechpartner_${i}`,
+          value: ap.name,
+          weight: 0.8,
+        })),
+        ...kunde.ansprechpartner.flatMap((ap, i) =>
+          ap.telefonnummern.map((tel, j) => ({
+            field: `telefon_${i}_${j}`,
+            value: tel.nummer,
+            weight: 0.7,
+          }))
+        ),
+      ],
+      {
+        minScore: 0.25,
+        fuzzyThreshold: 0.6,
+        maxResults: 500,
+        matchAll: true,
+      }
     );
-  };
+
+    return results.map(r => r.item);
+  }, [suche]);
 
   // Drag & Drop Handler
   const handleDragStart = (e: DragEvent, kunde: SaisonKundeMitDaten) => {

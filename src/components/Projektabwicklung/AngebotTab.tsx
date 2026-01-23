@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -42,6 +42,7 @@ import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
+import { Stueckliste, getStuecklistenNachKategorie } from '../../constants/stuecklisten';
 import { berechneFremdlieferungRoute } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
 
@@ -97,6 +98,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   const [universalLaden, setUniversalLaden] = useState(false);
   const [ausgewaehlterIndex, setAusgewaehlterIndex] = useState<number>(0);
+  const [artikelHinzugefuegt, setArtikelHinzugefuegt] = useState<string | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const ausgewaehlteZeileRef = useRef<HTMLTableRowElement>(null);
   
   // Dokument-Status
@@ -540,23 +543,48 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
     generiereNummer();
   }, [initialLaden]);
 
-  // Auto-Save mit Debounce (nur für Entwürfe, nicht wenn Dokument hinterlegt ist)
+  // Auto-Save mit Debounce (für Entwürfe UND im Bearbeitungsmodus)
   const speichereAutomatisch = useCallback(async (daten: AngebotsDaten) => {
-    if (!projekt?.$id || initialLaden || gespeichertesDokument) return;
-    
+    console.log('🔄 Auto-Save Check:', {
+      projektId: projekt?.$id,
+      initialLaden,
+      hatDokument: !!gespeichertesDokument,
+      istBearbeitungsModus,
+      sollSpeichern: !(!projekt?.$id || initialLaden || (gespeichertesDokument && !istBearbeitungsModus))
+    });
+
+    // Nur speichern wenn: neuer Entwurf ODER im Bearbeitungsmodus
+    if (!projekt?.$id || initialLaden || (gespeichertesDokument && !istBearbeitungsModus)) {
+      console.log('❌ Auto-Save übersprungen');
+      return;
+    }
+
     try {
+      console.log('💾 Auto-Save startet...');
       setSpeicherStatus('speichern');
       await speichereEntwurf(projekt.$id, 'angebotsDaten', daten);
       setSpeicherStatus('gespeichert');
+      console.log('✅ Auto-Save erfolgreich');
     } catch (error) {
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.$id, initialLaden, gespeichertesDokument]);
+  }, [projekt?.$id, initialLaden, gespeichertesDokument, istBearbeitungsModus]);
 
-  // Debounced Auto-Save bei Änderungen (nur wenn noch kein Dokument hinterlegt)
+  // Debounced Auto-Save bei Änderungen (für Entwürfe UND im Bearbeitungsmodus)
   useEffect(() => {
-    if (initialLaden || !hatGeaendert.current || gespeichertesDokument) return;
+    console.log('📝 Auto-Save Effect Check:', {
+      initialLaden,
+      hatGeaendert: hatGeaendert.current,
+      hatDokument: !!gespeichertesDokument,
+      istBearbeitungsModus
+    });
+
+    // Nur speichern wenn: neuer Entwurf ODER im Bearbeitungsmodus
+    if (initialLaden || !hatGeaendert.current || (gespeichertesDokument && !istBearbeitungsModus)) {
+      console.log('⏭️ Auto-Save Effect übersprungen');
+      return;
+    }
     
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -571,7 +599,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [angebotsDaten, speichereAutomatisch, initialLaden, gespeichertesDokument]);
+  }, [angebotsDaten, speichereAutomatisch, initialLaden, gespeichertesDokument, istBearbeitungsModus]);
 
   // Lieferkosten-Vorschlag berechnen wenn PLZ und Tonnage vorhanden
   useEffect(() => {
@@ -749,8 +777,9 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       positionen: [...prev.positionen, neuePosition]
     }));
 
-    setShowArtikelAuswahl(false);
-    setArtikelSuchtext('');
+    // Feedback anzeigen statt Modal schließen
+    setArtikelHinzugefuegt(selectedArtikel.bezeichnung);
+    setTimeout(() => setArtikelHinzugefuegt(null), 2000);
   };
 
   // Position aus Universal-Artikel hinzufügen
@@ -780,8 +809,87 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
       positionen: [...prev.positionen, neuePosition]
     }));
 
-    setShowArtikelAuswahl(false);
-    setArtikelSuchtext('');
+    // Feedback anzeigen statt Modal schließen
+    setArtikelHinzugefuegt(selectedArtikel.bezeichnung);
+    setTimeout(() => setArtikelHinzugefuegt(null), 2000);
+  };
+
+  // Positionen aus Stückliste hinzufügen (Quick-Add)
+  const addPositionenAusStueckliste = (stueckliste: Stueckliste) => {
+    hatGeaendert.current = true;
+
+    const neuePositionen: Position[] = [];
+    let nichtGefunden: string[] = [];
+
+    for (const pos of stueckliste.positionen) {
+      const selectedArtikel = artikel.find(a => a.artikelnummer === pos.artikelnummer);
+
+      if (!selectedArtikel) {
+        nichtGefunden.push(pos.artikelnummer);
+        continue;
+      }
+
+      // Menge bestimmen: aus Projekt oder default
+      let menge = pos.menge ?? 1;
+      if (pos.mengeAusProjekt === 'angefragteMenge' && (projekt?.angefragteMenge || kundeInfo?.angefragteMenge)) {
+        menge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge || 1;
+      }
+
+      let preis = selectedArtikel.einzelpreis ?? 0;
+
+      // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
+      if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
+        // Berechne Tonnage inkl. der neuen Positionen
+        const bestehendeTonn = angebotsDaten.positionen.reduce((sum, p) => {
+          if (p.einheit?.toLowerCase() === 't' || p.einheit?.toLowerCase() === 'to') {
+            return sum + (p.menge || 0);
+          }
+          return sum;
+        }, 0);
+        const neueTonn = neuePositionen.reduce((sum, p) => {
+          if (p.einheit?.toLowerCase() === 't' || p.einheit?.toLowerCase() === 'to') {
+            return sum + (p.menge || 0);
+          }
+          return sum;
+        }, 0);
+        preis = berechneFrachtkostenpauschale(bestehendeTonn + neueTonn);
+      }
+
+      const neuePosition: Position = {
+        id: `${Date.now()}-${pos.artikelnummer}`,
+        artikelnummer: selectedArtikel.artikelnummer,
+        bezeichnung: selectedArtikel.bezeichnung,
+        beschreibung: selectedArtikel.beschreibung || '',
+        menge: menge,
+        einheit: selectedArtikel.einheit,
+        einzelpreis: preis,
+        einkaufspreis: selectedArtikel.einkaufspreis,
+        streichpreis: selectedArtikel.streichpreis,
+        gesamtpreis: menge * preis,
+      };
+
+      neuePositionen.push(neuePosition);
+    }
+
+    if (neuePositionen.length > 0) {
+      setAngebotsDaten(prev => ({
+        ...prev,
+        positionen: [...prev.positionen, ...neuePositionen]
+      }));
+
+      // Feedback anzeigen
+      const anzahl = neuePositionen.length;
+      const feedback = nichtGefunden.length > 0
+        ? `${anzahl} Position(en) hinzugefügt. Nicht gefunden: ${nichtGefunden.join(', ')}`
+        : `${anzahl} Position(en) aus "${stueckliste.name}" hinzugefügt`;
+      setArtikelHinzugefuegt(feedback);
+      setTimeout(() => setArtikelHinzugefuegt(null), 3000);
+    } else if (nichtGefunden.length > 0) {
+      setArtikelHinzugefuegt(`Keine Artikel gefunden: ${nichtGefunden.join(', ')}`);
+      setTimeout(() => setArtikelHinzugefuegt(null), 3000);
+    }
+
+    setShowQuickAdd(false);
   };
 
   // Gefilterte und sortierte Artikel für die Auswahl
@@ -977,16 +1085,25 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         }
       }
 
-      // Platzbauer beim Projekt hinterlegen
-      if (angebotsDaten.platzbauerId) {
-        try {
-          await projektService.updateProjekt(projekt.$id, {
-            platzbauerId: angebotsDaten.platzbauerId
-          });
-          console.log('✅ Platzbauer beim Projekt gespeichert');
-        } catch (error) {
-          console.warn('Platzbauer konnte nicht beim Projekt gespeichert werden:', error);
+      // Ansprechpartner und Platzbauer beim Projekt hinterlegen
+      try {
+        const projektUpdateDaten: Record<string, unknown> = {};
+
+        // Ansprechpartner beim Kunden zum Projekt speichern (für Übernahme in andere Tabs)
+        if (angebotsDaten.ansprechpartner) {
+          projektUpdateDaten.ansprechpartner = angebotsDaten.ansprechpartner;
         }
+
+        if (angebotsDaten.platzbauerId) {
+          projektUpdateDaten.platzbauerId = angebotsDaten.platzbauerId;
+        }
+
+        if (Object.keys(projektUpdateDaten).length > 0) {
+          await projektService.updateProjekt(projekt.$id, projektUpdateDaten);
+          console.log('✅ Projektdaten aktualisiert (Ansprechpartner/Platzbauer)');
+        }
+      } catch (error) {
+        console.warn('Projektdaten konnten nicht aktualisiert werden:', error);
       }
 
       // Status-Meldung nach 5 Sekunden ausblenden
@@ -1299,23 +1416,8 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
-              <input
-                type="text"
-                value={angebotsDaten.kundenstrasse}
-                onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
-              <input
-                type="text"
-                value={angebotsDaten.kundenPlzOrt}
-                onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-              />
+            <div className="sm:col-span-2 text-sm text-gray-500 dark:text-dark-textMuted">
+              Die Rechnungsadresse wird aus den oben hinterlegten Kundendaten übernommen.
             </div>
           </div>
         </div>
@@ -1478,6 +1580,55 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text">Angebotspositionen</h2>
             <div className="flex gap-2">
+              {/* Quick-Add Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowQuickAdd(!showQuickAdd)}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm sm:text-base min-h-[44px] sm:min-h-0"
+                >
+                  <ListPlus className="h-4 w-4" />
+                  <span className="sm:hidden">Quick</span>
+                  <span className="hidden sm:inline">Stückliste</span>
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showQuickAdd && (
+                  <>
+                    {/* Overlay zum Schließen */}
+                    <div className="fixed inset-0 z-40" onClick={() => setShowQuickAdd(false)} />
+                    <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 z-50">
+                    <div className="p-2">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider px-2 py-1">
+                        Lieferung
+                      </div>
+                      {getStuecklistenNachKategorie().lieferung.map((sl) => (
+                        <button
+                          key={sl.id}
+                          onClick={() => addPositionenAusStueckliste(sl)}
+                          className="w-full text-left px-3 py-2 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-dark-text text-sm">{sl.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-dark-textMuted">{sl.beschreibung}</div>
+                        </button>
+                      ))}
+                      <div className="border-t border-gray-200 dark:border-slate-700 my-2" />
+                      <div className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider px-2 py-1">
+                        Instandsetzung
+                      </div>
+                      {getStuecklistenNachKategorie().instandsetzung.map((sl) => (
+                        <button
+                          key={sl.id}
+                          onClick={() => addPositionenAusStueckliste(sl)}
+                          className="w-full text-left px-3 py-2 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-dark-text text-sm">{sl.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-dark-textMuted">{sl.beschreibung}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => setShowArtikelAuswahl(!showArtikelAuswahl)}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base min-h-[44px] sm:min-h-0"
@@ -1512,6 +1663,15 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                   Schließen
                 </button>
               </div>
+
+              {/* Feedback Toast wenn Artikel hinzugefügt */}
+              {artikelHinzugefuegt && (
+                <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-700 rounded-lg text-green-800 dark:text-green-200 text-sm animate-pulse">
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium">Hinzugefügt:</span>
+                  <span className="truncate">{artikelHinzugefuegt}</span>
+                </div>
+              )}
 
               {/* Tabs für Artikel-Auswahl */}
               <div className="flex gap-2 mb-4">

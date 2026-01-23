@@ -1334,10 +1334,10 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.setTextColor(0, 0, 0);
     doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
   }
-  
+
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
-  
+
   // === DIN 5008: EMPFÄNGERADRESSE ===
   let yPos = 50;
   doc.setFontSize(11);
@@ -1349,38 +1349,42 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
   yPos += 5;
   doc.text(daten.kundenPlzOrt, 25, yPos);
-  
-  // Ansprechpartner
+
+  // Ansprechpartner (mit optionaler Telefonnummer)
   if (daten.ansprechpartner) {
     yPos += 6;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
+    // Ansprechpartner mit Telefonnummer in einer Zeile
+    const ansprechpartnerText = daten.ansprechpartnerTelefon
+      ? `z. Hd. ${daten.ansprechpartner}, Tel. ${daten.ansprechpartnerTelefon}`
+      : `z. Hd. ${daten.ansprechpartner}`;
+    doc.text(ansprechpartnerText, 25, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
-  
+
   // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
     // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
     yPos += 9;
-    
+
     // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
     // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
     doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
     doc.setLineWidth(0.15);  // Dünner (dezenter)
     doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
-    
+
     // Zweite Hälfte des Abstands
     yPos += 9;
-    
+
     // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'normal');
     doc.text('Lieferadresse:', 25, yPos);
     yPos += 6;
-    
+
     // Lieferadresse-Daten
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
@@ -1388,12 +1392,12 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.text(daten.lieferadresseName, 25, yPos);
     doc.setFont('helvetica', 'normal');
     yPos += 6;
-    
+
     if (daten.lieferadresseStrasse) {
       doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
       yPos += 5;
     }
-    
+
     if (daten.lieferadressePlzOrt) {
       doc.text(daten.lieferadressePlzOrt, 25, yPos);
       yPos += 5;
@@ -1402,7 +1406,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
 
   // === DIN 5008: BETREFF ===
   // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
-  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName
     ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
     : 95;  // Standard-Position wenn keine Lieferadresse
   yPos = betrefYPos;

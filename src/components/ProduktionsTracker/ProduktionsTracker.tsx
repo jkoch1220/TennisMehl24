@@ -9,7 +9,8 @@ import {
   ResponsiveContainer, Area, AreaChart, ComposedChart, Legend, Cell
 } from 'recharts';
 import { produktionService } from '../../services/produktionService';
-import type { ProduktionsVerlauf, ProduktionsEintrag } from '../../types/produktion';
+import type { ProduktionsVerlauf, ProduktionsEintrag, Koernung } from '../../types/produktion';
+import { KOERNUNGEN } from '../../types/produktion';
 import SwipeWheelPicker, { playTickSound, triggerHaptic } from './SwipeWheelPicker';
 
 // Hook für Mobile Detection
@@ -234,6 +235,28 @@ const calculateExtendedStats = (verlauf: ProduktionsVerlauf) => {
   const verbleibendeTageMonat = new Date(heute.getFullYear(), heute.getMonth() + 1, 0).getDate() - heute.getDate();
   const prognoseMonat = dieserMonat + (dieserMonatTage > 0 ? (dieserMonat / dieserMonatTage) * verbleibendeTageMonat : 0);
 
+  // Körnung-Statistik für letzte 30 Tage
+  const koernungMap = new Map<string, number>();
+  const last30DaysStart = new Date(heute);
+  last30DaysStart.setDate(last30DaysStart.getDate() - 30);
+
+  for (const e of eintraege) {
+    const eintragDatum = new Date(e.datum);
+    if (eintragDatum >= last30DaysStart && eintragDatum <= heute) {
+      const koernung = e.koernung || 'mittel'; // Fallback für alte Einträge
+      koernungMap.set(koernung, (koernungMap.get(koernung) || 0) + e.tonnen);
+    }
+  }
+
+  const gesamtLast30 = Array.from(koernungMap.values()).reduce((a, b) => a + b, 0);
+  const koernungStatistik = Array.from(koernungMap.entries())
+    .map(([koernung, tonnen]) => ({
+      koernung: koernung as Koernung,
+      tonnen,
+      anteil: gesamtLast30 > 0 ? (tonnen / gesamtLast30) * 100 : 0,
+    }))
+    .sort((a, b) => b.tonnen - a.tonnen);
+
   return {
     heute: heuteProduktion,
     dieseWoche,
@@ -257,6 +280,7 @@ const calculateExtendedStats = (verlauf: ProduktionsVerlauf) => {
     prognoseMonat,
     gesamtEintraege: eintraege.length,
     produktiveTage: tagesMap.size,
+    koernungStatistik,
   };
 };
 
@@ -332,12 +356,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const MobileProduktionsTracker: React.FC<{
   tonnen: number;
   setTonnen: (v: number) => void;
+  koernung: Koernung;
+  setKoernung: (v: Koernung) => void;
   onSave: () => void;
   saving: boolean;
   success: boolean;
   heuteProduktion: number;
   statistik: { gesamtTonnen: number; durchschnittProTag: number };
-}> = ({ tonnen, setTonnen, onSave, saving, success, heuteProduktion, statistik }) => {
+}> = ({ tonnen, setTonnen, koernung, setKoernung, onSave, saving, success, heuteProduktion, statistik }) => {
 
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -394,6 +420,32 @@ const MobileProduktionsTracker: React.FC<{
               <div className="text-lg font-bold text-green-600 dark:text-green-400">{statistik.durchschnittProTag.toFixed(0)}t</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Körnung Auswahl */}
+      <div className="flex-shrink-0 px-4 py-3">
+        <div className="text-xs text-gray-500 dark:text-gray-400 text-center mb-2 font-medium">Körnung</div>
+        <div className="flex gap-2 justify-center">
+          {KOERNUNGEN.map((k) => (
+            <button
+              key={k.value}
+              onClick={() => {
+                setKoernung(k.value);
+                playTickSound('medium');
+                triggerHaptic('tick');
+              }}
+              className={`
+                px-4 py-2 rounded-xl font-semibold text-sm transition-all
+                ${koernung === k.value
+                  ? `bg-gradient-to-br ${k.color} text-white shadow-lg scale-105`
+                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 shadow'
+                }
+              `}
+            >
+              {k.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -466,13 +518,15 @@ const MobileProduktionsTracker: React.FC<{
 const DesktopProduktionsTracker: React.FC<{
   tonnen: number;
   setTonnen: (v: number) => void;
+  koernung: Koernung;
+  setKoernung: (v: Koernung) => void;
   onSave: (datum?: string) => void;
   saving: boolean;
   success: boolean;
   verlauf: ProduktionsVerlauf;
   onDelete: (id: string) => void;
   deleteId: string | null;
-}> = ({ tonnen, setTonnen, onSave, saving, success, verlauf, onDelete, deleteId }) => {
+}> = ({ tonnen, setTonnen, koernung, setKoernung, onSave, saving, success, verlauf, onDelete, deleteId }) => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState<'erfassen' | 'statistik' | 'verlauf'>('erfassen');
 
@@ -689,23 +743,29 @@ const DesktopProduktionsTracker: React.FC<{
                     Einträge für {formatDatum(selectedDate)}
                   </h4>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {entriesForSelectedDay.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-orange-600 dark:text-orange-400">{entry.tonnen}t</span>
-                          <span className="text-sm text-gray-500">{formatZeit(entry.zeitpunkt)}</span>
-                        </div>
-                        <button
-                          onClick={() => onDelete(entry.id!)}
-                          className="p-1 text-gray-400 hover:text-red-500"
+                    {entriesForSelectedDay.map((entry) => {
+                      const koernungInfo = KOERNUNGEN.find(k => k.value === entry.koernung) || KOERNUNGEN[2];
+                      return (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-orange-600 dark:text-orange-400">{entry.tonnen}t</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${koernungInfo.color} text-white`}>
+                              {koernungInfo.label}
+                            </span>
+                            <span className="text-sm text-gray-500">{formatZeit(entry.zeitpunkt)}</span>
+                          </div>
+                          <button
+                            onClick={() => onDelete(entry.id!)}
+                            className="p-1 text-gray-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -718,6 +778,33 @@ const DesktopProduktionsTracker: React.FC<{
                 Eintrag für {formatDatum(selectedDate)}
               </h3>
 
+              {/* Körnung Auswahl */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Körnung</label>
+                <div className="flex flex-wrap gap-2">
+                  {KOERNUNGEN.map((k) => (
+                    <button
+                      key={k.value}
+                      onClick={() => {
+                        setKoernung(k.value);
+                        playTickSound('medium');
+                      }}
+                      className={`
+                        px-4 py-2 rounded-xl font-semibold transition-all
+                        ${koernung === k.value
+                          ? `bg-gradient-to-br ${k.color} text-white shadow-lg`
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                        }
+                      `}
+                    >
+                      {k.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tonnen Auswahl */}
+              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Menge</label>
               <div className="flex flex-wrap gap-2 mb-6">
                 {[5, 10, 15, 20, 25, 30, 40, 50].map((v) => (
                   <button
@@ -898,6 +985,42 @@ const DesktopProduktionsTracker: React.FC<{
                 </div>
               </div>
 
+              {/* Körnung-Verteilung */}
+              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-orange-500" />
+                  Körnung-Verteilung (letzte 30 Tage)
+                </h3>
+                <div className="space-y-3">
+                  {stats.koernungStatistik && stats.koernungStatistik.length > 0 ? (
+                    stats.koernungStatistik.map((k) => {
+                      const koernungInfo = KOERNUNGEN.find(ki => ki.value === k.koernung) || KOERNUNGEN[2];
+                      return (
+                        <div key={k.koernung} className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{koernungInfo.label}</span>
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {k.tonnen.toFixed(0)}t ({k.anteil.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${koernungInfo.color}`}
+                              style={{ width: `${k.anteil}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>Noch keine Daten vorhanden</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Kennzahlen-Übersicht */}
               <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -1002,38 +1125,44 @@ const DesktopProduktionsTracker: React.FC<{
                     </div>
 
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {entries.map((eintrag) => (
-                        <div
-                          key={eintrag.id}
-                          className={`
-                            bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4
-                            flex items-center justify-between
-                            transition-all duration-300
-                            ${deleteId === eintrag.id ? 'opacity-0 scale-95' : 'opacity-100'}
-                          `}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white font-bold shadow-md">
-                              {eintrag.tonnen}t
-                            </div>
-                            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-                              <Clock className="w-4 h-4" />
-                              <span className="font-medium">{formatZeit(eintrag.zeitpunkt)}</span>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              if (confirm('Eintrag löschen?')) {
-                                onDelete(eintrag.id!);
-                              }
-                            }}
-                            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                      {entries.map((eintrag) => {
+                        const koernungInfo = KOERNUNGEN.find(k => k.value === eintrag.koernung) || KOERNUNGEN[2]; // Fallback zu Mittel
+                        return (
+                          <div
+                            key={eintrag.id}
+                            className={`
+                              bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4
+                              flex items-center justify-between
+                              transition-all duration-300
+                              ${deleteId === eintrag.id ? 'opacity-0 scale-95' : 'opacity-100'}
+                            `}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                            <div className="flex items-center gap-3">
+                              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${koernungInfo.color} flex items-center justify-center text-white font-bold shadow-md`}>
+                                {eintrag.tonnen}t
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-600 dark:text-gray-300">{koernungInfo.label}</div>
+                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{formatZeit(eintrag.zeitpunkt)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                if (confirm('Eintrag löschen?')) {
+                                  onDelete(eintrag.id!);
+                                }
+                              }}
+                              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -1050,6 +1179,7 @@ const DesktopProduktionsTracker: React.FC<{
 const ProduktionsTracker: React.FC = () => {
   const isMobile = useIsMobile();
   const [tonnen, setTonnen] = useState(10);
+  const [koernung, setKoernung] = useState<Koernung>('mittel');
   const [verlauf, setVerlauf] = useState<ProduktionsVerlauf>({ eintraege: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1079,7 +1209,7 @@ const ProduktionsTracker: React.FC = () => {
     setSuccess(false);
 
     try {
-      await produktionService.addEintrag(tonnen, datum);
+      await produktionService.addEintrag(tonnen, koernung, datum);
       setSuccess(true);
 
       playTickSound('success');
@@ -1142,6 +1272,8 @@ const ProduktionsTracker: React.FC = () => {
       <MobileProduktionsTracker
         tonnen={tonnen}
         setTonnen={setTonnen}
+        koernung={koernung}
+        setKoernung={setKoernung}
         onSave={() => handleSave()}
         saving={saving}
         success={success}
@@ -1155,6 +1287,8 @@ const ProduktionsTracker: React.FC = () => {
     <DesktopProduktionsTracker
       tonnen={tonnen}
       setTonnen={setTonnen}
+      koernung={koernung}
+      setKoernung={setKoernung}
       onSave={handleSave}
       saving={saving}
       success={success}

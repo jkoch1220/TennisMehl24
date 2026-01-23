@@ -45,6 +45,14 @@ import {
   // Platzbauer-Verwaltung
   PLATZBAUER_PROJEKTE_COLLECTION_ID,
   PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
+  PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+  PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
+  PLATZBAUER_DATEIEN_BUCKET_ID,
+  // Debitorenverwaltung
+  DEBITOREN_METADATEN_COLLECTION_ID,
+  // Tourenplanung
+  TOUREN_COLLECTION_ID,
+  FAHRER_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -52,7 +60,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '25'; // Produktion + Platzbauer-Verwaltung Collections
+const APPWRITE_SETUP_VERSION = '28'; // Tourenplanung Collections (Touren + Fahrer)
 
 type FieldConfig = {
   key: string;
@@ -347,6 +355,75 @@ const projektZuordnungenFields: FieldConfig[] = [
   { key: 'data', type: 'string', size: 10000 },                                // JSON backup
 ];
 
+// Platzbauer-Dokumente Collection (Angebote, ABs, Rechnungen)
+const platzbauerDokumenteFields: FieldConfig[] = [
+  { key: 'platzbauerprojektId', type: 'string', size: 100, required: true },   // Für Filter
+  { key: 'dokumentTyp', type: 'string', size: 50, required: true },            // 'angebot' | 'auftragsbestaetigung' | 'rechnung'
+  { key: 'dokumentNummer', type: 'string', size: 100, required: true },        // z.B. "PB-AG-2026-001"
+  { key: 'dateiId', type: 'string', size: 100, required: true },               // Storage File ID
+  { key: 'dateiname', type: 'string', size: 255, required: true },             // z.B. "Angebot Vogel 2026.pdf"
+  { key: 'bruttobetrag', type: 'double' },                                      // Gesamtbetrag
+  { key: 'nettobetrag', type: 'double' },
+  { key: 'gesamtMenge', type: 'double' },                                       // Tonnen
+  { key: 'anzahlPositionen', type: 'integer' },                                 // Anzahl Vereine
+  { key: 'istFinal', type: 'boolean', default: false },                        // true bei Rechnungen
+  { key: 'version', type: 'integer', default: 1 },                             // Versionsnummer
+  { key: 'daten', type: 'string', size: 100000 },                              // JSON-String der Formular-Daten
+];
+
+// Platzbauer-Lieferscheine Collection (einzeln pro Verein)
+const platzbauerLieferscheineFields: FieldConfig[] = [
+  { key: 'platzbauerprojektId', type: 'string', size: 100, required: true },   // Für Filter
+  { key: 'vereinId', type: 'string', size: 100, required: true },              // Für Filter
+  { key: 'vereinsprojektId', type: 'string', size: 100, required: true },      // Verknüpfung zum Vereinsprojekt
+  { key: 'vereinsname', type: 'string', size: 255, required: true },
+  { key: 'lieferscheinnummer', type: 'string', size: 100, required: true },
+  { key: 'lieferdatum', type: 'string', size: 50, required: true },
+  { key: 'dateiId', type: 'string', size: 100, required: true },               // Storage File ID
+  { key: 'dateiname', type: 'string', size: 255, required: true },
+  { key: 'menge', type: 'double', required: true },                            // Tonnen
+  { key: 'daten', type: 'string', size: 50000 },                               // JSON-String der Formular-Daten
+];
+
+// Debitoren-Metadaten Collection (offene Forderungen von Kunden)
+const debitorenMetadatenFields: FieldConfig[] = [
+  { key: 'projektId', type: 'string', size: 100, required: true },             // Verknüpfung zum Projekt (unique)
+  { key: 'status', type: 'string', size: 50, required: true },                 // Für Filter: offen, faellig, ueberfaellig, gemahnt, teilbezahlt, bezahlt
+  { key: 'mahnstufe', type: 'integer', default: 0 },                           // 0-4
+  { key: 'prioritaet', type: 'string', size: 20, default: 'normal' },          // kritisch, hoch, normal, niedrig
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  { key: 'data', type: 'string', size: 100000, required: true },               // JSON blob mit zahlungen, aktivitaeten, notizen, etc.
+];
+
+// Tourenplanung - Touren Collection (KI-optimierte Liefertouren)
+const tourenFields: FieldConfig[] = [
+  { key: 'datum', type: 'string', size: 20, required: true },                  // ISO Datum für Filter
+  { key: 'name', type: 'string', size: 255, required: true },                  // Tour-Name
+  { key: 'fahrzeugId', type: 'string', size: 100, required: true },            // Verknüpfung zum Fahrzeug
+  { key: 'fahrerId', type: 'string', size: 100 },                              // Verknüpfung zum Fahrer
+  { key: 'status', type: 'string', size: 50, required: true },                 // entwurf, geplant, freigegeben, in_durchfuehrung, abgeschlossen
+  { key: 'stops', type: 'string', size: 100000, required: true },              // JSON Array der TourStops
+  { key: 'routeDetails', type: 'string', size: 10000, required: true },        // JSON mit Distanz, Zeit, Kosten
+  { key: 'optimierung', type: 'string', size: 10000, required: true },         // JSON mit Methode, Constraints
+  { key: 'encodedPolyline', type: 'string', size: 50000 },                     // Google Maps Polyline
+  { key: 'erstelltVon', type: 'string', size: 100 },
+];
+
+// Tourenplanung - Fahrer Collection (Fahrer-Stammdaten)
+const fahrerFields: FieldConfig[] = [
+  { key: 'name', type: 'string', size: 255, required: true },                  // Fahrer-Name
+  { key: 'telefon', type: 'string', size: 50 },
+  { key: 'email', type: 'string', size: 255 },
+  { key: 'fuehrerscheinklassen', type: 'string', size: 500 },                  // JSON Array ['B', 'C', 'CE']
+  { key: 'verfuegbarkeit', type: 'string', size: 500 },                        // JSON {montag: true, ...}
+  { key: 'bevorzugtesFahrzeugId', type: 'string', size: 100 },
+  { key: 'maxArbeitszeitMinuten', type: 'integer', default: 540 },             // 9h Standard
+  { key: 'pausenregelMinuten', type: 'integer', default: 45 },                 // EU-Regel
+  { key: 'notizen', type: 'string', size: 2000 },
+  { key: 'aktiv', type: 'boolean', default: true },
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -613,6 +690,38 @@ export async function setupAppwriteFields() {
         fields: projektZuordnungenFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      {
+        id: PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+        name: 'Platzbauer Dokumente',
+        fields: platzbauerDokumenteFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      {
+        id: PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
+        name: 'Platzbauer Lieferscheine',
+        fields: platzbauerLieferscheineFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      // Debitorenverwaltung
+      {
+        id: DEBITOREN_METADATEN_COLLECTION_ID,
+        name: 'Debitoren Metadaten',
+        fields: debitorenMetadatenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      // Tourenplanung
+      {
+        id: TOUREN_COLLECTION_ID,
+        name: 'Touren',
+        fields: tourenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      {
+        id: FAHRER_COLLECTION_ID,
+        name: 'Fahrer',
+        fields: fahrerFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -625,6 +734,9 @@ export async function setupAppwriteFields() {
 
     // Wiki-Bucket erstellen
     await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
+
+    // Platzbauer-Dateien Bucket erstellen
+    await ensureBucket(PLATZBAUER_DATEIEN_BUCKET_ID, 'Platzbauer Dateien');
 
     // Warte kurz, damit Felder erstellt sind bevor Indizes angelegt werden
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -664,6 +776,26 @@ export async function setupAppwriteFields() {
     // Indizes für Projekt-Zuordnungen
     await ensureIndex(PROJEKT_ZUORDNUNGEN_COLLECTION_ID, 'vereinsProjektId_index', ['vereinsProjektId']);
     await ensureIndex(PROJEKT_ZUORDNUNGEN_COLLECTION_ID, 'platzbauerprojektId_index', ['platzbauerprojektId']);
+
+    // Indizes für Platzbauer-Dokumente
+    await ensureIndex(PLATZBAUER_DOKUMENTE_COLLECTION_ID, 'platzbauerprojektId_index', ['platzbauerprojektId']);
+    await ensureIndex(PLATZBAUER_DOKUMENTE_COLLECTION_ID, 'dokumentTyp_index', ['dokumentTyp']);
+
+    // Indizes für Platzbauer-Lieferscheine
+    await ensureIndex(PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID, 'platzbauerprojektId_index', ['platzbauerprojektId']);
+    await ensureIndex(PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID, 'vereinId_index', ['vereinId']);
+
+    // Indizes für Debitoren-Metadaten
+    await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'projektId_index', ['projektId'], 'unique');
+    await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'mahnstufe_index', ['mahnstufe']);
+
+    // Indizes für Tourenplanung
+    await ensureIndex(TOUREN_COLLECTION_ID, 'datum_index', ['datum']);
+    await ensureIndex(TOUREN_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(TOUREN_COLLECTION_ID, 'fahrzeugId_index', ['fahrzeugId']);
+    await ensureIndex(FAHRER_COLLECTION_ID, 'aktiv_index', ['aktiv']);
+    await ensureIndex(FAHRER_COLLECTION_ID, 'name_index', ['name']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

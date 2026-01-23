@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Menu, LogOut, Settings, Search, X, Command, CheckSquare, LayoutDashboard, ClipboardList, Bell, Wrench, Calendar } from 'lucide-react';
+import { Home, Menu, LogOut, Settings, Search, X, CheckSquare, LayoutDashboard, Bell, Wrench, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import VorschlagButton from './Tickets/VorschlagButton';
 import { ALL_TOOLS } from '../constants/tools';
@@ -287,423 +287,288 @@ const Layout = ({ children }: LayoutProps) => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface transition-colors duration-300">
-      {/* Navigation */}
-      <nav className="bg-white dark:bg-dark-surface">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center min-h-[72px] py-3">
-            <div className="flex items-center flex-1 min-w-0">
-              <div className="flex-shrink-0 flex items-center mr-6 lg:mr-8">
-                <Link to="/">
-                  <h1 className="text-2xl font-bold text-red-600 whitespace-nowrap cursor-pointer hover:text-red-700 transition-colors">
-                    TennisMehl24
-                  </h1>
-                </Link>
-              </div>
-              {/* Globale Suchleiste */}
-              <div className="hidden lg:flex items-center flex-1 min-w-0 mr-4">
-                <div className="relative w-full max-w-md" ref={globalSearchRef}>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      ref={globalSearchInputRef}
-                      type="text"
-                      value={globalSearchQuery}
-                      onChange={(e) => {
-                        setGlobalSearchQuery(e.target.value);
-                        setGlobalSearchOpen(true);
-                      }}
-                      onFocus={() => setGlobalSearchOpen(true)}
-                      onKeyDown={handleGlobalSearchKeyDown}
-                      placeholder="Tools suchen... (⌘K)"
-                      className="w-full pl-10 pr-20 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
-                    />
-                    {globalSearchQuery && (
-                      <button
-                        onClick={() => {
-                          setGlobalSearchQuery('');
-                          setGlobalSearchOpen(false);
-                        }}
-                        className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:text-dark-textMuted"
-                        aria-label="Suche zurücksetzen"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-300 border border-gray-200 dark:border-dark-border">
-                      <Command className="w-3 h-3" />
-                      <span>K</span>
-                    </div>
-                  </div>
+    <div className="min-h-screen bg-[#f5f5f7] dark:bg-[#1d1d1f] transition-colors duration-300">
+      {/* Apple-Style Navigation */}
+      <nav className="sticky top-0 z-50 bg-white/80 dark:bg-[#1d1d1f]/80 backdrop-blur-xl border-b border-black/10 dark:border-white/10">
+        <div className="w-full px-6 lg:px-12">
+          <div className="flex items-center justify-between h-12">
+            {/* Logo */}
+            <Link to="/" className="flex-shrink-0">
+              <span className="text-[17px] font-semibold text-[#1d1d1f] dark:text-white tracking-tight">
+                TennisMehl24
+              </span>
+            </Link>
 
-                  {/* Dropdown mit Suchergebnissen */}
-                  {globalSearchOpen && globalSearchQuery.trim() && (
-                    <div className="absolute top-full mt-2 w-full bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
-                      {allSearchResults.length > 0 ? (
-                        <div className="p-2">
-                          {allSearchResults.map((item, index) => {
-                            const Icon = item.icon;
-                            const isActive = location.pathname === item.href;
-                            const isSelected = index === globalSearchIndex;
-                            return (
-                              <Link
-                                key={item.id}
-                                ref={isSelected ? globalSearchResultRef : null}
-                                to={item.href}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setGlobalSearchOpen(false);
-                                  setGlobalSearchQuery('');
-                                }}
-                                onMouseDown={(e) => {
-                                  e.stopPropagation();
-                                }}
-                                onMouseEnter={() => setGlobalSearchIndex(index)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
-                                  isActive
-                                    ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
-                                    : isSelected
-                                    ? 'bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
-                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
-                                }`}
-                              >
-                                <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                                  item.id === 'home'
-                                    ? 'from-gray-500 to-gray-600'
-                                    : (item as any).color || 'from-gray-500 to-gray-600'
-                                } text-white flex-shrink-0`}>
-                                  <Icon className="w-5 h-5" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-gray-900 dark:text-dark-text">
-                                    {highlightText(item.name, globalSearchQuery)}
-                                  </div>
-                                  {(item as any).description && (
-                                    <div className="text-sm text-gray-600 dark:text-dark-textMuted">
-                                      {highlightText((item as any).description, globalSearchQuery)}
+            {/* Desktop Navigation - Centered with scroll */}
+            <div className="hidden lg:flex items-center flex-1 mx-6 min-w-0 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-5 mx-auto">
+                {navigation.map((item) => {
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`text-[12px] font-normal transition-opacity whitespace-nowrap ${
+                        isActive
+                          ? 'text-[#1d1d1f] dark:text-white'
+                          : 'text-[#1d1d1f]/80 dark:text-white/80 hover:text-[#1d1d1f] dark:hover:text-white'
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right side - always visible */}
+            <div className="hidden lg:flex items-center gap-3 flex-shrink-0 pl-4">
+              {/* Search */}
+              <div className="relative" ref={globalSearchRef}>
+                <button
+                  onClick={() => {
+                    setGlobalSearchOpen(true);
+                    setTimeout(() => globalSearchInputRef.current?.focus(), 50);
+                  }}
+                  className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+                >
+                  <Search className="w-[18px] h-[18px]" />
+                </button>
+
+                {/* Search Modal */}
+                {globalSearchOpen && (
+                  <>
+                    <div className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40" onClick={() => { setGlobalSearchOpen(false); setGlobalSearchQuery(''); }} />
+                    <div className="fixed left-1/2 top-[20%] -translate-x-1/2 w-full max-w-[680px] bg-white dark:bg-[#2d2d2f] rounded-2xl shadow-2xl z-50 overflow-hidden">
+                      <div className="flex items-center gap-3 px-5 border-b border-black/5 dark:border-white/10">
+                        <Search className="w-5 h-5 text-[#86868b]" />
+                        <input
+                          ref={globalSearchInputRef}
+                          type="text"
+                          value={globalSearchQuery}
+                          onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                          onKeyDown={handleGlobalSearchKeyDown}
+                          placeholder="Suchen"
+                          className="flex-1 py-4 text-[17px] bg-transparent text-[#1d1d1f] dark:text-white placeholder-[#86868b] focus:outline-none"
+                          autoFocus
+                        />
+                        {globalSearchQuery && (
+                          <button onClick={() => setGlobalSearchQuery('')} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full">
+                            <X className="w-4 h-4 text-[#86868b]" />
+                          </button>
+                        )}
+                        <kbd className="text-[11px] text-[#86868b] bg-[#f5f5f7] dark:bg-[#3d3d3f] px-2 py-1 rounded">esc</kbd>
+                      </div>
+
+                      {globalSearchQuery.trim() && (
+                        <div className="max-h-[400px] overflow-y-auto">
+                          {allSearchResults.length > 0 ? (
+                            <div className="py-2">
+                              {allSearchResults.map((item, index) => {
+                                const Icon = item.icon;
+                                const isActive = location.pathname === item.href;
+                                const isSelected = index === globalSearchIndex;
+                                return (
+                                  <Link
+                                    key={item.id}
+                                    ref={isSelected ? globalSearchResultRef : null}
+                                    to={item.href}
+                                    onClick={() => { setGlobalSearchOpen(false); setGlobalSearchQuery(''); }}
+                                    onMouseEnter={() => setGlobalSearchIndex(index)}
+                                    className={`flex items-center gap-4 px-5 py-3 transition-colors ${
+                                      isSelected ? 'bg-[#0071e3] text-white' : 'hover:bg-black/5 dark:hover:bg-white/5'
+                                    }`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                      isSelected ? 'bg-white/20' : 'bg-[#f5f5f7] dark:bg-[#3d3d3f]'
+                                    }`}>
+                                      <Icon className="w-4 h-4" />
                                     </div>
-                                  )}
-                                </div>
-                                {isActive && (
-                                  <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                                )}
-                                {isSelected && !isActive && (
-                                  <div className="text-xs text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                    <span>Enter</span>
-                                  </div>
-                                )}
-                              </Link>
-                            );
-                          })}
-                          {allSearchResults.length > 0 && (
-                            <div className="px-4 py-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500 dark:text-dark-textMuted flex items-center gap-3">
-                              <span className="inline-flex items-center gap-1">
-                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">↑↓</kbd>
-                                <span>navigieren</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Enter</kbd>
-                                <span>öffnen</span>
-                              </span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className={`text-[15px] font-medium ${isSelected ? '' : 'text-[#1d1d1f] dark:text-white'}`}>
+                                        {item.name}
+                                      </div>
+                                      {(item as any).description && (
+                                        <div className={`text-[13px] truncate ${isSelected ? 'text-white/70' : 'text-[#86868b]'}`}>
+                                          {(item as any).description}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {isActive && !isSelected && (
+                                      <div className="w-2 h-2 rounded-full bg-[#0071e3]" />
+                                    )}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="py-12 text-center">
+                              <p className="text-[15px] text-[#86868b]">Keine Ergebnisse für „{globalSearchQuery}"</p>
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="p-8 text-center">
-                          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700">
-                            <Search className="w-6 h-6 text-gray-400" />
-                          </div>
-                          <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse gefunden</p>
-                          <p className="text-sm text-gray-500 dark:text-dark-textMuted">Versuche es mit einem anderen Suchbegriff</p>
+                      )}
+
+                      {!globalSearchQuery.trim() && (
+                        <div className="py-8 text-center">
+                          <p className="text-[13px] text-[#86868b]">Tippe, um Tools zu suchen</p>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
 
-              <div className="hidden lg:flex items-center flex-1 overflow-x-auto scrollbar-hide -mx-2 px-2">
-                <div className="flex items-center gap-1 xl:gap-2">
-                  {navigation.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        className={`inline-flex items-center px-3 xl:px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all whitespace-nowrap ${
-                          isActive
-                            ? 'border-red-500 dark:border-red-600 text-gray-900 dark:text-dark-text bg-red-50 dark:bg-red-900/20'
-                            : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-900 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
-                        <span>{item.name}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-              {/* Tablet Navigation - Kompakter */}
-              <div className="hidden sm:flex lg:hidden items-center gap-2 flex-1 min-w-0">
-                {/* Tablet Suchleiste */}
-                <div className="relative flex-1 max-w-xs mr-2" ref={globalSearchRef}>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      value={globalSearchQuery}
-                      onChange={(e) => {
-                        setGlobalSearchQuery(e.target.value);
-                        setGlobalSearchOpen(true);
-                      }}
-                      onFocus={() => setGlobalSearchOpen(true)}
-                      onKeyDown={handleGlobalSearchKeyDown}
-                      placeholder="Suchen..."
-                      className="w-full pl-8 pr-8 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
-                    />
-                    {globalSearchQuery && (
-                      <button
-                        onClick={() => {
-                          setGlobalSearchQuery('');
-                          setGlobalSearchOpen(false);
-                        }}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-dark-textMuted"
-                        aria-label="Suche zurücksetzen"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Tablet Dropdown */}
-                  {globalSearchOpen && globalSearchQuery.trim() && (
-                    <div className="absolute top-full mt-1 w-full bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
-                      {allSearchResults.length > 0 ? (
-                        <div className="p-1">
-                          {allSearchResults.map((item, index) => {
-                            const Icon = item.icon;
-                            const isActive = location.pathname === item.href;
-                            const isSelected = index === globalSearchIndex;
-                            return (
-                              <Link
-                                key={item.id}
-                                ref={isSelected ? globalSearchResultRef : null}
-                                to={item.href}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setGlobalSearchOpen(false);
-                                  setGlobalSearchQuery('');
-                                }}
-                                onMouseDown={(e) => {
-                                  e.stopPropagation();
-                                }}
-                                onMouseEnter={() => setGlobalSearchIndex(index)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all cursor-pointer ${
-                                  isActive
-                                    ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                                    : isSelected
-                                    ? 'bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600'
-                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                                }`}
-                              >
-                                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${
-                                  item.id === 'home'
-                                    ? 'from-gray-500 to-gray-600'
-                                    : (item as any).color || 'from-gray-500 to-gray-600'
-                                } text-white flex-shrink-0`}>
-                                  <Icon className="w-4 h-4" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 dark:text-dark-text">
-                                    {highlightText(item.name, globalSearchQuery)}
-                                  </div>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="p-4 text-center">
-                          <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-2 px-2">
-                  {navigation.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location.pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        className={`inline-flex items-center px-2 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
-                          isActive
-                            ? 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
-                            : 'text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
-                        title={item.name}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-              {/* User Avatar als Settings Button */}
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
-                title="Einstellungen öffnen"
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold text-sm">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
-                </div>
-                <div className="hidden lg:flex flex-col">
-                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
-                    {user?.name}
-                    {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑</span>}
-                  </span>
-                </div>
-                <Settings className="w-4 h-4 text-gray-400 dark:text-gray-300" />
-              </button>
-              
-              {/* Global Chat Dropdown */}
+              {/* Global Chat */}
               <GlobalChatDropdown />
 
-              {/* Theme Toggle - ganz rechts */}
+              {/* Theme Toggle */}
               <ThemeToggle />
-              
+
+              {/* Settings */}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+                title={user?.name}
+              >
+                <Settings className="w-[18px] h-[18px]" />
+              </button>
+            </div>
+
+            {/* Tablet Navigation */}
+            <div className="hidden sm:flex lg:hidden items-center gap-5 flex-1 justify-center mx-4 overflow-x-auto scrollbar-hide">
+              {navigation.slice(0, 6).map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`p-1.5 transition-opacity ${
+                      isActive
+                        ? 'text-[#1d1d1f] dark:text-white'
+                        : 'text-[#1d1d1f]/50 dark:text-white/50 hover:text-[#1d1d1f] dark:hover:text-white'
+                    }`}
+                    title={item.name}
+                  >
+                    <Icon className="w-5 h-5" />
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Tablet/Mobile right side */}
+            <div className="flex sm:flex lg:hidden items-center gap-3 flex-shrink-0">
+              <button
+                onClick={() => setGlobalSearchOpen(true)}
+                className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="hidden sm:block p-1.5 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="flex items-center gap-2 flex-shrink-0 sm:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="sm:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 dark:text-dark-textMuted hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
+                className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60"
               >
-                <Menu className="h-6 w-6" />
+                <Menu className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
+      </nav>
 
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="sm:hidden">
-            {/* Mobile User Info */}
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-bold">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden fixed inset-0 z-50 bg-white dark:bg-[#1d1d1f]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 h-12 border-b border-black/10 dark:border-white/10">
+            <span className="text-[17px] font-semibold text-[#1d1d1f] dark:text-white">Menü</span>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* User Info */}
+          <div className="px-6 py-4 border-b border-black/5 dark:border-white/5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0071e3] to-[#40a9ff] flex items-center justify-center text-white font-semibold text-sm">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div>
+                <div className="text-[15px] font-medium text-[#1d1d1f] dark:text-white">
+                  {user?.name}
+                  {isAdmin && <span className="ml-1.5 text-[#ff9500]">👑</span>}
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">Angemeldet als</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
-                    {user?.name}
-                    {isAdmin && <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">👑 Admin</span>}
-                  </span>
-                </div>
+                <div className="text-[13px] text-[#86868b]">Angemeldet</div>
               </div>
             </div>
+          </div>
 
-            {/* Mobile Suchleiste */}
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={globalSearchQuery}
-                  onChange={(e) => {
-                    setGlobalSearchQuery(e.target.value);
-                    setGlobalSearchOpen(true);
-                  }}
-                  onFocus={() => setGlobalSearchOpen(true)}
-                  onKeyDown={handleGlobalSearchKeyDown}
-                  placeholder="Tools suchen..."
-                  className="w-full pl-10 pr-10 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
-                />
-                {globalSearchQuery && (
-                  <button
-                    onClick={() => {
-                      setGlobalSearchQuery('');
-                      setGlobalSearchOpen(false);
-                    }}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:text-dark-textMuted"
-                    aria-label="Suche zurücksetzen"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Mobile Dropdown mit Suchergebnissen */}
-              {globalSearchOpen && globalSearchQuery.trim() && (
-                <div className="absolute left-4 right-4 top-full mt-2 bg-white dark:bg-dark-surface rounded-lg shadow-lg dark:shadow-dark-lg border border-gray-200 dark:border-dark-border z-50">
-                  {allSearchResults.length > 0 ? (
-                    <div className="p-2">
-                      {allSearchResults.map((item, index) => {
-                        const Icon = item.icon;
-                        const isActive = location.pathname === item.href;
-                        const isSelected = index === globalSearchIndex;
-                        return (
-                          <Link
-                            key={item.id}
-                            ref={isSelected ? globalSearchResultRef : null}
-                            to={item.href}
-                            onClick={() => {
-                              setGlobalSearchOpen(false);
-                              setGlobalSearchQuery('');
-                              setMobileMenuOpen(false);
-                            }}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                              isActive
-                                ? 'bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800'
-                                : isSelected
-                                ? 'bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
-                                : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-2 border-transparent'
-                            }`}
-                          >
-                            <div className={`p-2 rounded-lg bg-gradient-to-br ${
-                              item.id === 'home'
-                                ? 'from-gray-500 to-gray-600'
-                                : (item as any).color || 'from-gray-500 to-gray-600'
-                            } text-white flex-shrink-0`}>
-                              <Icon className="w-5 h-5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-gray-900 dark:text-dark-text">
-                                {highlightText(item.name, globalSearchQuery)}
-                              </div>
-                              {(item as any).description && (
-                                <div className="text-sm text-gray-600 dark:text-dark-textMuted">
-                                  {highlightText((item as any).description, globalSearchQuery)}
-                                </div>
-                              )}
-                            </div>
-                            {isActive && (
-                              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center">
-                      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700">
-                        <Search className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <p className="text-gray-600 dark:text-dark-textMuted">Keine Ergebnisse</p>
-                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">Versuche einen anderen Begriff</p>
-                    </div>
-                  )}
-                </div>
+          {/* Search */}
+          <div className="px-6 py-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#86868b] w-4 h-4" />
+              <input
+                type="text"
+                value={globalSearchQuery}
+                onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                onKeyDown={handleGlobalSearchKeyDown}
+                placeholder="Suchen"
+                className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-[#f5f5f7] dark:bg-[#2d2d2f] text-[#1d1d1f] dark:text-white placeholder-[#86868b] focus:outline-none text-[15px]"
+              />
+              {globalSearchQuery && (
+                <button
+                  onClick={() => setGlobalSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                >
+                  <X className="w-4 h-4 text-[#86868b]" />
+                </button>
               )}
             </div>
-            
-            <div className="pt-2 pb-3 space-y-1">
+          </div>
+
+          {/* Mobile Search Results */}
+          {globalSearchQuery.trim() && (
+            <div className="px-6 py-2 max-h-48 overflow-y-auto">
+              {allSearchResults.length > 0 ? (
+                allSearchResults.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.id}
+                      to={item.href}
+                      onClick={() => { setMobileMenuOpen(false); setGlobalSearchQuery(''); }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 ${
+                        isActive ? 'bg-[#0071e3] text-white' : 'active:bg-black/5 dark:active:bg-white/5'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span className={`text-[15px] ${isActive ? '' : 'text-[#1d1d1f] dark:text-white'}`}>{item.name}</span>
+                    </Link>
+                  );
+                })
+              ) : (
+                <p className="text-[13px] text-[#86868b] text-center py-4">Keine Ergebnisse</p>
+              )}
+            </div>
+          )}
+
+          {/* Navigation Links */}
+          {!globalSearchQuery.trim() && (
+            <div className="flex-1 overflow-y-auto px-6 py-2">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.href;
@@ -712,105 +577,84 @@ const Layout = ({ children }: LayoutProps) => {
                     key={item.name}
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center pl-3 pr-4 py-2 border-l-4 text-base font-medium transition-colors duration-300 ${
-                      isActive
-                        ? 'bg-red-50 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-400'
-                        : 'border-transparent text-gray-500 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-dark-text'
+                    className={`flex items-center gap-4 py-3 border-b border-black/5 dark:border-white/5 ${
+                      isActive ? 'text-[#0071e3]' : 'text-[#1d1d1f] dark:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.name}
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[17px]">{item.name}</span>
+                    {isActive && <div className="ml-auto w-2 h-2 rounded-full bg-[#0071e3]" />}
                   </Link>
                 );
               })}
+
+              {/* Settings Link */}
               <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setSettingsOpen(true);
-                }}
-                className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 dark:text-dark-textMuted"
+                onClick={() => { setMobileMenuOpen(false); setSettingsOpen(true); }}
+                className="flex items-center gap-4 py-3 w-full text-[#1d1d1f] dark:text-white"
               >
-                <Settings className="w-5 h-5 mr-3" />
-                Einstellungen
+                <Settings className="w-5 h-5" />
+                <span className="text-[17px]">Einstellungen</span>
               </button>
             </div>
-          </div>
-        )}
-      </nav>
-
-      {/* Main Content - mit bottom padding für mobile Bottom-Nav (außer auf Produktion) */}
-      <main className={location.pathname === '/produktion' ? '' : 'pb-20 sm:pb-0'}>{children}</main>
-
-      {/* Mobile Bottom Navigation - nur auf Mobile sichtbar, nicht auf Produktion-Seite */}
-      {location.pathname !== '/produktion' && (
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border sm:hidden z-40 safe-area-bottom">
-        <div className="flex items-center justify-around h-16">
-          {/* Home */}
-          <Link
-            to="/"
-            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
-              location.pathname === '/'
-                ? 'text-red-600 dark:text-red-400'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            <Home className="w-6 h-6" />
-            <span className="text-xs mt-1 font-medium">Start</span>
-          </Link>
-
-          {/* TODOs - wichtigstes Tool */}
-          <Link
-            to="/todos"
-            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
-              location.pathname === '/todos'
-                ? 'text-red-600 dark:text-red-400'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            <CheckSquare className="w-6 h-6" />
-            <span className="text-xs mt-1 font-medium">TODOs</span>
-          </Link>
-
-          {/* Dashboard */}
-          <Link
-            to="/dashboard"
-            className={`flex flex-col items-center justify-center flex-1 h-full py-2 transition-colors ${
-              location.pathname === '/dashboard'
-                ? 'text-red-600 dark:text-red-400'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            <LayoutDashboard className="w-6 h-6" />
-            <span className="text-xs mt-1 font-medium">Dashboard</span>
-          </Link>
-
-          {/* Alle Tools */}
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full py-2 text-gray-500 dark:text-gray-400"
-          >
-            <ClipboardList className="w-6 h-6" />
-            <span className="text-xs mt-1 font-medium">Mehr</span>
-          </button>
-
-          {/* Einstellungen */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full py-2 text-gray-500 dark:text-gray-400"
-          >
-            <Settings className="w-6 h-6" />
-            <span className="text-xs mt-1 font-medium">Settings</span>
-          </button>
+          )}
         </div>
-      </nav>
       )}
 
-      {/* Footer - nicht auf Dashboard-Seite anzeigen */}
+      {/* Main Content */}
+      <main className={location.pathname === '/produktion' ? '' : 'pb-20 sm:pb-0'}>{children}</main>
+
+      {/* Mobile Bottom Navigation - Apple Tab Bar Style */}
+      {location.pathname !== '/produktion' && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-[#1d1d1f]/90 backdrop-blur-xl border-t border-black/10 dark:border-white/10 sm:hidden z-40 safe-area-bottom">
+          <div className="flex items-center justify-around h-[50px]">
+            <Link
+              to="/"
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                location.pathname === '/' ? 'text-[#0071e3]' : 'text-[#86868b]'
+              }`}
+            >
+              <Home className="w-[22px] h-[22px]" />
+              <span className="text-[10px] mt-0.5">Start</span>
+            </Link>
+
+            <Link
+              to="/todos"
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                location.pathname === '/todos' ? 'text-[#0071e3]' : 'text-[#86868b]'
+              }`}
+            >
+              <CheckSquare className="w-[22px] h-[22px]" />
+              <span className="text-[10px] mt-0.5">TODOs</span>
+            </Link>
+
+            <Link
+              to="/dashboard"
+              className={`flex flex-col items-center justify-center flex-1 h-full ${
+                location.pathname === '/dashboard' ? 'text-[#0071e3]' : 'text-[#86868b]'
+              }`}
+            >
+              <LayoutDashboard className="w-[22px] h-[22px]" />
+              <span className="text-[10px] mt-0.5">Dashboard</span>
+            </Link>
+
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center flex-1 h-full text-[#86868b]"
+            >
+              <Menu className="w-[22px] h-[22px]" />
+              <span className="text-[10px] mt-0.5">Mehr</span>
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {/* Footer */}
       {location.pathname !== '/dashboard' && (
-        <footer className="bg-white dark:bg-dark-surface">
-          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
-              © 2026 TennisMehl24 - Kalkulationstools
+        <footer className="bg-[#f5f5f7] dark:bg-[#1d1d1f] border-t border-black/5 dark:border-white/5">
+          <div className="py-4 px-6">
+            <p className="text-center text-[12px] text-[#86868b]">
+              © 2026 TennisMehl24
             </p>
           </div>
         </footer>

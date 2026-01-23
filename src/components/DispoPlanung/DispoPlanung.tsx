@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Truck,
   Calendar,
@@ -24,7 +24,13 @@ import {
   Navigation,
   Phone,
   User,
+  Edit3,
+  Check,
+  Route,
+  Sparkles,
 } from 'lucide-react';
+import TourenPlanungTab from './TourenPlanungTab';
+import { AngebotsDaten } from '../../types/projektabwicklung';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Fahrzeug } from '../../types/dispo';
@@ -49,8 +55,14 @@ const DISPO_STATUS_CONFIG: Record<DispoStatus, { label: string; color: string; b
 
 type FilterStatus = 'alle' | DispoStatus;
 
+// Tab-Typen
+type DispoTab = 'auftraege' | 'touren';
+
 const DispoPlanung = () => {
   const navigate = useNavigate();
+
+  // Tab-State
+  const [activeTab, setActiveTab] = useState<DispoTab>('auftraege');
 
   // State
   const [projekte, setProjekte] = useState<Projekt[]>([]);
@@ -170,6 +182,42 @@ const DispoPlanung = () => {
     navigate(`/projektabwicklung/${projektId}`);
   };
 
+  // Inline-Update Handler für schnelle Bearbeitung in der Zeile
+  const handleInlineUpdate = async (
+    projektId: string,
+    updates: Partial<Projekt>,
+    kundeUpdates?: Partial<SaisonKunde>
+  ) => {
+    setSaving(true);
+    try {
+      // Projekt aktualisieren
+      await projektService.updateProjekt(projektId, updates);
+
+      // Optional: Kunden-Daten aktualisieren (z.B. ASP-Telefon für nächstes Jahr)
+      const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
+      if (kundeUpdates && projekt?.kundeId) {
+        await saisonplanungService.updateKunde(projekt.kundeId, kundeUpdates);
+        // Lokale kundenMap aktualisieren
+        const aktuellerKunde = kundenMap.get(projekt.kundeId);
+        if (aktuellerKunde) {
+          const neueKundenMap = new Map(kundenMap);
+          neueKundenMap.set(projekt.kundeId, { ...aktuellerKunde, ...kundeUpdates });
+          setKundenMap(neueKundenMap);
+        }
+      }
+
+      // Lokalen State aktualisieren
+      setProjekte(prev => prev.map(p =>
+        ((p as any).$id || p.id) === projektId ? { ...p, ...updates } : p
+      ));
+    } catch (error) {
+      console.error('Fehler beim Inline-Update:', error);
+      alert('Fehler beim Speichern');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Statistiken berechnen
   const stats = {
     gesamt: projekte.length,
@@ -218,10 +266,44 @@ const DispoPlanung = () => {
             </button>
           </div>
         </div>
+
+        {/* Tab-Navigation */}
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={() => setActiveTab('auftraege')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'auftraege'
+                ? 'bg-red-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Aufträge
+          </button>
+          <button
+            onClick={() => setActiveTab('touren')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'touren'
+                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Route className="w-4 h-4" />
+            <Sparkles className="w-3 h-3" />
+            KI-Tourenplanung
+          </button>
+        </div>
       </div>
 
-      {/* Statistik-Karten */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      {/* Tab Content */}
+      {activeTab === 'touren' ? (
+        <TourenPlanungTab
+          onNavigateToProjekt={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
+        />
+      ) : (
+        <>
+          {/* Statistik-Karten */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <StatCard
           label="Offen"
           value={stats.offen}
@@ -342,11 +424,14 @@ const DispoPlanung = () => {
                 onStatusChange={(status) => updateDispoStatus(projekt, status)}
                 onOpenDetail={() => openProjektDetail(projekt)}
                 onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
+                onInlineUpdate={handleInlineUpdate}
               />
             ))
           )}
         </div>
       </div>
+        </>
+      )}
 
       {/* Saving Overlay */}
       {saving && (
@@ -433,12 +518,99 @@ interface AuftragsZeileProps {
   onStatusChange: (status: DispoStatus) => void;
   onOpenDetail: () => void;
   onGoToProjektabwicklung: () => void;
+  onInlineUpdate: (projektId: string, updates: Partial<Projekt>, kundeUpdates?: Partial<SaisonKunde>) => void;
 }
 
-const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToProjektabwicklung }: AuftragsZeileProps) => {
+const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToProjektabwicklung, onInlineUpdate }: AuftragsZeileProps) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const status = projekt.dispoStatus || 'offen';
   const statusConfig = DISPO_STATUS_CONFIG[status];
+  const projektId = (projekt as any).$id || projekt.id;
+
+  // Inline-Editing States
+  const [editingBemerkung, setEditingBemerkung] = useState(false);
+  const [editingTelefon, setEditingTelefon] = useState(false);
+  const [editingGeplant, setEditingGeplant] = useState(false);
+  const [editingKommuniziert, setEditingKommuniziert] = useState(false);
+
+  // Temporäre Werte für Inline-Editing
+  const [tempBemerkung, setTempBemerkung] = useState('');
+  const [tempTelefon, setTempTelefon] = useState('');
+  const [tempGeplant, setTempGeplant] = useState('');
+  const [tempKommuniziert, setTempKommuniziert] = useState('');
+
+  // Refs für Auto-Focus
+  const bemerkungRef = useRef<HTMLInputElement>(null);
+  const telefonRef = useRef<HTMLInputElement>(null);
+
+  // Bemerkung aus AngebotsDaten parsen
+  const parsedAngebotsDaten: AngebotsDaten | null = (() => {
+    if (!projekt.angebotsDaten) return null;
+    try {
+      return JSON.parse(projekt.angebotsDaten);
+    } catch {
+      return null;
+    }
+  })();
+  const bemerkung = parsedAngebotsDaten?.bemerkung || '';
+
+  // ASP-Telefon (Projekt überschreibt Kunde)
+  const aspName = projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name || '';
+  const aspTelefon = projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon || '';
+
+  // Bemerkung speichern
+  const saveBemerkung = () => {
+    if (tempBemerkung === bemerkung) {
+      setEditingBemerkung(false);
+      return;
+    }
+    const updatedAngebotsDaten = { ...(parsedAngebotsDaten || {}), bemerkung: tempBemerkung };
+    onInlineUpdate(projektId, {
+      angebotsDaten: JSON.stringify(updatedAngebotsDaten)
+    });
+    setEditingBemerkung(false);
+  };
+
+  // Telefon speichern (auch beim Kunden für nächstes Jahr)
+  const saveTelefon = () => {
+    if (tempTelefon === aspTelefon) {
+      setEditingTelefon(false);
+      return;
+    }
+    const kundeUpdates: Partial<SaisonKunde> = {
+      dispoAnsprechpartner: {
+        name: aspName,
+        telefon: tempTelefon
+      }
+    };
+    onInlineUpdate(projektId, {
+      dispoAnsprechpartner: {
+        name: aspName,
+        telefon: tempTelefon
+      }
+    }, kundeUpdates);
+    setEditingTelefon(false);
+  };
+
+  // Geplantes Datum speichern
+  const saveGeplant = () => {
+    if (tempGeplant === (projekt.geplantesDatum || '')) {
+      setEditingGeplant(false);
+      return;
+    }
+    onInlineUpdate(projektId, { geplantesDatum: tempGeplant || undefined });
+    setEditingGeplant(false);
+  };
+
+  // Kommuniziertes Datum speichern
+  const saveKommuniziert = () => {
+    if (tempKommuniziert === (projekt.kommuniziertesDatum || '')) {
+      setEditingKommuniziert(false);
+      return;
+    }
+    onInlineUpdate(projektId, { kommuniziertesDatum: tempKommuniziert || undefined });
+    setEditingKommuniziert(false);
+  };
 
   // Hat wichtige Zusatzbemerkungen?
   const hatWichtigeBemerkungen = kunde?.zusatzbemerkungen?.some(z => z.wichtig) || false;
@@ -483,9 +655,9 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToPro
           )}
         </div>
 
-        {/* Kunde */}
+        {/* Kunde + Bemerkung */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0" />
             <span className="font-semibold text-gray-900 dark:text-white truncate">
               {projekt.kundenname}
@@ -494,6 +666,51 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToPro
               <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded-full text-gray-600 dark:text-gray-400">
                 {projekt.kundennummer}
               </span>
+            )}
+            {/* Bemerkung aus Angebot - Inline bearbeitbar */}
+            {editingBemerkung ? (
+              <div className="flex items-center gap-1">
+                <input
+                  ref={bemerkungRef}
+                  type="text"
+                  value={tempBemerkung}
+                  onChange={(e) => setTempBemerkung(e.target.value)}
+                  onBlur={saveBemerkung}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveBemerkung();
+                    if (e.key === 'Escape') setEditingBemerkung(false);
+                  }}
+                  className="px-2 py-0.5 text-xs border border-orange-300 dark:border-orange-700 rounded bg-orange-50 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 w-40"
+                  placeholder="Bemerkung..."
+                  autoFocus
+                />
+                <button
+                  onClick={saveBemerkung}
+                  className="p-0.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setTempBemerkung(bemerkung);
+                  setEditingBemerkung(true);
+                }}
+                className={`text-xs px-2 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                  bemerkung
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-600'
+                }`}
+                title={bemerkung || 'Bemerkung hinzufügen'}
+              >
+                <Edit3 className="w-2.5 h-2.5" />
+                {bemerkung ? (
+                  <span className="truncate max-w-[150px]">{bemerkung}</span>
+                ) : (
+                  <span className="italic">Bemerkung</span>
+                )}
+              </button>
             )}
           </div>
           <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
@@ -510,74 +727,194 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToPro
           </div>
         </div>
 
-        {/* DISPO-Ansprechpartner */}
-        {(projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name) && (
-          <div className="min-w-[150px]">
-            <div className="text-sm">
+        {/* DISPO-Ansprechpartner mit bearbeitbarem Telefon */}
+        <div className="min-w-[160px]">
+          <div className="text-sm">
+            {aspName && (
               <div className="flex items-center gap-1 text-purple-700 dark:text-purple-400 font-medium">
                 <User className="w-3 h-3" />
-                {projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name}
+                {aspName}
               </div>
-              {(projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon) && (
+            )}
+            {/* Telefon - Inline bearbeitbar */}
+            {editingTelefon ? (
+              <div className="flex items-center gap-1 mt-0.5">
+                <Phone className="w-3 h-3 text-purple-600" />
+                <input
+                  ref={telefonRef}
+                  type="tel"
+                  value={tempTelefon}
+                  onChange={(e) => setTempTelefon(e.target.value)}
+                  onBlur={saveTelefon}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveTelefon();
+                    if (e.key === 'Escape') setEditingTelefon(false);
+                  }}
+                  className="px-2 py-0.5 text-xs border border-purple-300 dark:border-purple-700 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 w-28"
+                  placeholder="Telefon..."
+                  autoFocus
+                />
+                <button
+                  onClick={saveTelefon}
+                  className="p-0.5 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </div>
+            ) : aspTelefon ? (
+              <div className="flex items-center gap-1 mt-0.5">
                 <a
-                  href={`tel:${projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}`}
+                  href={`tel:${aspTelefon}`}
                   className="flex items-center gap-1 text-purple-600 dark:text-purple-300 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <Phone className="w-3 h-3" />
-                  {projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon}
+                  {aspTelefon}
                 </a>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Lieferdatum & Belieferungsart */}
-        <div className="text-center">
-          {projekt.lieferKW ? (
-            // KW-basierter Liefertermin
-            <div className="text-sm">
-              <div className={`font-medium ${
-                projekt.lieferdatumTyp === 'kw'
-                  ? 'text-green-700 dark:text-green-400'
-                  : 'text-blue-700 dark:text-blue-400'
-              }`}>
-                {projekt.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}
-                KW {projekt.lieferKW}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTempTelefon(aspTelefon);
+                    setEditingTelefon(true);
+                  }}
+                  className="p-0.5 text-gray-400 hover:text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded"
+                  title="Telefon bearbeiten"
+                >
+                  <Edit3 className="w-2.5 h-2.5" />
+                </button>
               </div>
-              {projekt.bevorzugterTag && (
-                <div className="text-xs text-gray-500">
-                  {projekt.bevorzugterTag === 'montag' && 'Mo'}
-                  {projekt.bevorzugterTag === 'dienstag' && 'Di'}
-                  {projekt.bevorzugterTag === 'mittwoch' && 'Mi'}
-                  {projekt.bevorzugterTag === 'donnerstag' && 'Do'}
-                  {projekt.bevorzugterTag === 'freitag' && 'Fr'}
-                  {projekt.bevorzugterTag === 'samstag' && 'Sa'}
-                </div>
-              )}
+            ) : (
+              <button
+                onClick={() => {
+                  setTempTelefon('');
+                  setEditingTelefon(true);
+                }}
+                className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 mt-0.5"
+                title="Telefon hinzufügen"
+              >
+                <Phone className="w-3 h-3" />
+                <span className="italic">Telefon</span>
+                <Edit3 className="w-2.5 h-2.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Geplantes Datum (intern) - bearbeitbar */}
+        <div className="text-center min-w-[100px]">
+          <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-0.5">Geplant</div>
+          {editingGeplant ? (
+            <div className="flex items-center gap-1 justify-center">
+              <input
+                type="date"
+                value={tempGeplant}
+                onChange={(e) => setTempGeplant(e.target.value)}
+                onBlur={saveGeplant}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveGeplant();
+                  if (e.key === 'Escape') setEditingGeplant(false);
+                }}
+                className="px-1 py-0.5 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 w-28"
+                autoFocus
+              />
             </div>
-          ) : projekt.geplantesDatum ? (
-            // Datums-basierter Liefertermin
-            <div className="text-sm">
-              <div className="font-medium text-gray-900 dark:text-white">
-                {projekt.lieferdatumTyp === 'spaetestens' && <span className="text-orange-600 dark:text-orange-400">bis </span>}
-                {new Date(projekt.geplantesDatum).toLocaleDateString('de-DE', {
+          ) : (
+            <button
+              onClick={() => {
+                setTempGeplant(projekt.geplantesDatum || '');
+                setEditingGeplant(true);
+              }}
+              className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                projekt.geplantesDatum
+                  ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
+                  : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
+              title="Geplantes Datum bearbeiten"
+            >
+              {projekt.geplantesDatum ? (
+                <span className="font-medium">
+                  {new Date(projekt.geplantesDatum).toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                  })}
+                </span>
+              ) : (
+                <span className="italic flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  -
+                </span>
+              )}
+            </button>
+          )}
+          {/* KW-Info falls vorhanden */}
+          {projekt.lieferKW && (
+            <div className={`text-xs ${
+              projekt.lieferdatumTyp === 'kw'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-blue-600 dark:text-blue-400'
+            }`}>
+              {projekt.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}KW {projekt.lieferKW}
+            </div>
+          )}
+        </div>
+
+        {/* Kommuniziertes Datum (mit Kunde abgestimmt) - bearbeitbar */}
+        <div className="text-center min-w-[100px]">
+          <div className="text-[10px] text-green-600 dark:text-green-400 uppercase tracking-wide mb-0.5">Kommuniziert</div>
+          {editingKommuniziert ? (
+            <div className="flex items-center gap-1 justify-center">
+              <input
+                type="date"
+                value={tempKommuniziert}
+                onChange={(e) => setTempKommuniziert(e.target.value)}
+                onBlur={saveKommuniziert}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveKommuniziert();
+                  if (e.key === 'Escape') setEditingKommuniziert(false);
+                }}
+                className="px-1 py-0.5 text-xs border border-green-300 dark:border-green-700 rounded bg-green-50 dark:bg-green-900/30 w-28"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setTempKommuniziert(projekt.kommuniziertesDatum || '');
+                setEditingKommuniziert(true);
+              }}
+              className={`text-sm px-2 py-0.5 rounded transition-colors ${
+                projekt.kommuniziertesDatum
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 font-medium'
+                  : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700'
+              }`}
+              title="Kommuniziertes Datum bearbeiten"
+            >
+              {projekt.kommuniziertesDatum ? (
+                new Date(projekt.kommuniziertesDatum).toLocaleDateString('de-DE', {
                   weekday: 'short',
                   day: '2-digit',
                   month: '2-digit',
-                })}
-              </div>
-              {projekt.lieferzeitfenster && (
-                <div className="text-xs text-gray-500">
-                  {projekt.lieferzeitfenster.von} - {projekt.lieferzeitfenster.bis}
-                </div>
+                })
+              ) : (
+                <span className="italic flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  -
+                </span>
               )}
-            </div>
-          ) : (
-            <span className="text-sm text-gray-400">Kein Datum</span>
+            </button>
           )}
-          {/* Belieferungsart */}
+          {/* Zeitfenster falls vorhanden */}
+          {projekt.lieferzeitfenster && projekt.kommuniziertesDatum && (
+            <div className="text-xs text-gray-500">
+              {projekt.lieferzeitfenster.von} - {projekt.lieferzeitfenster.bis}
+            </div>
+          )}
+        </div>
+
+        {/* Belieferungsart */}
+        <div className="text-center min-w-[80px]">
           {projekt.belieferungsart && (
-            <div className={`mt-1 text-xs px-2 py-0.5 rounded-full inline-block ${
+            <div className={`text-xs px-2 py-1 rounded-full inline-block ${
               projekt.belieferungsart === 'mit_haenger'
                 ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
                 : projekt.belieferungsart === 'nur_motorwagen'
@@ -585,9 +922,9 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToPro
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
             }`}>
               {projekt.belieferungsart === 'nur_motorwagen' && 'Motorwagen'}
-              {projekt.belieferungsart === 'mit_haenger' && 'mit Hänger'}
+              {projekt.belieferungsart === 'mit_haenger' && 'Hänger'}
               {projekt.belieferungsart === 'abholung_ab_werk' && 'Abholung'}
-              {projekt.belieferungsart === 'palette_mit_ladekran' && 'Ladekran'}
+              {projekt.belieferungsart === 'palette_mit_ladekran' && 'Kran'}
               {projekt.belieferungsart === 'bigbag' && 'BigBag'}
             </div>
           )}

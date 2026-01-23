@@ -1,6 +1,17 @@
 // Projekt-Status
 export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'bezahlt' | 'verloren';
 
+// Gründe für verlorene Projekte
+export type VerlorenGrund = 'duplikat' | 'preis' | 'kommunikation' | 'telefon_fehler' | 'sonstiges';
+
+export const VERLOREN_GRUENDE: { value: VerlorenGrund; label: string }[] = [
+  { value: 'duplikat', label: 'Duplikat' },
+  { value: 'preis', label: 'Preis' },
+  { value: 'kommunikation', label: 'Kommunikation' },
+  { value: 'telefon_fehler', label: 'Ich habe am Telefon Scheiße gelabert' },
+  { value: 'sonstiges', label: 'Sonstiges' },
+];
+
 // Dispo-Status für Projekte (Lieferplanung)
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
@@ -90,12 +101,19 @@ export interface Projekt {
   // Notizen
   notizen?: string;
 
+  // Verloren-Grund (wenn status === 'verloren')
+  verlorenGrund?: VerlorenGrund;
+  verlorenGrundText?: string; // Freitext bei 'sonstiges'
+
   // === DISPO-FELDER ===
   // Dispo-Status (Lieferplanung)
   dispoStatus?: DispoStatus;
 
-  // Geplantes Lieferdatum (aus AB oder Dispo)
+  // Geplantes Lieferdatum (aus AB oder Dispo) - nur intern für grobe Zeitplanung
   geplantesDatum?: string;
+
+  // Kommuniziertes Lieferdatum (mit Kunde abgestimmt)
+  kommuniziertesDatum?: string;
 
   // Zeitfenster für Lieferung
   lieferzeitfenster?: {

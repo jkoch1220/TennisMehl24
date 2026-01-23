@@ -333,7 +333,8 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
+          ansprechpartner: projekt?.dispoAnsprechpartner?.name || projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
+          ansprechpartnerTelefon: projekt?.dispoAnsprechpartner?.telefon,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
@@ -762,6 +763,17 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                   onChange={(e) => handleInputChange('ansprechpartner', e.target.value)}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Max Mustermann"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tel. Ansprechpartner (optional)</label>
+                <input
+                  type="text"
+                  value={lieferscheinDaten.ansprechpartnerTelefon || ''}
+                  onChange={(e) => handleInputChange('ansprechpartnerTelefon', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. 0171 1234567"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
                 />
               </div>

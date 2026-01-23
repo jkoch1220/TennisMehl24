@@ -50,10 +50,9 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const loadProjekte = async () => {
     setLoadingProjekte(true);
     try {
-      // Lade alle Projekte für diesen Kunden (alle Saisonjahre)
-      const alleProjekte = await projektService.loadProjekte({ suche: kunde.kunde.name });
-      // Filtere nach KundeId, da die Suche möglicherweise mehrere Kunden zurückgibt
-      const kundeProjekte = alleProjekte.filter(p => p.kundeId === kunde.kunde.id);
+      // KRITISCH: Lade Projekte direkt über kundeId, NICHT über den Namen!
+      // Der Name kann sich ändern, die ID bleibt immer gleich.
+      const kundeProjekte = await projektService.loadProjekteFuerKundeId(kunde.kunde.id);
       // Sortiere nach Saisonjahr (neueste zuerst)
       kundeProjekte.sort((a, b) => b.saisonjahr - a.saisonjahr);
       setProjekte(kundeProjekte);

@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, PRODUKTION_COLLECTION_ID } from '../config/appwrite';
 import { ID } from 'appwrite';
-import type { ProduktionsEintrag, ProduktionsVerlauf } from '../types/produktion';
+import type { ProduktionsEintrag, ProduktionsVerlauf, Koernung } from '../types/produktion';
 import { dashboardService } from './dashboardService';
 
 export const PRODUKTION_DOCUMENT_ID = 'produktion_verlauf';
@@ -81,7 +81,7 @@ export const produktionService = {
   },
 
   // Neuen Eintrag hinzufügen (mit optionalem Datum für rückwirkende Einträge)
-  async addEintrag(tonnen: number, datumParam?: string, notiz?: string): Promise<ProduktionsEintrag> {
+  async addEintrag(tonnen: number, koernung: Koernung, datumParam?: string, notiz?: string): Promise<ProduktionsEintrag> {
     const jetzt = new Date();
 
     // Verwende übergebenes Datum oder heute
@@ -101,6 +101,7 @@ export const produktionService = {
       id: ID.unique(),
       datum,
       tonnen,
+      koernung,
       zeitpunkt,
       notiz,
     };
@@ -156,6 +157,7 @@ export const produktionService = {
     durchschnittProTag: number;
     anzahlTage: number;
     tagesProduktionen: { datum: string; tonnen: number }[];
+    koernungStatistik: { koernung: Koernung; tonnen: number; anteil: number }[];
   } {
     const heute = new Date();
     const startDatum = new Date(heute);
@@ -174,6 +176,15 @@ export const produktionService = {
       tagesMap.set(eintrag.datum, aktuell + eintrag.tonnen);
     }
 
+    // Gruppiere nach Körnung
+    const koernungMap = new Map<Koernung, number>();
+    for (const eintrag of relevantEintraege) {
+      // Fallback für alte Einträge ohne Körnung
+      const koernung = eintrag.koernung || 'mittel';
+      const aktuell = koernungMap.get(koernung) || 0;
+      koernungMap.set(koernung, aktuell + eintrag.tonnen);
+    }
+
     const tagesProduktionen = Array.from(tagesMap.entries())
       .map(([datum, tonnen]) => ({ datum, tonnen }))
       .sort((a, b) => b.datum.localeCompare(a.datum));
@@ -181,11 +192,21 @@ export const produktionService = {
     const gesamtTonnen = relevantEintraege.reduce((sum, e) => sum + e.tonnen, 0);
     const anzahlTage = tagesMap.size;
 
+    // Körnung-Statistik sortiert nach Menge
+    const koernungStatistik = Array.from(koernungMap.entries())
+      .map(([koernung, tonnen]) => ({
+        koernung,
+        tonnen,
+        anteil: gesamtTonnen > 0 ? (tonnen / gesamtTonnen) * 100 : 0,
+      }))
+      .sort((a, b) => b.tonnen - a.tonnen);
+
     return {
       gesamtTonnen,
       durchschnittProTag: anzahlTage > 0 ? gesamtTonnen / anzahlTage : 0,
       anzahlTage,
       tagesProduktionen,
+      koernungStatistik,
     };
   },
 };

@@ -656,9 +656,8 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         return prev + 1;
       }); // Verlauf neu laden
 
-      // DISPO-Ansprechpartner beim Kunden speichern, wenn gewünscht
-      if (auftragsbestaetigungsDaten.dispoAnsprechpartnerBeimKundenSpeichern &&
-          auftragsbestaetigungsDaten.dispoAnsprechpartner?.name &&
+      // DISPO-Ansprechpartner beim Kunden speichern (immer, wenn Name vorhanden)
+      if (auftragsbestaetigungsDaten.dispoAnsprechpartner?.name &&
           projekt.kundeId) {
         try {
           await saisonplanungService.updateKunde(projekt.kundeId, {
@@ -1005,18 +1004,6 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
                 />
               </div>
-            </div>
-            <div className="mt-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={auftragsbestaetigungsDaten.dispoAnsprechpartnerBeimKundenSpeichern || false}
-                  onChange={(e) => handleInputChange('dispoAnsprechpartnerBeimKundenSpeichern', e.target.checked)}
-                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                Beim Kunden als Standard-DISPO-Ansprechpartner speichern
-              </label>
             </div>
           </div>
 

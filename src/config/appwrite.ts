@@ -66,6 +66,13 @@ export const PROJEKT_ZUORDNUNGEN_COLLECTION_ID = 'projekt_zuordnungen';
 export const PLATZBAUER_DOKUMENTE_COLLECTION_ID = 'platzbauer_dokumente';
 export const PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID = 'platzbauer_lieferscheine';
 
+// Debitorenverwaltung Collection
+export const DEBITOREN_METADATEN_COLLECTION_ID = 'debitoren_metadaten';
+
+// Tourenplanung Collections
+export const TOUREN_COLLECTION_ID = 'touren';
+export const FAHRER_COLLECTION_ID = 'fahrer';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -125,6 +132,11 @@ export const COLLECTIONS = {
   PROJEKT_ZUORDNUNGEN: PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
   PLATZBAUER_DOKUMENTE: PLATZBAUER_DOKUMENTE_COLLECTION_ID,
   PLATZBAUER_LIEFERSCHEINE: PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
+  // Debitorenverwaltung
+  DEBITOREN_METADATEN: DEBITOREN_METADATEN_COLLECTION_ID,
+  // Tourenplanung
+  TOUREN: TOUREN_COLLECTION_ID,
+  FAHRER: FAHRER_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

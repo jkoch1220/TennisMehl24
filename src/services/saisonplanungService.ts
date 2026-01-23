@@ -7,6 +7,7 @@ import {
   SAISON_DATEN_COLLECTION_ID,
   SAISON_BEZIEHUNGEN_COLLECTION_ID,
   SAISON_AKTIVITAETEN_COLLECTION_ID,
+  COLLECTIONS,
 } from '../config/appwrite';
 import {
   SaisonKunde,
@@ -266,16 +267,100 @@ export const saisonplanungService = {
         id,
         toPayload(aktualisiert) // Collection hat nur "data"
       );
-      
+
+      // WICHTIG: Synchronisiere Kundendaten zu verknüpften Projekten
+      // Dies verhindert, dass Projekte "verloren" gehen wenn der Kundenname geändert wird
+      const hatNamensaenderung = kunde.name !== undefined && kunde.name !== aktuell.name;
+      const hatAdressaenderung = kunde.rechnungsadresse !== undefined || kunde.adresse !== undefined;
+
+      if (hatNamensaenderung || hatAdressaenderung) {
+        await this.synchronisiereProjekte(id, aktualisiert);
+      }
+
       // Cache invalidieren
       cacheService.invalidate('callliste');
       cacheService.invalidate('statistik');
       cacheService.invalidate('dashboard');
-      
+
       return parseDocument<SaisonKunde>(doc, aktualisiert);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kunden:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Synchronisiert Kundendaten zu allen verknüpften Projekten
+   * KRITISCH: Verhindert Datenverlust wenn Kundennamen geändert werden
+   */
+  async synchronisiereProjekte(kundeId: string, kunde: SaisonKunde): Promise<void> {
+    try {
+      // Lade alle Projekte für diesen Kunden
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.PROJEKTE,
+        [Query.equal('kundeId', kundeId), Query.limit(1000)]
+      );
+
+      if (response.documents.length === 0) {
+        return; // Keine Projekte zum Synchronisieren
+      }
+
+      console.log(`🔄 Synchronisiere ${response.documents.length} Projekte für Kunde "${kunde.name}"...`);
+
+      // Adresse für Projekte vorbereiten (verwende Rechnungsadresse als Kundenadresse)
+      const kundenPlzOrt = kunde.rechnungsadresse?.plz && kunde.rechnungsadresse?.ort
+        ? `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`
+        : kunde.adresse?.plz && kunde.adresse?.ort
+          ? `${kunde.adresse.plz} ${kunde.adresse.ort}`
+          : '';
+      const kundenstrasse = kunde.rechnungsadresse?.strasse || kunde.adresse?.strasse || '';
+
+      // Aktualisiere alle Projekte
+      for (const doc of response.documents) {
+        try {
+          // Parse das bestehende data-Feld
+          let projektData: Record<string, unknown> = {};
+          if (doc.data && typeof doc.data === 'string') {
+            try {
+              projektData = JSON.parse(doc.data);
+            } catch {
+              projektData = {};
+            }
+          }
+
+          // Aktualisiere Kundendaten im Projekt
+          const aktualisierteProjektData = {
+            ...projektData,
+            kundenname: kunde.name,
+            kundenstrasse: kundenstrasse,
+            kundenPlzOrt: kundenPlzOrt,
+            kundennummer: kunde.kundennummer || projektData.kundennummer,
+            geaendertAm: new Date().toISOString(),
+          };
+
+          // Speichere das Projekt mit den aktualisierten Daten
+          await databases.updateDocument(
+            DATABASE_ID,
+            COLLECTIONS.PROJEKTE,
+            doc.$id,
+            {
+              kundenname: kunde.name,
+              geaendertAm: new Date().toISOString(),
+              data: JSON.stringify(aktualisierteProjektData),
+            }
+          );
+        } catch (projektError) {
+          console.error(`❌ Fehler beim Synchronisieren von Projekt ${doc.$id}:`, projektError);
+          // Fahre mit dem nächsten Projekt fort
+        }
+      }
+
+      console.log(`✅ ${response.documents.length} Projekte synchronisiert`);
+    } catch (error) {
+      console.error('❌ Fehler beim Synchronisieren der Projekte:', error);
+      // Werfe keinen Fehler, damit das Kunden-Update nicht fehlschlägt
+      // Die Projekte können später manuell korrigiert werden
     }
   },
 

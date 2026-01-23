@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X, FileX } from 'lucide-react';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { projektService } from '../../services/projektService';
+import { fuzzySearch } from '../../utils/fuzzySearch';
 import KundenFormular from './KundenFormular';
 import KundenDetail from './KundenDetail';
 import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
@@ -137,40 +138,80 @@ const Saisonplanung = () => {
     );
   };
 
-  // Gefilterte Kunden basierend auf Suchtext und Filtern
-  const filteredKunden = kunden.filter((kunde) => {
-    // Textsuche
-    if (searchText.trim()) {
-      const search = searchText.toLowerCase();
-      const matchesSearch =
-        kunde.kunde.name.toLowerCase().includes(search) ||
-        kunde.kunde.lieferadresse.ort.toLowerCase().includes(search) ||
-        kunde.kunde.lieferadresse.plz.toLowerCase().includes(search) ||
-        kunde.kunde.lieferadresse.bundesland?.toLowerCase().includes(search) ||
-        kunde.kunde.lieferadresse.strasse?.toLowerCase().includes(search);
-      if (!matchesSearch) return false;
-    }
-
-    // Filter: Nur Kunden ohne Projekt
-    if (filterOhneProjekt && hatProjekt(kunde)) {
-      return false;
-    }
-
-    // Filter: Nach Kundentyp
-    if (filterKundenTyp && kunde.kunde.typ !== filterKundenTyp) {
-      return false;
-    }
-
-    // Filter: Nach Platzbauer
-    if (filterPlatzbauer) {
-      const platzbauerId = kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId;
-      if (platzbauerId !== filterPlatzbauer) {
+  // ULTIMATE FUZZY SEARCH - Die beste Suche der Welt
+  // Features: Tippfehler-tolerant, Wort-basiert, Präfix-Matching, Ähnlichkeitssuche
+  const filteredKunden = useMemo(() => {
+    // Erst die Standard-Filter anwenden (ohne Textsuche)
+    let vorgefilterteKunden = kunden.filter((kunde) => {
+      // Filter: Nur Kunden ohne Projekt
+      if (filterOhneProjekt && hatProjekt(kunde)) {
         return false;
       }
+
+      // Filter: Nach Kundentyp
+      if (filterKundenTyp && kunde.kunde.typ !== filterKundenTyp) {
+        return false;
+      }
+
+      // Filter: Nach Platzbauer
+      if (filterPlatzbauer) {
+        const platzbauerId = kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId;
+        if (platzbauerId !== filterPlatzbauer) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Wenn keine Textsuche, gib die vorgefilterten Kunden zurück
+    if (!searchText.trim()) {
+      return vorgefilterteKunden;
     }
 
-    return true;
-  });
+    // FUZZY SEARCH mit allen relevanten Feldern
+    const searchResults = fuzzySearch<SaisonKundeMitDaten>(
+      vorgefilterteKunden,
+      searchText,
+      (kunde) => [
+        // Name hat höchstes Gewicht
+        { field: 'name', value: kunde.kunde.name, weight: 2.0 },
+        // Ort ist wichtig
+        { field: 'ort', value: kunde.kunde.lieferadresse.ort, weight: 1.5 },
+        // PLZ
+        { field: 'plz', value: kunde.kunde.lieferadresse.plz, weight: 1.2 },
+        // Bundesland
+        { field: 'bundesland', value: kunde.kunde.lieferadresse.bundesland || '', weight: 1.0 },
+        // Straße
+        { field: 'strasse', value: kunde.kunde.lieferadresse.strasse || '', weight: 0.8 },
+        // Kundennummer
+        { field: 'kundennummer', value: kunde.kunde.kundennummer || '', weight: 1.5 },
+        // E-Mail
+        { field: 'email', value: kunde.kunde.email || '', weight: 0.8 },
+        // Ansprechpartner Namen
+        ...kunde.ansprechpartner.map((ap, i) => ({
+          field: `ansprechpartner_${i}`,
+          value: ap.name,
+          weight: 0.7,
+        })),
+        // Ansprechpartner E-Mails
+        ...kunde.ansprechpartner.filter(ap => ap.email).map((ap, i) => ({
+          field: `ansprechpartner_email_${i}`,
+          value: ap.email || '',
+          weight: 0.5,
+        })),
+      ],
+      {
+        minScore: 0.25,       // Niedrig genug für fuzzy matches
+        fuzzyThreshold: 0.6,  // Tolerant für Tippfehler
+        maxResults: 500,      // Genug für alle Kunden
+        matchAll: true,       // Alle Suchwörter müssen matchen
+      }
+    );
+
+    // Gib die sortierten Ergebnisse zurück (beste Matches zuerst)
+    return searchResults.map(r => r.item);
+  }, [kunden, searchText, filterOhneProjekt, filterKundenTyp, filterPlatzbauer, kundenMitProjekt]);
 
   if (loading) {
     return (

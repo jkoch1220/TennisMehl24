@@ -162,12 +162,11 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   lieferzeitBis?: string; // Zeitfenster bis (z.B. "16:00")
   belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
 
-  // DISPO-Ansprechpartner (z.B. Platzwart vor Ort)
+  // DISPO-Ansprechpartner (z.B. Platzwart vor Ort) - wird immer beim Kunden gespeichert
   dispoAnsprechpartner?: {
     name: string;
     telefon: string;
   };
-  dispoAnsprechpartnerBeimKundenSpeichern?: boolean; // Flag ob der Ansprechpartner beim Kunden hinterlegt werden soll
 
   frachtkosten?: number;
   verpackungskosten?: number;
@@ -185,13 +184,16 @@ export interface LieferscheinDaten extends BaseDokument {
   lieferscheinnummer: string;
   lieferdatum: string;
   bestellnummer?: string;
-  
+
+  // Ansprechpartner Telefon (zusätzlich zum ansprechpartner aus BaseDokument)
+  ansprechpartnerTelefon?: string;
+
   // Positionen (OHNE Preise!)
   positionen: LieferscheinPosition[];
-  
+
   // Empfangsbestätigung
   empfangBestaetigt?: boolean;
-  
+
   // Unterschriften für Empfangsbestätigung (default: true)
   unterschriftenFuerEmpfangsbestaetigung?: boolean;
 }
