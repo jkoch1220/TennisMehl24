@@ -90,5 +90,60 @@ export interface AnfrageUpdate {
   bearbeitetVon?: string;
 }
 
+/**
+ * Verarbeitete Anfrage mit Angebots-Vorschlag
+ * Wird verwendet im Anfragen-Verarbeitungs-Tab
+ */
+export interface VerarbeiteteAnfrage extends Anfrage {
+  // Analysierte/extrahierte Daten (aufbereitet)
+  analysiert: {
+    kundenname: string;
+    ansprechpartner?: string;
+    email?: string;
+    telefon?: string;
+    strasse?: string;
+    plzOrt: string;
+    anzahlPlaetze?: number;
+    menge?: number;
+    artikel?: string;
+    koernung?: string;
+    lieferart?: 'lose' | 'gesackt';
+  };
+
+  // Vorgeschlagenes Angebot
+  angebotsvorschlag: {
+    positionen: Array<{
+      artikelbezeichnung: string;
+      menge: number;
+      einheit: string;
+      einzelpreis?: number;
+      gesamtpreis?: number;
+    }>;
+    summeNetto?: number;
+    frachtkosten?: number;
+    empfohlenerPreisProTonne?: number;
+  };
+
+  // Vorgeschlagene E-Mail
+  emailVorschlag: {
+    betreff: string;
+    text: string;
+    empfaenger: string;
+  };
+
+  // Verarbeitungsstatus
+  verarbeitungsStatus: 'ausstehend' | 'in_bearbeitung' | 'bereit' | 'genehmigt' | 'abgelehnt';
+}
+
+/**
+ * Konfiguration für die Anfragen-Verarbeitung
+ */
+export interface AnfragenVerarbeitungConfig {
+  automatischParsen: boolean;
+  standardZahlungsziel: string;
+  standardGueltigkeit: number; // Tage
+  standardEmailVorlage: string;
+}
+
 
 

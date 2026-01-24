@@ -17,6 +17,7 @@ import {
   Send,
   XCircle,
   ChevronRight,
+  Mail,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
 
@@ -216,6 +217,7 @@ interface MobileProjektViewProps {
   saisonjahr: number;
   filterProjekte: (projekte: Projekt[]) => Projekt[];
   editModal?: React.ReactNode;
+  onAnfragenClick?: () => void;
 }
 
 const MobileProjektView = ({
@@ -231,6 +233,7 @@ const MobileProjektView = ({
   saisonjahr,
   filterProjekte,
   editModal,
+  onAnfragenClick,
 }: MobileProjektViewProps) => {
   const [mobileActiveTab, setMobileActiveTab] = useState<ProjektStatus | 'alle'>('alle');
   const mobileTabsRef = useRef<HTMLDivElement>(null);
@@ -292,13 +295,23 @@ const MobileProjektView = ({
                 <p className="text-xs text-gray-500 dark:text-gray-400">{gesamt} aktiv • Saison {saisonjahr}</p>
               </div>
             </div>
-            <button
-              onClick={loadData}
-              disabled={loading}
-              className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl active:scale-95 transition-all"
-            >
-              <RefreshCw className={`w-5 h-5 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-2">
+              {onAnfragenClick && (
+                <button
+                  onClick={onAnfragenClick}
+                  className="p-3 bg-amber-100 dark:bg-amber-900/50 rounded-xl active:scale-95 transition-all"
+                >
+                  <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </button>
+              )}
+              <button
+                onClick={loadData}
+                disabled={loading}
+                className="p-3 bg-gray-100 dark:bg-slate-800 rounded-xl active:scale-95 transition-all"
+              >
+                <RefreshCw className={`w-5 h-5 text-gray-600 dark:text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Suche */}
