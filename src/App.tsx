@@ -35,6 +35,7 @@ import EmailDashboard from './components/EmailDashboard/EmailDashboard';
 import Instandhaltung from './components/Instandhaltung/Instandhaltung';
 import Schichtplanung from './components/Schichtplanung/Schichtplanung';
 import ProduktionsTracker from './components/ProduktionsTracker/ProduktionsTracker';
+import PublicProduktion from './components/PublicProduktion/PublicProduktion';
 import PlatzbauerverwaltungPage from './components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage';
 import DebitorenVerwaltung from './components/DebitorenVerwaltung/DebitorenVerwaltung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
@@ -258,6 +259,9 @@ function App() {
           <Routes>
             {/* ÖFFENTLICHE Route für Newsletter-Abmeldung (ohne Login!) */}
             <Route path="/abmelden/:token" element={<Unsubscribe />} />
+
+            {/* ÖFFENTLICHE Route für Produktions-Erfassung (mit einfachem Passwort) */}
+            <Route path="/produktion-erfassen" element={<PublicProduktion />} />
 
             {/* Alle anderen Routes benötigen Authentifizierung */}
             <Route path="/*" element={<AppContent />} />
