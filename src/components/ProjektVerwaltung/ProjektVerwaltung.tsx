@@ -25,6 +25,7 @@ import {
   Filter,
   Building2,
   BarChart3,
+  Mail,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -33,6 +34,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
+import AnfragenVerarbeitung from './AnfragenVerarbeitung';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 
 // Hook für Mobile-Erkennung
@@ -62,7 +64,7 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
 // Verloren-Tab separat (wird versteckt angezeigt)
 const VERLOREN_TAB = { id: 'verloren' as ProjektStatus, label: 'Verloren', icon: XCircle, color: 'text-gray-500', darkColor: 'dark:text-gray-400', bgColor: 'bg-gray-100 border-gray-300', darkBgColor: 'dark:bg-gray-800/50 dark:border-gray-600' };
 
-type ViewMode = 'kanban' | 'angebotsliste' | 'statistik';
+type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -432,6 +434,41 @@ const ProjektVerwaltung = () => {
   }
 
   // ==========================================
+  // MOBILE ANSICHT für Anfragen-Tab
+  // ==========================================
+  if (isMobile && viewMode === 'anfragen') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+        {/* Mobile Header für Anfragen */}
+        <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg">
+                <Mail className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Anfragen</h1>
+            </div>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-lg"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Kanban
+            </button>
+          </div>
+        </div>
+        <div className="p-4">
+          <AnfragenVerarbeitung
+            onAnfrageGenehmigt={() => {
+              loadData();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
   // MOBILE ANSICHT - Komplett neues UX-Konzept
   // ==========================================
   if (isMobile) {
@@ -448,6 +485,7 @@ const ProjektVerwaltung = () => {
         onDelete={handleDelete}
         saisonjahr={saisonjahr}
         filterProjekte={filterProjekte}
+        onAnfragenClick={() => setViewMode('anfragen')}
         editModal={
           showEditModal && editingProjekt ? (
             <ProjektEditModal
@@ -507,6 +545,17 @@ const ProjektVerwaltung = () => {
 
             {/* Ansicht umschalten */}
             <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode('anfragen')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'anfragen'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Mail className="w-4 h-4" />
+                <span className="hidden sm:inline">Anfragen</span>
+              </button>
               <button
                 onClick={() => setViewMode('kanban')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
@@ -654,6 +703,16 @@ const ProjektVerwaltung = () => {
       {/* Statistik */}
       {viewMode === 'statistik' && (
         <ProjektStatistik projekteGruppiert={projekteGruppiert} />
+      )}
+
+      {/* Anfragen-Verarbeitung */}
+      {viewMode === 'anfragen' && (
+        <AnfragenVerarbeitung
+          onAnfrageGenehmigt={() => {
+            // Nach Genehmigung zum Kanban wechseln und Daten neu laden
+            loadData();
+          }}
+        />
       )}
 
       {/* Saving Overlay */}
