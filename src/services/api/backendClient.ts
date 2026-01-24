@@ -6,12 +6,28 @@
  * über das sichere Backend abgewickelt.
  *
  * WICHTIG: API-Keys sind NUR auf dem Server gespeichert!
+ *
+ * Unterstützt zwei Backend-Varianten:
+ * 1. Netlify Functions: VITE_BACKEND_URL = '/.netlify/functions'
+ * 2. Express Backend:   VITE_BACKEND_URL = 'http://localhost:3001/api'
  */
 
 import { account } from '../../config/appwrite';
 
-// Backend URL - Netlify Functions
+// Backend URL - Netlify Functions ODER Express Backend
+// Für Netlify: '/.netlify/functions' oder leer
+// Für Express: 'http://localhost:3001/api' oder 'https://api.tennismehl.com/api'
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '/.netlify/functions';
+
+// Prüfe ob Express Backend verwendet wird
+const isExpressBackend = BACKEND_URL.includes('/api') || BACKEND_URL.includes('localhost:3001');
+
+/**
+ * Gibt den korrekten Endpunkt-Pfad basierend auf dem Backend-Typ zurück
+ */
+function getEndpoint(netlifyPath: string, expressPath: string): string {
+  return isExpressBackend ? expressPath : netlifyPath;
+}
 
 /**
  * Basis-Fetch mit Authentifizierung
@@ -159,10 +175,25 @@ export const backendApi = {
      * Optimiert Liefertouren mit Claude AI
      */
     optimizeRoute: (request: ClaudeOptimierungRequest): Promise<ClaudeOptimierungResponse> =>
-      fetchWithAuth<ClaudeOptimierungResponse>('/claude-optimize', {
-        method: 'POST',
-        body: JSON.stringify(request),
-      }),
+      fetchWithAuth<ClaudeOptimierungResponse>(
+        getEndpoint('/claude-optimize', '/claude/optimize-route'),
+        {
+          method: 'POST',
+          body: JSON.stringify(request),
+        }
+      ),
+
+    /**
+     * Parst eine E-Mail-Anfrage mit Claude AI
+     */
+    parseInquiry: (emailContent: string, emailSubject?: string): Promise<Record<string, unknown>> =>
+      fetchWithAuth<Record<string, unknown>>(
+        getEndpoint('/claude-parse', '/claude/parse-inquiry'),
+        {
+          method: 'POST',
+          body: JSON.stringify({ emailContent, emailSubject }),
+        }
+      ),
 
     /**
      * Prüft ob Claude AI Service verfügbar ist
@@ -184,39 +215,60 @@ export const backendApi = {
     /**
      * Berechnet Route zwischen zwei PLZ
      */
-    calculateRoute: (startPLZ: string, zielPLZ: string): Promise<RouteResult> =>
-      fetchWithAuth<RouteResult>('/routing', {
+    calculateRoute: (startPLZ: string, zielPLZ: string): Promise<RouteResult> => {
+      if (isExpressBackend) {
+        return fetchWithAuth<RouteResult>('/routing/calculate', {
+          method: 'POST',
+          body: JSON.stringify({ startPLZ, zielPLZ }),
+        });
+      }
+      return fetchWithAuth<RouteResult>('/routing', {
         method: 'POST',
         body: JSON.stringify({
           action: 'route',
           startPLZ,
           zielPLZ,
         }),
-      }),
+      });
+    },
 
     /**
      * Geocodiert eine Adresse/PLZ
      */
-    geocode: (addressOrPLZ: string): Promise<GeocodingResult> =>
-      fetchWithAuth<GeocodingResult>('/routing', {
+    geocode: (addressOrPLZ: string): Promise<GeocodingResult> => {
+      if (isExpressBackend) {
+        return fetchWithAuth<GeocodingResult>('/routing/geocode', {
+          method: 'POST',
+          body: JSON.stringify({ address: addressOrPLZ }),
+        });
+      }
+      return fetchWithAuth<GeocodingResult>('/routing', {
         method: 'POST',
         body: JSON.stringify({
           action: 'geocode',
           address: addressOrPLZ,
         }),
-      }),
+      });
+    },
 
     /**
      * Batch-Geocoding für mehrere Adressen
      */
-    batchGeocode: (addresses: string[]): Promise<GeocodingResult[]> =>
-      fetchWithAuth<GeocodingResult[]>('/routing', {
+    batchGeocode: (addresses: string[]): Promise<GeocodingResult[]> => {
+      if (isExpressBackend) {
+        return fetchWithAuth<GeocodingResult[]>('/routing/batch-geocode', {
+          method: 'POST',
+          body: JSON.stringify({ addresses }),
+        });
+      }
+      return fetchWithAuth<GeocodingResult[]>('/routing', {
         method: 'POST',
         body: JSON.stringify({
           action: 'batch-geocode',
           addresses,
         }),
-      }),
+      });
+    },
   },
 
   /**
@@ -227,10 +279,71 @@ export const backendApi = {
      * Holt aktuellen Dieselpreis für eine PLZ
      */
     getDieselPrice: (plz: string, radius?: number): Promise<FuelPriceResult> =>
-      fetchWithAuth<FuelPriceResult>('/fuel-price', {
+      fetchWithAuth<FuelPriceResult>(
+        getEndpoint('/fuel-price', '/fuel/diesel-price'),
+        {
+          method: 'POST',
+          body: JSON.stringify({ plz, radius: radius || 10 }),
+        }
+      ),
+  },
+
+  /**
+   * Email Services (nur Express Backend)
+   */
+  email: {
+    /**
+     * Holt E-Mails aus dem Posteingang
+     */
+    fetchInbox: (folder?: string, limit?: number): Promise<{ emails: unknown[]; total: number }> => {
+      if (!isExpressBackend) {
+        throw new Error('Email Service nur im Express Backend verfügbar');
+      }
+      const params = new URLSearchParams();
+      if (folder) params.append('folder', folder);
+      if (limit) params.append('limit', String(limit));
+      return fetchWithAuth<{ emails: unknown[]; total: number }>(
+        `/email/inbox?${params.toString()}`,
+        { method: 'GET' }
+      );
+    },
+
+    /**
+     * Sendet eine E-Mail
+     */
+    send: (options: { to: string | string[]; subject: string; text?: string; html?: string }): Promise<{ success: boolean; messageId?: string }> => {
+      if (!isExpressBackend) {
+        throw new Error('Email Service nur im Express Backend verfügbar');
+      }
+      return fetchWithAuth<{ success: boolean; messageId?: string }>('/email/send', {
         method: 'POST',
-        body: JSON.stringify({ plz, radius: radius || 10 }),
-      }),
+        body: JSON.stringify(options),
+      });
+    },
+  },
+
+  /**
+   * Health Check
+   */
+  health: {
+    /**
+     * Einfacher Health Check
+     */
+    check: (): Promise<{ status: string; timestamp: string }> =>
+      fetchWithAuth<{ status: string; timestamp: string }>(
+        getEndpoint('/health', '/health'),
+        { method: 'GET' }
+      ),
+
+    /**
+     * Detaillierter Health Check
+     */
+    detailed: (): Promise<Record<string, unknown>> => {
+      if (!isExpressBackend) {
+        throw new Error('Detailed Health Check nur im Express Backend verfügbar');
+      }
+      return fetchWithAuth<Record<string, unknown>>('/health/detailed', { method: 'GET' });
+    },
   },
 };
 
