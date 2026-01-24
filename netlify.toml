@@ -1,24 +1,82 @@
+# ============================================================================
 # Netlify Konfiguration für TennisMehl24
+# ============================================================================
 
 [build]
   command = "npm run build"
   publish = "dist"
+
+[build.environment]
+  # Node Version
+  NODE_VERSION = "20"
+  # Secrets Scanning deaktivieren für Build-Output
+  # (Vite bettet öffentliche VITE_ Variablen ein - das ist normal)
+  SECRETS_SCAN_ENABLED = "false"
 
 # Netlify Functions Konfiguration
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Secrets Scanning: Deaktiviere für Build-Output und öffentliche Werte
-# Die Werte erscheinen im Build-Output, weil Vite sie zur Build-Zeit einbettet
-# Das ist normal und erwartet. PROJECT_ID, PROJECT_NAME und ENDPOINT sind öffentlich.
-[build.environment]
-  SECRETS_SCAN_ENABLED = "false"
+# Function-spezifische Timeouts
+[functions."claude-optimize"]
+  # Claude AI braucht mehr Zeit
+  timeout = 26
 
-# Redirect-Regel für Single-Page Application (SPA)
-# Alle Routen werden auf index.html umgeleitet, damit React Router funktioniert
+[functions."routing"]
+  timeout = 10
+
+[functions."fuel-price"]
+  timeout = 10
+
+[functions."email-api"]
+  timeout = 26
+
+# ============================================================================
+# Redirects
+# ============================================================================
+
+# SPA Routing - alle Routen zu index.html
+# WICHTIG: Muss NACH den API-Redirects kommen!
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
+# ============================================================================
+# Security Headers
+# ============================================================================
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Verhindere Clickjacking
+    X-Frame-Options = "DENY"
+    # Verhindere MIME-Type Sniffing
+    X-Content-Type-Options = "nosniff"
+    # XSS Protection
+    X-XSS-Protection = "1; mode=block"
+    # Referrer Policy
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache-Control für statische Assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Keine Caching für HTML (immer frische Version)
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ============================================================================
+# Dev Server
+# ============================================================================
+
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+  autoLaunch = false

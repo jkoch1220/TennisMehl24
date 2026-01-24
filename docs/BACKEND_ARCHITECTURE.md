@@ -873,14 +873,36 @@ const result = await backendApi.claude.optimizeRoute({ deliveries });
 - **Lokales Caching** - für bessere UX
 - **Appwrite Queries** (mit User-Session) - Appwrite regelt Berechtigungen
 
-### Nächste Schritte
+### Implementierungsstatus ✓
 
-1. ☐ Netlify Function für Claude erstellen
-2. ☐ Appwrite API Key aus Client entfernen
-3. ☐ Hardcoded Passwort-Hash entfernen
-4. ☐ Routing-APIs ins Backend verschieben
-5. ☐ Frontend API Client implementieren
-6. ☐ Testen und deployen
+1. ✅ Netlify Function für Claude erstellt (`netlify/functions/claude-optimize.ts`)
+2. ✅ Appwrite API Key aus Client entfernt (Setup jetzt via `scripts/setup-database.ts`)
+3. ✅ Hardcoded Passwort-Hash entfernt (`src/utils/auth.ts` gelöscht)
+4. ✅ Routing-APIs ins Backend verschoben (`netlify/functions/routing.ts`)
+5. ✅ Dieselpreis-API ins Backend verschoben (`netlify/functions/fuel-price.ts`)
+6. ✅ Frontend API Client implementiert (`src/services/api/backendClient.ts`)
+7. ✅ Rate Limiting in allen Backend-Funktionen implementiert
+8. ✅ Audit Logging in allen Backend-Funktionen implementiert
+9. ✅ Netlify Konfiguration aktualisiert (`netlify.toml`)
+10. ✅ Environment Variables bereinigt (`.env.example`)
+
+### Nächste Schritte (für Deployment)
+
+1. In Netlify Environment Variables konfigurieren:
+   - `ANTHROPIC_API_KEY`
+   - `GOOGLE_MAPS_API_KEY`
+   - `OPENROUTESERVICE_API_KEY`
+   - `TANKERKOENIG_API_KEY`
+   - `APPWRITE_API_KEY`
+
+2. Alte VITE_ API-Keys aus Netlify entfernen:
+   - `VITE_ANTHROPIC_API_KEY` ❌
+   - `VITE_GOOGLE_MAPS_API_KEY` ❌
+   - `VITE_OPENROUTESERVICE_API_KEY` ❌
+   - `VITE_TANKERKOENIG_API_KEY` ❌
+   - `VITE_APPWRITE_API_KEY` ❌
+
+3. Deployen und testen
 
 ---
 
