@@ -11,7 +11,7 @@ import { EigenlieferungStammdaten, RoutenBerechnung, FremdlieferungStammdaten, F
 
 // Startadresse (Standort des Unternehmens)
 export const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
-const START_PLZ = '97828';
+export const START_PLZ = '97828';
 
 // Manuelle Koordinaten für Marktheidenfeld (Fallback)
 export const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]

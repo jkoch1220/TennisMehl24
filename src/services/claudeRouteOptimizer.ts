@@ -6,11 +6,11 @@
  * Der Anthropic API-Key ist NUR auf dem Server gespeichert.
  */
 
-import { backendApi } from './api/backendClient';
-import type {
-  ClaudeOptimierungRequest,
-  ClaudeOptimierungResponse,
-} from '../types/tour';
+import {
+  backendApi,
+  type ClaudeOptimierungRequest,
+  type ClaudeOptimierungResponse,
+} from './api/backendClient';
 
 // Re-export types from backendClient
 export type {

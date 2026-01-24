@@ -20,7 +20,7 @@ interface ProjektFuerOptimierung {
   adresse: TourAdresse;
   tonnen: number;
   paletten?: number;
-  belieferungsart: 'mit_haenger' | 'nur_motorwagen' | 'abholung_ab_werk';
+  belieferungsart: 'mit_haenger' | 'nur_motorwagen' | 'abholung_ab_werk' | 'palette_mit_ladekran' | 'bigbag';
   lieferKW?: number;
   lieferdatumTyp?: 'genau_kw' | 'spaetestens_kw' | 'flexibel';
   zeitfenster?: { von: string; bis: string };

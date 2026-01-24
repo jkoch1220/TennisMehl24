@@ -68,9 +68,9 @@ export interface ProjektFuerOptimierung {
   adresse: TourAdresse;
   tonnen: number;
   paletten?: number;
-  belieferungsart: 'mit_haenger' | 'nur_motorwagen' | 'abholung_ab_werk';
+  belieferungsart: 'mit_haenger' | 'nur_motorwagen' | 'abholung_ab_werk' | 'palette_mit_ladekran' | 'bigbag';
   lieferKW?: number;
-  lieferdatumTyp?: 'genau_kw' | 'spaetestens_kw' | 'flexibel';
+  lieferdatumTyp?: 'genau_kw' | 'spaetestens_kw' | 'flexibel' | 'fix' | 'spaetestens' | 'kw';
   zeitfenster?: { von: string; bis: string };
   wichtigeHinweise?: string[];
 }
@@ -78,7 +78,7 @@ export interface ProjektFuerOptimierung {
 export interface FahrzeugFuerOptimierung {
   id: string;
   kennzeichen: string;
-  typ: 'motorwagen' | 'mit_haenger';
+  typ: string; // 'motorwagen' | 'mit_haenger'
   kapazitaetTonnen: number;
   fahrerName?: string;
 }
