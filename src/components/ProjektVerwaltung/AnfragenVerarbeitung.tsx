@@ -25,7 +25,7 @@ import {
   Sparkles,
   Building2,
 } from 'lucide-react';
-import { Anfrage, VerarbeiteteAnfrage } from '../../types/anfragen';
+import { VerarbeiteteAnfrage } from '../../types/anfragen';
 import { anfragenService } from '../../services/anfragenService';
 import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
@@ -34,8 +34,24 @@ import {
   generiereAngebotsEmail,
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
+import { getEmails, Email } from '../../services/emailService';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+
+// E-Mail Account für Anfragen
+const ANFRAGEN_EMAIL_ACCOUNT = 'anfrage@tennismehl.com';
+
+// Prüft ob eine E-Mail eine Webformular-Anfrage ist
+const isWebformularAnfrage = (email: Email): boolean => {
+  const text = email.body || email.bodyPreview || '';
+  // Webformular-Emails enthalten typische Felder
+  return (
+    text.includes('Vorname') &&
+    text.includes('Nachname') &&
+    (text.includes('PLZ') || text.includes('Ort')) &&
+    (text.includes('Angebot') || text.includes('Anfrage') || text.includes('Tennismehl'))
+  );
+};
 
 interface AnfragenVerarbeitungProps {
   onAnfrageGenehmigt?: (projektId: string) => void;
@@ -43,22 +59,25 @@ interface AnfragenVerarbeitungProps {
 
 const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  useAuth(); // Auth-Context für zukünftige Erweiterungen
   const [anfragen, setAnfragen] = useState<VerarbeiteteAnfrage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
   const [processing, setProcessing] = useState(false);
 
-  // Lade neue Anfragen
+  // Lade neue Anfragen aus dem E-Mail-Account
   const loadAnfragen = useCallback(async () => {
     setLoading(true);
     try {
-      // Lade nur neue Anfragen die noch nicht verarbeitet wurden
-      const neueAnfragen = await anfragenService.loadAnfragenNachStatus('neu');
+      // Lade E-Mails aus dem Anfragen-Postfach
+      const emails = await getEmails(ANFRAGEN_EMAIL_ACCOUNT, 'INBOX', 50);
 
-      // Parse und analysiere jede Anfrage
-      const verarbeitete: VerarbeiteteAnfrage[] = neueAnfragen.map((anfrage) => {
-        return verarbeiteAnfrage(anfrage);
+      // Filtere nur Webformular-Anfragen und parse sie
+      const webformularEmails = emails.filter(isWebformularAnfrage);
+
+      // Parse und analysiere jede E-Mail
+      const verarbeitete: VerarbeiteteAnfrage[] = webformularEmails.map((email) => {
+        return verarbeiteEmail(email);
       });
 
       setAnfragen(verarbeitete);
@@ -74,29 +93,28 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     loadAnfragen();
   }, [loadAnfragen]);
 
-  // Verarbeite eine Anfrage und erstelle Vorschläge
-  const verarbeiteAnfrage = (anfrage: Anfrage): VerarbeiteteAnfrage => {
+  // Verarbeite eine E-Mail und erstelle Vorschläge
+  const verarbeiteEmail = (email: Email): VerarbeiteteAnfrage => {
+    const emailText = email.body || email.bodyPreview || '';
+
     // Parse die E-Mail mit unserem Parser
-    const analyse = parseWebformularAnfrage(anfrage.emailText);
+    const analyse = parseWebformularAnfrage(emailText);
 
     // Erstelle strukturierte analysierte Daten
     const analysiert = {
       kundenname:
         analyse.kontakt.vereinsname ||
         `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() ||
-        anfrage.extrahierteDaten.kundenname ||
         'Unbekannt',
       ansprechpartner: analyse.kontakt.nachname
         ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname}`.trim()
         : undefined,
-      email: analyse.kontakt.email || anfrage.extrahierteDaten.email,
-      telefon: analyse.kontakt.telefon || anfrage.extrahierteDaten.telefon,
-      strasse: analyse.kontakt.strasse || anfrage.extrahierteDaten.adresse?.strasse,
-      plzOrt: `${analyse.kontakt.plz || anfrage.extrahierteDaten.adresse?.plz || ''} ${
-        analyse.kontakt.ort || anfrage.extrahierteDaten.adresse?.ort || ''
-      }`.trim(),
+      email: analyse.kontakt.email || email.from.address,
+      telefon: analyse.kontakt.telefon,
+      strasse: analyse.kontakt.strasse,
+      plzOrt: `${analyse.kontakt.plz || ''} ${analyse.kontakt.ort || ''}`.trim(),
       anzahlPlaetze: analyse.bestellung.anzahlPlaetze,
-      menge: analyse.bestellung.mengeGesamt || anfrage.extrahierteDaten.menge,
+      menge: analyse.bestellung.mengeGesamt,
       artikel: analyse.bestellung.artikel,
       koernung: analyse.bestellung.koernung,
       lieferart: analyse.bestellung.lieferart,
@@ -134,13 +152,36 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       empfaenger: analysiert.email || '',
     };
 
-    return {
-      ...anfrage,
+    // Erstelle VerarbeiteteAnfrage-Objekt aus E-Mail
+    const verarbeiteteAnfrage: VerarbeiteteAnfrage = {
+      id: email.id,
+      emailBetreff: email.subject,
+      emailAbsender: email.from.address,
+      emailDatum: email.date,
+      emailText: emailText,
+      emailHtml: email.bodyHtml || '',
+      extrahierteDaten: {
+        kundenname: analysiert.kundenname,
+        email: analysiert.email,
+        telefon: analysiert.telefon,
+        adresse: {
+          strasse: analysiert.strasse,
+          plz: analyse.kontakt.plz,
+          ort: analyse.kontakt.ort,
+        },
+        menge: analysiert.menge,
+        artikel: analysiert.artikel,
+      },
+      status: 'neu',
+      erstelltAm: email.date,
+      aktualisiertAm: email.date,
       analysiert,
       angebotsvorschlag,
       emailVorschlag,
       verarbeitungsStatus: 'ausstehend',
     };
+
+    return verarbeiteteAnfrage;
   };
 
   // Genehmige Anfrage: Erstelle Projekt und markiere als verarbeitet
@@ -170,14 +211,21 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
 
       const projekt = await projektService.createProjekt(neuesProjekt);
 
-      // Aktualisiere Anfrage-Status
-      await anfragenService.updateAnfrage(anfrage.id, {
-        status: 'angebot_versendet',
-        angebotId: projekt.id,
-        bearbeitetVon: user?.$id,
-      });
+      // Speichere Anfrage in Appwrite für Nachverfolgung
+      try {
+        await anfragenService.createAnfrage({
+          emailBetreff: anfrage.emailBetreff,
+          emailAbsender: anfrage.emailAbsender,
+          emailDatum: anfrage.emailDatum,
+          emailText: anfrage.emailText,
+          emailHtml: anfrage.emailHtml,
+          extrahierteDaten: anfrage.extrahierteDaten,
+        });
+      } catch (e) {
+        console.warn('Anfrage konnte nicht in Appwrite gespeichert werden:', e);
+      }
 
-      // Entferne aus der Liste
+      // Entferne aus der Liste (E-Mail bleibt im Postfach)
       setAnfragen((prev) => prev.filter((a) => a.id !== anfrage.id));
       setSelectedAnfrage(null);
 
@@ -195,17 +243,13 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }
   };
 
-  // Ablehnen: Markiere als abgelehnt
+  // Ablehnen: Entferne aus der Liste
   const handleAblehnen = async (anfrage: VerarbeiteteAnfrage) => {
     if (!confirm('Anfrage wirklich ablehnen?')) return;
 
     setProcessing(true);
     try {
-      await anfragenService.updateAnfrage(anfrage.id, {
-        status: 'abgelehnt',
-        bearbeitetVon: user?.$id,
-      });
-
+      // Entferne einfach aus der lokalen Liste (E-Mail bleibt im Postfach)
       setAnfragen((prev) => prev.filter((a) => a.id !== anfrage.id));
       setSelectedAnfrage(null);
     } catch (error) {
