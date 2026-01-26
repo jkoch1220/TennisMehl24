@@ -192,37 +192,39 @@ const Projektabwicklung = () => {
         )}
       </div>
 
-      {/* Platzbauer-Hinweis - Wenn Projekt über einen Platzbauer läuft */}
-      {(projekt.istPlatzbauerprojekt || projekt.platzbauerId) && (
-        <div className="mb-6 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/40 dark:via-yellow-950/40 dark:to-orange-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 shadow-sm">
+      {/* PLATZBAUER-BANNER - Wenn Kunde ein Platzbauer ist oder Projekt über Platzbauer läuft */}
+      {(projekt.istPlatzbauerprojekt || projekt.platzbauerId || kunde?.typ === 'platzbauer') && (
+        <div className="mb-6 bg-gradient-to-r from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-900/60 dark:via-yellow-900/60 dark:to-orange-900/60 border-4 border-amber-400 dark:border-amber-600 rounded-2xl p-6 shadow-lg">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Hammer className="h-6 w-6 text-white" />
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl">
+                <Hammer className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
-                    Platzbauer-Projekt
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="text-lg font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                    Platzbauer
                   </span>
-                  <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-full">
-                    Partner
+                  <span className="px-3 py-1 bg-amber-500 text-white text-sm font-bold rounded-full shadow-md">
+                    Partner-Projekt
                   </span>
                 </div>
-                <p className="text-amber-900 dark:text-amber-100 font-medium mt-0.5">
-                  {platzbauer?.name || 'Platzbauer wird geladen...'}
+                <p className="text-2xl font-bold text-amber-950 dark:text-amber-100">
+                  {kunde?.typ === 'platzbauer' ? kunde.name : (platzbauer?.name || projekt.kundenname)}
                 </p>
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Dieses Vereinsprojekt wird über einen Platzbauer-Partner abgewickelt
+                <p className="text-amber-800 dark:text-amber-300 mt-1">
+                  {kunde?.typ === 'platzbauer'
+                    ? 'Direktes Projekt mit Platzbauer-Partner'
+                    : 'Vereinsprojekt über Platzbauer-Partner'}
                 </p>
               </div>
             </div>
             <button
               onClick={() => navigate('/platzbauer-verwaltung')}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg font-medium"
+              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-semibold text-lg"
             >
-              <span>Zur Platzbauer-Verwaltung</span>
-              <ExternalLink className="h-4 w-4" />
+              <span>Platzbauer-Verwaltung</span>
+              <ExternalLink className="h-5 w-5" />
             </button>
           </div>
         </div>

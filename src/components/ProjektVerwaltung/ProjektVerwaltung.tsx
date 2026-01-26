@@ -200,7 +200,15 @@ const ProjektVerwaltung = () => {
   // WICHTIG: Platzbauer-Projekte werden hier ausgeschlossen - diese werden in der Platzbauer-Verwaltung angezeigt
   const filterProjekte = useCallback((projekte: Projekt[]) => {
     // Schritt 1: Platzbauer-Projekte ausfiltern (diese gehören in die Platzbauer-Verwaltung)
-    const ohnePlatzbauer = projekte.filter(p => !p.istPlatzbauerprojekt);
+    // - Projekte mit istPlatzbauerprojekt === true
+    // - Projekte bei denen der Kunde selbst ein Platzbauer ist (typ === 'platzbauer')
+    const ohnePlatzbauer = projekte.filter(p => {
+      if (p.istPlatzbauerprojekt) return false;
+      // Prüfe ob der Kunde ein Platzbauer ist
+      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
+      if (kunde?.typ === 'platzbauer') return false;
+      return true;
+    });
 
     if (!suche.trim()) return ohnePlatzbauer;
 
