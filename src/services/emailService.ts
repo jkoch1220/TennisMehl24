@@ -202,8 +202,8 @@ Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.
 const generateMockEmails = (account: string): Email[] => {
   const now = new Date();
 
-  // Generiere Webformular-Anfragen für mail@tennismehl.com und anfragen@tennismehl.com
-  if (account === 'mail@tennismehl.com' || account === 'anfragen@tennismehl.com') {
+  // Generiere Webformular-Anfragen für mail@tennismehl.com und anfrage@tennismehl.com
+  if (account === 'mail@tennismehl.com' || account === 'anfrage@tennismehl.com') {
     return WEBFORM_MOCK_EMAILS.map((mockEmail, i) => ({
       id: `${account}-webform-${i + 1}`,
       uid: 2000 + i,

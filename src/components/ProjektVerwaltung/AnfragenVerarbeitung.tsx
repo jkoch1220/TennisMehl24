@@ -5,11 +5,10 @@
  * Ermöglicht das Verarbeiten, Erstellen von Angeboten und Versenden von E-Mails.
  *
  * Features:
- * - Lädt E-Mails von mehreren Konten (mail@tennismehl.com, anfragen@tennismehl.com)
- * - Erkennt Webformular-Anfragen automatisch
- * - Filtert bereits beantwortete Anfragen
+ * - Lädt Anfragen aus Appwrite (synchronisiert durch Netlify Function)
  * - Ein-Klick-Bestätigen: Kunde + Projekt + Angebot + E-Mail
  * - Bearbeitungsmöglichkeit vor dem Senden
+ * - Sync-Button zum manuellen Abrufen neuer E-Mails
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -34,8 +33,9 @@ import {
   Search,
   Eye,
   Bot,
+  Download,
 } from 'lucide-react';
-import { VerarbeiteteAnfrage } from '../../types/anfragen';
+import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
 import { Position, AngebotsDaten } from '../../types/projektabwicklung';
 import {
   parseWebformularAnfrage,
@@ -43,7 +43,7 @@ import {
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
-import { getEmails, Email } from '../../services/emailService';
+import { anfragenService } from '../../services/anfragenService';
 import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail, pdfZuBase64 } from '../../services/emailSendService';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
@@ -58,60 +58,11 @@ import {
 } from '../../services/anfrageVerarbeitungService';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 
-// NUR dieses Konto wird für Webformular-Anfragen verwendet
-// Anfragen kommen von mail@tennismehl.com und gehen an anfragen@tennismehl.com
-const ANFRAGEN_EMAIL_KONTO = 'anfragen@tennismehl.com';
-
 // Standard-Absender für Angebote
 const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
 
 // Test-E-Mail-Adresse
 const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
-
-// Webformular-Erkennung (als Indikator, nicht als Filter)
-const isWebformularAnfrage = (email: Email): boolean => {
-  const text = (email.body || email.bodyPreview || '').toLowerCase();
-
-  // Erkennungsmuster
-  const hatVornameNachname = /vorname\s*[*:]/.test(text) && /nachname\s*[*:]/.test(text);
-  const hatPlz = /plz\s*[*:]?\s*\d{5}/.test(text);
-  const hatTennisKeywords = /(tennismehl|ziegelmehl|tennisplatz|angebot|anfrage)/i.test(text);
-  const hatVereinsname = /vereins?-?name\s*[*:]/i.test(text);
-  const hatAnzahlPlaetze = /anzahl\s*pl[äa]tze/i.test(text);
-  const hatTonnenAngabe = /tonnen?\s*(0-2|0-3|lose|gesackt)/i.test(text);
-
-  // Mind. 2 Pattern müssen matchen für Webformular
-  const matches = [hatVornameNachname, hatPlz, hatTennisKeywords, hatVereinsname, hatAnzahlPlaetze, hatTonnenAngabe].filter(Boolean);
-  return matches.length >= 2;
-};
-
-// Prüft ob eine E-Mail überhaupt relevant ist (keine Newsletter, Auto-Replies etc.)
-const istRelevanteEmail = (email: Email): boolean => {
-  const subject = (email.subject || '').toLowerCase();
-  const from = (email.from?.address || '').toLowerCase();
-
-  // Ausschlusskriterien
-  const ausschlussBetreff = [
-    'out of office', 'abwesenheit', 'auto-reply', 'automatische antwort',
-    'undeliverable', 'delivery failed', 'mailer-daemon', 'postmaster',
-    'unsubscribe', 'newsletter', 'spam', 'werbung'
-  ];
-
-  const ausschlussAbsender = [
-    'noreply', 'no-reply', 'mailer-daemon', 'postmaster',
-    'bounce', 'notification'
-  ];
-
-  if (ausschlussBetreff.some(keyword => subject.includes(keyword))) {
-    return false;
-  }
-
-  if (ausschlussAbsender.some(keyword => from.includes(keyword))) {
-    return false;
-  }
-
-  return true;
-};
 
 interface BearbeitbareDaten {
   kundenname: string;
@@ -190,60 +141,123 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }
   }, []);
 
-  // Lade neue Anfragen NUR aus anfragen@tennismehl.com
-  const loadAnfragen = useCallback(async () => {
+  // Sync E-Mails von IMAP zu Appwrite
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ neu: number; duplikate: number } | null>(null);
+
+  const syncEmails = useCallback(async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const apiUrl = import.meta.env.DEV
+        ? 'http://localhost:8888/.netlify/functions/email-sync'
+        : '/.netlify/functions/email-sync';
+
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+
+      if (data.success) {
+        console.log(`✅ Sync erfolgreich: ${data.neueSpeicherungen} neue, ${data.duplikate} Duplikate`);
+        setSyncResult({ neu: data.neueSpeicherungen, duplikate: data.duplikate });
+        // Lade Anfragen neu nach Sync
+        await loadAnfragenAusAppwrite();
+      } else {
+        console.error('Sync fehlgeschlagen:', data.error);
+        alert(`Sync fehlgeschlagen: ${data.error || data.message}`);
+      }
+    } catch (error) {
+      console.error('Sync Fehler:', error);
+      alert('Fehler beim Synchronisieren der E-Mails');
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  // Konvertiere Anfrage aus DB zu VerarbeiteteAnfrage
+  const konvertiereZuVerarbeiteteAnfrage = (anfrage: Anfrage): VerarbeiteteAnfrage => {
+    const extrahiert = anfrage.extrahierteDaten || {};
+
+    // Parse Webformular-Daten aus emailText falls extrahierteDaten leer
+    const analyse = parseWebformularAnfrage(anfrage.emailText);
+
+    const analysiert = {
+      kundenname:
+        extrahiert.kundenname ||
+        analyse.kontakt.vereinsname ||
+        `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() ||
+        'Unbekannt',
+      ansprechpartner:
+        analyse.kontakt.nachname
+          ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname}`.trim()
+          : undefined,
+      email: extrahiert.email || analyse.kontakt.email || anfrage.emailAbsender,
+      telefon: extrahiert.telefon || analyse.kontakt.telefon,
+      strasse: extrahiert.adresse?.strasse || analyse.kontakt.strasse,
+      plzOrt: `${extrahiert.adresse?.plz || analyse.kontakt.plz || ''} ${extrahiert.adresse?.ort || analyse.kontakt.ort || ''}`.trim(),
+      plz: extrahiert.adresse?.plz || analyse.kontakt.plz,
+      ort: extrahiert.adresse?.ort || analyse.kontakt.ort,
+      anzahlPlaetze: analyse.bestellung.anzahlPlaetze,
+      menge: extrahiert.menge || analyse.bestellung.mengeGesamt,
+      artikel: extrahiert.artikel || analyse.bestellung.artikel || 'Tennismehl 0/2 mm',
+      koernung: analyse.bestellung.koernung || '0/2',
+      lieferart: analyse.bestellung.lieferart || 'lose',
+    };
+
+    const menge = analysiert.menge || 3;
+    const plz = analysiert.plz || '97000';
+    const koernung = analysiert.koernung || '0-2';
+    const lieferart = (analysiert.lieferart === 'gesackt' ? 'gesackt' : 'lose') as 'lose' | 'gesackt';
+
+    // berechneEmpfohlenenPreis returns number | null (Preis pro Tonne)
+    const preisProTonne = berechneEmpfohlenenPreis(plz, menge, koernung, lieferart) || 98;
+
+    // Erstelle Positionen
+    const positionenRaw = erstelleStandardPositionen(menge, preisProTonne, analysiert.artikel, koernung, lieferart);
+
+    // Konvertiere zu Angebotsvorschlag-Format
+    const positionen = positionenRaw.map(pos => ({
+      artikelbezeichnung: pos.bezeichnung || 'Tennismehl',
+      menge: pos.menge,
+      einheit: pos.einheit,
+      einzelpreis: pos.einzelpreis,
+      gesamtpreis: pos.gesamtpreis,
+    }));
+
+    // Standard E-Mail-Vorschlag (sync version)
+    const kundenname = analysiert.kundenname || 'Kunde';
+
+    return {
+      ...anfrage,
+      analysiert,
+      angebotsvorschlag: {
+        positionen,
+        empfohlenerPreisProTonne: preisProTonne,
+        frachtkosten: 0, // Wird separat berechnet
+        summeNetto: menge * preisProTonne,
+      },
+      emailVorschlag: {
+        betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
+        text: `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen unser Angebot.\n\nBei Fragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen\nIhr TennisMehl-Team`,
+        empfaenger: analysiert.email || anfrage.emailAbsender,
+      },
+      verarbeitungsStatus: anfrage.status === 'neu' ? 'ausstehend' : 'genehmigt',
+    };
+  };
+
+  // Lade Anfragen aus Appwrite
+  const loadAnfragenAusAppwrite = useCallback(async () => {
     setLoading(true);
     try {
       await ladeBereitsBeantwortet();
 
-      console.log(`📧 Lade E-Mails NUR von: ${ANFRAGEN_EMAIL_KONTO}`);
+      console.log('📧 Lade Anfragen aus Appwrite...');
 
-      // Lade E-Mails NUR vom Anfragen-Konto
-      let allEmails: (Email & { account?: string })[] = [];
-      try {
-        const emails = await getEmails(ANFRAGEN_EMAIL_KONTO, 'INBOX', 50);
-        allEmails = emails.map((e) => ({ ...e, account: ANFRAGEN_EMAIL_KONTO }));
-        console.log(`📧 ${emails.length} E-Mails von ${ANFRAGEN_EMAIL_KONTO} geladen`);
-      } catch (error) {
-        console.error(`Fehler beim Laden von ${ANFRAGEN_EMAIL_KONTO}:`, error);
-        // Zeige Fehlermeldung
-        setAnfragen([]);
-        setLoading(false);
-        return;
-      }
+      // Lade alle neuen Anfragen aus Appwrite
+      const alleAnfragen = await anfragenService.loadAlleAnfragen();
+      console.log(`📧 ${alleAnfragen.length} Anfragen in Appwrite gefunden`);
 
-      // Filtere NUR E-Mails vom Webformular (von mail@tennismehl.com)
-      const webformularEmails = allEmails.filter((email) => {
-        const absenderEmail = email.from?.address?.toLowerCase() || '';
-        // Webformular-Anfragen kommen IMMER von mail@tennismehl.com
-        return absenderEmail === 'mail@tennismehl.com';
-      });
-
-      console.log(`📧 ${webformularEmails.length} Webformular-Anfragen gefunden (von mail@tennismehl.com)`);
-
-      // Entferne Duplikate (falls gleiche E-Mail mehrfach geliefert wurde)
-      const emailsOhneDuplikate = webformularEmails.filter((email, index, self) => {
-        const emailDate = new Date(email.date);
-        const dateKey = `${emailDate.getFullYear()}-${emailDate.getMonth()}-${emailDate.getDate()}-${emailDate.getHours()}-${emailDate.getMinutes()}`;
-        const uniqueKey = `${email.from.address}-${email.subject}-${dateKey}`;
-
-        return (
-          self.findIndex((e) => {
-            const eDate = new Date(e.date);
-            const eDateKey = `${eDate.getFullYear()}-${eDate.getMonth()}-${eDate.getDate()}-${eDate.getHours()}-${eDate.getMinutes()}`;
-            const eKey = `${e.from.address}-${e.subject}-${eDateKey}`;
-            return eKey === uniqueKey;
-          }) === index
-        );
-      });
-
-      // Filtere irrelevante E-Mails (sollte bei Webformular nicht vorkommen, aber sicherheitshalber)
-      const relevanteEmails = emailsOhneDuplikate.filter(istRelevanteEmail);
-
-      // Parse und analysiere jede E-Mail
-      const verarbeitete: VerarbeiteteAnfrage[] = relevanteEmails.map((email) => {
-        return verarbeiteEmail(email);
-      });
+      // Konvertiere zu VerarbeiteteAnfrage
+      const verarbeitete: VerarbeiteteAnfrage[] = alleAnfragen.map(konvertiereZuVerarbeiteteAnfrage);
 
       // Sortiere nach Datum (neueste zuerst)
       verarbeitete.sort((a, b) => new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime());
@@ -257,126 +271,12 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }
   }, [ladeBereitsBeantwortet]);
 
+  // Alias für loadAnfragen (für Kompatibilität)
+  const loadAnfragen = loadAnfragenAusAppwrite;
+
   useEffect(() => {
     loadAnfragen();
   }, [loadAnfragen]);
-
-  // Verarbeite eine E-Mail und erstelle Vorschläge
-  const verarbeiteEmail = (email: Email & { account?: string }): VerarbeiteteAnfrage => {
-    // Wähle den besten verfügbaren Body:
-    // 1. Prüfe ob body ausreichend Inhalt hat (nicht nur Whitespace)
-    // 2. Falls nicht, verwende bodyHtml (Parser konvertiert zu Text)
-    // 3. Fallback auf bodyPreview
-    const hasSubstantialBody = email.body && email.body.trim().length > 50;
-    const hasSubstantialHtml = email.bodyHtml && email.bodyHtml.trim().length > 100;
-
-    let emailText = '';
-    if (hasSubstantialBody) {
-      emailText = email.body!;
-    } else if (hasSubstantialHtml) {
-      // HTML Body ist oft besser formatiert
-      emailText = email.bodyHtml!;
-    } else {
-      emailText = email.body || email.bodyPreview || email.bodyHtml || '';
-    }
-
-    console.log('=== EMAIL DEBUG ===');
-    console.log('Subject:', email.subject);
-    console.log('From:', email.from?.address);
-    console.log('Body length:', email.body?.length || 0);
-    console.log('BodyHtml length:', email.bodyHtml?.length || 0);
-    console.log('Using:', hasSubstantialBody ? 'body' : hasSubstantialHtml ? 'bodyHtml' : 'fallback');
-    console.log('First 300 chars:', emailText.substring(0, 300));
-    console.log('===================');
-
-    // Parse die E-Mail mit unserem Parser
-    const analyse = parseWebformularAnfrage(emailText);
-
-    // Erstelle strukturierte analysierte Daten
-    const analysiert = {
-      kundenname:
-        analyse.kontakt.vereinsname ||
-        `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() ||
-        'Unbekannt',
-      ansprechpartner: analyse.kontakt.nachname
-        ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname}`.trim()
-        : undefined,
-      email: analyse.kontakt.email || email.from.address,
-      telefon: analyse.kontakt.telefon,
-      strasse: analyse.kontakt.strasse,
-      plzOrt: `${analyse.kontakt.plz || ''} ${analyse.kontakt.ort || ''}`.trim(),
-      plz: analyse.kontakt.plz,
-      ort: analyse.kontakt.ort,
-      anzahlPlaetze: analyse.bestellung.anzahlPlaetze,
-      menge: analyse.bestellung.mengeGesamt,
-      artikel: analyse.bestellung.artikel,
-      koernung: analyse.bestellung.koernung,
-      lieferart: analyse.bestellung.lieferart,
-    };
-
-    // Berechne empfohlenen Preis
-    const plz = analyse.kontakt.plz || '';
-    const menge = analysiert.menge || 0;
-    const empfohlenerPreis =
-      plz && menge ? berechneEmpfohlenenPreis(plz, menge, analysiert.koernung, analysiert.lieferart) : null;
-
-    // Erstelle Angebots-Vorschlag aus den analysierten Positionen
-    const angebotsvorschlag = {
-      positionen: analyse.angebotsvorschlag.empfohlenePositionen.map((pos) => ({
-        artikelbezeichnung: pos.artikelbezeichnung,
-        menge: pos.menge,
-        einheit: pos.einheit,
-        einzelpreis:
-          pos.geschaetzterPreis || (empfohlenerPreis && pos.einheit === 't' ? empfohlenerPreis : undefined),
-        gesamtpreis: pos.geschaetzterPreis
-          ? pos.geschaetzterPreis * pos.menge
-          : empfohlenerPreis && pos.einheit === 't'
-          ? empfohlenerPreis * pos.menge
-          : undefined,
-      })),
-      summeNetto: undefined,
-      frachtkosten: undefined,
-      empfohlenerPreisProTonne: empfohlenerPreis || undefined,
-    };
-
-    // Erstelle E-Mail-Vorschlag (Signatur wird später aus Stammdaten geladen)
-    const emailVorschlag = {
-      betreff: `Ihr Angebot von TennisMehl - ${analysiert.kundenname}`,
-      text: 'E-Mail wird geladen...', // Wird asynchron durch Stammdaten ersetzt
-      empfaenger: analysiert.email || '',
-    };
-
-    // Erstelle VerarbeiteteAnfrage-Objekt aus E-Mail
-    const verarbeiteteAnfrage: VerarbeiteteAnfrage = {
-      id: email.id,
-      emailBetreff: email.subject,
-      emailAbsender: email.from.address,
-      emailDatum: email.date,
-      emailText: emailText,
-      emailHtml: email.bodyHtml || '',
-      extrahierteDaten: {
-        kundenname: analysiert.kundenname,
-        email: analysiert.email,
-        telefon: analysiert.telefon,
-        adresse: {
-          strasse: analysiert.strasse,
-          plz: analyse.kontakt.plz,
-          ort: analyse.kontakt.ort,
-        },
-        menge: analysiert.menge,
-        artikel: analysiert.artikel,
-      },
-      status: 'neu',
-      erstelltAm: email.date,
-      aktualisiertAm: email.date,
-      analysiert,
-      angebotsvorschlag,
-      emailVorschlag,
-      verarbeitungsStatus: 'ausstehend',
-    };
-
-    return verarbeiteteAnfrage;
-  };
 
   // Wenn Anfrage ausgewählt wird, initialisiere bearbeitbare Daten
   useEffect(() => {
@@ -766,6 +666,20 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Aktualisieren</span>
           </button>
+          <button
+            onClick={syncEmails}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+            title="E-Mails vom Server abrufen und in Datenbank speichern"
+          >
+            <Download className={`w-4 h-4 ${syncing ? 'animate-bounce' : ''}`} />
+            <span className="hidden sm:inline">{syncing ? 'Synchronisiere...' : 'E-Mails abrufen'}</span>
+          </button>
+          {syncResult && (
+            <span className="text-sm text-green-600 dark:text-green-400">
+              {syncResult.neu} neu, {syncResult.duplikate} bereits vorhanden
+            </span>
+          )}
         </div>
       </div>
 
@@ -796,10 +710,8 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
           ) : (
             anzuzeigendeAnfragen.map((anfrage) => {
               const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender);
-              const istWebformular = isWebformularAnfrage({
-                body: anfrage.emailText,
-                bodyPreview: anfrage.emailText,
-              } as Email);
+              // Alle Einträge aus Appwrite sind Webformular-Anfragen (vom Sync gefiltert)
+              const istWebformular = true;
               return (
                 <AnfrageCard
                   key={anfrage.id}
