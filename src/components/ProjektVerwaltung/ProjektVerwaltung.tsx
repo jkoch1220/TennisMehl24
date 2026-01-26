@@ -197,11 +197,15 @@ const ProjektVerwaltung = () => {
   }, [loadData]);
 
   // ULTIMATE FUZZY SEARCH - Filter-Funktion mit Ähnlichkeitssuche
+  // WICHTIG: Platzbauer-Projekte werden hier ausgeschlossen - diese werden in der Platzbauer-Verwaltung angezeigt
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    if (!suche.trim()) return projekte;
+    // Schritt 1: Platzbauer-Projekte ausfiltern (diese gehören in die Platzbauer-Verwaltung)
+    const ohnePlatzbauer = projekte.filter(p => !p.istPlatzbauerprojekt);
+
+    if (!suche.trim()) return ohnePlatzbauer;
 
     const results = fuzzySearch<Projekt>(
-      projekte,
+      ohnePlatzbauer,
       suche,
       (p) => {
         // Hole verknüpften Kunden aus der Map

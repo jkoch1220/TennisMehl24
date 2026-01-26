@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink } from 'lucide-react';
 import { DokumentTyp } from '../../types/projektabwicklung';
 import { ProjektStatus } from '../../types/projekt';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -32,6 +32,7 @@ const Projektabwicklung = () => {
   const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
   const [projekt, setProjekt] = useState<Projekt | null>(null);
   const [kunde, setKunde] = useState<SaisonKunde | null>(null);
+  const [platzbauer, setPlatzbauer] = useState<SaisonKunde | null>(null);
   const [loading, setLoading] = useState(true);
   const [showKundenPopup, setShowKundenPopup] = useState(false);
   const [showAdressenEditor, setShowAdressenEditor] = useState(false);
@@ -64,6 +65,18 @@ const Projektabwicklung = () => {
         // Kundendaten vollständig laden, falls kundeId vorhanden
         if (loadedProjekt.kundeId) {
           await loadKunde(loadedProjekt.kundeId);
+        }
+
+        // Platzbauer laden, falls Projekt einem Platzbauer zugeordnet ist
+        if (loadedProjekt.platzbauerId) {
+          try {
+            const loadedPlatzbauer = await saisonplanungService.loadKunde(loadedProjekt.platzbauerId);
+            if (loadedPlatzbauer) {
+              setPlatzbauer(loadedPlatzbauer);
+            }
+          } catch (error) {
+            console.warn('Konnte Platzbauer nicht laden:', error);
+          }
         }
 
         // Tab basierend auf Projekt-Status setzen
@@ -178,6 +191,42 @@ const Projektabwicklung = () => {
           </button>
         )}
       </div>
+
+      {/* Platzbauer-Hinweis - Wenn Projekt über einen Platzbauer läuft */}
+      {(projekt.istPlatzbauerprojekt || projekt.platzbauerId) && (
+        <div className="mb-6 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/40 dark:via-yellow-950/40 dark:to-orange-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                <Hammer className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+                    Platzbauer-Projekt
+                  </span>
+                  <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-full">
+                    Partner
+                  </span>
+                </div>
+                <p className="text-amber-900 dark:text-amber-100 font-medium mt-0.5">
+                  {platzbauer?.name || 'Platzbauer wird geladen...'}
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Dieses Vereinsprojekt wird über einen Platzbauer-Partner abgewickelt
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/platzbauer-verwaltung')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg font-medium"
+            >
+              <span>Zur Platzbauer-Verwaltung</span>
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Adressen-Section - Immer sichtbar wenn Kunde vorhanden */}
       {projekt.kundeId && kunde && (
