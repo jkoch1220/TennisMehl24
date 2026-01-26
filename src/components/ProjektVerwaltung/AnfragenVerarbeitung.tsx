@@ -32,6 +32,8 @@ import {
   AlertTriangle,
   UserPlus,
   Search,
+  Eye,
+  Bot,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage } from '../../types/anfragen';
 import { Position } from '../../types/projektabwicklung';
@@ -40,19 +42,22 @@ import {
   generiereAngebotsEmailMitSignatur,
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
-import { getEmails, Email } from '../../services/emailService';
+import { getEmails, getAccounts, Email, EmailAccount } from '../../services/emailService';
 import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail } from '../../services/emailSendService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import {
   verarbeiteAnfrageVollstaendig,
   erstelleStandardPositionen,
+  generiereAngebotsVorschauPDF,
   VerarbeitungsFortschritt,
   VerarbeitungsSchritt,
 } from '../../services/anfrageVerarbeitungService';
+import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 
-// E-Mail Konten für Anfragen
-const ANFRAGEN_EMAIL_ACCOUNTS = ['mail@tennismehl.com', 'anfragen@tennismehl.com'];
+// E-Mail Konten für Anfragen (werden dynamisch geladen)
+// Fallback auf bekannte Konten falls die API nicht erreichbar ist
+const FALLBACK_EMAIL_ACCOUNTS = ['mail@tennismehl.com', 'anfragen@tennismehl.com', 'anfrage@tennismehl.com', 'info@tennismehl.com'];
 
 // Standard-Absender für Angebote
 const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
@@ -131,6 +136,9 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [processing, setProcessing] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testSentSuccess, setTestSentSuccess] = useState(false);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
+  const [runningAiAnalysis, setRunningAiAnalysis] = useState(false);
+  const [aiAnalyseVerfuegbar] = useState(() => claudeAnfrageService.isAvailable());
   const [bereitsBeantwortet, setBereitsBeantwortet] = useState<Set<string>>(new Set());
   const [fortschrittListe, setFortschrittListe] = useState<VerarbeitungsFortschritt[]>([]);
   const [showFortschritt, setShowFortschritt] = useState(false);
@@ -185,8 +193,27 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     try {
       await ladeBereitsBeantwortet();
 
+      // Zuerst verfügbare Konten vom Server laden
+      let verfuegbareKonten: EmailAccount[] = [];
+      try {
+        verfuegbareKonten = await getAccounts();
+        console.log('📧 Verfügbare E-Mail-Konten:', verfuegbareKonten.map(k => k.email));
+      } catch (error) {
+        console.warn('Konnte Konten nicht laden, verwende Fallback:', error);
+      }
+
+      // Filtere auf relevante Anfragen-Konten (die auch verfügbar sind)
+      const relevantKeywords = ['anfrage', 'mail', 'info', 'kontakt'];
+      const kontenZumLaden = verfuegbareKonten.length > 0
+        ? verfuegbareKonten
+            .filter(k => relevantKeywords.some(kw => k.email.toLowerCase().includes(kw) || k.name.toLowerCase().includes(kw)))
+            .map(k => k.email)
+        : FALLBACK_EMAIL_ACCOUNTS;
+
+      console.log('📧 Lade E-Mails von:', kontenZumLaden);
+
       // Lade E-Mails von allen konfigurierten Konten parallel
-      const emailPromises = ANFRAGEN_EMAIL_ACCOUNTS.map(async (account) => {
+      const emailPromises = kontenZumLaden.map(async (account) => {
         try {
           const emails = await getEmails(account, 'INBOX', 50);
           return emails.map((e) => ({ ...e, account }));
@@ -396,6 +423,110 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       });
     }
   }, [selectedAnfrage]);
+
+  // KI-Analyse Handler
+  const handleKiAnalyse = async () => {
+    if (!selectedAnfrage || !editedData) return;
+
+    setRunningAiAnalysis(true);
+
+    try {
+      const analyse = await claudeAnfrageService.analysiereAnfrage({
+        emailText: selectedAnfrage.emailText,
+        emailBetreff: selectedAnfrage.emailBetreff,
+        absenderEmail: selectedAnfrage.emailAbsender,
+        absenderName: selectedAnfrage.analysiert.ansprechpartner,
+        extrahiert: {
+          kundenname: editedData.kundenname,
+          ansprechpartner: editedData.ansprechpartner,
+          strasse: editedData.strasse,
+          plz: editedData.plz,
+          ort: editedData.ort,
+          telefon: editedData.telefon,
+          menge: editedData.menge,
+          artikel: selectedAnfrage.analysiert?.artikel,
+          koernung: selectedAnfrage.analysiert?.koernung,
+          lieferart: selectedAnfrage.analysiert?.lieferart,
+          anzahlPlaetze: selectedAnfrage.analysiert?.anzahlPlaetze,
+        },
+      });
+
+      console.log('✅ KI-Analyse abgeschlossen:', analyse);
+
+      // Update editedData mit den KI-Ergebnissen
+      setEditedData({
+        ...editedData,
+        kundenname: analyse.kunde.name || editedData.kundenname,
+        ansprechpartner: analyse.kunde.ansprechpartner || editedData.ansprechpartner,
+        email: analyse.kunde.email || editedData.email,
+        telefon: analyse.kunde.telefon || editedData.telefon,
+        strasse: analyse.kunde.adresse.strasse || editedData.strasse,
+        plz: analyse.kunde.adresse.plz || editedData.plz,
+        ort: analyse.kunde.adresse.ort || editedData.ort,
+        menge: analyse.angebot.menge || editedData.menge,
+        preisProTonne: analyse.angebot.empfohlenerPreis || editedData.preisProTonne,
+        frachtkosten: analyse.angebot.frachtkosten || editedData.frachtkosten,
+        emailBetreff: analyse.email.betreff || editedData.emailBetreff,
+        emailText: analyse.email.volltext || editedData.emailText,
+      });
+
+      // Zeige Qualitätshinweise
+      if (analyse.qualitaet.hinweise.length > 0) {
+        console.log('📋 Qualitätshinweise:', analyse.qualitaet.hinweise);
+      }
+
+      alert(
+        `KI-Analyse abgeschlossen!\n\nDatenqualität: ${analyse.qualitaet.datenVollstaendigkeit}%\nTyp: ${analyse.qualitaet.anfrageTyp}\nPriorität: ${analyse.qualitaet.prioritaet}${
+          analyse.qualitaet.hinweise.length > 0
+            ? '\n\nHinweise:\n- ' + analyse.qualitaet.hinweise.join('\n- ')
+            : ''
+        }`
+      );
+    } catch (error) {
+      console.error('Fehler bei KI-Analyse:', error);
+      alert(`KI-Analyse fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+    } finally {
+      setRunningAiAnalysis(false);
+    }
+  };
+
+  // PDF Vorschau Handler
+  const handlePdfVorschau = async () => {
+    if (!editedData || !selectedAnfrage) return;
+
+    setGeneratingPreview(true);
+
+    try {
+      // Erstelle Positionen
+      const positionen = erstelleStandardPositionen(
+        editedData.menge,
+        editedData.preisProTonne,
+        selectedAnfrage.analysiert?.artikel,
+        selectedAnfrage.analysiert?.koernung,
+        selectedAnfrage.analysiert?.lieferart
+      );
+
+      // Generiere PDF Vorschau
+      const pdfUrl = await generiereAngebotsVorschauPDF({
+        kundenDaten: {
+          name: editedData.kundenname,
+          strasse: editedData.strasse,
+          plz: editedData.plz,
+          ort: editedData.ort,
+        },
+        positionen,
+        frachtkosten: editedData.frachtkosten || undefined,
+      });
+
+      // Öffne PDF in neuem Tab
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error('Fehler beim Generieren der PDF-Vorschau:', error);
+      alert(`Fehler beim Generieren der Vorschau: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+    } finally {
+      setGeneratingPreview(false);
+    }
+  };
 
   // Test-Mail senden Handler
   const handleTestMailSenden = async () => {
@@ -652,12 +783,35 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedAnfrage(null)}
-                  className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-white" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* KI-Analyse Button */}
+                  {aiAnalyseVerfuegbar && (
+                    <button
+                      onClick={handleKiAnalyse}
+                      disabled={runningAiAnalysis || processing}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
+                      title="Mit KI analysieren und optimieren"
+                    >
+                      {runningAiAnalysis ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="hidden sm:inline">Analysiert...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="w-4 h-4" />
+                          <span className="hidden sm:inline">KI-Analyse</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedAnfrage(null)}
+                    className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -948,33 +1102,55 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
             {/* Actions */}
             <div className="p-4 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 sticky bottom-0">
               <div className="flex flex-col gap-2">
-                {/* Test-Mail Button */}
-                <button
-                  onClick={handleTestMailSenden}
-                  disabled={sendingTest || processing}
-                  className={`w-full px-4 py-2 border rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${
-                    testSentSuccess
-                      ? 'border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50'
-                      : 'border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50'
-                  }`}
-                >
-                  {sendingTest ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Sende Test-Mail...
-                    </>
-                  ) : testSentSuccess ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      Test-Mail gesendet an {TEST_EMAIL_ADDRESS}
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="w-4 h-4" />
-                      Test-Mail senden an {TEST_EMAIL_ADDRESS}
-                    </>
-                  )}
-                </button>
+                {/* PDF Vorschau und Test-Mail Buttons */}
+                <div className="flex gap-2">
+                  {/* PDF Vorschau Button */}
+                  <button
+                    onClick={handlePdfVorschau}
+                    disabled={generatingPreview || processing || editedData.menge <= 0}
+                    className="flex-1 px-4 py-2 border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {generatingPreview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        PDF wird erstellt...
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        PDF Vorschau
+                      </>
+                    )}
+                  </button>
+
+                  {/* Test-Mail Button */}
+                  <button
+                    onClick={handleTestMailSenden}
+                    disabled={sendingTest || processing}
+                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${
+                      testSentSuccess
+                        ? 'border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50'
+                        : 'border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50'
+                    }`}
+                  >
+                    {sendingTest ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Sende...
+                      </>
+                    ) : testSentSuccess ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Gesendet
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        Test-Mail
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {/* Haupt-Aktionen */}
                 <div className="flex gap-3">

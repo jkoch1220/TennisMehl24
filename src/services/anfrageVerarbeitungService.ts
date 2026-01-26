@@ -420,3 +420,54 @@ TENNISMEHL GmbH
 Tel: 09391 9870-0
 E-Mail: info@tennismehl.com`;
 }
+
+/**
+ * Generiert eine PDF-Vorschau des Angebots ohne es zu versenden.
+ * Öffnet das PDF in einem neuen Browser-Tab.
+ */
+export interface AngebotsVorschauInput {
+  kundenDaten: {
+    name: string;
+    strasse: string;
+    plz: string;
+    ort: string;
+  };
+  positionen: Position[];
+  frachtkosten?: number;
+}
+
+export async function generiereAngebotsVorschauPDF(
+  input: AngebotsVorschauInput
+): Promise<string> {
+  const stammdaten = await getStammdatenOderDefault();
+  const heute = new Date().toISOString().split('T')[0];
+  const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // Vorschau-Angebotsnummer
+  const vorschauNummer = `VORSCHAU-${Date.now()}`;
+
+  const angebotsDaten: AngebotsDaten = {
+    kundenname: input.kundenDaten.name,
+    kundenstrasse: input.kundenDaten.strasse,
+    kundenPlzOrt: `${input.kundenDaten.plz} ${input.kundenDaten.ort}`,
+    angebotsnummer: vorschauNummer,
+    angebotsdatum: heute,
+    gueltigBis,
+    positionen: input.positionen,
+    zahlungsziel: '14 Tage',
+    frachtkosten: input.frachtkosten,
+    // Stammdaten für Header/Footer
+    firmenname: stammdaten.firmenname,
+    firmenstrasse: stammdaten.firmenstrasse,
+    firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
+    firmenTelefon: stammdaten.firmenTelefon,
+    firmenEmail: stammdaten.firmenEmail,
+  };
+
+  // PDF generieren
+  const pdf = await generiereAngebotPDF(angebotsDaten, stammdaten);
+
+  // Als Blob URL zurückgeben
+  const blobUrl = pdf.output('bloburl');
+  return typeof blobUrl === 'string' ? blobUrl : blobUrl.toString();
+}
