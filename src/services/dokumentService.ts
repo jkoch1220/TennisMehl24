@@ -196,7 +196,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Freibleibendes Angebot Nr. ${daten.angebotsnummer}`, 25, yPos);
+  doc.text(`Angebot Nr. ${daten.angebotsnummer}`, 25, yPos);
   doc.setFont('helvetica', 'normal');
   
   // === Anrede ===
@@ -207,7 +207,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // === Einleitungstext ===
   yPos += 8;
   doc.setFontSize(10);
-  doc.text('vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot:', 25, yPos);
+  doc.text('vielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen freibleibend folgendes Angebot:', 25, yPos);
 
   // === Positionen aufteilen in reguläre und Bedarfspositionen ===
   const regulaerePositionen = daten.positionen.filter(pos => !pos.istBedarfsposition);
