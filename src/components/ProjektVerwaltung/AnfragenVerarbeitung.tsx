@@ -43,7 +43,7 @@ import {
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
-import { getEmails, getAccounts, Email, EmailAccount } from '../../services/emailService';
+import { getEmails, Email } from '../../services/emailService';
 import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail, pdfZuBase64 } from '../../services/emailSendService';
 import { generiereAngebotPDF } from '../../services/dokumentService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
@@ -58,9 +58,9 @@ import {
 } from '../../services/anfrageVerarbeitungService';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 
-// E-Mail Konten für Anfragen (werden dynamisch geladen)
-// Fallback auf bekannte Konten falls die API nicht erreichbar ist
-const FALLBACK_EMAIL_ACCOUNTS = ['mail@tennismehl.com', 'anfragen@tennismehl.com', 'anfrage@tennismehl.com', 'info@tennismehl.com'];
+// NUR dieses Konto wird für Webformular-Anfragen verwendet
+// Anfragen kommen von mail@tennismehl.com und gehen an anfragen@tennismehl.com
+const ANFRAGEN_EMAIL_KONTO = 'anfragen@tennismehl.com';
 
 // Standard-Absender für Angebote
 const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
@@ -190,48 +190,39 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }
   }, []);
 
-  // Lade neue Anfragen aus allen E-Mail-Accounts
+  // Lade neue Anfragen NUR aus anfragen@tennismehl.com
   const loadAnfragen = useCallback(async () => {
     setLoading(true);
     try {
       await ladeBereitsBeantwortet();
 
-      // Zuerst verfügbare Konten vom Server laden
-      let verfuegbareKonten: EmailAccount[] = [];
+      console.log(`📧 Lade E-Mails NUR von: ${ANFRAGEN_EMAIL_KONTO}`);
+
+      // Lade E-Mails NUR vom Anfragen-Konto
+      let allEmails: (Email & { account?: string })[] = [];
       try {
-        verfuegbareKonten = await getAccounts();
-        console.log('📧 Verfügbare E-Mail-Konten:', verfuegbareKonten.map(k => k.email));
+        const emails = await getEmails(ANFRAGEN_EMAIL_KONTO, 'INBOX', 50);
+        allEmails = emails.map((e) => ({ ...e, account: ANFRAGEN_EMAIL_KONTO }));
+        console.log(`📧 ${emails.length} E-Mails von ${ANFRAGEN_EMAIL_KONTO} geladen`);
       } catch (error) {
-        console.warn('Konnte Konten nicht laden, verwende Fallback:', error);
+        console.error(`Fehler beim Laden von ${ANFRAGEN_EMAIL_KONTO}:`, error);
+        // Zeige Fehlermeldung
+        setAnfragen([]);
+        setLoading(false);
+        return;
       }
 
-      // Filtere auf relevante Anfragen-Konten (die auch verfügbar sind)
-      const relevantKeywords = ['anfrage', 'mail', 'info', 'kontakt'];
-      const kontenZumLaden = verfuegbareKonten.length > 0
-        ? verfuegbareKonten
-            .filter(k => relevantKeywords.some(kw => k.email.toLowerCase().includes(kw) || k.name.toLowerCase().includes(kw)))
-            .map(k => k.email)
-        : FALLBACK_EMAIL_ACCOUNTS;
-
-      console.log('📧 Lade E-Mails von:', kontenZumLaden);
-
-      // Lade E-Mails von allen konfigurierten Konten parallel
-      const emailPromises = kontenZumLaden.map(async (account) => {
-        try {
-          const emails = await getEmails(account, 'INBOX', 50);
-          return emails.map((e) => ({ ...e, account }));
-        } catch (error) {
-          console.error(`Fehler beim Laden von ${account}:`, error);
-          return [];
-        }
+      // Filtere NUR E-Mails vom Webformular (von mail@tennismehl.com)
+      const webformularEmails = allEmails.filter((email) => {
+        const absenderEmail = email.from?.address?.toLowerCase() || '';
+        // Webformular-Anfragen kommen IMMER von mail@tennismehl.com
+        return absenderEmail === 'mail@tennismehl.com';
       });
 
-      const allEmailResults = await Promise.all(emailPromises);
-      const allEmails = allEmailResults.flat();
+      console.log(`📧 ${webformularEmails.length} Webformular-Anfragen gefunden (von mail@tennismehl.com)`);
 
-      // Entferne Duplikate (gleiche E-Mail kann in mehreren Konten sein)
-      const emailsOhneDuplikate = allEmails.filter((email, index, self) => {
-        // Erstelle eindeutigen Schlüssel aus Absender + Betreff + Datum (auf Minute gerundet)
+      // Entferne Duplikate (falls gleiche E-Mail mehrfach geliefert wurde)
+      const emailsOhneDuplikate = webformularEmails.filter((email, index, self) => {
         const emailDate = new Date(email.date);
         const dateKey = `${emailDate.getFullYear()}-${emailDate.getMonth()}-${emailDate.getDate()}-${emailDate.getHours()}-${emailDate.getMinutes()}`;
         const uniqueKey = `${email.from.address}-${email.subject}-${dateKey}`;
@@ -246,7 +237,7 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
         );
       });
 
-      // Filtere irrelevante E-Mails (Newsletter, Auto-Replies etc.) aber behalte alle potenziellen Anfragen
+      // Filtere irrelevante E-Mails (sollte bei Webformular nicht vorkommen, aber sicherheitshalber)
       const relevanteEmails = emailsOhneDuplikate.filter(istRelevanteEmail);
 
       // Parse und analysiere jede E-Mail
