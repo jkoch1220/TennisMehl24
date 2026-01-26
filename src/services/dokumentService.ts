@@ -196,7 +196,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Angebot Nr. ${daten.angebotsnummer}`, 25, yPos);
+  doc.text(`Freibleibendes Angebot Nr. ${daten.angebotsnummer}`, 25, yPos);
   doc.setFont('helvetica', 'normal');
   
   // === Anrede ===
@@ -681,6 +681,17 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.text(dieselLines, 25, summenY);
     summenY += (dieselLines.length * 4);
   }
+
+  // === Freibleibend-Hinweis ===
+  summenY += 8;
+  summenY = await ensureSpace(doc, summenY, 6, stammdaten);
+
+  doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont('helvetica', 'italic');
+  doc.text('Dieses Angebot ist freibleibend. Zwischenverkauf vorbehalten.', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
 
   // === Grußformel ===
   summenY += 8;
