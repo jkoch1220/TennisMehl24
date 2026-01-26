@@ -188,6 +188,12 @@ export interface LieferscheinDaten extends BaseDokument {
   // Ansprechpartner Telefon (zusätzlich zum ansprechpartner aus BaseDokument)
   ansprechpartnerTelefon?: string;
 
+  // DISPO-Ansprechpartner (z.B. Platzwart vor Ort für die Anlieferung)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
+
   // Positionen (OHNE Preise!)
   positionen: LieferscheinPosition[];
 

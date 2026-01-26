@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail, Truck, Phone } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -36,6 +36,7 @@ import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import { saisonplanungService } from '../../services/saisonplanungService';
 
 interface LieferscheinTabProps {
   projekt?: Projekt;
@@ -323,18 +324,32 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
         const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-        const lieferadressePlzOrt = projekt?.lieferadresse 
+        const lieferadressePlzOrt = projekt?.lieferadresse
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
-        
+
+        // DISPO-Ansprechpartner vom Projekt oder Kunden laden
+        let dispoAnsprechpartner: { name: string; telefon: string } | undefined = projekt?.dispoAnsprechpartner;
+        if (!dispoAnsprechpartner?.name && projekt?.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde?.dispoAnsprechpartner?.name) {
+              dispoAnsprechpartner = kunde.dispoAnsprechpartner;
+              console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
+            }
+          } catch (error) {
+            console.warn('Kunde konnte nicht geladen werden:', error);
+          }
+        }
+
         setLieferscheinDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: projekt?.dispoAnsprechpartner?.name || projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
-          ansprechpartnerTelefon: projekt?.dispoAnsprechpartner?.telefon,
+          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
+          dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
@@ -860,6 +875,64 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 />
               </div>
             </div>
+          )}
+        </div>
+
+        {/* DISPO-Ansprechpartner */}
+        <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 rounded-xl shadow-sm border-2 border-orange-200 dark:border-orange-800 p-6 transition-all">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
+              <Truck className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-orange-900 dark:text-orange-200">Ansprechpartner Anlieferung</h2>
+              <p className="text-sm text-orange-700 dark:text-orange-400">Kontakt vor Ort für die Spedition</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-orange-800 dark:text-orange-300 mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                value={lieferscheinDaten.dispoAnsprechpartner?.name || ''}
+                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                  ...lieferscheinDaten.dispoAnsprechpartner,
+                  name: e.target.value,
+                })}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="z.B. Herr Müller (Platzwart)"
+                className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-orange-800 dark:text-orange-300 mb-1">
+                <span className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5" />
+                  Telefonnummer
+                </span>
+              </label>
+              <input
+                type="tel"
+                value={lieferscheinDaten.dispoAnsprechpartner?.telefon || ''}
+                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                  ...lieferscheinDaten.dispoAnsprechpartner,
+                  telefon: e.target.value,
+                })}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="z.B. 0171 1234567"
+                className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted transition-all"
+              />
+            </div>
+          </div>
+
+          {!lieferscheinDaten.dispoAnsprechpartner?.name && !lieferscheinDaten.dispoAnsprechpartner?.telefon && (
+            <p className="mt-3 text-sm text-orange-600 dark:text-orange-400 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Bitte Ansprechpartner für die Anlieferung angeben
+            </p>
           )}
         </div>
 
