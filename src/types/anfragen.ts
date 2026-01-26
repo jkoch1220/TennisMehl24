@@ -5,11 +5,12 @@
  * die von n8n verarbeitet und in Appwrite gespeichert werden.
  */
 
-export type AnfrageStatus = 
+export type AnfrageStatus =
   | 'neu'              // Neu eingegangen, noch nicht bearbeitet
   | 'zugeordnet'       // Einem Kunden zugeordnet
   | 'angebot_erstellt' // Angebot wurde erstellt
   | 'angebot_versendet' // Angebot wurde versendet
+  | 'verarbeitet'      // Vollständig verarbeitet (Kunde + Projekt + Angebot + E-Mail)
   | 'abgelehnt'        // Anfrage wurde abgelehnt/ignoriert
   | 'erledigt';        // Vollständig bearbeitet
 
@@ -70,7 +71,7 @@ export interface Anfrage {
 }
 
 export interface NeueAnfrage {
-  // Diese Felder werden von n8n ausgefüllt
+  // Diese Felder werden von n8n oder der manuellen Verarbeitung ausgefüllt
   emailBetreff: string;
   emailAbsender: string;
   emailDatum: string;
@@ -79,6 +80,12 @@ export interface NeueAnfrage {
   extrahierteDaten: ExtrahierteDaten;
   n8nWorkflowId?: string;
   n8nExecutionId?: string;
+  // Optionale Felder für manuelle Verarbeitung
+  status?: AnfrageStatus;
+  kundeId?: string;
+  projektId?: string;
+  angebotVersendetAm?: string;
+  bearbeitetVon?: string;
 }
 
 export interface AnfrageUpdate {
@@ -103,11 +110,13 @@ export interface VerarbeiteteAnfrage extends Anfrage {
     telefon?: string;
     strasse?: string;
     plzOrt: string;
+    plz?: string;
+    ort?: string;
     anzahlPlaetze?: number;
     menge?: number;
     artikel?: string;
     koernung?: string;
-    lieferart?: 'lose' | 'gesackt';
+    lieferart?: 'lose' | 'gesackt' | string;
   };
 
   // Vorgeschlagenes Angebot

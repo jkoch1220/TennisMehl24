@@ -53,6 +53,8 @@ import {
   // Tourenplanung
   TOUREN_COLLECTION_ID,
   FAHRER_COLLECTION_ID,
+  // Anfragen
+  ANFRAGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -60,7 +62,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '28'; // Tourenplanung Collections (Touren + Fahrer)
+const APPWRITE_SETUP_VERSION = '29'; // Anfragen Collection für E-Mail-Verarbeitung
 
 type FieldConfig = {
   key: string;
@@ -424,6 +426,23 @@ const fahrerFields: FieldConfig[] = [
   { key: 'aktiv', type: 'boolean', default: true },
 ];
 
+// Anfragen Collection - E-Mail-Anfragen aus Webformular für automatische Verarbeitung
+const anfragenFields: FieldConfig[] = [
+  { key: 'emailBetreff', type: 'string', size: 500, required: true },
+  { key: 'emailAbsender', type: 'string', size: 255, required: true },
+  { key: 'emailDatum', type: 'string', size: 50, required: true },
+  { key: 'emailText', type: 'string', size: 10000, required: true },
+  { key: 'emailHtml', type: 'string', size: 50000 },
+  { key: 'extrahierteDaten', type: 'string', size: 50000 },                    // JSON mit Kundenname, Adresse, Menge etc.
+  { key: 'status', type: 'string', size: 50, required: true },                 // neu, verarbeitet, abgelehnt
+  { key: 'kundeId', type: 'string', size: 100 },                               // Verknüpfung zum erstellten Kunden
+  { key: 'projektId', type: 'string', size: 100 },                             // Verknüpfung zum erstellten Projekt
+  { key: 'angebotVersendetAm', type: 'string', size: 50 },                     // Zeitpunkt der Angebotsversendung
+  { key: 'bearbeitetVon', type: 'string', size: 100 },                         // User-ID des Bearbeiters
+  { key: 'notizen', type: 'string', size: 5000 },
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -722,6 +741,13 @@ export async function setupAppwriteFields() {
         fields: fahrerFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Anfragen Collection für E-Mail-Verarbeitung
+      {
+        id: ANFRAGEN_COLLECTION_ID,
+        name: 'Anfragen',
+        fields: anfragenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -796,6 +822,12 @@ export async function setupAppwriteFields() {
     await ensureIndex(TOUREN_COLLECTION_ID, 'fahrzeugId_index', ['fahrzeugId']);
     await ensureIndex(FAHRER_COLLECTION_ID, 'aktiv_index', ['aktiv']);
     await ensureIndex(FAHRER_COLLECTION_ID, 'name_index', ['name']);
+
+    // Indizes für Anfragen
+    await ensureIndex(ANFRAGEN_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(ANFRAGEN_COLLECTION_ID, 'emailAbsender_index', ['emailAbsender']);
+    await ensureIndex(ANFRAGEN_COLLECTION_ID, 'emailDatum_index', ['emailDatum']);
+    await ensureIndex(ANFRAGEN_COLLECTION_ID, 'projektId_index', ['projektId']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

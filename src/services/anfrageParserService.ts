@@ -1,13 +1,32 @@
 /**
  * Anfrage Parser Service
  *
- * Verwendet die Claude API um eingehende E-Mail-Anfragen zu analysieren
- * und strukturierte Daten sowie Angebots-Vorschläge zu extrahieren.
+ * Parst eingehende E-Mail-Anfragen vom Webformular und extrahiert
+ * strukturierte Daten sowie Angebots-Vorschläge.
+ *
+ * Das Webformular hat IMMER diese Struktur:
+ *
+ * Vorname *: Walter
+ * Nachname *: Issing
+ * Vereins-Name *: 1. Tennisclub Leinach
+ * Straße *: Bergstraße 16
+ * PLZ *: 97274
+ * Ort *: Leinach
+ * E-Mail *: issingwalter@gmx.de
+ * Telefon: 01755442061
+ * Angebot: Bitte senden Sie mir ein Angebot zu!
+ * Anzahl Plätze: 3
+ * Tonnen 0-2 lose: 8
+ * Tonnen 0-2 gesackt:
+ * Tonnen 0-3 lose:
+ * Tonnen 0-3 gesackt:
+ * Nachricht:
+ * Datenschutzerklärung: ...
  */
 
 import { ExtrahierteDaten } from '../types/anfragen';
 
-// Strukturierter Output von der Claude API Analyse
+// Strukturierter Output von der Analyse
 export interface AnfrageAnalyseErgebnis {
   // Extrahierte Kontaktdaten
   kontakt: {
@@ -48,47 +67,136 @@ export interface AnfrageAnalyseErgebnis {
   konfidenz: number; // 0-1 wie sicher ist die Extraktion
 }
 
-// Parse eine E-Mail-Anfrage von der Webseite
-export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebnis => {
-  // Standard-Struktur eines Webformular-Emails:
-  // Vorname *: ...
-  // Nachname *: ...
-  // Vereins-Name *: ...
-  // etc.
+/**
+ * Konvertiert HTML zu Plain Text
+ */
+const htmlToPlainText = (html: string): string => {
+  if (!html) return '';
 
-  const zeilen = emailText.split('\n');
-  const daten: Record<string, string> = {};
+  let text = html;
 
-  // Extrahiere Schlüssel-Wert-Paare
-  for (const zeile of zeilen) {
-    const match = zeile.match(/^([^:*]+)\s*\*?:\s*(.*)$/);
-    if (match) {
-      const schluessel = match[1].trim().toLowerCase();
-      const wert = match[2].trim();
-      if (wert) {
-        daten[schluessel] = wert;
+  // Ersetze <br>, <br/>, <br /> durch Zeilenumbrüche
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+
+  // Ersetze </p>, </div>, </tr> durch Zeilenumbrüche
+  text = text.replace(/<\/(p|div|tr|li)>/gi, '\n');
+
+  // Ersetze &nbsp; durch Leerzeichen
+  text = text.replace(/&nbsp;/gi, ' ');
+
+  // Ersetze andere HTML-Entities
+  text = text.replace(/&amp;/gi, '&');
+  text = text.replace(/&lt;/gi, '<');
+  text = text.replace(/&gt;/gi, '>');
+  text = text.replace(/&quot;/gi, '"');
+  text = text.replace(/&#39;/gi, "'");
+  text = text.replace(/&auml;/gi, 'ä');
+  text = text.replace(/&ouml;/gi, 'ö');
+  text = text.replace(/&uuml;/gi, 'ü');
+  text = text.replace(/&Auml;/gi, 'Ä');
+  text = text.replace(/&Ouml;/gi, 'Ö');
+  text = text.replace(/&Uuml;/gi, 'Ü');
+  text = text.replace(/&szlig;/gi, 'ß');
+
+  // Entferne alle verbleibenden HTML-Tags
+  text = text.replace(/<[^>]+>/g, '');
+
+  // Normalisiere Zeilenumbrüche (Windows CRLF -> LF)
+  text = text.replace(/\r\n/g, '\n');
+  text = text.replace(/\r/g, '\n');
+
+  // Entferne mehrfache Leerzeilen
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // Trimme jede Zeile
+  text = text.split('\n').map(line => line.trim()).join('\n');
+
+  return text.trim();
+};
+
+/**
+ * Extrahiert einen Wert für ein bestimmtes Feld aus dem Text
+ */
+const extractField = (text: string, fieldNames: string[]): string | undefined => {
+  for (const fieldName of fieldNames) {
+    // Versuche verschiedene Muster:
+    // "Feldname *: Wert"
+    // "Feldname*: Wert"
+    // "Feldname: Wert"
+    // "Feldname * : Wert"
+    const patterns = [
+      new RegExp(`${fieldName}\\s*\\*?\\s*:\\s*(.+?)(?:\\n|$)`, 'im'),
+      new RegExp(`${fieldName}\\s*:\\s*(.+?)(?:\\n|$)`, 'im'),
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const value = match[1].trim();
+        // Ignoriere leere Werte und Platzhalter
+        if (value && value !== '-' && value !== 'null' && value !== 'undefined') {
+          return value;
+        }
       }
     }
   }
+  return undefined;
+};
 
-  // Extrahiere Kontaktdaten
+/**
+ * Extrahiert eine Zahl für ein bestimmtes Feld
+ */
+const extractNumber = (text: string, fieldNames: string[]): number | undefined => {
+  const value = extractField(text, fieldNames);
+  if (!value) return undefined;
+
+  // Parse Zahl (mit Komma oder Punkt als Dezimaltrenner)
+  const cleaned = value.replace(',', '.').replace(/[^\d.]/g, '');
+  const num = parseFloat(cleaned);
+
+  return isNaN(num) ? undefined : num;
+};
+
+// Parse eine E-Mail-Anfrage von der Webseite
+export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebnis => {
+  // Konvertiere HTML zu Plain Text falls nötig
+  const text = htmlToPlainText(emailText);
+
+  // Debug: Log den geparsten Text (kann später entfernt werden)
+  console.log('=== PARSER DEBUG ===');
+  console.log('Original length:', emailText.length);
+  console.log('Cleaned text:', text.substring(0, 500));
+  console.log('====================');
+
+  // Extrahiere alle Felder mit den bekannten Feldnamen
+  const vorname = extractField(text, ['Vorname']);
+  const nachname = extractField(text, ['Nachname']);
+  const vereinsname = extractField(text, ['Vereins-Name', 'Vereinsname', 'Verein', 'Club', 'Klub']);
+  const strasse = extractField(text, ['Straße', 'Strasse', 'Adresse']);
+  const plz = extractField(text, ['PLZ', 'Postleitzahl']);
+  const ort = extractField(text, ['Ort', 'Stadt', 'Gemeinde']);
+  const email = extractField(text, ['E-Mail', 'Email', 'E-mail', 'Mail']);
+  const telefon = extractField(text, ['Telefon', 'Tel', 'Telefonnummer', 'Handy', 'Mobil']);
+  const nachricht = extractField(text, ['Nachricht', 'Bemerkung', 'Anmerkung', 'Kommentar', 'Hinweis']);
+
+  // Extrahiere Mengenangaben
+  const anzahlPlaetze = extractNumber(text, ['Anzahl Plätze', 'Anzahl Plaetze', 'Plätze', 'Plaetze']);
+  const tonnenLose02 = extractNumber(text, ['Tonnen 0-2 lose', 'Tonnen 0-2mm lose', '0-2 lose']);
+  const tonnenGesackt02 = extractNumber(text, ['Tonnen 0-2 gesackt', 'Tonnen 0-2mm gesackt', '0-2 gesackt']);
+  const tonnenLose03 = extractNumber(text, ['Tonnen 0-3 lose', 'Tonnen 0-3mm lose', '0-3 lose']);
+  const tonnenGesackt03 = extractNumber(text, ['Tonnen 0-3 gesackt', 'Tonnen 0-3mm gesackt', '0-3 gesackt']);
+
+  // Kontaktdaten zusammenstellen
   const kontakt = {
-    vorname: daten['vorname'] || undefined,
-    nachname: daten['nachname'] || undefined,
-    vereinsname: daten['vereins-name'] || daten['vereinsname'] || undefined,
-    strasse: daten['straße'] || daten['strasse'] || undefined,
-    plz: daten['plz'] || undefined,
-    ort: daten['ort'] || undefined,
-    email: daten['e-mail'] || daten['email'] || undefined,
-    telefon: daten['telefon'] || undefined,
+    vorname,
+    nachname,
+    vereinsname,
+    strasse,
+    plz,
+    ort,
+    email,
+    telefon,
   };
-
-  // Extrahiere Bestellinformationen
-  const anzahlPlaetze = parseInt(daten['anzahl plätze'] || daten['anzahl plaetze'] || '0', 10);
-  const tonnenLose02 = parseFloat(daten['tonnen 0-2 lose'] || '0');
-  const tonnenGesackt02 = parseFloat(daten['tonnen 0-2 gesackt'] || '0');
-  const tonnenLose03 = parseFloat(daten['tonnen 0-3 lose'] || '0');
-  const tonnenGesackt03 = parseFloat(daten['tonnen 0-3 gesackt'] || '0');
 
   // Ermittle Hauptprodukt und Lieferart
   let artikel = 'Tennismehl';
@@ -96,79 +204,74 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
   let lieferart: 'lose' | 'gesackt' = 'lose';
   let mengeGesamt = 0;
 
-  if (tonnenLose02 > 0) {
-    artikel = 'Tennismehl 0-2mm';
-    koernung = '0-2';
-    lieferart = 'lose';
-    mengeGesamt = tonnenLose02;
-  } else if (tonnenGesackt02 > 0) {
-    artikel = 'Tennismehl 0-2mm gesackt';
-    koernung = '0-2';
-    lieferart = 'gesackt';
-    mengeGesamt = tonnenGesackt02;
-  } else if (tonnenLose03 > 0) {
-    artikel = 'Tennismehl 0-3mm';
-    koernung = '0-3';
-    lieferart = 'lose';
-    mengeGesamt = tonnenLose03;
-  } else if (tonnenGesackt03 > 0) {
-    artikel = 'Tennismehl 0-3mm gesackt';
-    koernung = '0-3';
-    lieferart = 'gesackt';
-    mengeGesamt = tonnenGesackt03;
+  // Berechne Gesamtmenge und bestimme Hauptprodukt
+  const mengen = [
+    { menge: tonnenLose02 || 0, koernung: '0-2', lieferart: 'lose' as const },
+    { menge: tonnenGesackt02 || 0, koernung: '0-2', lieferart: 'gesackt' as const },
+    { menge: tonnenLose03 || 0, koernung: '0-3', lieferart: 'lose' as const },
+    { menge: tonnenGesackt03 || 0, koernung: '0-3', lieferart: 'gesackt' as const },
+  ];
+
+  // Finde die Hauptposition (größte Menge)
+  const hauptPosition = mengen.reduce((max, curr) => curr.menge > max.menge ? curr : max, mengen[0]);
+
+  if (hauptPosition.menge > 0) {
+    koernung = hauptPosition.koernung;
+    lieferart = hauptPosition.lieferart;
+    artikel = `Tennismehl ${koernung}mm${lieferart === 'gesackt' ? ' gesackt' : ''}`;
   }
 
-  // Versuche Menge aus der Nachricht zu extrahieren falls nicht angegeben
-  const nachricht = daten['nachricht'] || '';
+  // Berechne Gesamtmenge
+  mengeGesamt = mengen.reduce((sum, m) => sum + m.menge, 0);
+
+  // Falls keine explizite Menge aber Anzahl Plätze angegeben, schätze Menge
+  if (mengeGesamt === 0 && anzahlPlaetze && anzahlPlaetze > 0) {
+    // Ca. 2-3 Tonnen pro Platz als Richtwert
+    mengeGesamt = anzahlPlaetze * 2.5;
+  }
+
+  // Versuche Menge aus der Nachricht zu extrahieren falls immer noch 0
   if (mengeGesamt === 0 && nachricht) {
-    // Suche nach Mengenangaben wie "4,5 t" oder "4.5 Tonnen"
     const mengeMatch = nachricht.match(/(\d+[,.]?\d*)\s*(?:t(?:onnen?)?|to)/i);
     if (mengeMatch) {
       mengeGesamt = parseFloat(mengeMatch[1].replace(',', '.'));
     }
-
-    // Versuche Körnung aus der Nachricht zu extrahieren
-    const koernungMatch = nachricht.match(/0-(\d)\s*mm/i);
-    if (koernungMatch) {
-      koernung = `0-${koernungMatch[1]}`;
-      artikel = `Tennismehl ${koernung}mm${lieferart === 'gesackt' ? ' gesackt' : ''}`;
-    }
   }
 
   const bestellung = {
-    anzahlPlaetze: anzahlPlaetze || undefined,
-    mengeGesamt: mengeGesamt || undefined,
+    anzahlPlaetze,
+    mengeGesamt: mengeGesamt > 0 ? mengeGesamt : undefined,
     artikel,
     koernung,
     lieferart,
     wunschtermin: undefined,
   };
 
-  // Erstelle Angebots-Vorschlag
+  // Erstelle Angebots-Vorschlag mit allen Positionen
   const positionen: AnfrageAnalyseErgebnis['angebotsvorschlag']['empfohlenePositionen'] = [];
 
-  if (tonnenLose02 > 0) {
+  if (tonnenLose02 && tonnenLose02 > 0) {
     positionen.push({
       artikelbezeichnung: 'Tennismehl 0-2mm lose',
       menge: tonnenLose02,
       einheit: 't',
     });
   }
-  if (tonnenGesackt02 > 0) {
+  if (tonnenGesackt02 && tonnenGesackt02 > 0) {
     positionen.push({
       artikelbezeichnung: 'Tennismehl 0-2mm gesackt (25kg Säcke)',
       menge: tonnenGesackt02,
       einheit: 't',
     });
   }
-  if (tonnenLose03 > 0) {
+  if (tonnenLose03 && tonnenLose03 > 0) {
     positionen.push({
       artikelbezeichnung: 'Tennismehl 0-3mm lose',
       menge: tonnenLose03,
       einheit: 't',
     });
   }
-  if (tonnenGesackt03 > 0) {
+  if (tonnenGesackt03 && tonnenGesackt03 > 0) {
     positionen.push({
       artikelbezeichnung: 'Tennismehl 0-3mm gesackt (25kg Säcke)',
       menge: tonnenGesackt03,
@@ -176,7 +279,7 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
     });
   }
 
-  // Falls keine Mengen explizit angegeben, füge geschätzte Position hinzu
+  // Falls keine Mengen explizit angegeben aber geschätzte Menge vorhanden
   if (positionen.length === 0 && mengeGesamt > 0) {
     positionen.push({
       artikelbezeichnung: artikel,
@@ -185,8 +288,8 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
     });
   }
 
-  // Füge Fracht hinzu wenn Positionen vorhanden
-  if (positionen.length > 0 && kontakt.plz) {
+  // Füge Fracht hinzu wenn Positionen vorhanden und PLZ bekannt
+  if (positionen.length > 0 && plz) {
     positionen.push({
       artikelbezeichnung: 'Fracht/Lieferung',
       menge: 1,
@@ -196,23 +299,30 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
 
   const angebotsvorschlag = {
     empfohlenePositionen: positionen,
-    geschaetzteGesamtmenge: mengeGesamt || (anzahlPlaetze ? anzahlPlaetze * 2.25 : 0),
+    geschaetzteGesamtmenge: mengeGesamt || (anzahlPlaetze ? anzahlPlaetze * 2.5 : 0),
     besonderheiten: nachricht ? [nachricht] : undefined,
   };
 
   // Erstelle Zusammenfassung
-  const kundenname = kontakt.vereinsname || `${kontakt.vorname || ''} ${kontakt.nachname || ''}`.trim();
-  const zusammenfassung = `Anfrage von ${kundenname} aus ${kontakt.plz} ${kontakt.ort}` +
+  const kundenname = vereinsname || `${vorname || ''} ${nachname || ''}`.trim() || 'Unbekannt';
+  const zusammenfassung = `Anfrage von ${kundenname}` +
+    (plz && ort ? ` aus ${plz} ${ort}` : '') +
     (bestellung.mengeGesamt ? ` für ${bestellung.mengeGesamt}t ${bestellung.artikel}` : '') +
     (bestellung.anzahlPlaetze ? ` (${bestellung.anzahlPlaetze} Plätze)` : '');
 
   // Berechne Konfidenz basierend auf vorhandenen Daten
   let konfidenz = 0;
-  if (kontakt.vereinsname || kontakt.nachname) konfidenz += 0.2;
-  if (kontakt.plz && kontakt.ort) konfidenz += 0.2;
-  if (kontakt.email) konfidenz += 0.2;
-  if (bestellung.mengeGesamt) konfidenz += 0.2;
+  if (vereinsname || nachname) konfidenz += 0.2;
+  if (plz && ort) konfidenz += 0.2;
+  if (email) konfidenz += 0.2;
+  if (bestellung.mengeGesamt && bestellung.mengeGesamt > 0) konfidenz += 0.2;
   if (positionen.length > 0) konfidenz += 0.2;
+
+  console.log('=== PARSER RESULT ===');
+  console.log('Kontakt:', kontakt);
+  console.log('Bestellung:', bestellung);
+  console.log('Konfidenz:', konfidenz);
+  console.log('=====================');
 
   return {
     kontakt,
@@ -291,7 +401,6 @@ export const berechneEmpfohlenenPreis = (
   }
 
   // Fracht-Zuschlag basierend auf PLZ (vereinfacht)
-  // In der Realität würde hier die echte Frachtberechnung greifen
   const plzPrefix = parseInt(plz.substring(0, 2), 10);
   let frachtZuschlag = 0;
 

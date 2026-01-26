@@ -91,41 +91,152 @@ const MOCK_FOLDERS: EmailFolder[] = [
   { name: 'Spam', path: 'Spam' },
 ];
 
+// Realistische Webformular-Anfragen für Entwicklungstests
+const WEBFORM_MOCK_EMAILS: Array<{
+  subject: string;
+  from: { name: string; address: string };
+  body: string;
+}> = [
+  {
+    subject: 'Kontaktformular: Anfrage Tennismehl',
+    from: { name: 'Walter Issing', address: 'issingwalter@gmx.de' },
+    body: `Vorname *: Walter
+Nachname *: Issing
+Vereins-Name *: 1. Tennisclub Leinach
+Straße *: Bergstraße 16
+PLZ *: 97274
+Ort *: Leinach
+E-Mail *: issingwalter@gmx.de
+Telefon: 01755442061
+Angebot: Bitte senden Sie mir ein Angebot zu!
+Anzahl Plätze: 3
+Tonnen 0-2 lose: 8
+Tonnen 0-2 gesackt:
+Tonnen 0-3 lose:
+Tonnen 0-3 gesackt:
+Nachricht:
+Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.`,
+  },
+  {
+    subject: 'Kontaktformular: Anfrage Tennismehl',
+    from: { name: 'Thomas Müller', address: 'mueller@tc-bayern.de' },
+    body: `Vorname *: Thomas
+Nachname *: Müller
+Vereins-Name *: TC Bayern München e.V.
+Straße *: Olympiapark 5
+PLZ *: 80809
+Ort *: München
+E-Mail *: mueller@tc-bayern.de
+Telefon: 089123456
+Angebot: Bitte senden Sie mir ein Angebot zu!
+Anzahl Plätze: 6
+Tonnen 0-2 lose:
+Tonnen 0-2 gesackt:
+Tonnen 0-3 lose: 15
+Tonnen 0-3 gesackt:
+Nachricht: Wir benötigen das Material bis Ende März.
+Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.`,
+  },
+  {
+    subject: 'Kontaktformular: Anfrage Tennismehl',
+    from: { name: 'Sabine Weber', address: 's.weber@sportverein-karlsruhe.de' },
+    body: `Vorname *: Sabine
+Nachname *: Weber
+Vereins-Name *: SV Karlsruhe Tennis
+Straße *: Waldstraße 22
+PLZ *: 76133
+Ort *: Karlsruhe
+E-Mail *: s.weber@sportverein-karlsruhe.de
+Telefon: 0721987654
+Angebot: Bitte senden Sie mir ein Angebot zu!
+Anzahl Plätze: 4
+Tonnen 0-2 lose: 10
+Tonnen 0-2 gesackt:
+Tonnen 0-3 lose:
+Tonnen 0-3 gesackt:
+Nachricht: Können Sie auch samstags liefern?
+Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.`,
+  },
+  {
+    subject: 'Kontaktformular: Anfrage Tennismehl',
+    from: { name: 'Hans Schmidt', address: 'hans.schmidt@gmx.net' },
+    body: `Vorname *: Hans
+Nachname *: Schmidt
+Vereins-Name *: Tennisfreunde Nürnberg
+Straße *: Frankenstraße 88
+PLZ *: 90402
+Ort *: Nürnberg
+E-Mail *: hans.schmidt@gmx.net
+Telefon: 0911556677
+Angebot: Bitte senden Sie mir ein Angebot zu!
+Anzahl Plätze: 2
+Tonnen 0-2 lose:
+Tonnen 0-2 gesackt: 5
+Tonnen 0-3 lose:
+Tonnen 0-3 gesackt:
+Nachricht: Wir brauchen gesackte Ware wegen fehlender Lagermöglichkeit.
+Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.`,
+  },
+  {
+    subject: 'Kontaktformular: Anfrage Tennismehl',
+    from: { name: 'Maria Becker', address: 'maria.becker@web.de' },
+    body: `Vorname *: Maria
+Nachname *: Becker
+Vereins-Name *: TC Rot-Weiß Frankfurt
+Straße *: Mainufer 12
+PLZ *: 60311
+Ort *: Frankfurt am Main
+E-Mail *: maria.becker@web.de
+Telefon: 069112233
+Angebot: Bitte senden Sie mir ein Angebot zu!
+Anzahl Plätze: 8
+Tonnen 0-2 lose: 20
+Tonnen 0-2 gesackt:
+Tonnen 0-3 lose:
+Tonnen 0-3 gesackt:
+Nachricht: Große Anlage mit 8 Plätzen, bitte Mengenrabatt beachten.
+Datenschutzerklärung: Ich habe die Datenschutzerklärung zur Kenntnis genommen.`,
+  },
+];
+
 const generateMockEmails = (account: string): Email[] => {
   const now = new Date();
+
+  // Generiere Webformular-Anfragen für mail@tennismehl.com und anfragen@tennismehl.com
+  if (account === 'mail@tennismehl.com' || account === 'anfragen@tennismehl.com') {
+    return WEBFORM_MOCK_EMAILS.map((mockEmail, i) => ({
+      id: `${account}-webform-${i + 1}`,
+      uid: 2000 + i,
+      subject: mockEmail.subject,
+      from: mockEmail.from,
+      to: [{ name: 'TennisMehl', address: account }],
+      date: new Date(now.getTime() - i * 3600000 * 24).toISOString(), // Je 1 Tag älter
+      bodyPreview: mockEmail.body.substring(0, 150),
+      body: mockEmail.body,
+      isRead: false,
+      hasAttachments: false,
+    }));
+  }
+
+  // Für andere Konten: Standard Mock-Daten
   const subjects = [
     'Anfrage Ziegelmehl 25t',
     'Re: Liefertermin KW 3',
     'Rechnung #2024-0142',
-    'Preisanfrage Tennisplatzbelag',
-    'Bestellung TC Musterstadt',
-    'Rückfrage zur Lieferung',
-    'Angebot erbeten',
-    'Terminbestätigung',
-    'Mahnung - Rechnung überfällig',
-    'Newsletter Abmeldung',
   ];
 
   const senders = [
     { name: 'Max Mustermann', address: 'max@example.com' },
     { name: 'TC Musterstadt', address: 'info@tc-musterstadt.de' },
-    { name: 'Sportanlagen GmbH', address: 'kontakt@sportanlagen.de' },
-    { name: 'Hans Meier', address: 'h.meier@tennisclub.de' },
-    { name: 'Petra Schmidt', address: 'p.schmidt@verein.de' },
   ];
 
   const previews = [
     'Sehr geehrte Damen und Herren, wir benötigen für unsere Tennisanlage...',
-    'Vielen Dank für Ihr Angebot. Wir möchten gerne bestellen...',
-    'Anbei erhalten Sie die Rechnung für die letzte Lieferung...',
-    'Könnten Sie uns bitte ein Angebot für 15 Tonnen zusenden?',
-    'Wann können wir mit der Lieferung rechnen? Der Platz muss...',
-    'Bezugnehmend auf unser Telefonat von heute...',
-    'Wir interessieren uns für Ihre Produkte und hätten gerne...',
-    'Der Termin am Donnerstag passt uns sehr gut. Bitte liefern Sie...',
+    'Vielen Dank für Ihr Angebot.',
+    'Anbei erhalten Sie die Rechnung.',
   ];
 
-  return Array.from({ length: 12 }, (_, i) => ({
+  return Array.from({ length: 3 }, (_, i) => ({
     id: `${account}-${i + 1}`,
     uid: 1000 + i,
     subject: subjects[i % subjects.length],
@@ -134,11 +245,8 @@ const generateMockEmails = (account: string): Email[] => {
     date: new Date(now.getTime() - i * 3600000 * (1 + Math.random() * 5)).toISOString(),
     bodyPreview: previews[i % previews.length],
     body: `${previews[i % previews.length]}\n\nMit freundlichen Grüßen\n${senders[i % senders.length].name}`,
-    isRead: i > 2,
-    hasAttachments: i % 4 === 0,
-    attachments: i % 4 === 0 ? [
-      { filename: 'Anfrage.pdf', size: 125000, contentType: 'application/pdf' },
-    ] : undefined,
+    isRead: i > 0,
+    hasAttachments: false,
   }));
 };
 

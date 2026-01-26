@@ -74,15 +74,15 @@ export const anfragenService = {
   },
 
   /**
-   * Erstelle eine neue Anfrage (wird von n8n aufgerufen)
+   * Erstelle eine neue Anfrage (wird von n8n oder manueller Verarbeitung aufgerufen)
    */
   async createAnfrage(anfrage: NeueAnfrage): Promise<Anfrage> {
     const jetzt = new Date().toISOString();
-    
+
     const neueAnfrage: Anfrage = {
       id: ID.unique(),
       ...anfrage,
-      status: 'neu',
+      status: anfrage.status || 'neu',
       erstelltAm: jetzt,
       aktualisiertAm: jetzt,
     };
@@ -100,13 +100,16 @@ export const anfragenService = {
           emailHtml: neueAnfrage.emailHtml || '',
           extrahierteDaten: JSON.stringify(neueAnfrage.extrahierteDaten),
           status: neueAnfrage.status,
+          kundeId: anfrage.kundeId || '',
+          projektId: anfrage.projektId || '',
+          angebotVersendetAm: anfrage.angebotVersendetAm || '',
+          bearbeitetVon: anfrage.bearbeitetVon || '',
           erstelltAm: neueAnfrage.erstelltAm,
-          aktualisiertAm: neueAnfrage.aktualisiertAm,
           n8nWorkflowId: neueAnfrage.n8nWorkflowId || '',
           n8nExecutionId: neueAnfrage.n8nExecutionId || '',
         }
       );
-      
+
       return this.parseDocument(document);
     } catch (error) {
       console.error('Fehler beim Erstellen der Anfrage:', error);
