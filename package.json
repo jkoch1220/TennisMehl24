@@ -11,6 +11,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "setup:appwrite": "node scripts/setup-appwrite-fields.js",
+    "setup:db": "npx ts-node scripts/setup-database.ts",
     "setup:users": "node scripts/setup-users.js",
     "list:users": "node scripts/list-users.js",
     "delete:user": "node scripts/delete-user.js",

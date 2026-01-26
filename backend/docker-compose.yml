@@ -1,0 +1,74 @@
+# ============================================================================
+# TennisMehl24 Backend - Docker Compose
+# ============================================================================
+#
+# Verwendung:
+#   docker-compose up -d        # Starten
+#   docker-compose down         # Stoppen
+#   docker-compose logs -f      # Logs anzeigen
+#   docker-compose restart      # Neustarten
+#
+# ============================================================================
+
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: tennismehl24-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # Appwrite
+      - APPWRITE_ENDPOINT=${APPWRITE_ENDPOINT}
+      - APPWRITE_PROJECT_ID=${APPWRITE_PROJECT_ID}
+      - APPWRITE_API_KEY=${APPWRITE_API_KEY}
+      # APIs
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - OPENROUTESERVICE_API_KEY=${OPENROUTESERVICE_API_KEY}
+      - TANKERKOENIG_API_KEY=${TANKERKOENIG_API_KEY}
+      # Email
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      # Cron
+      - ENABLE_CRON_JOBS=true
+      - CRON_SECRET=${CRON_SECRET}
+      # CORS
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,https://tennismehl24.netlify.app}
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Redis für Caching
+#  redis:
+#    image: redis:7-alpine
+#    container_name: tennismehl24-redis
+#    restart: unless-stopped
+#    volumes:
+#      - redis_data:/data
+#    healthcheck:
+#      test: ["CMD", "redis-cli", "ping"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+
+#volumes:
+#  redis_data:
