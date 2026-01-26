@@ -25,6 +25,7 @@
  */
 
 import { ExtrahierteDaten } from '../types/anfragen';
+import { generiereStandardEmail } from '../utils/emailHelpers';
 
 // Strukturierter Output von der Analyse
 export interface AnfrageAnalyseErgebnis {
@@ -353,33 +354,76 @@ export const analyseZuExtrahierteDaten = (analyse: AnfrageAnalyseErgebnis): Extr
   };
 };
 
-// Generiere E-Mail-Text für Angebot
+// Generiere E-Mail-Text für Angebot (synchron - für initiale Generierung)
+// Die Signatur wird aus den Stammdaten geladen
 export const generiereAngebotsEmail = (
-  _kundenname: string, // Für zukünftige Personalisierung
+  _kundenname: string,
   ansprechpartner?: string,
-  angebotsnummer?: string,
+  _angebotsnummer?: string,
 ): string => {
   const anrede = ansprechpartner
     ? `Sehr geehrte/r ${ansprechpartner}`
     : 'Sehr geehrte Damen und Herren';
 
+  // Basis-Text ohne Signatur - Signatur wird später aus Stammdaten hinzugefügt
   return `${anrede},
 
 vielen Dank für Ihre Anfrage.
 
-Anbei erhalten Sie unser Angebot${angebotsnummer ? ` Nr. ${angebotsnummer}` : ''} gemäß Ihrer Anfrage.
+Anbei erhalten Sie unser Angebot gemäß Ihrer Anfrage.
 
-Wir würden uns freuen, Sie als Kunden begrüßen zu dürfen. Bei Fragen stehen wir Ihnen gerne zur Verfügung.
+Wir würden uns freuen, Sie als Kunden begrüßen zu dürfen. Bei Fragen stehen wir Ihnen gerne zur Verfügung.`;
+};
 
-Mit freundlichen Grüßen
+// Generiere E-Mail-Text mit Signatur aus Stammdaten (async)
+export const generiereAngebotsEmailMitSignatur = async (
+  kundenname: string,
+  ansprechpartner?: string,
+): Promise<{ text: string; betreff: string }> => {
+  try {
+    // Lade Template aus Stammdaten
+    const template = await generiereStandardEmail('angebot', '(wird generiert)', kundenname);
 
-Ihr TennisMehl-Team
+    // Erstelle personalisierte Anrede
+    const anrede = ansprechpartner
+      ? `Sehr geehrte/r ${ansprechpartner}`
+      : 'Sehr geehrte Damen und Herren';
 
----
-Koch Dienste
-Tel: +49 9631 798878-0
-E-Mail: info@tennismehl.com
-www.tennismehl.com`;
+    // Basis-Text
+    let emailText = `${anrede},
+
+vielen Dank für Ihre Anfrage.
+
+Anbei erhalten Sie unser Angebot gemäß Ihrer Anfrage.
+
+Wir würden uns freuen, Sie als Kunden begrüßen zu dürfen. Bei Fragen stehen wir Ihnen gerne zur Verfügung.`;
+
+    // Signatur aus Template hinzufügen
+    if (template.signatur) {
+      // HTML-Tags aus Signatur entfernen für Plain-Text
+      const plainSignatur = template.signatur
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .trim();
+      emailText += `\n\n${plainSignatur}`;
+    } else {
+      // Fallback-Signatur wenn keine in Stammdaten
+      emailText += `\n\nMit freundlichen Grüßen\nIhr TennisMehl-Team`;
+    }
+
+    return {
+      text: emailText,
+      betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
+    };
+  } catch (error) {
+    console.error('Fehler beim Laden der Signatur aus Stammdaten:', error);
+    // Fallback
+    return {
+      text: generiereAngebotsEmail(kundenname, ansprechpartner),
+      betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
+    };
+  }
 };
 
 // Berechne empfohlenen Preis basierend auf PLZ und Menge

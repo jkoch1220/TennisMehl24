@@ -37,7 +37,7 @@ import { VerarbeiteteAnfrage } from '../../types/anfragen';
 import { Position } from '../../types/projektabwicklung';
 import {
   parseWebformularAnfrage,
-  generiereAngebotsEmail,
+  generiereAngebotsEmailMitSignatur,
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
 import { getEmails, Email } from '../../services/emailService';
@@ -296,10 +296,10 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       empfohlenerPreisProTonne: empfohlenerPreis || undefined,
     };
 
-    // Erstelle E-Mail-Vorschlag
+    // Erstelle E-Mail-Vorschlag (Signatur wird später aus Stammdaten geladen)
     const emailVorschlag = {
       betreff: `Ihr Angebot von TennisMehl - ${analysiert.kundenname}`,
-      text: generiereAngebotsEmail(analysiert.kundenname, analysiert.ansprechpartner),
+      text: 'E-Mail wird geladen...', // Wird asynchron durch Stammdaten ersetzt
       empfaenger: analysiert.email || '',
     };
 
@@ -341,6 +341,7 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       const a = selectedAnfrage.analysiert;
       const empfohlenerPreis = selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne || 85;
 
+      // Setze initiale Daten
       setEditedData({
         kundenname: a.kundenname || '',
         ansprechpartner: a.ansprechpartner || '',
@@ -358,6 +359,19 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       setSelectedKundeId(null);
       setFortschrittListe([]);
       setShowFortschritt(false);
+
+      // Lade E-Mail mit Signatur aus Stammdaten (async)
+      generiereAngebotsEmailMitSignatur(a.kundenname || '', a.ansprechpartner).then((result) => {
+        setEditedData((prev) =>
+          prev
+            ? {
+                ...prev,
+                emailBetreff: result.betreff,
+                emailText: result.text,
+              }
+            : prev
+        );
+      });
     }
   }, [selectedAnfrage]);
 
