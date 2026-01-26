@@ -41,7 +41,7 @@ import {
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
 import { getEmails, Email } from '../../services/emailService';
-import { ladeAlleEmailProtokolle } from '../../services/emailSendService';
+import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail } from '../../services/emailSendService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import {
@@ -56,6 +56,9 @@ const ANFRAGEN_EMAIL_ACCOUNTS = ['mail@tennismehl.com', 'anfragen@tennismehl.com
 
 // Standard-Absender für Angebote
 const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
+
+// Test-E-Mail-Adresse
+const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
 
 // Webformular-Erkennung (als Indikator, nicht als Filter)
 const isWebformularAnfrage = (email: Email): boolean => {
@@ -126,6 +129,8 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testSentSuccess, setTestSentSuccess] = useState(false);
   const [bereitsBeantwortet, setBereitsBeantwortet] = useState<Set<string>>(new Set());
   const [fortschrittListe, setFortschrittListe] = useState<VerarbeitungsFortschritt[]>([]);
   const [showFortschritt, setShowFortschritt] = useState(false);
@@ -194,8 +199,25 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       const allEmailResults = await Promise.all(emailPromises);
       const allEmails = allEmailResults.flat();
 
+      // Entferne Duplikate (gleiche E-Mail kann in mehreren Konten sein)
+      const emailsOhneDuplikate = allEmails.filter((email, index, self) => {
+        // Erstelle eindeutigen Schlüssel aus Absender + Betreff + Datum (auf Minute gerundet)
+        const emailDate = new Date(email.date);
+        const dateKey = `${emailDate.getFullYear()}-${emailDate.getMonth()}-${emailDate.getDate()}-${emailDate.getHours()}-${emailDate.getMinutes()}`;
+        const uniqueKey = `${email.from.address}-${email.subject}-${dateKey}`;
+
+        return (
+          self.findIndex((e) => {
+            const eDate = new Date(e.date);
+            const eDateKey = `${eDate.getFullYear()}-${eDate.getMonth()}-${eDate.getDate()}-${eDate.getHours()}-${eDate.getMinutes()}`;
+            const eKey = `${e.from.address}-${e.subject}-${eDateKey}`;
+            return eKey === uniqueKey;
+          }) === index
+        );
+      });
+
       // Filtere irrelevante E-Mails (Newsletter, Auto-Replies etc.) aber behalte alle potenziellen Anfragen
-      const relevanteEmails = allEmails.filter(istRelevanteEmail);
+      const relevanteEmails = emailsOhneDuplikate.filter(istRelevanteEmail);
 
       // Parse und analysiere jede E-Mail
       const verarbeitete: VerarbeiteteAnfrage[] = relevanteEmails.map((email) => {
@@ -374,6 +396,36 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       });
     }
   }, [selectedAnfrage]);
+
+  // Test-Mail senden Handler
+  const handleTestMailSenden = async () => {
+    if (!editedData) return;
+
+    setSendingTest(true);
+    setTestSentSuccess(false);
+
+    try {
+      const htmlBody = wrapInEmailTemplate(editedData.emailText);
+
+      const result = await sendeEmail({
+        to: TEST_EMAIL_ADDRESS,
+        from: DEFAULT_ABSENDER_EMAIL,
+        subject: `[TEST] ${editedData.emailBetreff}`,
+        htmlBody,
+      });
+
+      if (result.success) {
+        setTestSentSuccess(true);
+        alert(`Test-Mail erfolgreich gesendet an ${TEST_EMAIL_ADDRESS}!`);
+      } else {
+        alert(`Fehler beim Senden der Test-Mail: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   // Bestätigen & Senden Handler
   const handleBestaetigunUndSenden = async () => {
@@ -895,32 +947,63 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
 
             {/* Actions */}
             <div className="p-4 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 sticky bottom-0">
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-2">
+                {/* Test-Mail Button */}
                 <button
-                  onClick={handleAblehnen}
-                  disabled={processing}
-                  className="flex-1 px-4 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                  onClick={handleTestMailSenden}
+                  disabled={sendingTest || processing}
+                  className={`w-full px-4 py-2 border rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${
+                    testSentSuccess
+                      ? 'border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50'
+                      : 'border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50'
+                  }`}
                 >
-                  <X className="w-4 h-4" />
-                  Ablehnen
-                </button>
-                <button
-                  onClick={handleBestaetigunUndSenden}
-                  disabled={processing || !editedData?.email}
-                  className="flex-[2] px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
-                >
-                  {processing ? (
+                  {sendingTest ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Wird verarbeitet...
+                      Sende Test-Mail...
+                    </>
+                  ) : testSentSuccess ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Test-Mail gesendet an {TEST_EMAIL_ADDRESS}
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4" />
-                      Bestätigen & Angebot senden
+                      <Mail className="w-4 h-4" />
+                      Test-Mail senden an {TEST_EMAIL_ADDRESS}
                     </>
                   )}
                 </button>
+
+                {/* Haupt-Aktionen */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleAblehnen}
+                    disabled={processing}
+                    className="flex-1 px-4 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Ablehnen
+                  </button>
+                  <button
+                    onClick={handleBestaetigunUndSenden}
+                    disabled={processing || !editedData?.email}
+                    className="flex-[2] px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Wird verarbeitet...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Bestätigen & Angebot senden
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
