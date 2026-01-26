@@ -298,9 +298,37 @@ export const generiereStandardSignatur = (): string => {
 };
 
 /**
+ * Konvertiert Plain-Text zu HTML (Zeilenumbrüche zu <br> und Absätze zu <p>)
+ */
+export const textToHtml = (text: string): string => {
+  if (!text) return '';
+
+  // Prüfe ob bereits HTML (hat <br> oder <p> Tags)
+  if (/<br\s*\/?>/i.test(text) || /<p>/i.test(text)) {
+    return text;
+  }
+
+  // Teile in Absätze (doppelte Zeilenumbrüche)
+  const paragraphs = text.split(/\n\s*\n/);
+
+  // Konvertiere jeden Absatz, ersetze einzelne Zeilenumbrüche durch <br>
+  const htmlParagraphs = paragraphs.map(para => {
+    const lines = para.trim().split('\n');
+    if (lines.length === 1) {
+      return `<p style="margin: 0 0 16px 0;">${lines[0]}</p>`;
+    }
+    return `<p style="margin: 0 0 16px 0;">${lines.join('<br>')}</p>`;
+  });
+
+  return htmlParagraphs.join('\n');
+};
+
+/**
  * Wraps HTML-Content in ein E-Mail-Template mit Styling
  */
-export const wrapInEmailTemplate = (htmlContent: string, signatur?: string): string => {
+export const wrapInEmailTemplate = (content: string, signatur?: string): string => {
+  // Konvertiere Plain-Text zu HTML falls nötig
+  const htmlContent = textToHtml(content);
   const signaturteil = signatur || '';
 
   return `
@@ -313,19 +341,39 @@ export const wrapInEmailTemplate = (htmlContent: string, signatur?: string): str
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       line-height: 1.6;
-      color: #1f2937;
-      max-width: 600px;
+      color: #333333;
+      max-width: 650px;
       margin: 0 auto;
       padding: 20px;
+      background-color: #ffffff;
     }
-    p { margin: 0 0 1em 0; }
-    a { color: #2563eb; }
+    p {
+      margin: 0 0 16px 0;
+      font-size: 14px;
+    }
+    a { color: #c41e3a; text-decoration: none; }
+    a:hover { text-decoration: underline; }
     img { max-width: 100%; height: auto; }
+    .signature {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .signature p {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+    }
+    .signature img {
+      max-height: 60px;
+      width: auto;
+    }
   </style>
 </head>
 <body>
-  ${htmlContent}
-  ${signaturteil}
+  <div class="email-content">
+    ${htmlContent}
+  </div>
+  ${signaturteil ? `<div class="signature">${signaturteil}</div>` : ''}
 </body>
 </html>
 `.trim();

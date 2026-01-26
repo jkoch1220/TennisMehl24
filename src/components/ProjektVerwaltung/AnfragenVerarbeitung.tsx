@@ -36,14 +36,17 @@ import {
   Bot,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage } from '../../types/anfragen';
-import { Position } from '../../types/projektabwicklung';
+import { Position, AngebotsDaten } from '../../types/projektabwicklung';
 import {
   parseWebformularAnfrage,
   generiereAngebotsEmailMitSignatur,
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
+import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { getEmails, getAccounts, Email, EmailAccount } from '../../services/emailService';
-import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail } from '../../services/emailSendService';
+import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail, pdfZuBase64 } from '../../services/emailSendService';
+import { generiereAngebotPDF } from '../../services/dokumentService';
+import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import {
@@ -528,30 +531,82 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }
   };
 
-  // Test-Mail senden Handler
+  // Test-Mail senden Handler (mit PDF-Anhang)
   const handleTestMailSenden = async () => {
-    if (!editedData) return;
+    if (!editedData || !selectedAnfrage) return;
 
     setSendingTest(true);
     setTestSentSuccess(false);
 
     try {
-      const htmlBody = wrapInEmailTemplate(editedData.emailText);
+      // Lade Stammdaten für PDF
+      const stammdaten = await getStammdatenOderDefault();
 
+      // Lade E-Mail-Template mit Signatur
+      const emailTemplate = await generiereStandardEmail(
+        'angebot',
+        'TEST',
+        editedData.kundenname
+      );
+
+      // Erstelle Positionen für das Angebot
+      const positionen: Position[] = erstelleStandardPositionen(
+        editedData.menge,
+        editedData.preisProTonne,
+        selectedAnfrage.analysiert?.artikel,
+        selectedAnfrage.analysiert?.koernung,
+        selectedAnfrage.analysiert?.lieferart
+      );
+
+      // Erstelle AngebotsDaten
+      const heute = new Date().toISOString().split('T')[0];
+      const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const angebotsDaten: AngebotsDaten = {
+        kundenname: editedData.kundenname,
+        kundenstrasse: editedData.strasse,
+        kundenPlzOrt: `${editedData.plz} ${editedData.ort}`,
+        angebotsnummer: `TEST-${Date.now()}`,
+        angebotsdatum: heute,
+        gueltigBis,
+        positionen,
+        zahlungsziel: '14 Tage',
+        frachtkosten: editedData.frachtkosten || undefined,
+        firmenname: stammdaten.firmenname,
+        firmenstrasse: stammdaten.firmenstrasse,
+        firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
+        firmenTelefon: stammdaten.firmenTelefon,
+        firmenEmail: stammdaten.firmenEmail,
+      };
+
+      // Generiere PDF
+      const pdf = await generiereAngebotPDF(angebotsDaten, stammdaten);
+      const pdfBase64 = pdfZuBase64(pdf);
+
+      // Hole HTML-Signatur aus E-Mail-Template
+      const signaturHtml = emailTemplate.signatur || '';
+
+      // Erstelle HTML-Body mit Signatur
+      const htmlBody = wrapInEmailTemplate(editedData.emailText, signaturHtml);
+
+      // Sende E-Mail mit PDF-Anhang
       const result = await sendeEmail({
         to: TEST_EMAIL_ADDRESS,
         from: DEFAULT_ABSENDER_EMAIL,
         subject: `[TEST] ${editedData.emailBetreff}`,
         htmlBody,
+        pdfBase64,
+        pdfFilename: `Angebot_TEST_${editedData.kundenname.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
       });
 
       if (result.success) {
         setTestSentSuccess(true);
-        alert(`Test-Mail erfolgreich gesendet an ${TEST_EMAIL_ADDRESS}!`);
+        alert(`Test-Mail mit PDF erfolgreich gesendet an ${TEST_EMAIL_ADDRESS}!`);
       } else {
         alert(`Fehler beim Senden der Test-Mail: ${result.error}`);
       }
     } catch (error) {
+      console.error('Fehler bei Test-Mail:', error);
       alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
     } finally {
       setSendingTest(false);

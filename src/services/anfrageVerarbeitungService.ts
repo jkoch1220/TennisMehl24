@@ -16,6 +16,7 @@ import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendS
 import { anfragenService } from './anfragenService';
 import { AngebotsDaten } from '../types/projektabwicklung';
 import { NeuerSaisonKunde } from '../types/saisonplanung';
+import { generiereStandardEmail } from '../utils/emailHelpers';
 
 export type VerarbeitungsSchritt =
   | 'kunde_anlegen'
@@ -278,7 +279,17 @@ export async function verarbeiteAnfrageVollstaendig(
     // SCHRITT 6: E-Mail mit PDF versenden
     // ============================================
     try {
-      const htmlBody = wrapInEmailTemplate(input.emailVorschlag.text);
+      // Lade E-Mail-Template mit Signatur
+      let signaturHtml = '';
+      try {
+        const emailTemplate = await generiereStandardEmail('angebot', angebotsnummer, input.kundenDaten.name);
+        signaturHtml = emailTemplate.signatur || '';
+      } catch (templateError) {
+        console.warn('Konnte Signatur nicht laden:', templateError);
+      }
+
+      // Erstelle HTML-Body mit Signatur
+      const htmlBody = wrapInEmailTemplate(input.emailVorschlag.text, signaturHtml);
 
       const emailResult = await sendeEmailMitPdf({
         empfaenger: input.kundenDaten.email,
