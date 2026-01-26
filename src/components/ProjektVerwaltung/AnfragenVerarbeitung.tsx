@@ -157,13 +157,25 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       const data = await response.json();
 
       if (data.success) {
-        console.log(`✅ Sync erfolgreich: ${data.neueSpeicherungen} neue, ${data.duplikate} Duplikate`);
+        console.log('📧 Sync Ergebnis:', data);
+        console.log(`   - E-Mails im Postfach: ${data.emailsGefunden}`);
+        console.log(`   - Davon von mail@tennismehl.com: ${data.webformularAnfragen}`);
+        console.log(`   - Neu gespeichert: ${data.neueSpeicherungen}`);
+        console.log(`   - Bereits vorhanden: ${data.duplikate}`);
         setSyncResult({ neu: data.neueSpeicherungen, duplikate: data.duplikate });
+
+        // Zeige Warnung wenn keine E-Mails gefunden
+        if (data.emailsGefunden === 0) {
+          alert('Keine E-Mails im Postfach gefunden. Prüfe ob anfrage@tennismehl.com erreichbar ist.');
+        } else if (data.webformularAnfragen === 0) {
+          alert(`${data.emailsGefunden} E-Mails gefunden, aber keine davon von mail@tennismehl.com`);
+        }
+
         // Lade Anfragen neu nach Sync
         await loadAnfragenAusAppwrite();
       } else {
-        console.error('Sync fehlgeschlagen:', data.error);
-        alert(`Sync fehlgeschlagen: ${data.error || data.message}`);
+        console.error('Sync fehlgeschlagen:', data);
+        alert(`Sync fehlgeschlagen: ${data.error || data.message}\n\nDetails: ${JSON.stringify(data, null, 2)}`);
       }
     } catch (error) {
       console.error('Sync Fehler:', error);
