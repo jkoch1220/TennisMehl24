@@ -173,7 +173,11 @@ export const saisonplanungService = {
       }
       return parsed;
     } catch (error) {
-      console.error('Fehler beim Laden des Kunden:', error);
+      // 404 = Kunde nicht gefunden - kein Fehler loggen (kann bei gelöschten Kunden vorkommen)
+      const is404 = error instanceof Error && (error.message.includes('404') || error.message.includes('could not be found'));
+      if (!is404) {
+        console.error('Fehler beim Laden des Kunden:', error);
+      }
       return null;
     }
   },
