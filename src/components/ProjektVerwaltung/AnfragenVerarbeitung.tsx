@@ -267,6 +267,20 @@ Bei Fragen melden Sie sich gerne jederzeit – wir helfen Ihnen weiter.`,
     };
   };
 
+  // Extrahiere Nachricht aus E-Mail-Text
+  const extrahiereNachricht = (emailText: string): string | undefined => {
+    // Suche nach "Nachricht:" Feld
+    const match = emailText.match(/Nachricht\s*[*:]?\s*[:=]?\s*(.+?)(?=\n[A-Za-zÄÖÜäöü]+\s*[*:]|Datenschutz|$)/is);
+    if (match && match[1]) {
+      const nachricht = match[1].trim();
+      // Ignoriere leere Nachrichten oder nur Whitespace
+      if (nachricht && nachricht.length > 2 && nachricht !== '-') {
+        return nachricht;
+      }
+    }
+    return undefined;
+  };
+
   // Lade Anfragen aus Appwrite
   const loadAnfragenAusAppwrite = useCallback(async () => {
     setLoading(true);
@@ -286,6 +300,28 @@ Bei Fragen melden Sie sich gerne jederzeit – wir helfen Ihnen weiter.`,
       verarbeitete.sort((a, b) => new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime());
 
       setAnfragen(verarbeitete);
+
+      // Analysiere Nachrichten im Hintergrund mit Claude
+      if (claudeAnfrageService.isAvailable()) {
+        for (const anfrage of verarbeitete) {
+          const nachricht = extrahiereNachricht(anfrage.emailText);
+          if (nachricht && !anfrage.notizen) {
+            console.log(`🤖 Analysiere Nachricht für ${anfrage.analysiert.kundenname}...`);
+            try {
+              const analyse = await claudeAnfrageService.analysiereNachricht(nachricht);
+              if (analyse.notizen) {
+                // Update die Anfrage mit den Notizen
+                anfrage.notizen = analyse.notizen;
+                // Trigger re-render
+                setAnfragen(prev => [...prev]);
+                console.log(`✅ Notizen erstellt: ${analyse.notizen}`);
+              }
+            } catch (error) {
+              console.warn('Nachricht-Analyse fehlgeschlagen:', error);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Fehler beim Laden der Anfragen:', error);
       setAnfragen([]);
@@ -973,6 +1009,19 @@ Bei Fragen melden Sie sich gerne jederzeit – wir helfen Ihnen weiter.`,
                     </div>
                   </div>
                 </div>
+
+                {/* Notizen aus Kundenanfrage - Wichtige Infos wie Lieferwünsche */}
+                {selectedAnfrage.notizen && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <h4 className="font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Wichtige Kundennotiz
+                    </h4>
+                    <p className="text-sm text-amber-900 dark:text-amber-200 whitespace-pre-wrap">
+                      {selectedAnfrage.notizen}
+                    </p>
+                  </div>
+                )}
 
                 {/* Angebot */}
                 <div>

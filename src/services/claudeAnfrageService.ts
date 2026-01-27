@@ -418,4 +418,160 @@ E-Mail: info@tennismehl.com`,
       };
     }
   },
+
+  /**
+   * Analysiert das Nachricht-Feld einer Anfrage und extrahiert wichtige Informationen
+   * wie Lieferwünsche, Sonderwünsche, Dringlichkeit etc.
+   */
+  async analysiereNachricht(nachricht: string): Promise<{
+    zusammenfassung: string;
+    lieferwunsch?: string;
+    sonderwuensche?: string[];
+    dringlichkeit: 'normal' | 'dringend' | 'flexibel';
+    notizen: string;
+  }> {
+    if (!nachricht || nachricht.trim().length < 5) {
+      return {
+        zusammenfassung: '',
+        dringlichkeit: 'normal',
+        notizen: '',
+      };
+    }
+
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      // Fallback: Einfache Regel-basierte Analyse
+      return this.analysiereNachrichtLokal(nachricht);
+    }
+
+    try {
+      const prompt = `Analysiere diese Kundennachricht aus einer Tennismehl-Anfrage und extrahiere wichtige Informationen.
+
+NACHRICHT:
+"${nachricht}"
+
+Antworte NUR mit diesem JSON-Format:
+{
+  "zusammenfassung": "Kurze Zusammenfassung was der Kunde will (1 Satz)",
+  "lieferwunsch": "Gewünschter Liefertermin/Zeitraum falls erwähnt, sonst null",
+  "sonderwuensche": ["Liste von Sonderwünschen falls vorhanden"],
+  "dringlichkeit": "normal" oder "dringend" oder "flexibel",
+  "notizen": "Wichtige Infos für die interne Bearbeitung (z.B. 'Lieferung 2./3. Märzwoche gewünscht')"
+}`;
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('Claude API nicht erreichbar, verwende lokale Analyse');
+        return this.analysiereNachrichtLokal(nachricht);
+      }
+
+      const data = await response.json();
+      const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
+
+      if (textContent?.text) {
+        let cleanText = textContent.text.trim();
+        if (cleanText.startsWith('```')) {
+          cleanText = cleanText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        }
+        const parsed = JSON.parse(cleanText);
+        return {
+          zusammenfassung: parsed.zusammenfassung || '',
+          lieferwunsch: parsed.lieferwunsch || undefined,
+          sonderwuensche: parsed.sonderwuensche || [],
+          dringlichkeit: parsed.dringlichkeit || 'normal',
+          notizen: parsed.notizen || '',
+        };
+      }
+
+      return this.analysiereNachrichtLokal(nachricht);
+    } catch (error) {
+      console.warn('Fehler bei Claude-Analyse, verwende Fallback:', error);
+      return this.analysiereNachrichtLokal(nachricht);
+    }
+  },
+
+  /**
+   * Lokale Analyse ohne Claude API (Fallback)
+   */
+  analysiereNachrichtLokal(nachricht: string): {
+    zusammenfassung: string;
+    lieferwunsch?: string;
+    sonderwuensche?: string[];
+    dringlichkeit: 'normal' | 'dringend' | 'flexibel';
+    notizen: string;
+  } {
+    const text = nachricht.toLowerCase();
+    let notizen = '';
+    let lieferwunsch: string | undefined;
+    let dringlichkeit: 'normal' | 'dringend' | 'flexibel' = 'normal';
+    const sonderwuensche: string[] = [];
+
+    // Liefertermin erkennen
+    const lieferMatch = nachricht.match(
+      /(lieferung|anlieferung|geliefert|liefern).{0,50}?((\d{1,2}\.?\s*)?(\d{1,2}\.?\s*)?(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|kw\s*\d+|\d+\.\s*woche|märzwoche|aprilwoche))/i
+    );
+    if (lieferMatch) {
+      lieferwunsch = lieferMatch[0];
+      notizen += `Lieferwunsch: ${lieferMatch[0]}\n`;
+    }
+
+    // KW oder Woche erkennen
+    const kwMatch = nachricht.match(/(kw\s*\d+|\d+\.?\s*woche|\d+\/\d+\s*woche)/i);
+    if (kwMatch && !lieferwunsch) {
+      lieferwunsch = kwMatch[0];
+      notizen += `Lieferzeitraum: ${kwMatch[0]}\n`;
+    }
+
+    // Monat + Woche erkennen (z.B. "2/3 Märzwoche")
+    const monatWocheMatch = nachricht.match(/(\d+\/\d+|\d+\.\s*-\s*\d+\.)\s*(januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)woche/i);
+    if (monatWocheMatch) {
+      lieferwunsch = monatWocheMatch[0];
+      notizen += `Lieferzeitraum: ${monatWocheMatch[0]}\n`;
+    }
+
+    // Dringlichkeit erkennen
+    if (text.includes('dringend') || text.includes('schnell') || text.includes('eilig') || text.includes('asap')) {
+      dringlichkeit = 'dringend';
+      notizen += 'DRINGEND!\n';
+    } else if (text.includes('flexibel') || text.includes('egal wann') || text.includes('keine eile')) {
+      dringlichkeit = 'flexibel';
+    }
+
+    // Sonderwünsche erkennen
+    if (text.includes('samstag') || text.includes('wochenende')) {
+      sonderwuensche.push('Samstagslieferung gewünscht');
+    }
+    if (text.includes('vormittag') || text.includes('morgens')) {
+      sonderwuensche.push('Vormittagslieferung bevorzugt');
+    }
+    if (text.includes('nachmittag')) {
+      sonderwuensche.push('Nachmittagslieferung bevorzugt');
+    }
+    if (text.includes('anruf') || text.includes('telefonisch')) {
+      sonderwuensche.push('Telefonische Terminabsprache gewünscht');
+    }
+
+    return {
+      zusammenfassung: nachricht.length > 100 ? nachricht.substring(0, 100) + '...' : nachricht,
+      lieferwunsch,
+      sonderwuensche: sonderwuensche.length > 0 ? sonderwuensche : undefined,
+      dringlichkeit,
+      notizen: notizen.trim() || nachricht,
+    };
+  },
 };
