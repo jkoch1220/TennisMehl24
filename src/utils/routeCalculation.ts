@@ -163,7 +163,11 @@ const berechneRouteMitGoogle = async (
       routeModifiers: {
         avoidTolls: false,
         avoidHighways: false,
-        avoidFerries: true
+        avoidFerries: true,
+        // LKW-spezifische Einschränkungen
+        vehicleInfo: {
+          emissionType: 'DIESEL'
+        }
       },
       languageCode: 'de-DE',
       units: 'METRIC'
@@ -215,14 +219,22 @@ const berechneRouteMitGoogle = async (
       return seconds / 60; // Minuten
     };
 
-    const fahrzeitMinuten = parseDuration(route.duration);
-    const fahrzeitOhneTrafficMinuten = parseDuration(route.staticDuration);
+    // LKW-Faktor: LKWs fahren ca. 25% langsamer als PKWs
+    // (Durchschnitt PKW: ~80 km/h, LKW: ~60-65 km/h auf Autobahn)
+    const LKW_GESCHWINDIGKEITS_FAKTOR = 1.25;
+
+    const pkwFahrzeitMinuten = parseDuration(route.duration);
+    const pkwFahrzeitOhneTrafficMinuten = parseDuration(route.staticDuration);
+
+    // Wende LKW-Faktor auf die Fahrzeit an
+    const fahrzeitMinuten = pkwFahrzeitMinuten * LKW_GESCHWINDIGKEITS_FAKTOR;
+    const fahrzeitOhneTrafficMinuten = pkwFahrzeitOhneTrafficMinuten * LKW_GESCHWINDIGKEITS_FAKTOR;
     const trafficDelayMinuten = Math.max(0, fahrzeitMinuten - fahrzeitOhneTrafficMinuten);
 
-    console.log(`✅ Google Routes API Ergebnis:`);
+    console.log(`✅ Google Routes API Ergebnis (LKW-korrigiert):`);
     console.log(`   Distanz: ${distanzKm.toFixed(2)} km`);
-    console.log(`   Fahrzeit (mit Traffic): ${fahrzeitMinuten.toFixed(0)} min`);
-    console.log(`   Fahrzeit (ohne Traffic): ${fahrzeitOhneTrafficMinuten.toFixed(0)} min`);
+    console.log(`   Fahrzeit PKW: ${pkwFahrzeitMinuten.toFixed(0)} min`);
+    console.log(`   Fahrzeit LKW (×${LKW_GESCHWINDIGKEITS_FAKTOR}): ${fahrzeitMinuten.toFixed(0)} min`);
     if (trafficDelayMinuten > 0) {
       console.log(`   🚗 Verkehrsbedingte Verzögerung: +${trafficDelayMinuten.toFixed(0)} min`);
     }

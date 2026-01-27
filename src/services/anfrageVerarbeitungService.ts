@@ -124,11 +124,11 @@ export async function verarbeiteAnfrageVollstaendig(
             ort: input.kundenDaten.ort,
             bundesland: ''
           },
-          // DISPO-Ansprechpartner mit Telefon
-          dispoAnsprechpartner: input.kundenDaten.telefon ? {
+          // DISPO-Ansprechpartner (immer mit Name, optional mit Telefon)
+          dispoAnsprechpartner: {
             name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon,
-          } : undefined,
+            telefon: input.kundenDaten.telefon || '',
+          },
         };
 
         const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
@@ -170,11 +170,11 @@ export async function verarbeiteAnfrageVollstaendig(
             ort: input.kundenDaten.ort,
             bundesland: ''
           },
-          // DISPO-Ansprechpartner mit Telefon
-          dispoAnsprechpartner: input.kundenDaten.telefon ? {
+          // DISPO-Ansprechpartner (immer mit Name, optional mit Telefon)
+          dispoAnsprechpartner: {
             name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon,
-          } : undefined,
+            telefon: input.kundenDaten.telefon || '',
+          },
         };
 
         const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
@@ -241,11 +241,14 @@ export async function verarbeiteAnfrageVollstaendig(
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      // Standard-Lieferbedingungen
+      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
+
       const angebotsDaten: AngebotsDaten = {
         kundenname: input.kundenDaten.name,
         kundenstrasse: input.kundenDaten.strasse,
         kundenPlzOrt: `${input.kundenDaten.plz} ${input.kundenDaten.ort}`,
-        // Ansprechpartner beim Kunden (z. Hd.)
+        // Ansprechpartner beim Kunden (z. Hd. Vorname Nachname)
         ansprechpartner: input.kundenDaten.ansprechpartner,
         angebotsnummer,
         angebotsdatum: heute,
@@ -253,6 +256,9 @@ export async function verarbeiteAnfrageVollstaendig(
         positionen: input.positionen,
         zahlungsziel: '14 Tage',
         // KEINE frachtkosten - sind bereits im Preis/Tonne der Positionen enthalten!
+        // Lieferbedingungen (Standard wie in Projektabwicklung)
+        lieferbedingungenAktiviert: true,
+        lieferbedingungen: standardLieferbedingungen,
         // Stammdaten für Header/Footer
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,

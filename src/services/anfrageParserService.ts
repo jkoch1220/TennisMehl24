@@ -357,11 +357,21 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
 
 // Konvertiere Analyse-Ergebnis zu ExtrahierteDaten Format
 export const analyseZuExtrahierteDaten = (analyse: AnfrageAnalyseErgebnis): ExtrahierteDaten => {
+  // Ansprechpartner = "Vorname Nachname" (für z. Hd. im Angebot)
+  const ansprechpartner = `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() || undefined;
+
   return {
     kundenname: analyse.kontakt.vereinsname ||
       `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() || undefined,
+    vereinsname: analyse.kontakt.vereinsname,
+    vorname: analyse.kontakt.vorname,
+    nachname: analyse.kontakt.nachname,
+    ansprechpartner, // "Vorname Nachname" für z. Hd. im Angebot!
     email: analyse.kontakt.email,
     telefon: analyse.kontakt.telefon,
+    strasse: analyse.kontakt.strasse,
+    plz: analyse.kontakt.plz,
+    ort: analyse.kontakt.ort,
     adresse: {
       strasse: analyse.kontakt.strasse,
       plz: analyse.kontakt.plz,
