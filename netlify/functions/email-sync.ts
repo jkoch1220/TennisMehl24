@@ -24,6 +24,9 @@ interface EmailData {
 
 interface ExtrahierteDaten {
   kundenname?: string;
+  vereinsname?: string;  // Wichtig: Vereinsname hat Priorität über Vorname/Nachname
+  vorname?: string;
+  nachname?: string;
   ansprechpartner?: string;
   strasse?: string;
   plz?: string;
@@ -63,10 +66,53 @@ const parseEmailContent = (mail: ParsedMail, uid: number): EmailData => {
 const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
   const daten: ExtrahierteDaten = {};
 
-  // Standard Webformular-Format: "Feldname *: Wert"
+  // WICHTIG: Vereinsname hat Priorität - eigene Extraktion!
+  // "Vereins-Name *:" oder "Vereinsname *:" oder "Vereins-Name:"
+  const vereinsnameMatch = text.match(/(?:vereins-?name|verein|club|klub)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  if (vereinsnameMatch && vereinsnameMatch[1]) {
+    const vereinsname = vereinsnameMatch[1].trim();
+    // Nur wenn es ein echter Wert ist (nicht leer, nicht nur Sonderzeichen)
+    if (vereinsname && vereinsname.length > 1 && !/^[-_*]+$/.test(vereinsname)) {
+      daten.vereinsname = vereinsname;
+      // Vereinsname ist der Kundenname!
+      daten.kundenname = vereinsname;
+    }
+  }
+
+  // Vorname und Nachname separat extrahieren
+  const vornameMatch = text.match(/vorname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  if (vornameMatch && vornameMatch[1]) {
+    daten.vorname = vornameMatch[1].trim();
+  }
+
+  const nachnameMatch = text.match(/nachname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  if (nachnameMatch && nachnameMatch[1]) {
+    daten.nachname = nachnameMatch[1].trim();
+  }
+
+  // Ansprechpartner aus Vorname + Nachname zusammensetzen
+  if (daten.vorname || daten.nachname) {
+    daten.ansprechpartner = `${daten.vorname || ''} ${daten.nachname || ''}`.trim();
+  }
+
+  // Falls kein Vereinsname, prüfe Firma/Organisation (NICHT "name" allgemein!)
+  if (!daten.kundenname) {
+    const firmaMatch = text.match(/(?:firma|organisation|unternehmen|betrieb)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+    if (firmaMatch && firmaMatch[1]) {
+      const firma = firmaMatch[1].trim();
+      if (firma && firma.length > 1) {
+        daten.kundenname = firma;
+      }
+    }
+  }
+
+  // Fallback: Wenn immer noch kein Kundenname, nimm Ansprechpartner
+  if (!daten.kundenname && daten.ansprechpartner) {
+    daten.kundenname = daten.ansprechpartner;
+  }
+
+  // Standard Webformular-Format für restliche Felder
   const patterns: Record<string, RegExp> = {
-    kundenname: /(?:vereinsname|firma|organisation|name)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
-    ansprechpartner: /(?:ansprechpartner|vorname|kontakt)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
     strasse: /(?:straße|strasse|adresse)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
     plz: /(?:plz|postleitzahl)\s*[*:]?\s*[:=]?\s*(\d{5})/i,
     ort: /(?:ort|stadt|city)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
@@ -96,6 +142,8 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
   if (nachrichtMatch) {
     daten.nachricht = nachrichtMatch[1].trim().substring(0, 2000);
   }
+
+  console.log('📋 Extrahierte Daten:', JSON.stringify(daten, null, 2));
 
   return daten;
 };

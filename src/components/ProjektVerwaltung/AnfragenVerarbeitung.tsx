@@ -189,25 +189,51 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const konvertiereZuVerarbeiteteAnfrage = (anfrage: Anfrage): VerarbeiteteAnfrage => {
     const extrahiert = anfrage.extrahierteDaten || {};
 
-    // Parse Webformular-Daten aus emailText falls extrahierteDaten leer
+    // Parse Webformular-Daten aus emailText (immer, da alte Daten falsch sein können!)
     const analyse = parseWebformularAnfrage(anfrage.emailText);
 
+    // WICHTIG: Vereinsname hat IMMER Priorität über persönlichen Namen!
+    // 1. Zuerst prüfen ob vereinsname im Parse-Ergebnis (aus emailText)
+    // 2. Dann prüfen ob vereinsname in extrahierteDaten (aus DB)
+    // 3. Fallback auf extrahiert.kundenname (aber nur wenn es nicht Vorname/Nachname ist)
+    // 4. Letzter Fallback: Vorname Nachname kombiniert
+    let kundenname: string;
+
+    if (analyse.kontakt.vereinsname && analyse.kontakt.vereinsname.length > 2) {
+      // Vereinsname aus dem E-Mail-Text hat höchste Priorität!
+      kundenname = analyse.kontakt.vereinsname;
+    } else if (extrahiert.vereinsname && extrahiert.vereinsname.length > 2) {
+      // Vereinsname aus extrahierten Daten
+      kundenname = extrahiert.vereinsname;
+    } else if (extrahiert.kundenname && extrahiert.kundenname.length > 2) {
+      // Kundenname aus DB - aber prüfen ob es nicht Vor/Nachname ist
+      const istNurVorname = extrahiert.kundenname === extrahiert.vorname;
+      const istNurNachname = extrahiert.kundenname === extrahiert.nachname;
+      if (!istNurVorname && !istNurNachname) {
+        kundenname = extrahiert.kundenname;
+      } else {
+        // Es ist nur Vor- oder Nachname, also kombinieren
+        kundenname = `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() || 'Unbekannt';
+      }
+    } else {
+      // Fallback: Vorname Nachname
+      kundenname = `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() || 'Unbekannt';
+    }
+
+    // Ansprechpartner: Immer Vorname + Nachname (nicht der Kundenname!)
+    const ansprechpartner = (analyse.kontakt.vorname || analyse.kontakt.nachname)
+      ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim()
+      : extrahiert.ansprechpartner || undefined;
+
     const analysiert = {
-      kundenname:
-        extrahiert.kundenname ||
-        analyse.kontakt.vereinsname ||
-        `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim() ||
-        'Unbekannt',
-      ansprechpartner:
-        analyse.kontakt.nachname
-          ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname}`.trim()
-          : undefined,
+      kundenname,
+      ansprechpartner,
       email: extrahiert.email || analyse.kontakt.email || anfrage.emailAbsender,
       telefon: extrahiert.telefon || analyse.kontakt.telefon,
-      strasse: extrahiert.adresse?.strasse || analyse.kontakt.strasse,
-      plzOrt: `${extrahiert.adresse?.plz || analyse.kontakt.plz || ''} ${extrahiert.adresse?.ort || analyse.kontakt.ort || ''}`.trim(),
-      plz: extrahiert.adresse?.plz || analyse.kontakt.plz,
-      ort: extrahiert.adresse?.ort || analyse.kontakt.ort,
+      strasse: extrahiert.strasse || analyse.kontakt.strasse,
+      plzOrt: `${extrahiert.plz || analyse.kontakt.plz || ''} ${extrahiert.ort || analyse.kontakt.ort || ''}`.trim(),
+      plz: extrahiert.plz || analyse.kontakt.plz,
+      ort: extrahiert.ort || analyse.kontakt.ort,
       anzahlPlaetze: analyse.bestellung.anzahlPlaetze,
       menge: extrahiert.menge || analyse.bestellung.mengeGesamt,
       artikel: extrahiert.artikel || analyse.bestellung.artikel || 'Tennismehl 0/2 mm',
@@ -236,12 +262,12 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     }));
 
     // Standard E-Mail-Vorschlag
-    const kundenname = analysiert.kundenname || 'Kunde';
-    const ansprechpartner = analysiert.ansprechpartner || '';
+    const emailKundenname = analysiert.kundenname || 'Kunde';
+    const emailAnsprechpartner = analysiert.ansprechpartner || '';
     const saisonJahr = new Date().getFullYear();
 
     // Anrede: "Guten Tag Vorname Nachname" oder "Guten Tag" wenn kein Name
-    const anrede = ansprechpartner ? `Guten Tag ${ansprechpartner}` : 'Guten Tag';
+    const anrede = emailAnsprechpartner ? `Guten Tag ${emailAnsprechpartner}` : 'Guten Tag';
 
     return {
       ...anfrage,
@@ -253,14 +279,14 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
         summeNetto: menge * preisProTonne,
       },
       emailVorschlag: {
-        betreff: `Angebot Tennismehl ${kundenname} ${saisonJahr}`,
+        betreff: `Angebot Tennismehl ${emailKundenname} ${saisonJahr}`,
         text: `${anrede},
 
 vielen Dank für Ihre Anfrage!
 
 Im Anhang finden Sie unser Angebot wie besprochen.
 
-Bei Fragen melden Sie sich gerne jederzeit – wir helfen Ihnen weiter.`,
+Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         empfaenger: analysiert.email || anfrage.emailAbsender,
       },
       verarbeitungsStatus: anfrage.status === 'neu' ? 'ausstehend' : 'genehmigt',

@@ -25,7 +25,6 @@
  */
 
 import { ExtrahierteDaten } from '../types/anfragen';
-import { generiereStandardEmail } from '../utils/emailHelpers';
 
 // Strukturierter Output von der Analyse
 export interface AnfrageAnalyseErgebnis {
@@ -355,75 +354,54 @@ export const analyseZuExtrahierteDaten = (analyse: AnfrageAnalyseErgebnis): Extr
 };
 
 // Generiere E-Mail-Text für Angebot (synchron - für initiale Generierung)
-// Die Signatur wird aus den Stammdaten geladen
+// Die Signatur wird beim Senden automatisch angehängt!
 export const generiereAngebotsEmail = (
   _kundenname: string,
   ansprechpartner?: string,
   _angebotsnummer?: string,
 ): string => {
   const anrede = ansprechpartner
-    ? `Sehr geehrte/r ${ansprechpartner}`
-    : 'Sehr geehrte Damen und Herren';
+    ? `Guten Tag ${ansprechpartner}`
+    : 'Guten Tag';
 
-  // Basis-Text ohne Signatur - Signatur wird später aus Stammdaten hinzugefügt
+  // Kurzer, freundlicher E-Mail-Text (OHNE Signatur!)
   return `${anrede},
 
-vielen Dank für Ihre Anfrage.
+vielen Dank für Ihre Anfrage!
 
-Anbei erhalten Sie unser Angebot gemäß Ihrer Anfrage.
+Im Anhang finden Sie unser Angebot wie besprochen.
 
-Wir würden uns freuen, Sie als Kunden begrüßen zu dürfen. Bei Fragen stehen wir Ihnen gerne zur Verfügung.`;
+Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`;
 };
 
 // Generiere E-Mail-Text mit Signatur aus Stammdaten (async)
+// WICHTIG: Kurzer, freundlicher Text - Signatur wird automatisch angehängt!
 export const generiereAngebotsEmailMitSignatur = async (
   kundenname: string,
   ansprechpartner?: string,
 ): Promise<{ text: string; betreff: string }> => {
-  try {
-    // Lade Template aus Stammdaten
-    const template = await generiereStandardEmail('angebot', '(wird generiert)', kundenname);
+  // Erstelle personalisierte Anrede
+  // "Guten Tag Vorname Nachname," oder "Guten Tag," wenn kein Name
+  const anrede = ansprechpartner
+    ? `Guten Tag ${ansprechpartner}`
+    : 'Guten Tag';
 
-    // Erstelle personalisierte Anrede
-    const anrede = ansprechpartner
-      ? `Sehr geehrte/r ${ansprechpartner}`
-      : 'Sehr geehrte Damen und Herren';
+  // Kurzer, freundlicher E-Mail-Text (OHNE Signatur - wird beim Senden angehängt!)
+  const emailText = `${anrede},
 
-    // Basis-Text
-    let emailText = `${anrede},
+vielen Dank für Ihre Anfrage!
 
-vielen Dank für Ihre Anfrage.
+Im Anhang finden Sie unser Angebot wie besprochen.
 
-Anbei erhalten Sie unser Angebot gemäß Ihrer Anfrage.
+Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`;
 
-Wir würden uns freuen, Sie als Kunden begrüßen zu dürfen. Bei Fragen stehen wir Ihnen gerne zur Verfügung.`;
+  // Betreff: "Angebot Tennismehl [Vereinsname] [Jahr]"
+  const saisonJahr = new Date().getFullYear();
 
-    // Signatur aus Template hinzufügen
-    if (template.signatur) {
-      // HTML-Tags aus Signatur entfernen für Plain-Text
-      const plainSignatur = template.signatur
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .trim();
-      emailText += `\n\n${plainSignatur}`;
-    } else {
-      // Fallback-Signatur wenn keine in Stammdaten
-      emailText += `\n\nMit freundlichen Grüßen\nIhr TennisMehl-Team`;
-    }
-
-    return {
-      text: emailText,
-      betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
-    };
-  } catch (error) {
-    console.error('Fehler beim Laden der Signatur aus Stammdaten:', error);
-    // Fallback
-    return {
-      text: generiereAngebotsEmail(kundenname, ansprechpartner),
-      betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
-    };
-  }
+  return {
+    text: emailText,
+    betreff: `Angebot Tennismehl ${kundenname} ${saisonJahr}`,
+  };
 };
 
 // Berechne empfohlenen Preis basierend auf PLZ und Menge

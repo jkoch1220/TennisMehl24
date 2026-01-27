@@ -15,10 +15,19 @@ export type AnfrageStatus =
   | 'erledigt';        // Vollständig bearbeitet
 
 export interface ExtrahierteDaten {
-  // Vom n8n-Workflow extrahierte Informationen
-  kundenname?: string;
+  // Vom n8n-Workflow oder Netlify Function extrahierte Informationen
+  kundenname?: string; // WICHTIG: Vereinsname hat Priorität!
+  vereinsname?: string; // Vereins-Name aus Webformular
+  vorname?: string; // Vorname des Ansprechpartners
+  nachname?: string; // Nachname des Ansprechpartners
+  ansprechpartner?: string; // Kombiniert: "Vorname Nachname"
   email?: string;
   telefon?: string;
+  // Flache Adressfelder (von Netlify Function)
+  strasse?: string;
+  plz?: string;
+  ort?: string;
+  // Legacy: Verschachtelte Adresse (für Kompatibilität)
   adresse?: {
     strasse?: string;
     plz?: string;
@@ -29,6 +38,10 @@ export interface ExtrahierteDaten {
   menge?: number; // Extrahierte Menge (z.B. in Tonnen)
   artikel?: string; // Extrahierter Artikel/Produkt
   lieferdatum?: string; // Extrahierter Liefertermin
+  nachricht?: string; // Freitext-Nachricht vom Webformular
+  anzahlPlaetze?: number; // Anzahl Tennisplätze
+  koernung?: string; // z.B. "0-2" oder "0-3"
+  lieferart?: string; // "lose" oder "gesackt"
   sonstigeInfos?: Record<string, any>; // Weitere extrahierte Daten
   konfidenz?: number; // Konfidenz-Score der Extraktion (0-1)
 }
