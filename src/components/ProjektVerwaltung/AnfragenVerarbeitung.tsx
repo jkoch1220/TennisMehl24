@@ -34,6 +34,7 @@ import {
   Eye,
   Bot,
   Download,
+  Truck,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
 import { Position, AngebotsDaten } from '../../types/projektabwicklung';
@@ -59,6 +60,14 @@ import {
 } from '../../services/anfrageVerarbeitungService';
 import { istBeiladung } from '../../constants/artikelPreise';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
+import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
+import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
+
+// Konstanten für Fremdlieferung (LKW)
+const FREMDLIEFERUNG_STUNDENLOHN = 108; // €/Stunde
+const BELADUNGSZEIT_MINUTEN = 30;
+const ABLADUNGSZEIT_MINUTEN = 30;
+const START_PLZ = '97828'; // Marktheidenfeld
 
 // Standard-Absender für Angebote
 const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
@@ -113,6 +122,14 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [kundenSuche, setKundenSuche] = useState('');
   const [existierendeKunden, setExistierendeKunden] = useState<SaisonKunde[]>([]);
   const [selectedKundeId, setSelectedKundeId] = useState<string | null>(null);
+
+  // Lieferkosten-Berechnung
+  const [lieferkostenBerechnung, setLieferkostenBerechnung] = useState<{
+    isLoading: boolean;
+    ergebnis: FremdlieferungRoutenBerechnung | null;
+    plz: string | null;
+    tonnage: number;
+  }>({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
 
   // Lade existierende Kunden für Zuordnung
   useEffect(() => {
@@ -448,6 +465,59 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
       });
     }
   }, [selectedAnfrage]);
+
+  // Lieferkosten berechnen wenn PLZ oder Tonnage sich ändern
+  useEffect(() => {
+    if (!editedData || !editedData.plz || editedData.plz.length < 5) {
+      setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
+      return;
+    }
+
+    const plz = editedData.plz;
+    const tonnage = editedData.menge || 0;
+
+    // Nur neu berechnen wenn sich PLZ oder Tonnage geändert haben
+    if (plz === lieferkostenBerechnung.plz && tonnage === lieferkostenBerechnung.tonnage && lieferkostenBerechnung.ergebnis) {
+      return;
+    }
+
+    // Nur bei losem Material Lieferkosten berechnen (LKW-Transport)
+    const hatLosesMaterial = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0) > 0;
+    if (!hatLosesMaterial && tonnage <= 0) {
+      setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz, tonnage });
+      return;
+    }
+
+    const berechneLieferkosten = async () => {
+      setLieferkostenBerechnung(prev => ({ ...prev, isLoading: true, plz, tonnage }));
+
+      try {
+        // Fremdlieferung-Stammdaten mit 108€ Stundensatz
+        const fremdlieferungStammdaten: FremdlieferungStammdaten = {
+          stundenlohn: FREMDLIEFERUNG_STUNDENLOHN,
+          durchschnittsgeschwindigkeit: 60.0,
+          beladungszeit: BELADUNGSZEIT_MINUTEN,
+          abladungszeit: ABLADUNGSZEIT_MINUTEN,
+          anzahlAbladestellen: 1,
+          pausenzeit: 45, // EU-Verordnung
+          lkwLadungInTonnen: tonnage,
+        };
+
+        const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
+
+        // Setze die berechneten Frachtkosten automatisch
+        setEditedData(prev => prev ? { ...prev, frachtkosten: Math.round(ergebnis.lohnkosten * 100) / 100 } : prev);
+        setLieferkostenBerechnung({ isLoading: false, ergebnis, tonnage, plz });
+      } catch (error) {
+        console.error('Fehler bei Lieferkosten-Berechnung:', error);
+        setLieferkostenBerechnung(prev => ({ ...prev, isLoading: false, ergebnis: null }));
+      }
+    };
+
+    // Debounce die Berechnung um 500ms
+    const timeout = setTimeout(berechneLieferkosten, 500);
+    return () => clearTimeout(timeout);
+  }, [editedData?.plz, editedData?.menge, editedData?.tonnenLose02, editedData?.tonnenLose03]);
 
   // KI-Analyse Handler
   const handleKiAnalyse = async () => {
@@ -1220,7 +1290,12 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Fracht (EUR)</label>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Fracht (EUR)
+                        {lieferkostenBerechnung.isLoading && (
+                          <Loader2 className="w-3 h-3 ml-1 inline animate-spin" />
+                        )}
+                      </label>
                       <input
                         type="number"
                         step="0.50"
@@ -1232,6 +1307,52 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                       />
                     </div>
                   </div>
+
+                  {/* Lieferkosten-Berechnung Breakdown */}
+                  {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (
+                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h5 className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-1">
+                        <Truck className="w-3 h-3" />
+                        Lieferkosten-Berechnung (LKW)
+                      </h5>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <span>Strecke (hin + zurück):</span>
+                          <span className="font-medium">{lieferkostenBerechnung.ergebnis.distanz.toFixed(0)} km</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <span>Fahrzeit:</span>
+                          <span className="font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.fahrzeit)}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <span>Beladung:</span>
+                          <span className="font-medium">{BELADUNGSZEIT_MINUTEN} min</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <span>Abladung:</span>
+                          <span className="font-medium">{lieferkostenBerechnung.ergebnis.abladungszeit} min</span>
+                        </div>
+                        {lieferkostenBerechnung.ergebnis.pausenzeit > 0 && (
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>Pause (EU-Regel):</span>
+                            <span className="font-medium">{lieferkostenBerechnung.ergebnis.pausenzeit} min</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-blue-200 dark:border-blue-700">
+                          <span className="font-semibold">Gesamtzeit:</span>
+                          <span className="font-bold">{formatZeit(lieferkostenBerechnung.ergebnis.gesamtzeit)}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2">
+                          <span>Stundenlohn:</span>
+                          <span className="font-medium">{FREMDLIEFERUNG_STUNDENLOHN} €/h</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-blue-200 dark:border-blue-700">
+                          <span className="font-bold">Lieferkosten:</span>
+                          <span className="font-bold text-blue-900 dark:text-blue-200">{lieferkostenBerechnung.ergebnis.lohnkosten.toFixed(2)} €</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* PE-Folie Hinweis */}
                   {(editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (

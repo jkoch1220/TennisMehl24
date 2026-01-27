@@ -355,8 +355,8 @@ export const wrapInEmailTemplate = (content: string, signatur?: string): string 
     a:hover { text-decoration: underline; }
     img { max-width: 100%; height: auto; }
     .signature {
-      margin-top: 30px;
-      padding-top: 20px;
+      margin-top: 15px;
+      padding-top: 15px;
       border-top: 1px solid #e5e7eb;
     }
     .signature p {

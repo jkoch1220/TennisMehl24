@@ -245,6 +245,8 @@ export async function verarbeiteAnfrageVollstaendig(
         kundenname: input.kundenDaten.name,
         kundenstrasse: input.kundenDaten.strasse,
         kundenPlzOrt: `${input.kundenDaten.plz} ${input.kundenDaten.ort}`,
+        // Ansprechpartner beim Kunden (z. Hd.)
+        ansprechpartner: input.kundenDaten.ansprechpartner,
         angebotsnummer,
         angebotsdatum: heute,
         gueltigBis,
