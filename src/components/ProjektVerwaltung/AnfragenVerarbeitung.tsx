@@ -235,8 +235,13 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       gesamtpreis: pos.gesamtpreis,
     }));
 
-    // Standard E-Mail-Vorschlag (sync version)
+    // Standard E-Mail-Vorschlag
     const kundenname = analysiert.kundenname || 'Kunde';
+    const ansprechpartner = analysiert.ansprechpartner || '';
+    const saisonJahr = new Date().getFullYear();
+
+    // Anrede: "Guten Tag Vorname Nachname" oder "Guten Tag" wenn kein Name
+    const anrede = ansprechpartner ? `Guten Tag ${ansprechpartner}` : 'Guten Tag';
 
     return {
       ...anfrage,
@@ -248,8 +253,14 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
         summeNetto: menge * preisProTonne,
       },
       emailVorschlag: {
-        betreff: `Ihr Angebot von TennisMehl - ${kundenname}`,
-        text: `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen unser Angebot.\n\nBei Fragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen\nIhr TennisMehl-Team`,
+        betreff: `Angebot Tennismehl ${kundenname} ${saisonJahr}`,
+        text: `${anrede},
+
+vielen Dank für Ihre Anfrage!
+
+Im Anhang finden Sie unser Angebot wie besprochen.
+
+Bei Fragen melden Sie sich gerne jederzeit – wir helfen Ihnen weiter.`,
         empfaenger: analysiert.email || anfrage.emailAbsender,
       },
       verarbeitungsStatus: anfrage.status === 'neu' ? 'ausstehend' : 'genehmigt',
