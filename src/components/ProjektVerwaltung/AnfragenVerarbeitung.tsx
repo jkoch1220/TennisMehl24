@@ -232,11 +232,13 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim()
       : extrahiert.ansprechpartner || undefined;
 
-    // Extrahiere einzelne Tonnen-Felder (aus DB oder Parser)
-    const tonnenLose02 = extrahiert.tonnenLose02 || analyse.bestellung.tonnenLose02;
-    const tonnenGesackt02 = extrahiert.tonnenGesackt02 || analyse.bestellung.tonnenGesackt02;
-    const tonnenLose03 = extrahiert.tonnenLose03 || analyse.bestellung.tonnenLose03;
-    const tonnenGesackt03 = extrahiert.tonnenGesackt03 || analyse.bestellung.tonnenGesackt03;
+    // WICHTIG: Parser-Werte haben PRIORITÄT über DB-Werte!
+    // Der Parser wurde gefixt, aber alte DB-Daten könnten falsche Werte enthalten.
+    // Nur wenn der Parser keinen Wert findet (undefined), nutze DB als Fallback.
+    const tonnenLose02 = analyse.bestellung.tonnenLose02 ?? extrahiert.tonnenLose02;
+    const tonnenGesackt02 = analyse.bestellung.tonnenGesackt02 ?? extrahiert.tonnenGesackt02;
+    const tonnenLose03 = analyse.bestellung.tonnenLose03 ?? extrahiert.tonnenLose03;
+    const tonnenGesackt03 = analyse.bestellung.tonnenGesackt03 ?? extrahiert.tonnenGesackt03;
 
     // Berechne Gesamtmenge korrekt aus allen Feldern
     const berechneteGesamtmenge =
@@ -944,6 +946,17 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                   </div>
                 )}
 
+                {/* ORIGINAL E-MAIL - Immer sichtbar für Verifikation! */}
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Original E-Mail (zur Verifikation)
+                  </h4>
+                  <pre className="text-xs text-blue-900 dark:text-blue-200 bg-white dark:bg-slate-800 p-3 rounded border border-blue-200 dark:border-blue-700 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                    {selectedAnfrage.emailText}
+                  </pre>
+                </div>
+
                 {/* Kundendaten */}
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
@@ -1288,15 +1301,6 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                   </div>
                 </div>
 
-                {/* Original E-Mail (collapsed) */}
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700">
-                    Original E-Mail anzeigen
-                  </summary>
-                  <pre className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg text-xs overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap">
-                    {selectedAnfrage.emailText}
-                  </pre>
-                </details>
               </div>
             )}
 
