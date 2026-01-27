@@ -52,10 +52,12 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import {
   verarbeiteAnfrageVollstaendig,
   erstelleStandardPositionen,
+  erstelleAnfragePositionen,
   generiereAngebotsVorschauPDF,
   VerarbeitungsFortschritt,
   VerarbeitungsSchritt,
 } from '../../services/anfrageVerarbeitungService';
+import { istBeiladung } from '../../constants/artikelPreise';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 
 // Standard-Absender für Angebote
@@ -72,7 +74,12 @@ interface BearbeitbareDaten {
   strasse: string;
   plz: string;
   ort: string;
-  menge: number;
+  // Einzelne Tonnen-Felder für präzise Kalkulation
+  tonnenLose02: number;
+  tonnenGesackt02: number;
+  tonnenLose03: number;
+  tonnenGesackt03: number;
+  menge: number; // Gesamtmenge (berechnet)
   preisProTonne: number;
   frachtkosten: number;
   emailBetreff: string;
@@ -225,6 +232,24 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       ? `${analyse.kontakt.vorname || ''} ${analyse.kontakt.nachname || ''}`.trim()
       : extrahiert.ansprechpartner || undefined;
 
+    // Extrahiere einzelne Tonnen-Felder (aus DB oder Parser)
+    const tonnenLose02 = extrahiert.tonnenLose02 || analyse.bestellung.tonnenLose02;
+    const tonnenGesackt02 = extrahiert.tonnenGesackt02 || analyse.bestellung.tonnenGesackt02;
+    const tonnenLose03 = extrahiert.tonnenLose03 || analyse.bestellung.tonnenLose03;
+    const tonnenGesackt03 = extrahiert.tonnenGesackt03 || analyse.bestellung.tonnenGesackt03;
+
+    // Berechne Gesamtmenge korrekt aus allen Feldern
+    const berechneteGesamtmenge =
+      (tonnenLose02 || 0) +
+      (tonnenGesackt02 || 0) +
+      (tonnenLose03 || 0) +
+      (tonnenGesackt03 || 0);
+
+    // Verwende berechnete Menge, fallback auf extrahierte Menge, dann Parser-Menge
+    const menge = berechneteGesamtmenge > 0
+      ? berechneteGesamtmenge
+      : (extrahiert.menge || analyse.bestellung.mengeGesamt || 0);
+
     const analysiert = {
       kundenname,
       ansprechpartner,
@@ -235,22 +260,27 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       plz: extrahiert.plz || analyse.kontakt.plz,
       ort: extrahiert.ort || analyse.kontakt.ort,
       anzahlPlaetze: analyse.bestellung.anzahlPlaetze,
-      menge: extrahiert.menge || analyse.bestellung.mengeGesamt,
+      // Einzelne Tonnen-Felder
+      tonnenLose02,
+      tonnenGesackt02,
+      tonnenLose03,
+      tonnenGesackt03,
+      menge, // Gesamtmenge
       artikel: extrahiert.artikel || analyse.bestellung.artikel || 'Tennismehl 0/2 mm',
       koernung: analyse.bestellung.koernung || '0/2',
       lieferart: analyse.bestellung.lieferart || 'lose',
     };
 
-    const menge = analysiert.menge || 3;
+    const mengeGesamt = analysiert.menge || 3;
     const plz = analysiert.plz || '97000';
     const koernung = analysiert.koernung || '0-2';
     const lieferart = (analysiert.lieferart === 'gesackt' ? 'gesackt' : 'lose') as 'lose' | 'gesackt';
 
     // berechneEmpfohlenenPreis returns number | null (Preis pro Tonne)
-    const preisProTonne = berechneEmpfohlenenPreis(plz, menge, koernung, lieferart) || 98;
+    const preisProTonne = berechneEmpfohlenenPreis(plz, mengeGesamt, koernung, lieferart) || 98;
 
     // Erstelle Positionen
-    const positionenRaw = erstelleStandardPositionen(menge, preisProTonne, analysiert.artikel, koernung, lieferart);
+    const positionenRaw = erstelleStandardPositionen(mengeGesamt, preisProTonne, analysiert.artikel, koernung, lieferart);
 
     // Konvertiere zu Angebotsvorschlag-Format
     const positionen = positionenRaw.map(pos => ({
@@ -276,7 +306,7 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
         positionen,
         empfohlenerPreisProTonne: preisProTonne,
         frachtkosten: 0, // Wird separat berechnet
-        summeNetto: menge * preisProTonne,
+        summeNetto: mengeGesamt * preisProTonne,
       },
       emailVorschlag: {
         betreff: `Angebot Tennismehl ${emailKundenname} ${saisonJahr}`,
@@ -284,7 +314,7 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
 
 vielen Dank für Ihre Anfrage!
 
-Im Anhang finden Sie unser Angebot wie besprochen.
+Im Anhang finden Sie unser Angebot wie gewünscht.
 
 Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         empfaenger: analysiert.email || anfrage.emailAbsender,
@@ -369,6 +399,16 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
       const a = selectedAnfrage.analysiert;
       const empfohlenerPreis = selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne || 85;
 
+      // Extrahiere einzelne Tonnen-Felder
+      const tonnenLose02 = a.tonnenLose02 || 0;
+      const tonnenGesackt02 = a.tonnenGesackt02 || 0;
+      const tonnenLose03 = a.tonnenLose03 || 0;
+      const tonnenGesackt03 = a.tonnenGesackt03 || 0;
+
+      // Berechne Gesamtmenge
+      const berechneteGesamtmenge = tonnenLose02 + tonnenGesackt02 + tonnenLose03 + tonnenGesackt03;
+      const menge = berechneteGesamtmenge > 0 ? berechneteGesamtmenge : (a.menge || 0);
+
       // Setze initiale Daten
       setEditedData({
         kundenname: a.kundenname || '',
@@ -378,7 +418,11 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         strasse: a.strasse || '',
         plz: a.plz || '',
         ort: a.ort || '',
-        menge: a.menge || 0,
+        tonnenLose02,
+        tonnenGesackt02,
+        tonnenLose03,
+        tonnenGesackt03,
+        menge,
         preisProTonne: empfohlenerPreis,
         frachtkosten: 0,
         emailBetreff: selectedAnfrage.emailVorschlag.betreff,
@@ -476,14 +520,15 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     setGeneratingPreview(true);
 
     try {
-      // Erstelle Positionen
-      const positionen = erstelleStandardPositionen(
-        editedData.menge,
-        editedData.preisProTonne,
-        selectedAnfrage.analysiert?.artikel,
-        selectedAnfrage.analysiert?.koernung,
-        selectedAnfrage.analysiert?.lieferart
-      );
+      // Erstelle Positionen mit neuer Funktion
+      const positionenErgebnis = await erstelleAnfragePositionen({
+        tonnenLose02: editedData.tonnenLose02,
+        tonnenGesackt02: editedData.tonnenGesackt02,
+        tonnenLose03: editedData.tonnenLose03,
+        tonnenGesackt03: editedData.tonnenGesackt03,
+        menge: editedData.menge,
+        plz: editedData.plz,
+      });
 
       // Generiere PDF Vorschau
       const pdfUrl = await generiereAngebotsVorschauPDF({
@@ -493,7 +538,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
           plz: editedData.plz,
           ort: editedData.ort,
         },
-        positionen,
+        positionen: positionenErgebnis.positionen,
         frachtkosten: editedData.frachtkosten || undefined,
       });
 
@@ -525,14 +570,16 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         editedData.kundenname
       );
 
-      // Erstelle Positionen für das Angebot
-      const positionen: Position[] = erstelleStandardPositionen(
-        editedData.menge,
-        editedData.preisProTonne,
-        selectedAnfrage.analysiert?.artikel,
-        selectedAnfrage.analysiert?.koernung,
-        selectedAnfrage.analysiert?.lieferart
-      );
+      // Erstelle Positionen für das Angebot mit neuer Funktion
+      const positionenErgebnis = await erstelleAnfragePositionen({
+        tonnenLose02: editedData.tonnenLose02,
+        tonnenGesackt02: editedData.tonnenGesackt02,
+        tonnenLose03: editedData.tonnenLose03,
+        tonnenGesackt03: editedData.tonnenGesackt03,
+        menge: editedData.menge,
+        plz: editedData.plz,
+      });
+      const positionen: Position[] = positionenErgebnis.positionen;
 
       // Erstelle AngebotsDaten
       const heute = new Date().toISOString().split('T')[0];
@@ -601,14 +648,16 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     setFortschrittListe([]);
 
     try {
-      // Erstelle Positionen
-      const positionen: Position[] = erstelleStandardPositionen(
-        editedData.menge,
-        editedData.preisProTonne,
-        selectedAnfrage.analysiert?.artikel,
-        selectedAnfrage.analysiert?.koernung,
-        selectedAnfrage.analysiert?.lieferart
-      );
+      // Erstelle Positionen mit neuer Funktion (inkl. PE-Folie, Beiladung, etc.)
+      const positionenErgebnis = await erstelleAnfragePositionen({
+        tonnenLose02: editedData.tonnenLose02,
+        tonnenGesackt02: editedData.tonnenGesackt02,
+        tonnenLose03: editedData.tonnenLose03,
+        tonnenGesackt03: editedData.tonnenGesackt03,
+        menge: editedData.menge,
+        plz: editedData.plz,
+      });
+      const positionen: Position[] = positionenErgebnis.positionen;
 
       const result = await verarbeiteAnfrageVollstaendig(
         {
@@ -1053,17 +1102,105 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
                     <Package className="w-4 h-4" />
-                    Angebot
+                    Angebot - Mengen
                   </h4>
+
+                  {/* Einzelne Tonnen-Felder */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        0-2mm lose (t)
+                        <span className="ml-1 text-green-600">95.75€/t</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={editedData.tonnenLose02 || ''}
+                        onChange={(e) => {
+                          const newVal = parseFloat(e.target.value) || 0;
+                          const newMenge = newVal + editedData.tonnenGesackt02 + editedData.tonnenLose03 + editedData.tonnenGesackt03;
+                          setEditedData({ ...editedData, tonnenLose02: newVal, menge: newMenge });
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/20"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        0-2mm gesackt (t)
+                        <span className="ml-1 text-green-600">145€/t</span>
+                        {istBeiladung(editedData.tonnenGesackt02, editedData.tonnenLose02 + editedData.tonnenLose03) && (
+                          <span className="ml-1 text-blue-600 font-medium">(Beiladung)</span>
+                        )}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={editedData.tonnenGesackt02 || ''}
+                        onChange={(e) => {
+                          const newVal = parseFloat(e.target.value) || 0;
+                          const newMenge = editedData.tonnenLose02 + newVal + editedData.tonnenLose03 + editedData.tonnenGesackt03;
+                          setEditedData({ ...editedData, tonnenGesackt02: newVal, menge: newMenge });
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-700 rounded-lg bg-orange-50 dark:bg-orange-950/20"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        0-3mm lose (t)
+                        <span className="ml-1 text-green-600">95.75€/t</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={editedData.tonnenLose03 || ''}
+                        onChange={(e) => {
+                          const newVal = parseFloat(e.target.value) || 0;
+                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + newVal + editedData.tonnenGesackt03;
+                          setEditedData({ ...editedData, tonnenLose03: newVal, menge: newMenge });
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/20"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        0-3mm gesackt (t)
+                        <span className="ml-1 text-green-600">145€/t</span>
+                        {istBeiladung(editedData.tonnenGesackt03, editedData.tonnenLose02 + editedData.tonnenLose03) && (
+                          <span className="ml-1 text-blue-600 font-medium">(Beiladung)</span>
+                        )}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={editedData.tonnenGesackt03 || ''}
+                        onChange={(e) => {
+                          const newVal = parseFloat(e.target.value) || 0;
+                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenLose03 + newVal;
+                          setEditedData({ ...editedData, tonnenGesackt03: newVal, menge: newMenge });
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-700 rounded-lg bg-orange-50 dark:bg-orange-950/20"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Gesamtmenge und Preis */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Menge (t)</label>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Gesamt (t)</label>
                       <input
                         type="number"
                         step="0.5"
                         value={editedData.menge}
-                        onChange={(e) => setEditedData({ ...editedData, menge: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
+                        readOnly
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-700 font-medium"
                       />
                     </div>
                     <div>
@@ -1091,6 +1228,14 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                       />
                     </div>
                   </div>
+
+                  {/* PE-Folie Hinweis */}
+                  {(editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (
+                    <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 text-xs rounded-full">
+                      <Package className="w-3 h-3" />
+                      PE-Folie wird automatisch hinzugefügt (loses Material)
+                    </div>
+                  )}
 
                   {/* Empfohlener Preis */}
                   {selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne && (
@@ -1320,13 +1465,63 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, onCl
             <span className="truncate">{anfrage.analysiert.plzOrt || 'Keine Adresse'}</span>
           </div>
 
-          {/* Menge und Artikel */}
-          {anfrage.analysiert.menge && (
-            <div className="flex items-center gap-2 text-sm">
-              <Package className="w-3.5 h-3.5 text-amber-500" />
-              <span className="font-medium text-amber-700 dark:text-amber-400">
-                {anfrage.analysiert.menge}t {anfrage.analysiert.artikel || 'Tennismehl'}
-              </span>
+          {/* Menge und Artikel - Detailansicht */}
+          {(anfrage.analysiert.menge || anfrage.analysiert.tonnenLose02 || anfrage.analysiert.tonnenGesackt02 || anfrage.analysiert.tonnenLose03 || anfrage.analysiert.tonnenGesackt03) && (
+            <div className="flex flex-col gap-1">
+              {/* Zeige einzelne Tonnen-Felder */}
+              {anfrage.analysiert.tonnenLose02 && anfrage.analysiert.tonnenLose02 > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-medium text-amber-700 dark:text-amber-400">
+                    {anfrage.analysiert.tonnenLose02}t 0-2mm lose
+                  </span>
+                </div>
+              )}
+              {anfrage.analysiert.tonnenGesackt02 && anfrage.analysiert.tonnenGesackt02 > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="font-medium text-orange-700 dark:text-orange-400">
+                    {anfrage.analysiert.tonnenGesackt02}t 0-2mm gesackt
+                    {anfrage.analysiert.tonnenLose02 && anfrage.analysiert.tonnenLose02 > 0 && anfrage.analysiert.tonnenGesackt02 < 1 && (
+                      <span className="text-xs ml-1 text-blue-600">(Beiladung)</span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {anfrage.analysiert.tonnenLose03 && anfrage.analysiert.tonnenLose03 > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-medium text-amber-700 dark:text-amber-400">
+                    {anfrage.analysiert.tonnenLose03}t 0-3mm lose
+                  </span>
+                </div>
+              )}
+              {anfrage.analysiert.tonnenGesackt03 && anfrage.analysiert.tonnenGesackt03 > 0 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="font-medium text-orange-700 dark:text-orange-400">
+                    {anfrage.analysiert.tonnenGesackt03}t 0-3mm gesackt
+                    {anfrage.analysiert.tonnenLose03 && anfrage.analysiert.tonnenLose03 > 0 && anfrage.analysiert.tonnenGesackt03 < 1 && (
+                      <span className="text-xs ml-1 text-blue-600">(Beiladung)</span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {/* Fallback: Wenn nur Gesamtmenge vorhanden */}
+              {!anfrage.analysiert.tonnenLose02 && !anfrage.analysiert.tonnenGesackt02 && !anfrage.analysiert.tonnenLose03 && !anfrage.analysiert.tonnenGesackt03 && anfrage.analysiert.menge && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-medium text-amber-700 dark:text-amber-400">
+                    {anfrage.analysiert.menge}t {anfrage.analysiert.artikel || 'Tennismehl'}
+                  </span>
+                </div>
+              )}
+              {/* Gesamtmenge wenn mehrere Positionen */}
+              {((anfrage.analysiert.tonnenLose02 || 0) + (anfrage.analysiert.tonnenGesackt02 || 0) + (anfrage.analysiert.tonnenLose03 || 0) + (anfrage.analysiert.tonnenGesackt03 || 0)) > (anfrage.analysiert.tonnenLose02 || anfrage.analysiert.tonnenGesackt02 || anfrage.analysiert.tonnenLose03 || anfrage.analysiert.tonnenGesackt03 || 0) && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Gesamt: {anfrage.analysiert.menge}t
+                </div>
+              )}
             </div>
           )}
 

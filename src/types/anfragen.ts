@@ -35,7 +35,12 @@ export interface ExtrahierteDaten {
     bundesland?: string;
   };
   anfrageinhalt?: string; // Vollständiger Text der Anfrage
-  menge?: number; // Extrahierte Menge (z.B. in Tonnen)
+  // Einzelne Tonnen-Felder für präzise Kalkulation
+  tonnenLose02?: number; // Tonnen 0-2mm lose
+  tonnenGesackt02?: number; // Tonnen 0-2mm gesackt
+  tonnenLose03?: number; // Tonnen 0-3mm lose
+  tonnenGesackt03?: number; // Tonnen 0-3mm gesackt
+  menge?: number; // Gesamtmenge (Summe aller Tonnen)
   artikel?: string; // Extrahierter Artikel/Produkt
   lieferdatum?: string; // Extrahierter Liefertermin
   nachricht?: string; // Freitext-Nachricht vom Webformular
@@ -126,7 +131,12 @@ export interface VerarbeiteteAnfrage extends Anfrage {
     plz?: string;
     ort?: string;
     anzahlPlaetze?: number;
-    menge?: number;
+    // Einzelne Tonnen-Felder
+    tonnenLose02?: number;
+    tonnenGesackt02?: number;
+    tonnenLose03?: number;
+    tonnenGesackt03?: number;
+    menge?: number; // Gesamtmenge
     artikel?: string;
     koernung?: string;
     lieferart?: 'lose' | 'gesackt' | string;

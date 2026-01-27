@@ -121,3 +121,43 @@ export const getStammdatenOderDefault = async (): Promise<Stammdaten> => {
   }
   return stammdaten;
 };
+
+/**
+ * Artikel-Preise aus der Appwrite Artikel-Collection oder Fallback
+ * TODO: Später mit echtem Appwrite-Abruf ersetzen
+ */
+const ARTIKEL_PREISE_FALLBACK: Record<string, number> = {
+  'TM-ZM-02': 95.75,    // Loses Material 0-2mm
+  'TM-ZM-03': 95.75,    // Loses Material 0-3mm
+  'TM-ZM-02St': 145.00, // Sackware 0-2mm
+  'TM-ZM-03St': 145.00, // Sackware 0-3mm
+  'TM-ZM-02S': 145.00,  // Beiladung 0-2mm
+  'TM-ZM-03S': 145.00,  // Beiladung 0-3mm
+  'TM-PE': 25.00,       // PE-Folie (Fallback-Preis)
+};
+
+/**
+ * Lädt den Preis für einen Artikel aus den Stammdaten/Artikel-Collection
+ * Falls nicht verfügbar, wird ein Fallback-Preis verwendet
+ *
+ * @param artikelnummer - Die Artikelnummer (z.B. 'TM-PE', 'TM-ZM-02')
+ * @returns Preis in EUR
+ */
+export const getArtikelPreis = async (artikelnummer: string): Promise<number> => {
+  // TODO: Später aus Appwrite Artikel-Collection laden
+  // const artikel = await databases.listDocuments(DATABASE_ID, 'artikel', [
+  //   Query.equal('artikelnummer', artikelnummer)
+  // ]);
+  // if (artikel.documents.length > 0) {
+  //   return artikel.documents[0].werkspreis;
+  // }
+
+  // Fallback auf vordefinierte Preise
+  const fallbackPreis = ARTIKEL_PREISE_FALLBACK[artikelnummer];
+  if (fallbackPreis !== undefined) {
+    return fallbackPreis;
+  }
+
+  console.warn(`Kein Preis für Artikel ${artikelnummer} gefunden, verwende 0`);
+  return 0;
+};

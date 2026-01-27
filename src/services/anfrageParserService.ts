@@ -43,7 +43,12 @@ export interface AnfrageAnalyseErgebnis {
   // Extrahierte Bestellinformationen
   bestellung: {
     anzahlPlaetze?: number;
-    mengeGesamt?: number; // in Tonnen
+    // Einzelne Tonnen-Felder für präzise Kalkulation
+    tonnenLose02?: number;
+    tonnenGesackt02?: number;
+    tonnenLose03?: number;
+    tonnenGesackt03?: number;
+    mengeGesamt?: number; // in Tonnen (Summe aller Felder)
     artikel?: string;
     koernung?: string; // z.B. "0-2" oder "0-3"
     lieferart?: 'lose' | 'gesackt';
@@ -240,6 +245,11 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
 
   const bestellung = {
     anzahlPlaetze,
+    // Einzelne Tonnen-Felder
+    tonnenLose02,
+    tonnenGesackt02,
+    tonnenLose03,
+    tonnenGesackt03,
     mengeGesamt: mengeGesamt > 0 ? mengeGesamt : undefined,
     artikel,
     koernung,
@@ -369,7 +379,7 @@ export const generiereAngebotsEmail = (
 
 vielen Dank für Ihre Anfrage!
 
-Im Anhang finden Sie unser Angebot wie besprochen.
+Im Anhang finden Sie unser Angebot wie gewünscht.
 
 Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`;
 };
@@ -391,7 +401,7 @@ export const generiereAngebotsEmailMitSignatur = async (
 
 vielen Dank für Ihre Anfrage!
 
-Im Anhang finden Sie unser Angebot wie besprochen.
+Im Anhang finden Sie unser Angebot wie gewünscht.
 
 Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`;
 

@@ -33,7 +33,12 @@ interface ExtrahierteDaten {
   ort?: string;
   telefon?: string;
   email?: string;
-  menge?: number;
+  // Einzelne Tonnen-Felder für präzise Extraktion
+  tonnenLose02?: number;
+  tonnenGesackt02?: number;
+  tonnenLose03?: number;
+  tonnenGesackt03?: number;
+  menge?: number;  // Gesamtmenge (Summe aller Tonnen)
   artikel?: string;
   koernung?: string;
   lieferart?: string;
@@ -118,7 +123,6 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
     ort: /(?:ort|stadt|city)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
     telefon: /(?:telefon|tel|phone|mobil)\s*[*:]?\s*[:=]?\s*([\d\s\-\/\+]+)/i,
     email: /(?:e-?mail|email)\s*[*:]?\s*[:=]?\s*([\w.+-]+@[\w.-]+\.\w+)/i,
-    menge: /(?:menge|tonnen|gewicht)\s*[*:]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
     artikel: /(?:artikel|produkt|material)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
     koernung: /(?:körnung|koernung|korngröße)\s*[*:]?\s*[:=]?\s*([\d\/\-]+)/i,
     lieferart: /(?:lieferart|lieferung)\s*[*:]?\s*[:=]?\s*(lose|gesackt|big\s*bag)/i,
@@ -129,12 +133,54 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
     const match = text.match(pattern);
     if (match && match[1]) {
       const value = match[1].trim();
-      if (key === 'menge' || key === 'anzahlPlaetze') {
+      if (key === 'anzahlPlaetze') {
         daten[key as keyof ExtrahierteDaten] = parseFloat(value.replace(',', '.')) as any;
       } else {
         (daten as any)[key] = value;
       }
     }
+  }
+
+  // WICHTIG: Einzelne Tonnen-Felder extrahieren für präzise Berechnung
+  // Das Webformular hat: "Tonnen 0-2 lose:", "Tonnen 0-2 gesackt:", "Tonnen 0-3 lose:", "Tonnen 0-3 gesackt:"
+  const tonnenPatterns = {
+    tonnenLose02: /tonnen\s*0-?2\s*(?:mm\s*)?lose\s*[*:]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
+    tonnenGesackt02: /tonnen\s*0-?2\s*(?:mm\s*)?gesackt\s*[*:]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
+    tonnenLose03: /tonnen\s*0-?3\s*(?:mm\s*)?lose\s*[*:]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
+    tonnenGesackt03: /tonnen\s*0-?3\s*(?:mm\s*)?gesackt\s*[*:]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i,
+  };
+
+  for (const [key, pattern] of Object.entries(tonnenPatterns)) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const value = parseFloat(match[1].replace(',', '.'));
+      if (!isNaN(value) && value > 0) {
+        (daten as any)[key] = value;
+      }
+    }
+  }
+
+  // Berechne Gesamtmenge aus allen Tonnen-Feldern
+  const gesamtMenge =
+    (daten.tonnenLose02 || 0) +
+    (daten.tonnenGesackt02 || 0) +
+    (daten.tonnenLose03 || 0) +
+    (daten.tonnenGesackt03 || 0);
+
+  if (gesamtMenge > 0) {
+    daten.menge = gesamtMenge;
+
+    // Bestimme Hauptprodukt (größte Menge)
+    const mengen = [
+      { menge: daten.tonnenLose02 || 0, koernung: '0-2', lieferart: 'lose' },
+      { menge: daten.tonnenGesackt02 || 0, koernung: '0-2', lieferart: 'gesackt' },
+      { menge: daten.tonnenLose03 || 0, koernung: '0-3', lieferart: 'lose' },
+      { menge: daten.tonnenGesackt03 || 0, koernung: '0-3', lieferart: 'gesackt' },
+    ];
+    const hauptPosition = mengen.reduce((max, curr) => curr.menge > max.menge ? curr : max, mengen[0]);
+
+    if (!daten.koernung) daten.koernung = hauptPosition.koernung;
+    if (!daten.lieferart) daten.lieferart = hauptPosition.lieferart;
   }
 
   // Nachricht extrahieren (alles nach "Nachricht:" oder "Bemerkung:")
