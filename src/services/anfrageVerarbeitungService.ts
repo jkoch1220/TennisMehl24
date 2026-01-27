@@ -394,6 +394,9 @@ export interface ErstellePositionenInput {
   lieferart?: string;
   // PLZ für Frachtberechnung
   plz?: string;
+  // OPTIONAL: Endpreis pro Tonne (inkl. Lieferkosten aufgeschlagen)
+  // Wenn gesetzt, wird dieser Preis statt dem Werkspreis verwendet!
+  preisProTonneInklLieferung?: number;
 }
 
 /**
@@ -432,11 +435,15 @@ export async function erstelleAnfragePositionen(
   // LOSES MATERIAL
   // ==========================================
 
+  // Verwende Endpreis (inkl. Lieferkosten) falls angegeben, sonst Werkspreis
+  const preisProTonneLose = input.preisProTonneInklLieferung || TENNISMEHL_ARTIKEL['TM-ZM-02'].werkspreis || 95.75;
+
   // 0-2mm lose
   if (input.tonnenLose02 && input.tonnenLose02 > 0) {
     const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02'];
     const menge = input.tonnenLose02;
-    const preis = menge * (artikel.werkspreis || 0);
+    const einzelpreis = preisProTonneLose;
+    const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
@@ -444,7 +451,7 @@ export async function erstelleAnfragePositionen(
       bezeichnung: artikel.bezeichnung,
       menge,
       einheit: 't',
-      einzelpreis: artikel.werkspreis || 0,
+      einzelpreis,
       gesamtpreis: preis,
       istBedarfsposition: false,
     });
@@ -457,7 +464,8 @@ export async function erstelleAnfragePositionen(
   if (input.tonnenLose03 && input.tonnenLose03 > 0) {
     const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03'];
     const menge = input.tonnenLose03;
-    const preis = menge * (artikel.werkspreis || 0);
+    const einzelpreis = preisProTonneLose;
+    const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
@@ -465,7 +473,7 @@ export async function erstelleAnfragePositionen(
       bezeichnung: artikel.bezeichnung,
       menge,
       einheit: 't',
-      einzelpreis: artikel.werkspreis || 0,
+      einzelpreis,
       gesamtpreis: preis,
       istBedarfsposition: false,
     });
@@ -482,6 +490,9 @@ export async function erstelleAnfragePositionen(
   const gesamtSackware02 = input.tonnenGesackt02 || 0;
   const gesamtSackware03 = input.tonnenGesackt03 || 0;
 
+  // Verwende Endpreis falls angegeben, sonst Werkspreis für Sackware
+  const preisProTonneGesackt = input.preisProTonneInklLieferung || TENNISMEHL_ARTIKEL['TM-ZM-02St'].werkspreis || 145;
+
   // 0-2mm gesackt
   if (gesamtSackware02 > 0) {
     // Prüfe ob Beiladung (< 1t UND loses Material vorhanden)
@@ -489,7 +500,8 @@ export async function erstelleAnfragePositionen(
     const artikelnummer = beiladung02 ? 'TM-ZM-02S' : 'TM-ZM-02St';
     const artikel = TENNISMEHL_ARTIKEL[artikelnummer];
     const menge = gesamtSackware02;
-    const preis = menge * (artikel.werkspreis || 0);
+    const einzelpreis = preisProTonneGesackt;
+    const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
@@ -498,7 +510,7 @@ export async function erstelleAnfragePositionen(
       beschreibung: beiladung02 ? 'wird mit losem Material transportiert' : undefined,
       menge,
       einheit: 't',
-      einzelpreis: artikel.werkspreis || 0,
+      einzelpreis,
       gesamtpreis: preis,
       istBedarfsposition: false,
     });
@@ -515,7 +527,8 @@ export async function erstelleAnfragePositionen(
     const artikelnummer = beiladung03 ? 'TM-ZM-03S' : 'TM-ZM-03St';
     const artikel = TENNISMEHL_ARTIKEL[artikelnummer];
     const menge = gesamtSackware03;
-    const preis = menge * (artikel.werkspreis || 0);
+    const einzelpreis = preisProTonneGesackt;
+    const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
@@ -524,7 +537,7 @@ export async function erstelleAnfragePositionen(
       beschreibung: beiladung03 ? 'wird mit losem Material transportiert' : undefined,
       menge,
       einheit: 't',
-      einzelpreis: artikel.werkspreis || 0,
+      einzelpreis,
       gesamtpreis: preis,
       istBedarfsposition: false,
     });

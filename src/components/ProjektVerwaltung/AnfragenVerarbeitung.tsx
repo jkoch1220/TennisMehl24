@@ -505,8 +505,17 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
 
         const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
 
-        // Setze die berechneten Frachtkosten automatisch
-        setEditedData(prev => prev ? { ...prev, frachtkosten: Math.round(ergebnis.lohnkosten * 100) / 100 } : prev);
+        // Berechne empfohlenen Preis pro Tonne (Werkspreis + Lieferkosten/Menge)
+        const werkspreis = 95.75; // Werkspreis für loses Material
+        const lieferkostenProTonne = tonnage > 0 ? ergebnis.lohnkosten / tonnage : 0;
+        const empfohlenerPreisProTonne = Math.round((werkspreis + lieferkostenProTonne) * 100) / 100;
+
+        // Setze die berechneten Frachtkosten UND den empfohlenen Preis/Tonne automatisch
+        setEditedData(prev => prev ? {
+          ...prev,
+          frachtkosten: Math.round(ergebnis.lohnkosten * 100) / 100,
+          preisProTonne: empfohlenerPreisProTonne,
+        } : prev);
         setLieferkostenBerechnung({ isLoading: false, ergebnis, tonnage, plz });
       } catch (error) {
         console.error('Fehler bei Lieferkosten-Berechnung:', error);
@@ -592,7 +601,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     setGeneratingPreview(true);
 
     try {
-      // Erstelle Positionen mit neuer Funktion
+      // Erstelle Positionen mit neuer Funktion (Preis inkl. Lieferkosten!)
       const positionenErgebnis = await erstelleAnfragePositionen({
         tonnenLose02: editedData.tonnenLose02,
         tonnenGesackt02: editedData.tonnenGesackt02,
@@ -600,6 +609,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         tonnenGesackt03: editedData.tonnenGesackt03,
         menge: editedData.menge,
         plz: editedData.plz,
+        preisProTonneInklLieferung: editedData.preisProTonne,
       });
 
       // Generiere PDF Vorschau
@@ -642,7 +652,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         editedData.kundenname
       );
 
-      // Erstelle Positionen für das Angebot mit neuer Funktion
+      // Erstelle Positionen für das Angebot mit neuer Funktion (Preis inkl. Lieferkosten!)
       const positionenErgebnis = await erstelleAnfragePositionen({
         tonnenLose02: editedData.tonnenLose02,
         tonnenGesackt02: editedData.tonnenGesackt02,
@@ -650,6 +660,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         tonnenGesackt03: editedData.tonnenGesackt03,
         menge: editedData.menge,
         plz: editedData.plz,
+        preisProTonneInklLieferung: editedData.preisProTonne,
       });
       const positionen: Position[] = positionenErgebnis.positionen;
 
@@ -720,7 +731,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     setFortschrittListe([]);
 
     try {
-      // Erstelle Positionen mit neuer Funktion (inkl. PE-Folie, Beiladung, etc.)
+      // Erstelle Positionen mit neuer Funktion (inkl. PE-Folie, Beiladung, Preis mit Lieferkosten!)
       const positionenErgebnis = await erstelleAnfragePositionen({
         tonnenLose02: editedData.tonnenLose02,
         tonnenGesackt02: editedData.tonnenGesackt02,
@@ -728,6 +739,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         tonnenGesackt03: editedData.tonnenGesackt03,
         menge: editedData.menge,
         plz: editedData.plz,
+        preisProTonneInklLieferung: editedData.preisProTonne,
       });
       const positionen: Position[] = positionenErgebnis.positionen;
 
@@ -1349,6 +1361,28 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                         <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-blue-200 dark:border-blue-700">
                           <span className="font-bold">Lieferkosten:</span>
                           <span className="font-bold text-blue-900 dark:text-blue-200">{lieferkostenBerechnung.ergebnis.lohnkosten.toFixed(2)} €</span>
+                        </div>
+
+                        {/* Preisberechnung */}
+                        <div className="mt-2 pt-2 border-t border-blue-300 dark:border-blue-600">
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>Werkspreis:</span>
+                            <span className="font-medium">95,75 €/t</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>+ Lieferkosten/t:</span>
+                            <span className="font-medium">
+                              {editedData.menge > 0 ? (lieferkostenBerechnung.ergebnis.lohnkosten / editedData.menge).toFixed(2) : '0.00'} €/t
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2 pt-1 font-bold text-green-700 dark:text-green-400">
+                            <span>= Empf. Preis/t:</span>
+                            <span>
+                              {editedData.menge > 0
+                                ? (95.75 + (lieferkostenBerechnung.ergebnis.lohnkosten / editedData.menge)).toFixed(2)
+                                : '95.75'} €/t
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
