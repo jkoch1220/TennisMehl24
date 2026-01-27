@@ -694,6 +694,7 @@ export interface AngebotsVorschauInput {
   };
   positionen: Position[];
   frachtkosten?: number;
+  ansprechpartner?: string;
 }
 
 export async function generiereAngebotsVorschauPDF(
@@ -706,6 +707,9 @@ export async function generiereAngebotsVorschauPDF(
   // Vorschau-Angebotsnummer
   const vorschauNummer = `VORSCHAU-${Date.now()}`;
 
+  // Standard-Lieferbedingungen (wie in Projektabwicklung)
+  const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
+
   const angebotsDaten: AngebotsDaten = {
     kundenname: input.kundenDaten.name,
     kundenstrasse: input.kundenDaten.strasse,
@@ -716,6 +720,11 @@ export async function generiereAngebotsVorschauPDF(
     positionen: input.positionen,
     zahlungsziel: '14 Tage',
     frachtkosten: input.frachtkosten,
+    // z. Hd. Ansprechpartner
+    ansprechpartner: input.ansprechpartner,
+    // Lieferbedingungen
+    lieferbedingungenAktiviert: true,
+    lieferbedingungen: standardLieferbedingungen,
     // Stammdaten für Header/Footer
     firmenname: stammdaten.firmenname,
     firmenstrasse: stammdaten.firmenstrasse,

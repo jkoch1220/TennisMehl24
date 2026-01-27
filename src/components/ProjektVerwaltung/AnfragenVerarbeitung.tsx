@@ -621,6 +621,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
           ort: editedData.ort,
         },
         positionen: positionenErgebnis.positionen,
+        ansprechpartner: editedData.ansprechpartner,
         // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
       });
 
@@ -668,6 +669,9 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      // Standard-Lieferbedingungen (wie in Projektabwicklung)
+      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
+
       const angebotsDaten: AngebotsDaten = {
         kundenname: editedData.kundenname,
         kundenstrasse: editedData.strasse,
@@ -677,6 +681,11 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         gueltigBis,
         positionen,
         zahlungsziel: '14 Tage',
+        // z. Hd. Ansprechpartner
+        ansprechpartner: editedData.ansprechpartner,
+        // Lieferbedingungen
+        lieferbedingungenAktiviert: true,
+        lieferbedingungen: standardLieferbedingungen,
         // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
