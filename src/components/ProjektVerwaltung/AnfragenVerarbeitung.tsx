@@ -612,7 +612,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         preisProTonneInklLieferung: editedData.preisProTonne,
       });
 
-      // Generiere PDF Vorschau
+      // Generiere PDF Vorschau (OHNE separate Frachtkosten - sind im Preis/t enthalten!)
       const pdfUrl = await generiereAngebotsVorschauPDF({
         kundenDaten: {
           name: editedData.kundenname,
@@ -621,7 +621,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
           ort: editedData.ort,
         },
         positionen: positionenErgebnis.positionen,
-        frachtkosten: editedData.frachtkosten || undefined,
+        // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
       });
 
       // Öffne PDF in neuem Tab
@@ -677,7 +677,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
         gueltigBis,
         positionen,
         zahlungsziel: '14 Tage',
-        frachtkosten: editedData.frachtkosten || undefined,
+        // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
         firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
@@ -759,7 +759,7 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
           existierenderKundeId: selectedKundeId || undefined,
           positionen,
           preisProTonne: editedData.preisProTonne,
-          frachtkosten: editedData.frachtkosten || undefined,
+          // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
           emailVorschlag: {
             betreff: editedData.emailBetreff,
             text: editedData.emailText,

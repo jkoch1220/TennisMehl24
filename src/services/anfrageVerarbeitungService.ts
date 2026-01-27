@@ -252,7 +252,7 @@ export async function verarbeiteAnfrageVollstaendig(
         gueltigBis,
         positionen: input.positionen,
         zahlungsziel: '14 Tage',
-        frachtkosten: input.frachtkosten,
+        // KEINE frachtkosten - sind bereits im Preis/Tonne der Positionen enthalten!
         // Stammdaten für Header/Footer
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
