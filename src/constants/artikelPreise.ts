@@ -18,6 +18,7 @@ export interface ArtikelDefinition {
   lieferart?: 'lose' | 'gesackt' | 'beiladung';
   koernung?: '0-2' | '0-3';
   pflichtBeiLose?: boolean;
+  gewichtProStueckKg?: number; // Gewicht pro Sack in kg (für Sackware)
 }
 
 /**
@@ -46,43 +47,49 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
 
   // ==========================================
   // SACKWARE (regulär per Spedition)
+  // Preis pro Sack (40kg), nicht pro Tonne!
   // ==========================================
   'TM-ZM-02St': {
     artikelnummer: 'TM-ZM-02St',
-    bezeichnung: 'Tennismehl 0/2 mm gesackt (25kg Säcke)',
-    einheit: 't',
-    werkspreis: 145.00, // €/t
+    bezeichnung: 'Tennismehl 0/2 mm gesackt (40kg Säcke)',
+    einheit: 'Stk',
+    werkspreis: 8.50, // €/Sack
     lieferart: 'gesackt',
     koernung: '0-2',
+    gewichtProStueckKg: 40,
   },
   'TM-ZM-03St': {
     artikelnummer: 'TM-ZM-03St',
-    bezeichnung: 'Tennismehl 0/3 mm gesackt (25kg Säcke)',
-    einheit: 't',
-    werkspreis: 145.00, // €/t
+    bezeichnung: 'Tennismehl 0/3 mm gesackt (40kg Säcke)',
+    einheit: 'Stk',
+    werkspreis: 8.50, // €/Sack
     lieferart: 'gesackt',
     koernung: '0-3',
+    gewichtProStueckKg: 40,
   },
 
   // ==========================================
   // BEILADUNG (Sackware < 1t mit Schüttgut)
   // Wird per LKW zusammen mit losem Material geliefert
+  // Preis pro Sack (40kg), nicht pro Tonne!
   // ==========================================
   'TM-ZM-02S': {
     artikelnummer: 'TM-ZM-02S',
-    bezeichnung: 'Tennismehl 0/2 mm gesackt - Beiladung',
-    einheit: 't',
-    werkspreis: 145.00, // €/t (gleicher Werkspreis wie reguläre Sackware)
+    bezeichnung: 'Tennismehl 0/2 mm gesackt - Beiladung (40kg Säcke)',
+    einheit: 'Stk',
+    werkspreis: 8.50, // €/Sack (gleicher Werkspreis wie reguläre Sackware)
     lieferart: 'beiladung',
     koernung: '0-2',
+    gewichtProStueckKg: 40,
   },
   'TM-ZM-03S': {
     artikelnummer: 'TM-ZM-03S',
-    bezeichnung: 'Tennismehl 0/3 mm gesackt - Beiladung',
-    einheit: 't',
-    werkspreis: 145.00, // €/t (gleicher Werkspreis wie reguläre Sackware)
+    bezeichnung: 'Tennismehl 0/3 mm gesackt - Beiladung (40kg Säcke)',
+    einheit: 'Stk',
+    werkspreis: 8.50, // €/Sack (gleicher Werkspreis wie reguläre Sackware)
     lieferart: 'beiladung',
     koernung: '0-3',
+    gewichtProStueckKg: 40,
   },
 
   // ==========================================
@@ -175,6 +182,25 @@ export function ermittleSackwareArtikelnummer(
   return koernung === '0-2'
     ? `TM-ZM-02${suffix}`
     : `TM-ZM-03${suffix}`;
+}
+
+/**
+ * Konstanten für Sackware
+ */
+export const SACKWARE = {
+  GEWICHT_PRO_SACK_KG: 40, // Ein Sack wiegt 40kg
+} as const;
+
+/**
+ * Berechnet die Anzahl der Säcke aus Tonnage
+ * Rundet immer AUF (man kann keine halben Säcke verkaufen)
+ *
+ * @param tonnen - Menge in Tonnen
+ * @returns Anzahl Säcke (aufgerundet)
+ */
+export function berechneAnzahlSaecke(tonnen: number): number {
+  const gewichtKg = tonnen * 1000;
+  return Math.ceil(gewichtKg / SACKWARE.GEWICHT_PRO_SACK_KG);
 }
 
 /**
