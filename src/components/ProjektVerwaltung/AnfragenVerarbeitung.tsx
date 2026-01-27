@@ -862,9 +862,9 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
           )}
         </div>
 
-        {/* Detail-Ansicht */}
+        {/* Detail-Ansicht - ZWEI SPALTEN: Formular links, Original-Mail rechts */}
         {selectedAnfrage && editedData && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border-2 border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden max-h-[70vh] overflow-y-auto">
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border-2 border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
             {/* Header */}
             <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 sticky top-0 z-10">
               <div className="flex items-center justify-between">
@@ -933,29 +933,20 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
               </div>
             )}
 
-            {/* Bearbeitbare Felder */}
+            {/* ZWEI-SPALTEN LAYOUT: Formular links, Original-Mail rechts */}
             {!showFortschritt && (
-              <div className="p-4 space-y-4">
-                {/* Warnung wenn bereits beantwortet */}
-                {istBereitsBeantwortet(editedData.email) && (
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      An diese E-Mail-Adresse wurde bereits ein Angebot gesendet!
-                    </p>
-                  </div>
-                )}
-
-                {/* ORIGINAL E-MAIL - Immer sichtbar für Verifikation! */}
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    Original E-Mail (zur Verifikation)
-                  </h4>
-                  <pre className="text-xs text-blue-900 dark:text-blue-200 bg-white dark:bg-slate-800 p-3 rounded border border-blue-200 dark:border-blue-700 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
-                    {selectedAnfrage.emailText}
-                  </pre>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+                {/* LINKE SEITE: Bearbeitbare Felder (2/3 Breite) */}
+                <div className="lg:col-span-2 p-4 space-y-4 max-h-[60vh] overflow-y-auto border-r border-gray-200 dark:border-slate-700">
+                  {/* Warnung wenn bereits beantwortet */}
+                  {istBereitsBeantwortet(editedData.email) && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        An diese E-Mail-Adresse wurde bereits ein Angebot gesendet!
+                      </p>
+                    </div>
+                  )}
 
                 {/* Kundendaten */}
                 <div>
@@ -1301,6 +1292,30 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                   </div>
                 </div>
 
+                </div>
+
+                {/* RECHTE SEITE: Original E-Mail (1/3 Breite) */}
+                <div className="lg:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 max-h-[60vh] overflow-y-auto">
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 sticky top-0 bg-slate-50 dark:bg-slate-800/50 pb-2">
+                    <Mail className="w-4 h-4" />
+                    Original E-Mail
+                  </h4>
+                  <div className="space-y-3">
+                    {/* E-Mail Metadaten */}
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                      <p><span className="font-medium">Von:</span> {selectedAnfrage.emailAbsender}</p>
+                      <p><span className="font-medium">Betreff:</span> {selectedAnfrage.emailBetreff}</p>
+                      <p><span className="font-medium">Datum:</span> {new Date(selectedAnfrage.emailDatum).toLocaleString('de-DE')}</p>
+                    </div>
+
+                    {/* E-Mail Inhalt */}
+                    <div className="mt-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
+                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
+                        {selectedAnfrage.emailText}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

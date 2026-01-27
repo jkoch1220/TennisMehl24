@@ -155,11 +155,23 @@ const extractNumber = (text: string, fieldNames: string[]): number | undefined =
   const value = extractField(text, fieldNames);
   if (!value) return undefined;
 
-  // Parse Zahl (mit Komma oder Punkt als Dezimaltrenner)
-  const cleaned = value.replace(',', '.').replace(/[^\d.]/g, '');
+  // WICHTIG: Nur akzeptieren wenn der Wert PRIMÄR eine Zahl ist!
+  // Nicht "Tonnen 0-3 lose" → "03" → 3 extrahieren!
+  // Der Wert muss mit einer Zahl beginnen (optional mit Leerzeichen davor)
+  const trimmed = value.trim();
+
+  // Prüfe ob der Wert eine reine Zahl ist (mit optionalem Dezimaltrenner)
+  // Erlaubt: "8", "8.5", "8,5", "12", "0.5"
+  // Nicht erlaubt: "Tonnen 0-3 lose", "abc", ""
+  const numberMatch = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*(?:t(?:onnen?)?)?$/i);
+  if (!numberMatch) {
+    return undefined;
+  }
+
+  const cleaned = numberMatch[1].replace(',', '.');
   const num = parseFloat(cleaned);
 
-  return isNaN(num) ? undefined : num;
+  return isNaN(num) || num <= 0 ? undefined : num;
 };
 
 // Parse eine E-Mail-Anfrage von der Webseite
