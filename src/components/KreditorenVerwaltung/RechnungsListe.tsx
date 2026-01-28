@@ -227,9 +227,10 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
     try {
       for (const rechnung of zuruecksetzen) {
         // Status auf "offen" zurücksetzen
-        const updateData: Partial<OffeneRechnung> = {
+        // Hinweis: In Appwrite muss man null verwenden um Felder zu löschen, nicht undefined
+        const updateData: Record<string, unknown> = {
           status: 'offen',
-          bezahltAm: undefined,
+          bezahltAm: null, // null löscht das Feld in Appwrite
         };
 
         // Optional: Zahlungen entfernen
@@ -237,7 +238,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
           updateData.zahlungen = [];
         }
 
-        await kreditorService.updateRechnung(rechnung.id, updateData);
+        await kreditorService.updateRechnung(rechnung.id, updateData as Partial<OffeneRechnung>);
 
         // Aktivität dokumentieren
         await aktivitaetService.logStatusAenderung(rechnung.id, 'offen', rechnung.status);

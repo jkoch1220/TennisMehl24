@@ -170,10 +170,11 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
 
       for (const { rechnung } of zuKorrigieren) {
         // Status auf "offen" zurücksetzen
+        // Hinweis: In Appwrite muss man null verwenden um Felder zu löschen, nicht undefined
         await kreditorService.updateRechnung(rechnung.id, {
           status: 'offen',
-          bezahltAm: undefined,
-        });
+          bezahltAm: null,
+        } as unknown as Partial<OffeneRechnung>);
 
         // Aktivität dokumentieren
         await aktivitaetService.logStatusAenderung(rechnung.id, 'offen', 'bezahlt');

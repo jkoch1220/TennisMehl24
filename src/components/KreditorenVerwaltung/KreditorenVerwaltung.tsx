@@ -23,7 +23,8 @@ const KreditorenVerwaltung = () => {
   const [showTelefonErfassung, setShowTelefonErfassung] = useState(false);
   const [showUeberfaelligeRatenWarnung, setShowUeberfaelligeRatenWarnung] = useState(false);
   const [showStatusKorrektur, setShowStatusKorrektur] = useState(false);
-  
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
   // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
   const [defaultFirma, setDefaultFirma] = useState<Unternehmen>(() => {
     const saved = localStorage.getItem('kreditor_default_firma');
@@ -34,9 +35,10 @@ const KreditorenVerwaltung = () => {
     loadData();
   }, []);
 
-  // Prüfe überfällige Raten nach dem Laden
+  // Prüfe überfällige Raten NUR beim ERSTEN Laden
   useEffect(() => {
-    if (!loading && rechnungen.length > 0) {
+    if (!loading && rechnungen.length > 0 && !initialLoadDone) {
+      setInitialLoadDone(true);
       // Importiere die Funktion dynamisch
       import('../../utils/ratenzahlungCalculations').then(({ istRateUeberfaellig }) => {
         const hatUeberfaelligeRaten = rechnungen.some(r => istRateUeberfaellig(r));
@@ -48,7 +50,7 @@ const KreditorenVerwaltung = () => {
         }
       });
     }
-  }, [loading, rechnungen]);
+  }, [loading, rechnungen, initialLoadDone]);
 
   // Speichere Default-Firma in localStorage
   useEffect(() => {
@@ -71,10 +73,24 @@ const KreditorenVerwaltung = () => {
     }
   };
 
+  // Sanftes Neuladen ohne Loading-Spinner (für Updates im Hintergrund)
+  const softRefresh = async () => {
+    try {
+      const [rechnungenData, statistikData] = await Promise.all([
+        kreditorService.loadAlleRechnungen(),
+        kreditorService.berechneStatistik(),
+      ]);
+      setRechnungen(rechnungenData);
+      setStatistik(statistikData);
+    } catch (error) {
+      console.error('Fehler beim sanften Neuladen:', error);
+    }
+  };
+
   const handleSave = () => {
     setShowFormular(false);
     setSelectedRechnung(null);
-    loadData();
+    softRefresh();
   };
 
   const handleEdit = (rechnung: OffeneRechnung) => {
@@ -101,7 +117,7 @@ const KreditorenVerwaltung = () => {
         setSelectedRechnung(updated);
       }
     }
-    loadData();
+    softRefresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -110,7 +126,7 @@ const KreditorenVerwaltung = () => {
       await aktivitaetService.deleteAktivitaetenFuerRechnung(id);
       // Dann die Rechnung löschen
       await kreditorService.deleteRechnung(id);
-      loadData();
+      softRefresh();
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       alert('Fehler beim Löschen der Rechnung');
@@ -272,9 +288,9 @@ const KreditorenVerwaltung = () => {
 
         {/* Ratenzahlungsvereinbarungen */}
         <div id="ratenzahlungsvereinbarung">
-          <RatenzahlungsVereinbarung 
+          <RatenzahlungsVereinbarung
             rechnungen={rechnungen}
-            onUpdate={loadData}
+            onUpdate={softRefresh}
             onOpenDetail={handleOpenDetail}
           />
         </div>
@@ -412,7 +428,7 @@ const KreditorenVerwaltung = () => {
                 rechnungen={offeneRechnungen}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={loadData}
+                onRefresh={softRefresh}
                 onOpenDetail={handleOpenDetail}
               />
             ) : (
@@ -420,7 +436,7 @@ const KreditorenVerwaltung = () => {
                 rechnungen={bezahlteRechnungen}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onRefresh={loadData}
+                onRefresh={softRefresh}
                 onOpenDetail={handleOpenDetail}
               />
             )}
@@ -458,7 +474,7 @@ const KreditorenVerwaltung = () => {
           <TelefonnummernSchnellerfassung
             rechnungen={offeneRechnungen}
             onClose={() => setShowTelefonErfassung(false)}
-            onUpdate={loadData}
+            onUpdate={softRefresh}
           />
         )}
 
@@ -475,7 +491,7 @@ const KreditorenVerwaltung = () => {
         {showStatusKorrektur && (
           <StatusKorrektur
             onClose={() => setShowStatusKorrektur(false)}
-            onUpdate={loadData}
+            onUpdate={softRefresh}
           />
         )}
       </div>
