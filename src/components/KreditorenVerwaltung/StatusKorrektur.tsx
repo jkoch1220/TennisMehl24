@@ -20,8 +20,16 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
   // Wizard-Schritt
   const [schritt, setSchritt] = useState<Schritt>('datum_waehlen');
 
-  // Datum-Auswahl
-  const [datum, setDatum] = useState<string>(() => {
+  // Datum-Auswahl (VON - BIS)
+  const [datumVon, setDatumVon] = useState<string>(() => {
+    const heute = new Date();
+    const tagDerWoche = heute.getDay();
+    const tageZurueck = tagDerWoche >= 3 ? tagDerWoche - 3 : tagDerWoche + 4;
+    const letzterMittwoch = new Date(heute);
+    letzterMittwoch.setDate(heute.getDate() - tageZurueck);
+    return letzterMittwoch.toISOString().split('T')[0];
+  });
+  const [datumBis, setDatumBis] = useState<string>(() => {
     const heute = new Date();
     const tagDerWoche = heute.getDay();
     const tageZurueck = tagDerWoche >= 3 ? tagDerWoche - 3 : tagDerWoche + 4;
@@ -76,6 +84,14 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
     storniert: { label: 'Storniert', color: 'text-gray-700', bg: 'bg-gray-100' },
   };
 
+  // Zeitraum-Beschreibung für die UI
+  const getZeitraumBeschreibung = () => {
+    if (datumVon === datumBis) {
+      return formatDatumKurz(datumVon);
+    }
+    return `${formatDatumKurz(datumVon)} bis ${formatDatumKurz(datumBis)}`;
+  };
+
   // Schritt 1: Änderungen suchen
   const sucheAenderungen = async () => {
     setLoading(true);
@@ -83,8 +99,15 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
     setAenderungen([]);
 
     try {
-      const startDatum = new Date(`${datum}T${zeitVon}:00`);
-      const endDatum = new Date(`${datum}T${zeitBis}:59`);
+      const startDatum = new Date(`${datumVon}T${zeitVon}:00`);
+      const endDatum = new Date(`${datumBis}T${zeitBis}:59`);
+
+      // Validierung: Start muss vor Ende liegen
+      if (startDatum > endDatum) {
+        setFehler('Das Start-Datum muss vor dem End-Datum liegen.');
+        setLoading(false);
+        return;
+      }
 
       const alleRechnungen = await kreditorService.loadAlleRechnungen();
 
@@ -97,7 +120,11 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
       });
 
       if (geaenderteRechnungen.length === 0) {
-        setFehler(`Keine Rechnungen gefunden, die am ${formatDatumKurz(datum)} auf "bezahlt" geändert wurden.`);
+        if (datumVon === datumBis) {
+          setFehler(`Keine Rechnungen gefunden, die am ${formatDatumKurz(datumVon)} auf "bezahlt" geändert wurden.`);
+        } else {
+          setFehler(`Keine Rechnungen gefunden, die zwischen ${formatDatumKurz(datumVon)} und ${formatDatumKurz(datumBis)} auf "bezahlt" geändert wurden.`);
+        }
         return;
       }
 
@@ -215,49 +242,92 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
               </p>
             </div>
 
-            {/* Datum-Auswahl */}
+            {/* Zeitraum-Auswahl */}
             <div className="space-y-4">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                  <Calendar className="w-4 h-4" />
-                  Datum
-                </label>
-                <input
-                  type="date"
-                  value={datum}
-                  onChange={(e) => setDatum(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-orange-500 focus:ring-0 transition-colors text-lg"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                  Ausgewählt: {formatDatumKurz(datum)}
-                </p>
+              {/* VON */}
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    1
+                  </div>
+                  <span className="font-semibold text-green-800 dark:text-green-200">VON (Start)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                      <Calendar className="w-3 h-3" />
+                      Datum
+                    </label>
+                    <input
+                      type="date"
+                      value={datumVon}
+                      onChange={(e) => setDatumVon(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-green-500 focus:ring-0 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                      <Clock className="w-3 h-3" />
+                      Uhrzeit
+                    </label>
+                    <input
+                      type="time"
+                      value={zeitVon}
+                      onChange={(e) => setZeitVon(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-green-500 focus:ring-0 transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <Clock className="w-4 h-4" />
-                    Von
-                  </label>
-                  <input
-                    type="time"
-                    value={zeitVon}
-                    onChange={(e) => setZeitVon(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-orange-500 focus:ring-0 transition-colors"
-                  />
+              {/* Pfeil */}
+              <div className="flex justify-center">
+                <div className="w-8 h-8 bg-gray-200 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                  <ArrowRight className="w-4 h-4 text-gray-500 dark:text-slate-400 rotate-90" />
                 </div>
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <Clock className="w-4 h-4" />
-                    Bis
-                  </label>
-                  <input
-                    type="time"
-                    value={zeitBis}
-                    onChange={(e) => setZeitBis(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-orange-500 focus:ring-0 transition-colors"
-                  />
+              </div>
+
+              {/* BIS */}
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    2
+                  </div>
+                  <span className="font-semibold text-red-800 dark:text-red-200">BIS (Ende)</span>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                      <Calendar className="w-3 h-3" />
+                      Datum
+                    </label>
+                    <input
+                      type="date"
+                      value={datumBis}
+                      onChange={(e) => setDatumBis(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-red-500 focus:ring-0 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">
+                      <Clock className="w-3 h-3" />
+                      Uhrzeit
+                    </label>
+                    <input
+                      type="time"
+                      value={zeitBis}
+                      onChange={(e) => setZeitBis(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:border-red-500 focus:ring-0 transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Zusammenfassung */}
+              <div className="bg-gray-100 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                <span className="text-sm text-gray-600 dark:text-slate-400">
+                  Zeitraum: <span className="font-semibold text-gray-900 dark:text-slate-100">{getZeitraumBeschreibung()}</span>
+                </span>
               </div>
             </div>
 
@@ -308,7 +378,7 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">Vorschau der Änderungen</h2>
-                  <p className="text-white/80 text-sm">Schritt 2 von 3 • {formatDatumKurz(datum)}</p>
+                  <p className="text-white/80 text-sm">Schritt 2 von 3 • {getZeitraumBeschreibung()}</p>
                 </div>
               </div>
               <button
@@ -330,7 +400,7 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
                 <div>
                   <h4 className="font-semibold text-blue-900 dark:text-blue-100">Nur Vorschau - noch keine Änderungen!</h4>
                   <p className="text-blue-700 dark:text-blue-300 text-sm mt-1">
-                    Diese Rechnungen wurden am {formatDatumKurz(datum)} auf "bezahlt" geändert.
+                    Diese Rechnungen wurden im Zeitraum {getZeitraumBeschreibung()} auf "bezahlt" geändert.
                     Wähle aus, welche zurückgesetzt werden sollen.
                   </p>
                 </div>
