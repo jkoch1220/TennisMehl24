@@ -446,6 +446,13 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
                         <div className="text-sm text-gray-500 dark:text-slate-400 truncate">
                           {item.rechnung.rechnungsnummer || item.rechnung.betreff || 'Keine Rechnungsnummer'}
                         </div>
+                        {/* Datum der Status-Änderung */}
+                        <div className="flex items-center gap-1 mt-1">
+                          <Clock className="w-3 h-3 text-orange-500" />
+                          <span className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                            Geändert am: {formatDateTime(item.rechnung.geaendertAm)}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Status-Änderung Visualisierung */}
@@ -461,11 +468,8 @@ const StatusKorrektur = ({ onClose, onUpdate }: StatusKorrekturProps) => {
 
                       {/* Betrag */}
                       <div className="text-right flex-shrink-0">
-                        <div className="font-bold text-gray-900 dark:text-slate-100">
+                        <div className="font-bold text-gray-900 dark:text-slate-100 text-lg">
                           {formatCurrency(item.rechnung.summe)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {formatDateTime(item.rechnung.geaendertAm)}
                         </div>
                       </div>
                     </div>
