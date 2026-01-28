@@ -486,55 +486,55 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
 
       {/* Tabelle */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="overflow-x-auto" style={{ maxWidth: '100%' }}>
+          <table className="w-full divide-y divide-gray-200 table-fixed">
             <thead className="bg-gray-50 dark:bg-slate-800">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider w-12">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase w-10">
                   <button
                     onClick={toggleSelectAll}
                     className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
                     title={selectedIds.size === displayedRechnungen.length ? 'Alle abwählen' : 'Alle auswählen'}
                   >
                     {selectedIds.size === displayedRechnungen.length && displayedRechnungen.length > 0 ? (
-                      <CheckSquare className="w-5 h-5 text-orange-600" />
+                      <CheckSquare className="w-4 h-4 text-orange-600" />
                     ) : (
-                      <Square className="w-5 h-5 text-gray-400" />
+                      <Square className="w-4 h-4 text-gray-400" />
                     )}
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '14%' }}>
                   <SortButton feld="kreditorName">Kreditor</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  Unternehmen
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '8%' }}>
+                  Firma
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  Rechnungsnummer
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '10%' }}>
+                  Re.-Nr.
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '12%' }}>
                   Betreff
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '10%' }}>
                   <SortButton feld="summe">Summe</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  <SortButton feld="faelligkeitsdatum">Fälligkeitsdatum</SortButton>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '10%' }}>
+                  <SortButton feld="faelligkeitsdatum">Fällig</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '8%' }}>
                   <SortButton feld="status">Status</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  <SortButton feld="erstelltAm">Geändert am</SortButton>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '9%' }}>
+                  <SortButton feld="erstelltAm">Geändert</SortButton>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  Mahnstufe
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '7%' }}>
+                  Mahnung
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  <SortButton feld="prioritaet">Priorität</SortButton>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '6%' }}>
+                  <SortButton feld="prioritaet">Prio</SortButton>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                  Aktionen
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 dark:text-slate-400 uppercase" style={{ width: '6%' }}>
+                  Aktion
                 </th>
               </tr>
             </thead>
@@ -568,61 +568,56 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         }`}
                       >
                         {/* Checkbox */}
-                        <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={(e) => toggleSelect(rechnung.id, e)}
-                            className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
+                            className="p-0.5 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
                           >
                             {selectedIds.has(rechnung.id) ? (
-                              <CheckSquare className="w-5 h-5 text-orange-600" />
+                              <CheckSquare className="w-4 h-4 text-orange-600" />
                             ) : (
-                              <Square className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                              <Square className="w-4 h-4 text-gray-400 hover:text-gray-600" />
                             )}
                           </button>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
+                        <td className="px-2 py-2">
+                          <div className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{rechnung.kreditorName}</div>
                           {rechnung.kategorie && (
-                            <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">{rechnung.kategorie}</div>
+                            <div className="text-xs text-gray-500 dark:text-slate-400 capitalize truncate">{rechnung.kategorie}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                            {rechnung.anUnternehmen}
+                        <td className="px-2 py-2">
+                          <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-800 truncate block">
+                            {rechnung.anUnternehmen === 'TennisMehl' ? 'TM' : 'EB'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-slate-100">{rechnung.rechnungsnummer || '-'}</div>
+                        <td className="px-2 py-2">
+                          <div className="text-sm text-gray-900 dark:text-slate-100 truncate">{rechnung.rechnungsnummer || '-'}</div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 dark:text-slate-100 max-w-xs truncate" title={rechnung.betreff}>
+                        <td className="px-2 py-2">
+                          <div className="text-sm text-gray-900 dark:text-slate-100 truncate" title={rechnung.betreff}>
                             {rechnung.betreff || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-2">
                           {(() => {
                             const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
                             const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
                             const hatZahlungen = gesamtBezahlt > 0;
-                            
+
                             return (
                               <>
-                                <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">
+                                <div className={`text-sm font-semibold ${offenerBetrag === 0 && rechnung.status === 'offen' ? 'text-red-600' : 'text-gray-900 dark:text-slate-100'}`}>
                                   {formatCurrency(offenerBetrag)}
                                 </div>
                                 {hatZahlungen && (
-                                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">
                                     von {formatCurrency(rechnung.summe)}
                                   </div>
                                 )}
                                 {rechnung.monatlicheRate && (
-                                  <div className="text-xs text-blue-600 mt-1">
+                                  <div className="text-xs text-blue-600">
                                     Rate: {formatCurrency(rechnung.monatlicheRate)}
-                                  </div>
-                                )}
-                                {hatZahlungen && (
-                                  <div className="text-xs text-green-600 mt-1">
-                                    Bezahlt: {formatCurrency(gesamtBezahlt)}
                                   </div>
                                 )}
                               </>

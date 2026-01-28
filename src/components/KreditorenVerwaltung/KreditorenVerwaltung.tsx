@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2, Phone, RotateCcw } from 'lucide-react';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2, Phone, RotateCcw, Wrench } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
@@ -11,6 +11,7 @@ import TelefonnummernSchnellerfassung from './TelefonnummernSchnellerfassung';
 import RatenzahlungsVereinbarung from './RatenzahlungsVereinbarung';
 import UeberfaelligeRatenWarnung from './UeberfaelligeRatenWarnung';
 import StatusKorrektur from './StatusKorrektur';
+import DatenReparatur from './DatenReparatur';
 
 const KreditorenVerwaltung = () => {
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -23,6 +24,7 @@ const KreditorenVerwaltung = () => {
   const [showTelefonErfassung, setShowTelefonErfassung] = useState(false);
   const [showUeberfaelligeRatenWarnung, setShowUeberfaelligeRatenWarnung] = useState(false);
   const [showStatusKorrektur, setShowStatusKorrektur] = useState(false);
+  const [showDatenReparatur, setShowDatenReparatur] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
@@ -172,8 +174,8 @@ const KreditorenVerwaltung = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen p-4 md:p-6">
+      <div className="w-full space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -217,6 +219,14 @@ const KreditorenVerwaltung = () => {
             >
               <RotateCcw className="w-5 h-5" />
               Status-Korrektur
+            </button>
+            <button
+              onClick={() => setShowDatenReparatur(true)}
+              className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors flex items-center gap-2"
+              title="Daten-Reparatur: Beträge korrigieren"
+            >
+              <Wrench className="w-5 h-5" />
+              Daten-Reparatur
             </button>
             <button
               onClick={() => {
@@ -491,6 +501,14 @@ const KreditorenVerwaltung = () => {
         {showStatusKorrektur && (
           <StatusKorrektur
             onClose={() => setShowStatusKorrektur(false)}
+            onUpdate={softRefresh}
+          />
+        )}
+
+        {/* Daten-Reparatur Modal */}
+        {showDatenReparatur && (
+          <DatenReparatur
+            onClose={() => setShowDatenReparatur(false)}
             onUpdate={softRefresh}
           />
         )}
