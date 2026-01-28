@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
 import { getRelevanteFaelligkeit, istRechnungHeuteFaellig } from '../../utils/ratenzahlungCalculations';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
@@ -108,8 +108,9 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             bVal = prioritaetOrder[b.prioritaet];
             break;
           case 'erstelltAm':
-            aVal = new Date(a.erstelltAm).getTime();
-            bVal = new Date(b.erstelltAm).getTime();
+            // Sortiere nach geaendertAm (nicht erstelltAm)
+            aVal = new Date(a.geaendertAm).getTime();
+            bVal = new Date(b.geaendertAm).getTime();
             break;
           case 'kreditorName':
             aVal = a.kreditorName.toLowerCase();
@@ -393,6 +394,9 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                   <SortButton feld="status">Status</SortButton>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                  <SortButton feld="erstelltAm">Geändert am</SortButton>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   Mahnstufe
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
@@ -406,7 +410,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200">
               {displayedRechnungen.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     Keine Rechnungen gefunden
                   </td>
                 </tr>
@@ -516,6 +520,19 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-gray-400" />
+                            <div>
+                              <div className="text-sm text-gray-900 dark:text-slate-100">
+                                {formatDate(rechnung.geaendertAm)}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-slate-400">
+                                {new Date(rechnung.geaendertAm).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           {rechnung.mahnstufe === 4 ? (
                             <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white">
                               Gerichtlich
@@ -592,7 +609,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                       </tr>
                       {expandedRows.has(rechnung.id) && (
                         <tr key={`${rechnung.id}-expanded`} className={getUnternehmenHintergrund(rechnung.anUnternehmen)}>
-                          <td colSpan={10} className="px-6 py-4 bg-opacity-60">
+                          <td colSpan={11} className="px-6 py-4 bg-opacity-60">
                             <ZahlungsSchnelleingabe rechnung={rechnung} onUpdate={onRefresh} />
                           </td>
                         </tr>
