@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2, Phone } from 'lucide-react';
+import { Plus, TrendingUp, AlertTriangle, Clock, FileText, RefreshCw, BarChart3, PieChart as PieChartIcon, Building2, Phone, RotateCcw } from 'lucide-react';
 import { OffeneRechnung, KreditorenStatistik, Unternehmen } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
@@ -10,6 +10,7 @@ import FaelligkeitsTimeline from './FaelligkeitsTimeline';
 import TelefonnummernSchnellerfassung from './TelefonnummernSchnellerfassung';
 import RatenzahlungsVereinbarung from './RatenzahlungsVereinbarung';
 import UeberfaelligeRatenWarnung from './UeberfaelligeRatenWarnung';
+import StatusKorrektur from './StatusKorrektur';
 
 const KreditorenVerwaltung = () => {
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
@@ -21,6 +22,7 @@ const KreditorenVerwaltung = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [showTelefonErfassung, setShowTelefonErfassung] = useState(false);
   const [showUeberfaelligeRatenWarnung, setShowUeberfaelligeRatenWarnung] = useState(false);
+  const [showStatusKorrektur, setShowStatusKorrektur] = useState(false);
   
   // Default-Firma aus localStorage laden oder 'Egner Bau' als Fallback
   const [defaultFirma, setDefaultFirma] = useState<Unternehmen>(() => {
@@ -191,6 +193,14 @@ const KreditorenVerwaltung = () => {
             >
               <Phone className="w-5 h-5" />
               📞 Telefon-Erfassung
+            </button>
+            <button
+              onClick={() => setShowStatusKorrektur(true)}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+              title="Status-Korrektur: Fälschlicherweise als bezahlt markierte Rechnungen zurücksetzen"
+            >
+              <RotateCcw className="w-5 h-5" />
+              Status-Korrektur
             </button>
             <button
               onClick={() => {
@@ -458,6 +468,14 @@ const KreditorenVerwaltung = () => {
             rechnungen={rechnungen}
             onClose={() => setShowUeberfaelligeRatenWarnung(false)}
             onRateBezahlen={handleRateBezahlen}
+          />
+        )}
+
+        {/* Status-Korrektur Modal */}
+        {showStatusKorrektur && (
+          <StatusKorrektur
+            onClose={() => setShowStatusKorrektur(false)}
+            onUpdate={loadData}
           />
         )}
       </div>
