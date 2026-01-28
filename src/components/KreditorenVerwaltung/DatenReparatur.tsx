@@ -46,23 +46,17 @@ const DatenReparatur = ({ onClose, onUpdate }: DatenReparaturProps) => {
     try {
       const alle = await kreditorService.loadAlleRechnungen();
 
-      // Heute Mitternacht
-      const heute = new Date();
-      heute.setHours(0, 0, 0, 0);
-
-      // Filtere Rechnungen die:
-      // 1. Heute geändert wurden
-      // 2. Status = offen
-      // 3. Noch Zahlungen haben (die das Problem verursachen)
+      // Filtere ALLE Rechnungen die:
+      // 1. Status = offen (nicht bezahlt/storniert)
+      // 2. Noch Zahlungen haben
+      // 3. Zeigen 0€ oder weniger offen (Problem!)
       const problematische = alle.filter(r => {
-        const geaendertAm = new Date(r.geaendertAm);
-        const wurdeHeuteGeaendert = geaendertAm >= heute;
-        const istOffen = r.status === 'offen';
+        const istOffen = r.status === 'offen' || r.status === 'faellig' || r.status === 'gemahnt' || r.status === 'in_bearbeitung' || r.status === 'verzug';
         const hatZahlungen = r.zahlungen && r.zahlungen.length > 0;
         const gesamtBezahlt = r.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
-        const zeigtNullAn = r.summe - gesamtBezahlt <= 0;
+        const zeigtNullOderWeniger = r.summe - gesamtBezahlt <= 0;
 
-        return wurdeHeuteGeaendert && istOffen && hatZahlungen && zeigtNullAn;
+        return istOffen && hatZahlungen && zeigtNullOderWeniger;
       });
 
       // Sortiere nach Änderungsdatum (neueste zuerst)
@@ -244,7 +238,7 @@ const DatenReparatur = ({ onClose, onUpdate }: DatenReparaturProps) => {
                 Keine problematischen Rechnungen gefunden!
               </p>
               <p className="text-gray-400 dark:text-slate-500 text-sm mt-2">
-                Alle heute geänderten Rechnungen haben korrekte Beträge.
+                Alle offenen Rechnungen haben korrekte Beträge.
               </p>
             </div>
           ) : (
