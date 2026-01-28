@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Edit, Trash2, Filter, X, Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp, Eye, ChevronLeft, ChevronRight, Clock, RotateCcw, CheckSquare, Square, AlertTriangle, Shield } from 'lucide-react';
 import { OffeneRechnung, RechnungsFilter, SortierFeld, SortierRichtung, RechnungsStatus, Rechnungskategorie, Prioritaet, Unternehmen } from '../../types/kreditor';
 import { getRelevanteFaelligkeit, istRechnungHeuteFaellig } from '../../utils/ratenzahlungCalculations';
+import { kreditorService } from '../../services/kreditorService';
+import { aktivitaetService } from '../../services/aktivitaetService';
 import ZahlungsSchnelleingabe from './ZahlungsSchnelleingabe';
 
 interface RechnungsListeProps {
@@ -22,6 +24,13 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+
+  // Multi-Select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetBestaetigung, setResetBestaetigung] = useState('');
+  const [entferneZahlungen, setEntferneZahlungen] = useState(true);
 
   useEffect(() => {
     applyFilters();
@@ -180,6 +189,79 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('de-DE');
+  };
+
+  // Multi-Select Funktionen
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === displayedRechnungen.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(displayedRechnungen.map(r => r.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const getSelectedRechnungen = () => {
+    return rechnungen.filter(r => selectedIds.has(r.id));
+  };
+
+  // Status zurücksetzen
+  const handleResetStatus = async () => {
+    const zuruecksetzen = getSelectedRechnungen();
+    setResetLoading(true);
+
+    try {
+      for (const rechnung of zuruecksetzen) {
+        // Status auf "offen" zurücksetzen
+        const updateData: Partial<OffeneRechnung> = {
+          status: 'offen',
+          bezahltAm: undefined,
+        };
+
+        // Optional: Zahlungen entfernen
+        if (entferneZahlungen) {
+          updateData.zahlungen = [];
+        }
+
+        await kreditorService.updateRechnung(rechnung.id, updateData);
+
+        // Aktivität dokumentieren
+        await aktivitaetService.logStatusAenderung(rechnung.id, 'offen', rechnung.status);
+
+        const zahlungenText = entferneZahlungen && rechnung.zahlungen?.length
+          ? ` Zahlungen (${rechnung.zahlungen.length}) wurden ebenfalls entfernt.`
+          : '';
+
+        await aktivitaetService.addKommentar(
+          rechnung.id,
+          `⚠️ MASSEN-KORREKTUR: Status wurde von "${rechnung.status}" auf "offen" zurückgesetzt.${zahlungenText}`
+        );
+      }
+
+      setShowResetDialog(false);
+      setSelectedIds(new Set());
+      setResetBestaetigung('');
+      onRefresh();
+    } catch (error) {
+      console.error('Fehler beim Zurücksetzen:', error);
+      alert('Fehler beim Zurücksetzen. Bitte versuche es erneut.');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   const getTageBisFaellig = (faelligkeitsdatum: string) => {
@@ -366,12 +448,60 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
         )}
       </div>
 
+      {/* Aktionsleiste bei Auswahl */}
+      {selectedIds.size > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-900/30 border-2 border-orange-300 dark:border-orange-700 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <CheckSquare className="w-5 h-5 text-orange-600" />
+              <span className="font-semibold text-orange-800 dark:text-orange-200">
+                {selectedIds.size} ausgewählt
+              </span>
+            </div>
+            <span className="text-orange-700 dark:text-orange-300">
+              Summe: {formatCurrency(getSelectedRechnungen().reduce((sum, r) => sum + r.summe, 0))}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={clearSelection}
+              className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              Auswahl aufheben
+            </button>
+            <button
+              onClick={() => {
+                setResetBestaetigung('');
+                setShowResetDialog(true);
+              }}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 font-medium"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Status zurücksetzen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabelle */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 dark:bg-slate-800">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider w-12">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
+                    title={selectedIds.size === displayedRechnungen.length ? 'Alle abwählen' : 'Alle auswählen'}
+                  >
+                    {selectedIds.size === displayedRechnungen.length && displayedRechnungen.length > 0 ? (
+                      <CheckSquare className="w-5 h-5 text-orange-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                   <SortButton feld="kreditorName">Kreditor</SortButton>
                 </th>
@@ -410,7 +540,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
             <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200">
               {displayedRechnungen.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
+                  <td colSpan={12} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                     Keine Rechnungen gefunden
                   </td>
                 </tr>
@@ -427,13 +557,28 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                         key={rechnung.id}
                         onClick={() => onOpenDetail?.(rechnung)}
                         className={`cursor-pointer transition-colors ${
-                          istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
+                          selectedIds.has(rechnung.id)
+                            ? 'bg-orange-100 dark:bg-orange-900/40'
+                            : istUeberfaellig && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
                             ? 'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50'
                             : istHeute && rechnung.status !== 'bezahlt' && rechnung.status !== 'storniert'
                             ? 'bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border-l-4 border-orange-400'
                             : `${getUnternehmenHintergrund(rechnung.anUnternehmen)} hover:brightness-95 dark:hover:brightness-110`
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => toggleSelect(rechnung.id, e)}
+                            className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
+                          >
+                            {selectedIds.has(rechnung.id) ? (
+                              <CheckSquare className="w-5 h-5 text-orange-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-slate-100">{rechnung.kreditorName}</div>
                           {rechnung.kategorie && (
@@ -609,7 +754,7 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
                       </tr>
                       {expandedRows.has(rechnung.id) && (
                         <tr key={`${rechnung.id}-expanded`} className={getUnternehmenHintergrund(rechnung.anUnternehmen)}>
-                          <td colSpan={11} className="px-6 py-4 bg-opacity-60">
+                          <td colSpan={12} className="px-6 py-4 bg-opacity-60">
                             <ZahlungsSchnelleingabe rechnung={rechnung} onUpdate={onRefresh} />
                           </td>
                         </tr>
@@ -673,6 +818,135 @@ const RechnungsListe = ({ rechnungen, onEdit, onDelete, onRefresh, onOpenDetail 
           </div>
         )}
       </div>
+
+      {/* Reset Dialog */}
+      {showResetDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Shield className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Status zurücksetzen</h2>
+                  <p className="text-white/80 text-sm">{selectedIds.size} Rechnung(en) ausgewählt</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Inhalt */}
+            <div className="p-6">
+              {/* Warnung */}
+              <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-700 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-red-900 dark:text-red-100">Achtung!</h4>
+                    <p className="text-red-700 dark:text-red-300 text-sm mt-1">
+                      Du setzt {selectedIds.size} Rechnung(en) auf "offen" zurück.
+                      Gesamtsumme: {formatCurrency(getSelectedRechnungen().reduce((sum, r) => sum + r.summe, 0))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ausgewählte Rechnungen */}
+              <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl p-4 mb-6 max-h-48 overflow-y-auto">
+                <h4 className="font-semibold text-gray-900 dark:text-slate-100 mb-3 text-sm">Betroffene Rechnungen:</h4>
+                <div className="space-y-2">
+                  {getSelectedRechnungen().map(r => (
+                    <div key={r.id} className="flex justify-between items-center text-sm">
+                      <div>
+                        <span className="font-medium text-gray-900 dark:text-slate-100">{r.kreditorName}</span>
+                        <span className="text-gray-500 dark:text-slate-400 ml-2">{r.rechnungsnummer || r.betreff}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold">{formatCurrency(r.summe)}</span>
+                        {r.zahlungen && r.zahlungen.length > 0 && (
+                          <span className="text-green-600 text-xs ml-2">
+                            ({r.zahlungen.length} Zahlung(en))
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Option: Zahlungen entfernen */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 mb-6">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={entferneZahlungen}
+                    onChange={(e) => setEntferneZahlungen(e.target.checked)}
+                    className="mt-1 w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                  />
+                  <div>
+                    <span className="font-medium text-yellow-900 dark:text-yellow-100">Zahlungen auch entfernen</span>
+                    <p className="text-yellow-700 dark:text-yellow-300 text-sm mt-1">
+                      Wenn aktiviert, werden alle erfassten Zahlungen gelöscht und der volle Rechnungsbetrag ist wieder offen.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Bestätigungs-Eingabe */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  Tippe zum Bestätigen:
+                </label>
+                <div className="bg-gray-100 dark:bg-slate-900 rounded-lg px-4 py-2 mb-3 font-mono text-lg text-gray-900 dark:text-slate-100">
+                  ZURÜCKSETZEN {selectedIds.size}
+                </div>
+                <input
+                  type="text"
+                  value={resetBestaetigung}
+                  onChange={(e) => setResetBestaetigung(e.target.value)}
+                  placeholder="Hier eingeben..."
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-lg font-mono transition-colors ${
+                    resetBestaetigung === `ZURÜCKSETZEN ${selectedIds.size}`
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                      : 'border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700'
+                  } text-gray-900 dark:text-slate-100 focus:outline-none`}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowResetDialog(false);
+                    setResetBestaetigung('');
+                  }}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 dark:border-slate-600 rounded-xl text-gray-700 dark:text-slate-300 font-medium hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleResetStatus}
+                  disabled={resetBestaetigung !== `ZURÜCKSETZEN ${selectedIds.size}` || resetLoading}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resetLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                      Zurücksetzen...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-5 h-5" />
+                      Jetzt zurücksetzen
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
