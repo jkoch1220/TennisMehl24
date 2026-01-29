@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail, Truck, Phone } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail, Truck, CalendarDays } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -29,7 +29,8 @@ import {
   getFileDownloadUrl,
   speichereEntwurf,
   ladeEntwurf,
-  ladePositionenVonVorherigem
+  ladePositionenVonVorherigem,
+  ladeLieferdatenVonAuftragsbestaetigung
 } from '../../services/projektabwicklungDokumentService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
@@ -328,8 +329,18 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
 
-        // DISPO-Ansprechpartner vom Projekt oder Kunden laden
-        let dispoAnsprechpartner: { name: string; telefon: string } | undefined = projekt?.dispoAnsprechpartner;
+        // Lieferdaten von der Auftragsbestätigung übernehmen (KW, Tag, Belieferungsart, DISPO)
+        let lieferdatenAusAB = null;
+        if (projekt?.$id) {
+          lieferdatenAusAB = await ladeLieferdatenVonAuftragsbestaetigung(projekt.$id);
+          if (lieferdatenAusAB) {
+            console.log('✅ Lieferdaten von Auftragsbestätigung übernommen:', lieferdatenAusAB);
+          }
+        }
+
+        // DISPO-Ansprechpartner: Erst AB, dann Projekt, dann Kunde
+        let dispoAnsprechpartner: { name: string; telefon: string } | undefined =
+          lieferdatenAusAB?.dispoAnsprechpartner || projekt?.dispoAnsprechpartner;
         if (!dispoAnsprechpartner?.name && projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
@@ -357,6 +368,12 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           lieferadresseName: lieferadresseName,
           lieferadresseStrasse: lieferadresseStrasse,
           lieferadressePlzOrt: lieferadressePlzOrt,
+          // Lieferdaten von AB übernehmen (falls nicht bereits gesetzt)
+          lieferdatumTyp: prev.lieferdatumTyp || lieferdatenAusAB?.lieferdatumTyp,
+          lieferKW: prev.lieferKW || lieferdatenAusAB?.lieferKW,
+          lieferKWJahr: prev.lieferKWJahr || lieferdatenAusAB?.lieferKWJahr,
+          bevorzugterTag: prev.bevorzugterTag || lieferdatenAusAB?.bevorzugterTag,
+          belieferungsart: prev.belieferungsart || lieferdatenAusAB?.belieferungsart,
         }));
       }
     };
@@ -878,61 +895,188 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
           )}
         </div>
 
-        {/* DISPO-Ansprechpartner */}
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 rounded-xl shadow-sm border-2 border-orange-200 dark:border-orange-800 p-6 transition-all">
+        {/* LIEFERTERMIN & BELIEFERUNG - Prominent hervorgehoben */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 rounded-xl shadow-sm border-2 border-blue-200 dark:border-blue-800 p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
-              <Truck className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <CalendarDays className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-orange-900 dark:text-orange-200">Ansprechpartner Anlieferung</h2>
-              <p className="text-sm text-orange-700 dark:text-orange-400">Kontakt vor Ort für die Spedition</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Liefertermin & Belieferung</h2>
+              <p className="text-sm text-gray-600 dark:text-dark-textMuted">Wird automatisch in die Dispo-Planung übernommen</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-orange-800 dark:text-orange-300 mb-1">
-                Name
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Liefertermin KW */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Liefertermin (Kalenderwoche)
               </label>
-              <input
-                type="text"
-                value={lieferscheinDaten.dispoAnsprechpartner?.name || ''}
-                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
-                  ...lieferscheinDaten.dispoAnsprechpartner,
-                  name: e.target.value,
-                })}
+              <div className="flex gap-2">
+                {/* Typ-Auswahl: In KW oder Spätestens KW */}
+                <select
+                  value={lieferscheinDaten.lieferdatumTyp === 'kw' ? 'kw' : 'spaetestens_kw'}
+                  onChange={(e) => handleInputChange('lieferdatumTyp', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-36 px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800 font-medium"
+                >
+                  <option value="kw">In KW</option>
+                  <option value="spaetestens_kw">Spätestens KW</option>
+                </select>
+                {/* KW-Auswahl */}
+                <select
+                  value={lieferscheinDaten.lieferKW || ''}
+                  onChange={(e) => handleInputChange('lieferKW', e.target.value ? parseInt(e.target.value) : undefined)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="flex-1 px-3 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                >
+                  <option value="">– KW wählen –</option>
+                  {Array.from({ length: 53 }, (_, i) => i + 1).map(kw => (
+                    <option key={kw} value={kw}>KW {kw}</option>
+                  ))}
+                </select>
+                {/* Jahr-Auswahl */}
+                <select
+                  value={lieferscheinDaten.lieferKWJahr || new Date().getFullYear()}
+                  onChange={(e) => handleInputChange('lieferKWJahr', parseInt(e.target.value))}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-20 px-2 py-2 border border-blue-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                >
+                  {[new Date().getFullYear(), new Date().getFullYear() + 1].map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {lieferscheinDaten.lieferdatumTyp === 'kw'
+                  ? 'Feste KW: Lieferung erfolgt in dieser Kalenderwoche'
+                  : 'Flexibel: Lieferung kann früher erfolgen, spätestens jedoch in dieser KW'}
+              </p>
+            </div>
+            {/* Bevorzugter Wochentag */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Bevorzugter Tag
+              </label>
+              <select
+                value={lieferscheinDaten.bevorzugterTag || ''}
+                onChange={(e) => handleInputChange('bevorzugterTag', e.target.value || undefined)}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                placeholder="z.B. Herr Müller (Platzwart)"
-                className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted transition-all"
-              />
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              >
+                <option value="">– Egal –</option>
+                <option value="montag">Montag</option>
+                <option value="dienstag">Dienstag</option>
+                <option value="mittwoch">Mittwoch</option>
+                <option value="donnerstag">Donnerstag</option>
+                <option value="freitag">Freitag</option>
+                <option value="samstag">Samstag</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-orange-800 dark:text-orange-300 mb-1">
-                <span className="flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5" />
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                <Truck className="h-4 w-4" />
+                Belieferungsart
+              </label>
+              <select
+                value={lieferscheinDaten.belieferungsart || ''}
+                onChange={(e) => handleInputChange('belieferungsart', e.target.value || undefined)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+              >
+                <option value="">– Bitte wählen –</option>
+                <option value="nur_motorwagen">Mit Motorwagen</option>
+                <option value="mit_haenger">Motorwagen mit Hänger</option>
+                <option value="abholung_ab_werk">Abholung ab Werk</option>
+                <option value="palette_mit_ladekran">Palette mit Ladekran</option>
+                <option value="bigbag">BigBag</option>
+              </select>
+            </div>
+          </div>
+
+          {/* DISPO-Ansprechpartner */}
+          <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              DISPO-Ansprechpartner (für Lieferung vor Ort)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={lieferscheinDaten.dispoAnsprechpartner?.name || ''}
+                  onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                    ...lieferscheinDaten.dispoAnsprechpartner,
+                    name: e.target.value,
+                  })}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. Herr Müller (Platzwart)"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                   Telefonnummer
-                </span>
-              </label>
-              <input
-                type="tel"
-                value={lieferscheinDaten.dispoAnsprechpartner?.telefon || ''}
-                onChange={(e) => handleInputChange('dispoAnsprechpartner', {
-                  ...lieferscheinDaten.dispoAnsprechpartner,
-                  telefon: e.target.value,
-                })}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                placeholder="z.B. 0171 1234567"
-                className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted transition-all"
-              />
+                </label>
+                <input
+                  type="tel"
+                  value={lieferscheinDaten.dispoAnsprechpartner?.telefon || ''}
+                  onChange={(e) => handleInputChange('dispoAnsprechpartner', {
+                    ...lieferscheinDaten.dispoAnsprechpartner,
+                    telefon: e.target.value,
+                  })}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. 0171 1234567"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800"
+                />
+              </div>
             </div>
           </div>
 
-          {!lieferscheinDaten.dispoAnsprechpartner?.name && !lieferscheinDaten.dispoAnsprechpartner?.telefon && (
-            <p className="mt-3 text-sm text-orange-600 dark:text-orange-400 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Bitte Ansprechpartner für die Anlieferung angeben
-            </p>
+          {lieferscheinDaten.lieferKW && (
+            <div className={`mt-3 p-3 rounded-lg flex items-center gap-2 text-sm ${
+              lieferscheinDaten.lieferdatumTyp === 'kw'
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200'
+                : 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200'
+            }`}>
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <div className="flex flex-col gap-1">
+                <span>
+                  {lieferscheinDaten.lieferdatumTyp === 'kw' ? (
+                    <>Lieferung <strong>in KW {lieferscheinDaten.lieferKW}/{lieferscheinDaten.lieferKWJahr || new Date().getFullYear()}</strong> (feste KW)</>
+                  ) : (
+                    <>Lieferung <strong>spätestens KW {lieferscheinDaten.lieferKW}/{lieferscheinDaten.lieferKWJahr || new Date().getFullYear()}</strong> (flexibel)</>
+                  )}
+                </span>
+                {lieferscheinDaten.bevorzugterTag && (
+                  <span>
+                    Bevorzugter Tag: <strong>
+                      {lieferscheinDaten.bevorzugterTag === 'montag' && 'Montag'}
+                      {lieferscheinDaten.bevorzugterTag === 'dienstag' && 'Dienstag'}
+                      {lieferscheinDaten.bevorzugterTag === 'mittwoch' && 'Mittwoch'}
+                      {lieferscheinDaten.bevorzugterTag === 'donnerstag' && 'Donnerstag'}
+                      {lieferscheinDaten.bevorzugterTag === 'freitag' && 'Freitag'}
+                      {lieferscheinDaten.bevorzugterTag === 'samstag' && 'Samstag'}
+                    </strong>
+                  </span>
+                )}
+                {lieferscheinDaten.belieferungsart && (
+                  <span>
+                    Belieferungsart: <strong>
+                      {lieferscheinDaten.belieferungsart === 'nur_motorwagen' && 'Mit Motorwagen'}
+                      {lieferscheinDaten.belieferungsart === 'mit_haenger' && 'Motorwagen mit Hänger'}
+                      {lieferscheinDaten.belieferungsart === 'abholung_ab_werk' && 'Abholung ab Werk'}
+                      {lieferscheinDaten.belieferungsart === 'palette_mit_ladekran' && 'Palette mit Ladekran'}
+                      {lieferscheinDaten.belieferungsart === 'bigbag' && 'BigBag'}
+                    </strong>
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

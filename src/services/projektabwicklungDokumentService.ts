@@ -21,7 +21,7 @@ import {
   Position,
   LieferscheinPosition
 } from '../types/projektabwicklung';
-import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart } from '../types/projekt';
+import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart, Wochentag } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
@@ -529,6 +529,38 @@ export const speichereLieferschein = async (
     // Setze Version manuell für Rückgabe (für UI)
     const result = dokument as unknown as GespeichertesDokument;
     result.version = neueVersion;
+
+    // Lieferdaten im Projekt aktualisieren (falls vorhanden)
+    try {
+      const updateDaten: Partial<Projekt> = {
+        lieferscheinnummer: daten.lieferscheinnummer,
+      };
+
+      // Lieferdaten nur überschreiben wenn im Lieferschein gesetzt
+      if (daten.lieferKW) {
+        updateDaten.lieferKW = daten.lieferKW;
+      }
+      if (daten.lieferKWJahr) {
+        updateDaten.lieferKWJahr = daten.lieferKWJahr;
+      }
+      if (daten.lieferdatumTyp) {
+        updateDaten.lieferdatumTyp = daten.lieferdatumTyp as LieferdatumTyp;
+      }
+      if (daten.bevorzugterTag) {
+        updateDaten.bevorzugterTag = daten.bevorzugterTag as Wochentag;
+      }
+      if (daten.belieferungsart) {
+        updateDaten.belieferungsart = daten.belieferungsart as Belieferungsart;
+      }
+      if (daten.dispoAnsprechpartner?.name || daten.dispoAnsprechpartner?.telefon) {
+        updateDaten.dispoAnsprechpartner = daten.dispoAnsprechpartner;
+      }
+
+      await projektService.updateProjekt(projektId, updateDaten);
+      console.log('✅ Projekt mit Lieferschein-Daten aktualisiert');
+    } catch (error) {
+      console.warn('Konnte Projekt nicht mit Lieferschein-Daten aktualisieren:', error);
+    }
 
     return result;
   } catch (error) {
@@ -1268,3 +1300,65 @@ function konvertierePositionen(
     }));
   }
 }
+
+/**
+ * Lädt die Lieferdaten (KW, bevorzugter Tag, Belieferungsart, DISPO-Ansprechpartner)
+ * von der Auftragsbestätigung, falls vorhanden.
+ */
+export interface LieferdatenAusAB {
+  lieferKW?: number;
+  lieferKWJahr?: number;
+  bevorzugterTag?: Wochentag;
+  belieferungsart?: Belieferungsart;
+  lieferdatumTyp?: LieferdatumTyp;
+  dispoAnsprechpartner?: { name: string; telefon: string };
+}
+
+export const ladeLieferdatenVonAuftragsbestaetigung = async (
+  projektId: string
+): Promise<LieferdatenAusAB | null> => {
+  try {
+    // Versuche finalisiertes AB-Dokument zu laden
+    let abDokument = await ladeDokumentNachTyp(projektId, 'auftragsbestaetigung');
+
+    // Falls kein finalisiertes Dokument existiert, versuche Entwurf zu laden
+    if (!abDokument) {
+      const entwurf = await ladeEntwurf<AuftragsbestaetigungsDaten>(
+        projektId,
+        'auftragsbestaetigungsDaten'
+      );
+
+      if (entwurf) {
+        return {
+          lieferKW: entwurf.lieferKW,
+          lieferKWJahr: entwurf.lieferKWJahr,
+          bevorzugterTag: entwurf.bevorzugterTag,
+          belieferungsart: entwurf.belieferungsart,
+          lieferdatumTyp: entwurf.lieferdatumTyp,
+          dispoAnsprechpartner: entwurf.dispoAnsprechpartner,
+        };
+      }
+      return null;
+    }
+
+    // Lade Dokument-Daten
+    const abDaten = ladeDokumentDaten<AuftragsbestaetigungsDaten>(abDokument);
+
+    if (!abDaten) {
+      return null;
+    }
+
+    return {
+      lieferKW: abDaten.lieferKW,
+      lieferKWJahr: abDaten.lieferKWJahr,
+      bevorzugterTag: abDaten.bevorzugterTag,
+      belieferungsart: abDaten.belieferungsart,
+      lieferdatumTyp: abDaten.lieferdatumTyp,
+      dispoAnsprechpartner: abDaten.dispoAnsprechpartner,
+    };
+
+  } catch (error) {
+    console.error('Fehler beim Laden der Lieferdaten von der AB:', error);
+    return null;
+  }
+};

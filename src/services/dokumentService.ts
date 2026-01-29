@@ -13,7 +13,8 @@ import {
   formatDatum,
   getTextHeight,
   getLiefersaisonText,
-  formatStrasseHausnummer
+  formatStrasseHausnummer,
+  addWrappedText
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
@@ -124,63 +125,69 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
-  
+
   // === DIN 5008: EMPFÄNGERADRESSE ===
+  // Maximale Breite für Adressfeld: 80mm (bis zum Infoblock bei 130mm minus etwas Abstand)
+  const adressfeldBreite = 80;
   let yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 25, yPos);
+  // Kundenname kann auch lang sein - umbrechen
+  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreite, 5);
   doc.setFont('helvetica', 'normal');
-  yPos += 6;
-  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
-  yPos += 5;
+  yPos += 1; // Kleiner Abstand nach Name
+  // Straße umbrechen wenn zu lang
+  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreite, 5);
+  // PLZ/Ort
   doc.text(daten.kundenPlzOrt, 25, yPos);
-  
+  yPos += 5;
+
   // Ansprechpartner
   if (daten.ansprechpartner) {
-    yPos += 6;
+    yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
-  
+
   // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
     // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
     yPos += 9;
-    
+
     // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
     // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
     doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
     doc.setLineWidth(0.15);  // Dünner (dezenter)
     doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
-    
+
     // Zweite Hälfte des Abstands
     yPos += 9;
-    
+
     // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'normal');
     doc.text('Lieferadresse:', 25, yPos);
     yPos += 6;
-    
+
     // Lieferadresse-Daten
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, 25, yPos);
+    // Name umbrechen wenn zu lang
+    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreite, 5);
     doc.setFont('helvetica', 'normal');
-    yPos += 6;
-    
+    yPos += 1;
+
     if (daten.lieferadresseStrasse) {
-      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
-      yPos += 5;
+      // Straße umbrechen wenn zu lang
+      yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos, adressfeldBreite, 5);
     }
-    
+
     if (daten.lieferadressePlzOrt) {
       doc.text(daten.lieferadressePlzOrt, 25, yPos);
       yPos += 5;
@@ -189,7 +196,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
 
   // === DIN 5008: BETREFF ===
   // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
-  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName
     ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
     : 95;  // Standard-Position wenn keine Lieferadresse
   yPos = betrefYPos;
@@ -783,63 +790,69 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
-  
+
   // === DIN 5008: EMPFÄNGERADRESSE ===
+  // Maximale Breite für Adressfeld: 80mm (bis zum Infoblock bei 130mm minus etwas Abstand)
+  const adressfeldBreiteAB = 80;
   let yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 25, yPos);
+  // Kundenname kann auch lang sein - umbrechen
+  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreiteAB, 5);
   doc.setFont('helvetica', 'normal');
-  yPos += 6;
-  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
-  yPos += 5;
+  yPos += 1; // Kleiner Abstand nach Name
+  // Straße umbrechen wenn zu lang
+  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreiteAB, 5);
+  // PLZ/Ort
   doc.text(daten.kundenPlzOrt, 25, yPos);
-  
+  yPos += 5;
+
   // Ansprechpartner
   if (daten.ansprechpartner) {
-    yPos += 6;
+    yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
-  
+
   // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
     // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
     yPos += 9;
-    
+
     // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
     // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
     doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
     doc.setLineWidth(0.15);  // Dünner (dezenter)
     doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
-    
+
     // Zweite Hälfte des Abstands
     yPos += 9;
-    
+
     // Überschrift "Lieferadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'normal');
     doc.text('Lieferadresse:', 25, yPos);
     yPos += 6;
-    
+
     // Lieferadresse-Daten
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, 25, yPos);
+    // Name umbrechen wenn zu lang
+    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreiteAB, 5);
     doc.setFont('helvetica', 'normal');
-    yPos += 6;
-    
+    yPos += 1;
+
     if (daten.lieferadresseStrasse) {
-      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
-      yPos += 5;
+      // Straße umbrechen wenn zu lang
+      yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos, adressfeldBreiteAB, 5);
     }
-    
+
     if (daten.lieferadressePlzOrt) {
       doc.text(daten.lieferadressePlzOrt, 25, yPos);
       yPos += 5;
@@ -848,7 +861,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
 
   // === DIN 5008: BETREFF ===
   // Dynamische Positionierung: Mindestens 10mm Abstand nach Lieferadresse, sonst Standard-Position
-  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName 
+  const betrefYPos = daten.lieferadresseAbweichend && daten.lieferadresseName
     ? Math.max(yPos + 10, 95)  // Mindestens 10mm nach Lieferadresse, aber nie unter 95
     : 95;  // Standard-Position wenn keine Lieferadresse
   yPos = betrefYPos;
@@ -1350,20 +1363,25 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   addAbsenderzeile(doc, stammdaten);
 
   // === DIN 5008: EMPFÄNGERADRESSE ===
+  // Maximale Breite für Adressfeld: 80mm (bis zum Infoblock bei 130mm minus etwas Abstand)
+  const adressfeldBreiteLS = 80;
   let yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 25, yPos);
+  // Kundenname kann auch lang sein - umbrechen
+  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreiteLS, 5);
   doc.setFont('helvetica', 'normal');
-  yPos += 6;
-  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
-  yPos += 5;
+  yPos += 1; // Kleiner Abstand nach Name
+  // Straße umbrechen wenn zu lang
+  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreiteLS, 5);
+  // PLZ/Ort
   doc.text(daten.kundenPlzOrt, 25, yPos);
+  yPos += 5;
 
   // Ansprechpartner (mit optionaler Telefonnummer)
   if (daten.ansprechpartner) {
-    yPos += 6;
+    yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     // Ansprechpartner mit Telefonnummer in einer Zeile
@@ -1400,13 +1418,14 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, 25, yPos);
+    // Name umbrechen wenn zu lang
+    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreiteLS, 5);
     doc.setFont('helvetica', 'normal');
-    yPos += 6;
+    yPos += 1;
 
     if (daten.lieferadresseStrasse) {
-      doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos);
-      yPos += 5;
+      // Straße umbrechen wenn zu lang
+      yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos, adressfeldBreiteLS, 5);
     }
 
     if (daten.lieferadressePlzOrt) {

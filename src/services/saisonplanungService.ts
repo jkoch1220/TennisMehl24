@@ -107,6 +107,44 @@ async function setzeReferenzmengeFolgejahr(
   }
 }
 
+/**
+ * Generiert die nächste verfügbare Kundennummer
+ * Format: K + 5-stellige Zahl (z.B. K10001, K10002, ...)
+ */
+async function generiereNaechsteKundennummer(): Promise<string> {
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      SAISON_KUNDEN_COLLECTION_ID,
+      [Query.limit(5000)]
+    );
+
+    let hoechsteNummer = 10000; // Startwert
+
+    for (const doc of response.documents) {
+      const kunde = parseDocument<SaisonKunde>(doc, { id: doc.$id } as SaisonKunde);
+      if (kunde.kundennummer) {
+        // Extrahiere die Zahl aus der Kundennummer (z.B. "K10042" -> 10042)
+        const match = kunde.kundennummer.match(/K?(\d+)/i);
+        if (match) {
+          const nummer = parseInt(match[1], 10);
+          if (nummer > hoechsteNummer) {
+            hoechsteNummer = nummer;
+          }
+        }
+      }
+    }
+
+    // Nächste Nummer generieren
+    const naechsteNummer = hoechsteNummer + 1;
+    return `K${naechsteNummer}`;
+  } catch (error) {
+    console.error('Fehler bei Kundennummer-Generierung:', error);
+    // Fallback: Zeitbasierte Nummer
+    return `K${Date.now().toString().slice(-6)}`;
+  }
+}
+
 export const saisonplanungService = {
   // ========== KUNDEN ==========
 
@@ -187,9 +225,14 @@ export const saisonplanungService = {
     const emptyAdresse = { strasse: '', plz: '', ort: '', bundesland: '' };
     // Bestimme die Adressen (Backwards-Compatibility: nutze adresse als Fallback)
     const basisAdresse = kunde.adresse || emptyAdresse;
+
+    // Automatisch Kundennummer generieren, falls keine vorhanden
+    const kundennummer = kunde.kundennummer || await generiereNaechsteKundennummer();
+
     const neuerKunde: SaisonKunde = {
       ...kunde,
       id: kunde.id || ID.unique(),
+      kundennummer,
       rechnungsadresse: kunde.rechnungsadresse?.strasse
         ? kunde.rechnungsadresse
         : { ...basisAdresse },

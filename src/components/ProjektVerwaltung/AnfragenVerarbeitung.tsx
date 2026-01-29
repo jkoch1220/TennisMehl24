@@ -70,7 +70,7 @@ const ABLADUNGSZEIT_MINUTEN = 30;
 const START_PLZ = '97828'; // Marktheidenfeld
 
 // Standard-Absender für Angebote
-const DEFAULT_ABSENDER_EMAIL = 'info@tennismehl.com';
+const DEFAULT_ABSENDER_EMAIL = 'anfragen@tennismehl.com';
 
 // Test-E-Mail-Adresse
 const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';

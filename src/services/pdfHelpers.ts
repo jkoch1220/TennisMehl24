@@ -400,6 +400,79 @@ export const getTextHeight = (text: string | string[], lineHeight: number = 4): 
 };
 
 /**
+ * Gibt einen Text aus, der automatisch umgebrochen wird, wenn er zu lang ist.
+ * Gibt die neue Y-Position nach dem Text zurück.
+ * WICHTIG: Verwendet NICHT splitTextToSize da dies komische Abstände verursachen kann.
+ * Stattdessen manueller Umbruch an sinnvollen Stellen (Leerzeichen, Schrägstrich).
+ * @param doc - jsPDF Dokument
+ * @param text - Der auszugebende Text
+ * @param x - X-Position
+ * @param y - Y-Position
+ * @param maxWidth - Maximale Breite (Standard: 80mm für Adressfeld)
+ * @param lineHeight - Zeilenhöhe (Standard: 5)
+ * @returns Neue Y-Position nach dem Text
+ */
+export const addWrappedText = (
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number = 80,
+  lineHeight: number = 5
+): number => {
+  if (!text) return y;
+
+  // Prüfe ob Text in eine Zeile passt
+  const textWidth = doc.getTextWidth(text);
+  if (textWidth <= maxWidth) {
+    // Text passt - einfach ausgeben
+    doc.text(text, x, y);
+    return y + lineHeight;
+  }
+
+  // Text ist zu lang - manuell an sinnvollen Stellen umbrechen
+  // Umbruchpunkte: Leerzeichen, Schrägstrich mit Leerzeichen " / "
+  const words = text.split(/(\s+|(?<=\/)\s*)/); // Split an Leerzeichen, behalte Trennzeichen
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine + word;
+    const testWidth = doc.getTextWidth(testLine.trim());
+
+    if (testWidth > maxWidth && currentLine.trim().length > 0) {
+      // Zeile ist voll - neue Zeile beginnen
+      lines.push(currentLine.trim());
+      currentLine = word.trim() + ' ';
+    } else {
+      currentLine = testLine;
+    }
+  }
+
+  // Letzte Zeile hinzufügen
+  if (currentLine.trim().length > 0) {
+    lines.push(currentLine.trim());
+  }
+
+  // Falls immer noch keine sinnvolle Aufteilung möglich, splitTextToSize als Fallback
+  if (lines.length === 0) {
+    const fallbackLines = doc.splitTextToSize(text, maxWidth);
+    fallbackLines.forEach((line: string, index: number) => {
+      doc.text(line, x, y + (index * lineHeight));
+    });
+    return y + (fallbackLines.length * lineHeight);
+  }
+
+  // Zeilen ausgeben - LINKSBÜNDIG
+  lines.forEach((line: string, index: number) => {
+    doc.text(line, x, y + (index * lineHeight), { align: 'left' });
+  });
+
+  // Neue Y-Position zurückgeben
+  return y + (lines.length * lineHeight);
+};
+
+/**
  * Berechnet die ISO-Kalenderwoche für ein Datum
  * ISO-Wochen beginnen am Montag, die erste Woche des Jahres ist die Woche mit dem ersten Donnerstag
  */

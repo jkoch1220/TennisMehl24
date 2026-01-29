@@ -13,7 +13,8 @@ import {
   formatWaehrung as formatWaehrungHelper,
   formatDatum as formatDatumHelper,
   getTextHeight,
-  formatStrasseHausnummer
+  formatStrasseHausnummer,
+  addWrappedText
 } from './pdfHelpers';
 
 // Gemeinsame Berechnungsfunktion
@@ -147,50 +148,54 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
-  
+
   // === DIN 5008: EMPFÄNGERADRESSE ===
+  // Maximale Breite für Adressfeld: 80mm
+  const adressfeldBreiteRE = 80;
   yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 25, yPos);
+  // Kundenname kann auch lang sein - umbrechen
+  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreiteRE, 5);
   doc.setFont('helvetica', 'normal');
-  yPos += 6;
-  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
-  yPos += 5;
+  yPos += 1; // Kleiner Abstand nach Name
+  // Straße umbrechen wenn zu lang
+  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreiteRE, 5);
+  // PLZ/Ort
   doc.text(daten.kundenPlzOrt, 25, yPos);
-  
+  yPos += 5;
+
   // Ansprechpartner
   if (daten.ansprechpartner) {
-    yPos += 6;
+    yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
   }
-  
+
   // === Lieferadresse (falls abweichend) - Rechts neben Empfängeradresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
     let lieferYPos = 50;
     const lieferX = 120;
-    
+    const lieferBreite = 65; // Breite für Lieferadresse rechts
+
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text('Lieferadresse:', lieferX, lieferYPos);
     lieferYPos += 5;
-    
+
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    lieferYPos = addWrappedText(doc, daten.lieferadresseName, lieferX, lieferYPos, lieferBreite, 4);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 5;
-    doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos);
-    lieferYPos += 4;
+    lieferYPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos, lieferBreite, 4);
     doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
   }
-  
+
   // === DIN 5008: BETREFF ===
   yPos = 95; // DIN 5008: Betreff beginnt nach Empfängerfeld
   doc.setFontSize(12);
@@ -645,20 +650,25 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   addAbsenderzeile(doc, stammdaten);
 
   // === DIN 5008: EMPFÄNGERADRESSE ===
+  // Maximale Breite für Adressfeld: 80mm
+  const adressfeldBreitePF = 80;
   yPos = 50;
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(daten.kundenname, 25, yPos);
+  // Kundenname kann auch lang sein - umbrechen
+  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreitePF, 5);
   doc.setFont('helvetica', 'normal');
-  yPos += 6;
-  doc.text(formatStrasseHausnummer(daten.kundenstrasse), 25, yPos);
-  yPos += 5;
+  yPos += 1; // Kleiner Abstand nach Name
+  // Straße umbrechen wenn zu lang
+  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreitePF, 5);
+  // PLZ/Ort
   doc.text(daten.kundenPlzOrt, 25, yPos);
+  yPos += 5;
 
   // Ansprechpartner
   if (daten.ansprechpartner) {
-    yPos += 6;
+    yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text(`z. Hd. ${daten.ansprechpartner}`, 25, yPos);
@@ -670,6 +680,7 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
     let lieferYPos = 50;
     const lieferX = 120;
+    const lieferBreitePF = 65; // Breite für Lieferadresse rechts
 
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
@@ -679,11 +690,9 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text(daten.lieferadresseName, lieferX, lieferYPos);
+    lieferYPos = addWrappedText(doc, daten.lieferadresseName, lieferX, lieferYPos, lieferBreitePF, 4);
     doc.setFont('helvetica', 'normal');
-    lieferYPos += 5;
-    doc.text(formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos);
-    lieferYPos += 4;
+    lieferYPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos, lieferBreitePF, 4);
     doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
   }
 

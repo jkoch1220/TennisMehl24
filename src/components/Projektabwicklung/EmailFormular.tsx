@@ -142,7 +142,7 @@ const EmailFormular = ({
   // Standard-Absender basierend auf Dokumenttyp
   const getDefaultAbsender = (typ: DokumentTyp, konten: EmailAccount[]): string => {
     const mappings: Record<DokumentTyp, string[]> = {
-      angebot: ['anfrage@tennismehl.com', 'info@tennismehl.com'],
+      angebot: ['anfragen@tennismehl.com', 'info@tennismehl.com'],
       auftragsbestaetigung: ['bestellung@tennismehl24.com', 'info@tennismehl.com'],
       lieferschein: ['logistik@tennismehl.com', 'info@tennismehl.com'],
       rechnung: ['rechnung@tennismehl.com', 'info@tennismehl.com'],

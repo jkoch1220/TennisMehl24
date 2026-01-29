@@ -188,6 +188,13 @@ export interface LieferscheinDaten extends BaseDokument {
   // Ansprechpartner Telefon (zusätzlich zum ansprechpartner aus BaseDokument)
   ansprechpartnerTelefon?: string;
 
+  // Liefertermin & Belieferung (wie in Auftragsbestätigung)
+  lieferdatumTyp?: LieferdatumTyp; // 'kw' = In KW, 'spaetestens_kw' = Spätestens KW
+  lieferKW?: number; // Kalenderwoche (1-53)
+  lieferKWJahr?: number; // Jahr der Kalenderwoche
+  bevorzugterTag?: Wochentag; // Bevorzugter Wochentag für die Lieferung
+  belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
+
   // DISPO-Ansprechpartner (z.B. Platzwart vor Ort für die Anlieferung)
   dispoAnsprechpartner?: {
     name: string;

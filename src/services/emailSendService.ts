@@ -49,8 +49,8 @@ export const ladeEmailKonten = async (): Promise<EmailAccount[]> => {
     console.error('Fehler beim Laden der E-Mail-Konten:', error);
     // Fallback-Konten für Development
     return [
+      { email: 'anfragen@tennismehl.com', name: 'Anfragen' },
       { email: 'info@tennismehl.com', name: 'Info' },
-      { email: 'anfrage@tennismehl.com', name: 'Anfragen' },
       { email: 'bestellung@tennismehl24.com', name: 'Bestellungen' },
       { email: 'rechnung@tennismehl.com', name: 'Rechnungen' },
       { email: 'logistik@tennismehl.com', name: 'Logistik' },

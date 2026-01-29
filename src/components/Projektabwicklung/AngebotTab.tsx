@@ -219,41 +219,58 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         // Erst prüfen ob ein finalisiertes Angebot existiert
         const dokument = await ladeDokumentNachTyp(projekt.$id, 'angebot');
 
+        // WICHTIG: IMMER aktuelle Kunden-Adressen laden!
+        // Diese haben Vorrang vor Entwurf- oder Dokument-Adressen!
+        let kundenRechnungsStrasse: string | undefined = undefined;
+        let kundenRechnungsPlzOrt: string | undefined = undefined;
+        let kundenLieferStrasse: string | undefined = undefined;
+        let kundenLieferPlzOrt: string | undefined = undefined;
+        let kundenLieferadresseAbweichend = false;
+
+        if (projekt?.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde) {
+              if (kunde.rechnungsadresse) {
+                kundenRechnungsStrasse = kunde.rechnungsadresse.strasse;
+                kundenRechnungsPlzOrt = `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`.trim();
+                console.log('✅ Aktuelle Rechnungsadresse vom Kunden:', kundenRechnungsStrasse);
+              }
+              if (kunde.lieferadresse) {
+                kundenLieferStrasse = kunde.lieferadresse.strasse;
+                kundenLieferPlzOrt = `${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`.trim();
+                kundenLieferadresseAbweichend =
+                  kunde.lieferadresse.strasse !== kunde.rechnungsadresse?.strasse ||
+                  kunde.lieferadresse.plz !== kunde.rechnungsadresse?.plz ||
+                  kunde.lieferadresse.ort !== kunde.rechnungsadresse?.ort;
+              }
+            }
+          } catch (error) {
+            console.warn('Kunden-Adressen konnten nicht geladen werden:', error);
+          }
+        }
+
         if (dokument) {
           setGespeichertesDokument(dokument);
           // Lade gespeicherte Daten für Bearbeitung
           const gespeicherteDaten = ladeDokumentDaten<AngebotsDaten>(dokument);
           if (gespeicherteDaten) {
-            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
-            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend
-              ? gespeicherteDaten.lieferadresseAbweichend
-              : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherteDaten.lieferadresseName
-              ? gespeicherteDaten.lieferadresseName
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse
-              ? gespeicherteDaten.lieferadresseStrasse
-              : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
-              ? gespeicherteDaten.lieferadressePlzOrt
-              : (projekt?.lieferadresse
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
-                : undefined);
-
             // Platzbauer-Name laden falls ID vorhanden aber Name fehlt
             const platzbauerId = gespeicherteDaten.platzbauerId || projekt?.platzbauerId;
             const platzbauername = gespeicherteDaten.platzbauername || await ladePlatzbauernamen(platzbauerId);
 
+            // WICHTIG: Kunden-Adressen haben IMMER Vorrang!
             setAngebotsDaten({
               ...gespeicherteDaten,
               kundennummer: gespeicherteDaten.kundennummer || projekt?.kundennummer,
               kundenname: gespeicherteDaten.kundenname || projekt?.kundenname || '',
-              kundenstrasse: gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
-              kundenPlzOrt: gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
-              lieferadresseAbweichend: lieferadresseAbweichend,
-              lieferadresseName: lieferadresseName,
-              lieferadresseStrasse: lieferadresseStrasse,
-              lieferadressePlzOrt: lieferadressePlzOrt,
+              // KUNDEN-ADRESSEN haben VORRANG vor gespeicherten Daten!
+              kundenstrasse: kundenRechnungsStrasse || gespeicherteDaten.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: kundenRechnungsPlzOrt || gespeicherteDaten.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: kundenLieferadresseAbweichend || gespeicherteDaten.lieferadresseAbweichend || false,
+              lieferadresseName: gespeicherteDaten.lieferadresseName || projekt?.kundenname || '',
+              lieferadresseStrasse: kundenLieferStrasse || gespeicherteDaten.lieferadresseStrasse,
+              lieferadressePlzOrt: kundenLieferPlzOrt || gespeicherteDaten.lieferadressePlzOrt,
               platzbauerId: platzbauerId,
               platzbauername: platzbauername,
             });
@@ -264,36 +281,22 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           const gespeicherterEntwurf = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
 
           if (gespeicherterEntwurf) {
-            // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
-            const lieferadresseAbweichend = gespeicherterEntwurf.lieferadresseAbweichend
-              ? gespeicherterEntwurf.lieferadresseAbweichend
-              : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherterEntwurf.lieferadresseName
-              ? gespeicherterEntwurf.lieferadresseName
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherterEntwurf.lieferadresseStrasse
-              ? gespeicherterEntwurf.lieferadresseStrasse
-              : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherterEntwurf.lieferadressePlzOrt
-              ? gespeicherterEntwurf.lieferadressePlzOrt
-              : (projekt?.lieferadresse
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
-                : undefined);
-
             // Platzbauer-Name laden falls ID vorhanden aber Name fehlt
             const platzbauerId = gespeicherterEntwurf.platzbauerId || projekt?.platzbauerId;
             const platzbauername = gespeicherterEntwurf.platzbauername || await ladePlatzbauernamen(platzbauerId);
 
+            // WICHTIG: Kunden-Adressen haben IMMER Vorrang!
             setAngebotsDaten({
               ...gespeicherterEntwurf,
               kundennummer: gespeicherterEntwurf.kundennummer || projekt?.kundennummer,
               kundenname: gespeicherterEntwurf.kundenname || projekt?.kundenname || '',
-              kundenstrasse: gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
-              kundenPlzOrt: gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
-              lieferadresseAbweichend: lieferadresseAbweichend,
-              lieferadresseName: lieferadresseName,
-              lieferadresseStrasse: lieferadresseStrasse,
-              lieferadressePlzOrt: lieferadressePlzOrt,
+              // KUNDEN-ADRESSEN haben VORRANG vor Entwurf-Daten!
+              kundenstrasse: kundenRechnungsStrasse || gespeicherterEntwurf.kundenstrasse || projekt?.kundenstrasse || '',
+              kundenPlzOrt: kundenRechnungsPlzOrt || gespeicherterEntwurf.kundenPlzOrt || projekt?.kundenPlzOrt || '',
+              lieferadresseAbweichend: kundenLieferadresseAbweichend || gespeicherterEntwurf.lieferadresseAbweichend || false,
+              lieferadresseName: gespeicherterEntwurf.lieferadresseName || projekt?.kundenname || '',
+              lieferadresseStrasse: kundenLieferStrasse || gespeicherterEntwurf.lieferadresseStrasse,
+              lieferadressePlzOrt: kundenLieferPlzOrt || gespeicherterEntwurf.lieferadressePlzOrt,
               platzbauerId: platzbauerId,
               platzbauername: platzbauername,
             });
@@ -450,38 +453,68 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
           : undefined;
 
-        // DISPO-Ansprechpartner, Platzbauer und Ansprechpartner vom Kunden laden (falls vorhanden)
+        // WICHTIG: Kunden-Daten laden für AKTUELLE Rechnungs- und Lieferadresse
+        // Diese haben IMMER Vorrang vor Projekt-Daten!
         let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
         let platzbauerId: string | undefined = projekt?.platzbauerId;
         let platzbauername: string | undefined = undefined;
         let kundenAnsprechpartner: string | undefined = projekt?.ansprechpartner || kundeInfo?.ansprechpartner;
+
+        // Adressen vom Kunden (werden unten gesetzt wenn Kunde geladen)
+        let kundenRechnungsStrasse: string | undefined = undefined;
+        let kundenRechnungsPlzOrt: string | undefined = undefined;
+        let kundenLieferStrasse: string | undefined = undefined;
+        let kundenLieferPlzOrt: string | undefined = undefined;
+        let kundenLieferadresseAbweichend = false;
+
         if (projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-            if (kunde?.dispoAnsprechpartner?.name) {
-              dispoAnsprechpartner = kunde.dispoAnsprechpartner;
-              console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
-            }
-            // Platzbauer vom Kunden laden falls nicht bereits im Projekt
-            if (!platzbauerId && kunde?.standardPlatzbauerId) {
-              platzbauerId = kunde.standardPlatzbauerId;
-              console.log('✅ Platzbauer vom Kunden geladen:', platzbauerId);
-            }
-            // Ansprechpartner vom Kunden laden falls noch nicht gesetzt
-            if (!kundenAnsprechpartner) {
-              try {
-                const ansprechpartnerListe = await saisonplanungService.loadAnsprechpartnerFuerKunde(projekt.kundeId);
-                const ersterAktiver = ansprechpartnerListe.find(ap => ap.aktiv);
-                if (ersterAktiver) {
-                  kundenAnsprechpartner = ersterAktiver.name;
-                  console.log('✅ Ansprechpartner vom Kunden geladen:', kundenAnsprechpartner);
+            if (kunde) {
+              // RECHNUNGSADRESSE vom Kunden - hat IMMER Vorrang!
+              if (kunde.rechnungsadresse) {
+                kundenRechnungsStrasse = kunde.rechnungsadresse.strasse;
+                kundenRechnungsPlzOrt = `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`.trim();
+                console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenRechnungsStrasse, kundenRechnungsPlzOrt);
+              }
+
+              // LIEFERADRESSE vom Kunden - hat IMMER Vorrang!
+              if (kunde.lieferadresse) {
+                kundenLieferStrasse = kunde.lieferadresse.strasse;
+                kundenLieferPlzOrt = `${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`.trim();
+                // Prüfen ob Lieferadresse abweichend von Rechnungsadresse
+                kundenLieferadresseAbweichend =
+                  kunde.lieferadresse.strasse !== kunde.rechnungsadresse?.strasse ||
+                  kunde.lieferadresse.plz !== kunde.rechnungsadresse?.plz ||
+                  kunde.lieferadresse.ort !== kunde.rechnungsadresse?.ort;
+                console.log('✅ Lieferadresse vom Kunden geladen:', kundenLieferStrasse, kundenLieferPlzOrt, 'abweichend:', kundenLieferadresseAbweichend);
+              }
+
+              if (kunde.dispoAnsprechpartner?.name) {
+                dispoAnsprechpartner = kunde.dispoAnsprechpartner;
+                console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
+              }
+              // Platzbauer vom Kunden laden falls nicht bereits im Projekt
+              if (!platzbauerId && kunde.standardPlatzbauerId) {
+                platzbauerId = kunde.standardPlatzbauerId;
+                console.log('✅ Platzbauer vom Kunden geladen:', platzbauerId);
+              }
+              // Ansprechpartner vom Kunden laden falls noch nicht gesetzt
+              if (!kundenAnsprechpartner) {
+                try {
+                  const ansprechpartnerListe = await saisonplanungService.loadAnsprechpartnerFuerKunde(projekt.kundeId);
+                  const ersterAktiver = ansprechpartnerListe.find(ap => ap.aktiv);
+                  if (ersterAktiver) {
+                    kundenAnsprechpartner = ersterAktiver.name;
+                    console.log('✅ Ansprechpartner vom Kunden geladen:', kundenAnsprechpartner);
+                  }
+                } catch (apError) {
+                  console.warn('Ansprechpartner konnten nicht geladen werden:', apError);
                 }
-              } catch (apError) {
-                console.warn('Ansprechpartner konnten nicht geladen werden:', apError);
               }
             }
           } catch (error) {
-            console.warn('Kunde konnte nicht für DISPO-Ansprechpartner/Platzbauer geladen werden:', error);
+            console.warn('Kunde konnte nicht geladen werden:', error);
           }
         }
         // Platzbauer-Name laden falls ID vorhanden
@@ -497,21 +530,30 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
           }
         }
 
+        // WICHTIG: Kunden-Adressen haben VORRANG vor Projekt-Adressen!
+        const finaleRechnungsStrasse = kundenRechnungsStrasse || projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
+        const finaleRechnungsPlzOrt = kundenRechnungsPlzOrt || projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
+
+        // Lieferadresse: Kunden-Lieferadresse > Projekt-Lieferadresse > keine
+        const finaleLieferadresseAbweichend = kundenLieferadresseAbweichend || lieferadresseAbweichend;
+        const finaleLieferStrasse = kundenLieferStrasse || lieferadresseStrasse;
+        const finaleLieferPlzOrt = kundenLieferPlzOrt || lieferadressePlzOrt;
+
         setAngebotsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
-          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
-          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          kundenstrasse: finaleRechnungsStrasse,
+          kundenPlzOrt: finaleRechnungsPlzOrt,
           ansprechpartner: kundenAnsprechpartner,
           angebotsnummer: angebotsnummer,
           angebotsdatum: projekt?.angebotsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           gueltigBis: gueltigBis.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
-          lieferadresseAbweichend: lieferadresseAbweichend,
-          lieferadresseName: lieferadresseName,
-          lieferadresseStrasse: lieferadresseStrasse,
-          lieferadressePlzOrt: lieferadressePlzOrt,
+          lieferadresseAbweichend: finaleLieferadresseAbweichend,
+          lieferadresseName: finaleLieferadresseAbweichend ? (projekt?.kundenname || kundeInfo?.kundenname || '') : lieferadresseName,
+          lieferadresseStrasse: finaleLieferStrasse,
+          lieferadressePlzOrt: finaleLieferPlzOrt,
           dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
           platzbauerId: prev.platzbauerId || platzbauerId,
           platzbauername: prev.platzbauername || platzbauername,
