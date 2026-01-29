@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Mail,
   User,
@@ -99,7 +100,15 @@ interface AnfragenVerarbeitungProps {
   onAnfrageGenehmigt?: (projektId: string) => void;
 }
 
+// Info über eine versendete Antwort-E-Mail
+interface AntwortInfo {
+  gesendetAm: string;
+  projektId: string;
+  dokumentNummer: string;
+}
+
 const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps) => {
+  const navigate = useNavigate();
   const [anfragen, setAnfragen] = useState<VerarbeiteteAnfrage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
@@ -109,7 +118,8 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [generatingPreview, setGeneratingPreview] = useState(false);
   const [runningAiAnalysis, setRunningAiAnalysis] = useState(false);
   const [aiAnalyseVerfuegbar] = useState(() => claudeAnfrageService.isAvailable());
-  const [bereitsBeantwortet, setBereitsBeantwortet] = useState<Set<string>>(new Set());
+  // Map: E-Mail-Adresse -> Liste der Antworten mit Zeitpunkt und Projekt-ID
+  const [antwortDaten, setAntwortDaten] = useState<Map<string, AntwortInfo[]>>(new Map());
   const [fortschrittListe, setFortschrittListe] = useState<VerarbeitungsFortschritt[]>([]);
   const [showFortschritt, setShowFortschritt] = useState(false);
   const [zeigeBeantwortet, setZeigeBeantwortet] = useState(false); // Toggle für bereits beantwortete
@@ -144,22 +154,31 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     ladeKunden();
   }, []);
 
-  // Lade E-Mail-Protokoll für Duplikat-Erkennung
+  // Lade E-Mail-Protokoll für Duplikat-Erkennung (mit Zeitpunkten und Projekt-IDs!)
   const ladeBereitsBeantwortet = useCallback(async () => {
     try {
       const protokoll = await ladeAlleEmailProtokolle(500);
-      const beantwortetEmails = new Set<string>();
+      // Map: E-Mail-Adresse (lowercase) -> Liste der Antworten mit Details
+      const datenMap = new Map<string, AntwortInfo[]>();
 
       protokoll.forEach((p) => {
-        if (p.dokumentTyp === 'angebot' && p.empfaenger) {
+        if (p.dokumentTyp === 'angebot' && p.empfaenger && p.gesendetAm) {
           // Extrahiere die echte E-Mail (falls Test-Mode aktiv war)
           const match = p.empfaenger.match(/Original:\s*([^\s)]+)/);
-          const email = match ? match[1] : p.empfaenger;
-          beantwortetEmails.add(email.toLowerCase());
+          const email = (match ? match[1] : p.empfaenger).toLowerCase();
+
+          // Füge die Antwort-Info zur Liste hinzu
+          const bisherige = datenMap.get(email) || [];
+          bisherige.push({
+            gesendetAm: p.gesendetAm,
+            projektId: p.projektId,
+            dokumentNummer: p.dokumentNummer,
+          });
+          datenMap.set(email, bisherige);
         }
       });
 
-      setBereitsBeantwortet(beantwortetEmails);
+      setAntwortDaten(datenMap);
     } catch (error) {
       console.error('Fehler beim Laden der beantworteten E-Mails:', error);
     }
@@ -817,9 +836,39 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     setSelectedAnfrage(null);
   };
 
-  // Prüfe ob Absender bereits beantwortet wurde
-  const istBereitsBeantwortet = (email: string): boolean => {
-    return bereitsBeantwortet.has(email.toLowerCase());
+  // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)
+  // Eine Anfrage gilt nur als beantwortet, wenn NACH dem Eingang der Anfrage
+  // eine E-Mail an diese Adresse gesendet wurde
+  const istBereitsBeantwortet = (email: string, anfrageDatum: string): boolean => {
+    const antworten = antwortDaten.get(email.toLowerCase());
+    if (!antworten || antworten.length === 0) return false;
+
+    // Prüfe ob mindestens eine Antwort NACH dem Anfrage-Datum gesendet wurde
+    const anfrageDatumMs = new Date(anfrageDatum).getTime();
+    return antworten.some((antwort) => {
+      const antwortDatumMs = new Date(antwort.gesendetAm).getTime();
+      return antwortDatumMs > anfrageDatumMs;
+    });
+  };
+
+  // Hole die Antwort-Info für eine Anfrage (Projekt-ID, Dokumentnummer)
+  // Gibt die ERSTE passende Antwort zurück, die NACH dem Anfrage-Datum gesendet wurde
+  const getAntwortInfo = (email: string, anfrageDatum: string): AntwortInfo | null => {
+    const antworten = antwortDaten.get(email.toLowerCase());
+    if (!antworten || antworten.length === 0) return null;
+
+    const anfrageDatumMs = new Date(anfrageDatum).getTime();
+
+    // Finde die erste Antwort, die NACH dem Anfrage-Datum gesendet wurde
+    // Sortiere nach Datum (älteste zuerst), um die erste passende zu finden
+    const sortiert = [...antworten].sort((a, b) =>
+      new Date(a.gesendetAm).getTime() - new Date(b.gesendetAm).getTime()
+    );
+
+    return sortiert.find((antwort) => {
+      const antwortDatumMs = new Date(antwort.gesendetAm).getTime();
+      return antwortDatumMs > anfrageDatumMs;
+    }) || null;
   };
 
   // Filtere Kunden für Suche
@@ -841,12 +890,12 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
     );
   }
 
-  // Zähle offene vs beantwortete Anfragen
+  // Zähle offene vs beantwortete Anfragen (mit Zeitpunkt-Prüfung!)
   const offeneAnfragen = anfragen.filter(
-    (a) => !bereitsBeantwortet.has((a.analysiert.email || a.emailAbsender).toLowerCase())
+    (a) => !istBereitsBeantwortet(a.analysiert.email || a.emailAbsender, a.emailDatum)
   );
   const beantwortetAnfragen = anfragen.filter(
-    (a) => bereitsBeantwortet.has((a.analysiert.email || a.emailAbsender).toLowerCase())
+    (a) => istBereitsBeantwortet(a.analysiert.email || a.emailAbsender, a.emailDatum)
   );
 
   // Anzuzeigende Anfragen basierend auf Toggle
@@ -936,7 +985,10 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
             </div>
           ) : (
             anzuzeigendeAnfragen.map((anfrage) => {
-              const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender);
+              const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum);
+              const antwortInfo = beantwortet
+                ? getAntwortInfo(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum)
+                : null;
               // Alle Einträge aus Appwrite sind Webformular-Anfragen (vom Sync gefiltert)
               const istWebformular = true;
               return (
@@ -946,7 +998,9 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                   isSelected={selectedAnfrage?.id === anfrage.id}
                   istBeantwortet={beantwortet}
                   istWebformular={istWebformular}
+                  antwortInfo={antwortInfo}
                   onClick={() => setSelectedAnfrage(anfrage)}
+                  onProjektClick={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
                 />
               );
             })
@@ -1030,11 +1084,11 @@ Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
                 {/* LINKE SEITE: Bearbeitbare Felder (2/3 Breite) */}
                 <div className="lg:col-span-2 p-4 space-y-4 max-h-[60vh] overflow-y-auto border-r border-gray-200 dark:border-slate-700">
                   {/* Warnung wenn bereits beantwortet */}
-                  {istBereitsBeantwortet(editedData.email) && (
+                  {selectedAnfrage && istBereitsBeantwortet(editedData.email, selectedAnfrage.emailDatum) && (
                     <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                       <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4" />
-                        An diese E-Mail-Adresse wurde bereits ein Angebot gesendet!
+                        An diese E-Mail-Adresse wurde bereits ein Angebot gesendet (nach Eingang dieser Anfrage)!
                       </p>
                     </div>
                   )}
@@ -1603,10 +1657,12 @@ interface AnfrageCardProps {
   isSelected: boolean;
   istBeantwortet: boolean;
   istWebformular?: boolean;
+  antwortInfo?: AntwortInfo | null; // Info über die Antwort (Projekt-ID etc.)
   onClick: () => void;
+  onProjektClick?: (projektId: string) => void; // Callback für Projekt-Link
 }
 
-const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, onClick }: AnfrageCardProps) => {
+const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antwortInfo, onClick, onProjektClick }: AnfrageCardProps) => {
   return (
     <div
       onClick={onClick}
@@ -1627,6 +1683,20 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, onCl
                 <CheckCircle2 className="w-3 h-3" />
                 Beantwortet
               </div>
+            )}
+            {/* Projekt-Link wenn beantwortet */}
+            {istBeantwortet && antwortInfo?.projektId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Verhindert dass onClick der Card ausgelöst wird
+                  onProjektClick?.(antwortInfo.projektId);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 text-xs rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                title={`Zum Projekt ${antwortInfo.dokumentNummer}`}
+              >
+                <ChevronRight className="w-3 h-3" />
+                {antwortInfo.dokumentNummer || 'Projekt öffnen'}
+              </button>
             )}
             {istWebformular && !istBeantwortet && (
               <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400 text-xs rounded-full">
