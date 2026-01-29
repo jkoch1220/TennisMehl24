@@ -21,21 +21,49 @@ import { saisonplanungService } from './saisonplanungService';
 import { projektService } from './projektService';
 
 // Helper: Parse Document mit data-Feld
+// Kombiniert direkte Dokument-Felder mit data-JSON für Abwärtskompatibilität
 function parseDocument<T>(doc: Models.Document, fallback: T): T {
-  const anyDoc = doc as unknown as { data?: string; $id: string };
-  if (anyDoc?.data && typeof anyDoc.data === 'string') {
-    try {
-      const parsed = JSON.parse(anyDoc.data) as T;
-      return {
-        ...parsed,
-        id: (parsed as { id?: string }).id || doc.$id,
-        $id: doc.$id,
-      };
-    } catch (error) {
-      console.warn('⚠️ Konnte Dokument nicht parsen:', error);
+  const anyDoc = doc as unknown as Record<string, unknown>;
+
+  // Basis: direkte Dokument-Felder (für bestehende Dokumente)
+  const direkteFelder: Record<string, unknown> = {
+    id: doc.$id,
+    $id: doc.$id,
+  };
+
+  // Kopiere alle bekannten direkten Felder
+  const bekannteFelder = [
+    'platzbauerId', 'platzbauerName', 'projektName', 'saisonjahr',
+    'status', 'typ', 'hauptprojektId', 'nachtragNummer',
+    'erstelltAm', 'geaendertAm',
+    // Zuordnungen
+    'vereinsProjektId', 'platzbauerprojektId', 'position',
+  ];
+
+  for (const feld of bekannteFelder) {
+    if (feld in anyDoc && anyDoc[feld] !== undefined && anyDoc[feld] !== null) {
+      direkteFelder[feld] = anyDoc[feld];
     }
   }
-  return fallback;
+
+  // Dann: data-JSON parsen und mergen (überschreibt direkte Felder wenn vorhanden)
+  let parsedData: Record<string, unknown> = {};
+  if (anyDoc?.data && typeof anyDoc.data === 'string') {
+    try {
+      parsedData = JSON.parse(anyDoc.data as string);
+    } catch (error) {
+      console.warn('⚠️ Konnte data-Feld nicht parsen:', error);
+    }
+  }
+
+  // Kombiniere: fallback < direkte Felder < data-JSON
+  return {
+    ...fallback,
+    ...direkteFelder,
+    ...parsedData,
+    id: doc.$id,
+    $id: doc.$id,
+  } as T;
 }
 
 // Helper: To Payload für Appwrite
@@ -290,6 +318,9 @@ class PlatzbauerverwaltungService {
       'erstelltAm',
       'geaendertAm',
     ]);
+
+    // data-Feld ist required - leeres JSON-Objekt als Startwert
+    (payload as any).data = JSON.stringify({});
 
     await databases.createDocument(
       DATABASE_ID,
