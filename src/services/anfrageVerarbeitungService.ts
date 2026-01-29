@@ -18,10 +18,11 @@ import { AngebotsDaten } from '../types/projektabwicklung';
 import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import {
-  TENNISMEHL_ARTIKEL,
   berechneAnzahlSaecke,
 } from '../constants/artikelPreise';
 import { berechneSpeditionskosten } from '../constants/pricing';
+import { sucheArtikelNachNummer } from './artikelService';
+import { Artikel } from '../types/artikel';
 
 export type VerarbeitungsSchritt =
   | 'kunde_anlegen'
@@ -454,14 +455,41 @@ export async function erstelleAnfragePositionen(
   let positionIndex = 1;
 
   // ==========================================
-  // PREISE AUS STAMMDATEN LADEN
+  // ARTIKEL AUS APPWRITE LADEN
+  // ==========================================
+  const [
+    artikelLose02,
+    artikelLose03,
+    artikelGesackt02,
+    artikelGesackt03,
+    artikelBeiladung02,
+    artikelBeiladung03,
+    artikelPE
+  ] = await Promise.all([
+    sucheArtikelNachNummer('TM-ZM-02'),
+    sucheArtikelNachNummer('TM-ZM-03'),
+    sucheArtikelNachNummer('TM-ZM-02St'),
+    sucheArtikelNachNummer('TM-ZM-03St'),
+    sucheArtikelNachNummer('TM-ZM-02S'),
+    sucheArtikelNachNummer('TM-ZM-03S'),
+    sucheArtikelNachNummer('TM-PE'),
+  ]);
+
+  // ==========================================
+  // PREISE AUS STAMMDATEN LADEN (Fallback wenn Artikel keinen Preis hat)
   // ==========================================
   const [preisLoseMaterial, preisSackwareProTonne, preisBeiladungProSack, preisPEFolie] = await Promise.all([
-    getArtikelPreis('TM-ZM-02'),      // Loses Material €/t
-    getArtikelPreis('TM-ZM-02St'),    // Sackware per Spedition €/t
-    getArtikelPreis('TM-ZM-02S'),     // Beiladung €/Sack
+    getArtikelPreis('TM-ZM-02'),      // Loses Material €/t (95.75)
+    getArtikelPreis('TM-ZM-02St'),    // Sackware per Spedition €/t (145.00)
+    getArtikelPreis('TM-ZM-02S'),     // Beiladung €/Sack (8.50)
     getArtikelPreis('TM-PE'),         // PE-Folie €/Stk
   ]);
+
+  // Hilfsfunktion: Bezeichnung und Beschreibung aus Artikel holen
+  const getArtikelInfo = (artikel: Artikel | null, fallbackBezeichnung: string) => ({
+    bezeichnung: artikel?.bezeichnung || fallbackBezeichnung,
+    beschreibung: artikel?.beschreibung || undefined,
+  });
 
   // ==========================================
   // LOSES MATERIAL
@@ -472,15 +500,16 @@ export async function erstelleAnfragePositionen(
 
   // 0-2mm lose
   if (input.tonnenLose02 && input.tonnenLose02 > 0) {
-    const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02'];
+    const info = getArtikelInfo(artikelLose02, 'Tennismehl 0/2 Schüttgut');
     const menge = input.tonnenLose02;
     const einzelpreis = preisProTonneLose;
     const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: artikel.artikelnummer,
-      bezeichnung: artikel.bezeichnung,
+      artikelnummer: 'TM-ZM-02',
+      bezeichnung: info.bezeichnung,
+      beschreibung: info.beschreibung,
       menge,
       einheit: 't',
       einzelpreis,
@@ -494,15 +523,16 @@ export async function erstelleAnfragePositionen(
 
   // 0-3mm lose
   if (input.tonnenLose03 && input.tonnenLose03 > 0) {
-    const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03'];
+    const info = getArtikelInfo(artikelLose03, 'Tennismehl 0/3 Schüttgut');
     const menge = input.tonnenLose03;
     const einzelpreis = preisProTonneLose;
     const preis = menge * einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: artikel.artikelnummer,
-      bezeichnung: artikel.bezeichnung,
+      artikelnummer: 'TM-ZM-03',
+      bezeichnung: info.bezeichnung,
+      beschreibung: info.beschreibung,
       menge,
       einheit: 't',
       einzelpreis,
@@ -530,16 +560,16 @@ export async function erstelleAnfragePositionen(
   if (gesamtSackware02 > 0) {
     if (sollBeiladungSein) {
       // BEILADUNG: Einzelne Säcke auf den LKW
-      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02S'];
+      const info = getArtikelInfo(artikelBeiladung02, 'Tennismehl 0/2 gesackt (40kg Säcke)');
       const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware02);
       const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
       const preis = anzahlSaecke * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: artikel.artikelnummer,
-        bezeichnung: artikel.bezeichnung,
-        beschreibung: 'Beiladung - wird mit Schüttgut auf LKW transportiert',
+        artikelnummer: 'TM-ZM-02S',
+        bezeichnung: info.bezeichnung,
+        beschreibung: info.beschreibung || 'Beiladung - wird mit Schüttgut auf LKW transportiert',
         menge: anzahlSaecke,
         einheit: 'Stk',
         einzelpreis,
@@ -550,17 +580,17 @@ export async function erstelleAnfragePositionen(
       gesamtpreisOhneLieferung += preis;
       hatBeiladung = true;
     } else {
-      // SPEDITION: In Tonnen abrechnen
-      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02St'];
+      // SPEDITION: In Tonnen abrechnen (Preis 145€/t + Frachtkosten nach Raben-Tarif)
+      const info = getArtikelInfo(artikelGesackt02, 'Tennismehl 0/2 gesackt');
       const menge = gesamtSackware02;
       const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
       const preis = menge * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: artikel.artikelnummer,
-        bezeichnung: artikel.bezeichnung,
-        beschreibung: 'Lieferung per Spedition (Frachtkosten separat)',
+        artikelnummer: 'TM-ZM-02St',
+        bezeichnung: info.bezeichnung,
+        beschreibung: info.beschreibung, // Beschreibung aus Appwrite, KEINE hardcoded Texte!
         menge,
         einheit: 't',
         einzelpreis,
@@ -577,16 +607,16 @@ export async function erstelleAnfragePositionen(
   if (gesamtSackware03 > 0) {
     if (sollBeiladungSein) {
       // BEILADUNG: Einzelne Säcke auf den LKW
-      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03S'];
+      const info = getArtikelInfo(artikelBeiladung03, 'Tennismehl 0/3 gesackt (40kg Säcke)');
       const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware03);
       const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
       const preis = anzahlSaecke * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: artikel.artikelnummer,
-        bezeichnung: artikel.bezeichnung,
-        beschreibung: 'Beiladung - wird mit Schüttgut auf LKW transportiert',
+        artikelnummer: 'TM-ZM-03S',
+        bezeichnung: info.bezeichnung,
+        beschreibung: info.beschreibung || 'Beiladung - wird mit Schüttgut auf LKW transportiert',
         menge: anzahlSaecke,
         einheit: 'Stk',
         einzelpreis,
@@ -597,17 +627,17 @@ export async function erstelleAnfragePositionen(
       gesamtpreisOhneLieferung += preis;
       hatBeiladung = true;
     } else {
-      // SPEDITION: In Tonnen abrechnen
-      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03St'];
+      // SPEDITION: In Tonnen abrechnen (Preis 145€/t + Frachtkosten nach Raben-Tarif)
+      const info = getArtikelInfo(artikelGesackt03, 'Tennismehl 0/3 gesackt');
       const menge = gesamtSackware03;
       const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
       const preis = menge * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: artikel.artikelnummer,
-        bezeichnung: artikel.bezeichnung,
-        beschreibung: 'Lieferung per Spedition (Frachtkosten separat)',
+        artikelnummer: 'TM-ZM-03St',
+        bezeichnung: info.bezeichnung,
+        beschreibung: info.beschreibung, // Beschreibung aus Appwrite, KEINE hardcoded Texte!
         menge,
         einheit: 't',
         einzelpreis,
@@ -626,12 +656,13 @@ export async function erstelleAnfragePositionen(
   // ==========================================
 
   if (gesamtMengeLose > 0) {
-    const artikel = TENNISMEHL_ARTIKEL['TM-PE'];
+    const info = getArtikelInfo(artikelPE, 'PE-Folie');
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: artikel.artikelnummer,
-      bezeichnung: artikel.bezeichnung,
+      artikelnummer: 'TM-PE',
+      bezeichnung: info.bezeichnung,
+      beschreibung: info.beschreibung,
       menge: 1,
       einheit: 'Stk',
       einzelpreis: preisPEFolie,
