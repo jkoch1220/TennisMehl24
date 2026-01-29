@@ -227,7 +227,16 @@ export const saisonplanungService = {
     const basisAdresse = kunde.adresse || emptyAdresse;
 
     // Automatisch Kundennummer generieren, falls keine vorhanden
-    const kundennummer = kunde.kundennummer || await generiereNaechsteKundennummer();
+    // Im Notfall: Keine Kundennummer vergeben (leer lassen) - dann kann nichts schiefgehen
+    let kundennummer = kunde.kundennummer || '';
+    if (!kundennummer) {
+      try {
+        kundennummer = await generiereNaechsteKundennummer();
+      } catch (error) {
+        console.warn('Kundennummer konnte nicht generiert werden, wird leer gelassen:', error);
+        kundennummer = '';
+      }
+    }
 
     const neuerKunde: SaisonKunde = {
       ...kunde,
