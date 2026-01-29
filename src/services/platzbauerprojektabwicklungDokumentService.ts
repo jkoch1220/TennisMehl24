@@ -125,6 +125,43 @@ const zaehleBesteheneDokumente = async (
   }
 };
 
+/**
+ * Aktualisiert Projekt-Metadaten im data-Feld
+ * Da Appwrite Spalten-Limit erreicht ist, speichern wir alles im data JSON
+ */
+const aktualisiereProjektDaten = async (
+  projektId: string,
+  updates: Record<string, any>
+): Promise<void> => {
+  // Aktuelles Projekt laden
+  const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
+  if (!projekt) throw new Error('Projekt nicht gefunden');
+
+  // Bestehendes data-Objekt parsen oder neues erstellen
+  let dataObj: Record<string, any> = {};
+  if (projekt.data && typeof projekt.data === 'string') {
+    try {
+      dataObj = JSON.parse(projekt.data);
+    } catch {
+      dataObj = {};
+    }
+  }
+
+  // Updates hinzufügen
+  Object.assign(dataObj, updates);
+
+  // Speichern
+  await databases.updateDocument(
+    DATABASE_ID,
+    PLATZBAUER_PROJEKTE_COLLECTION_ID,
+    projektId,
+    {
+      data: JSON.stringify(dataObj),
+      geaendertAm: new Date().toISOString(),
+    }
+  );
+};
+
 // ==================== ANGEBOT ====================
 
 /**
@@ -193,7 +230,17 @@ export const speicherePlatzbauerAngebot = async (
   const bruttobetrag = nettobetrag * 1.19;
   const gesamtMenge = positionenFuerSummen.reduce((sum, p) => sum + p.menge, 0);
 
-  // Metadaten in DB speichern
+  // Metadaten in DB speichern (nur Pflichtfelder + daten-JSON für den Rest)
+  const dokumentDaten = {
+    ...daten,
+    bruttobetrag,
+    nettobetrag,
+    gesamtMenge,
+    anzahlPositionen: positionenFuerSummen.length,
+    istFinal: false,
+    version,
+  };
+
   const dokument = await databases.createDocument(
     DATABASE_ID,
     PLATZBAUER_DOKUMENTE_COLLECTION_ID,
@@ -204,31 +251,19 @@ export const speicherePlatzbauerAngebot = async (
       dokumentNummer: daten.angebotsnummer,
       dateiId: uploadedFile.$id,
       dateiname,
-      bruttobetrag,
-      nettobetrag,
-      gesamtMenge,
-      anzahlPositionen: positionenFuerSummen.length,
-      istFinal: false,
-      daten: JSON.stringify(daten),
-      version,
+      daten: JSON.stringify(dokumentDaten),
     }
   );
 
-  // Projekt aktualisieren
-  await databases.updateDocument(
-    DATABASE_ID,
-    PLATZBAUER_PROJEKTE_COLLECTION_ID,
-    projekt.id,
-    {
-      angebotId: dokument.$id,
-      angebotsnummer: daten.angebotsnummer,
-      angebotsdatum: daten.angebotsdatum,
-      gesamtMenge,
-      gesamtBrutto: bruttobetrag,
-      anzahlVereine: positionenFuerSummen.length,
-      geaendertAm: new Date().toISOString(),
-    }
-  );
+  // Projekt-Metadaten im data-Feld aktualisieren
+  await aktualisiereProjektDaten(projekt.id, {
+    angebotId: dokument.$id,
+    angebotsnummer: daten.angebotsnummer,
+    angebotsdatum: daten.angebotsdatum,
+    gesamtMenge,
+    gesamtBrutto: bruttobetrag,
+    anzahlVereine: positionenFuerSummen.length,
+  });
 
   return {
     $id: dokument.$id,
@@ -313,7 +348,17 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
   const bruttobetrag = nettobetrag * 1.19;
   const gesamtMenge = daten.positionen.reduce((sum, p) => sum + p.menge, 0);
 
-  // Metadaten in DB speichern
+  // Metadaten in DB speichern (nur Pflichtfelder + daten-JSON für den Rest)
+  const dokumentDaten = {
+    ...daten,
+    bruttobetrag,
+    nettobetrag,
+    gesamtMenge,
+    anzahlPositionen: daten.positionen.length,
+    istFinal: false,
+    version,
+  };
+
   const dokument = await databases.createDocument(
     DATABASE_ID,
     PLATZBAUER_DOKUMENTE_COLLECTION_ID,
@@ -324,32 +369,30 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
       dokumentNummer: daten.auftragsbestaetigungsnummer,
       dateiId: uploadedFile.$id,
       dateiname,
-      bruttobetrag,
-      nettobetrag,
-      gesamtMenge,
-      anzahlPositionen: daten.positionen.length,
-      istFinal: false,
-      daten: JSON.stringify(daten),
-      version,
+      daten: JSON.stringify(dokumentDaten),
     }
   );
 
-  // Projekt aktualisieren - Status auf "lieferschein"
+  // Status direkt aktualisieren (ist als Spalte vorhanden)
   await databases.updateDocument(
     DATABASE_ID,
     PLATZBAUER_PROJEKTE_COLLECTION_ID,
     projekt.id,
     {
       status: 'lieferschein',
-      auftragsbestaetigungId: dokument.$id,
-      auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
-      auftragsbestaetigungsdatum: daten.auftragsbestaetigungsdatum,
-      gesamtMenge,
-      gesamtBrutto: bruttobetrag,
-      anzahlVereine: daten.positionen.length,
       geaendertAm: new Date().toISOString(),
     }
   );
+
+  // Weitere Metadaten im data-Feld speichern
+  await aktualisiereProjektDaten(projekt.id, {
+    auftragsbestaetigungId: dokument.$id,
+    auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
+    auftragsbestaetigungsdatum: daten.auftragsbestaetigungsdatum,
+    gesamtMenge,
+    gesamtBrutto: bruttobetrag,
+    anzahlVereine: daten.positionen.length,
+  });
 
   return {
     $id: dokument.$id,
@@ -431,7 +474,17 @@ export const speicherePlatzbauerRechnung = async (
   const bruttobetrag = nettobetrag * 1.19;
   const gesamtMenge = daten.positionen.reduce((sum, p) => sum + p.menge, 0);
 
-  // Metadaten in DB speichern
+  // Metadaten in DB speichern (nur Pflichtfelder + daten-JSON für den Rest)
+  const dokumentDaten = {
+    ...daten,
+    bruttobetrag,
+    nettobetrag,
+    gesamtMenge,
+    anzahlPositionen: daten.positionen.length,
+    istFinal: true, // FINAL!
+    version: 1,
+  };
+
   const dokument = await databases.createDocument(
     DATABASE_ID,
     PLATZBAUER_DOKUMENTE_COLLECTION_ID,
@@ -442,32 +495,30 @@ export const speicherePlatzbauerRechnung = async (
       dokumentNummer: daten.rechnungsnummer,
       dateiId: uploadedFile.$id,
       dateiname,
-      bruttobetrag,
-      nettobetrag,
-      gesamtMenge,
-      anzahlPositionen: daten.positionen.length,
-      istFinal: true, // FINAL!
-      daten: JSON.stringify(daten),
-      version: 1,
+      daten: JSON.stringify(dokumentDaten),
     }
   );
 
-  // Projekt aktualisieren - Status auf "rechnung"
+  // Status direkt aktualisieren (ist als Spalte vorhanden)
   await databases.updateDocument(
     DATABASE_ID,
     PLATZBAUER_PROJEKTE_COLLECTION_ID,
     projekt.id,
     {
       status: 'rechnung',
-      rechnungId: dokument.$id,
-      rechnungsnummer: daten.rechnungsnummer,
-      rechnungsdatum: daten.rechnungsdatum,
-      gesamtMenge,
-      gesamtBrutto: bruttobetrag,
-      anzahlVereine: daten.positionen.length,
       geaendertAm: new Date().toISOString(),
     }
   );
+
+  // Weitere Metadaten im data-Feld speichern
+  await aktualisiereProjektDaten(projekt.id, {
+    rechnungId: dokument.$id,
+    rechnungsnummer: daten.rechnungsnummer,
+    rechnungsdatum: daten.rechnungsdatum,
+    gesamtMenge,
+    gesamtBrutto: bruttobetrag,
+    anzahlVereine: daten.positionen.length,
+  });
 
   return {
     $id: dokument.$id,
@@ -677,23 +728,37 @@ export const ladeLieferscheinFuerVerein = async (
 
 /**
  * Formatiert Dokumente für die UI-Anzeige
+ * Liest zusätzliche Daten aus dem daten-JSON-Feld
  */
 export const formatiereDokumenteFuerUI = (
   dokumente: GespeichertesPlatzbauerDokument[]
 ): PlatzbauerDokumentAnzeige[] => {
-  return dokumente.map(dok => ({
-    id: dok.$id || dok.id || '',
-    typ: dok.dokumentTyp,
-    nummer: dok.dokumentNummer,
-    dateiname: dok.dateiname,
-    erstelltAm: dok.$createdAt ? new Date(dok.$createdAt) : new Date(),
-    bruttobetrag: dok.bruttobetrag,
-    gesamtMenge: dok.gesamtMenge,
-    istFinal: dok.istFinal,
-    downloadUrl: getFileDownloadUrl(dok.dateiId),
-    viewUrl: getFileViewUrl(dok.dateiId),
-    version: dok.version,
-  }));
+  return dokumente.map(dok => {
+    // Daten aus JSON parsen falls vorhanden
+    let parsedDaten: Record<string, any> = {};
+    if (dok.daten && typeof dok.daten === 'string') {
+      try {
+        parsedDaten = JSON.parse(dok.daten);
+      } catch {
+        parsedDaten = {};
+      }
+    }
+
+    return {
+      id: dok.$id || dok.id || '',
+      typ: dok.dokumentTyp,
+      nummer: dok.dokumentNummer,
+      dateiname: dok.dateiname,
+      erstelltAm: dok.$createdAt ? new Date(dok.$createdAt) : new Date(),
+      // Werte aus daten-JSON oder direkt vom Dokument (für Abwärtskompatibilität)
+      bruttobetrag: parsedDaten.bruttobetrag ?? dok.bruttobetrag,
+      gesamtMenge: parsedDaten.gesamtMenge ?? dok.gesamtMenge,
+      istFinal: parsedDaten.istFinal ?? dok.istFinal ?? false,
+      downloadUrl: getFileDownloadUrl(dok.dateiId),
+      viewUrl: getFileViewUrl(dok.dateiId),
+      version: parsedDaten.version ?? dok.version ?? 1,
+    };
+  });
 };
 
 /**
@@ -800,16 +865,21 @@ export const ladeEntwurf = async <T>(
  * Markiert ein Projekt als bezahlt
  */
 export const markiereAlsBezahlt = async (projektId: string): Promise<void> => {
+  // Status direkt aktualisieren
   await databases.updateDocument(
     DATABASE_ID,
     PLATZBAUER_PROJEKTE_COLLECTION_ID,
     projektId,
     {
       status: 'bezahlt',
-      bezahltAm: new Date().toISOString(),
       geaendertAm: new Date().toISOString(),
     }
   );
+
+  // bezahltAm im data-Feld speichern
+  await aktualisiereProjektDaten(projektId, {
+    bezahltAm: new Date().toISOString(),
+  });
 };
 
 // ==================== EXPORT ====================
