@@ -23,6 +23,9 @@ interface PlatzbauerlDetailPopupProps {
   saisonjahr: number;
   onClose: () => void;
   onRefresh: () => void;
+  // URL-basierte Projekt-Auswahl (für Persistenz beim Reload)
+  selectedProjektId: string | null;
+  setSelectedProjektId: (id: string | null) => void;
 }
 
 type TabId = 'stammdaten' | 'vereine' | 'projekte';
@@ -32,11 +35,12 @@ const PlatzbauerlDetailPopup = ({
   saisonjahr,
   onClose,
   onRefresh,
+  selectedProjektId,
+  setSelectedProjektId,
 }: PlatzbauerlDetailPopupProps) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PlatzbauermitVereinen | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('stammdaten');
-  const [selectedProjektId, setSelectedProjektId] = useState<string | null>(null);
 
   // Daten laden
   useEffect(() => {

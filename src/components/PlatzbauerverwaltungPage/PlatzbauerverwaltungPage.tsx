@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   LayoutGrid,
@@ -44,6 +45,35 @@ const saveSetting = <T,>(key: string, value: T): void => {
 };
 
 const PlatzbauerverwaltungPage = () => {
+  // URL-Parameter für persistente Dialog-Zustände
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedPlatzbauerId = searchParams.get('platzbauer');
+  const selectedProjektId = searchParams.get('projekt');
+
+  // Setter für URL-Parameter
+  const setSelectedPlatzbauerId = useCallback((id: string | null) => {
+    setSearchParams(prev => {
+      if (id) {
+        prev.set('platzbauer', id);
+      } else {
+        prev.delete('platzbauer');
+        prev.delete('projekt'); // Projekt auch schließen wenn Platzbauer geschlossen wird
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSelectedProjektId = useCallback((id: string | null) => {
+    setSearchParams(prev => {
+      if (id) {
+        prev.set('projekt', id);
+      } else {
+        prev.delete('projekt');
+      }
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   // State
   const [viewMode, setViewModeState] = useState<ViewMode>(() =>
     loadSetting(STORAGE_KEYS.viewMode, 'liste')
@@ -55,7 +85,6 @@ const PlatzbauerverwaltungPage = () => {
   const [loading, setLoading] = useState(true);
   const [platzbauer, setPlatzbauer] = useState<PlatzbauermitVereinen[]>([]);
   const [statistik, setStatistik] = useState<PBVStatistik | null>(null);
-  const [selectedPlatzbauerId, setSelectedPlatzbauerId] = useState<string | null>(null);
   const [showSaisonprojekteDialog, setShowSaisonprojekteDialog] = useState(false);
   const [erstellteSaisonprojekte, setErstellteSaisonprojekte] = useState(0);
 
@@ -257,6 +286,8 @@ const PlatzbauerverwaltungPage = () => {
           saisonjahr={saisonjahr}
           onClose={() => setSelectedPlatzbauerId(null)}
           onRefresh={loadData}
+          selectedProjektId={selectedProjektId}
+          setSelectedProjektId={setSelectedProjektId}
         />
       )}
 
