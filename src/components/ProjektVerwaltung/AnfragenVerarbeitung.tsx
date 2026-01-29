@@ -63,6 +63,7 @@ import { istBeiladung } from '../../constants/artikelPreise';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
+import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
 
 // Konstanten für Fremdlieferung (LKW)
 const FREMDLIEFERUNG_STUNDENLOHN = 108; // €/Stunde
@@ -1472,6 +1473,68 @@ Bei Fragen sind wir gerne für Sie da.`,
                       PE-Folie wird automatisch hinzugefügt (loses Material)
                     </div>
                   )}
+
+                  {/* Sackware Kostenberechnung (Raben-Modell) */}
+                  {(() => {
+                    const gesamtSackware = (editedData.tonnenGesackt02 || 0) + (editedData.tonnenGesackt03 || 0);
+                    const gesamtLose = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0);
+                    const istNurSackware = gesamtSackware > 0 && gesamtLose === 0;
+                    const istSackwarePerSpedition = gesamtSackware >= 1 || (gesamtSackware > 0 && gesamtLose === 0);
+
+                    if (!istSackwarePerSpedition || !editedData.plz) return null;
+
+                    const gewichtKg = gesamtSackware * 1000;
+                    const rabenFracht = berechneSpeditionskosten(editedData.plz, gewichtKg);
+                    const zone = getZoneFromPLZ(editedData.plz);
+                    const werkspreisSackware = 145; // €/t ab Werk
+                    const frachtProTonne = rabenFracht ? rabenFracht / gesamtSackware : 0;
+                    const endpreisProTonne = werkspreisSackware + frachtProTonne;
+
+                    return (
+                      <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <h5 className="text-xs font-semibold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-1">
+                          <Package className="w-3 h-3" />
+                          Sackware Kostenberechnung (Raben Spedition)
+                        </h5>
+                        <div className="text-xs text-purple-700 dark:text-purple-400 space-y-1">
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>Menge Sackware:</span>
+                            <span className="font-medium">{gesamtSackware.toFixed(2)} t ({(gewichtKg).toFixed(0)} kg)</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>Ziel-PLZ:</span>
+                            <span className="font-medium">{editedData.plz} {zone ? `(Zone ${zone})` : ''}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-purple-200 dark:border-purple-700">
+                            <span>Werkspreis Sackware:</span>
+                            <span className="font-medium">{werkspreisSackware.toFixed(2)} €/t</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>+ Raben Frachtkosten:</span>
+                            <span className="font-medium">{rabenFracht ? `${rabenFracht.toFixed(2)} € gesamt` : 'n/a'}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2">
+                            <span>= Fracht pro Tonne:</span>
+                            <span className="font-medium">{frachtProTonne.toFixed(2)} €/t</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-purple-200 dark:border-purple-700 font-bold text-green-700 dark:text-green-400">
+                            <span>= Empf. Endpreis/t:</span>
+                            <span>{endpreisProTonne.toFixed(2)} €/t</span>
+                          </div>
+                          {istNurSackware && (
+                            <div className="mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
+                              <div className="grid grid-cols-2 gap-x-2 font-bold">
+                                <span>Gesamtpreis:</span>
+                                <span className="text-purple-900 dark:text-purple-200">
+                                  {(gesamtSackware * endpreisProTonne).toFixed(2)} € netto
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Empfohlener Preis */}
                   {selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne && (
