@@ -331,11 +331,27 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
 
     // Standard E-Mail-Vorschlag
     const emailKundenname = analysiert.kundenname || 'Kunde';
-    const emailAnsprechpartner = analysiert.ansprechpartner || '';
     const saisonJahr = new Date().getFullYear();
 
-    // Anrede: "Guten Tag Vorname Nachname" oder "Guten Tag" wenn kein Name
-    const anrede = emailAnsprechpartner ? `Guten Tag ${emailAnsprechpartner}` : 'Guten Tag';
+    // Name für Anrede: Ansprechpartner oder Kundenname
+    // Bereinige und formatiere den Namen korrekt
+    const rohName = (analysiert.ansprechpartner || analysiert.kundenname || '').trim();
+
+    // Formatiere Name: Entferne doppelte Leerzeichen, kapitalisiere richtig
+    const formatiereNamen = (name: string): string => {
+      if (!name) return '';
+      return name
+        .replace(/\s+/g, ' ')  // Mehrere Leerzeichen zu einem
+        .trim()
+        .split(' ')
+        .map(teil => teil.charAt(0).toUpperCase() + teil.slice(1).toLowerCase())
+        .join(' ');
+    };
+
+    const formatierterName = formatiereNamen(rohName);
+
+    // Anrede: "Guten Tag Vorname Nachname," oder "Guten Tag," wenn kein Name
+    const anrede = formatierterName ? `Guten Tag ${formatierterName}` : 'Guten Tag';
 
     return {
       ...anfrage,
@@ -350,11 +366,9 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
         betreff: `Angebot Tennismehl ${emailKundenname} ${saisonJahr}`,
         text: `${anrede},
 
-vielen Dank für Ihre Anfrage!
+vielen Dank für Ihre Anfrage – das Angebot finden Sie im Anhang.
 
-Im Anhang finden Sie unser Angebot wie gewünscht.
-
-Bei Fragen melden Sie sich gerne – wir helfen Ihnen weiter.`,
+Bei Fragen sind wir gerne für Sie da.`,
         empfaenger: analysiert.email || anfrage.emailAbsender,
       },
       verarbeitungsStatus: anfrage.status === 'neu' ? 'ausstehend' : 'genehmigt',
