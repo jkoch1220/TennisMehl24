@@ -48,10 +48,8 @@ export interface PlatzbauerProjekt {
   gesamtBrutto?: number;         // Summe aller Bruttopreise
   anzahlVereine?: number;        // Anzahl zugeordneter Vereine
 
-  // Entwurfsdaten für Auto-Save (JSON-serialisiert)
-  angebotsDaten?: string;
-  auftragsbestaetigungsDaten?: string;
-  rechnungsDaten?: string;
+  // JSON-Datenfeld für alle zusätzlichen Daten inkl. Entwürfe
+  data?: string;
 
   // Zusätzliche Infos
   notizen?: string;

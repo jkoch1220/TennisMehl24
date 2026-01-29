@@ -336,6 +336,7 @@ const produktionFields: FieldConfig[] = [
 ];
 
 // Platzbauer-Projekte Collection (Saisonprojekte und Nachträge für Platzbauer)
+// HINWEIS: Entwurfsdaten werden im 'data'-Feld als JSON gespeichert (angebotsDaten, etc.)
 const platzbauerProjekteFields: FieldConfig[] = [
   { key: 'platzbauerId', type: 'string', size: 100, required: true },   // Für Filter nach Platzbauer
   { key: 'platzbauerName', type: 'string', size: 255, required: true }, // Für Anzeige
@@ -345,11 +346,7 @@ const platzbauerProjekteFields: FieldConfig[] = [
   { key: 'hauptprojektId', type: 'string', size: 100 },                 // Bei Nachträgen: Referenz
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
-  { key: 'data', type: 'string', size: 100000, required: true },        // JSON mit allen Details
-  // Entwurfsdaten für Auto-Save
-  { key: 'angebotsDaten', type: 'string', size: 100000 },               // JSON-Entwurf für Angebot
-  { key: 'auftragsbestaetigungsDaten', type: 'string', size: 100000 },  // JSON-Entwurf für AB
-  { key: 'rechnungsDaten', type: 'string', size: 100000 },              // JSON-Entwurf für Rechnung
+  { key: 'data', type: 'string', size: 100000, required: true },        // JSON mit allen Details inkl. Entwürfe
 ];
 
 // Projekt-Zuordnungen Collection (Vereinsprojekt -> Platzbauerprojekt)

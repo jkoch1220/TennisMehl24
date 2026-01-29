@@ -715,32 +715,50 @@ export const ladeDokumentVerlauf = async (
 // ==================== ENTWÜRFE ====================
 
 /**
- * Speichert einen Entwurf im Projekt
+ * Speichert einen Entwurf im Projekt (innerhalb des data-Feldes)
+ * Nutzt das bestehende data-Feld um Appwrite Spalten-Limits zu umgehen
  */
 export const speichereEntwurf = async (
   projektId: string,
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung',
   daten: any
 ): Promise<void> => {
+  // Aktuelles Projekt laden um data-Feld zu erhalten
+  const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
+  if (!projekt) throw new Error('Projekt nicht gefunden');
+
+  // Bestehendes data-Objekt parsen oder neues erstellen
+  let dataObj: Record<string, any> = {};
+  if (projekt.data && typeof projekt.data === 'string') {
+    try {
+      dataObj = JSON.parse(projekt.data);
+    } catch {
+      dataObj = {};
+    }
+  }
+
+  // Entwurfsdaten im data-Objekt speichern
   const feldName = {
     angebot: 'angebotsDaten',
     auftragsbestaetigung: 'auftragsbestaetigungsDaten',
     rechnung: 'rechnungsDaten',
   }[typ];
 
+  dataObj[feldName] = daten;
+
   await databases.updateDocument(
     DATABASE_ID,
     PLATZBAUER_PROJEKTE_COLLECTION_ID,
     projektId,
     {
-      [feldName]: JSON.stringify(daten),
+      data: JSON.stringify(dataObj),
       geaendertAm: new Date().toISOString(),
     }
   );
 };
 
 /**
- * Lädt einen Entwurf aus dem Projekt
+ * Lädt einen Entwurf aus dem Projekt (aus dem data-Feld)
  */
 export const ladeEntwurf = async <T>(
   projektId: string,
@@ -750,16 +768,26 @@ export const ladeEntwurf = async <T>(
     const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
     if (!projekt) return null;
 
+    // data-Feld parsen
+    if (!projekt.data || typeof projekt.data !== 'string') return null;
+
+    let dataObj: Record<string, any>;
+    try {
+      dataObj = JSON.parse(projekt.data);
+    } catch {
+      return null;
+    }
+
     const feldName = {
       angebot: 'angebotsDaten',
       auftragsbestaetigung: 'auftragsbestaetigungsDaten',
       rechnung: 'rechnungsDaten',
     }[typ];
 
-    const daten = projekt[feldName as keyof PlatzbauerProjekt];
-    if (!daten || typeof daten !== 'string') return null;
+    const entwurf = dataObj[feldName];
+    if (!entwurf) return null;
 
-    return JSON.parse(daten) as T;
+    return entwurf as T;
   } catch (error) {
     console.error('Fehler beim Laden des Entwurfs:', error);
     return null;
