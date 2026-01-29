@@ -156,6 +156,7 @@ export const speicherePlatzbauerAngebot = async (
     platzbauerPlzOrt: daten.platzbauerPlzOrt,
     platzbauerAnsprechpartner: daten.platzbauerAnsprechpartner,
     positionen: daten.positionen,
+    angebotPositionen: daten.angebotPositionen, // Erweiterte Positionen mit Artikel-Auswahl
     zahlungsziel: daten.zahlungsziel,
     zahlungsart: daten.zahlungsart,
     skontoAktiviert: daten.skontoAktiviert,
@@ -184,10 +185,13 @@ export const speicherePlatzbauerAngebot = async (
     file
   );
 
-  // Summen berechnen
-  const nettobetrag = daten.positionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+  // Summen berechnen (bevorzuge angebotPositionen falls vorhanden)
+  const positionenFuerSummen = daten.angebotPositionen && daten.angebotPositionen.length > 0
+    ? daten.angebotPositionen
+    : daten.positionen;
+  const nettobetrag = positionenFuerSummen.reduce((sum, p) => sum + p.gesamtpreis, 0);
   const bruttobetrag = nettobetrag * 1.19;
-  const gesamtMenge = daten.positionen.reduce((sum, p) => sum + p.menge, 0);
+  const gesamtMenge = positionenFuerSummen.reduce((sum, p) => sum + p.menge, 0);
 
   // Metadaten in DB speichern
   const dokument = await databases.createDocument(
@@ -203,7 +207,7 @@ export const speicherePlatzbauerAngebot = async (
       bruttobetrag,
       nettobetrag,
       gesamtMenge,
-      anzahlPositionen: daten.positionen.length,
+      anzahlPositionen: positionenFuerSummen.length,
       istFinal: false,
       daten: JSON.stringify(daten),
       version,
@@ -221,7 +225,7 @@ export const speicherePlatzbauerAngebot = async (
       angebotsdatum: daten.angebotsdatum,
       gesamtMenge,
       gesamtBrutto: bruttobetrag,
-      anzahlVereine: daten.positionen.length,
+      anzahlVereine: positionenFuerSummen.length,
       geaendertAm: new Date().toISOString(),
     }
   );

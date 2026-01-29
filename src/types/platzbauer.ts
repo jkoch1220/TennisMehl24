@@ -115,6 +115,35 @@ export interface PlatzbauerPosition {
   lieferscheinId?: string;
 }
 
+// Erweiterte Position für Platzbauer-Angebote mit Artikel-Auswahl
+export interface PlatzbauerAngebotPosition {
+  id: string;                    // Eindeutige Position-ID (für UI)
+
+  // Artikel-Daten
+  artikelId?: string;            // Appwrite Artikel ID
+  artikelnummer: string;         // z.B. "TM-ZM-02" oder "TM-ZM-03"
+  bezeichnung: string;           // z.B. "Ziegelmehl 0/2"
+  beschreibung?: string;         // z.B. "für TC Musterstadt"
+  einheit: string;               // z.B. "t"
+
+  // Mengen und Preise
+  menge: number;                 // Tonnen
+  einzelpreis: number;           // Preis pro Tonne
+  gesamtpreis: number;           // menge * einzelpreis
+
+  // Verein-Referenz (optional - für Positionen die zu einem Verein gehören)
+  vereinId?: string;             // SaisonKunde ID
+  vereinsname?: string;
+  vereinsprojektId?: string;     // Normales Projekt ID
+
+  // Lieferadresse des Vereins
+  lieferadresse?: {
+    strasse: string;
+    plz: string;
+    ort: string;
+  };
+}
+
 // ==================== AGGREGIERTE TYPES ====================
 
 // Platzbauer mit zugeordneten Vereinen und Projekten
@@ -285,6 +314,9 @@ export interface PlatzbauerAngebotFormularDaten extends PlatzbauerDokumentBasis 
   angebotsnummer: string;
   angebotsdatum: string;
   gueltigBis: string;
+
+  // Erweiterte Positionen mit Artikel-Auswahl (optional - überschreibt positionen wenn vorhanden)
+  angebotPositionen?: PlatzbauerAngebotPosition[];
 
   // Zahlungsbedingungen
   zahlungsziel: string;

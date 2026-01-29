@@ -29,10 +29,13 @@ import {
   Clock,
   FileSignature,
   History,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import {
   PlatzbauerProjekt,
   PlatzbauerPosition,
+  PlatzbauerAngebotPosition,
   PlatzbauerAngebotFormularDaten,
   PlatzbauerABFormularDaten,
   PlatzbauerRechnungFormularDaten,
@@ -40,6 +43,8 @@ import {
   GespeicherterPlatzbauerLieferschein,
   PlatzbauerDokumentVerlaufEintrag,
 } from '../../types/platzbauer';
+import { Artikel } from '../../types/artikel';
+import { getAlleArtikel } from '../../services/artikelService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import {
@@ -540,6 +545,18 @@ const UebersichtTab = ({
 
 // ==================== ANGEBOT TAB ====================
 
+// Ziegelmehl-Artikel für Platzbauer (TM-ZM-02 und TM-ZM-03)
+const ZIEGELMEHL_ARTIKEL_NUMMERN = ['TM-ZM-02', 'TM-ZM-03'];
+
+// Interface für Verein mit Auswahl-Status
+interface VereinAuswahl {
+  verein: SaisonKunde;
+  ausgewaehlt: boolean;
+  menge: number;
+  einzelpreis: number;
+  artikelnummer: string;
+}
+
 interface AngebotTabProps {
   projekt: PlatzbauerProjekt;
   platzbauer: SaisonKunde;
@@ -550,6 +567,15 @@ interface AngebotTabProps {
 
 const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: AngebotTabProps) => {
   const [verlauf, setVerlauf] = useState<PlatzbauerDokumentVerlaufEintrag[]>([]);
+  const [ziegelmehlArtikel, setZiegelmehlArtikel] = useState<Artikel[]>([]);
+  const [laden, setLaden] = useState(true);
+
+  // Alle Vereine des Platzbauers
+  const [vereineAuswahl, setVereineAuswahl] = useState<VereinAuswahl[]>([]);
+
+  // Zusätzliche manuelle Positionen (ohne Verein)
+  const [zusatzPositionen, setZusatzPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+
   const [formData, setFormData] = useState<PlatzbauerAngebotFormularDaten>({
     platzbauerId: platzbauer.id,
     platzbauername: platzbauer.name,
@@ -566,17 +592,205 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
     zahlungsziel: '14 Tage netto',
   });
 
+  // Artikel und Vereine laden
+  useEffect(() => {
+    const ladeDaten = async () => {
+      setLaden(true);
+      try {
+        // Artikel laden
+        const alleArtikel = await getAlleArtikel();
+        const ziegelmehl = alleArtikel.filter(a => ZIEGELMEHL_ARTIKEL_NUMMERN.includes(a.artikelnummer));
+        setZiegelmehlArtikel(ziegelmehl);
+
+        const defaultArtikel = ziegelmehl.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehl[0];
+        const defaultPreis = defaultArtikel?.einzelpreis || 0;
+
+        // Vereine des Platzbauers laden
+        const vereineDaten = await platzbauerverwaltungService.loadVereineFuerPlatzbauer(platzbauer.id);
+
+        // Vereine mit Auswahl-Status initialisieren
+        const vereineMitAuswahl: VereinAuswahl[] = vereineDaten.map(v => {
+          // Prüfen ob dieser Verein bereits in den Positionen ist
+          const existierendePos = positionen.find(p => p.vereinId === v.kunde.id);
+          return {
+            verein: v.kunde,
+            ausgewaehlt: !!existierendePos,
+            menge: existierendePos?.menge || 0,
+            einzelpreis: existierendePos?.einzelpreis || defaultPreis,
+            artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
+          };
+        });
+
+        setVereineAuswahl(vereineMitAuswahl);
+      } catch (error) {
+        console.error('Fehler beim Laden der Daten:', error);
+      } finally {
+        setLaden(false);
+      }
+    };
+    ladeDaten();
+  }, [platzbauer.id, positionen]);
+
   useEffect(() => {
     ladeDokumentVerlauf(projekt.id, 'angebot').then(setVerlauf);
   }, [projekt.id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onSave(formData);
+  // Verein auswählen/abwählen
+  const toggleVerein = (index: number) => {
+    setVereineAuswahl(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        ausgewaehlt: !updated[index].ausgewaehlt,
+      };
+      return updated;
+    });
   };
 
-  const nettobetrag = positionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+  // Alle Vereine auswählen
+  const selectAlleVereine = () => {
+    setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: true })));
+  };
+
+  // Keine Vereine auswählen
+  const deselectAlleVereine = () => {
+    setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: false })));
+  };
+
+  // Verein-Daten aktualisieren
+  const updateVerein = (index: number, updates: Partial<VereinAuswahl>) => {
+    setVereineAuswahl(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...updates };
+      return updated;
+    });
+  };
+
+  // Artikel für Verein ändern
+  const handleVereinArtikelChange = (index: number, artikelnummer: string) => {
+    const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === artikelnummer);
+    if (artikel) {
+      updateVerein(index, {
+        artikelnummer: artikel.artikelnummer,
+        einzelpreis: artikel.einzelpreis ?? vereineAuswahl[index].einzelpreis,
+      });
+    }
+  };
+
+  // Neue leere Zusatz-Position hinzufügen
+  const addZusatzPosition = () => {
+    const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
+    const neuePosition: PlatzbauerAngebotPosition = {
+      id: `zusatz-${Date.now()}`,
+      artikelId: defaultArtikel?.$id,
+      artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
+      bezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
+      beschreibung: '',
+      einheit: defaultArtikel?.einheit || 't',
+      menge: 0,
+      einzelpreis: defaultArtikel?.einzelpreis || 0,
+      gesamtpreis: 0,
+    };
+    setZusatzPositionen(prev => [...prev, neuePosition]);
+  };
+
+  // Zusatz-Position aktualisieren
+  const updateZusatzPosition = (index: number, updates: Partial<PlatzbauerAngebotPosition>) => {
+    setZusatzPositionen(prev => {
+      const updated = [...prev];
+      const current = updated[index];
+      const newPos = { ...current, ...updates };
+      if ('menge' in updates || 'einzelpreis' in updates) {
+        newPos.gesamtpreis = newPos.menge * newPos.einzelpreis;
+      }
+      updated[index] = newPos;
+      return updated;
+    });
+  };
+
+  // Zusatz-Position Artikel ändern
+  const handleZusatzArtikelChange = (index: number, artikelnummer: string) => {
+    const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === artikelnummer);
+    if (artikel) {
+      updateZusatzPosition(index, {
+        artikelId: artikel.$id,
+        artikelnummer: artikel.artikelnummer,
+        bezeichnung: artikel.bezeichnung,
+        einheit: artikel.einheit,
+        einzelpreis: artikel.einzelpreis ?? zusatzPositionen[index].einzelpreis,
+      });
+    }
+  };
+
+  // Zusatz-Position entfernen
+  const removeZusatzPosition = (index: number) => {
+    setZusatzPositionen(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Positionen aus ausgewählten Vereinen erstellen
+    const vereinsPositionen: PlatzbauerAngebotPosition[] = vereineAuswahl
+      .filter(v => v.ausgewaehlt && v.menge > 0)
+      .map((v, index) => {
+        const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === v.artikelnummer);
+        return {
+          id: `verein-${index + 1}`,
+          artikelId: artikel?.$id,
+          artikelnummer: v.artikelnummer,
+          bezeichnung: artikel?.bezeichnung || 'Ziegelmehl',
+          beschreibung: `für ${v.verein.name}`,
+          einheit: artikel?.einheit || 't',
+          menge: v.menge,
+          einzelpreis: v.einzelpreis,
+          gesamtpreis: v.menge * v.einzelpreis,
+          vereinId: v.verein.id,
+          vereinsname: v.verein.name,
+          lieferadresse: v.verein.lieferadresse,
+        };
+      });
+
+    // Alle Positionen zusammenführen
+    const allePositionen = [...vereinsPositionen, ...zusatzPositionen.filter(p => p.menge > 0)];
+
+    const dataToSave: PlatzbauerAngebotFormularDaten = {
+      ...formData,
+      angebotPositionen: allePositionen,
+      positionen: allePositionen.map(ap => ({
+        vereinId: ap.vereinId || '',
+        vereinsname: ap.vereinsname || ap.beschreibung || '',
+        vereinsprojektId: ap.vereinsprojektId || '',
+        menge: ap.menge,
+        einzelpreis: ap.einzelpreis,
+        gesamtpreis: ap.gesamtpreis,
+        lieferadresse: ap.lieferadresse,
+      })),
+    };
+    await onSave(dataToSave);
+  };
+
+  // Summen berechnen
+  const vereinsSumme = vereineAuswahl
+    .filter(v => v.ausgewaehlt)
+    .reduce((sum, v) => sum + (v.menge * v.einzelpreis), 0);
+  const zusatzSumme = zusatzPositionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+  const nettobetrag = vereinsSumme + zusatzSumme;
   const bruttobetrag = nettobetrag * 1.19;
+
+  const ausgewaehlteVereineCount = vereineAuswahl.filter(v => v.ausgewaehlt).length;
+  const gesamtMenge = vereineAuswahl
+    .filter(v => v.ausgewaehlt)
+    .reduce((sum, v) => sum + v.menge, 0) + zusatzPositionen.reduce((sum, p) => sum + p.menge, 0);
+
+  if (laden) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-6 h-6 text-amber-500 animate-spin" />
+        <span className="ml-3 text-gray-500 dark:text-gray-400">Lade Daten...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -635,54 +849,246 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
           </div>
         </div>
 
-        {/* Positionen */}
+        {/* Vereine-Auswahl */}
         <div className="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-            <h4 className="font-medium text-gray-900 dark:text-white">
-              Positionen ({positionen.length} Vereine)
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-500" />
+                Vereine auswählen ({ausgewaehlteVereineCount} von {vereineAuswahl.length})
+              </h4>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={selectAlleVereine}
+                  className="text-sm text-amber-600 dark:text-amber-400 hover:underline"
+                >
+                  Alle auswählen
+                </button>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <button
+                  type="button"
+                  onClick={deselectAlleVereine}
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:underline"
+                >
+                  Keine
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Wählen Sie die Vereine aus und geben Sie die jeweilige Menge an.
+            </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-dark-bg">
-                <tr className="text-left text-sm font-medium text-gray-500 dark:text-gray-400">
-                  <th className="px-4 py-3">Pos.</th>
-                  <th className="px-4 py-3">Verein / Lieferort</th>
-                  <th className="px-4 py-3 text-right">Menge</th>
-                  <th className="px-4 py-3 text-right">Preis/t</th>
-                  <th className="px-4 py-3 text-right">Gesamt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
-                {positionen.map((pos, index) => (
-                  <tr key={index}>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{index + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900 dark:text-white">{pos.vereinsname}</div>
-                      {pos.lieferadresse && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {pos.lieferadresse.plz} {pos.lieferadresse.ort}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
-                      {pos.menge.toFixed(1)} t
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-300">
-                      {pos.einzelpreis.toFixed(2)} €
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
-                      {pos.gesamtpreis.toFixed(2)} €
-                    </td>
+
+          {vereineAuswahl.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <Users className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+              <p>Keine Vereine für diesen Platzbauer gefunden</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-dark-bg">
+                  <tr className="text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <th className="px-4 py-3 w-12"></th>
+                    <th className="px-4 py-3">Verein</th>
+                    <th className="px-4 py-3 w-32">Artikel</th>
+                    <th className="px-4 py-3 w-28 text-right">Menge (t)</th>
+                    <th className="px-4 py-3 w-28 text-right">Preis/t (€)</th>
+                    <th className="px-4 py-3 w-28 text-right">Gesamt (€)</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                  {vereineAuswahl.map((v, index) => (
+                    <tr
+                      key={v.verein.id}
+                      className={`transition-colors ${
+                        v.ausgewaehlt
+                          ? 'bg-amber-50/50 dark:bg-amber-900/10'
+                          : 'hover:bg-gray-50 dark:hover:bg-dark-bg'
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={v.ausgewaehlt}
+                          onChange={() => toggleVerein(index)}
+                          className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 dark:text-white">{v.verein.name}</div>
+                        {v.verein.lieferadresse && (
+                          <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {v.verein.lieferadresse.plz} {v.verein.lieferadresse.ort}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={v.artikelnummer}
+                          onChange={(e) => handleVereinArtikelChange(index, e.target.value)}
+                          disabled={!v.ausgewaehlt}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
+                        >
+                          {ziegelmehlArtikel.map(art => (
+                            <option key={art.$id} value={art.artikelnummer}>
+                              {art.artikelnummer}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={v.menge || ''}
+                          onChange={(e) => updateVerein(index, { menge: parseFloat(e.target.value) || 0 })}
+                          disabled={!v.ausgewaehlt}
+                          placeholder="0"
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={v.einzelpreis || ''}
+                          onChange={(e) => updateVerein(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          disabled={!v.ausgewaehlt}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
+                        {v.ausgewaehlt ? (v.menge * v.einzelpreis).toFixed(2) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Zusätzliche Positionen */}
+        <div className="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+            <h4 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+              <Package className="w-5 h-5 text-blue-500" />
+              Zusätzliche Positionen ({zusatzPositionen.length})
+            </h4>
+            <button
+              type="button"
+              onClick={addZusatzPosition}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Position hinzufügen
+            </button>
           </div>
+
+          {zusatzPositionen.length === 0 ? (
+            <div className="p-6 text-center text-gray-500 dark:text-gray-400 text-sm">
+              Keine zusätzlichen Positionen. Hier können Sie weitere Artikel hinzufügen.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-dark-bg">
+                  <tr className="text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <th className="px-3 py-3 w-12">Pos.</th>
+                    <th className="px-3 py-3 w-32">Artikel</th>
+                    <th className="px-3 py-3">Beschreibung</th>
+                    <th className="px-3 py-3 w-24 text-right">Menge</th>
+                    <th className="px-3 py-3 w-28 text-right">Preis/t</th>
+                    <th className="px-3 py-3 w-28 text-right">Gesamt</th>
+                    <th className="px-3 py-3 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                  {zusatzPositionen.map((pos, index) => (
+                    <tr key={pos.id} className="hover:bg-gray-50 dark:hover:bg-dark-bg">
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300 text-center">
+                        {ausgewaehlteVereineCount + index + 1}
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={pos.artikelnummer}
+                          onChange={(e) => handleZusatzArtikelChange(index, e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        >
+                          {ziegelmehlArtikel.map(art => (
+                            <option key={art.$id} value={art.artikelnummer}>
+                              {art.artikelnummer}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={pos.beschreibung || ''}
+                          onChange={(e) => updateZusatzPosition(index, { beschreibung: e.target.value })}
+                          placeholder="z.B. Sonderlieferung"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={pos.menge || ''}
+                          onChange={(e) => updateZusatzPosition(index, { menge: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={pos.einzelpreis || ''}
+                          onChange={(e) => updateZusatzPosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
+                        {pos.gesamtpreis.toFixed(2)} €
+                      </td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => removeZusatzPosition(index)}
+                          className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                          title="Position entfernen"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Summen */}
         <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-600 dark:text-gray-300">Gesamtmenge</span>
+            <span className="font-medium text-gray-900 dark:text-white">{gesamtMenge.toFixed(1)} t</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-gray-600 dark:text-gray-300">Positionen</span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {ausgewaehlteVereineCount + zusatzPositionen.filter(p => p.menge > 0).length}
+            </span>
+          </div>
           <div className="flex justify-between items-center mb-2">
             <span className="text-gray-600 dark:text-gray-300">Nettobetrag</span>
             <span className="font-medium text-gray-900 dark:text-white">{nettobetrag.toFixed(2)} €</span>
@@ -744,7 +1150,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
           <button
             type="submit"
-            disabled={saving || positionen.length === 0}
+            disabled={saving || (ausgewaehlteVereineCount === 0 && zusatzPositionen.filter(p => p.menge > 0).length === 0)}
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg transition-colors"
           >
             {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

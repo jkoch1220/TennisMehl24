@@ -117,12 +117,19 @@ const getMonthKey = (date: Date): string => {
   return `${months[date.getMonth()]} ${date.getFullYear()}`;
 };
 
-// Hilfsfunktion: Woche aus Datum extrahieren
-const getWeekKey = (date: Date): string => {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-  const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-  return `KW${weekNumber}`;
+// Hilfsfunktion: Tag als Key formatieren (DD.MM)
+const getDayKey = (date: Date): string => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}.${month}`;
+};
+
+// Hilfsfunktion: Volles Datum formatieren für Tooltip
+const getFullDateKey = (date: Date): string => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
 };
 
 // Farben für die Charts
@@ -235,36 +242,6 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
       .slice(-12); // Letzte 12 Monate
   }, [stats]);
 
-  // Daten nach Woche für Timeline
-  const wochenDaten = useMemo(() => {
-    const weekMap = new Map<string, {
-      week: string;
-      angebote: number;
-      abs: number;
-      lieferscheine: number;
-      rechnungen: number;
-      total: number;
-      sortKey: number;
-    }>();
-
-    const addToWeek = (date: Date, type: 'angebote' | 'abs' | 'lieferscheine' | 'rechnungen') => {
-      const key = getWeekKey(date);
-      const sortKey = date.getFullYear() * 100 + parseInt(key.replace('KW', ''));
-      const existing = weekMap.get(key) || { week: key, angebote: 0, abs: 0, lieferscheine: 0, rechnungen: 0, total: 0, sortKey };
-      existing[type]++;
-      existing.total++;
-      weekMap.set(key, existing);
-    };
-
-    stats.angeboteDaten.forEach(({ date }) => addToWeek(date, 'angebote'));
-    stats.abDaten.forEach(({ date }) => addToWeek(date, 'abs'));
-    stats.lieferscheinDaten.forEach(({ date }) => addToWeek(date, 'lieferscheine'));
-    stats.rechnungDaten.forEach(({ date }) => addToWeek(date, 'rechnungen'));
-
-    return Array.from(weekMap.values())
-      .sort((a, b) => a.sortKey - b.sortKey)
-      .slice(-16); // Letzte 16 Wochen
-  }, [stats]);
 
   // Durchschnittliche Bearbeitungszeiten berechnen
   const bearbeitungszeiten = useMemo(() => {
@@ -323,41 +300,124 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     };
   }, [alleProjekte]);
 
-  // Aktivität nach Wochentag
-  const wochentagAktivitaet = useMemo(() => {
-    const tage = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-    const counts = new Array(7).fill(0);
+  // Tagesgenaue Aktivität der letzten 30 Tage
+  const tagesgenaueDaten = useMemo(() => {
+    const heute = new Date();
+    heute.setHours(23, 59, 59, 999);
+    const vor30Tagen = new Date(heute);
+    vor30Tagen.setDate(vor30Tagen.getDate() - 30);
+    vor30Tagen.setHours(0, 0, 0, 0);
 
-    stats.angeboteDaten.forEach(({ date }) => {
-      counts[date.getDay()]++;
-    });
+    // Erstelle Map für alle Tage der letzten 30 Tage
+    const dayMap = new Map<string, {
+      datum: string;
+      datumVoll: string;
+      angebote: number;
+      abs: number;
+      lieferscheine: number;
+      rechnungen: number;
+      sortKey: number;
+    }>();
 
-    return tage.map((tag, index) => ({
-      tag: tag.substring(0, 2),
-      tagVoll: tag,
-      angebote: counts[index],
-    }));
-  }, [stats]);
-
-  // Durchschnittliche Angebote pro Tag/Woche
-  const angeboteProZeit = useMemo(() => {
-    if (stats.angeboteDaten.length === 0) {
-      return { proTag: 0, proWoche: 0, aktiveTage: 0 };
+    // Initialisiere alle 30 Tage mit 0
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date(vor30Tagen);
+      d.setDate(d.getDate() + i);
+      const key = getDayKey(d);
+      const fullKey = getFullDateKey(d);
+      const sortKey = d.getTime();
+      dayMap.set(fullKey, {
+        datum: key,
+        datumVoll: fullKey,
+        angebote: 0,
+        abs: 0,
+        lieferscheine: 0,
+        rechnungen: 0,
+        sortKey
+      });
     }
 
-    const dates = stats.angeboteDaten.map(a => a.date);
-    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-    const diffDays = Math.max(1, Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    const diffWeeks = Math.max(1, Math.ceil(diffDays / 7));
+    // Fülle mit tatsächlichen Daten
+    stats.angeboteDaten.forEach(({ date }) => {
+      if (date >= vor30Tagen && date <= heute) {
+        const fullKey = getFullDateKey(date);
+        const existing = dayMap.get(fullKey);
+        if (existing) {
+          existing.angebote++;
+        }
+      }
+    });
 
-    // Zähle aktive Tage (Tage an denen Angebote erstellt wurden)
-    const aktiveTageSet = new Set(dates.map(d => d.toISOString().split('T')[0]));
+    stats.abDaten.forEach(({ date }) => {
+      if (date >= vor30Tagen && date <= heute) {
+        const fullKey = getFullDateKey(date);
+        const existing = dayMap.get(fullKey);
+        if (existing) {
+          existing.abs++;
+        }
+      }
+    });
+
+    stats.lieferscheinDaten.forEach(({ date }) => {
+      if (date >= vor30Tagen && date <= heute) {
+        const fullKey = getFullDateKey(date);
+        const existing = dayMap.get(fullKey);
+        if (existing) {
+          existing.lieferscheine++;
+        }
+      }
+    });
+
+    stats.rechnungDaten.forEach(({ date }) => {
+      if (date >= vor30Tagen && date <= heute) {
+        const fullKey = getFullDateKey(date);
+        const existing = dayMap.get(fullKey);
+        if (existing) {
+          existing.rechnungen++;
+        }
+      }
+    });
+
+    return Array.from(dayMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+  }, [stats]);
+
+  // Angebote in den letzten 7 und 30 Tagen
+  const angeboteProZeit = useMemo(() => {
+    const heute = new Date();
+    heute.setHours(23, 59, 59, 999);
+
+    const vor7Tagen = new Date(heute);
+    vor7Tagen.setDate(vor7Tagen.getDate() - 7);
+    vor7Tagen.setHours(0, 0, 0, 0);
+
+    const vor30Tagen = new Date(heute);
+    vor30Tagen.setDate(vor30Tagen.getDate() - 30);
+    vor30Tagen.setHours(0, 0, 0, 0);
+
+    // Angebote der letzten 7 Tage
+    const letzte7Tage = stats.angeboteDaten.filter(({ date }) => date >= vor7Tagen && date <= heute).length;
+
+    // Angebote der letzten 30 Tage
+    const letzte30Tage = stats.angeboteDaten.filter(({ date }) => date >= vor30Tagen && date <= heute).length;
+
+    // Heute
+    const heuteStart = new Date(heute);
+    heuteStart.setHours(0, 0, 0, 0);
+    const heuteAngebote = stats.angeboteDaten.filter(({ date }) => date >= heuteStart && date <= heute).length;
+
+    // Gestern
+    const gesternStart = new Date(heuteStart);
+    gesternStart.setDate(gesternStart.getDate() - 1);
+    const gesternEnd = new Date(gesternStart);
+    gesternEnd.setHours(23, 59, 59, 999);
+    const gesternAngebote = stats.angeboteDaten.filter(({ date }) => date >= gesternStart && date <= gesternEnd).length;
 
     return {
-      proTag: Math.round((stats.angeboteDaten.length / diffDays) * 10) / 10,
-      proWoche: Math.round((stats.angeboteDaten.length / diffWeeks) * 10) / 10,
-      aktiveTage: aktiveTageSet.size,
+      heute: heuteAngebote,
+      gestern: gesternAngebote,
+      letzte7Tage,
+      letzte30Tage,
+      durchschnittProTag: Math.round((letzte30Tage / 30) * 10) / 10,
     };
   }, [stats]);
 
@@ -600,23 +660,43 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
           )}
         </div>
 
-        {/* Wochen-Trend - Area Chart */}
+        {/* Tagesgenaue Aktivität - Area Chart */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm lg:col-span-2">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-purple-600" />
-            Aktivität der letzten Wochen
+            Tagesgenaue Aktivität (letzte 30 Tage)
           </h3>
-          {wochenDaten.length > 0 ? (
+          {tagesgenaueDaten.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={wochenDaten}>
+              <AreaChart data={tagesgenaueDaten}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
-                  dataKey="week"
-                  tick={{ fontSize: 12 }}
+                  dataKey="datum"
+                  tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  interval={2}
+                  angle={-45}
+                  textAnchor="end"
+                  height={50}
                 />
-                <YAxis stroke="#6b7280" />
-                <Tooltip content={<CustomTooltip />} />
+                <YAxis stroke="#6b7280" allowDecimals={false} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length && payload[0].payload) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700">
+                          <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.datumVoll}</p>
+                          <p style={{ color: COLORS.angebot }}>Angebote: {data.angebote}</p>
+                          <p style={{ color: COLORS.ab }}>ABs: {data.abs}</p>
+                          <p style={{ color: COLORS.lieferschein }}>Lieferscheine: {data.lieferscheine}</p>
+                          <p style={{ color: COLORS.rechnung }}>Rechnungen: {data.rechnungen}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
                 <Legend />
                 <Area
                   type="monotone"
@@ -752,23 +832,31 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
           </div>
         </div>
 
-        {/* Aktivität nach Wochentag */}
+        {/* Tagesgenaue Angebote */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-purple-600" />
-            Angebote nach Wochentag
+            Angebote pro Tag (letzte 30 Tage)
           </h3>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={wochentagAktivitaet} layout="vertical">
+            <BarChart data={tagesgenaueDaten}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis type="number" stroke="#6b7280" />
-              <YAxis dataKey="tagVoll" type="category" width={80} stroke="#6b7280" tick={{ fontSize: 12 }} />
+              <XAxis
+                dataKey="datum"
+                stroke="#6b7280"
+                tick={{ fontSize: 10 }}
+                interval={2}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+              />
+              <YAxis stroke="#6b7280" allowDecimals={false} />
               <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     return (
                       <div className="bg-white dark:bg-slate-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700">
-                        <p className="font-semibold">{payload[0].payload.tagVoll}</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">{payload[0].payload.datumVoll}</p>
                         <p className="text-blue-600">{payload[0].value} Angebote</p>
                       </div>
                     );
@@ -776,38 +864,39 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
                   return null;
                 }}
               />
-              <Bar dataKey="angebote" fill={COLORS.angebot} radius={[0, 4, 4, 0]} />
+              <Bar dataKey="angebote" fill={COLORS.angebot} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Produktivitäts-KPIs */}
+      {/* Produktivitäts-KPIs - Tagesgenau */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-6 border border-gray-200 dark:border-slate-700 shadow-sm">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-purple-600" />
-          Produktivitäts-Kennzahlen
+          Angebote - Tagesaktuelle Zahlen
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-5 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/10 rounded-xl">
-            <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">{angeboteProZeit.proWoche}</p>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Angebote pro Woche</p>
-            <p className="text-xs text-gray-400">(Durchschnitt)</p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="text-center p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-900/10 rounded-xl border-2 border-emerald-200 dark:border-emerald-800">
+            <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{angeboteProZeit.heute}</p>
+            <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mt-2">Heute</p>
           </div>
-          <div className="text-center p-5 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-900/10 rounded-xl">
-            <p className="text-4xl font-bold text-green-600 dark:text-green-400">{angeboteProZeit.proTag}</p>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Angebote pro Tag</p>
-            <p className="text-xs text-gray-400">(Durchschnitt)</p>
+          <div className="text-center p-5 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/10 rounded-xl">
+            <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">{angeboteProZeit.gestern}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Gestern</p>
           </div>
           <div className="text-center p-5 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-900/10 rounded-xl">
-            <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{angeboteProZeit.aktiveTage}</p>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Aktive Tage</p>
-            <p className="text-xs text-gray-400">(mit Angeboten)</p>
+            <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">{angeboteProZeit.letzte7Tage}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Letzte 7 Tage</p>
           </div>
-          <div className="text-center p-5 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-900/10 rounded-xl">
-            <p className="text-4xl font-bold text-amber-600 dark:text-amber-400">{konversionsraten.verlorenRate}%</p>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Verloren-Quote</p>
-            <p className="text-xs text-gray-400">(Angebote ohne Erfolg)</p>
+          <div className="text-center p-5 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-900/10 rounded-xl">
+            <p className="text-4xl font-bold text-orange-600 dark:text-orange-400">{angeboteProZeit.letzte30Tage}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Letzte 30 Tage</p>
+          </div>
+          <div className="text-center p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/30 dark:to-gray-900/10 rounded-xl">
+            <p className="text-4xl font-bold text-gray-600 dark:text-gray-400">{angeboteProZeit.durchschnittProTag}</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Durchschnitt/Tag</p>
+            <p className="text-xs text-gray-400">(30 Tage)</p>
           </div>
         </div>
       </div>

@@ -11,7 +11,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Stammdaten } from '../types/stammdaten';
-import { PlatzbauerPosition, PlatzbauerProjekt } from '../types/platzbauer';
+import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition } from '../types/platzbauer';
 import { getStammdatenOderDefault } from './stammdatenService';
 import {
   addDIN5008Header,
@@ -46,8 +46,11 @@ export interface PlatzbauerAngebotsDaten {
   platzbauerPlzOrt: string;
   platzbauerAnsprechpartner?: string;
 
-  // Positionen (Vereine)
+  // Positionen (Vereine) - alte Struktur für Kompatibilität
   positionen: PlatzbauerPosition[];
+
+  // Erweiterte Positionen mit Artikel-Auswahl (bevorzugt falls vorhanden)
+  angebotPositionen?: PlatzbauerAngebotPosition[];
 
   // Zahlungsbedingungen
   zahlungsziel: string;
@@ -289,27 +292,60 @@ export const generierePlatzbauerAngebotPDF = async (
   // === Positionen Tabelle (Vereine) ===
   yPos += 8;
 
-  const tableData = daten.positionen.map((pos, index) => {
-    // Adresse formatieren
-    let adresseText = pos.vereinsname;
-    if (pos.lieferadresse) {
-      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
-    }
+  // Prüfen ob erweiterte angebotPositionen vorhanden sind
+  const hatErweitertePositionen = daten.angebotPositionen && daten.angebotPositionen.length > 0;
 
-    return [
-      (index + 1).toString(),
-      adresseText,
-      pos.menge.toFixed(1),
-      't',
-      formatWaehrung(pos.einzelpreis),
-      formatWaehrung(pos.gesamtpreis)
-    ];
-  });
+  let tableData: string[][];
+  let tableHeaders: string[];
+
+  if (hatErweitertePositionen) {
+    // Neue Struktur mit Artikelnummer und Beschreibung
+    tableHeaders = ['Pos.', 'Art.-Nr.', 'Bezeichnung / Beschreibung', 'Menge', 'Einh.', 'Preis/E', 'Gesamt'];
+    tableData = daten.angebotPositionen!.map((pos, index) => {
+      // Bezeichnung + Beschreibung kombinieren
+      let beschreibungText = pos.bezeichnung || '';
+      if (pos.beschreibung) {
+        beschreibungText += `\n${pos.beschreibung}`;
+      }
+      if (pos.lieferadresse) {
+        beschreibungText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
+      }
+
+      return [
+        (index + 1).toString(),
+        pos.artikelnummer,
+        beschreibungText,
+        pos.menge.toFixed(1),
+        pos.einheit || 't',
+        formatWaehrung(pos.einzelpreis),
+        formatWaehrung(pos.gesamtpreis)
+      ];
+    });
+  } else {
+    // Alte Struktur für Kompatibilität
+    tableHeaders = ['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt'];
+    tableData = daten.positionen.map((pos, index) => {
+      // Adresse formatieren
+      let adresseText = pos.vereinsname;
+      if (pos.lieferadresse) {
+        adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
+      }
+
+      return [
+        (index + 1).toString(),
+        adresseText,
+        pos.menge.toFixed(1),
+        't',
+        formatWaehrung(pos.einzelpreis),
+        formatWaehrung(pos.gesamtpreis)
+      ];
+    });
+  }
 
   autoTable(doc, {
     startY: yPos,
     margin: { left: 25, right: 20, top: 45, bottom: 30 },
-    head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
+    head: [tableHeaders],
     body: tableData,
     theme: 'striped',
     rowPageBreak: 'avoid',
@@ -323,7 +359,15 @@ export const generierePlatzbauerAngebotPDF = async (
       fontSize: 9,
       cellPadding: 3
     },
-    columnStyles: {
+    columnStyles: hatErweitertePositionen ? {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 58, valign: 'top' },
+      3: { cellWidth: 15, halign: 'right' },
+      4: { cellWidth: 12 },
+      5: { cellWidth: 20, halign: 'right' },
+      6: { cellWidth: 23, halign: 'right' }
+    } : {
       0: { cellWidth: 12, halign: 'center' },
       1: { cellWidth: 70, valign: 'top' },
       2: { cellWidth: 18, halign: 'right' },
@@ -343,12 +387,15 @@ export const generierePlatzbauerAngebotPDF = async (
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   summenY = await ensureSpace(doc, summenY, 35, stammdaten);
 
-  const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+  // Summen aus den korrekten Positionen berechnen
+  const positionenFuerSummen = hatErweitertePositionen ? daten.angebotPositionen! : daten.positionen;
+  const nettobetrag = positionenFuerSummen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
-  const gesamtMenge = daten.positionen.reduce((sum, pos) => sum + pos.menge, 0);
+  const gesamtMenge = positionenFuerSummen.reduce((sum, pos) => sum + pos.menge, 0);
+  const anzahlPositionen = positionenFuerSummen.length;
 
   const summenX = 125;
   summenY += 6;
@@ -403,7 +450,7 @@ export const generierePlatzbauerAngebotPDF = async (
     summenY += 4;
   }
 
-  doc.text(`Anzahl Vereine: ${daten.positionen.length}`, 25, summenY);
+  doc.text(`Anzahl Positionen: ${anzahlPositionen}`, 25, summenY);
   summenY += 4;
 
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
