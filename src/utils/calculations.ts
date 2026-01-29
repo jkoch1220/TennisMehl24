@@ -5,6 +5,8 @@ import {
   AUFSCHLAEGE,
   LIEFER_PREIS_TABELLE,
   getZoneFromPLZ,
+  berechneSpeditionskosten as berechneSpeditionskostenPricing,
+  berechneSpeditionskostenMitDiesel,
 } from '../constants/pricing';
 import { berechneEigenlieferungRoute, berechneFremdlieferungRoute } from './routeCalculation';
 
@@ -88,17 +90,39 @@ export const berechneSpeditionskosten = async (
   eigenlieferungStammdaten?: EigenlieferungStammdaten,
   fremdlieferungStammdaten?: FremdlieferungStammdaten,
   startPLZ: string = '97828', // Wertheimer Str. 30, 97828 Marktheidenfeld
-  herstellkostenJeTonne?: number // Abwerkspreis aus Variable-Kosten-Rechner
+  herstellkostenJeTonne?: number, // Abwerkspreis aus Variable-Kosten-Rechner
+  dieselPreisCent?: number // Aktueller Dieselpreis für Zuschlagsberechnung (optional)
 ): Promise<SpeditionskostenErgebnis> => {
   const tonnen = gewicht / 1000;
   const zone = zielPLZ.length >= 2 ? getZoneFromPLZ(zielPLZ) : null;
 
   let transportkosten = 0;
-  if (
+  let dieselzuschlag = 0;
+  let dieselzuschlagProzent = 0;
+
+  // Speditionskosten berechnen (funktioniert für alle Gewichtsstufen)
+  if (lieferart === 'spedition') {
+    if (dieselPreisCent !== undefined) {
+      // Mit Dieselzuschlag berechnen
+      const details = berechneSpeditionskostenMitDiesel(zielPLZ, gewicht, dieselPreisCent);
+      if (details) {
+        transportkosten = details.gesamtpreis;
+        dieselzuschlag = details.dieselzuschlag;
+        dieselzuschlagProzent = details.dieselzuschlagProzent;
+      }
+    } else {
+      // Ohne Dieselzuschlag (Basis-Tarif)
+      const basisPreis = berechneSpeditionskostenPricing(zielPLZ, gewicht);
+      if (basisPreis !== null) {
+        transportkosten = basisPreis;
+      }
+    }
+  } else if (
     zone &&
     LIEFER_PREIS_TABELLE[paletten] &&
     LIEFER_PREIS_TABELLE[paletten][gewicht]
   ) {
+    // Fallback für Eigen-/Fremdlieferung wenn zone-basierte Referenz benötigt wird
     transportkosten = LIEFER_PREIS_TABELLE[paletten][gewicht][zone];
   }
 
@@ -193,6 +217,11 @@ export const berechneSpeditionskosten = async (
   
   const preisProTonne = werkspreisProTonne + transportkostenProTonne;
   
+  // Basis-Transportkosten (ohne Diesel-Zuschlag) für Spedition
+  const transportkostenBasis = lieferart === 'spedition' && dieselzuschlag > 0
+    ? transportkosten - dieselzuschlag
+    : transportkosten;
+
   return {
     tonnen,
     zone,
@@ -210,6 +239,10 @@ export const berechneSpeditionskosten = async (
     transportkostenProTonne, // Transportkosten pro Tonne
     eigenlieferung: eigenlieferungRoute,
     fremdlieferung: fremdlieferungRoute,
+    // Diesel-Zuschlag Informationen (nur bei Spedition)
+    dieselzuschlag: lieferart === 'spedition' ? dieselzuschlag : undefined,
+    dieselzuschlagProzent: lieferart === 'spedition' ? dieselzuschlagProzent : undefined,
+    transportkostenBasis: lieferart === 'spedition' ? transportkostenBasis : undefined,
   };
 };
 

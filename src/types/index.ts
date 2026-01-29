@@ -99,6 +99,10 @@ export interface SpeditionskostenErgebnis extends Berechnungsergebnis {
     route: FremdlieferungRoutenBerechnung;
     stammdaten: FremdlieferungStammdaten;
   };
+  // Diesel-Zuschlag (nur bei Spedition)
+  dieselzuschlag?: number; // Betrag in EUR
+  dieselzuschlagProzent?: number; // Angewendeter Prozentsatz
+  transportkostenBasis?: number; // Basis-Transportkosten ohne Zuschläge
 }
 
 export interface LieferPreisTabelle {

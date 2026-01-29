@@ -253,7 +253,166 @@ Bitte antworte NUR mit dem JSON-Objekt im spezifizierten Format.`;
   return prompt;
 }
 
+// Interface für robustes Daten-Parsing
+export interface RobustExtrahierteDaten {
+  vorname?: string;
+  nachname?: string;
+  vereinsname?: string;
+  strasse?: string;
+  plz?: string;
+  ort?: string;
+  email?: string;
+  telefon?: string;
+  tonnenLose02?: number;
+  tonnenGesackt02?: number;
+  tonnenLose03?: number;
+  tonnenGesackt03?: number;
+  anzahlPlaetze?: number;
+  nachricht?: string;
+  // Qualitätsindikatoren
+  konfidenz: number;
+  warnungen: string[];
+}
+
+// Prompt für robustes Daten-Parsing
+const ROBUST_PARSING_PROMPT = `Du bist ein präziser Datenextraktions-Assistent. Deine Aufgabe ist es, strukturierte Kontakt- und Bestelldaten aus E-Mail-Formularen zu extrahieren.
+
+WICHTIGE REGELN:
+1. Extrahiere NUR tatsächlich vorhandene Daten - NIEMALS erfinden oder raten!
+2. Validiere alle Werte streng:
+   - E-Mail: Muss gültiges Format haben (name@domain.tld)
+   - Telefon: Nur Ziffern, +, -, Leerzeichen, Klammern (min. 5 Ziffern)
+   - PLZ: Genau 5 Ziffern (deutsche PLZ)
+   - Mengen: Nur positive Zahlen
+3. Wenn ein Feld leer oder nicht vorhanden ist, setze es auf null
+4. Wenn ein Wert verdächtig aussieht (z.B. enthält ":" oder sieht aus wie ein Feldname), setze es auf null und füge eine Warnung hinzu
+
+AUSGABEFORMAT - NUR VALIDES JSON:
+{
+  "vorname": "string oder null",
+  "nachname": "string oder null",
+  "vereinsname": "string oder null (Name des Tennisvereins/Clubs)",
+  "strasse": "string oder null",
+  "plz": "5-stellige Zahl als string oder null",
+  "ort": "string oder null",
+  "email": "gültige E-Mail oder null",
+  "telefon": "Telefonnummer oder null",
+  "tonnenLose02": "Zahl oder null (Tonnen 0-2mm lose)",
+  "tonnenGesackt02": "Zahl oder null (Tonnen 0-2mm gesackt)",
+  "tonnenLose03": "Zahl oder null (Tonnen 0-3mm lose)",
+  "tonnenGesackt03": "Zahl oder null (Tonnen 0-3mm gesackt)",
+  "anzahlPlaetze": "Zahl oder null (Anzahl Tennisplätze)",
+  "nachricht": "Freitext-Nachricht des Kunden oder null",
+  "konfidenz": "0-100 (wie sicher bist du bei der Extraktion)",
+  "warnungen": ["Liste von Warnungen bei verdächtigen Werten"]
+}`;
+
 export const claudeAnfrageService = {
+  /**
+   * ROBUST PARSING: Extrahiert Daten aus E-Mail-Formular mit Claude AI
+   * Verwendet strikte Validierung und gibt Warnungen bei verdächtigen Werten
+   */
+  async parseFormularRobust(emailText: string): Promise<RobustExtrahierteDaten> {
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      console.log('⚠️ Claude API nicht konfiguriert - verwende Regex-Parser');
+      // Fallback: Leere Daten mit Warnung zurückgeben
+      return {
+        konfidenz: 0,
+        warnungen: ['Claude API nicht verfügbar - bitte Regex-Parser prüfen'],
+      };
+    }
+
+    const userPrompt = `Extrahiere alle Daten aus diesem Webformular-E-Mail:
+
+---
+${emailText}
+---
+
+Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Feldname folgt (z.B. "Telefon: Angebot:"), ist das Feld LEER - setze es auf null!`;
+
+    try {
+      console.log('🤖 Robustes Parsing mit Claude API...');
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          system: ROBUST_PARSING_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Claude API Fehler:', errorData);
+        return {
+          konfidenz: 0,
+          warnungen: [`Claude API Fehler: ${response.status}`],
+        };
+      }
+
+      const data = await response.json();
+      const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
+
+      if (!textContent?.text) {
+        return {
+          konfidenz: 0,
+          warnungen: ['Keine Antwort von Claude erhalten'],
+        };
+      }
+
+      // Parse JSON
+      let cleanText = textContent.text.trim();
+      if (cleanText.startsWith('```json')) {
+        cleanText = cleanText.slice(7);
+      } else if (cleanText.startsWith('```')) {
+        cleanText = cleanText.slice(3);
+      }
+      if (cleanText.endsWith('```')) {
+        cleanText = cleanText.slice(0, -3);
+      }
+      cleanText = cleanText.trim();
+
+      const parsed = JSON.parse(cleanText);
+
+      console.log('✅ Claude Parsing erfolgreich:', parsed);
+
+      return {
+        vorname: parsed.vorname || undefined,
+        nachname: parsed.nachname || undefined,
+        vereinsname: parsed.vereinsname || undefined,
+        strasse: parsed.strasse || undefined,
+        plz: parsed.plz || undefined,
+        ort: parsed.ort || undefined,
+        email: parsed.email || undefined,
+        telefon: parsed.telefon || undefined,
+        tonnenLose02: typeof parsed.tonnenLose02 === 'number' ? parsed.tonnenLose02 : undefined,
+        tonnenGesackt02: typeof parsed.tonnenGesackt02 === 'number' ? parsed.tonnenGesackt02 : undefined,
+        tonnenLose03: typeof parsed.tonnenLose03 === 'number' ? parsed.tonnenLose03 : undefined,
+        tonnenGesackt03: typeof parsed.tonnenGesackt03 === 'number' ? parsed.tonnenGesackt03 : undefined,
+        anzahlPlaetze: typeof parsed.anzahlPlaetze === 'number' ? parsed.anzahlPlaetze : undefined,
+        nachricht: parsed.nachricht || undefined,
+        konfidenz: parsed.konfidenz || 50,
+        warnungen: parsed.warnungen || [],
+      };
+    } catch (error) {
+      console.error('Fehler beim robusten Parsing:', error);
+      return {
+        konfidenz: 0,
+        warnungen: [`Parsing-Fehler: ${error}`],
+      };
+    }
+  },
+
   /**
    * Analysiert eine Kundenanfrage mit Claude AI
    */

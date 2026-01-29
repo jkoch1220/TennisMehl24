@@ -52,6 +52,148 @@ const WEBFORMULAR_ABSENDER = 'mail@tennismehl.com';
 const DATABASE_ID = 'tennismehl24_db';
 const ANFRAGEN_COLLECTION_ID = 'anfragen';
 
+// ============================================
+// VALIDATOREN - Strikte Prüfung aller Werte
+// ============================================
+
+// Alle bekannten Feldnamen aus dem Webformular (um Verwechslung zu vermeiden)
+const BEKANNTE_FELDNAMEN = [
+  'vorname', 'nachname', 'vereins-name', 'vereinsname', 'verein', 'club', 'klub',
+  'straße', 'strasse', 'adresse', 'plz', 'postleitzahl', 'ort', 'stadt', 'gemeinde',
+  'e-mail', 'email', 'mail', 'telefon', 'tel', 'telefonnummer', 'handy', 'mobil',
+  'angebot', 'anzahl plätze', 'anzahl plaetze', 'plätze', 'plaetze',
+  'tonnen 0-2 lose', 'tonnen 0-2 gesackt', 'tonnen 0-3 lose', 'tonnen 0-3 gesackt',
+  'nachricht', 'bemerkung', 'anmerkung', 'kommentar', 'hinweis', 'mitteilung',
+  'datenschutzerklärung', 'datenschutzerklaerung'
+];
+
+/**
+ * Prüft ob ein Wert wie ein Feldname aussieht
+ */
+const siehtAusWieFeldname = (value: string): boolean => {
+  if (!value) return false;
+  const lower = value.toLowerCase().trim();
+
+  for (const feldname of BEKANNTE_FELDNAMEN) {
+    if (lower.startsWith(feldname)) {
+      return true;
+    }
+  }
+
+  if (/^[a-zäöüß\-\s]+\s*\*?\s*:/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Sanitize Strings gegen XSS/Injection
+ */
+const sanitizeString = (value: string): string => {
+  if (!value) return '';
+  return value
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
+    .trim()
+    .substring(0, 500);
+};
+
+/**
+ * Validiert E-Mail-Adresse
+ */
+const validateEmail = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim().toLowerCase();
+
+  const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+  if (!emailRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige E-Mail: "${value}"`);
+    return undefined;
+  }
+
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ E-Mail sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert Telefonnummer
+ */
+const validateTelefon = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ Telefon sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  // Telefon: nur Zahlen, +, -, Leerzeichen, Klammern, /
+  const telefonRegex = /^[\d\s\-+()\/]{5,20}$/;
+  if (!telefonRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige Telefonnummer: "${value}"`);
+    return undefined;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 5) {
+    console.log(`⚠️ Telefonnummer zu kurz: "${value}"`);
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert deutsche PLZ (5 Ziffern)
+ */
+const validatePLZ = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+
+  const plzRegex = /^\d{5}$/;
+  if (!plzRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige PLZ: "${value}"`);
+    return undefined;
+  }
+
+  const plzNum = parseInt(trimmed, 10);
+  if (plzNum < 1000 || plzNum > 99999) {
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert Namen (Vorname, Nachname, Vereinsname, Ort, Straße)
+ */
+const validateName = (value: string | undefined, maxLength: number = 100): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ Name sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  if (trimmed.length < 2 || /^[-_*\s]+$/.test(trimmed)) {
+    return undefined;
+  }
+
+  if (trimmed.endsWith(':')) {
+    console.log(`⚠️ Name endet mit Doppelpunkt: "${value}"`);
+    return undefined;
+  }
+
+  return sanitizeString(trimmed).substring(0, maxLength);
+};
+
 // Parse Email
 const parseEmailContent = (mail: ParsedMail, uid: number): EmailData => {
   const fromAddr = mail.from?.value?.[0] || { name: '', address: '' };
@@ -67,32 +209,56 @@ const parseEmailContent = (mail: ParsedMail, uid: number): EmailData => {
   };
 };
 
+/**
+ * Extrahiert einen Feldwert robust - stoppt vor dem nächsten Feldnamen
+ */
+const extractFieldRobust = (text: string, fieldPattern: RegExp): string | undefined => {
+  const match = text.match(fieldPattern);
+  if (!match || !match[1]) return undefined;
+
+  let value = match[1].trim();
+
+  // KRITISCH: Stoppe wenn der Wert einen anderen Feldnamen enthält
+  for (const feldname of BEKANNTE_FELDNAMEN) {
+    const feldnamePos = value.toLowerCase().indexOf(feldname);
+    if (feldnamePos > 0) {
+      // Schneide vor dem Feldnamen ab
+      value = value.substring(0, feldnamePos).trim();
+    }
+  }
+
+  // Prüfe ob der Wert selbst wie ein Feldname aussieht
+  if (siehtAusWieFeldname(value)) {
+    console.log(`⚠️ Wert sieht aus wie Feldname: "${value}" - ABGELEHNT`);
+    return undefined;
+  }
+
+  return value || undefined;
+};
+
 // Webformular-Daten extrahieren
 const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
   const daten: ExtrahierteDaten = {};
 
-  // WICHTIG: Vereinsname hat Priorität - eigene Extraktion!
-  // "Vereins-Name *:" oder "Vereinsname *:" oder "Vereins-Name:"
-  const vereinsnameMatch = text.match(/(?:vereins-?name|verein|club|klub)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
-  if (vereinsnameMatch && vereinsnameMatch[1]) {
-    const vereinsname = vereinsnameMatch[1].trim();
-    // Nur wenn es ein echter Wert ist (nicht leer, nicht nur Sonderzeichen)
-    if (vereinsname && vereinsname.length > 1 && !/^[-_*]+$/.test(vereinsname)) {
-      daten.vereinsname = vereinsname;
-      // Vereinsname ist der Kundenname!
-      daten.kundenname = vereinsname;
-    }
+  // WICHTIG: Vereinsname hat Priorität - mit robuster Extraktion
+  const vereinsnameRaw = extractFieldRobust(text, /(?:vereins-?name|verein|club|klub)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  const vereinsname = validateName(vereinsnameRaw, 200);
+  if (vereinsname) {
+    daten.vereinsname = vereinsname;
+    daten.kundenname = vereinsname;
   }
 
-  // Vorname und Nachname separat extrahieren
-  const vornameMatch = text.match(/vorname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
-  if (vornameMatch && vornameMatch[1]) {
-    daten.vorname = vornameMatch[1].trim();
+  // Vorname und Nachname separat extrahieren mit Validierung
+  const vornameRaw = extractFieldRobust(text, /vorname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  const vorname = validateName(vornameRaw, 50);
+  if (vorname) {
+    daten.vorname = vorname;
   }
 
-  const nachnameMatch = text.match(/nachname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
-  if (nachnameMatch && nachnameMatch[1]) {
-    daten.nachname = nachnameMatch[1].trim();
+  const nachnameRaw = extractFieldRobust(text, /nachname\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  const nachname = validateName(nachnameRaw, 50);
+  if (nachname) {
+    daten.nachname = nachname;
   }
 
   // Ansprechpartner aus Vorname + Nachname zusammensetzen
@@ -100,14 +266,12 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
     daten.ansprechpartner = `${daten.vorname || ''} ${daten.nachname || ''}`.trim();
   }
 
-  // Falls kein Vereinsname, prüfe Firma/Organisation (NICHT "name" allgemein!)
+  // Falls kein Vereinsname, prüfe Firma/Organisation
   if (!daten.kundenname) {
-    const firmaMatch = text.match(/(?:firma|organisation|unternehmen|betrieb)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
-    if (firmaMatch && firmaMatch[1]) {
-      const firma = firmaMatch[1].trim();
-      if (firma && firma.length > 1) {
-        daten.kundenname = firma;
-      }
+    const firmaRaw = extractFieldRobust(text, /(?:firma|organisation|unternehmen|betrieb)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+    const firma = validateName(firmaRaw, 200);
+    if (firma) {
+      daten.kundenname = firma;
     }
   }
 
@@ -116,28 +280,57 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
     daten.kundenname = daten.ansprechpartner;
   }
 
-  // Standard Webformular-Format für restliche Felder
-  const patterns: Record<string, RegExp> = {
-    strasse: /(?:straße|strasse|adresse)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
-    plz: /(?:plz|postleitzahl)\s*[*:]?\s*[:=]?\s*(\d{5})/i,
-    ort: /(?:ort|stadt|city)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
-    telefon: /(?:telefon|tel|phone|mobil)\s*[*:]?\s*[:=]?\s*([\d\s\-\/\+]+)/i,
-    email: /(?:e-?mail|email)\s*[*:]?\s*[:=]?\s*([\w.+-]+@[\w.-]+\.\w+)/i,
-    artikel: /(?:artikel|produkt|material)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i,
-    koernung: /(?:körnung|koernung|korngröße)\s*[*:]?\s*[:=]?\s*([\d\/\-]+)/i,
-    lieferart: /(?:lieferart|lieferung)\s*[*:]?\s*[:=]?\s*(lose|gesackt|big\s*bag)/i,
-    anzahlPlaetze: /(?:anzahl\s*plätze|anzahl\s*plaetze|plätze|tennis.*plätze?)\s*[*:]?\s*[:=]?\s*(\d+)/i,
-  };
+  // Straße mit Validierung
+  const strasseRaw = extractFieldRobust(text, /(?:straße|strasse|adresse)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  const strasse = validateName(strasseRaw, 200);
+  if (strasse) daten.strasse = strasse;
 
-  for (const [key, pattern] of Object.entries(patterns)) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      const value = match[1].trim();
-      if (key === 'anzahlPlaetze') {
-        daten[key as keyof ExtrahierteDaten] = parseFloat(value.replace(',', '.')) as any;
-      } else {
-        (daten as any)[key] = value;
-      }
+  // PLZ mit strenger Validierung (muss 5 Ziffern sein)
+  const plzMatch = text.match(/(?:plz|postleitzahl)\s*[*:]?\s*[:=]?\s*(\d{5})/i);
+  if (plzMatch) {
+    const plz = validatePLZ(plzMatch[1]);
+    if (plz) daten.plz = plz;
+  }
+
+  // Ort mit Validierung
+  const ortRaw = extractFieldRobust(text, /(?:ort|stadt|city)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  const ort = validateName(ortRaw, 100);
+  if (ort) daten.ort = ort;
+
+  // Telefon mit strenger Validierung
+  const telefonMatch = text.match(/(?:telefon|tel|phone|mobil)\s*[*:]?\s*[:=]?\s*([\d\s\-\/\+()]+)/i);
+  if (telefonMatch) {
+    const telefon = validateTelefon(telefonMatch[1]);
+    if (telefon) daten.telefon = telefon;
+  }
+
+  // E-Mail mit strenger Validierung
+  const emailMatch = text.match(/(?:e-?mail|email)\s*[*:]?\s*[:=]?\s*([\w.+-]+@[\w.-]+\.\w+)/i);
+  if (emailMatch) {
+    const email = validateEmail(emailMatch[1]);
+    if (email) daten.email = email;
+  }
+
+  // Artikel (optional)
+  const artikelRaw = extractFieldRobust(text, /(?:artikel|produkt|material)\s*[*:]?\s*[:=]?\s*(.+?)(?:\n|$)/i);
+  if (artikelRaw && !siehtAusWieFeldname(artikelRaw)) {
+    daten.artikel = sanitizeString(artikelRaw);
+  }
+
+  // Körnung
+  const koernungMatch = text.match(/(?:körnung|koernung|korngröße)\s*[*:]?\s*[:=]?\s*([\d\/\-]+)/i);
+  if (koernungMatch) daten.koernung = koernungMatch[1].trim();
+
+  // Lieferart
+  const lieferartMatch = text.match(/(?:lieferart|lieferung)\s*[*:]?\s*[:=]?\s*(lose|gesackt|big\s*bag)/i);
+  if (lieferartMatch) daten.lieferart = lieferartMatch[1].trim().toLowerCase();
+
+  // Anzahl Plätze
+  const plaetzeMatch = text.match(/(?:anzahl\s*plätze|anzahl\s*plaetze|plätze|tennis.*plätze?)\s*[*:]?\s*[:=]?\s*(\d+)/i);
+  if (plaetzeMatch) {
+    const anzahl = parseInt(plaetzeMatch[1], 10);
+    if (!isNaN(anzahl) && anzahl > 0 && anzahl <= 100) {
+      daten.anzahlPlaetze = anzahl;
     }
   }
 
@@ -183,13 +376,27 @@ const extrahiereWebformularDaten = (text: string): ExtrahierteDaten => {
     if (!daten.lieferart) daten.lieferart = hauptPosition.lieferart;
   }
 
-  // Nachricht extrahieren (alles nach "Nachricht:" oder "Bemerkung:")
-  const nachrichtMatch = text.match(/(?:nachricht|bemerkung|anmerkung|mitteilung)\s*[*:]?\s*[:=]?\s*([\s\S]+?)(?:(?:mit freundlichen|regards|---)|$)/i);
-  if (nachrichtMatch) {
-    daten.nachricht = nachrichtMatch[1].trim().substring(0, 2000);
+  // Nachricht extrahieren - aber stopp vor Datenschutzerklärung und anderen Feldern
+  const nachrichtMatch = text.match(/(?:nachricht|bemerkung|anmerkung|mitteilung)\s*[*:]?\s*[:=]?\s*([\s\S]+?)(?:datenschutz|mit freundlichen|regards|---|$)/i);
+  if (nachrichtMatch && nachrichtMatch[1]) {
+    let nachricht = nachrichtMatch[1].trim();
+
+    // Entferne trailing Feldnamen
+    for (const feldname of BEKANNTE_FELDNAMEN) {
+      const pos = nachricht.toLowerCase().lastIndexOf(feldname);
+      if (pos > 0) {
+        nachricht = nachricht.substring(0, pos).trim();
+      }
+    }
+
+    // Sanitize und speichere
+    nachricht = sanitizeString(nachricht);
+    if (nachricht.length >= 3 && !siehtAusWieFeldname(nachricht)) {
+      daten.nachricht = nachricht.substring(0, 2000);
+    }
   }
 
-  console.log('📋 Extrahierte Daten:', JSON.stringify(daten, null, 2));
+  console.log('📋 Extrahierte Daten (validiert):', JSON.stringify(daten, null, 2));
 
   return daten;
 };

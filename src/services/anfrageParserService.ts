@@ -26,6 +26,180 @@
 
 import { ExtrahierteDaten } from '../types/anfragen';
 
+// ============================================
+// VALIDATOREN - Strikte Prüfung aller Werte
+// ============================================
+
+// Alle bekannten Feldnamen aus dem Webformular (um Verwechslung zu vermeiden)
+const BEKANNTE_FELDNAMEN = [
+  'vorname', 'nachname', 'vereins-name', 'vereinsname', 'verein', 'club', 'klub',
+  'straße', 'strasse', 'adresse', 'plz', 'postleitzahl', 'ort', 'stadt', 'gemeinde',
+  'e-mail', 'email', 'mail', 'telefon', 'tel', 'telefonnummer', 'handy', 'mobil',
+  'angebot', 'anzahl plätze', 'anzahl plaetze', 'plätze', 'plaetze',
+  'tonnen 0-2 lose', 'tonnen 0-2 gesackt', 'tonnen 0-3 lose', 'tonnen 0-3 gesackt',
+  'nachricht', 'bemerkung', 'anmerkung', 'kommentar', 'hinweis', 'mitteilung',
+  'datenschutzerklärung', 'datenschutzerklaerung'
+];
+
+/**
+ * Prüft ob ein Wert wie ein Feldname aussieht (Vermeidet Feldnamen als Werte)
+ */
+const siehtAusWieFeldname = (value: string): boolean => {
+  if (!value) return false;
+  const lower = value.toLowerCase().trim();
+
+  // Prüfe auf bekannte Feldnamen
+  for (const feldname of BEKANNTE_FELDNAMEN) {
+    if (lower.startsWith(feldname)) {
+      return true;
+    }
+  }
+
+  // Prüfe auf Muster wie "Feldname:" oder "Feldname *:"
+  if (/^[a-zäöüß\-\s]+\s*\*?\s*:/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Sanitize Strings gegen XSS/Injection
+ */
+const sanitizeString = (value: string): string => {
+  if (!value) return '';
+  return value
+    .replace(/[<>]/g, '') // Entferne HTML-Tags
+    .replace(/javascript:/gi, '') // Entferne JS-Injection
+    .replace(/on\w+=/gi, '') // Entferne Event-Handler
+    .trim()
+    .substring(0, 500); // Max Länge
+};
+
+/**
+ * Validiert und sanitized eine E-Mail-Adresse
+ */
+const validateEmail = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+
+  const trimmed = value.trim().toLowerCase();
+
+  // Strenge E-Mail-Regex
+  const emailRegex = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+  if (!emailRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige E-Mail abgelehnt: "${value}"`);
+    return undefined;
+  }
+
+  // Prüfe auf Feldname
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ E-Mail sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert und sanitized eine Telefonnummer
+ */
+const validateTelefon = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+
+  const trimmed = value.trim();
+
+  // Prüfe auf Feldname
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ Telefon sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  // Telefon darf nur Zahlen, +, -, Leerzeichen, Klammern, / enthalten
+  const telefonRegex = /^[\d\s\-+()\/]{5,20}$/;
+  if (!telefonRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige Telefonnummer abgelehnt: "${value}"`);
+    return undefined;
+  }
+
+  // Muss mindestens 5 Ziffern enthalten
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 5) {
+    console.log(`⚠️ Telefonnummer hat zu wenig Ziffern: "${value}"`);
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert eine deutsche PLZ (5 Ziffern)
+ */
+const validatePLZ = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+
+  const trimmed = value.trim();
+
+  // PLZ muss genau 5 Ziffern sein
+  const plzRegex = /^\d{5}$/;
+  if (!plzRegex.test(trimmed)) {
+    console.log(`⚠️ Ungültige PLZ abgelehnt: "${value}"`);
+    return undefined;
+  }
+
+  // Deutsche PLZ: 01000-99999
+  const plzNum = parseInt(trimmed, 10);
+  if (plzNum < 1000 || plzNum > 99999) {
+    console.log(`⚠️ PLZ außerhalb gültigem Bereich: "${value}"`);
+    return undefined;
+  }
+
+  return trimmed;
+};
+
+/**
+ * Validiert einen Namen (Vorname, Nachname, Vereinsname, Ort, Straße)
+ */
+const validateName = (value: string | undefined, maxLength: number = 100): string | undefined => {
+  if (!value) return undefined;
+
+  const trimmed = value.trim();
+
+  // Prüfe auf Feldname
+  if (siehtAusWieFeldname(trimmed)) {
+    console.log(`⚠️ Name sieht aus wie Feldname: "${value}"`);
+    return undefined;
+  }
+
+  // Zu kurz oder nur Sonderzeichen
+  if (trimmed.length < 2 || /^[-_*\s]+$/.test(trimmed)) {
+    return undefined;
+  }
+
+  // Darf nicht mit Doppelpunkt enden (abgeschnittener Feldname)
+  if (trimmed.endsWith(':')) {
+    console.log(`⚠️ Name endet mit Doppelpunkt (Feldname?): "${value}"`);
+    return undefined;
+  }
+
+  return sanitizeString(trimmed).substring(0, maxLength);
+};
+
+/**
+ * Validiert eine Nachricht/Freitext
+ */
+const validateNachricht = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+
+  const trimmed = value.trim();
+
+  // Ignoriere Standard-Platzhalter
+  if (trimmed.length < 3 || /^[-_*\s]+$/.test(trimmed)) {
+    return undefined;
+  }
+
+  return sanitizeString(trimmed).substring(0, 2000);
+};
+
 // Strukturierter Output von der Analyse
 export interface AnfrageAnalyseErgebnis {
   // Extrahierte Kontaktdaten
@@ -121,28 +295,36 @@ const htmlToPlainText = (html: string): string => {
 
 /**
  * Extrahiert einen Wert für ein bestimmtes Feld aus dem Text
+ * WICHTIG: Robuste Extraktion die leere Felder und Feldnamen-Verwechslung verhindert
  */
 const extractField = (text: string, fieldNames: string[]): string | undefined => {
   for (const fieldName of fieldNames) {
-    // Versuche verschiedene Muster:
-    // "Feldname *: Wert"
-    // "Feldname*: Wert"
-    // "Feldname: Wert"
-    // "Feldname * : Wert"
-    const patterns = [
-      new RegExp(`${fieldName}\\s*\\*?\\s*:\\s*(.+?)(?:\\n|$)`, 'im'),
-      new RegExp(`${fieldName}\\s*:\\s*(.+?)(?:\\n|$)`, 'im'),
-    ];
+    // Escape special regex characters in fieldName
+    const escapedFieldName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        // Ignoriere leere Werte und Platzhalter
-        if (value && value !== '-' && value !== 'null' && value !== 'undefined') {
-          return value;
-        }
+    // WICHTIG: Verwende nicht-gierige Regex und stoppe vor dem nächsten Feldnamen!
+    // Muster: "Feldname *: Wert" bis zum Zeilenende ODER bis zum nächsten "Feldname:"
+    const pattern = new RegExp(
+      `${escapedFieldName}\\s*\\*?\\s*:\\s*([^\\n]*?)(?=\\s*(?:${BEKANNTE_FELDNAMEN.map(f => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\s*\\*?\\s*:|\\n|$)`,
+      'im'
+    );
+
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const value = match[1].trim();
+
+      // Ignoriere leere Werte und Platzhalter
+      if (!value || value === '-' || value === 'null' || value === 'undefined') {
+        continue;
       }
+
+      // KRITISCH: Prüfe ob der extrahierte Wert selbst wie ein Feldname aussieht
+      if (siehtAusWieFeldname(value)) {
+        console.log(`⚠️ Feld "${fieldName}" enthält Feldname als Wert: "${value}" - ABGELEHNT`);
+        continue;
+      }
+
+      return value;
     }
   }
   return undefined;
@@ -186,15 +368,34 @@ export const parseWebformularAnfrage = (emailText: string): AnfrageAnalyseErgebn
   console.log('====================');
 
   // Extrahiere alle Felder mit den bekannten Feldnamen
-  const vorname = extractField(text, ['Vorname']);
-  const nachname = extractField(text, ['Nachname']);
-  const vereinsname = extractField(text, ['Vereins-Name', 'Vereinsname', 'Verein', 'Club', 'Klub']);
-  const strasse = extractField(text, ['Straße', 'Strasse', 'Adresse']);
-  const plz = extractField(text, ['PLZ', 'Postleitzahl']);
-  const ort = extractField(text, ['Ort', 'Stadt', 'Gemeinde']);
-  const email = extractField(text, ['E-Mail', 'Email', 'E-mail', 'Mail']);
-  const telefon = extractField(text, ['Telefon', 'Tel', 'Telefonnummer', 'Handy', 'Mobil']);
-  const nachricht = extractField(text, ['Nachricht', 'Bemerkung', 'Anmerkung', 'Kommentar', 'Hinweis']);
+  // WICHTIG: Alle Werte werden durch strenge Validatoren geprüft!
+  const vornameRaw = extractField(text, ['Vorname']);
+  const nachnameRaw = extractField(text, ['Nachname']);
+  const vereinsnameRaw = extractField(text, ['Vereins-Name', 'Vereinsname', 'Verein', 'Club', 'Klub']);
+  const strasseRaw = extractField(text, ['Straße', 'Strasse', 'Adresse']);
+  const plzRaw = extractField(text, ['PLZ', 'Postleitzahl']);
+  const ortRaw = extractField(text, ['Ort', 'Stadt', 'Gemeinde']);
+  const emailRaw = extractField(text, ['E-Mail', 'Email', 'E-mail', 'Mail']);
+  const telefonRaw = extractField(text, ['Telefon', 'Tel', 'Telefonnummer', 'Handy', 'Mobil']);
+  const nachrichtRaw = extractField(text, ['Nachricht', 'Bemerkung', 'Anmerkung', 'Kommentar', 'Hinweis']);
+
+  // VALIDIERUNG: Alle Felder durch strenge Validatoren prüfen
+  const vorname = validateName(vornameRaw, 50);
+  const nachname = validateName(nachnameRaw, 50);
+  const vereinsname = validateName(vereinsnameRaw, 200);
+  const strasse = validateName(strasseRaw, 200);
+  const plz = validatePLZ(plzRaw);
+  const ort = validateName(ortRaw, 100);
+  const email = validateEmail(emailRaw);
+  const telefon = validateTelefon(telefonRaw);
+  const nachricht = validateNachricht(nachrichtRaw);
+
+  // Debug: Zeige abgelehnte Werte
+  if (vornameRaw && !vorname) console.log(`❌ Vorname abgelehnt: "${vornameRaw}"`);
+  if (nachnameRaw && !nachname) console.log(`❌ Nachname abgelehnt: "${nachnameRaw}"`);
+  if (emailRaw && !email) console.log(`❌ E-Mail abgelehnt: "${emailRaw}"`);
+  if (telefonRaw && !telefon) console.log(`❌ Telefon abgelehnt: "${telefonRaw}"`);
+  if (plzRaw && !plz) console.log(`❌ PLZ abgelehnt: "${plzRaw}"`);
 
   // Extrahiere Mengenangaben
   const anzahlPlaetze = extractNumber(text, ['Anzahl Plätze', 'Anzahl Plaetze', 'Plätze', 'Plaetze']);

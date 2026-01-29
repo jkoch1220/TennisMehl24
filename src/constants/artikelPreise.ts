@@ -46,38 +46,37 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
   },
 
   // ==========================================
-  // SACKWARE (regulär per Spedition)
-  // Preis pro Sack (40kg), nicht pro Tonne!
+  // SACKWARE (regulär per Spedition Raben)
+  // WICHTIG: Preis pro TONNE (nicht pro Sack!)
+  // Diese Artikel werden bei ≥1t Sackware ODER bei reiner Sackware ohne Schüttgut verwendet
   // ==========================================
   'TM-ZM-02St': {
     artikelnummer: 'TM-ZM-02St',
-    bezeichnung: 'Tennismehl 0/2 mm gesackt (40kg Säcke)',
-    einheit: 'Stk',
-    werkspreis: 8.50, // €/Sack
+    bezeichnung: 'Tennismehl 0/2 mm gesackt',
+    einheit: 't', // TONNEN, nicht Stück!
+    werkspreis: null, // WICHTIG: Preis aus Stammdaten laden! (145€/t)
     lieferart: 'gesackt',
     koernung: '0-2',
-    gewichtProStueckKg: 40,
   },
   'TM-ZM-03St': {
     artikelnummer: 'TM-ZM-03St',
-    bezeichnung: 'Tennismehl 0/3 mm gesackt (40kg Säcke)',
-    einheit: 'Stk',
-    werkspreis: 8.50, // €/Sack
+    bezeichnung: 'Tennismehl 0/3 mm gesackt',
+    einheit: 't', // TONNEN, nicht Stück!
+    werkspreis: null, // WICHTIG: Preis aus Stammdaten laden! (145€/t)
     lieferart: 'gesackt',
     koernung: '0-3',
-    gewichtProStueckKg: 40,
   },
 
   // ==========================================
-  // BEILADUNG (Sackware < 1t mit Schüttgut)
+  // BEILADUNG (Sackware < 1t MIT Schüttgut!)
   // Wird per LKW zusammen mit losem Material geliefert
-  // Preis pro Sack (40kg), nicht pro Tonne!
+  // WICHTIG: Preis pro SACK (40kg), da einzelne Säcke auf den LKW geladen werden
   // ==========================================
   'TM-ZM-02S': {
     artikelnummer: 'TM-ZM-02S',
     bezeichnung: 'Tennismehl 0/2 mm gesackt - Beiladung (40kg Säcke)',
-    einheit: 'Stk',
-    werkspreis: 8.50, // €/Sack (gleicher Werkspreis wie reguläre Sackware)
+    einheit: 'Stk', // STÜCK = einzelne 40kg Säcke
+    werkspreis: null, // WICHTIG: Preis aus Stammdaten laden! (8.50€/Sack)
     lieferart: 'beiladung',
     koernung: '0-2',
     gewichtProStueckKg: 40,
@@ -85,8 +84,8 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
   'TM-ZM-03S': {
     artikelnummer: 'TM-ZM-03S',
     bezeichnung: 'Tennismehl 0/3 mm gesackt - Beiladung (40kg Säcke)',
-    einheit: 'Stk',
-    werkspreis: 8.50, // €/Sack (gleicher Werkspreis wie reguläre Sackware)
+    einheit: 'Stk', // STÜCK = einzelne 40kg Säcke
+    werkspreis: null, // WICHTIG: Preis aus Stammdaten laden! (8.50€/Sack)
     lieferart: 'beiladung',
     koernung: '0-3',
     gewichtProStueckKg: 40,

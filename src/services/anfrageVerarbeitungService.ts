@@ -19,7 +19,6 @@ import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import {
   TENNISMEHL_ARTIKEL,
-  istBeiladung,
   berechneAnzahlSaecke,
 } from '../constants/artikelPreise';
 import { berechneSpeditionskosten } from '../constants/pricing';
@@ -422,11 +421,27 @@ export interface ErstellePositionenErgebnis {
 /**
  * Erstellt Angebots-Positionen mit korrekten Artikeln und Preisen
  *
- * REGELN:
- * 1. Loses Material → TM-ZM-02 oder TM-ZM-03 (Werkspreis: 95.75€/t)
- * 2. Sackware regulär → TM-ZM-02St oder TM-ZM-03St (Werkspreis: 145€/t)
- * 3. Sackware als Beiladung (< 1t + loses Material) → TM-ZM-02S oder TM-ZM-03S
- * 4. PE-Folie → Pflicht bei losem Material (TM-PE, Preis aus Stammdaten)
+ * REGELN (BULLET-PROOF!):
+ *
+ * 1. LOSES MATERIAL:
+ *    → TM-ZM-02 oder TM-ZM-03 (Werkspreis: 95.75€/t)
+ *    → PE-Folie ist Pflicht!
+ *
+ * 2. SACKWARE ALS BEILADUNG (< 1t UND loses Material vorhanden):
+ *    → TM-ZM-02S oder TM-ZM-03S
+ *    → Einheit: STÜCK (einzelne 40kg Säcke)
+ *    → Preis: 8.50€/Sack aus Stammdaten
+ *    → Keine extra Frachtkosten (fährt mit dem LKW mit)
+ *
+ * 3. SACKWARE PER SPEDITION (≥1t ODER ohne Schüttgut):
+ *    → TM-ZM-02St oder TM-ZM-03St
+ *    → Einheit: TONNEN
+ *    → Preis: 145€/t aus Stammdaten (ohne Fracht!)
+ *    → Frachtkosten separat nach Raben-Tarif
+ *
+ * 4. KOMBINIERTE KLEINE MENGEN:
+ *    → 0.5t 02 + 0.5t 03 = 1t total → eine Sendung
+ *    → Gesamtmenge Sackware entscheidet über Beiladung vs. Spedition
  */
 export async function erstelleAnfragePositionen(
   input: ErstellePositionenInput
@@ -439,11 +454,21 @@ export async function erstelleAnfragePositionen(
   let positionIndex = 1;
 
   // ==========================================
+  // PREISE AUS STAMMDATEN LADEN
+  // ==========================================
+  const [preisLoseMaterial, preisSackwareProTonne, preisBeiladungProSack, preisPEFolie] = await Promise.all([
+    getArtikelPreis('TM-ZM-02'),      // Loses Material €/t
+    getArtikelPreis('TM-ZM-02St'),    // Sackware per Spedition €/t
+    getArtikelPreis('TM-ZM-02S'),     // Beiladung €/Sack
+    getArtikelPreis('TM-PE'),         // PE-Folie €/Stk
+  ]);
+
+  // ==========================================
   // LOSES MATERIAL
   // ==========================================
 
-  // Verwende Endpreis (inkl. Lieferkosten) falls angegeben, sonst Werkspreis
-  const preisProTonneLose = input.preisProTonneInklLieferung || TENNISMEHL_ARTIKEL['TM-ZM-02'].werkspreis || 95.75;
+  // Verwende Endpreis (inkl. Lieferkosten) falls angegeben, sonst Werkspreis aus Stammdaten
+  const preisProTonneLose = input.preisProTonneInklLieferung || preisLoseMaterial;
 
   // 0-2mm lose
   if (input.tonnenLose02 && input.tonnenLose02 > 0) {
@@ -490,88 +515,118 @@ export async function erstelleAnfragePositionen(
   }
 
   // ==========================================
-  // SACKWARE (mit Beiladung-Check)
-  // Preis pro Sack (40kg), Menge in Tonnen → Anzahl Säcke
+  // SACKWARE - WICHTIGE ENTSCHEIDUNGSLOGIK
   // ==========================================
 
-  // Berechne Gesamtmenge Sackware für Beiladung-Entscheidung
   const gesamtSackware02 = input.tonnenGesackt02 || 0;
   const gesamtSackware03 = input.tonnenGesackt03 || 0;
+  // WICHTIG: Gesamtmenge KOMBINIERT für Beiladung-Entscheidung!
+  const gesamtSackwareGesamt = gesamtSackware02 + gesamtSackware03;
+
+  // Beiladung-Check: < 1t Sackware GESAMT UND loses Material vorhanden
+  const sollBeiladungSein = gesamtSackwareGesamt > 0 && gesamtSackwareGesamt < 1 && gesamtMengeLose > 0;
 
   // 0-2mm gesackt
   if (gesamtSackware02 > 0) {
-    // Prüfe ob Beiladung (< 1t UND loses Material vorhanden)
-    const beiladung02 = istBeiladung(gesamtSackware02, gesamtMengeLose);
-    const artikelnummer = beiladung02 ? 'TM-ZM-02S' : 'TM-ZM-02St';
-    const artikel = TENNISMEHL_ARTIKEL[artikelnummer];
+    if (sollBeiladungSein) {
+      // BEILADUNG: Einzelne Säcke auf den LKW
+      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02S'];
+      const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware02);
+      const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
+      const preis = anzahlSaecke * einzelpreis;
 
-    // Tonnage → Anzahl Säcke (aufgerundet)
-    const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware02);
-    const einzelpreis = artikel.werkspreis || 8.50; // €/Sack
-    const preis = anzahlSaecke * einzelpreis;
+      positionen.push({
+        id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelnummer: artikel.artikelnummer,
+        bezeichnung: artikel.bezeichnung,
+        beschreibung: 'Beiladung - wird mit Schüttgut auf LKW transportiert',
+        menge: anzahlSaecke,
+        einheit: 'Stk',
+        einzelpreis,
+        gesamtpreis: preis,
+        istBedarfsposition: false,
+      });
 
-    positionen.push({
-      id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: artikel.artikelnummer,
-      bezeichnung: artikel.bezeichnung,
-      beschreibung: beiladung02 ? 'wird mit losem Material transportiert' : undefined,
-      menge: anzahlSaecke,
-      einheit: 'Stk',
-      einzelpreis,
-      gesamtpreis: preis,
-      istBedarfsposition: false,
-    });
+      gesamtpreisOhneLieferung += preis;
+      hatBeiladung = true;
+    } else {
+      // SPEDITION: In Tonnen abrechnen
+      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02St'];
+      const menge = gesamtSackware02;
+      const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
+      const preis = menge * einzelpreis;
 
-    gesamtpreisOhneLieferung += preis;
+      positionen.push({
+        id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelnummer: artikel.artikelnummer,
+        bezeichnung: artikel.bezeichnung,
+        beschreibung: 'Lieferung per Spedition (Frachtkosten separat)',
+        menge,
+        einheit: 't',
+        einzelpreis,
+        gesamtpreis: preis,
+        istBedarfsposition: false,
+      });
+
+      gesamtpreisOhneLieferung += preis;
+    }
     gesamtMengeGesackt += gesamtSackware02;
-    if (beiladung02) hatBeiladung = true;
   }
 
   // 0-3mm gesackt
   if (gesamtSackware03 > 0) {
-    // Prüfe ob Beiladung (< 1t UND loses Material vorhanden)
-    const beiladung03 = istBeiladung(gesamtSackware03, gesamtMengeLose);
-    const artikelnummer = beiladung03 ? 'TM-ZM-03S' : 'TM-ZM-03St';
-    const artikel = TENNISMEHL_ARTIKEL[artikelnummer];
+    if (sollBeiladungSein) {
+      // BEILADUNG: Einzelne Säcke auf den LKW
+      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03S'];
+      const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware03);
+      const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
+      const preis = anzahlSaecke * einzelpreis;
 
-    // Tonnage → Anzahl Säcke (aufgerundet)
-    const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware03);
-    const einzelpreis = artikel.werkspreis || 8.50; // €/Sack
-    const preis = anzahlSaecke * einzelpreis;
+      positionen.push({
+        id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelnummer: artikel.artikelnummer,
+        bezeichnung: artikel.bezeichnung,
+        beschreibung: 'Beiladung - wird mit Schüttgut auf LKW transportiert',
+        menge: anzahlSaecke,
+        einheit: 'Stk',
+        einzelpreis,
+        gesamtpreis: preis,
+        istBedarfsposition: false,
+      });
 
-    positionen.push({
-      id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: artikel.artikelnummer,
-      bezeichnung: artikel.bezeichnung,
-      beschreibung: beiladung03 ? 'wird mit losem Material transportiert' : undefined,
-      menge: anzahlSaecke,
-      einheit: 'Stk',
-      einzelpreis,
-      gesamtpreis: preis,
-      istBedarfsposition: false,
-    });
+      gesamtpreisOhneLieferung += preis;
+      hatBeiladung = true;
+    } else {
+      // SPEDITION: In Tonnen abrechnen
+      const artikel = TENNISMEHL_ARTIKEL['TM-ZM-03St'];
+      const menge = gesamtSackware03;
+      const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
+      const preis = menge * einzelpreis;
 
-    gesamtpreisOhneLieferung += preis;
+      positionen.push({
+        id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelnummer: artikel.artikelnummer,
+        bezeichnung: artikel.bezeichnung,
+        beschreibung: 'Lieferung per Spedition (Frachtkosten separat)',
+        menge,
+        einheit: 't',
+        einzelpreis,
+        gesamtpreis: preis,
+        istBedarfsposition: false,
+      });
+
+      gesamtpreisOhneLieferung += preis;
+    }
     gesamtMengeGesackt += gesamtSackware03;
-    if (beiladung03) hatBeiladung = true;
   }
 
   // ==========================================
   // PE-FOLIE (Pflicht bei losem Material!)
+  // Preis aus Stammdaten (bereits oben geladen)
   // ==========================================
 
   if (gesamtMengeLose > 0) {
     const artikel = TENNISMEHL_ARTIKEL['TM-PE'];
-    // Preis aus Stammdaten laden
-    let pePreis = artikel.werkspreis;
-    if (!pePreis) {
-      try {
-        pePreis = await getArtikelPreis('TM-PE');
-      } catch (error) {
-        console.warn('PE-Folie Preis konnte nicht aus Stammdaten geladen werden, verwende Fallback');
-        pePreis = 25; // Fallback-Preis
-      }
-    }
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
@@ -579,12 +634,12 @@ export async function erstelleAnfragePositionen(
       bezeichnung: artikel.bezeichnung,
       menge: 1,
       einheit: 'Stk',
-      einzelpreis: pePreis,
-      gesamtpreis: pePreis,
+      einzelpreis: preisPEFolie,
+      gesamtpreis: preisPEFolie,
       istBedarfsposition: false,
     });
 
-    gesamtpreisOhneLieferung += pePreis;
+    gesamtpreisOhneLieferung += preisPEFolie;
   }
 
   // ==========================================

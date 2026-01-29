@@ -22,6 +22,13 @@ export const AUFSCHLAEGE = {
   grosskunde: 0.12, // 12% W+G
 };
 
+/**
+ * Raben-Tarif für Sendungen bis 5t (zonenbasiert)
+ * Gültig ab 16.01.2026
+ *
+ * Format: Paletten → { Gewicht in kg → { Zone → Preis in EUR } }
+ * Zonen 1-12 basierend auf PLZ-Prefix
+ */
 export const LIEFER_PREIS_TABELLE: LieferPreisTabelle = {
   1: {
     1000: {
@@ -59,6 +66,89 @@ export const LIEFER_PREIS_TABELLE: LieferPreisTabelle = {
     },
   },
 };
+
+/**
+ * Dieselfloater-Tabelle für Raben-Tarif
+ * Basisdieselpreis: 115,00 Cent/Liter (brutto)
+ * Dieselzuschlag bei einer Differenz von > 5% zur Basis
+ * Update monatlich (Grundlage: durchschnittlicher Dieselpreis des Vorvormonats)
+ * Quelle: https://en2x.de/service/statistiken/verbraucherpreise/
+ */
+export interface DieselfloaterStufe {
+  maxPreisCent: number;   // Diesel-Preis bis Cent/Liter (brutto)
+  differenzProzent: string; // Differenz zur Basis in %
+  zuschlagProzent: number;  // Diesel-Zuschlag in %
+}
+
+export const DIESELFLOATER: DieselfloaterStufe[] = [
+  { maxPreisCent: 120.75, differenzProzent: '≤ 5%', zuschlagProzent: 0.00 },
+  { maxPreisCent: 126.50, differenzProzent: '> 5%', zuschlagProzent: 1.25 },
+  { maxPreisCent: 132.25, differenzProzent: '> 10%', zuschlagProzent: 2.50 },
+  { maxPreisCent: 138.00, differenzProzent: '> 15%', zuschlagProzent: 3.75 },
+  { maxPreisCent: 143.75, differenzProzent: '> 20%', zuschlagProzent: 5.00 },
+  { maxPreisCent: 149.50, differenzProzent: '> 25%', zuschlagProzent: 6.25 },
+  { maxPreisCent: 155.25, differenzProzent: '> 30%', zuschlagProzent: 7.50 },
+  { maxPreisCent: 161.00, differenzProzent: '> 35%', zuschlagProzent: 8.75 },
+  { maxPreisCent: 166.75, differenzProzent: '> 40%', zuschlagProzent: 10.00 },
+  { maxPreisCent: 172.50, differenzProzent: '> 45%', zuschlagProzent: 11.25 },
+  { maxPreisCent: 178.25, differenzProzent: '> 50%', zuschlagProzent: 12.50 },
+  { maxPreisCent: 184.00, differenzProzent: '> 55%', zuschlagProzent: 13.75 },
+  { maxPreisCent: 189.75, differenzProzent: '> 60%', zuschlagProzent: 15.00 },
+  { maxPreisCent: 195.50, differenzProzent: '> 65%', zuschlagProzent: 16.25 },
+  { maxPreisCent: 201.25, differenzProzent: '> 70%', zuschlagProzent: 17.50 },
+  { maxPreisCent: 207.00, differenzProzent: '> 75%', zuschlagProzent: 18.75 },
+  { maxPreisCent: 212.75, differenzProzent: '> 80%', zuschlagProzent: 20.00 },
+  { maxPreisCent: 218.50, differenzProzent: '> 85%', zuschlagProzent: 21.25 },
+  { maxPreisCent: 224.25, differenzProzent: '> 90%', zuschlagProzent: 22.50 },
+  { maxPreisCent: 230.00, differenzProzent: '> 95%', zuschlagProzent: 23.75 },
+  { maxPreisCent: 235.75, differenzProzent: '> 100%', zuschlagProzent: 25.00 },
+  { maxPreisCent: 241.50, differenzProzent: '> 105%', zuschlagProzent: 26.25 },
+  { maxPreisCent: 247.25, differenzProzent: '> 110%', zuschlagProzent: 27.50 },
+  { maxPreisCent: 253.00, differenzProzent: '> 115%', zuschlagProzent: 28.75 },
+];
+
+export const DIESELFLOATER_BASIS_PREIS_CENT = 115.00; // Basisdieselpreis in Cent/Liter
+
+/**
+ * Berechnet den Dieselzuschlag basierend auf dem aktuellen Dieselpreis
+ * @param dieselPreisCent - Aktueller Dieselpreis in Cent/Liter (brutto)
+ * @returns Dieselzuschlag in Prozent (0-28.75+)
+ */
+export function berechneDieselzuschlag(dieselPreisCent: number): number {
+  // Finde passende Stufe
+  for (const stufe of DIESELFLOATER) {
+    if (dieselPreisCent <= stufe.maxPreisCent) {
+      return stufe.zuschlagProzent;
+    }
+  }
+  // Wenn über 253 Cent, extrapoliere: pro 5% Differenz +1.25%
+  const differenzProzent = ((dieselPreisCent - DIESELFLOATER_BASIS_PREIS_CENT) / DIESELFLOATER_BASIS_PREIS_CENT) * 100;
+  const stufenUeber100 = Math.floor((differenzProzent - 115) / 5);
+  return 28.75 + (stufenUeber100 * 1.25);
+}
+
+/**
+ * Nebengebühren für Raben-Spedition
+ * Gültig ab 16.01.2026
+ */
+export interface Nebengebuehr {
+  bezeichnung: string;
+  preis: number;
+  einheit: string;
+  beschreibung?: string;
+}
+
+export const NEBENGEBUEHREN: Nebengebuehr[] = [
+  { bezeichnung: 'Entsorgung Einwegpalette', preis: 4.50, einheit: 'pro Palette', beschreibung: 'Entsorgung von Einwegpaletten beim Empfänger' },
+  { bezeichnung: 'Sendungsavisierung', preis: 2.50, einheit: 'pro Sendung', beschreibung: 'Telefonische Avisierung vor Anlieferung' },
+  { bezeichnung: 'Wunschterminanlieferung', preis: 15.00, einheit: 'pro Sendung', beschreibung: 'Anlieferung zu einem bestimmten Wunschtermin' },
+  { bezeichnung: 'Nachnahme', preis: 12.50, einheit: 'pro Sendung', beschreibung: 'Nachnahme-Service (Barbetrag)' },
+  { bezeichnung: 'Nachnahme Provision', preis: 1.5, einheit: '% vom Betrag', beschreibung: 'Zusätzliche Provision auf Nachnahmebetrag' },
+  { bezeichnung: 'Wartezeit (ab 30 Min)', preis: 45.00, einheit: 'pro Stunde', beschreibung: 'Wartezeit bei Be-/Entladung über 30 Minuten' },
+  { bezeichnung: 'Anlieferung mit Mitnahmestapler', preis: 35.00, einheit: 'pro Sendung', beschreibung: 'Anlieferung mit bordeigenem Stapler' },
+  { bezeichnung: 'Heckhublieferung', preis: 25.00, einheit: 'pro Sendung', beschreibung: 'Anlieferung mittels Ladebordwand/Heckhub' },
+  { bezeichnung: 'Samstagsanlieferung', preis: 65.00, einheit: 'pro Sendung', beschreibung: 'Anlieferung am Samstag (Aufpreis)' },
+];
 
 export const PLZ_ZU_ZONE: PLZZuZone = {
   '01': 6, '02': 8, '03': 8, '04': 6, '06': 6, '07': 5, '08': 5, '09': 6,
@@ -261,5 +351,78 @@ export function berechneSpeditionskosten(plz: string, gewichtKg: number): number
   }
 
   return preis;
+}
+
+/**
+ * Ergebnis der vollständigen Speditionskostenberechnung
+ */
+export interface SpeditionskostenDetails {
+  basispreis: number;          // Grundpreis ohne Zuschläge
+  dieselzuschlag: number;      // Dieselzuschlag in EUR
+  dieselzuschlagProzent: number; // Angewendeter Prozentsatz
+  gesamtpreis: number;         // Gesamtpreis inkl. aller Zuschläge
+  zone: number | null;         // Zone (nur bei <6t)
+  gewichtsstufe: number;       // Angewendete Gewichtsstufe in kg
+  tarifArt: 'zone' | 'plz';    // Art des verwendeten Tarifs
+}
+
+/**
+ * Berechnet vollständige Speditionskosten inkl. Dieselzuschlag
+ *
+ * @param plz - Ziel-PLZ
+ * @param gewichtKg - Gewicht in Kilogramm
+ * @param dieselPreisCent - Aktueller Dieselpreis in Cent/Liter (optional, Standard: 150 Cent)
+ * @returns Detaillierte Kostenaufstellung oder null wenn nicht berechenbar
+ */
+export function berechneSpeditionskostenMitDiesel(
+  plz: string,
+  gewichtKg: number,
+  dieselPreisCent: number = 150
+): SpeditionskostenDetails | null {
+  const basispreis = berechneSpeditionskosten(plz, gewichtKg);
+  if (basispreis === null) {
+    return null;
+  }
+
+  const dieselzuschlagProzent = berechneDieselzuschlag(dieselPreisCent);
+  const dieselzuschlag = basispreis * (dieselzuschlagProzent / 100);
+  const gesamtpreis = basispreis + dieselzuschlag;
+
+  const gewichtsstufe = gewichtKg >= 6000
+    ? Math.min(Math.ceil(gewichtKg / 1000) * 1000, 24000)
+    : Math.min(Math.ceil(gewichtKg / 1000), 5) * 1000;
+
+  return {
+    basispreis,
+    dieselzuschlag,
+    dieselzuschlagProzent,
+    gesamtpreis,
+    zone: gewichtKg < 6000 ? getZoneFromPLZ(plz) : null,
+    gewichtsstufe,
+    tarifArt: gewichtKg >= 6000 ? 'plz' : 'zone',
+  };
+}
+
+/**
+ * Berechnet die Anzahl der benötigten Paletten aus Gewicht
+ * Eine Palette = ca. 1000kg (1 Tonne)
+ *
+ * @param gewichtKg - Gewicht in Kilogramm
+ * @returns Anzahl Paletten (aufgerundet)
+ */
+export function berechneAnzahlPaletten(gewichtKg: number): number {
+  return Math.ceil(gewichtKg / 1000);
+}
+
+/**
+ * Holt den aktuellen Dieselpreis (Fallback-Wert)
+ * TODO: Später aus API laden (en2x.de)
+ *
+ * @returns Dieselpreis in Cent/Liter
+ */
+export function getAktuellerDieselpreis(): number {
+  // Fallback: geschätzter Durchschnittspreis
+  // In Production sollte dies aus einer API oder Datenbank kommen
+  return 150; // 1.50 €/Liter
 }
 

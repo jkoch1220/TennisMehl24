@@ -126,14 +126,24 @@ export const getStammdatenOderDefault = async (): Promise<Stammdaten> => {
  * Artikel-Preise aus der Appwrite Artikel-Collection oder Fallback
  * TODO: Später mit echtem Appwrite-Abruf ersetzen
  */
+/**
+ * Fallback-Preise für Artikel (werden verwendet wenn Appwrite nicht erreichbar)
+ *
+ * WICHTIG: Diese Preise müssen mit der Appwrite Artikel-Collection synchron sein!
+ *
+ * TM-ZM-02/03: Loses Material in €/Tonne (Werkspreis)
+ * TM-ZM-02St/03St: Sackware per Spedition in €/Tonne (inkl. Absacken, ohne Fracht)
+ * TM-ZM-02S/03S: Beiladung in €/Sack (einzelne 40kg Säcke)
+ * TM-PE: PE-Folie pro Stück
+ */
 const ARTIKEL_PREISE_FALLBACK: Record<string, number> = {
-  'TM-ZM-02': 95.75,    // Loses Material 0-2mm
-  'TM-ZM-03': 95.75,    // Loses Material 0-3mm
-  'TM-ZM-02St': 145.00, // Sackware 0-2mm
-  'TM-ZM-03St': 145.00, // Sackware 0-3mm
-  'TM-ZM-02S': 145.00,  // Beiladung 0-2mm
-  'TM-ZM-03S': 145.00,  // Beiladung 0-3mm
-  'TM-PE': 25.00,       // PE-Folie (Fallback-Preis)
+  'TM-ZM-02': 95.75,    // Loses Material 0-2mm (€/t)
+  'TM-ZM-03': 95.75,    // Loses Material 0-3mm (€/t)
+  'TM-ZM-02St': 145.00, // Sackware 0-2mm per Spedition (€/t, ohne Frachtkosten!)
+  'TM-ZM-03St': 145.00, // Sackware 0-3mm per Spedition (€/t, ohne Frachtkosten!)
+  'TM-ZM-02S': 8.50,    // Beiladung 0-2mm (€/Sack à 40kg)
+  'TM-ZM-03S': 8.50,    // Beiladung 0-3mm (€/Sack à 40kg)
+  'TM-PE': 25.00,       // PE-Folie pro Stück
 };
 
 /**

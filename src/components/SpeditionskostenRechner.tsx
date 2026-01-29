@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Calculator, Truck, Package, TrendingUp, Fuel, Clock, MapPin, Settings, Users } from 'lucide-react';
+import { Calculator, Truck, Package, TrendingUp, Fuel, Clock, MapPin, Settings, Users, Info } from 'lucide-react';
 import { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten, FremdlieferungStammdaten, SpeditionskostenErgebnis, Lieferant } from '../types';
 import { berechneSpeditionskosten } from '../utils/calculations';
 import {
   getZoneFromPLZ,
+  NEBENGEBUEHREN,
+  DIESELFLOATER_BASIS_PREIS_CENT,
+  berechneDieselzuschlag,
 } from '../constants/pricing';
 import { holeDieselPreis, istDieselPreisAPIVerfuegbar } from '../utils/dieselPreisAPI';
 import { formatZeit } from '../utils/routeCalculation';
@@ -50,6 +53,10 @@ const SpeditionskostenRechner = () => {
   const [ergebnis, setErgebnis] = useState<SpeditionskostenErgebnis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [herstellkostenJeTonne, setHerstellkostenJeTonne] = useState<number | undefined>(undefined);
+
+  // Spedition Diesel-Zuschlag
+  const [speditionDieselPreisCent, setSpeditionDieselPreisCent] = useState<number>(150); // 1.50 €/Liter als Default
+  const [showNebengebuehren, setShowNebengebuehren] = useState<boolean>(false);
   
   // Lieferanten
   const [lieferanten, setLieferanten] = useState<Lieferant[]>([]);
@@ -177,7 +184,9 @@ const SpeditionskostenRechner = () => {
     berechnungsTimeoutRef.current = setTimeout(() => {
       const eigenlieferungData = lieferart === 'eigenlieferung' ? stammdaten : undefined;
       const fremdlieferungData = lieferart === 'fremdlieferung' ? fremdlieferungStammdaten : undefined;
-      
+      // Diesel-Preis nur bei Spedition übergeben
+      const dieselPreis = lieferart === 'spedition' ? speditionDieselPreisCent : undefined;
+
       berechneSpeditionskosten(
         warenart,
         paletten,
@@ -188,7 +197,8 @@ const SpeditionskostenRechner = () => {
         eigenlieferungData,
         fremdlieferungData,
         START_PLZ,
-        herstellkostenJeTonne
+        herstellkostenJeTonne,
+        dieselPreis
       ).then(result => {
         setErgebnis(result);
         setIsLoading(false);
@@ -203,7 +213,7 @@ const SpeditionskostenRechner = () => {
         clearTimeout(berechnungsTimeoutRef.current);
       }
     };
-  }, [warenart, paletten, gewicht, zielPLZ, aufschlagTyp, lieferart, eigenlieferungStammdatenKey, fremdlieferungStammdatenKey, herstellkostenJeTonne]);
+  }, [warenart, paletten, gewicht, zielPLZ, aufschlagTyp, lieferart, eigenlieferungStammdatenKey, fremdlieferungStammdatenKey, herstellkostenJeTonne, speditionDieselPreisCent]);
 
   // Memoize Zone-Berechnung
   const zone = useMemo(() => 
@@ -301,6 +311,97 @@ const SpeditionskostenRechner = () => {
               </button>
             </div>
           </div>
+
+          {/* Spedition Einstellungen (Diesel-Zuschlag & Nebengebühren) */}
+          {lieferart === 'spedition' && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl border-2 border-indigo-200 dark:border-indigo-700/50">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100 flex items-center gap-2">
+                  <Fuel className="w-5 h-5 text-indigo-600" />
+                  Raben Spedition - Diesel-Zuschlag
+                </h2>
+                <button
+                  onClick={() => setShowNebengebuehren(!showNebengebuehren)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                >
+                  <Info className="w-4 h-4" />
+                  {showNebengebuehren ? 'Nebengebühren ausblenden' : 'Nebengebühren anzeigen'}
+                </button>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
+                    Aktueller Dieselpreis (Cent/Liter)
+                  </label>
+                  <NumberInput
+                    value={speditionDieselPreisCent}
+                    onChange={(value) => setSpeditionDieselPreisCent(value)}
+                    className="w-full p-2 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-lg focus:border-indigo-400 focus:outline-none bg-white dark:bg-slate-800"
+                    step={1}
+                    min={100}
+                    max={300}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                    Basis: {DIESELFLOATER_BASIS_PREIS_CENT} Cent/L
+                  </p>
+                </div>
+
+                <div className="flex flex-col justify-center">
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    Aktueller Zuschlag:
+                  </p>
+                  <p className="text-2xl font-bold text-indigo-600">
+                    {berechneDieselzuschlag(speditionDieselPreisCent).toFixed(2)} %
+                  </p>
+                </div>
+
+                <div className="flex flex-col justify-center">
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    Differenz zur Basis:
+                  </p>
+                  <p className="text-lg font-semibold text-gray-700 dark:text-slate-300">
+                    {((speditionDieselPreisCent - DIESELFLOATER_BASIS_PREIS_CENT) / DIESELFLOATER_BASIS_PREIS_CENT * 100).toFixed(1)} %
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                Quelle: <a href="https://en2x.de/service/statistiken/verbraucherpreise/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">en2x.de</a> - Update monatlich (Durchschnitt Vorvormonat)
+              </p>
+
+              {/* Nebengebühren Tabelle */}
+              {showNebengebuehren && (
+                <div className="mt-4 bg-white dark:bg-slate-800 rounded-lg p-4 border border-indigo-200 dark:border-indigo-700/50">
+                  <h3 className="text-md font-semibold text-gray-800 dark:text-slate-100 mb-3">
+                    Nebengebühren Raben Spedition (ab 16.01.2026)
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-gray-700">
+                          <th className="text-left py-2 px-2 text-gray-600 dark:text-slate-400">Leistung</th>
+                          <th className="text-right py-2 px-2 text-gray-600 dark:text-slate-400">Preis</th>
+                          <th className="text-left py-2 px-2 text-gray-600 dark:text-slate-400">Einheit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {NEBENGEBUEHREN.map((gebuehr, index) => (
+                          <tr key={index} className="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                            <td className="py-2 px-2 text-gray-800 dark:text-slate-200">{gebuehr.bezeichnung}</td>
+                            <td className="py-2 px-2 text-right font-semibold text-gray-800 dark:text-slate-200">
+                              {gebuehr.einheit === '% vom Betrag' ? `${gebuehr.preis}%` : `${gebuehr.preis.toFixed(2)} €`}
+                            </td>
+                            <td className="py-2 px-2 text-gray-600 dark:text-slate-400">{gebuehr.einheit}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Warenart Auswahl */}
           <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border-2 border-yellow-200 dark:border-yellow-700/50">
@@ -947,6 +1048,16 @@ const SpeditionskostenRechner = () => {
                     <p className="text-xs text-gray-500 dark:text-slate-400">
                       {lieferart === 'spedition' ? `Zone ${zone}` : lieferart === 'eigenlieferung' ? 'Eigenlieferung' : 'Fremdlieferung'}
                     </p>
+                    {lieferart === 'spedition' && ergebnis.dieselzuschlag !== undefined && ergebnis.dieselzuschlag > 0 && (
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                        inkl. Diesel-Zuschlag: {ergebnis.dieselzuschlag.toFixed(2)} € ({ergebnis.dieselzuschlagProzent?.toFixed(2)}%)
+                      </p>
+                    )}
+                    {lieferart === 'spedition' && ergebnis.transportkostenBasis !== undefined && (
+                      <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                        Basis: {ergebnis.transportkostenBasis.toFixed(2)} €
+                      </p>
+                    )}
                   </div>
                   <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow">
                     <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">Verkaufspreis</p>
