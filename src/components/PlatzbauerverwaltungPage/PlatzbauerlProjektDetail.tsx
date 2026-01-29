@@ -638,6 +638,10 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         // Gespeicherten Entwurf laden
         const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurfsDaten>(projekt.id, 'angebot');
 
+        // Vorjahresmengen für alle Vereine laden
+        const vereineIds = vereineDaten.map(v => v.kunde.id);
+        const vorjahresmengen = await platzbauerverwaltungService.ladeVorjahresmengen(vereineIds, projekt.saisonjahr);
+
         // Vereine mit Auswahl-Status initialisieren
         const vereineMitAuswahl: VereinAuswahl[] = vereineDaten.map(v => {
           // Prüfen ob gespeicherte Entwurfsdaten für diesen Verein existieren
@@ -657,10 +661,14 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
           // Falls kein Entwurf, prüfen ob Verein in existierenden Positionen ist
           const existierendePos = positionen.find(p => p.vereinId === v.kunde.id);
+
+          // Vorjahresmenge als Fallback verwenden
+          const vorjahresmenge = vorjahresmengen.get(v.kunde.id) || 0;
+
           return {
             verein: v.kunde,
             ausgewaehlt: !!existierendePos,
-            menge: existierendePos?.menge || 0,
+            menge: existierendePos?.menge || vorjahresmenge,
             einzelpreis: existierendePos?.einzelpreis || defaultPreis,
             artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
           };

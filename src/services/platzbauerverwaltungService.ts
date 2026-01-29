@@ -751,6 +751,34 @@ class PlatzbauerverwaltungService {
 
     return this.createPlatzbauerprojekt(platzbauerId, saisonjahr);
   }
+
+  /**
+   * Vorjahresmengen für eine Liste von Vereinen laden
+   * Gibt ein Map zurück: vereinId -> menge (in Tonnen)
+   */
+  async ladeVorjahresmengen(vereineIds: string[], aktuellesSaisonjahr: number): Promise<Map<string, number>> {
+    const vorjahr = aktuellesSaisonjahr - 1;
+    const mengenMap = new Map<string, number>();
+
+    // Für jeden Verein das Vorjahres-Projekt laden
+    const promises = vereineIds.map(async (vereinId) => {
+      try {
+        const projekt = await projektService.getProjektFuerKunde(vereinId, vorjahr);
+        if (projekt) {
+          // Priorität: liefergewicht (tatsächlich geliefert) > angefragteMenge
+          const menge = projekt.liefergewicht || projekt.angefragteMenge || 0;
+          if (menge > 0) {
+            mengenMap.set(vereinId, menge);
+          }
+        }
+      } catch (error) {
+        console.warn(`Konnte Vorjahresmenge für Verein ${vereinId} nicht laden:`, error);
+      }
+    });
+
+    await Promise.all(promises);
+    return mengenMap;
+  }
 }
 
 export const platzbauerverwaltungService = new PlatzbauerverwaltungService();
