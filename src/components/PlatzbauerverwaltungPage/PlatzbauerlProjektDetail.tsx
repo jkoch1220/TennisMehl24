@@ -9,7 +9,7 @@
  * - Lieferscheine pro Verein
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X,
   FileCheck,
@@ -31,6 +31,9 @@ import {
   History,
   Plus,
   Trash2,
+  Cloud,
+  CloudOff,
+  Loader2,
 } from 'lucide-react';
 import {
   PlatzbauerProjekt,
@@ -55,6 +58,8 @@ import {
   speicherePlatzbauerLieferschein,
   ladeDokumentVerlauf,
   ladeLieferscheineFuerProjekt,
+  speichereEntwurf,
+  ladeEntwurf,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import { useNavigate } from 'react-router-dom';
 
@@ -548,6 +553,19 @@ const UebersichtTab = ({
 // Ziegelmehl-Artikel für Platzbauer (TM-ZM-02 und TM-ZM-03)
 const ZIEGELMEHL_ARTIKEL_NUMMERN = ['TM-ZM-02', 'TM-ZM-03'];
 
+// Type für gespeicherte Angebots-Entwurfsdaten
+interface AngebotEntwurfsDaten {
+  vereineAuswahl: {
+    vereinId: string;
+    ausgewaehlt: boolean;
+    menge: number;
+    einzelpreis: number;
+    artikelnummer: string;
+  }[];
+  zusatzPositionen: PlatzbauerAngebotPosition[];
+  formData: Partial<PlatzbauerAngebotFormularDaten>;
+}
+
 // Interface für Verein mit Auswahl-Status
 interface VereinAuswahl {
   verein: SaisonKunde;
@@ -568,6 +586,7 @@ interface AngebotTabProps {
 const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: AngebotTabProps) => {
   const [verlauf, setVerlauf] = useState<PlatzbauerDokumentVerlaufEintrag[]>([]);
   const [ziegelmehlArtikel, setZiegelmehlArtikel] = useState<Artikel[]>([]);
+  const [alleArtikel, setAlleArtikel] = useState<Artikel[]>([]); // Alle Artikel für Zusatzpositionen
   const [laden, setLaden] = useState(true);
 
   // Alle Vereine des Platzbauers
@@ -575,6 +594,12 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Zusätzliche manuelle Positionen (ohne Verein)
   const [zusatzPositionen, setZusatzPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+
+  // Auto-Save Status
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const hatGeaendert = useRef(false);
+  const initialLaden = useRef(true);
 
   const [formData, setFormData] = useState<PlatzbauerAngebotFormularDaten>({
     platzbauerId: platzbauer.id,
@@ -592,14 +617,16 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
     zahlungsziel: '14 Tage netto',
   });
 
-  // Artikel und Vereine laden
+  // Artikel, Vereine und gespeicherte Entwurfsdaten laden
   useEffect(() => {
     const ladeDaten = async () => {
       setLaden(true);
+      initialLaden.current = true;
       try {
         // Artikel laden
-        const alleArtikel = await getAlleArtikel();
-        const ziegelmehl = alleArtikel.filter(a => ZIEGELMEHL_ARTIKEL_NUMMERN.includes(a.artikelnummer));
+        const artikelListe = await getAlleArtikel();
+        setAlleArtikel(artikelListe); // Alle Artikel für Zusatzpositionen
+        const ziegelmehl = artikelListe.filter(a => ZIEGELMEHL_ARTIKEL_NUMMERN.includes(a.artikelnummer));
         setZiegelmehlArtikel(ziegelmehl);
 
         const defaultArtikel = ziegelmehl.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehl[0];
@@ -608,9 +635,27 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         // Vereine des Platzbauers laden
         const vereineDaten = await platzbauerverwaltungService.loadVereineFuerPlatzbauer(platzbauer.id);
 
+        // Gespeicherten Entwurf laden
+        const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurfsDaten>(projekt.id, 'angebot');
+
         // Vereine mit Auswahl-Status initialisieren
         const vereineMitAuswahl: VereinAuswahl[] = vereineDaten.map(v => {
-          // Prüfen ob dieser Verein bereits in den Positionen ist
+          // Prüfen ob gespeicherte Entwurfsdaten für diesen Verein existieren
+          const gespeicherteAuswahl = gespeicherterEntwurf?.vereineAuswahl?.find(
+            va => va.vereinId === v.kunde.id
+          );
+
+          if (gespeicherteAuswahl) {
+            return {
+              verein: v.kunde,
+              ausgewaehlt: gespeicherteAuswahl.ausgewaehlt,
+              menge: gespeicherteAuswahl.menge,
+              einzelpreis: gespeicherteAuswahl.einzelpreis,
+              artikelnummer: gespeicherteAuswahl.artikelnummer,
+            };
+          }
+
+          // Falls kein Entwurf, prüfen ob Verein in existierenden Positionen ist
           const existierendePos = positionen.find(p => p.vereinId === v.kunde.id);
           return {
             verein: v.kunde,
@@ -622,14 +667,45 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         });
 
         setVereineAuswahl(vereineMitAuswahl);
+
+        // Zusatzpositionen aus Entwurf laden
+        if (gespeicherterEntwurf?.zusatzPositionen) {
+          setZusatzPositionen(gespeicherterEntwurf.zusatzPositionen);
+        }
+
+        // FormData aus Entwurf laden (wenn vorhanden)
+        if (gespeicherterEntwurf?.formData) {
+          setFormData(prev => ({
+            ...prev,
+            ...gespeicherterEntwurf.formData,
+            // Platzbauer-Daten immer aktuell halten
+            platzbauerId: platzbauer.id,
+            platzbauername: platzbauer.name,
+            platzbauerstrasse: platzbauer.lieferadresse?.strasse || platzbauer.rechnungsadresse?.strasse || '',
+            platzbauerPlzOrt: platzbauer.lieferadresse
+              ? `${platzbauer.lieferadresse.plz} ${platzbauer.lieferadresse.ort}`
+              : platzbauer.rechnungsadresse
+              ? `${platzbauer.rechnungsadresse.plz} ${platzbauer.rechnungsadresse.ort}`
+              : '',
+          }));
+        }
+
+        // Wenn Entwurf geladen wurde, Status auf "gespeichert" setzen
+        if (gespeicherterEntwurf) {
+          setAutoSaveStatus('gespeichert');
+        }
       } catch (error) {
         console.error('Fehler beim Laden der Daten:', error);
       } finally {
         setLaden(false);
+        // Nach kurzem Delay initialLaden auf false setzen, damit Änderungen gespeichert werden
+        setTimeout(() => {
+          initialLaden.current = false;
+        }, 500);
       }
     };
     ladeDaten();
-  }, [platzbauer.id, positionen]);
+  }, [platzbauer.id, projekt.id, positionen]);
 
   useEffect(() => {
     ladeDokumentVerlauf(projekt.id, 'angebot').then(setVerlauf);
@@ -679,12 +755,12 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Neue leere Zusatz-Position hinzufügen
   const addZusatzPosition = () => {
-    const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
+    const defaultArtikel = alleArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || alleArtikel[0];
     const neuePosition: PlatzbauerAngebotPosition = {
       id: `zusatz-${Date.now()}`,
       artikelId: defaultArtikel?.$id,
-      artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
-      bezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
+      artikelnummer: defaultArtikel?.artikelnummer || '',
+      bezeichnung: defaultArtikel?.bezeichnung || '',
       beschreibung: '',
       einheit: defaultArtikel?.einheit || 't',
       menge: 0,
@@ -710,7 +786,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Zusatz-Position Artikel ändern
   const handleZusatzArtikelChange = (index: number, artikelnummer: string) => {
-    const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === artikelnummer);
+    const artikel = alleArtikel.find(a => a.artikelnummer === artikelnummer);
     if (artikel) {
       updateZusatzPosition(index, {
         artikelId: artikel.$id,
@@ -725,6 +801,105 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
   // Zusatz-Position entfernen
   const removeZusatzPosition = (index: number) => {
     setZusatzPositionen(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Auto-Save Funktion
+  const speichereAutomatisch = useCallback(async () => {
+    if (!projekt.id || initialLaden.current) return;
+
+    try {
+      setAutoSaveStatus('speichern');
+
+      const entwurfsDaten: AngebotEntwurfsDaten = {
+        vereineAuswahl: vereineAuswahl.map(v => ({
+          vereinId: v.verein.id,
+          ausgewaehlt: v.ausgewaehlt,
+          menge: v.menge,
+          einzelpreis: v.einzelpreis,
+          artikelnummer: v.artikelnummer,
+        })),
+        zusatzPositionen: zusatzPositionen,
+        formData: {
+          angebotsnummer: formData.angebotsnummer,
+          angebotsdatum: formData.angebotsdatum,
+          gueltigBis: formData.gueltigBis,
+          zahlungsziel: formData.zahlungsziel,
+          lieferzeit: formData.lieferzeit,
+          bemerkung: formData.bemerkung,
+        },
+      };
+
+      await speichereEntwurf(projekt.id, 'angebot', entwurfsDaten);
+      setAutoSaveStatus('gespeichert');
+      console.log('✅ Platzbauer Angebot Auto-Save erfolgreich');
+    } catch (error) {
+      console.error('Fehler beim Auto-Save:', error);
+      setAutoSaveStatus('fehler');
+    }
+  }, [projekt.id, vereineAuswahl, zusatzPositionen, formData]);
+
+  // Debounced Auto-Save bei Änderungen
+  useEffect(() => {
+    if (initialLaden.current || !hatGeaendert.current) {
+      return;
+    }
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      speichereAutomatisch();
+    }, 1500); // 1.5 Sekunden Debounce
+
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+    };
+  }, [vereineAuswahl, zusatzPositionen, formData, speichereAutomatisch]);
+
+  // Änderungs-Tracking für Vereine
+  const toggleVereinMitAenderung = (index: number) => {
+    hatGeaendert.current = true;
+    toggleVerein(index);
+  };
+
+  const updateVereinMitAenderung = (index: number, updates: Partial<VereinAuswahl>) => {
+    hatGeaendert.current = true;
+    updateVerein(index, updates);
+  };
+
+  const handleVereinArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
+    hatGeaendert.current = true;
+    handleVereinArtikelChange(index, artikelnummer);
+  };
+
+  // Änderungs-Tracking für Zusatzpositionen
+  const addZusatzPositionMitAenderung = () => {
+    hatGeaendert.current = true;
+    addZusatzPosition();
+  };
+
+  const updateZusatzPositionMitAenderung = (index: number, updates: Partial<PlatzbauerAngebotPosition>) => {
+    hatGeaendert.current = true;
+    updateZusatzPosition(index, updates);
+  };
+
+  const handleZusatzArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
+    hatGeaendert.current = true;
+    handleZusatzArtikelChange(index, artikelnummer);
+  };
+
+  const removeZusatzPositionMitAenderung = (index: number) => {
+    hatGeaendert.current = true;
+    removeZusatzPosition(index);
+  };
+
+  // Änderungs-Tracking für FormData
+  const setFormDataMitAenderung = (updates: Partial<PlatzbauerAngebotFormularDaten>) => {
+    hatGeaendert.current = true;
+    setFormData(prev => ({ ...prev, ...updates }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -820,7 +995,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             <input
               type="text"
               value={formData.angebotsnummer}
-              onChange={(e) => setFormData({ ...formData, angebotsnummer: e.target.value })}
+              onChange={(e) => setFormDataMitAenderung({ angebotsnummer: e.target.value })}
               placeholder="Wird automatisch generiert"
               className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
             />
@@ -832,7 +1007,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             <input
               type="date"
               value={formData.angebotsdatum}
-              onChange={(e) => setFormData({ ...formData, angebotsdatum: e.target.value })}
+              onChange={(e) => setFormDataMitAenderung({ angebotsdatum: e.target.value })}
               className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
             />
           </div>
@@ -843,7 +1018,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             <input
               type="date"
               value={formData.gueltigBis}
-              onChange={(e) => setFormData({ ...formData, gueltigBis: e.target.value })}
+              onChange={(e) => setFormDataMitAenderung({ gueltigBis: e.target.value })}
               className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
             />
           </div>
@@ -912,7 +1087,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                         <input
                           type="checkbox"
                           checked={v.ausgewaehlt}
-                          onChange={() => toggleVerein(index)}
+                          onChange={() => toggleVereinMitAenderung(index)}
                           className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
                         />
                       </td>
@@ -928,7 +1103,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                       <td className="px-4 py-3">
                         <select
                           value={v.artikelnummer}
-                          onChange={(e) => handleVereinArtikelChange(index, e.target.value)}
+                          onChange={(e) => handleVereinArtikelChangeMitAenderung(index, e.target.value)}
                           disabled={!v.ausgewaehlt}
                           className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
                         >
@@ -945,7 +1120,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                           step="0.1"
                           min="0"
                           value={v.menge || ''}
-                          onChange={(e) => updateVerein(index, { menge: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateVereinMitAenderung(index, { menge: parseFloat(e.target.value) || 0 })}
                           disabled={!v.ausgewaehlt}
                           placeholder="0"
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
@@ -957,7 +1132,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                           step="0.01"
                           min="0"
                           value={v.einzelpreis || ''}
-                          onChange={(e) => updateVerein(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateVereinMitAenderung(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
                           disabled={!v.ausgewaehlt}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
                         />
@@ -982,7 +1157,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             </h4>
             <button
               type="button"
-              onClick={addZusatzPosition}
+              onClick={addZusatzPositionMitAenderung}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -1017,12 +1192,12 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                       <td className="px-3 py-2">
                         <select
                           value={pos.artikelnummer}
-                          onChange={(e) => handleZusatzArtikelChange(index, e.target.value)}
+                          onChange={(e) => handleZusatzArtikelChangeMitAenderung(index, e.target.value)}
                           className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                         >
-                          {ziegelmehlArtikel.map(art => (
+                          {alleArtikel.map(art => (
                             <option key={art.$id} value={art.artikelnummer}>
-                              {art.artikelnummer}
+                              {art.artikelnummer} - {art.bezeichnung}
                             </option>
                           ))}
                         </select>
@@ -1030,10 +1205,17 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                       <td className="px-3 py-2">
                         <input
                           type="text"
-                          value={pos.beschreibung || ''}
-                          onChange={(e) => updateZusatzPosition(index, { beschreibung: e.target.value })}
-                          placeholder="z.B. Sonderlieferung"
+                          value={pos.bezeichnung || ''}
+                          onChange={(e) => updateZusatzPositionMitAenderung(index, { bezeichnung: e.target.value })}
+                          placeholder="Bezeichnung"
                           className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={pos.beschreibung || ''}
+                          onChange={(e) => updateZusatzPositionMitAenderung(index, { beschreibung: e.target.value })}
+                          placeholder="Beschreibung (optional)"
+                          className="w-full px-2 py-1.5 text-sm border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white mt-1"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -1042,7 +1224,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                           step="0.1"
                           min="0"
                           value={pos.menge || ''}
-                          onChange={(e) => updateZusatzPosition(index, { menge: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateZusatzPositionMitAenderung(index, { menge: parseFloat(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                         />
                       </td>
@@ -1052,7 +1234,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                           step="0.01"
                           min="0"
                           value={pos.einzelpreis || ''}
-                          onChange={(e) => updateZusatzPosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => updateZusatzPositionMitAenderung(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                         />
                       </td>
@@ -1062,7 +1244,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          onClick={() => removeZusatzPosition(index)}
+                          onClick={() => removeZusatzPositionMitAenderung(index)}
                           className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
                           title="Position entfernen"
                         >
@@ -1111,7 +1293,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             </label>
             <select
               value={formData.zahlungsziel}
-              onChange={(e) => setFormData({ ...formData, zahlungsziel: e.target.value })}
+              onChange={(e) => setFormDataMitAenderung({ zahlungsziel: e.target.value })}
               className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
             >
               <option value="Vorkasse">Vorkasse</option>
@@ -1126,7 +1308,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
             <input
               type="text"
               value={formData.lieferzeit || ''}
-              onChange={(e) => setFormData({ ...formData, lieferzeit: e.target.value })}
+              onChange={(e) => setFormDataMitAenderung({ lieferzeit: e.target.value })}
               placeholder="z.B. März 2026"
               className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
             />
@@ -1140,14 +1322,47 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
           </label>
           <textarea
             value={formData.bemerkung || ''}
-            onChange={(e) => setFormData({ ...formData, bemerkung: e.target.value })}
+            onChange={(e) => setFormDataMitAenderung({ bemerkung: e.target.value })}
             rows={3}
             className="w-full px-3 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
           />
         </div>
 
-        {/* Buttons */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+        {/* Auto-Save Status + Buttons */}
+        <div className="flex justify-between items-center gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+          {/* Auto-Save Status Anzeige */}
+          <div className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg ${
+            autoSaveStatus === 'gespeichert' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' :
+            autoSaveStatus === 'speichern' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' :
+            autoSaveStatus === 'fehler' ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' :
+            'bg-gray-50 dark:bg-dark-bg text-gray-500 dark:text-gray-400'
+          }`}>
+            {autoSaveStatus === 'gespeichert' && (
+              <>
+                <Cloud className="w-4 h-4" />
+                <span>Entwurf gespeichert</span>
+              </>
+            )}
+            {autoSaveStatus === 'speichern' && (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Speichern...</span>
+              </>
+            )}
+            {autoSaveStatus === 'fehler' && (
+              <>
+                <CloudOff className="w-4 h-4" />
+                <span>Speichern fehlgeschlagen</span>
+              </>
+            )}
+            {autoSaveStatus === 'idle' && (
+              <>
+                <Cloud className="w-4 h-4 opacity-50" />
+                <span>Entwurf</span>
+              </>
+            )}
+          </div>
+
           <button
             type="submit"
             disabled={saving || (ausgewaehlteVereineCount === 0 && zusatzPositionen.filter(p => p.menge > 0).length === 0)}
