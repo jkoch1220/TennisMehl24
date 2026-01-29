@@ -211,8 +211,8 @@ export const speicherePlatzbauerAngebot = async (
   const pdf = await generierePlatzbauerAngebotPDF(pdfDaten);
   const blob = pdfToBlob(pdf);
 
-  // Dateiname
-  const dateiname = `Angebot ${projekt.projektName} v${version}.pdf`;
+  // Dateiname: "Angebot Platzbauername Saison.pdf"
+  const dateiname = `Angebot ${daten.platzbauername} ${projekt.saisonjahr}.pdf`;
 
   // In Storage hochladen
   const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -333,7 +333,7 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
   const blob = pdfToBlob(pdf);
 
   // Dateiname
-  const dateiname = `Auftragsbestaetigung ${projekt.projektName} v${version}.pdf`;
+  const dateiname = `Auftragsbestaetigung ${daten.platzbauername} ${projekt.saisonjahr}.pdf`;
 
   // In Storage hochladen
   const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -458,8 +458,8 @@ export const speicherePlatzbauerRechnung = async (
   const pdf = await generierePlatzbauerRechnungPDF(pdfDaten);
   const blob = pdfToBlob(pdf);
 
-  // Dateiname
-  const dateiname = `Rechnung ${projekt.projektName}.pdf`;
+  // Dateiname: "Rechnung Platzbauername Saison.pdf"
+  const dateiname = `Rechnung ${daten.platzbauername} ${projekt.saisonjahr}.pdf`;
 
   // In Storage hochladen
   const file = new File([blob], dateiname, { type: 'application/pdf' });

@@ -675,18 +675,23 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
         // FormData aus Entwurf laden (wenn vorhanden)
         if (gespeicherterEntwurf?.formData) {
+          // Standard-Platzbauer-Daten als Fallback
+          const defaultPlatzbauerStrasse = platzbauer.lieferadresse?.strasse || platzbauer.rechnungsadresse?.strasse || '';
+          const defaultPlatzbauerPlzOrt = platzbauer.lieferadresse
+            ? `${platzbauer.lieferadresse.plz} ${platzbauer.lieferadresse.ort}`
+            : platzbauer.rechnungsadresse
+            ? `${platzbauer.rechnungsadresse.plz} ${platzbauer.rechnungsadresse.ort}`
+            : '';
+
           setFormData(prev => ({
             ...prev,
             ...gespeicherterEntwurf.formData,
-            // Platzbauer-Daten immer aktuell halten
+            // Platzbauer-ID immer aktuell, aber Adressdaten aus Entwurf wenn vorhanden
             platzbauerId: platzbauer.id,
-            platzbauername: platzbauer.name,
-            platzbauerstrasse: platzbauer.lieferadresse?.strasse || platzbauer.rechnungsadresse?.strasse || '',
-            platzbauerPlzOrt: platzbauer.lieferadresse
-              ? `${platzbauer.lieferadresse.plz} ${platzbauer.lieferadresse.ort}`
-              : platzbauer.rechnungsadresse
-              ? `${platzbauer.rechnungsadresse.plz} ${platzbauer.rechnungsadresse.ort}`
-              : '',
+            platzbauername: gespeicherterEntwurf.formData.platzbauername || platzbauer.name,
+            platzbauerstrasse: gespeicherterEntwurf.formData.platzbauerstrasse || defaultPlatzbauerStrasse,
+            platzbauerPlzOrt: gespeicherterEntwurf.formData.platzbauerPlzOrt || defaultPlatzbauerPlzOrt,
+            platzbauerAnsprechpartner: gespeicherterEntwurf.formData.platzbauerAnsprechpartner || prev.platzbauerAnsprechpartner,
           }));
         }
 
@@ -820,12 +825,27 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         })),
         zusatzPositionen: zusatzPositionen,
         formData: {
+          // Platzbauer-Adressdaten (für manuelle Änderungen)
+          platzbauerId: formData.platzbauerId,
+          platzbauername: formData.platzbauername,
+          platzbauerstrasse: formData.platzbauerstrasse,
+          platzbauerPlzOrt: formData.platzbauerPlzOrt,
+          platzbauerAnsprechpartner: formData.platzbauerAnsprechpartner,
+          // Angebots-Daten
           angebotsnummer: formData.angebotsnummer,
           angebotsdatum: formData.angebotsdatum,
           gueltigBis: formData.gueltigBis,
           zahlungsziel: formData.zahlungsziel,
+          zahlungsart: formData.zahlungsart,
+          skontoAktiviert: formData.skontoAktiviert,
+          skonto: formData.skonto,
           lieferzeit: formData.lieferzeit,
+          frachtkosten: formData.frachtkosten,
+          verpackungskosten: formData.verpackungskosten,
+          lieferbedingungenAktiviert: formData.lieferbedingungenAktiviert,
+          lieferbedingungen: formData.lieferbedingungen,
           bemerkung: formData.bemerkung,
+          ihreAnsprechpartner: formData.ihreAnsprechpartner,
         },
       };
 
