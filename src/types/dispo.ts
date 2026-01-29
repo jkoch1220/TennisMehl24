@@ -13,6 +13,7 @@ export interface Adresse {
   plz: string;
   ort: string;
   bundesland?: string;
+  land?: string; // ISO-Ländercode (z.B. 'DE', 'AT', 'CH') - Standard: undefined = Deutschland
   koordinaten?: [number, number]; // [lon, lat]
 }
 

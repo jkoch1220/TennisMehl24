@@ -9,6 +9,7 @@ import {
   SAISON_AKTIVITAETEN_COLLECTION_ID,
   COLLECTIONS,
 } from '../config/appwrite';
+import { formatAdresszeile } from './pdfHelpers';
 import {
   SaisonKunde,
   NeuerSaisonKunde,
@@ -365,12 +366,11 @@ export const saisonplanungService = {
       console.log(`🔄 Synchronisiere ${response.documents.length} Projekte für Kunde "${kunde.name}"...`);
 
       // Adresse für Projekte vorbereiten (verwende Rechnungsadresse als Kundenadresse)
-      const kundenPlzOrt = kunde.rechnungsadresse?.plz && kunde.rechnungsadresse?.ort
-        ? `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`
-        : kunde.adresse?.plz && kunde.adresse?.ort
-          ? `${kunde.adresse.plz} ${kunde.adresse.ort}`
-          : '';
-      const kundenstrasse = kunde.rechnungsadresse?.strasse || kunde.adresse?.strasse || '';
+      const adresse = kunde.rechnungsadresse || kunde.adresse;
+      const kundenPlzOrt = adresse?.plz && adresse?.ort
+        ? formatAdresszeile(adresse.plz, adresse.ort, adresse.land)
+        : '';
+      const kundenstrasse = adresse?.strasse || '';
 
       // Aktualisiere alle Projekte
       for (const doc of response.documents) {

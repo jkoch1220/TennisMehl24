@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Search, MapPin, Loader2 } from 'lucide-react';
+import { LAENDER, getGoogleCountryCode } from '../../constants/laender';
 
 interface Adresse {
   strasse: string;
   plz: string;
   ort: string;
   bundesland?: string;
+  land?: string;
 }
 
 interface AdressAutocompleteProps extends Adresse {
@@ -19,6 +21,7 @@ type Vorschlag = {
   plz: string;
   ort: string;
   bundesland?: string;
+  land?: string;
 };
 
 // Google Places API Key aus Umgebungsvariablen
@@ -55,6 +58,7 @@ const AdressAutocomplete = ({
   plz,
   ort,
   bundesland,
+  land,
   onAdresseChange,
 }: AdressAutocompleteProps) => {
   const [werte, setWerte] = useState<Adresse>({
@@ -62,6 +66,7 @@ const AdressAutocomplete = ({
     plz,
     ort,
     bundesland,
+    land: land || 'DE',
   });
   const [query, setQuery] = useState('');
   const [vorschlaege, setVorschlaege] = useState<Vorschlag[]>([]);
@@ -103,8 +108,8 @@ const AdressAutocomplete = ({
 
   // Sync mit Props (bei Edit-Mode)
   useEffect(() => {
-    setWerte({ strasse, plz, ort, bundesland });
-  }, [strasse, plz, ort, bundesland]);
+    setWerte({ strasse, plz, ort, bundesland, land: land || 'DE' });
+  }, [strasse, plz, ort, bundesland, land]);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -132,7 +137,7 @@ const AdressAutocomplete = ({
   };
 
   const clearAll = () => {
-    const leer = { strasse: '', plz: '', ort: '', bundesland: '' };
+    const leer = { strasse: '', plz: '', ort: '', bundesland: '', land: 'DE' };
     setWerte(leer);
     onAdresseChange(leer);
     setQuery('');
@@ -156,7 +161,7 @@ const AdressAutocomplete = ({
 
     const request: google.maps.places.AutocompletionRequest = {
       input,
-      componentRestrictions: { country: 'de' },
+      componentRestrictions: { country: getGoogleCountryCode(werte.land) },
       types: ['address'],
       sessionToken: sessionTokenRef.current!,
     };
@@ -243,6 +248,7 @@ const AdressAutocomplete = ({
         let postalCode = '';
         let locality = '';
         let adminArea1 = ''; // Bundesland
+        let country = ''; // Land (ISO-Code)
 
         for (const component of components) {
           const types = component.types;
@@ -259,6 +265,8 @@ const AdressAutocomplete = ({
             locality = component.long_name;
           } else if (types.includes('administrative_area_level_1')) {
             adminArea1 = component.long_name;
+          } else if (types.includes('country')) {
+            country = component.short_name; // 'DE', 'AT', 'CH', etc.
           }
         }
 
@@ -270,6 +278,7 @@ const AdressAutocomplete = ({
           plz: postalCode,
           ort: locality,
           bundesland: adminArea1,
+          land: country || werte.land, // Fallback auf ausgewähltes Land
         });
       });
     });
@@ -284,6 +293,7 @@ const AdressAutocomplete = ({
         plz: adresse.plz || werte.plz,
         ort: adresse.ort || werte.ort,
         bundesland: adresse.bundesland || werte.bundesland,
+        land: adresse.land || werte.land,
       });
     } catch (err) {
       console.error('Fehler beim Laden der Adressdetails:', err);
@@ -349,6 +359,21 @@ const AdressAutocomplete = ({
         </div>
         {/* Manuelle Felder als Fallback */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Land-Auswahl */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">Land</label>
+            <select
+              value={werte.land || 'DE'}
+              onChange={(e) => update({ land: e.target.value })}
+              className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+            >
+              {LAENDER.map(l => (
+                <option key={l.code} value={l.code}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">Straße</label>
             <input
@@ -414,6 +439,29 @@ const AdressAutocomplete = ({
             Alles löschen
           </button>
         )}
+      </div>
+
+      {/* Land-Auswahl */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1.5">
+          Land
+        </label>
+        <select
+          value={werte.land || 'DE'}
+          onChange={(e) => {
+            const neuesLand = e.target.value;
+            update({ land: neuesLand });
+            // Neues Session Token bei Landwechsel für neue Suche
+            sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+          }}
+          className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+        >
+          {LAENDER.map(l => (
+            <option key={l.code} value={l.code}>
+              {l.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Suchfeld */}

@@ -8,6 +8,7 @@
 import jsPDF from 'jspdf';
 import { Stammdaten } from '../types/stammdaten';
 import { loadLogoBase64 } from './logoLoader';
+import { getLandName } from '../constants/laender';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
 
@@ -365,6 +366,26 @@ export const formatStrasseHausnummer = (strasse: string): string => {
   const hausnummerRegex = /\s+(\d+[\w\-\/]*)\s*$/;
 
   return strasse.replace(hausnummerRegex, '\u00A0$1');
+};
+
+/**
+ * Formatiert PLZ + Ort + Land für PDF-Ausgabe
+ * Bei Deutschland wird das Land NICHT angezeigt (Standard)
+ * Bei Ausland: "PLZ Ort, Ländername" (z.B. "1010 Wien, Österreich")
+ *
+ * @param plz - Postleitzahl
+ * @param ort - Ortsname
+ * @param land - ISO-Ländercode (optional, Standard: 'DE')
+ * @returns Formatierter String für PDF
+ */
+export const formatAdresszeile = (plz: string, ort: string, land?: string): string => {
+  const basisAdresse = `${plz} ${ort}`;
+  const landName = getLandName(land);
+
+  if (landName) {
+    return `${basisAdresse}, ${landName}`;
+  }
+  return basisAdresse;
 };
 
 /**

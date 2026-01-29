@@ -33,6 +33,7 @@ import {
   ladePositionenVonVorherigem
 } from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
+import { formatAdresszeile } from '../../services/pdfHelpers';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import jsPDF from 'jspdf';
@@ -144,10 +145,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
               ? gespeicherteDaten.lieferadresseStrasse 
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
-              ? gespeicherteDaten.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
+              ? gespeicherteDaten.lieferadressePlzOrt
+              : (projekt?.lieferadresse
+                ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
                 : undefined);
             
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
@@ -180,10 +181,10 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             const lieferadresseStrasse = entwurf.lieferadresseStrasse 
               ? entwurf.lieferadresseStrasse 
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt 
-              ? entwurf.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt
+              ? entwurf.lieferadressePlzOrt
+              : (projekt?.lieferadresse
+                ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
                 : undefined);
             
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
@@ -325,8 +326,8 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
         const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-        const lieferadressePlzOrt = projekt?.lieferadresse 
-          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+        const lieferadressePlzOrt = projekt?.lieferadresse
+          ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
           : undefined;
         
         setRechnungsDaten(prev => ({

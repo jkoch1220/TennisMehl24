@@ -11,6 +11,7 @@ import { projektService } from './projektService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { getStammdatenOderDefault } from './stammdatenService';
 import { generiereAngebotPDF } from './dokumentService';
+import { formatAdresszeile } from './pdfHelpers';
 import { speichereAngebot } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { anfragenService } from './anfragenService';
@@ -50,6 +51,7 @@ export interface AnfrageVerarbeitungInput {
     strasse: string;
     plz: string;
     ort: string;
+    land?: string; // ISO-Ländercode (z.B. 'DE', 'AT', 'CH')
     ansprechpartner?: string;
   };
   existierenderKundeId?: string;
@@ -194,7 +196,7 @@ export async function verarbeiteAnfrageVollstaendig(
     let projektId: string;
 
     try {
-      const kundenPlzOrt = `${input.kundenDaten.plz} ${input.kundenDaten.ort}`;
+      const kundenPlzOrt = formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land);
 
       const projekt = await projektService.createProjekt({
         projektName: input.kundenDaten.name,
@@ -248,7 +250,7 @@ export async function verarbeiteAnfrageVollstaendig(
       const angebotsDaten: AngebotsDaten = {
         kundenname: input.kundenDaten.name,
         kundenstrasse: input.kundenDaten.strasse,
-        kundenPlzOrt: `${input.kundenDaten.plz} ${input.kundenDaten.ort}`,
+        kundenPlzOrt: formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land),
         // Ansprechpartner beim Kunden (z. Hd. Vorname Nachname)
         ansprechpartner: input.kundenDaten.ansprechpartner,
         angebotsnummer,
@@ -794,6 +796,7 @@ export interface AngebotsVorschauInput {
     strasse: string;
     plz: string;
     ort: string;
+    land?: string; // ISO-Ländercode (z.B. 'DE', 'AT', 'CH')
   };
   positionen: Position[];
   frachtkosten?: number;
@@ -816,7 +819,7 @@ export async function generiereAngebotsVorschauPDF(
   const angebotsDaten: AngebotsDaten = {
     kundenname: input.kundenDaten.name,
     kundenstrasse: input.kundenDaten.strasse,
-    kundenPlzOrt: `${input.kundenDaten.plz} ${input.kundenDaten.ort}`,
+    kundenPlzOrt: formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land),
     angebotsnummer: vorschauNummer,
     angebotsdatum: heute,
     gueltigBis,

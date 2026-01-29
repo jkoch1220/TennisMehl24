@@ -69,6 +69,7 @@ export interface Projekt {
     strasse: string;
     plz: string;
     ort: string;
+    land?: string; // ISO-Ländercode (z.B. 'DE', 'AT', 'CH')
   };
   saisonjahr: number;
   status: ProjektStatus;

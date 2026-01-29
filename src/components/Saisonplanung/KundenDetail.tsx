@@ -8,6 +8,7 @@ import {
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { projektService } from '../../services/projektService';
+import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Projekt, NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
@@ -698,7 +699,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             kundeId={kunde.kunde.id}
             kundennummer={kunde.kunde.kundennummer}
             kundenstrasse={kunde.kunde.rechnungsadresse.strasse}
-            kundenPlzOrt={`${kunde.kunde.rechnungsadresse.plz} ${kunde.kunde.rechnungsadresse.ort}`}
+            kundenPlzOrt={formatAdresszeile(kunde.kunde.rechnungsadresse.plz, kunde.kunde.rechnungsadresse.ort, kunde.kunde.rechnungsadresse.land)}
             angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
             preisProTonne={kunde.aktuelleSaison?.preisProTonne || (kunde.kunde.zuletztGezahlterPreis ? Math.round(kunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
             bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}

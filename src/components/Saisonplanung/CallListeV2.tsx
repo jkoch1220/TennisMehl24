@@ -34,6 +34,7 @@ import {
   Bezugsweg,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { formatAdresszeile } from '../../services/pdfHelpers';
 import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
@@ -619,7 +620,7 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
           kundeId={projektKunde.kunde.id}
           kundennummer={projektKunde.kunde.kundennummer}
           kundenstrasse={projektKunde.kunde.rechnungsadresse.strasse}
-          kundenPlzOrt={`${projektKunde.kunde.rechnungsadresse.plz} ${projektKunde.kunde.rechnungsadresse.ort}`}
+          kundenPlzOrt={formatAdresszeile(projektKunde.kunde.rechnungsadresse.plz, projektKunde.kunde.rechnungsadresse.ort, projektKunde.kunde.rechnungsadresse.land)}
           ansprechpartner={projektKunde.ansprechpartner?.find(ap => ap.aktiv)?.name}
           angefragteMenge={projektKunde.aktuelleSaison?.angefragteMenge}
           preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || (projektKunde.kunde.zuletztGezahlterPreis ? Math.round(projektKunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}

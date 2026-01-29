@@ -36,6 +36,7 @@ import {
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Belieferungsart } from '../../types/projektabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
@@ -147,10 +148,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
               ? gespeicherteDaten.lieferadresseStrasse 
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt 
-              ? gespeicherteDaten.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+            const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
+              ? gespeicherteDaten.lieferadressePlzOrt
+              : (projekt?.lieferadresse
+                ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
                 : undefined);
             
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
@@ -181,10 +182,10 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
             const lieferadresseStrasse = entwurf.lieferadresseStrasse 
               ? entwurf.lieferadresseStrasse 
               : (projekt?.lieferadresse?.strasse || undefined);
-            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt 
-              ? entwurf.lieferadressePlzOrt 
-              : (projekt?.lieferadresse 
-                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+            const lieferadressePlzOrt = entwurf.lieferadressePlzOrt
+              ? entwurf.lieferadressePlzOrt
+              : (projekt?.lieferadresse
+                ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
                 : undefined);
             
             // Ergänze fehlende Projekt-Daten (z.B. Kundennummer)
@@ -326,7 +327,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
         const lieferadressePlzOrt = projekt?.lieferadresse
-          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+          ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
           : undefined;
 
         // Belieferungsart und DISPO-Ansprechpartner vom Kunden vorausfüllen

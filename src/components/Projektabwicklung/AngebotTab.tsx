@@ -37,6 +37,7 @@ import { sucheUniversalArtikel, getAlleUniversalArtikel } from '../../services/u
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { formatAdresszeile } from '../../services/pdfHelpers';
 import { SaisonKunde } from '../../types/saisonplanung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
@@ -233,12 +234,12 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
             if (kunde) {
               if (kunde.rechnungsadresse) {
                 kundenRechnungsStrasse = kunde.rechnungsadresse.strasse;
-                kundenRechnungsPlzOrt = `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`.trim();
+                kundenRechnungsPlzOrt = formatAdresszeile(kunde.rechnungsadresse.plz, kunde.rechnungsadresse.ort, kunde.rechnungsadresse.land);
                 console.log('✅ Aktuelle Rechnungsadresse vom Kunden:', kundenRechnungsStrasse);
               }
               if (kunde.lieferadresse) {
                 kundenLieferStrasse = kunde.lieferadresse.strasse;
-                kundenLieferPlzOrt = `${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`.trim();
+                kundenLieferPlzOrt = formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
                 kundenLieferadresseAbweichend =
                   kunde.lieferadresse.strasse !== kunde.rechnungsadresse?.strasse ||
                   kunde.lieferadresse.plz !== kunde.rechnungsadresse?.plz ||
@@ -450,7 +451,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
         const lieferadressePlzOrt = projekt?.lieferadresse
-          ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+          ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
           : undefined;
 
         // WICHTIG: Kunden-Daten laden für AKTUELLE Rechnungs- und Lieferadresse
@@ -474,14 +475,14 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
               // RECHNUNGSADRESSE vom Kunden - hat IMMER Vorrang!
               if (kunde.rechnungsadresse) {
                 kundenRechnungsStrasse = kunde.rechnungsadresse.strasse;
-                kundenRechnungsPlzOrt = `${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`.trim();
+                kundenRechnungsPlzOrt = formatAdresszeile(kunde.rechnungsadresse.plz, kunde.rechnungsadresse.ort, kunde.rechnungsadresse.land);
                 console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenRechnungsStrasse, kundenRechnungsPlzOrt);
               }
 
               // LIEFERADRESSE vom Kunden - hat IMMER Vorrang!
               if (kunde.lieferadresse) {
                 kundenLieferStrasse = kunde.lieferadresse.strasse;
-                kundenLieferPlzOrt = `${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`.trim();
+                kundenLieferPlzOrt = formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
                 // Prüfen ob Lieferadresse abweichend von Rechnungsadresse
                 kundenLieferadresseAbweichend =
                   kunde.lieferadresse.strasse !== kunde.rechnungsadresse?.strasse ||
