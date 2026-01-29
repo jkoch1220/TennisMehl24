@@ -62,7 +62,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '29'; // Anfragen Collection für E-Mail-Verarbeitung
+const APPWRITE_SETUP_VERSION = '30'; // Platzbauer Entwurfs-Felder (angebotsDaten, etc.)
 
 type FieldConfig = {
   key: string;
@@ -346,6 +346,10 @@ const platzbauerProjekteFields: FieldConfig[] = [
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
   { key: 'data', type: 'string', size: 100000, required: true },        // JSON mit allen Details
+  // Entwurfsdaten für Auto-Save
+  { key: 'angebotsDaten', type: 'string', size: 100000 },               // JSON-Entwurf für Angebot
+  { key: 'auftragsbestaetigungsDaten', type: 'string', size: 100000 },  // JSON-Entwurf für AB
+  { key: 'rechnungsDaten', type: 'string', size: 100000 },              // JSON-Entwurf für Rechnung
 ];
 
 // Projekt-Zuordnungen Collection (Vereinsprojekt -> Platzbauerprojekt)
