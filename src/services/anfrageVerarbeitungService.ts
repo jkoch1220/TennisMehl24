@@ -9,7 +9,7 @@ import { Position } from '../types/projektabwicklung';
 import { saisonplanungService } from './saisonplanungService';
 import { projektService } from './projektService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
-import { getStammdatenOderDefault, getArtikelPreis } from './stammdatenService';
+import { getStammdatenOderDefault } from './stammdatenService';
 import { generiereAngebotPDF } from './dokumentService';
 import { speichereAngebot } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
@@ -455,7 +455,7 @@ export async function erstelleAnfragePositionen(
   let positionIndex = 1;
 
   // ==========================================
-  // ARTIKEL AUS APPWRITE LADEN
+  // ARTIKEL AUS APPWRITE LADEN (Bezeichnung, Beschreibung, Preis)
   // ==========================================
   const [
     artikelLose02,
@@ -476,14 +476,26 @@ export async function erstelleAnfragePositionen(
   ]);
 
   // ==========================================
-  // PREISE AUS STAMMDATEN LADEN (Fallback wenn Artikel keinen Preis hat)
+  // PREISE AUS APPWRITE ARTIKEL-COLLECTION (einzelpreis = Verkaufspreis)
+  // Fallback nur wenn Artikel nicht gefunden oder kein Preis hinterlegt
   // ==========================================
-  const [preisLoseMaterial, preisSackwareProTonne, preisBeiladungProSack, preisPEFolie] = await Promise.all([
-    getArtikelPreis('TM-ZM-02'),      // Loses Material €/t (95.75)
-    getArtikelPreis('TM-ZM-02St'),    // Sackware per Spedition €/t (145.00)
-    getArtikelPreis('TM-ZM-02S'),     // Beiladung €/Sack (8.50)
-    getArtikelPreis('TM-PE'),         // PE-Folie €/Stk
-  ]);
+  const preisLoseMaterial = artikelLose02?.einzelpreis ?? 95.75; // Fallback 95.75€/t
+  const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 145.00; // Fallback 145€/t (NUR ABWERKSPREIS!)
+  const preisBeiladungProSack = artikelBeiladung02?.einzelpreis ?? 8.50; // Fallback 8.50€/Sack
+  const preisPEFolie = artikelPE?.einzelpreis ?? 25.00; // Fallback 25€/Stk
+
+  // ==========================================
+  // RABEN-FRACHTKOSTEN FÜR SACKWARE BERECHNEN
+  // Bei Sackware per Spedition: Werkspreis + Frachtkosten = Endpreis!
+  // ==========================================
+  let frachtProTonneSackware = 0;
+  if (input.plz) {
+    const testGewichtKg = 1000; // 1 Tonne für Preisberechnung pro Tonne
+    const frachtFuer1t = berechneSpeditionskosten(input.plz, testGewichtKg);
+    if (frachtFuer1t !== null) {
+      frachtProTonneSackware = frachtFuer1t; // €/t Frachtkosten
+    }
+  }
 
   // Hilfsfunktion: Bezeichnung und Beschreibung aus Artikel holen
   const getArtikelInfo = (artikel: Artikel | null, fallbackBezeichnung: string) => ({
@@ -562,7 +574,7 @@ export async function erstelleAnfragePositionen(
       // BEILADUNG: Einzelne Säcke auf den LKW
       const info = getArtikelInfo(artikelBeiladung02, 'Tennismehl 0/2 gesackt (40kg Säcke)');
       const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware02);
-      const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
+      const einzelpreis = preisBeiladungProSack; // €/Sack aus Appwrite
       const preis = anzahlSaecke * einzelpreis;
 
       positionen.push({
@@ -580,17 +592,18 @@ export async function erstelleAnfragePositionen(
       gesamtpreisOhneLieferung += preis;
       hatBeiladung = true;
     } else {
-      // SPEDITION: In Tonnen abrechnen (Preis 145€/t + Frachtkosten nach Raben-Tarif)
+      // SPEDITION: In Tonnen abrechnen
+      // ENDPREIS = Werkspreis (145€/t) + Raben-Frachtkosten pro Tonne!
       const info = getArtikelInfo(artikelGesackt02, 'Tennismehl 0/2 gesackt');
       const menge = gesamtSackware02;
-      const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
+      const einzelpreis = preisSackwareAbWerk + frachtProTonneSackware; // Werkspreis + Fracht = ENDPREIS!
       const preis = menge * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
         artikelnummer: 'TM-ZM-02St',
         bezeichnung: info.bezeichnung,
-        beschreibung: info.beschreibung, // Beschreibung aus Appwrite, KEINE hardcoded Texte!
+        beschreibung: info.beschreibung,
         menge,
         einheit: 't',
         einzelpreis,
@@ -609,7 +622,7 @@ export async function erstelleAnfragePositionen(
       // BEILADUNG: Einzelne Säcke auf den LKW
       const info = getArtikelInfo(artikelBeiladung03, 'Tennismehl 0/3 gesackt (40kg Säcke)');
       const anzahlSaecke = berechneAnzahlSaecke(gesamtSackware03);
-      const einzelpreis = preisBeiladungProSack; // €/Sack aus Stammdaten
+      const einzelpreis = preisBeiladungProSack; // €/Sack aus Appwrite
       const preis = anzahlSaecke * einzelpreis;
 
       positionen.push({
@@ -627,17 +640,18 @@ export async function erstelleAnfragePositionen(
       gesamtpreisOhneLieferung += preis;
       hatBeiladung = true;
     } else {
-      // SPEDITION: In Tonnen abrechnen (Preis 145€/t + Frachtkosten nach Raben-Tarif)
+      // SPEDITION: In Tonnen abrechnen
+      // ENDPREIS = Werkspreis (145€/t) + Raben-Frachtkosten pro Tonne!
       const info = getArtikelInfo(artikelGesackt03, 'Tennismehl 0/3 gesackt');
       const menge = gesamtSackware03;
-      const einzelpreis = preisSackwareProTonne; // €/t aus Stammdaten (145€)
+      const einzelpreis = preisSackwareAbWerk + frachtProTonneSackware; // Werkspreis + Fracht = ENDPREIS!
       const preis = menge * einzelpreis;
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
         artikelnummer: 'TM-ZM-03St',
         bezeichnung: info.bezeichnung,
-        beschreibung: info.beschreibung, // Beschreibung aus Appwrite, KEINE hardcoded Texte!
+        beschreibung: info.beschreibung,
         menge,
         einheit: 't',
         einzelpreis,
