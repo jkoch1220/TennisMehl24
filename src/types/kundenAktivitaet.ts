@@ -4,7 +4,8 @@ export type KundenAktivitaetsTyp =
   | 'besuch'
   | 'bestellung'
   | 'notiz'
-  | 'datei';
+  | 'datei'
+  | 'schuettplatzbild';
 
 export interface KundenAktivitaet {
   id: string;

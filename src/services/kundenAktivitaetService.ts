@@ -136,4 +136,44 @@ export const kundenAktivitaetService = {
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
     return `${endpoint}/storage/buckets/${KUNDEN_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${projectId}`;
   },
+
+  getPreviewUrl(dateiId: string, width = 400, height = 300): string {
+    const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+    const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+    return `${endpoint}/storage/buckets/${KUNDEN_DATEIEN_BUCKET_ID}/files/${dateiId}/preview?project=${projectId}&width=${width}&height=${height}`;
+  },
+
+  // Schüttplatzbilder spezifische Methoden
+  async listSchuettplatzbilder(kundeId: string): Promise<KundenAktivitaet[]> {
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, KUNDEN_AKTIVITAETEN_COLLECTION_ID, [
+        Query.equal('kundeId', kundeId),
+        Query.equal('typ', 'schuettplatzbild'),
+        Query.orderDesc('$createdAt'),
+        Query.limit(100),
+      ]);
+      return response.documents.map((doc) => parseAktivitaetDocument(doc));
+    } catch (error: any) {
+      if (error?.code === 404) {
+        console.warn('⚠️ Collection kunden_aktivitaeten fehlt. Bitte Appwrite Setup ausführen.');
+        return [];
+      }
+      console.error('Fehler beim Laden der Schüttplatzbilder:', error);
+      return [];
+    }
+  },
+
+  async uploadSchuettplatzbild(kundeId: string, file: File, beschreibung?: string): Promise<KundenAktivitaet> {
+    const uploaded = await storage.createFile(KUNDEN_DATEIEN_BUCKET_ID, ID.unique(), file);
+    return this.create({
+      kundeId,
+      typ: 'schuettplatzbild',
+      titel: beschreibung || `Schüttplatz: ${file.name}`,
+      beschreibung,
+      dateiId: uploaded.$id,
+      dateiName: file.name,
+      dateiTyp: file.type,
+      dateiGroesse: file.size,
+    });
+  },
 };

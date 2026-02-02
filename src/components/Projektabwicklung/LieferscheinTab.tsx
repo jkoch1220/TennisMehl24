@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail, Truck, CalendarDays } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Trash2, Download, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Package, Search, Mail, Truck, CalendarDays, Navigation } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -55,6 +56,7 @@ interface LieferscheinTabProps {
 }
 
 const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
+  const navigate = useNavigate();
   const [lieferscheinDaten, setLieferscheinDaten] = useState<LieferscheinDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
@@ -624,6 +626,13 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                     <Edit3 className="h-4 w-4" />
                     Bearbeiten & neu speichern
                   </button>
+                  <button
+                    onClick={() => navigate('/dispo-planung')}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-colors text-sm font-medium shadow-lg"
+                  >
+                    <Navigation className="h-4 w-4" />
+                    Zur Dispo-Planung
+                  </button>
                 </div>
               </div>
             </div>
@@ -708,6 +717,25 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 <span>Bereit</span>
               </>
             )}
+          </div>
+        )}
+
+        {/* Quick-Link zur Dispo-Planung */}
+        {projekt?.$id && (
+          <div className="flex items-center justify-between bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/30 dark:to-red-950/30 rounded-xl px-4 py-3 border border-orange-200 dark:border-orange-800/50">
+            <div className="flex items-center gap-3">
+              <Truck className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                Dispo-Details, Schüttplatzbilder & Tourenzuweisung
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/dispo-planung')}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-colors text-sm font-medium shadow"
+            >
+              <Navigation className="h-4 w-4" />
+              Dispo-Planung öffnen
+            </button>
           </div>
         )}
 

@@ -28,6 +28,8 @@ import {
   Check,
   Route,
   Sparkles,
+  Image,
+  ZoomIn,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import { AngebotsDaten } from '../../types/projektabwicklung';
@@ -38,6 +40,8 @@ import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { fahrzeugService } from '../../services/fahrzeugService';
 import { projektAnhangService } from '../../services/projektAnhangService';
+import { kundenAktivitaetService } from '../../services/kundenAktivitaetService';
+import { KundenAktivitaet } from '../../types/kundenAktivitaet';
 import { useNavigate } from 'react-router-dom';
 import { ID } from 'appwrite';
 
@@ -981,7 +985,7 @@ interface AuftragDetailModalProps {
 }
 
 const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: AuftragDetailModalProps) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'notizen' | 'anhaenge' | 'bemerkungen'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'notizen' | 'anhaenge' | 'bemerkungen' | 'schuettplatzbilder'>('details');
   const [formData, setFormData] = useState({
     geplantesDatum: projekt.geplantesDatum || '',
     lieferzeitfensterVon: projekt.lieferzeitfenster?.von || '08:00',
@@ -995,6 +999,28 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
   const [notizen, setNotizen] = useState<DispoNotiz[]>(projekt.dispoNotizen || []);
   const [anhaenge, setAnhaenge] = useState<ProjektAnhang[]>(projekt.anhaenge || []);
   const [uploading, setUploading] = useState(false);
+  const [schuettplatzbilder, setSchuettplatzbilder] = useState<KundenAktivitaet[]>([]);
+  const [loadingBilder, setLoadingBilder] = useState(false);
+  const [uploadingBild, setUploadingBild] = useState(false);
+  const [bildBeschreibung, setBildBeschreibung] = useState('');
+  const [selectedBild, setSelectedBild] = useState<KundenAktivitaet | null>(null);
+
+  // Schüttplatzbilder laden
+  useEffect(() => {
+    const loadSchuettplatzbilder = async () => {
+      if (!kunde?.id) return;
+      setLoadingBilder(true);
+      try {
+        const bilder = await kundenAktivitaetService.listSchuettplatzbilder(kunde.id);
+        setSchuettplatzbilder(bilder);
+      } catch (error) {
+        console.error('Fehler beim Laden der Schüttplatzbilder:', error);
+      } finally {
+        setLoadingBilder(false);
+      }
+    };
+    loadSchuettplatzbilder();
+  }, [kunde?.id]);
 
   // Notiz hinzufügen
   const addNotiz = () => {
@@ -1087,6 +1113,7 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
           <div className="flex gap-6">
             {[
               { id: 'details', label: 'Lieferdetails', icon: Truck },
+              { id: 'schuettplatzbilder', label: 'Schüttplatzbilder', icon: Image, count: schuettplatzbilder.length },
               { id: 'notizen', label: 'Notizen', icon: MessageSquare, count: notizen.length },
               { id: 'anhaenge', label: 'Anhänge', icon: Paperclip, count: anhaenge.length },
               { id: 'bemerkungen', label: 'Kundenbemerkungen', icon: AlertCircle, count: kunde?.zusatzbemerkungen?.length || 0 },
@@ -1232,6 +1259,184 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
                     {projekt.lieferadresse?.strasse || kunde?.adresse?.strasse}<br />
                     {projekt.lieferadresse?.plz || kunde?.adresse?.plz} {projekt.lieferadresse?.ort || kunde?.adresse?.ort}
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'schuettplatzbilder' && (
+            <div className="space-y-4">
+              {/* Upload-Bereich */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                <h4 className="font-medium text-green-800 dark:text-green-300 mb-3 flex items-center gap-2">
+                  <Image className="w-4 h-4" />
+                  Neues Schüttplatzbild hochladen
+                </h4>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Beschreibung (optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="z.B. Zufahrt von links, Schüttstelle hinter Clubhaus..."
+                      value={bildBeschreibung}
+                      onChange={(e) => setBildBeschreibung(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <label className="cursor-pointer">
+                    <div className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                      uploadingBild
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}>
+                      {uploadingBild ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Lädt...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Bild hochladen
+                        </>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !kunde?.id) return;
+                        setUploadingBild(true);
+                        try {
+                          const neuesBild = await kundenAktivitaetService.uploadSchuettplatzbild(
+                            kunde.id,
+                            file,
+                            bildBeschreibung || undefined
+                          );
+                          setSchuettplatzbilder(prev => [neuesBild, ...prev]);
+                          setBildBeschreibung('');
+                        } catch (error) {
+                          console.error('Fehler beim Hochladen:', error);
+                          alert('Fehler beim Hochladen des Bildes');
+                        } finally {
+                          setUploadingBild(false);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="hidden"
+                      disabled={uploadingBild || !kunde?.id}
+                    />
+                  </label>
+                </div>
+                {!kunde?.id && (
+                  <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
+                    Kein Kunde zugeordnet - Bilder können nicht hochgeladen werden
+                  </p>
+                )}
+              </div>
+
+              {/* Bilder-Galerie */}
+              {loadingBilder ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+                </div>
+              ) : schuettplatzbilder.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Image className="w-16 h-16 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">Noch keine Schüttplatzbilder</p>
+                  <p className="text-sm mt-1">Laden Sie Bilder hoch, um den Fahrern die Schüttstelle zu zeigen</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {schuettplatzbilder.map((bild) => (
+                    <div
+                      key={bild.id}
+                      className="group relative bg-gray-100 dark:bg-slate-800 rounded-lg overflow-hidden aspect-video"
+                    >
+                      <img
+                        src={kundenAktivitaetService.getPreviewUrl(bild.dateiId!, 400, 300)}
+                        alt={bild.titel}
+                        className="w-full h-full object-cover cursor-pointer transition-transform group-hover:scale-105"
+                        onClick={() => setSelectedBild(bild)}
+                      />
+                      {/* Overlay mit Aktionen */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <p className="text-white text-sm font-medium truncate">
+                            {bild.beschreibung || bild.dateiName}
+                          </p>
+                          <p className="text-white/70 text-xs">
+                            {new Date(bild.erstelltAm).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <button
+                            onClick={() => setSelectedBild(bild)}
+                            className="p-1.5 bg-white/90 rounded-lg text-gray-700 hover:bg-white"
+                            title="Vergrößern"
+                          >
+                            <ZoomIn className="w-4 h-4" />
+                          </button>
+                          <a
+                            href={kundenAktivitaetService.getDownloadUrl(bild.dateiId!)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 bg-white/90 rounded-lg text-blue-600 hover:bg-white"
+                            title="Herunterladen"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Bild wirklich löschen?')) return;
+                              try {
+                                await kundenAktivitaetService.remove(bild.id);
+                                setSchuettplatzbilder(prev => prev.filter(b => b.id !== bild.id));
+                              } catch (error) {
+                                console.error('Fehler beim Löschen:', error);
+                              }
+                            }}
+                            className="p-1.5 bg-white/90 rounded-lg text-red-600 hover:bg-white"
+                            title="Löschen"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Lightbox für Vollbild-Ansicht */}
+              {selectedBild && (
+                <div
+                  className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
+                  onClick={() => setSelectedBild(null)}
+                >
+                  <button
+                    onClick={() => setSelectedBild(null)}
+                    className="absolute top-4 right-4 p-2 text-white/70 hover:text-white"
+                  >
+                    <X className="w-8 h-8" />
+                  </button>
+                  <img
+                    src={kundenAktivitaetService.getDateiUrl(selectedBild.dateiId!)}
+                    alt={selectedBild.titel}
+                    className="max-w-full max-h-full object-contain"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="absolute bottom-4 left-4 right-4 text-center">
+                    <p className="text-white font-medium">
+                      {selectedBild.beschreibung || selectedBild.dateiName}
+                    </p>
+                    <p className="text-white/60 text-sm">
+                      Hochgeladen am {new Date(selectedBild.erstelltAm).toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
