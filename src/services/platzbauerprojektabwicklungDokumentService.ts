@@ -788,24 +788,31 @@ export const speichereEntwurf = async (
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung',
   daten: any
 ): Promise<void> => {
-  console.log('🔧 speichereEntwurf aufgerufen:', { projektId, typ });
+  console.log('🔧 speichereEntwurf START:', { projektId, typ, datenKeys: Object.keys(daten || {}) });
+
+  if (!projektId) {
+    console.error('❌ speichereEntwurf: Keine projektId!');
+    throw new Error('Keine projektId angegeben');
+  }
 
   // Aktuelles Projekt laden um data-Feld zu erhalten
   const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
-  console.log('🔧 Projekt geladen:', projekt ? { id: projekt.id, hatData: !!projekt.data } : 'nicht gefunden');
+  console.log('🔧 Projekt geladen:', projekt ? { id: projekt.id, hatData: !!projekt.data, dataLaenge: projekt.data?.length } : 'NICHT GEFUNDEN');
 
   if (!projekt) throw new Error('Projekt nicht gefunden');
 
   // Bestehendes data-Objekt parsen oder neues erstellen
   let dataObj: Record<string, any> = {};
-  if (projekt.data && typeof projekt.data === 'string') {
+  if (projekt.data && typeof projekt.data === 'string' && projekt.data.length > 0) {
     try {
       dataObj = JSON.parse(projekt.data);
       console.log('🔧 Bestehendes data-Objekt geladen, keys:', Object.keys(dataObj));
     } catch (e) {
-      console.warn('🔧 Konnte data nicht parsen:', e);
+      console.warn('🔧 Konnte data nicht parsen, starte mit leerem Objekt:', e);
       dataObj = {};
     }
+  } else {
+    console.log('🔧 Kein bestehendes data-Feld, starte mit leerem Objekt');
   }
 
   // Entwurfsdaten im data-Objekt speichern
@@ -818,7 +825,7 @@ export const speichereEntwurf = async (
   dataObj[feldName] = daten;
 
   const neuesData = JSON.stringify(dataObj);
-  console.log('🔧 Speichere data mit Länge:', neuesData.length, 'Bytes');
+  console.log('🔧 Speichere data:', { feldName, neueDataLaenge: neuesData.length, keys: Object.keys(dataObj) });
 
   try {
     await databases.updateDocument(
@@ -830,9 +837,13 @@ export const speichereEntwurf = async (
         geaendertAm: new Date().toISOString(),
       }
     );
-    console.log('✅ speichereEntwurf erfolgreich abgeschlossen');
-  } catch (error) {
-    console.error('❌ speichereEntwurf Fehler bei updateDocument:', error);
+    console.log('✅ speichereEntwurf ERFOLGREICH abgeschlossen für', projektId);
+  } catch (error: any) {
+    console.error('❌ speichereEntwurf FEHLER:', {
+      error: error?.message || error,
+      code: error?.code,
+      type: error?.type
+    });
     throw error;
   }
 };

@@ -922,43 +922,51 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Hilfsfunktionen mit Change-Tracking (erhöhen saveCounter und aktualisieren State)
   const toggleVereinMitAenderung = (index: number) => {
+    console.log('🔀 toggleVereinMitAenderung aufgerufen:', { index, initialLaden: initialLaden.current });
     saveCounter.current++;
     toggleVerein(index);
   };
 
   const updateVereinMitAenderung = (index: number, updates: Partial<VereinAuswahl>) => {
+    console.log('✏️ updateVereinMitAenderung aufgerufen:', { index, updates, initialLaden: initialLaden.current });
     saveCounter.current++;
     updateVerein(index, updates);
   };
 
   const handleVereinArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
+    console.log('📦 handleVereinArtikelChangeMitAenderung aufgerufen:', { index, artikelnummer });
     saveCounter.current++;
     handleVereinArtikelChange(index, artikelnummer);
   };
 
   // Änderungs-Tracking für Zusatzpositionen
   const addZusatzPositionMitAenderung = () => {
+    console.log('➕ addZusatzPositionMitAenderung aufgerufen');
     saveCounter.current++;
     addZusatzPosition();
   };
 
   const updateZusatzPositionMitAenderung = (index: number, updates: Partial<PlatzbauerAngebotPosition>) => {
+    console.log('✏️ updateZusatzPositionMitAenderung aufgerufen:', { index, updates });
     saveCounter.current++;
     updateZusatzPosition(index, updates);
   };
 
   const handleZusatzArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
+    console.log('📦 handleZusatzArtikelChangeMitAenderung aufgerufen:', { index, artikelnummer });
     saveCounter.current++;
     handleZusatzArtikelChange(index, artikelnummer);
   };
 
   const removeZusatzPositionMitAenderung = (index: number) => {
+    console.log('🗑️ removeZusatzPositionMitAenderung aufgerufen:', { index });
     saveCounter.current++;
     removeZusatzPosition(index);
   };
 
   // Änderungs-Tracking für FormData
   const setFormDataMitAenderung = (updates: Partial<PlatzbauerAngebotFormularDaten>) => {
+    console.log('📝 setFormDataMitAenderung aufgerufen:', { updates });
     saveCounter.current++;
     setFormData(prev => ({ ...prev, ...updates }));
   };
@@ -1439,6 +1447,19 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
               </>
             )}
           </div>
+
+          {/* Manueller Speichern-Button für Debugging */}
+          <button
+            type="button"
+            onClick={() => {
+              console.log('🖱️ Manueller Speichern-Button geklickt');
+              speichereAutomatisch();
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-dark-border dark:hover:bg-dark-bg text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            Jetzt speichern
+          </button>
 
           <button
             type="submit"
