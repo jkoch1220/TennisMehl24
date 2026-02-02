@@ -321,14 +321,6 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   // === BERECHNUNGEN ===
   const ausgewaehlteVereine = vereinPositionen.filter(v => v.ausgewaehlt);
 
-  // Gesamtmenge NUR für loses Material (TM-ZM-*)
-  const gesamtMenge = ausgewaehlteVereine
-    .filter(v => v.artikelnummer?.startsWith('TM-ZM'))
-    .reduce((sum, v) => sum + v.menge, 0)
-    + zusatzPositionen
-      .filter(p => p.artikelnummer?.startsWith('TM-ZM'))
-      .reduce((sum, p) => sum + p.menge, 0);
-
   const gesamtNetto = ausgewaehlteVereine.reduce((sum, v) => sum + (v.menge * v.einzelpreis), 0)
     + zusatzPositionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
 
@@ -727,11 +719,6 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
               <span className="text-gray-600 dark:text-gray-400">Ausgewählte Vereine:</span>
               <span className="font-medium text-gray-900 dark:text-white">{ausgewaehlteVereine.length}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Gesamtmenge (loses Material):</span>
-              <span className="font-medium text-gray-900 dark:text-white">{gesamtMenge.toFixed(2)} t</span>
-            </div>
-            <hr className="my-3 border-gray-200 dark:border-slate-700" />
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Netto:</span>
               <span className="font-medium text-gray-900 dark:text-white">
