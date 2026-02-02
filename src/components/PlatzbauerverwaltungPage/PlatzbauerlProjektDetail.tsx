@@ -774,7 +774,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
       artikelId: defaultArtikel?.$id,
       artikelnummer: defaultArtikel?.artikelnummer || '',
       bezeichnung: defaultArtikel?.bezeichnung || '',
-      beschreibung: '',
+      beschreibung: defaultArtikel?.beschreibung || '',
       einheit: defaultArtikel?.einheit || 't',
       menge: 0,
       einzelpreis: defaultArtikel?.einzelpreis || 0,
@@ -805,6 +805,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         artikelId: artikel.$id,
         artikelnummer: artikel.artikelnummer,
         bezeichnung: artikel.bezeichnung,
+        beschreibung: artikel.beschreibung || '',
         einheit: artikel.einheit,
         einzelpreis: artikel.einzelpreis ?? zusatzPositionen[index].einzelpreis,
       });
@@ -938,12 +939,19 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
       .filter(v => v.ausgewaehlt && v.menge > 0)
       .map((v, index) => {
         const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === v.artikelnummer);
+        // Beschreibung: Artikel-Beschreibung + "für Vereinsname"
+        const beschreibungTeile = [];
+        if (artikel?.beschreibung) {
+          beschreibungTeile.push(artikel.beschreibung);
+        }
+        beschreibungTeile.push(`für ${v.verein.name}`);
+
         return {
           id: `verein-${index + 1}`,
           artikelId: artikel?.$id,
           artikelnummer: v.artikelnummer,
           bezeichnung: artikel?.bezeichnung || 'Ziegelmehl',
-          beschreibung: `für ${v.verein.name}`,
+          beschreibung: beschreibungTeile.join('\n'),
           einheit: artikel?.einheit || 't',
           menge: v.menge,
           einzelpreis: v.einzelpreis,
