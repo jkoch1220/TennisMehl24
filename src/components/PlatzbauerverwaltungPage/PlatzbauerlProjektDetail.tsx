@@ -720,6 +720,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         // Nach kurzem Delay initialLaden auf false setzen, damit Änderungen gespeichert werden
         setTimeout(() => {
           initialLaden.current = false;
+          console.log('✅ initialLaden auf false gesetzt - Auto-Save ist jetzt aktiviert');
         }, 500);
       }
     };
@@ -887,8 +888,16 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Debounced Auto-Save bei Änderungen - speichert automatisch nach jeder Änderung
   useEffect(() => {
+    console.log('🔄 Auto-Save Effect triggered:', {
+      initialLaden: initialLaden.current,
+      saveCounter: saveCounter.current,
+      vereineCount: vereineAuswahl.length,
+      projektId: projekt.id
+    });
+
     // Beim ersten Laden nicht speichern
     if (initialLaden.current) {
+      console.log('⏭️ Auto-Save übersprungen - initialLaden ist true');
       return;
     }
 
@@ -898,7 +907,9 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
     }
 
     // Nach 1.5 Sekunden speichern
+    console.log('⏳ Auto-Save Timer gestartet (1.5s)');
     debounceTimer.current = setTimeout(() => {
+      console.log('⏰ Auto-Save Timer abgelaufen - speichere jetzt...');
       speichereAutomatisch();
     }, 1500);
 

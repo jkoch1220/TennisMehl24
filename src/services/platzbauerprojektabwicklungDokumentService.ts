@@ -788,8 +788,12 @@ export const speichereEntwurf = async (
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung',
   daten: any
 ): Promise<void> => {
+  console.log('🔧 speichereEntwurf aufgerufen:', { projektId, typ });
+
   // Aktuelles Projekt laden um data-Feld zu erhalten
   const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
+  console.log('🔧 Projekt geladen:', projekt ? { id: projekt.id, hatData: !!projekt.data } : 'nicht gefunden');
+
   if (!projekt) throw new Error('Projekt nicht gefunden');
 
   // Bestehendes data-Objekt parsen oder neues erstellen
@@ -797,7 +801,9 @@ export const speichereEntwurf = async (
   if (projekt.data && typeof projekt.data === 'string') {
     try {
       dataObj = JSON.parse(projekt.data);
-    } catch {
+      console.log('🔧 Bestehendes data-Objekt geladen, keys:', Object.keys(dataObj));
+    } catch (e) {
+      console.warn('🔧 Konnte data nicht parsen:', e);
       dataObj = {};
     }
   }
@@ -811,15 +817,24 @@ export const speichereEntwurf = async (
 
   dataObj[feldName] = daten;
 
-  await databases.updateDocument(
-    DATABASE_ID,
-    PLATZBAUER_PROJEKTE_COLLECTION_ID,
-    projektId,
-    {
-      data: JSON.stringify(dataObj),
-      geaendertAm: new Date().toISOString(),
-    }
-  );
+  const neuesData = JSON.stringify(dataObj);
+  console.log('🔧 Speichere data mit Länge:', neuesData.length, 'Bytes');
+
+  try {
+    await databases.updateDocument(
+      DATABASE_ID,
+      PLATZBAUER_PROJEKTE_COLLECTION_ID,
+      projektId,
+      {
+        data: neuesData,
+        geaendertAm: new Date().toISOString(),
+      }
+    );
+    console.log('✅ speichereEntwurf erfolgreich abgeschlossen');
+  } catch (error) {
+    console.error('❌ speichereEntwurf Fehler bei updateDocument:', error);
+    throw error;
+  }
 };
 
 /**
@@ -829,17 +844,30 @@ export const ladeEntwurf = async <T>(
   projektId: string,
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung'
 ): Promise<T | null> => {
+  console.log('🔍 ladeEntwurf aufgerufen:', { projektId, typ });
+
   try {
     const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
+    console.log('🔍 Projekt geladen:', projekt ? {
+      id: projekt.id,
+      hatData: !!projekt.data,
+      dataLaenge: projekt.data?.length
+    } : 'nicht gefunden');
+
     if (!projekt) return null;
 
     // data-Feld parsen
-    if (!projekt.data || typeof projekt.data !== 'string') return null;
+    if (!projekt.data || typeof projekt.data !== 'string') {
+      console.log('🔍 Kein data-Feld vorhanden');
+      return null;
+    }
 
     let dataObj: Record<string, any>;
     try {
       dataObj = JSON.parse(projekt.data);
-    } catch {
+      console.log('🔍 data-Objekt geparst, keys:', Object.keys(dataObj));
+    } catch (e) {
+      console.warn('🔍 Konnte data nicht parsen:', e);
       return null;
     }
 
@@ -850,11 +878,13 @@ export const ladeEntwurf = async <T>(
     }[typ];
 
     const entwurf = dataObj[feldName];
+    console.log('🔍 Entwurf gefunden:', entwurf ? 'ja' : 'nein');
+
     if (!entwurf) return null;
 
     return entwurf as T;
   } catch (error) {
-    console.error('Fehler beim Laden des Entwurfs:', error);
+    console.error('❌ Fehler beim Laden des Entwurfs:', error);
     return null;
   }
 };
