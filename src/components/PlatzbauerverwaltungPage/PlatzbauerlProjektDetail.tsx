@@ -598,8 +598,8 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
+  const saveCounter = useRef(0); // Zählt Änderungen für zuverlässiges Speichern
 
   const [formData, setFormData] = useState<PlatzbauerAngebotFormularDaten>({
     platzbauerId: platzbauer.id,
@@ -637,6 +637,12 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
         // Gespeicherten Entwurf laden
         const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurfsDaten>(projekt.id, 'angebot');
+        console.log('📂 Geladener Entwurf:', gespeicherterEntwurf ? {
+          vereineCount: gespeicherterEntwurf.vereineAuswahl?.length,
+          ausgewaehlt: gespeicherterEntwurf.vereineAuswahl?.filter(v => v.ausgewaehlt).length,
+          zusatzPositionen: gespeicherterEntwurf.zusatzPositionen?.length,
+          hatFormData: !!gespeicherterEntwurf.formData
+        } : 'kein Entwurf gefunden');
 
         // Vorjahresmengen für alle Vereine laden
         const vereineIds = vereineDaten.map(v => v.kunde.id);
@@ -738,11 +744,13 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Alle Vereine auswählen
   const selectAlleVereine = () => {
+    saveCounter.current++;
     setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: true })));
   };
 
   // Keine Vereine auswählen
   const deselectAlleVereine = () => {
+    saveCounter.current++;
     setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: false })));
   };
 
@@ -819,10 +827,14 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
 
   // Auto-Save Funktion
   const speichereAutomatisch = useCallback(async () => {
-    if (!projekt.id || initialLaden.current) return;
+    if (!projekt.id || initialLaden.current) {
+      console.log('⏭️ Auto-Save übersprungen (initialLaden oder keine projektId)');
+      return;
+    }
 
     try {
       setAutoSaveStatus('speichern');
+      console.log('💾 Speichere Platzbauer Angebot Entwurf...');
 
       const entwurfsDaten: AngebotEntwurfsDaten = {
         vereineAuswahl: vereineAuswahl.map(v => ({
@@ -858,28 +870,37 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
         },
       };
 
+      console.log('📝 Entwurfsdaten:', {
+        vereineCount: entwurfsDaten.vereineAuswahl.length,
+        ausgewaehlteVereine: entwurfsDaten.vereineAuswahl.filter(v => v.ausgewaehlt).length,
+        zusatzPositionenCount: entwurfsDaten.zusatzPositionen.length
+      });
+
       await speichereEntwurf(projekt.id, 'angebot', entwurfsDaten);
       setAutoSaveStatus('gespeichert');
       console.log('✅ Platzbauer Angebot Auto-Save erfolgreich');
     } catch (error) {
-      console.error('Fehler beim Auto-Save:', error);
+      console.error('❌ Fehler beim Auto-Save:', error);
       setAutoSaveStatus('fehler');
     }
   }, [projekt.id, vereineAuswahl, zusatzPositionen, formData]);
 
-  // Debounced Auto-Save bei Änderungen
+  // Debounced Auto-Save bei Änderungen - speichert automatisch nach jeder Änderung
   useEffect(() => {
-    if (initialLaden.current || !hatGeaendert.current) {
+    // Beim ersten Laden nicht speichern
+    if (initialLaden.current) {
       return;
     }
 
+    // Debounce Timer zurücksetzen
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
+    // Nach 1.5 Sekunden speichern
     debounceTimer.current = setTimeout(() => {
       speichereAutomatisch();
-    }, 1500); // 1.5 Sekunden Debounce
+    }, 1500);
 
     return () => {
       if (debounceTimer.current) {
@@ -888,46 +909,46 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
     };
   }, [vereineAuswahl, zusatzPositionen, formData, speichereAutomatisch]);
 
-  // Änderungs-Tracking für Vereine
+  // Hilfsfunktionen mit Change-Tracking (erhöhen saveCounter und aktualisieren State)
   const toggleVereinMitAenderung = (index: number) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     toggleVerein(index);
   };
 
   const updateVereinMitAenderung = (index: number, updates: Partial<VereinAuswahl>) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     updateVerein(index, updates);
   };
 
   const handleVereinArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     handleVereinArtikelChange(index, artikelnummer);
   };
 
   // Änderungs-Tracking für Zusatzpositionen
   const addZusatzPositionMitAenderung = () => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     addZusatzPosition();
   };
 
   const updateZusatzPositionMitAenderung = (index: number, updates: Partial<PlatzbauerAngebotPosition>) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     updateZusatzPosition(index, updates);
   };
 
   const handleZusatzArtikelChangeMitAenderung = (index: number, artikelnummer: string) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     handleZusatzArtikelChange(index, artikelnummer);
   };
 
   const removeZusatzPositionMitAenderung = (index: number) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     removeZusatzPosition(index);
   };
 
   // Änderungs-Tracking für FormData
   const setFormDataMitAenderung = (updates: Partial<PlatzbauerAngebotFormularDaten>) => {
-    hatGeaendert.current = true;
+    saveCounter.current++;
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
