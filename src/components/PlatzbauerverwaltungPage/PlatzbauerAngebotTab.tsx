@@ -126,10 +126,16 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
 
         // Gespeicherten Entwurf laden
         const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurf>(projekt.id, 'angebot');
-        console.log('📂 Platzbauer Entwurf:', gespeicherterEntwurf ? 'gefunden' : 'nicht gefunden');
+        console.log('📂 Platzbauer Entwurf Laden:', {
+          gefunden: !!gespeicherterEntwurf,
+          hatVereinPositionen: !!gespeicherterEntwurf?.vereinPositionen,
+          anzahlVereine: gespeicherterEntwurf?.vereinPositionen?.length || 0,
+          formData: gespeicherterEntwurf?.formData ? 'vorhanden' : 'fehlt'
+        });
 
         if (gespeicherterEntwurf && gespeicherterEntwurf.vereinPositionen && gespeicherterEntwurf.vereinPositionen.length > 0) {
           // Entwurf wiederherstellen
+          console.log('✅ Stelle gespeicherten Entwurf wieder her mit', gespeicherterEntwurf.vereinPositionen.length, 'Vereinen');
           setVereinPositionen(gespeicherterEntwurf.vereinPositionen);
           setZusatzPositionen(gespeicherterEntwurf.zusatzPositionen || []);
           if (gespeicherterEntwurf.formData) {
@@ -191,7 +197,15 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
 
   // === AUTO-SAVE ===
   const speichereAutomatisch = useCallback(async () => {
-    if (!projekt?.id || initialLaden || !hatGeaendert.current) return;
+    if (!projekt?.id || initialLaden) {
+      console.log('⏭️ Auto-Save übersprungen:', { projektId: projekt?.id, initialLaden });
+      return;
+    }
+
+    console.log('💾 Auto-Save startet...', {
+      vereine: vereinPositionen.length,
+      ausgewaehlt: vereinPositionen.filter(v => v.ausgewaehlt).length
+    });
 
     try {
       setSpeicherStatus('speichern');
@@ -200,25 +214,41 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         zusatzPositionen,
         formData,
       };
+      console.log('💾 Speichere Entwurf:', {
+        vereinPositionen: entwurf.vereinPositionen.length,
+        zusatzPositionen: entwurf.zusatzPositionen.length,
+        formDataKeys: Object.keys(entwurf.formData)
+      });
       await speichereEntwurf(projekt.id, 'angebot', entwurf);
       setSpeicherStatus('gespeichert');
       hatGeaendert.current = false;
-      console.log('✅ Auto-Save erfolgreich');
+      console.log('✅ Auto-Save erfolgreich abgeschlossen');
     } catch (error) {
-      console.error('Auto-Save Fehler:', error);
+      console.error('❌ Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
   }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, formData]);
 
-  // Debounced Auto-Save
+  // Debounced Auto-Save - reagiert auf Änderungen
   useEffect(() => {
-    if (initialLaden || !hatGeaendert.current) return;
+    // Nur speichern wenn nicht mehr im initialen Ladezustand
+    if (initialLaden) {
+      return;
+    }
+
+    // Nur speichern wenn tatsächlich Änderungen markiert wurden
+    if (!hatGeaendert.current) {
+      return;
+    }
+
+    console.log('🔄 Auto-Save Timer gestartet (1.5s)...');
 
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
     debounceTimer.current = setTimeout(() => {
+      console.log('⏰ Timer abgelaufen, führe Auto-Save aus');
       speichereAutomatisch();
     }, 1500);
 

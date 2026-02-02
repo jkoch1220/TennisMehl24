@@ -394,7 +394,6 @@ export const generierePlatzbauerAngebotPDF = async (
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
-  const gesamtMenge = positionenFuerSummen.reduce((sum, pos) => sum + pos.menge, 0);
   const anzahlPositionen = positionenFuerSummen.length;
 
   const summenX = 125;
@@ -403,11 +402,6 @@ export const generierePlatzbauerAngebotPDF = async (
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  // Gesamtmenge
-  doc.text('Gesamtmenge:', summenX, summenY);
-  doc.text(`${gesamtMenge.toFixed(1)} t`, 180, summenY, { align: 'right' });
-
-  summenY += 6;
   doc.text('Nettobetrag:', summenX, summenY);
   doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
 
@@ -682,7 +676,6 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
-  const gesamtMenge = daten.positionen.reduce((sum, pos) => sum + pos.menge, 0);
 
   const summenX = 125;
   summenY += 6;
@@ -690,11 +683,6 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  // Gesamtmenge
-  doc.text('Gesamtmenge:', summenX, summenY);
-  doc.text(`${gesamtMenge.toFixed(1)} t`, 180, summenY, { align: 'right' });
-
-  summenY += 6;
   doc.text('Nettobetrag:', summenX, summenY);
   doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
 
@@ -978,7 +966,6 @@ export const generierePlatzbauerRechnungPDF = async (
   const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const umsatzsteuer = nettobetrag * 0.19;
   const bruttobetrag = nettobetrag + umsatzsteuer;
-  const gesamtMenge = daten.positionen.reduce((sum, pos) => sum + pos.menge, 0);
 
   const summenX = 125;
   summenY += 6;
@@ -986,11 +973,6 @@ export const generierePlatzbauerRechnungPDF = async (
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  // Gesamtmenge
-  doc.text('Gesamtmenge:', summenX, summenY);
-  doc.text(`${gesamtMenge.toFixed(1)} t`, 180, summenY, { align: 'right' });
-
-  summenY += 6;
   doc.text('Nettobetrag:', summenX, summenY);
   doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
 
