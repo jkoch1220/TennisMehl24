@@ -646,6 +646,7 @@ export const ladeDokumenteNachTyp = async (
   dokumentTyp: PlatzbauerDokumentTyp
 ): Promise<GespeichertesPlatzbauerDokument[]> => {
   try {
+    console.log('📄 ladeDokumenteNachTyp:', { projektId, dokumentTyp });
     const response = await databases.listDocuments(
       DATABASE_ID,
       PLATZBAUER_DOKUMENTE_COLLECTION_ID,
@@ -656,9 +657,10 @@ export const ladeDokumenteNachTyp = async (
       ]
     );
 
+    console.log('📄 Dokumente gefunden:', response.documents.length);
     return response.documents as unknown as GespeichertesPlatzbauerDokument[];
   } catch (error) {
-    console.error('Fehler beim Laden der Dokumente:', error);
+    console.error('❌ Fehler beim Laden der Dokumente:', error);
     return [];
   }
 };

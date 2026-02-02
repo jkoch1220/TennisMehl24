@@ -8,8 +8,8 @@
 import { useState, useEffect } from 'react';
 import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, Hammer } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlatzbauerProjekt, PlatzbauerPosition } from '../../types/platzbauer';
-import { SaisonKunde } from '../../types/saisonplanung';
+import { PlatzbauerProjekt } from '../../types/platzbauer';
+import { SaisonKunde, SaisonKundeMitDaten } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerAngebotTab from './PlatzbauerAngebotTab';
 
@@ -32,7 +32,7 @@ const PlatzbauerProjektabwicklung = () => {
   const [activeTab, setActiveTab] = useState<TabId>('angebot');
   const [projekt, setProjekt] = useState<PlatzbauerProjekt | null>(null);
   const [platzbauer, setPlatzbauer] = useState<SaisonKunde | null>(null);
-  const [positionen, setPositionen] = useState<PlatzbauerPosition[]>([]);
+  const [vereine, setVereine] = useState<SaisonKundeMitDaten[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Projekt und Platzbauer-Daten laden
@@ -50,14 +50,14 @@ const PlatzbauerProjektabwicklung = () => {
         const loadedProjekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
         setProjekt(loadedProjekt);
 
-        // Positionen laden
-        const pos = await platzbauerverwaltungService.aggregierePositionen(projektId);
-        setPositionen(pos);
-
-        // Platzbauer-Daten laden
+        // Platzbauer-Daten und zugehörige Vereine laden
         if (loadedProjekt?.platzbauerId) {
           const pbData = await platzbauerverwaltungService.loadPlatzbauer(loadedProjekt.platzbauerId);
           setPlatzbauer(pbData);
+
+          // Vereine für diesen Platzbauer laden
+          const vereineListe = await platzbauerverwaltungService.loadVereineFuerPlatzbauer(loadedProjekt.platzbauerId);
+          setVereine(vereineListe);
         }
 
         // Tab basierend auf Projekt-Status setzen
@@ -172,10 +172,12 @@ const PlatzbauerProjektabwicklung = () => {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-amber-600 dark:text-amber-400">{positionen.length} Vereine</p>
-                  <p className="font-bold text-amber-900 dark:text-amber-200">
-                    {positionen.reduce((sum, p) => sum + p.menge, 0).toFixed(1)} t gesamt
-                  </p>
+                  <p className="text-sm text-amber-600 dark:text-amber-400">{vereine.length} Vereine</p>
+                  {projekt.gesamtMenge !== undefined && projekt.gesamtMenge > 0 && (
+                    <p className="font-bold text-amber-900 dark:text-amber-200">
+                      {projekt.gesamtMenge.toFixed(1)} t gesamt
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -211,7 +213,6 @@ const PlatzbauerProjektabwicklung = () => {
               <PlatzbauerAngebotTab
                 projekt={projekt}
                 platzbauer={platzbauer}
-                positionen={positionen}
               />
             )}
             {activeTab === 'auftragsbestaetigung' && (

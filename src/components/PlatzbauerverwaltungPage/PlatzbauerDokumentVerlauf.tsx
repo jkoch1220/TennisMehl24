@@ -70,6 +70,7 @@ const PlatzbauerDokumentVerlauf = ({
   useEffect(() => {
     const ladeVerlaufDaten = async () => {
       if (!projektId) {
+        console.log('📂 DokumentVerlauf: Keine projektId');
         setVerlauf([]);
         setLadeStatus('bereit');
         return;
@@ -77,11 +78,13 @@ const PlatzbauerDokumentVerlauf = ({
 
       try {
         setLadeStatus('laden');
+        console.log('📂 Lade Dokumentverlauf:', { projektId, dokumentTyp });
         const daten = await ladeDokumentVerlauf(projektId, dokumentTyp);
+        console.log('📂 Dokumentverlauf geladen:', daten.length, 'Dokumente', daten);
         setVerlauf(daten);
         setLadeStatus('bereit');
       } catch (error) {
-        console.error('Fehler beim Laden des Dokumentverlaufs:', error);
+        console.error('❌ Fehler beim Laden des Dokumentverlaufs:', error);
         setLadeStatus('fehler');
       }
     };

@@ -24,7 +24,7 @@ import {
   Users,
   AlertCircle,
 } from 'lucide-react';
-import { PlatzbauerProjekt, PlatzbauerPosition, PlatzbauerAngebotPosition, PlatzbauerAngebotFormularDaten } from '../../types/platzbauer';
+import { PlatzbauerProjekt, PlatzbauerAngebotPosition, PlatzbauerAngebotFormularDaten } from '../../types/platzbauer';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Artikel } from '../../types/artikel';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -39,7 +39,6 @@ import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 interface PlatzbauerAngebotTabProps {
   projekt: PlatzbauerProjekt;
   platzbauer: SaisonKunde | null;
-  positionen: PlatzbauerPosition[];
 }
 
 // Vereinsposition für das Angebot
@@ -70,7 +69,7 @@ interface AngebotEntwurf {
   };
 }
 
-const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAngebotTabProps) => {
+const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps) => {
   // === STATE ===
   const [vereinPositionen, setVereinPositionen] = useState<VereinPosition[]>([]);
   const [zusatzPositionen, setZusatzPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
@@ -118,7 +117,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
   // === DATEN LADEN ===
   useEffect(() => {
     const ladeDaten = async () => {
-      if (!projekt?.id || ziegelmehlArtikel.length === 0) return;
+      if (!projekt?.id || !projekt.platzbauerId || ziegelmehlArtikel.length === 0) return;
 
       setLaden(true);
       try {
@@ -138,8 +137,12 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
           }
           setSpeicherStatus('gespeichert');
         } else {
+          // Vereine direkt vom Platzbauer laden (über standardPlatzbauerId)
+          const vereineMitDaten = await platzbauerverwaltungService.loadVereineFuerPlatzbauer(projekt.platzbauerId);
+          console.log('📋 Vereine für Platzbauer geladen:', vereineMitDaten.length);
+
           // Vorjahresmengen laden
-          const vereineIds = positionen.map(p => p.vereinId);
+          const vereineIds = vereineMitDaten.map(v => v.kunde.id);
           let vorjahresmengen = new Map<string, number>();
           try {
             vorjahresmengen = await platzbauerverwaltungService.ladeVorjahresmengen(vereineIds, projekt.saisonjahr - 1);
@@ -147,24 +150,27 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
             console.warn('Vorjahresmengen konnten nicht geladen werden:', e);
           }
 
-          // Vereine aus Positionen initialisieren
-          const initialePositionen: VereinPosition[] = positionen.map(pos => {
-            const vorjahresMenge = vorjahresmengen.get(pos.vereinId) || 0;
-            const adresse = pos.lieferadresse
-              ? `${pos.lieferadresse.strasse}, ${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`
-              : '';
+          // Vereine als Positionen initialisieren
+          const initialePositionen: VereinPosition[] = vereineMitDaten.map(vereinDaten => {
+            const kunde = vereinDaten.kunde;
+            const vorjahresMenge = vorjahresmengen.get(kunde.id) || 0;
+            const adresse = kunde.lieferadresse
+              ? `${kunde.lieferadresse.strasse}, ${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`
+              : kunde.rechnungsadresse
+                ? `${kunde.rechnungsadresse.strasse}, ${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`
+                : '';
 
             return {
-              vereinId: pos.vereinId,
-              vereinsprojektId: pos.vereinsprojektId,
-              vereinsname: pos.vereinsname,
+              vereinId: kunde.id,
+              vereinsprojektId: '', // Wird später bei Zuordnung gesetzt
+              vereinsname: kunde.name,
               adresse,
               ausgewaehlt: false,
               artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
               artikelBezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
               artikelBeschreibung: defaultArtikel?.beschreibung || '',
-              menge: vorjahresMenge || pos.menge || 0,
-              einzelpreis: pos.einzelpreis || defaultArtikel?.einzelpreis || 0,
+              menge: vorjahresMenge || 0,
+              einzelpreis: defaultArtikel?.einzelpreis || 0,
             };
           });
           setVereinPositionen(initialePositionen);
@@ -181,7 +187,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     };
 
     ladeDaten();
-  }, [projekt?.id, positionen, ziegelmehlArtikel]);
+  }, [projekt?.id, projekt?.platzbauerId, ziegelmehlArtikel]);
 
   // === AUTO-SAVE ===
   const speichereAutomatisch = useCallback(async () => {
