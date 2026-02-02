@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   MapPin,
@@ -16,7 +17,6 @@ import { PlatzbauermitVereinen, PlatzbauerProjekt } from '../../types/platzbauer
 import { SaisonKunde } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerlVereine from './PlatzbauerlVereine';
-import PlatzbauerlProjektDetail from './PlatzbauerlProjektDetail';
 
 interface PlatzbauerlDetailPopupProps {
   platzbauerId: string;
@@ -35,12 +35,21 @@ const PlatzbauerlDetailPopup = ({
   saisonjahr,
   onClose,
   onRefresh,
-  selectedProjektId,
-  setSelectedProjektId,
+  // These are kept for backwards compatibility but no longer used
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  selectedProjektId: _selectedProjektId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setSelectedProjektId: _setSelectedProjektId,
 }: PlatzbauerlDetailPopupProps) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PlatzbauermitVereinen | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('stammdaten');
+
+  // Navigiere zur Fullscreen-Projektabwicklung
+  const handleSelectProjekt = (projektId: string) => {
+    navigate(`/platzbauer-projektabwicklung/${projektId}`);
+  };
 
   // Daten laden
   useEffect(() => {
@@ -85,8 +94,9 @@ const PlatzbauerlDetailPopup = ({
 
     try {
       const nachtrag = await platzbauerverwaltungService.createNachtrag(hauptprojekt.id);
-      setSelectedProjektId(nachtrag.id);
       onRefresh();
+      // Direkt zur Projektabwicklung navigieren
+      navigate(`/platzbauer-projektabwicklung/${nachtrag.id}`);
     } catch (error) {
       console.error('Fehler beim Erstellen des Nachtrags:', error);
     }
@@ -191,25 +201,13 @@ const PlatzbauerlDetailPopup = ({
             {activeTab === 'projekte' && (
               <ProjekteTab
                 projekte={projekte}
-                onSelectProjekt={setSelectedProjektId}
+                onSelectProjekt={handleSelectProjekt}
                 onCreateNachtrag={handleCreateNachtrag}
               />
             )}
           </div>
         </div>
       </div>
-
-      {/* Projekt-Detail-Popup */}
-      {selectedProjektId && (
-        <PlatzbauerlProjektDetail
-          projektId={selectedProjektId}
-          onClose={() => setSelectedProjektId(null)}
-          onRefresh={() => {
-            onRefresh();
-            // Reload data
-          }}
-        />
-      )}
     </>
   );
 };

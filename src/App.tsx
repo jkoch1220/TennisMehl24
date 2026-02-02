@@ -37,6 +37,7 @@ import Schichtplanung from './components/Schichtplanung/Schichtplanung';
 import ProduktionsTracker from './components/ProduktionsTracker/ProduktionsTracker';
 import PublicProduktion from './components/PublicProduktion/PublicProduktion';
 import PlatzbauerverwaltungPage from './components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage';
+import PlatzbauerProjektabwicklung from './components/PlatzbauerverwaltungPage/PlatzbauerProjektabwicklung';
 import DebitorenVerwaltung from './components/DebitorenVerwaltung/DebitorenVerwaltung';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
@@ -93,6 +94,11 @@ function AuthenticatedContent() {
               <Route path="/platzbauer-verwaltung" element={
                 <ProtectedRoute toolId="platzbauer-verwaltung">
                   <PlatzbauerverwaltungPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/platzbauer-projektabwicklung/:projektId" element={
+                <ProtectedRoute toolId="platzbauer-verwaltung">
+                  <PlatzbauerProjektabwicklung />
                 </ProtectedRoute>
               } />
               <Route path="/kreditoren" element={

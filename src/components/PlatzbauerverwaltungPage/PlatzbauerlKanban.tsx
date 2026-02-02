@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileCheck,
   Send,
@@ -13,7 +14,6 @@ import {
 import { PBVKanbanDaten, PlatzbauerProjekt, PBVFilter } from '../../types/platzbauer';
 import { ProjektStatus } from '../../types/projekt';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
-import PlatzbauerlProjektDetail from './PlatzbauerlProjektDetail';
 
 interface PlatzbauerlKanbanProps {
   saisonjahr: number;
@@ -42,11 +42,16 @@ const PlatzbauerlKanban = ({
   filter,
   onRefresh,
 }: PlatzbauerlKanbanProps) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [kanbanDaten, setKanbanDaten] = useState<PBVKanbanDaten | null>(null);
   const [draggedProjekt, setDraggedProjekt] = useState<PlatzbauerProjekt | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<ProjektStatus | null>(null);
-  const [selectedProjektId, setSelectedProjektId] = useState<string | null>(null);
+
+  // Navigate to fullscreen project detail
+  const handleSelectProjekt = (projektId: string) => {
+    navigate(`/platzbauer-projektabwicklung/${projektId}`);
+  };
 
   // Daten laden
   const loadData = useCallback(async () => {
@@ -176,7 +181,7 @@ const PlatzbauerlKanban = ({
                         projekt={projekt}
                         onDragStart={(e) => handleDragStart(e, projekt)}
                         onDragEnd={handleDragEnd}
-                        onClick={() => setSelectedProjektId(projekt.id)}
+                        onClick={() => handleSelectProjekt(projekt.id)}
                         isDragging={draggedProjekt?.id === projekt.id}
                       />
                     ))}
@@ -187,18 +192,6 @@ const PlatzbauerlKanban = ({
           );
         })}
       </div>
-
-      {/* Projekt-Detail-Popup */}
-      {selectedProjektId && (
-        <PlatzbauerlProjektDetail
-          projektId={selectedProjektId}
-          onClose={() => setSelectedProjektId(null)}
-          onRefresh={() => {
-            loadData();
-            onRefresh();
-          }}
-        />
-      )}
     </>
   );
 };
