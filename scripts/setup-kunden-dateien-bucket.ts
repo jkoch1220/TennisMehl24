@@ -45,7 +45,7 @@ async function createBucket() {
       false, // fileSecurity
       true,  // enabled
       50 * 1024 * 1024, // maxFileSize: 50MB
-      ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'], // erlaubte MIME-Types
+      [], // Leeres Array = alle Dateitypen erlaubt (HEIC, PNG, JPG, PDF, etc.)
       'gzip', // compression
       true,   // encryption
       true    // antivirus
