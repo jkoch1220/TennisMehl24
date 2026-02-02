@@ -1,10 +1,15 @@
 /**
- * Platzbauer Angebot Tab
+ * PlatzbauerAngebotTab
  *
- * Auto-Save funktioniert genau wie bei der Vereins-Projektabwicklung:
- * - hatGeaendert.current = true bei jeder Änderung
- * - Debounced Auto-Save nach 1.5 Sekunden
- * - Status-Anzeige für Speichervorgang
+ * Angebot-Tab für Platzbauer-Projektabwicklung.
+ * Basiert auf dem funktionierenden AngebotTab der Vereins-Projektabwicklung.
+ *
+ * Features:
+ * - Auto-Save mit hatGeaendert.current Flag
+ * - Vereineauswahl als Positionen
+ * - Zusatzpositionen
+ * - Dateiverlauf
+ * - PDF-Generierung
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,11 +20,11 @@ import {
   CloudOff,
   Loader2,
   FileCheck,
-  CheckCircle2,
   Package,
   Users,
+  AlertCircle,
 } from 'lucide-react';
-import { PlatzbauerProjekt, PlatzbauerPosition, PlatzbauerAngebotPosition } from '../../types/platzbauer';
+import { PlatzbauerProjekt, PlatzbauerPosition, PlatzbauerAngebotPosition, PlatzbauerAngebotFormularDaten } from '../../types/platzbauer';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Artikel } from '../../types/artikel';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -28,8 +33,8 @@ import {
   speicherePlatzbauerAngebot,
   speichereEntwurf,
   ladeEntwurf,
-  ladeDokumenteNachTyp,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
+import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 
 interface PlatzbauerAngebotTabProps {
   projekt: PlatzbauerProjekt;
@@ -37,22 +42,23 @@ interface PlatzbauerAngebotTabProps {
   positionen: PlatzbauerPosition[];
 }
 
-interface VereinAuswahl {
+// Vereinsposition für das Angebot
+interface VereinPosition {
   vereinId: string;
   vereinsprojektId: string;
   vereinsname: string;
-  plz: string;
-  ort: string;
-  strasse: string;
+  adresse: string;
   ausgewaehlt: boolean;
+  artikelnummer: string;
+  artikelBezeichnung: string;
+  artikelBeschreibung: string;
   menge: number;
   einzelpreis: number;
-  artikelnummer: string;
-  artikelBeschreibung: string;
 }
 
+// Entwurfsdaten für Auto-Save
 interface AngebotEntwurf {
-  vereineAuswahl: VereinAuswahl[];
+  vereinPositionen: VereinPosition[];
   zusatzPositionen: PlatzbauerAngebotPosition[];
   formData: {
     angebotsnummer: string;
@@ -65,8 +71,8 @@ interface AngebotEntwurf {
 }
 
 const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAngebotTabProps) => {
-  // State
-  const [vereineAuswahl, setVereineAuswahl] = useState<VereinAuswahl[]>([]);
+  // === STATE ===
+  const [vereinPositionen, setVereinPositionen] = useState<VereinPosition[]>([]);
   const [zusatzPositionen, setZusatzPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
   const [formData, setFormData] = useState({
     angebotsnummer: '',
@@ -81,21 +87,22 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
   const [ziegelmehlArtikel, setZiegelmehlArtikel] = useState<Artikel[]>([]);
   const [laden, setLaden] = useState(true);
   const [speichern, setSpeichern] = useState(false);
-  const [hatDokument, setHatDokument] = useState(false);
 
-  // Auto-Save Status - GENAU wie bei der funktionierenden Version
+  // Auto-Save
   const [speicherStatus, setSpeicherStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
   const [initialLaden, setInitialLaden] = useState(true);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
 
-  // Artikel laden
+  // Verlauf
+  const [verlaufLadeZaehler, setVerlaufLadeZaehler] = useState(0);
+
+  // === ARTIKEL LADEN ===
   useEffect(() => {
     const ladeArtikel = async () => {
       try {
         const artikel = await getAlleArtikel();
         setAlleArtikel(artikel);
-        // Nur Ziegelmehl-Artikel für Hauptpositionen
         setZiegelmehlArtikel(artikel.filter(a =>
           a.artikelnummer?.startsWith('TM-ZM') ||
           a.bezeichnung?.toLowerCase().includes('ziegelmehl') ||
@@ -108,129 +115,98 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     ladeArtikel();
   }, []);
 
-  // Vorjahresmengen laden
-  const ladeVorjahresmengen = useCallback(async (vereineIds: string[]): Promise<Map<string, number>> => {
-    const mengenMap = new Map<string, number>();
-    try {
-      const vorjahr = projekt.saisonjahr - 1;
-      const vorjahresmengen = await platzbauerverwaltungService.ladeVorjahresmengen(vereineIds, vorjahr);
-      return vorjahresmengen;
-    } catch (error) {
-      console.warn('Konnte Vorjahresmengen nicht laden:', error);
-    }
-    return mengenMap;
-  }, [projekt.saisonjahr]);
-
-  // Daten laden und Entwurf wiederherstellen
+  // === DATEN LADEN ===
   useEffect(() => {
     const ladeDaten = async () => {
+      if (!projekt?.id || ziegelmehlArtikel.length === 0) return;
+
       setLaden(true);
       try {
-        // Prüfen ob bereits ein Angebot existiert
-        const dokumente = await ladeDokumenteNachTyp(projekt.id, 'angebot');
-        setHatDokument(dokumente.length > 0);
+        // Standard-Artikel für Ziegelmehl
+        const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
 
         // Gespeicherten Entwurf laden
         const gespeicherterEntwurf = await ladeEntwurf<AngebotEntwurf>(projekt.id, 'angebot');
-        console.log('📂 Geladener Entwurf:', gespeicherterEntwurf ? 'gefunden' : 'nicht gefunden');
+        console.log('📂 Platzbauer Entwurf:', gespeicherterEntwurf ? 'gefunden' : 'nicht gefunden');
 
-        // Vorjahresmengen laden
-        const vereineIds = positionen.map(p => p.vereinId);
-        const vorjahresmengen = await ladeVorjahresmengen(vereineIds);
-
-        // Standard-Artikel
-        const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
-
-        if (gespeicherterEntwurf) {
+        if (gespeicherterEntwurf && gespeicherterEntwurf.vereinPositionen && gespeicherterEntwurf.vereinPositionen.length > 0) {
           // Entwurf wiederherstellen
-          console.log('✅ Stelle Entwurf wieder her');
-          setVereineAuswahl(gespeicherterEntwurf.vereineAuswahl || []);
+          setVereinPositionen(gespeicherterEntwurf.vereinPositionen);
           setZusatzPositionen(gespeicherterEntwurf.zusatzPositionen || []);
-          setFormData(prev => ({
-            ...prev,
-            ...gespeicherterEntwurf.formData,
-          }));
+          if (gespeicherterEntwurf.formData) {
+            setFormData(prev => ({ ...prev, ...gespeicherterEntwurf.formData }));
+          }
           setSpeicherStatus('gespeichert');
         } else {
+          // Vorjahresmengen laden
+          const vereineIds = positionen.map(p => p.vereinId);
+          let vorjahresmengen = new Map<string, number>();
+          try {
+            vorjahresmengen = await platzbauerverwaltungService.ladeVorjahresmengen(vereineIds, projekt.saisonjahr - 1);
+          } catch (e) {
+            console.warn('Vorjahresmengen konnten nicht geladen werden:', e);
+          }
+
           // Vereine aus Positionen initialisieren
-          const initialeVereine: VereinAuswahl[] = positionen.map(pos => {
+          const initialePositionen: VereinPosition[] = positionen.map(pos => {
             const vorjahresMenge = vorjahresmengen.get(pos.vereinId) || 0;
+            const adresse = pos.lieferadresse
+              ? `${pos.lieferadresse.strasse}, ${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`
+              : '';
+
             return {
               vereinId: pos.vereinId,
               vereinsprojektId: pos.vereinsprojektId,
               vereinsname: pos.vereinsname,
-              plz: pos.lieferadresse?.plz || '',
-              ort: pos.lieferadresse?.ort || '',
-              strasse: pos.lieferadresse?.strasse || '',
+              adresse,
               ausgewaehlt: false,
+              artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
+              artikelBezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
+              artikelBeschreibung: defaultArtikel?.beschreibung || '',
               menge: vorjahresMenge || pos.menge || 0,
               einzelpreis: pos.einzelpreis || defaultArtikel?.einzelpreis || 0,
-              artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
-              artikelBeschreibung: defaultArtikel?.beschreibung || '',
             };
           });
-          setVereineAuswahl(initialeVereine);
+          setVereinPositionen(initialePositionen);
         }
       } catch (error) {
         console.error('Fehler beim Laden:', error);
       } finally {
         setLaden(false);
-        // WICHTIG: Nach kurzem Delay initialLaden auf false setzen
         setTimeout(() => {
           setInitialLaden(false);
-          console.log('✅ initialLaden auf false gesetzt - Auto-Save aktiviert');
+          console.log('✅ Auto-Save aktiviert');
         }, 500);
       }
     };
 
-    if (ziegelmehlArtikel.length > 0 || alleArtikel.length > 0) {
-      ladeDaten();
-    }
-  }, [projekt.id, positionen, ziegelmehlArtikel, alleArtikel, ladeVorjahresmengen]);
+    ladeDaten();
+  }, [projekt?.id, positionen, ziegelmehlArtikel]);
 
-  // Auto-Save Funktion - GENAU wie bei der funktionierenden Version
+  // === AUTO-SAVE ===
   const speichereAutomatisch = useCallback(async () => {
-    console.log('🔄 Auto-Save Check:', {
-      projektId: projekt.id,
-      initialLaden,
-      hatGeaendert: hatGeaendert.current,
-    });
-
-    if (!projekt.id || initialLaden || !hatGeaendert.current) {
-      console.log('❌ Auto-Save übersprungen');
-      return;
-    }
+    if (!projekt?.id || initialLaden || !hatGeaendert.current) return;
 
     try {
-      console.log('💾 Auto-Save startet...');
       setSpeicherStatus('speichern');
-
-      const entwurfDaten: AngebotEntwurf = {
-        vereineAuswahl,
+      const entwurf: AngebotEntwurf = {
+        vereinPositionen,
         zusatzPositionen,
         formData,
       };
-
-      await speichereEntwurf(projekt.id, 'angebot', entwurfDaten);
+      await speichereEntwurf(projekt.id, 'angebot', entwurf);
       setSpeicherStatus('gespeichert');
       hatGeaendert.current = false;
       console.log('✅ Auto-Save erfolgreich');
     } catch (error) {
-      console.error('❌ Auto-Save Fehler:', error);
+      console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt.id, initialLaden, vereineAuswahl, zusatzPositionen, formData]);
+  }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, formData]);
 
-  // Debounced Auto-Save bei Änderungen - GENAU wie bei der funktionierenden Version
+  // Debounced Auto-Save
   useEffect(() => {
-    console.log('📝 Auto-Save Effect:', {
-      initialLaden,
-      hatGeaendert: hatGeaendert.current,
-    });
-
-    if (initialLaden || !hatGeaendert.current) {
-      return;
-    }
+    if (initialLaden || !hatGeaendert.current) return;
 
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
@@ -245,57 +221,51 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [vereineAuswahl, zusatzPositionen, formData, speichereAutomatisch, initialLaden]);
+  }, [vereinPositionen, zusatzPositionen, formData, speichereAutomatisch, initialLaden]);
 
-  // Change-Handler mit hatGeaendert Flag
+  // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
     hatGeaendert.current = true;
-    console.log('📌 hatGeaendert = true');
   };
 
   const toggleVerein = (index: number) => {
     markiereGeaendert();
-    setVereineAuswahl(prev => {
+    setVereinPositionen(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ausgewaehlt: !updated[index].ausgewaehlt };
       return updated;
     });
   };
 
-  const updateVerein = (index: number, updates: Partial<VereinAuswahl>) => {
+  const updateVerein = (index: number, updates: Partial<VereinPosition>) => {
     markiereGeaendert();
-    setVereineAuswahl(prev => {
+    setVereinPositionen(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...updates };
       return updated;
     });
   };
 
+  const handleArtikelChange = (index: number, artikelnummer: string) => {
+    const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === artikelnummer);
+    if (artikel) {
+      updateVerein(index, {
+        artikelnummer: artikel.artikelnummer,
+        artikelBezeichnung: artikel.bezeichnung,
+        artikelBeschreibung: artikel.beschreibung || '',
+        einzelpreis: artikel.einzelpreis ?? vereinPositionen[index].einzelpreis,
+      });
+    }
+  };
+
   const selectAlleVereine = () => {
     markiereGeaendert();
-    setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: true })));
+    setVereinPositionen(prev => prev.map(v => ({ ...v, ausgewaehlt: true })));
   };
 
   const deselectAlleVereine = () => {
     markiereGeaendert();
-    setVereineAuswahl(prev => prev.map(v => ({ ...v, ausgewaehlt: false })));
-  };
-
-  const handleArtikelChange = (index: number, artikelnummer: string) => {
-    markiereGeaendert();
-    const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === artikelnummer);
-    if (artikel) {
-      setVereineAuswahl(prev => {
-        const updated = [...prev];
-        updated[index] = {
-          ...updated[index],
-          artikelnummer: artikel.artikelnummer,
-          artikelBeschreibung: artikel.beschreibung || '',
-          einzelpreis: artikel.einzelpreis ?? updated[index].einzelpreis,
-        };
-        return updated;
-      });
-    }
+    setVereinPositionen(prev => prev.map(v => ({ ...v, ausgewaehlt: false })));
   };
 
   const updateFormData = (updates: Partial<typeof formData>) => {
@@ -303,19 +273,20 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
+  // Zusatzpositionen
   const addZusatzPosition = () => {
     markiereGeaendert();
-    const defaultArtikel = alleArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || alleArtikel[0];
+    const defaultArtikel = alleArtikel.find(a => !a.artikelnummer?.startsWith('TM-ZM')) || alleArtikel[0];
     const neuePosition: PlatzbauerAngebotPosition = {
       id: `zusatz-${Date.now()}`,
       artikelId: defaultArtikel?.$id,
       artikelnummer: defaultArtikel?.artikelnummer || '',
       bezeichnung: defaultArtikel?.bezeichnung || '',
       beschreibung: defaultArtikel?.beschreibung || '',
-      einheit: defaultArtikel?.einheit || 't',
-      menge: 0,
+      einheit: defaultArtikel?.einheit || 'Stk',
+      menge: 1,
       einzelpreis: defaultArtikel?.einzelpreis || 0,
-      gesamtpreis: 0,
+      gesamtpreis: defaultArtikel?.einzelpreis || 0,
     };
     setZusatzPositionen(prev => [...prev, neuePosition]);
   };
@@ -325,10 +296,12 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     setZusatzPositionen(prev => {
       const updated = [...prev];
       const current = updated[index];
+      const menge = updates.menge ?? current.menge;
+      const einzelpreis = updates.einzelpreis ?? current.einzelpreis;
       updated[index] = {
         ...current,
         ...updates,
-        gesamtpreis: (updates.menge ?? current.menge) * (updates.einzelpreis ?? current.einzelpreis),
+        gesamtpreis: menge * einzelpreis,
       };
       return updated;
     });
@@ -339,20 +312,23 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     setZusatzPositionen(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Berechnungen
-  const ausgewaehlteVereine = vereineAuswahl.filter(v => v.ausgewaehlt);
-  // Gesamtmenge NUR für loses Material (TM-ZM-02, TM-ZM-03 etc.)
+  // === BERECHNUNGEN ===
+  const ausgewaehlteVereine = vereinPositionen.filter(v => v.ausgewaehlt);
+
+  // Gesamtmenge NUR für loses Material (TM-ZM-*)
   const gesamtMenge = ausgewaehlteVereine
     .filter(v => v.artikelnummer?.startsWith('TM-ZM'))
     .reduce((sum, v) => sum + v.menge, 0)
     + zusatzPositionen
       .filter(p => p.artikelnummer?.startsWith('TM-ZM'))
       .reduce((sum, p) => sum + p.menge, 0);
+
   const gesamtNetto = ausgewaehlteVereine.reduce((sum, v) => sum + (v.menge * v.einzelpreis), 0)
     + zusatzPositionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+
   const gesamtBrutto = gesamtNetto * 1.19;
 
-  // Angebot erstellen
+  // === ANGEBOT ERSTELLEN ===
   const handleAngebotErstellen = async () => {
     if (ausgewaehlteVereine.length === 0) {
       alert('Bitte wählen Sie mindestens einen Verein aus.');
@@ -361,6 +337,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
 
     setSpeichern(true);
     try {
+      // Positionen für das Angebot erstellen
       const angebotPositionen: PlatzbauerAngebotPosition[] = ausgewaehlteVereine.map(v => ({
         id: v.vereinsprojektId,
         vereinId: v.vereinId,
@@ -376,7 +353,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
         gesamtpreis: v.menge * v.einzelpreis,
       }));
 
-      const formularDaten = {
+      const formularDaten: PlatzbauerAngebotFormularDaten = {
         angebotsnummer: formData.angebotsnummer,
         angebotsdatum: formData.angebotsdatum,
         gueltigBis: formData.gueltigBis,
@@ -385,14 +362,14 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
         platzbauerstrasse: platzbauer?.rechnungsadresse?.strasse || '',
         platzbauerPlzOrt: `${platzbauer?.rechnungsadresse?.plz || ''} ${platzbauer?.rechnungsadresse?.ort || ''}`.trim(),
         platzbauerAnsprechpartner: platzbauer?.dispoAnsprechpartner?.name || '',
-        positionen: angebotPositionen.map(p => ({
-          vereinId: p.vereinId || '',
-          vereinsprojektId: p.vereinsprojektId || '',
-          vereinsname: p.vereinsname || p.bezeichnung,
-          menge: p.menge,
-          einheit: p.einheit,
-          einzelpreis: p.einzelpreis,
-          gesamtpreis: p.gesamtpreis,
+        positionen: ausgewaehlteVereine.map(v => ({
+          vereinId: v.vereinId,
+          vereinsprojektId: v.vereinsprojektId,
+          vereinsname: v.vereinsname,
+          menge: v.menge,
+          einheit: 't',
+          einzelpreis: v.einzelpreis,
+          gesamtpreis: v.menge * v.einzelpreis,
         })),
         angebotPositionen: [...angebotPositionen, ...zusatzPositionen],
         zahlungsziel: formData.zahlungsziel,
@@ -409,7 +386,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
       };
 
       await speicherePlatzbauerAngebot(projekt, formularDaten);
-      setHatDokument(true);
+      setVerlaufLadeZaehler(prev => prev + 1);
       alert('Angebot wurde erfolgreich erstellt!');
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error);
@@ -419,11 +396,24 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
     }
   };
 
+  // === RENDER ===
   if (laden) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
         <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto"></div>
         <p className="mt-4 text-gray-600 dark:text-gray-400">Lade Angebotsdaten...</p>
+      </div>
+    );
+  }
+
+  if (vereinPositionen.length === 0) {
+    return (
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
+        <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Keine Vereine zugeordnet</h3>
+        <p className="text-gray-500 dark:text-gray-400">
+          Diesem Platzbauer-Projekt sind noch keine Vereine zugeordnet.
+        </p>
       </div>
     );
   }
@@ -458,13 +448,6 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
             </>
           )}
         </div>
-
-        {hatDokument && (
-          <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            Angebot vorhanden
-          </span>
-        )}
       </div>
 
       {/* Formular-Felder */}
@@ -513,7 +496,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-500" />
-            Vereine auswählen ({ausgewaehlteVereine.length} / {vereineAuswahl.length})
+            Positionen ({ausgewaehlteVereine.length} / {vereinPositionen.length} Vereine)
           </h3>
           <div className="flex gap-2">
             <button
@@ -539,21 +522,21 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
               <tr className="border-b border-gray-200 dark:border-slate-700">
                 <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-12"></th>
                 <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400">Verein</th>
-                <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400">Artikel</th>
+                <th className="text-left py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-48">Artikel</th>
                 <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-28">Menge (t)</th>
-                <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-32">Preis/t</th>
+                <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-28">Preis/t</th>
                 <th className="text-right py-2 px-2 text-sm font-medium text-gray-600 dark:text-gray-400 w-32">Gesamt</th>
               </tr>
             </thead>
             <tbody>
-              {vereineAuswahl.map((verein, index) => (
+              {vereinPositionen.map((verein, index) => (
                 <tr
                   key={verein.vereinId}
                   className={`border-b border-gray-100 dark:border-slate-800 ${
                     verein.ausgewaehlt ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                 >
-                  <td className="py-2 px-2">
+                  <td className="py-3 px-2">
                     <input
                       type="checkbox"
                       checked={verein.ausgewaehlt}
@@ -561,15 +544,15 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
                       className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-3 px-2">
                     <div className="font-medium text-gray-900 dark:text-white">{verein.vereinsname}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{verein.plz} {verein.ort}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{verein.adresse}</div>
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-3 px-2">
                     <select
                       value={verein.artikelnummer}
                       onChange={(e) => handleArtikelChange(index, e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     >
                       {ziegelmehlArtikel.map(a => (
                         <option key={a.artikelnummer} value={a.artikelnummer}>
@@ -578,32 +561,32 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
                       ))}
                     </select>
                     {verein.artikelBeschreibung && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate max-w-xs">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
                         {verein.artikelBeschreibung}
                       </div>
                     )}
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-3 px-2">
                     <input
                       type="number"
                       value={verein.menge || ''}
                       onChange={(e) => updateVerein(index, { menge: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.1"
                       min="0"
                     />
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-3 px-2">
                     <input
                       type="number"
                       value={verein.einzelpreis || ''}
                       onChange={(e) => updateVerein(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                      className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.01"
                       min="0"
                     />
                   </td>
-                  <td className="py-2 px-2 text-right font-medium text-gray-900 dark:text-white">
+                  <td className="py-3 px-2 text-right font-medium text-gray-900 dark:text-white">
                     {(verein.menge * verein.einzelpreis).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
                   </td>
                 </tr>
@@ -632,7 +615,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
 
         {zusatzPositionen.length === 0 ? (
           <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-            Keine Zusatzpositionen. Klicken Sie auf "Position hinzufügen" um weitere Artikel aufzunehmen.
+            Keine Zusatzpositionen.
           </p>
         ) : (
           <div className="space-y-3">
@@ -647,12 +630,12 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
                         artikelnummer: artikel.artikelnummer,
                         bezeichnung: artikel.bezeichnung,
                         beschreibung: artikel.beschreibung || '',
-                        einheit: artikel.einheit || 't',
+                        einheit: artikel.einheit || 'Stk',
                         einzelpreis: artikel.einzelpreis || pos.einzelpreis,
                       });
                     }
                   }}
-                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
+                  className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                 >
                   {alleArtikel.map(a => (
                     <option key={a.artikelnummer} value={a.artikelnummer}>
@@ -664,26 +647,24 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
                   type="number"
                   value={pos.menge || ''}
                   onChange={(e) => updateZusatzPosition(index, { menge: parseFloat(e.target.value) || 0 })}
-                  placeholder="Menge"
-                  className="w-24 px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
+                  className="w-20 px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   step="0.1"
                 />
-                <span className="text-gray-500 w-8">{pos.einheit}</span>
+                <span className="text-gray-500 dark:text-gray-400 w-10 text-center">{pos.einheit}</span>
                 <input
                   type="number"
                   value={pos.einzelpreis || ''}
                   onChange={(e) => updateZusatzPosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
-                  placeholder="Preis"
-                  className="w-28 px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
+                  className="w-24 px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   step="0.01"
                 />
-                <span className="text-gray-700 dark:text-gray-300 w-28 text-right font-medium">
+                <span className="text-gray-700 dark:text-gray-300 w-24 text-right font-medium">
                   {pos.gesamtpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
                 </span>
                 <button
                   type="button"
                   onClick={() => removeZusatzPosition(index)}
-                  className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                  className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -693,102 +674,107 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
         )}
       </div>
 
-      {/* Zusammenfassung & Actions */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Weitere Felder */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Zahlungsziel
-              </label>
-              <input
-                type="text"
-                value={formData.zahlungsziel}
-                onChange={(e) => updateFormData({ zahlungsziel: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Lieferzeit
-              </label>
-              <input
-                type="text"
-                value={formData.lieferzeit}
-                onChange={(e) => updateFormData({ lieferzeit: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Bemerkung
-              </label>
-              <textarea
-                value={formData.bemerkung}
-                onChange={(e) => updateFormData({ bemerkung: e.target.value })}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-              />
-            </div>
+      {/* Zusammenfassung & Aktionen */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Weitere Felder */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Zahlungsziel
+            </label>
+            <input
+              type="text"
+              value={formData.zahlungsziel}
+              onChange={(e) => updateFormData({ zahlungsziel: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
           </div>
-
-          {/* Summen */}
-          <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4">
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Zusammenfassung</h4>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Ausgewählte Vereine:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{ausgewaehlteVereine.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Gesamtmenge:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{gesamtMenge.toFixed(2)} t</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Zusatzpositionen:</span>
-                <span className="font-medium text-gray-900 dark:text-white">{zusatzPositionen.length}</span>
-              </div>
-              <hr className="my-2 border-gray-300 dark:border-slate-600" />
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Netto:</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {gesamtNetto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">MwSt. (19%):</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {(gesamtNetto * 0.19).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-              <div className="flex justify-between text-lg">
-                <span className="font-semibold text-gray-900 dark:text-white">Brutto:</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">
-                  {gesamtBrutto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={handleAngebotErstellen}
-              disabled={speichern || ausgewaehlteVereine.length === 0}
-              className="w-full mt-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {speichern ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Erstelle Angebot...
-                </>
-              ) : (
-                <>
-                  <FileCheck className="w-5 h-5" />
-                  Angebot erstellen & PDF generieren
-                </>
-              )}
-            </button>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Lieferzeit
+            </label>
+            <input
+              type="text"
+              value={formData.lieferzeit}
+              onChange={(e) => updateFormData({ lieferzeit: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Bemerkung
+            </label>
+            <textarea
+              value={formData.bemerkung}
+              onChange={(e) => updateFormData({ bemerkung: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
           </div>
         </div>
+
+        {/* Summen & Button */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Zusammenfassung</h4>
+          <div className="space-y-2 mb-6">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Ausgewählte Vereine:</span>
+              <span className="font-medium text-gray-900 dark:text-white">{ausgewaehlteVereine.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Gesamtmenge (loses Material):</span>
+              <span className="font-medium text-gray-900 dark:text-white">{gesamtMenge.toFixed(2)} t</span>
+            </div>
+            <hr className="my-3 border-gray-200 dark:border-slate-700" />
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Netto:</span>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {gesamtNetto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">MwSt. (19%):</span>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {(gesamtNetto * 0.19).toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+            <div className="flex justify-between text-lg pt-2 border-t border-gray-200 dark:border-slate-700">
+              <span className="font-semibold text-gray-900 dark:text-white">Brutto:</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">
+                {gesamtBrutto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAngebotErstellen}
+            disabled={speichern || ausgewaehlteVereine.length === 0}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {speichern ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Erstelle Angebot...
+              </>
+            ) : (
+              <>
+                <FileCheck className="w-5 h-5" />
+                Angebot erstellen & PDF generieren
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Dateiverlauf */}
+      <div className="mt-6">
+        <PlatzbauerDokumentVerlauf
+          projektId={projekt.id}
+          dokumentTyp="angebot"
+          titel="Angebot-Verlauf"
+          maxAnzeige={3}
+          ladeZaehler={verlaufLadeZaehler}
+        />
       </div>
     </div>
   );
