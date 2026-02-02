@@ -36,6 +36,7 @@ function parseDocument<T>(doc: Models.Document, fallback: T): T {
     'platzbauerId', 'platzbauerName', 'projektName', 'saisonjahr',
     'status', 'typ', 'hauptprojektId', 'nachtragNummer',
     'erstelltAm', 'geaendertAm',
+    'data', // WICHTIG: data-Feld für Entwürfe!
     // Zuordnungen
     'vereinsProjektId', 'platzbauerprojektId', 'position',
   ];

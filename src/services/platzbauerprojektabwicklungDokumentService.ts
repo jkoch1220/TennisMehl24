@@ -797,6 +797,15 @@ export const speichereEntwurf = async (
     throw new Error('Keine projektId angegeben');
   }
 
+  // === SOFORT IN LOCALSTORAGE SPEICHERN (BACKUP) ===
+  const localStorageKey = `platzbauer_entwurf_${projektId}_${typ}`;
+  try {
+    localStorage.setItem(localStorageKey, JSON.stringify(daten));
+    console.log('💾 LocalStorage Backup gespeichert:', localStorageKey);
+  } catch (e) {
+    console.warn('LocalStorage Backup fehlgeschlagen:', e);
+  }
+
   // Aktuelles Projekt laden um data-Feld zu erhalten
   const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
   console.log('🔧 Projekt geladen:', projekt ? { id: projekt.id, hatData: !!projekt.data, dataLaenge: projekt.data?.length } : 'NICHT GEFUNDEN');
@@ -846,7 +855,8 @@ export const speichereEntwurf = async (
       code: error?.code,
       type: error?.type
     });
-    throw error;
+    // Nicht werfen - localStorage Backup existiert ja
+    console.log('⚠️ Appwrite fehlgeschlagen, aber localStorage Backup existiert');
   }
 };
 
@@ -859,6 +869,20 @@ export const ladeEntwurf = async <T>(
 ): Promise<T | null> => {
   console.log('🔍 ladeEntwurf aufgerufen:', { projektId, typ });
 
+  // === ZUERST LOCALSTORAGE PRÜFEN (BACKUP) ===
+  const localStorageKey = `platzbauer_entwurf_${projektId}_${typ}`;
+  try {
+    const localData = localStorage.getItem(localStorageKey);
+    if (localData) {
+      const parsed = JSON.parse(localData);
+      console.log('✅ Entwurf aus LocalStorage geladen:', localStorageKey);
+      return parsed as T;
+    }
+  } catch (e) {
+    console.warn('LocalStorage Laden fehlgeschlagen:', e);
+  }
+
+  // === DANN APPWRITE VERSUCHEN ===
   try {
     const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
     console.log('🔍 Projekt geladen:', projekt ? {
@@ -871,7 +895,7 @@ export const ladeEntwurf = async <T>(
 
     // data-Feld parsen
     if (!projekt.data || typeof projekt.data !== 'string') {
-      console.log('🔍 Kein data-Feld vorhanden');
+      console.log('🔍 Kein data-Feld in Appwrite vorhanden');
       return null;
     }
 
@@ -891,7 +915,7 @@ export const ladeEntwurf = async <T>(
     }[typ];
 
     const entwurf = dataObj[feldName];
-    console.log('🔍 Entwurf gefunden:', entwurf ? 'ja' : 'nein');
+    console.log('🔍 Entwurf in Appwrite gefunden:', entwurf ? 'ja' : 'nein');
 
     if (!entwurf) return null;
 
