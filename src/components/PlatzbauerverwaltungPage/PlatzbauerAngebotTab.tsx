@@ -341,7 +341,13 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer, positionen }: PlatzbauerAng
 
   // Berechnungen
   const ausgewaehlteVereine = vereineAuswahl.filter(v => v.ausgewaehlt);
-  const gesamtMenge = ausgewaehlteVereine.reduce((sum, v) => sum + v.menge, 0);
+  // Gesamtmenge NUR für loses Material (TM-ZM-02, TM-ZM-03 etc.)
+  const gesamtMenge = ausgewaehlteVereine
+    .filter(v => v.artikelnummer?.startsWith('TM-ZM'))
+    .reduce((sum, v) => sum + v.menge, 0)
+    + zusatzPositionen
+      .filter(p => p.artikelnummer?.startsWith('TM-ZM'))
+      .reduce((sum, p) => sum + p.menge, 0);
   const gesamtNetto = ausgewaehlteVereine.reduce((sum, v) => sum + (v.menge * v.einzelpreis), 0)
     + zusatzPositionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
   const gesamtBrutto = gesamtNetto * 1.19;
