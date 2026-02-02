@@ -1166,10 +1166,19 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                         >
                           {ziegelmehlArtikel.map(art => (
                             <option key={art.$id} value={art.artikelnummer}>
-                              {art.artikelnummer}
+                              {art.artikelnummer} - {art.bezeichnung}
                             </option>
                           ))}
                         </select>
+                        {/* Artikelbeschreibung anzeigen */}
+                        {v.ausgewaehlt && (() => {
+                          const selectedArt = ziegelmehlArtikel.find(a => a.artikelnummer === v.artikelnummer);
+                          return selectedArt?.beschreibung ? (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {selectedArt.beschreibung}
+                            </div>
+                          ) : null;
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <input
