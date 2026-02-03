@@ -101,6 +101,17 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
     werkspreis: null, // WICHTIG: Preis aus Stammdaten laden!
     pflichtBeiLose: true,
   },
+
+  // ==========================================
+  // FRACHTKOSTENPAUSCHALE / MINDERMENGENPAUSCHALE
+  // Wird automatisch bei Schüttgut < 20t hinzugefügt
+  // ==========================================
+  'TM-FP': {
+    artikelnummer: 'TM-FP',
+    bezeichnung: 'Frachtkostenpauschale',
+    einheit: 'Stk',
+    werkspreis: null, // Preis wird dynamisch nach Tonnage berechnet!
+  },
 };
 
 // ==========================================
@@ -216,3 +227,50 @@ export const LIEFERUNG = {
   // Ausgangsort (Marktheidenfeld)
   AUSGANGS_PLZ: '97828',
 } as const;
+
+/**
+ * Staffelung der Mindermengenpauschale (Frachtkostenpauschale) für Schüttgut
+ *
+ * Bei Schüttgut unter 20 Tonnen wird eine Mindermengenpauschale berechnet.
+ * Je größer die Menge, desto geringer die Pauschale.
+ */
+export const MINDERMENGENPAUSCHALE_STAFFELUNG = [
+  { bisTo: 5.4, pauschale: 59.90 },   // weniger als 5,4 to
+  { bisTo: 7.4, pauschale: 49.90 },   // von 5,4 to bis 7,4 to
+  { bisTo: 11.4, pauschale: 39.90 },  // von 7,5 to bis 11,4 to
+  { bisTo: 15.4, pauschale: 31.90 },  // von 11,5 bis 15,4 to
+  { bisTo: 19.9, pauschale: 24.90 },  // von 15,5 bis 19,9 to
+  // Ab 20 to: keine Pauschale
+] as const;
+
+/**
+ * Berechnet die Mindermengenpauschale für Schüttgut basierend auf der Gesamtmenge
+ *
+ * @param tonnenSchuettgut - Gesamtmenge Schüttgut (loses Material) in Tonnen
+ * @returns Pauschale in EUR oder null wenn keine Pauschale fällig (ab 20t)
+ */
+export function berechneMindermengenpauschale(tonnenSchuettgut: number): number | null {
+  // Keine Pauschale bei 0 oder negativer Menge
+  if (tonnenSchuettgut <= 0) {
+    return null;
+  }
+
+  // Ab 20 Tonnen: keine Pauschale
+  if (tonnenSchuettgut >= 20) {
+    return null;
+  }
+
+  // Finde die passende Staffel
+  for (const staffel of MINDERMENGENPAUSCHALE_STAFFELUNG) {
+    if (tonnenSchuettgut < staffel.bisTo) {
+      return staffel.pauschale;
+    }
+  }
+
+  // Zwischen 15.4 und 19.9 to (letzte Staffel)
+  if (tonnenSchuettgut < 20) {
+    return 24.90;
+  }
+
+  return null;
+}

@@ -144,6 +144,9 @@ const ARTIKEL_PREISE_FALLBACK: Record<string, number> = {
   'TM-ZM-02S': 8.50,    // Beiladung 0-2mm (€/Sack à 40kg)
   'TM-ZM-03S': 8.50,    // Beiladung 0-3mm (€/Sack à 40kg)
   'TM-PE': 25.00,       // PE-Folie pro Stück
+  // TM-FP: Frachtkostenpauschale - Preis wird DYNAMISCH nach Tonnage berechnet!
+  // Staffelung: <5.4t=59.90€, <7.4t=49.90€, <11.4t=39.90€, <15.4t=31.90€, <20t=24.90€
+  // Siehe berechneMindermengenpauschale() in artikelPreise.ts
 };
 
 /**

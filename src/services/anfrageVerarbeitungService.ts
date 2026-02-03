@@ -20,6 +20,7 @@ import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import {
   berechneAnzahlSaecke,
+  berechneMindermengenpauschale,
 } from '../constants/artikelPreise';
 import { berechneSpeditionskosten } from '../constants/pricing';
 import { sucheArtikelNachNummer } from './artikelService';
@@ -466,7 +467,8 @@ export async function erstelleAnfragePositionen(
     artikelGesackt03,
     artikelBeiladung02,
     artikelBeiladung03,
-    artikelPE
+    artikelPE,
+    artikelFP // Frachtkostenpauschale / Mindermengenpauschale
   ] = await Promise.all([
     sucheArtikelNachNummer('TM-ZM-02'),
     sucheArtikelNachNummer('TM-ZM-03'),
@@ -475,6 +477,7 @@ export async function erstelleAnfragePositionen(
     sucheArtikelNachNummer('TM-ZM-02S'),
     sucheArtikelNachNummer('TM-ZM-03S'),
     sucheArtikelNachNummer('TM-PE'),
+    sucheArtikelNachNummer('TM-FP'),
   ]);
 
   // ==========================================
@@ -687,6 +690,41 @@ export async function erstelleAnfragePositionen(
     });
 
     gesamtpreisOhneLieferung += preisPEFolie;
+  }
+
+  // ==========================================
+  // MINDERMENGENPAUSCHALE / FRACHTKOSTENPAUSCHALE (TM-FP)
+  // Automatisch bei Schüttgut < 20 Tonnen!
+  //
+  // Staffelung:
+  // - weniger als 5,4 to = 59,90 €
+  // - von 5,4 to bis 7,4 to = 49,90 €
+  // - von 7,5 bis 11,4 to = 39,90 €
+  // - von 11,5 bis 15,4 to = 31,90 €
+  // - von 15,5 bis 19,9 to = 24,90 €
+  // - ab 20 to = keine Pauschale
+  // ==========================================
+
+  if (gesamtMengeLose > 0) {
+    const mindermengenpauschale = berechneMindermengenpauschale(gesamtMengeLose);
+
+    if (mindermengenpauschale !== null) {
+      const infoFP = getArtikelInfo(artikelFP, 'Frachtkostenpauschale');
+
+      positionen.push({
+        id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelnummer: 'TM-FP',
+        bezeichnung: infoFP.bezeichnung,
+        beschreibung: infoFP.beschreibung || `Mindermengenzuschlag für Lieferungen unter 20 Tonnen`,
+        menge: 1,
+        einheit: 'Stk',
+        einzelpreis: mindermengenpauschale,
+        gesamtpreis: mindermengenpauschale,
+        istBedarfsposition: false,
+      });
+
+      gesamtpreisOhneLieferung += mindermengenpauschale;
+    }
   }
 
   // ==========================================
