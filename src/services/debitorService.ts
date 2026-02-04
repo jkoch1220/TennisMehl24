@@ -749,7 +749,7 @@ class DebitorService {
           statistik.gesamtOffen += debitor.offenerBetrag;
           statistik.anzahlOffen++;
 
-          if (debitor.status === 'ueberfaellig' || debitor.tageUeberfaellig > 14) {
+          if (debitor.status === 'ueberfaellig' || debitor.tageUeberfaellig > 0) {
             statistik.ueberfaelligBetrag += debitor.offenerBetrag;
             statistik.ueberfaelligAnzahl++;
           }
