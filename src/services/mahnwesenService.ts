@@ -408,15 +408,6 @@ export const generiereMahnwesenPDF = async (
   doc.setFont('helvetica', 'normal');
   yPos += 10;
 
-  // === ZAHLUNGSFRIST ===
-  yPos = await ensureSpace(doc, yPos, 20, stammdaten);
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Zahlungsfrist: ${formatDatum(daten.neueZahlungsfrist)}`, 25, yPos);
-  doc.setFont('helvetica', 'normal');
-  yPos += 10;
-
   // === SCHLUSSTEXT ===
   yPos = await ensureSpace(doc, yPos, 30, stammdaten);
 
