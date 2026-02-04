@@ -205,7 +205,8 @@ class ProjektService {
       // Lade sie aus dem Kunden-Datensatz falls nicht vorhanden
       let kundennummer = projekt.kundennummer;
       let lieferadresse = projekt.lieferadresse;
-      
+      let rechnungsEmail = projekt.rechnungsEmail;
+
       if (projekt.kundeId) {
         // Versuche zuerst aus Kundenliste zu laden
         try {
@@ -222,16 +223,22 @@ class ProjektService {
         } catch (error) {
           console.warn('Konnte Kunde nicht aus Kundenliste laden, versuche Saisonplanung:', error);
         }
-        
+
         // Falls nicht in Kundenliste gefunden, versuche Saisonplanung
-        if (!kundennummer) {
+        if (!kundennummer || !rechnungsEmail) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-            if (kunde && kunde.kundennummer) {
-              kundennummer = kunde.kundennummer;
+            if (kunde) {
+              if (!kundennummer && kunde.kundennummer) {
+                kundennummer = kunde.kundennummer;
+              }
+              // Übernehme abweichende Rechnungs-E-Mail falls vorhanden
+              if (!rechnungsEmail && kunde.rechnungsEmail) {
+                rechnungsEmail = kunde.rechnungsEmail;
+              }
             }
           } catch (error) {
-            console.warn('Konnte Kundennummer nicht aus Kunden-Datensatz laden:', error);
+            console.warn('Konnte Kundendaten nicht aus Kunden-Datensatz laden:', error);
             // Verwende undefined als Fallback
           }
         }
@@ -241,6 +248,7 @@ class ProjektService {
         ...projekt,
         kundennummer: kundennummer, // Stelle sicher, dass Kundennummer gesetzt ist
         lieferadresse: lieferadresse, // Übernehme Lieferadresse aus Kunde
+        rechnungsEmail: rechnungsEmail, // Übernehme abweichende Rechnungs-E-Mail aus Kunde
         id: dokumentId,
         erstelltAm: jetzt,
         geaendertAm: jetzt,

@@ -158,6 +158,8 @@ export interface SaisonKunde {
   /** @deprecated Wird durch rechnungsadresse/lieferadresse ersetzt. Nur für Backwards-Compatibility. */
   adresse?: Adresse; // Altes Feld, wird nach Migration entfernt
   email?: string;
+  /** Abweichende E-Mail für Rechnungen (z.B. an Geschäftsführer/Buchhaltung) */
+  rechnungsEmail?: string;
   notizen?: string;
   aktiv: boolean;
   // Zuletzt gezahlter Preis (aus letzter Saison)

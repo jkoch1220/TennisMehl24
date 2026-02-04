@@ -52,6 +52,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     },
     rechnungsadresse: undefined, // Optional abweichend
     email: '',
+    rechnungsEmail: '',
     notizen: '',
     aktiv: true,
     standardBezugsweg: 'direkt',
@@ -101,6 +102,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         lieferadresse: kunde.kunde.lieferadresse,
         rechnungsadresse: adressenAbweichend ? kunde.kunde.rechnungsadresse : undefined,
         email: kunde.kunde.email || '',
+        rechnungsEmail: kunde.kunde.rechnungsEmail || '',
         notizen: kunde.kunde.notizen || '',
         aktiv: kunde.kunde.aktiv,
         standardBezugsweg: kunde.kunde.standardBezugsweg,
@@ -140,6 +142,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         lieferadresse: { strasse: '', plz: '', ort: '', bundesland: '' },
         rechnungsadresse: undefined,
         email: '',
+        rechnungsEmail: '',
         notizen: '',
         aktiv: true,
         standardBezugsweg: 'direkt',
@@ -522,6 +525,39 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     </button>
                   )}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Rechnungs-E-Mail
+                  <span className="text-xs text-gray-500 dark:text-slate-500 ml-1">(optional, abweichend)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={formData.rechnungsEmail || ''}
+                    onChange={(e) => setFormData({ ...formData, rechnungsEmail: e.target.value })}
+                    placeholder="z.B. buchhaltung@verein.de"
+                    className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  {formData.rechnungsEmail && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(formData.rechnungsEmail || '', 'kunde-rechnungs-email')}
+                      className={`px-3 py-2 rounded-lg transition-colors flex items-center ${
+                        copiedField === 'kunde-rechnungs-email'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                      title="Rechnungs-E-Mail kopieren"
+                    >
+                      {copiedField === 'kunde-rechnungs-email' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">
+                  Falls Rechnungen an eine andere Adresse gehen sollen (z.B. Geschäftsführer, Buchhaltung)
+                </p>
               </div>
 
               <div>
