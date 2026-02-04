@@ -432,6 +432,12 @@ export const generiereMahnwesenPDF = async (
     }
   }
 
+  // === Signatur ===
+  yPos += 2;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Ihr Team der Tennismehl', 25, yPos);
+  doc.setFont('helvetica', 'normal');
+
   // === BANKVERBINDUNG MIT EPC-QR-CODE ===
   yPos = await ensureSpace(doc, yPos, 50, stammdaten);
   yPos += 5;

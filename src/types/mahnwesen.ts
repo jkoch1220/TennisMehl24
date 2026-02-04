@@ -114,8 +114,7 @@ export const STANDARD_MAHNWESEN_VORLAGEN: MahnwesenTextVorlagen = {
 Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.`,
     schlusstext: `Bei Fragen zu dieser Rechnung stehen wir Ihnen gerne zur Verfügung.
 
-Mit freundlichen Grüßen
-Ihr Team der Tennismehl`,
+Mit freundlichen Grüßen`,
     fristTage: 7,
   },
 
@@ -127,8 +126,7 @@ Ihr Team der Tennismehl`,
 Wir bitten Sie daher, den ausstehenden Betrag innerhalb der genannten Frist zu begleichen.`,
     schlusstext: `Sollte die Zahlung bereits veranlasst sein, bitten wir Sie, dieses Schreiben als gegenstandslos zu betrachten.
 
-Mit freundlichen Grüßen
-Ihr Team der Tennismehl`,
+Mit freundlichen Grüßen`,
     fristTage: 10,
     mahngebuehren: 5.00,
   },
@@ -141,8 +139,7 @@ Ihr Team der Tennismehl`,
 Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag inklusive Mahngebühren fristgerecht zu begleichen.`,
     schlusstext: `Wir hoffen, dass wir diese Angelegenheit noch einvernehmlich klären können, und verbleiben
 
-mit freundlichen Grüßen
-Ihr Team der Tennismehl`,
+mit freundlichen Grüßen`,
     fristTage: 7,
     mahngebuehren: 10.00,
     inkassoHinweis: 'Sollte die Zahlung nicht fristgerecht erfolgen, werden wir die Forderung ohne weitere Ankündigung an ein Inkassounternehmen übergeben. Die dadurch entstehenden Kosten gehen zu Ihren Lasten.',
