@@ -107,26 +107,28 @@ export interface MahnwesenTextVorlagen {
 // Standard-Textvorlagen
 export const STANDARD_MAHNWESEN_VORLAGEN: MahnwesenTextVorlagen = {
   zahlungserinnerung: {
-    betreff: 'Freundliche Zahlungserinnerung',
+    betreff: 'Zahlungserinnerung',
     anrede: 'Sehr geehrte Damen und Herren,',
     haupttext: `sicherlich ist es nur in der Hektik des Alltags untergegangen - wir möchten Sie freundlich daran erinnern, dass die Zahlung für die oben genannte Rechnung noch aussteht.
 
 Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.`,
     schlusstext: `Bei Fragen zu dieser Rechnung stehen wir Ihnen gerne zur Verfügung.
 
-Mit freundlichen Grüßen`,
+Mit freundlichen Grüßen
+Ihr Team der Tennismehl`,
     fristTage: 7,
   },
 
   mahnung_1: {
     betreff: '1. Mahnung',
     anrede: 'Sehr geehrte Damen und Herren,',
-    haupttext: `trotz unserer freundlichen Zahlungserinnerung haben wir leider noch keinen Zahlungseingang für die oben genannte Rechnung feststellen können.
+    haupttext: `trotz unserer Zahlungserinnerung haben wir leider noch keinen Zahlungseingang für die oben genannte Rechnung feststellen können.
 
 Wir bitten Sie daher, den ausstehenden Betrag innerhalb der genannten Frist zu begleichen.`,
     schlusstext: `Sollte die Zahlung bereits veranlasst sein, bitten wir Sie, dieses Schreiben als gegenstandslos zu betrachten.
 
-Mit freundlichen Grüßen`,
+Mit freundlichen Grüßen
+Ihr Team der Tennismehl`,
     fristTage: 10,
     mahngebuehren: 5.00,
   },
@@ -139,7 +141,8 @@ Mit freundlichen Grüßen`,
 Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag inklusive Mahngebühren fristgerecht zu begleichen.`,
     schlusstext: `Wir hoffen, dass wir diese Angelegenheit noch einvernehmlich klären können, und verbleiben
 
-mit freundlichen Grüßen`,
+mit freundlichen Grüßen
+Ihr Team der Tennismehl`,
     fristTage: 7,
     mahngebuehren: 10.00,
     inkassoHinweis: 'Sollte die Zahlung nicht fristgerecht erfolgen, werden wir die Forderung ohne weitere Ankündigung an ein Inkassounternehmen übergeben. Die dadurch entstehenden Kosten gehen zu Ihren Lasten.',

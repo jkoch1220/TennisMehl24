@@ -508,18 +508,7 @@ export const generiereMahnwesenPDF = async (
   const hinweisText = 'Scannen Sie den QR-Code mit Ihrer Banking-App für eine schnelle und fehlerfreie Überweisung.';
   const hinweisLines = doc.splitTextToSize(hinweisText, 115);
   doc.text(hinweisLines, 25, yPos);
-
-  // === Grußformel ===
-  yPos += (hinweisLines.length * 4) + 10;
-  yPos = await ensureSpace(doc, yPos, 15, stammdaten);
-
-  doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text('Mit freundlichen Grüßen', 25, yPos);
-  yPos += 5;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Ihr Team der Tennismehl', 25, yPos);
-  doc.setFont('helvetica', 'normal');
 
   // DIN 5008 Footer
   addDIN5008Footer(doc, stammdaten);
