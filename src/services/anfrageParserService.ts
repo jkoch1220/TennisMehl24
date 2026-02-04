@@ -685,7 +685,14 @@ export const berechneEmpfohlenenPreis = (
     rabatt = 2;
   }
 
-  return Math.round((basisPreis + frachtZuschlag - rabatt) * 100) / 100;
+  // Grundpreis berechnen
+  const grundpreis = basisPreis + frachtZuschlag - rabatt;
+
+  // 8% Gewinnmarge aufschlagen
+  const GEWINNMARGE = 0.08;
+  const preisInklMarge = grundpreis * (1 + GEWINNMARGE);
+
+  return Math.round(preisInklMarge * 100) / 100;
 };
 
 export default {
