@@ -1,6 +1,10 @@
-import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
+import { databases, DATABASE_ID, COLLECTIONS, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
+import { GespeichertesDokument } from '../types/projektabwicklung';
+
+// Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
+type RechnungsDokument = GespeichertesDokument;
 import {
   DebitorMetadaten,
   NeueDebitorMetadaten,
@@ -26,7 +30,92 @@ interface RechnungsDaten {
     gesamtpreis: number;
   }>;
   zahlungsziel?: string;
+  zahlungszielTage?: number; // Bereits geparstes Zahlungsziel in Tagen
 }
+
+// Helper: Zahlungsziel-String zu Tagen parsen
+// z.B. "14 Tage", "30 Tage netto", "Vorkasse" → Zahl der Tage
+const parseZahlungszielTage = (zahlungsziel: string | undefined): number | null => {
+  if (!zahlungsziel) return null;
+
+  const lower = zahlungsziel.toLowerCase().trim();
+
+  // Vorkasse = sofort fällig
+  if (lower.includes('vorkasse') || lower.includes('vorauskasse') || lower === 'sofort') {
+    return 0;
+  }
+
+  // Extrahiere Zahl aus dem String (z.B. "14 Tage", "30 Tage netto", "netto 14 Tage")
+  const zahlenMatch = zahlungsziel.match(/(\d+)/);
+  if (zahlenMatch) {
+    const tage = parseInt(zahlenMatch[1], 10);
+    if (!isNaN(tage) && tage >= 0) {
+      return tage;
+    }
+  }
+
+  return null;
+};
+
+// Helper: Lädt das neueste Rechnungsdokument für ein Projekt (Fallback wenn rechnungsDaten fehlt)
+// Verwendet die GLEICHE Query wie ladeDokumenteNachTyp in projektabwicklungDokumentService
+const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokument | null> => {
+  try {
+    console.log(`📄 ladeRechnungsDokument für Projekt ${projektId}...`);
+
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      [
+        Query.equal('projektId', projektId),
+        Query.equal('dokumentTyp', 'rechnung'),
+        Query.orderDesc('$createdAt'),
+        Query.limit(1)
+      ]
+    );
+
+    console.log(`📄 Query Ergebnis: ${response.documents.length} Dokumente gefunden`);
+
+    if (response.documents.length > 0) {
+      const dok = response.documents[0] as unknown as RechnungsDokument;
+      console.log(`📄 Dokument gefunden:`, {
+        $id: dok.$id,
+        dokumentNummer: dok.dokumentNummer,
+        bruttobetrag: dok.bruttobetrag,
+        istFinal: dok.istFinal
+      });
+      return dok;
+    }
+
+    console.log(`📄 Kein Rechnungsdokument gefunden für Projekt ${projektId}`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Fehler beim Laden des Rechnungsdokuments für Projekt ${projektId}:`, error);
+    return null;
+  }
+};
+
+// Helper: Batch-Load Rechnungsdokumente für mehrere Projekte
+// Lädt für JEDES Projekt einzeln, um sicherzustellen dass es funktioniert wie die UI
+const ladeRechnungsDokumenteFuerProjekte = async (projektIds: string[]): Promise<Map<string, RechnungsDokument>> => {
+  const dokumenteMap = new Map<string, RechnungsDokument>();
+
+  if (projektIds.length === 0) return dokumenteMap;
+
+  console.log(`📄 Starte Laden von Rechnungsdokumenten für ${projektIds.length} Projekte...`);
+
+  // Lade für jedes Projekt einzeln - wie es die UI auch macht
+  for (const projektId of projektIds) {
+    const dokument = await ladeRechnungsDokument(projektId);
+    if (dokument) {
+      dokumenteMap.set(projektId, dokument);
+    }
+  }
+
+  console.log(`📄 ERGEBNIS: ${dokumenteMap.size} Rechnungsdokumente für ${projektIds.length} Projekte geladen`);
+
+  return dokumenteMap;
+};
 
 class DebitorService {
   private readonly collectionId = COLLECTIONS.DEBITOREN_METADATEN;
@@ -36,16 +125,15 @@ class DebitorService {
   // =====================================================
 
   /**
-   * Lädt alle Debitoren (Projekte mit Status 'rechnung' + deren Metadaten)
+   * Lädt alle Debitoren (Projekte mit Status 'rechnung' oder 'bezahlt' + deren Metadaten)
    */
   async loadAlleDebitoren(filter?: DebitorFilter): Promise<DebitorView[]> {
     try {
-      // 1. Lade alle Projekte mit Status 'rechnung' (noch nicht bezahlt)
-      const statusFilter = filter?.status?.includes('bezahlt')
-        ? ['rechnung', 'bezahlt']
-        : filter?.status?.length
-        ? ['rechnung'] // Wir filtern später nach Debitor-Status
-        : ['rechnung'];
+      // 1. Lade IMMER beide Status - rechnung UND bezahlt
+      // Die Filterung nach Debitor-Status erfolgt später
+      const statusFilter = ['rechnung', 'bezahlt'];
+
+      console.log('📊 Debitor-Service: Lade Projekte mit Status:', statusFilter);
 
       const queries: string[] = [
         Query.equal('status', statusFilter),
@@ -57,9 +145,12 @@ class DebitorService {
         queries.push(Query.equal('saisonjahr', filter.saisonjahr));
       }
 
+      console.log('📊 Debitor-Service: Queries:', queries);
+
       const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, queries);
 
-      // Auch bezahlte Projekte laden falls gewünscht
+      console.log('📊 Debitor-Service: Gefundene Projekte:', response.documents.length);
+
       let projekte: Projekt[] = [];
 
       for (const doc of response.documents) {
@@ -73,32 +164,14 @@ class DebitorService {
         } else {
           projekt = doc as unknown as Projekt;
         }
+
+        // Debug: Zeige jeden gefundenen Projekt-Status
+        console.log(`📊 Projekt geladen: ${projekt.kundenname} - Status: ${projekt.status} - Rechnungsnr: ${projekt.rechnungsnummer || 'KEINE'}`);
+
         projekte.push(projekt);
       }
 
-      // Falls auch bezahlte Projekte gewünscht
-      if (filter?.status?.includes('bezahlt') || !filter?.status?.length) {
-        const bezahltResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
-          Query.equal('status', ['bezahlt']),
-          Query.orderDesc('geaendertAm'),
-          Query.limit(500),
-          ...(filter?.saisonjahr ? [Query.equal('saisonjahr', filter.saisonjahr)] : []),
-        ]);
-
-        for (const doc of bezahltResponse.documents) {
-          let projekt: Projekt;
-          if (doc.data && typeof doc.data === 'string') {
-            try {
-              projekt = { ...JSON.parse(doc.data), $id: doc.$id };
-            } catch {
-              projekt = doc as unknown as Projekt;
-            }
-          } else {
-            projekt = doc as unknown as Projekt;
-          }
-          projekte.push(projekt);
-        }
-      }
+      // HINWEIS: Bezahlte Projekte werden jetzt mit dem ersten Query geladen (statusFilter enthält beide)
 
       // 2. Lade alle Metadaten
       const metadatenResponse = await databases.listDocuments(DATABASE_ID, this.collectionId, [
@@ -113,17 +186,40 @@ class DebitorService {
         }
       }
 
-      // 3. Kombiniere Projekte mit Metadaten zu DebitorViews
+      // 3. Lade Rechnungsdokumente für ALLE Projekte
+      // WICHTIG: Der Bruttobetrag ist im Dokument gespeichert (BESTELLABWICKLUNG_DOKUMENTE),
+      // nicht im projekt.rechnungsDaten - daher IMMER laden!
+      const alleProjektIds: string[] = [];
+      for (const projekt of projekte) {
+        const projektId = (projekt as any).$id || projekt.id;
+        alleProjektIds.push(projektId);
+      }
+
+      console.log(`📄 Lade Rechnungsdokumente für ALLE ${alleProjektIds.length} Projekte...`);
+      const rechnungsDokumenteMap = await ladeRechnungsDokumenteFuerProjekte(alleProjektIds);
+
+      // 5. Kombiniere Projekte mit Metadaten zu DebitorViews
       const debitoren: DebitorView[] = [];
 
+      console.log(`📊 Debitor-Service: Verarbeite ${projekte.length} Projekte...`);
+
       for (const projekt of projekte) {
-        // Nur Projekte mit Rechnung
-        if (!projekt.rechnungsnummer && !projekt.rechnungsdatum) {
+        // Projekte mit Status 'rechnung' oder 'bezahlt' sollen erscheinen,
+        // auch wenn rechnungsnummer/rechnungsdatum fehlen (ältere Daten)
+        const hatRechnungsStatus = projekt.status === 'rechnung' || projekt.status === 'bezahlt';
+        const hatRechnungsdaten = projekt.rechnungsnummer || projekt.rechnungsdatum;
+
+        if (!hatRechnungsStatus && !hatRechnungsdaten) {
+          console.log(`📊 Projekt übersprungen (kein Rechnungs-Status/Daten): ${projekt.kundenname}`);
           continue;
         }
 
-        const metadaten = metadatenMap.get(projekt.id) || null;
-        const debitorView = this.createDebitorView(projekt, metadaten);
+        const projektId = (projekt as any).$id || projekt.id;
+        const metadaten = metadatenMap.get(projektId) || metadatenMap.get(projekt.id) || null;
+        const rechnungsDokument = rechnungsDokumenteMap.get(projektId) || null;
+        const debitorView = this.createDebitorView(projekt, metadaten, rechnungsDokument);
+
+        console.log(`📊 DebitorView erstellt: ${debitorView.kundenname} - Status: ${debitorView.status} - Betrag: ${debitorView.rechnungsbetrag}€`);
 
         // Filter anwenden
         if (this.matchesFilter(debitorView, filter)) {
@@ -153,12 +249,21 @@ class DebitorService {
   async loadDebitorFuerProjekt(projektId: string): Promise<DebitorView | null> {
     try {
       const projekt = await projektService.getProjekt(projektId);
-      if (!projekt || !projekt.rechnungsnummer) {
+      if (!projekt) {
+        return null;
+      }
+
+      // Lade Rechnungsdokument als Fallback
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
+      // Prüfe ob Rechnungsnummer vorhanden (im Projekt oder im Dokument)
+      const hatRechnungsnummer = projekt.rechnungsnummer || rechnungsDokument?.dokumentNummer;
+      if (!hatRechnungsnummer) {
         return null;
       }
 
       const metadaten = await this.loadMetadatenFuerProjekt(projektId);
-      return this.createDebitorView(projekt, metadaten);
+      return this.createDebitorView(projekt, metadaten, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Laden des Debitors:', error);
       throw error;
@@ -287,6 +392,9 @@ class DebitorService {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
 
+      // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
       const neueZahlung: DebitorZahlung = {
         ...zahlung,
         id: ID.unique(),
@@ -309,7 +417,7 @@ class DebitorService {
       const aktivitaeten = [...(metadaten.aktivitaeten || []), neueAktivitaet];
 
       // Berechne neuen Status
-      const rechnungsbetrag = this.parseRechnungsbetrag(projekt);
+      const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
       const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
       let neuerStatus: DebitorStatus = metadaten.status;
 
@@ -330,7 +438,7 @@ class DebitorService {
         status: neuerStatus,
       });
 
-      return this.createDebitorView(projekt, aktualisiert);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Hinzufügen der Zahlung:', error);
       throw error;
@@ -345,10 +453,13 @@ class DebitorService {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
 
+      // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
       const zahlungen = (metadaten.zahlungen || []).filter((z) => z.id !== zahlungId);
 
       // Status neu berechnen
-      const rechnungsbetrag = this.parseRechnungsbetrag(projekt);
+      const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
       const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
       let neuerStatus: DebitorStatus;
 
@@ -367,7 +478,7 @@ class DebitorService {
         status: neuerStatus,
       });
 
-      return this.createDebitorView(projekt, aktualisiert);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Löschen der Zahlung:', error);
       throw error;
@@ -385,6 +496,9 @@ class DebitorService {
     try {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
+
+      // Lade Rechnungsdokument als Fallback
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
 
       const neueMahnstufe = Math.min(4, metadaten.mahnstufe + 1) as DebitorMahnstufe;
 
@@ -407,7 +521,7 @@ class DebitorService {
         status: 'gemahnt',
       });
 
-      return this.createDebitorView(projekt, aktualisiert);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Erhöhen der Mahnstufe:', error);
       throw error;
@@ -425,6 +539,9 @@ class DebitorService {
     try {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
+
+      // Lade Rechnungsdokument als Fallback
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
 
       // Aktivität hinzufügen
       const neueAktivitaet: DebitorAktivitaet = {
@@ -445,7 +562,7 @@ class DebitorService {
         status: 'gemahnt',
       });
 
-      return this.createDebitorView(projekt, aktualisiert);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Markieren der Mahnung:', error);
       throw error;
@@ -467,6 +584,9 @@ class DebitorService {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
 
+      // Lade Rechnungsdokument als Fallback
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
       const neueAktivitaet: DebitorAktivitaet = {
         ...aktivitaet,
         id: ID.unique(),
@@ -479,7 +599,7 @@ class DebitorService {
         aktivitaeten,
       });
 
-      return this.createDebitorView(projekt, aktualisiert);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Hinzufügen der Aktivität:', error);
       throw error;
@@ -498,7 +618,10 @@ class DebitorService {
       const metadaten = await this.getOrCreateMetadaten(projektId);
       const projekt = await projektService.getProjekt(projektId);
 
-      const rechnungsbetrag = this.parseRechnungsbetrag(projekt);
+      // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
+      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
+      const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
       const bezahlt = (metadaten.zahlungen || []).reduce((sum, z) => sum + z.betrag, 0);
 
       let neuerStatus: DebitorStatus;
@@ -517,10 +640,10 @@ class DebitorService {
         const aktualisiert = await this.updateMetadaten(projektId, {
           status: neuerStatus,
         });
-        return this.createDebitorView(projekt, aktualisiert);
+        return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
       }
 
-      return this.createDebitorView(projekt, metadaten);
+      return this.createDebitorView(projekt, metadaten, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Status:', error);
       throw error;
@@ -557,7 +680,11 @@ class DebitorService {
 
       // Projekt neu laden nach Update
       const aktualisierteProjekt = await projektService.getProjekt(projektId);
-      return this.createDebitorView(aktualisierteProjekt, aktualisiert);
+
+      // Lade Rechnungsdokument als Fallback
+      const rechnungsDokument = !aktualisierteProjekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+
+      return this.createDebitorView(aktualisierteProjekt, aktualisiert, rechnungsDokument);
     } catch (error) {
       console.error('Fehler beim Markieren als bezahlt:', error);
       throw error;
@@ -693,16 +820,47 @@ class DebitorService {
   }
 
   /**
-   * Erstellt ein DebitorView aus Projekt + Metadaten
+   * Erstellt ein DebitorView aus Projekt + Metadaten + optionalem Rechnungsdokument
    */
-  private createDebitorView(projekt: Projekt, metadaten: DebitorMetadaten | null): DebitorView {
-    const rechnungsbetrag = this.parseRechnungsbetrag(projekt);
+  private createDebitorView(
+    projekt: Projekt,
+    metadaten: DebitorMetadaten | null,
+    rechnungsDokument?: RechnungsDokument | null
+  ): DebitorView {
+    // Projekt-ID kann als $id (Appwrite) oder id (intern) vorliegen
+    const projektId = (projekt as any).$id || projekt.id;
+
+    // Rechnungsbetrag: Priorität = Projekt.rechnungsDaten > Rechnungsdokument
+    const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
     const zahlungen = metadaten?.zahlungen || [];
     const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
-    const zahlungszielTage = metadaten?.zahlungszielTage || STANDARD_ZAHLUNGSZIEL_TAGE;
+
+    // Rechnungsnummer und -datum: Fallback auf Dokument wenn im Projekt nicht vorhanden
+    const rechnungsnummer = projekt.rechnungsnummer || rechnungsDokument?.dokumentNummer;
+    const rechnungsdatum = projekt.rechnungsdatum || (rechnungsDokument?.$createdAt ? rechnungsDokument.$createdAt.split('T')[0] : undefined);
+
+    // Zahlungsziel-Priorität:
+    // 1. Aus Debitor-Metadaten (explizit gesetzt)
+    // 2. Aus Rechnungsdaten des Projekts (zahlungszielTage oder geparstes zahlungsziel)
+    // 3. Standard: 14 Tage
+    let zahlungszielTage = STANDARD_ZAHLUNGSZIEL_TAGE;
+    if (metadaten?.zahlungszielTage !== undefined && metadaten.zahlungszielTage !== null) {
+      zahlungszielTage = metadaten.zahlungszielTage;
+    } else {
+      // Versuche aus Rechnungsdaten zu extrahieren
+      const rechnungsDaten = this.parseRechnungsDaten(projekt);
+      if (rechnungsDaten?.zahlungszielTage !== undefined && rechnungsDaten.zahlungszielTage !== null) {
+        zahlungszielTage = rechnungsDaten.zahlungszielTage;
+      } else if (rechnungsDaten?.zahlungsziel) {
+        const geparstes = parseZahlungszielTage(rechnungsDaten.zahlungsziel);
+        if (geparstes !== null) {
+          zahlungszielTage = geparstes;
+        }
+      }
+    }
 
     const faelligkeitsdatum = this.berechneFaelligkeitsdatum(
-      projekt.rechnungsdatum || projekt.erstelltAm,
+      rechnungsdatum || projekt.erstelltAm,
       zahlungszielTage
     );
 
@@ -719,14 +877,14 @@ class DebitorService {
     }
 
     return {
-      projektId: projekt.id,
+      projektId: projektId,
       kundeId: projekt.kundeId,
       kundennummer: projekt.kundennummer,
       kundenname: projekt.kundenname,
       kundenEmail: projekt.kundenEmail,
       ansprechpartner: projekt.ansprechpartner,
-      rechnungsnummer: projekt.rechnungsnummer,
-      rechnungsdatum: projekt.rechnungsdatum,
+      rechnungsnummer: rechnungsnummer || undefined,
+      rechnungsdatum: rechnungsdatum || undefined,
       rechnungsbetrag,
       saisonjahr: projekt.saisonjahr,
 
@@ -751,18 +909,56 @@ class DebitorService {
   }
 
   /**
-   * Parst den Rechnungsbetrag aus dem Projekt
+   * Parst den Rechnungsbetrag aus dem Rechnungsdokument (BESTELLABWICKLUNG_DOKUMENTE)
+   * WICHTIG: Der Bruttobetrag ist im Dokument gespeichert, nicht im Projekt!
+   * Priorität: 1. rechnungsDokument.bruttobetrag (primäre Quelle!), 2. projekt.rechnungsDaten (Fallback)
    */
-  private parseRechnungsbetrag(projekt: Projekt): number {
+  private parseRechnungsbetrag(projekt: Projekt, rechnungsDokument?: RechnungsDokument | null): number {
+    // 1. PRIMÄRE QUELLE: Rechnungsdokument (BESTELLABWICKLUNG_DOKUMENTE)
+    // Das ist die gleiche Quelle wie in der Projektabwicklung UI!
+    if (rechnungsDokument) {
+      console.log(`💰 parseRechnungsbetrag [${projekt.kundenname}]: Dokument gefunden:`, {
+        dokumentNummer: rechnungsDokument.dokumentNummer,
+        bruttobetrag: rechnungsDokument.bruttobetrag
+      });
+
+      // Direkt bruttobetrag aus Dokument - genau wie in der UI
+      if (rechnungsDokument.bruttobetrag && rechnungsDokument.bruttobetrag > 0) {
+        console.log(`💰 parseRechnungsbetrag [${projekt.kundenname}]: ✅ Betrag aus Dokument: ${rechnungsDokument.bruttobetrag}€`);
+        return rechnungsDokument.bruttobetrag;
+      }
+    } else {
+      console.log(`💰 parseRechnungsbetrag [${projekt.kundenname}]: ⚠️ Kein Rechnungsdokument gefunden!`);
+    }
+
+    // 2. FALLBACK: projekt.rechnungsDaten (für neue Rechnungen)
+    const daten = this.parseRechnungsDaten(projekt);
+    if (daten?.gesamtBrutto && daten.gesamtBrutto > 0) {
+      console.log(`💰 parseRechnungsbetrag [${projekt.kundenname}]: Betrag aus rechnungsDaten: ${daten.gesamtBrutto}€`);
+      return daten.gesamtBrutto;
+    }
+
+    console.log(`💰 parseRechnungsbetrag [${projekt.kundenname}]: ❌ KEIN BETRAG GEFUNDEN - return 0`);
+    return 0;
+  }
+
+  /**
+   * Parst die Rechnungsdaten aus dem Projekt
+   */
+  private parseRechnungsDaten(projekt: Projekt): RechnungsDaten | null {
     if (projekt.rechnungsDaten) {
       try {
-        const daten: RechnungsDaten = JSON.parse(projekt.rechnungsDaten);
-        return daten.gesamtBrutto || 0;
-      } catch {
-        return 0;
+        console.log(`🔍 parseRechnungsDaten [${projekt.kundenname}]: Raw-String (erste 500 Zeichen):`, projekt.rechnungsDaten.substring(0, 500));
+        const parsed = JSON.parse(projekt.rechnungsDaten);
+        console.log(`🔍 parseRechnungsDaten [${projekt.kundenname}]: Geparste Daten:`, parsed);
+        console.log(`🔍 parseRechnungsDaten [${projekt.kundenname}]: gesamtBrutto=${parsed.gesamtBrutto}, bruttobetrag=${parsed.bruttobetrag}`);
+        return parsed as RechnungsDaten;
+      } catch (e) {
+        console.error(`🔍 parseRechnungsDaten [${projekt.kundenname}]: PARSE-FEHLER:`, e);
+        return null;
       }
     }
-    return 0;
+    return null;
   }
 
   /**

@@ -50,6 +50,8 @@ import {
   PLATZBAUER_DATEIEN_BUCKET_ID,
   // Debitorenverwaltung
   DEBITOREN_METADATEN_COLLECTION_ID,
+  // Mahnwesen
+  MAHNWESEN_DOKUMENTE_COLLECTION_ID,
   // Tourenplanung
   TOUREN_COLLECTION_ID,
   FAHRER_COLLECTION_ID,
@@ -62,7 +64,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '30'; // Platzbauer Entwurfs-Felder (angebotsDaten, etc.)
+const APPWRITE_SETUP_VERSION = '33'; // Mahnwesen: typ-Feld in Stammdaten für Vorlagen
 
 type FieldConfig = {
   key: string;
@@ -187,6 +189,8 @@ const kalenderFields: FieldConfig[] = [
 ];
 
 const stammdatenFields: FieldConfig[] = [
+  // Typ-Feld für verschiedene Stammdaten-Typen (z.B. 'mahnwesen_vorlagen', 'email_vorlagen')
+  { key: 'typ', type: 'string', size: 100, required: false },
   // Firmendaten - ALLE OPTIONAL
   { key: 'firmenname', type: 'string', size: 500, required: false },
   { key: 'firmenstrasse', type: 'string', size: 500, required: false },
@@ -397,6 +401,17 @@ const debitorenMetadatenFields: FieldConfig[] = [
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
   { key: 'data', type: 'string', size: 100000, required: true },               // JSON blob mit zahlungen, aktivitaeten, notizen, etc.
+];
+
+// Mahnwesen - Dokumente Collection (Zahlungserinnerungen, Mahnungen)
+const mahnwesenDokumenteFields: FieldConfig[] = [
+  { key: 'projektId', type: 'string', size: 100, required: true },             // Verknüpfung zum Projekt
+  { key: 'dokumentTyp', type: 'string', size: 50, required: true },            // zahlungserinnerung, mahnung_1, mahnung_2
+  { key: 'dokumentNummer', type: 'string', size: 50, required: true },         // z.B. ZE-2024-001, MA-2024-001
+  { key: 'dateiId', type: 'string', size: 100, required: true },               // Appwrite Storage File ID
+  { key: 'dateiname', type: 'string', size: 255, required: true },             // PDF Dateiname
+  { key: 'betrag', type: 'double', required: true },                           // Gesamtforderung
+  { key: 'daten', type: 'string', size: 100000, required: true },              // JSON der MahnwesenDokumentDaten
 ];
 
 // Tourenplanung - Touren Collection (KI-optimierte Liefertouren)
@@ -729,6 +744,13 @@ export async function setupAppwriteFields() {
         fields: debitorenMetadatenFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Mahnwesen
+      {
+        id: MAHNWESEN_DOKUMENTE_COLLECTION_ID,
+        name: 'Mahnwesen Dokumente',
+        fields: mahnwesenDokumenteFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
       // Tourenplanung
       {
         id: TOUREN_COLLECTION_ID,
@@ -794,6 +816,11 @@ export async function setupAppwriteFields() {
     await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'projektId_index', ['projektId']);
     await ensureIndex(CHAT_NACHRICHTEN_COLLECTION_ID, 'erstelltVon_index', ['erstelltVon']);
 
+    // Indizes für Projekte (Hauptsammlung)
+    await ensureIndex(PROJEKTE_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(PROJEKTE_COLLECTION_ID, 'saisonjahr_index', ['saisonjahr']);
+    await ensureIndex(PROJEKTE_COLLECTION_ID, 'kundeId_index', ['kundeId']);
+
     // Indizes für Platzbauer-Projekte
     await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'platzbauerId_index', ['platzbauerId']);
     await ensureIndex(PLATZBAUER_PROJEKTE_COLLECTION_ID, 'saisonjahr_index', ['saisonjahr']);
@@ -817,6 +844,11 @@ export async function setupAppwriteFields() {
     await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'status_index', ['status']);
     await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'mahnstufe_index', ['mahnstufe']);
 
+    // Indizes für Mahnwesen-Dokumente
+    await ensureIndex(MAHNWESEN_DOKUMENTE_COLLECTION_ID, 'projektId_index', ['projektId']);
+    await ensureIndex(MAHNWESEN_DOKUMENTE_COLLECTION_ID, 'dokumentTyp_index', ['dokumentTyp']);
+    await ensureIndex(MAHNWESEN_DOKUMENTE_COLLECTION_ID, 'dokumentNummer_index', ['dokumentNummer']);
+
     // Indizes für Tourenplanung
     await ensureIndex(TOUREN_COLLECTION_ID, 'datum_index', ['datum']);
     await ensureIndex(TOUREN_COLLECTION_ID, 'status_index', ['status']);
@@ -829,6 +861,9 @@ export async function setupAppwriteFields() {
     await ensureIndex(ANFRAGEN_COLLECTION_ID, 'emailAbsender_index', ['emailAbsender']);
     await ensureIndex(ANFRAGEN_COLLECTION_ID, 'emailDatum_index', ['emailDatum']);
     await ensureIndex(ANFRAGEN_COLLECTION_ID, 'projektId_index', ['projektId']);
+
+    // Index für Stammdaten (typ-Feld für Mahnwesen-Vorlagen etc.)
+    await ensureIndex(STAMMDATEN_COLLECTION_ID, 'typ_index', ['typ']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

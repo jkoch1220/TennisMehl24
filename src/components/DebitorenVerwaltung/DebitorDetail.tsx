@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X,
@@ -14,7 +14,10 @@ import {
   MessageSquare,
   CreditCard,
   Send,
-  ChevronUp,
+  FileText,
+  Download,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 import {
   DebitorView,
@@ -24,6 +27,19 @@ import {
   MAHNSTUFEN_CONFIG,
 } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
+import {
+  MahnwesenDokumentTyp,
+  GespeichertesMahnwesenDokument,
+} from '../../types/mahnwesen';
+import {
+  erstelleMahnwesenDokumentDaten,
+  speichereMahnwesenDokument,
+  ladeMahnwesenDokumenteFuerProjekt,
+  getMahnwesenDokumentUrl,
+  getMahnwesenDokumentDownloadUrl,
+  regeneriereMahnwesenDokument,
+} from '../../services/mahnwesenService';
+import { projektService } from '../../services/projektService';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -35,6 +51,7 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
   const navigate = useNavigate();
   const [showZahlungFormular, setShowZahlungFormular] = useState(false);
   const [showAktivitaetFormular, setShowAktivitaetFormular] = useState(false);
+  const [showMahnwesenDialog, setShowMahnwesenDialog] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Zahlung Formular State
@@ -47,6 +64,40 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
   const [aktivitaetTyp, setAktivitaetTyp] = useState<DebitorAktivitaetsTyp>('kommentar');
   const [aktivitaetTitel, setAktivitaetTitel] = useState<string>('');
   const [aktivitaetBeschreibung, setAktivitaetBeschreibung] = useState<string>('');
+
+  // Mahnwesen State
+  const [mahnwesenDokumente, setMahnwesenDokumente] = useState<GespeichertesMahnwesenDokument[]>([]);
+  const [erstellenTyp, setErstellenTyp] = useState<MahnwesenDokumentTyp | null>(null);
+  const [regenerierenId, setRegenerierenId] = useState<string | null>(null);
+  const [kundenAdresse, setKundenAdresse] = useState<{ strasse: string; plzOrt: string }>({
+    strasse: '',
+    plzOrt: '',
+  });
+
+  // Mahnwesen-Dokumente und Kundenadresse laden
+  useEffect(() => {
+    const loadData = async () => {
+      // Lade Mahnwesen-Dokumente
+      const dokumente = await ladeMahnwesenDokumenteFuerProjekt(debitor.projektId);
+      setMahnwesenDokumente(dokumente);
+
+      // Lade Kundenadresse aus dem Projekt
+      try {
+        const projekt = await projektService.getProjekt(debitor.projektId);
+        if (projekt) {
+          // Nutze Lieferadresse wenn vorhanden, sonst Kundenadresse
+          const lieferAdresse = projekt.lieferadresse;
+          setKundenAdresse({
+            strasse: lieferAdresse?.strasse || projekt.kundenstrasse || '',
+            plzOrt: lieferAdresse ? `${lieferAdresse.plz} ${lieferAdresse.ort}` : (projekt.kundenPlzOrt || ''),
+          });
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Projektdaten:', error);
+      }
+    };
+    loadData();
+  }, [debitor.projektId]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -127,27 +178,6 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
     }
   };
 
-  // Mahnstufe erhöhen
-  const handleErhoehenMahnstufe = async () => {
-    if (debitor.mahnstufe >= 4) {
-      alert('Maximale Mahnstufe erreicht');
-      return;
-    }
-
-    const notiz = prompt('Notiz zur Mahnung (optional):');
-
-    setLoading(true);
-    try {
-      await debitorService.erhoeheMahnstufe(debitor.projektId, notiz || undefined);
-      onUpdate();
-    } catch (error) {
-      console.error('Fehler beim Erhöhen der Mahnstufe:', error);
-      alert('Fehler beim Erhöhen der Mahnstufe');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Als bezahlt markieren
   const handleMarkiereAlsBezahlt = async () => {
     if (!confirm('Möchten Sie diese Rechnung als vollständig bezahlt markieren?')) return;
@@ -163,6 +193,107 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
       setLoading(false);
     }
   };
+
+  // Mahnwesen-Dokument erstellen
+  const handleErstelleMahnwesenDokument = async (typ: MahnwesenDokumentTyp) => {
+    if (!kundenAdresse.strasse || !kundenAdresse.plzOrt) {
+      alert('Kundenadresse fehlt. Bitte prüfen Sie die Projektdaten.');
+      return;
+    }
+
+    setLoading(true);
+    setErstellenTyp(typ);
+    try {
+      // Debitor-Daten mit Adresse anreichern
+      const debitorMitAdresse: DebitorView = {
+        ...debitor,
+      };
+
+      // Mahnwesen-Dokumentdaten erstellen
+      const dokumentDaten = await erstelleMahnwesenDokumentDaten(debitorMitAdresse, typ);
+
+      // Kundenadresse hinzufügen
+      dokumentDaten.kundenstrasse = kundenAdresse.strasse;
+      dokumentDaten.kundenPlzOrt = kundenAdresse.plzOrt;
+
+      // Dokument speichern (generiert PDF und speichert in Appwrite)
+      const gespeichertesDokument = await speichereMahnwesenDokument(dokumentDaten);
+
+      // Mahnstufe im Debitor aktualisieren
+      const neueMahnstufe = typ === 'zahlungserinnerung' ? 1 : typ === 'mahnung_1' ? 2 : 3;
+      if (neueMahnstufe > debitor.mahnstufe) {
+        await debitorService.markiereMahnungVersendet(
+          debitor.projektId,
+          neueMahnstufe as 0 | 1 | 2 | 3 | 4,
+          `${typ === 'zahlungserinnerung' ? 'Zahlungserinnerung' : typ === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung'} erstellt: ${dokumentDaten.dokumentNummer}`
+        );
+      }
+
+      // Dokumente neu laden
+      const dokumente = await ladeMahnwesenDokumenteFuerProjekt(debitor.projektId);
+      setMahnwesenDokumente(dokumente);
+
+      // PDF im neuen Tab öffnen
+      const pdfUrl = getMahnwesenDokumentUrl(gespeichertesDokument.dateiId);
+      window.open(pdfUrl, '_blank');
+
+      setShowMahnwesenDialog(false);
+      onUpdate();
+
+      alert(`${typ === 'zahlungserinnerung' ? 'Zahlungserinnerung' : typ === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung'} wurde erstellt und gespeichert!`);
+    } catch (error) {
+      console.error('Fehler beim Erstellen des Mahnwesen-Dokuments:', error);
+      alert('Fehler beim Erstellen des Dokuments. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
+      setErstellenTyp(null);
+    }
+  };
+
+  // Mahnwesen-Dokument neu generieren (z.B. um QR-Code hinzuzufügen)
+  const handleRegeneriereDokument = async (dokumentId: string) => {
+    if (!confirm('Möchten Sie dieses Dokument neu generieren? Die alte PDF wird ersetzt.')) return;
+
+    setLoading(true);
+    setRegenerierenId(dokumentId);
+    try {
+      const aktualisiertesDokument = await regeneriereMahnwesenDokument(dokumentId);
+
+      // Dokumente neu laden
+      const dokumente = await ladeMahnwesenDokumenteFuerProjekt(debitor.projektId);
+      setMahnwesenDokumente(dokumente);
+
+      // PDF im neuen Tab öffnen
+      const pdfUrl = getMahnwesenDokumentUrl(aktualisiertesDokument.dateiId);
+      window.open(pdfUrl, '_blank');
+
+      alert('Dokument wurde neu generiert!');
+    } catch (error) {
+      console.error('Fehler beim Regenerieren des Dokuments:', error);
+      alert('Fehler beim Regenerieren des Dokuments. Bitte versuchen Sie es erneut.');
+    } finally {
+      setLoading(false);
+      setRegenerierenId(null);
+    }
+  };
+
+  // Welches Mahnwesen-Dokument kann als nächstes erstellt werden?
+  const getNaechsterMahnwesenTyp = (): MahnwesenDokumentTyp | null => {
+    if (debitor.status === 'bezahlt') return null;
+    if (debitor.tageUeberfaellig <= 0) return null;
+
+    // Prüfe welche Dokumente bereits existieren
+    const hatZahlungserinnerung = mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung');
+    const hatMahnung1 = mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1');
+    const hatMahnung2 = mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2');
+
+    if (!hatZahlungserinnerung) return 'zahlungserinnerung';
+    if (!hatMahnung1) return 'mahnung_1';
+    if (!hatMahnung2) return 'mahnung_2';
+    return null;
+  };
+
+  const naechsterTyp = getNaechsterMahnwesenTyp();
 
   // Aktivitäten sortiert (neueste zuerst)
   const sortedAktivitaeten = [...debitor.aktivitaeten].sort(
@@ -443,6 +574,244 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
                 )}
               </div>
 
+              {/* Mahnwesen-Dokumente */}
+              <div className="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Mahnwesen ({mahnwesenDokumente.length})
+                  </h3>
+                  {naechsterTyp && debitor.tageUeberfaellig > 0 && (
+                    <button
+                      onClick={() => setShowMahnwesenDialog(true)}
+                      className="px-3 py-1 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1"
+                      disabled={loading}
+                    >
+                      <Plus className="w-4 h-4" />
+                      {naechsterTyp === 'zahlungserinnerung' ? 'Erinnerung' : naechsterTyp === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Mahnwesen Dialog */}
+                {showMahnwesenDialog && (
+                  <div className="mb-4 p-4 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+                    <h4 className="font-medium text-gray-900 dark:text-slate-100 mb-3">
+                      Mahnwesen-Dokument erstellen
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+                      Wählen Sie den Dokumenttyp. Das PDF wird automatisch generiert und gespeichert.
+                    </p>
+
+                    <div className="space-y-2 mb-4">
+                      {/* Zahlungserinnerung */}
+                      <button
+                        onClick={() => handleErstelleMahnwesenDokument('zahlungserinnerung')}
+                        disabled={loading || mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')}
+                        className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
+                          mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')
+                            ? 'bg-gray-100 dark:bg-slate-700 border-gray-200 dark:border-slate-600 opacity-50'
+                            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')
+                            ? 'bg-gray-200 dark:bg-slate-600'
+                            : 'bg-blue-200 dark:bg-blue-800'
+                        }`}>
+                          <Mail className={`w-5 h-5 ${
+                            mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')
+                              ? 'text-gray-500'
+                              : 'text-blue-600 dark:text-blue-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${
+                            mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')
+                              ? 'text-gray-500 dark:text-slate-400'
+                              : 'text-gray-900 dark:text-slate-100'
+                          }`}>
+                            Zahlungserinnerung
+                            {mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') && ' (bereits erstellt)'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            Freundliche Erinnerung an die ausstehende Zahlung
+                          </p>
+                        </div>
+                        {erstellenTyp === 'zahlungserinnerung' && (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                        )}
+                      </button>
+
+                      {/* 1. Mahnung */}
+                      <button
+                        onClick={() => handleErstelleMahnwesenDokument('mahnung_1')}
+                        disabled={loading || !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')}
+                        className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
+                          !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')
+                            ? 'bg-gray-100 dark:bg-slate-700 border-gray-200 dark:border-slate-600 opacity-50'
+                            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')
+                            ? 'bg-gray-200 dark:bg-slate-600'
+                            : 'bg-amber-200 dark:bg-amber-800'
+                        }`}>
+                          <AlertTriangle className={`w-5 h-5 ${
+                            !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')
+                              ? 'text-gray-500'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${
+                            !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')
+                              ? 'text-gray-500 dark:text-slate-400'
+                              : 'text-gray-900 dark:text-slate-100'
+                          }`}>
+                            1. Mahnung
+                            {mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') && ' (bereits erstellt)'}
+                            {!mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') && ' (erst nach Erinnerung)'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            Formelle erste Mahnung mit Mahngebühren
+                          </p>
+                        </div>
+                        {erstellenTyp === 'mahnung_1' && (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-amber-600" />
+                        )}
+                      </button>
+
+                      {/* 2. Mahnung */}
+                      <button
+                        onClick={() => handleErstelleMahnwesenDokument('mahnung_2')}
+                        disabled={loading || !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')}
+                        className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
+                          !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')
+                            ? 'bg-gray-100 dark:bg-slate-700 border-gray-200 dark:border-slate-600 opacity-50'
+                            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')
+                            ? 'bg-gray-200 dark:bg-slate-600'
+                            : 'bg-red-200 dark:bg-red-800'
+                        }`}>
+                          <AlertTriangle className={`w-5 h-5 ${
+                            !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')
+                              ? 'text-gray-500'
+                              : 'text-red-600 dark:text-red-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`font-medium ${
+                            !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')
+                              ? 'text-gray-500 dark:text-slate-400'
+                              : 'text-gray-900 dark:text-slate-100'
+                          }`}>
+                            2. Mahnung (Letzte Warnung)
+                            {mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2') && ' (bereits erstellt)'}
+                            {!mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') && ' (erst nach 1. Mahnung)'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            Letzte Mahnung mit Inkasso-Androhung
+                          </p>
+                        </div>
+                        {erstellenTyp === 'mahnung_2' && (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600" />
+                        )}
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setShowMahnwesenDialog(false)}
+                      className="w-full px-3 py-2 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors text-sm"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                )}
+
+                {/* Liste der erstellten Mahnwesen-Dokumente */}
+                {mahnwesenDokumente.length > 0 ? (
+                  <div className="space-y-2">
+                    {mahnwesenDokumente.map((dokument) => (
+                      <div
+                        key={dokument.$id}
+                        className="flex items-center justify-between p-3 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            dokument.dokumentTyp === 'zahlungserinnerung'
+                              ? 'bg-blue-100 dark:bg-blue-900/30'
+                              : dokument.dokumentTyp === 'mahnung_1'
+                              ? 'bg-amber-100 dark:bg-amber-900/30'
+                              : 'bg-red-100 dark:bg-red-900/30'
+                          }`}>
+                            <FileText className={`w-4 h-4 ${
+                              dokument.dokumentTyp === 'zahlungserinnerung'
+                                ? 'text-blue-600 dark:text-blue-400'
+                                : dokument.dokumentTyp === 'mahnung_1'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-red-600 dark:text-red-400'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-slate-100 text-sm">
+                              {dokument.dokumentTyp === 'zahlungserinnerung'
+                                ? 'Zahlungserinnerung'
+                                : dokument.dokumentTyp === 'mahnung_1'
+                                ? '1. Mahnung'
+                                : '2. Mahnung'}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">
+                              {dokument.dokumentNummer} • {dokument.$createdAt && new Date(dokument.$createdAt).toLocaleDateString('de-DE')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleRegeneriereDokument(dokument.$id!)}
+                            disabled={loading || regenerierenId === dokument.$id}
+                            className="p-2 text-gray-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors disabled:opacity-50"
+                            title="Neu generieren"
+                          >
+                            {regenerierenId === dokument.$id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600" />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                          </button>
+                          <a
+                            href={getMahnwesenDokumentUrl(dokument.dateiId)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            title="Ansehen"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </a>
+                          <a
+                            href={getMahnwesenDokumentDownloadUrl(dokument.dateiId)}
+                            className="p-2 text-gray-500 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                            title="Herunterladen"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-4">
+                    {debitor.tageUeberfaellig > 0
+                      ? 'Noch keine Mahnungen erstellt'
+                      : 'Rechnung ist noch nicht überfällig'}
+                  </p>
+                )}
+              </div>
+
               {/* Aktionen */}
               <div className="flex flex-wrap gap-2">
                 {debitor.status !== 'bezahlt' && (
@@ -455,16 +824,6 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
                       <CheckCircle className="w-4 h-4" />
                       Als bezahlt markieren
                     </button>
-                    {debitor.mahnstufe < 4 && (
-                      <button
-                        onClick={handleErhoehenMahnstufe}
-                        disabled={loading}
-                        className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
-                      >
-                        <ChevronUp className="w-4 h-4" />
-                        Mahnstufe erhöhen
-                      </button>
-                    )}
                   </>
                 )}
               </div>
