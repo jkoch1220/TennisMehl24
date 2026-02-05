@@ -54,6 +54,20 @@ export default function Fahrkostenabrechnung() {
     ladeDaten();
   }, [ladeDaten]);
 
+  // Wenn Fahrten geladen sind, prüfe ob der ausgewählte Monat Daten hat
+  // Falls nicht, wechsle zum neuesten Monat mit Daten
+  useEffect(() => {
+    if (fahrten.length > 0) {
+      const verfuegbareMonate = fahrkostenService.gruppiereNachMonat(fahrten);
+      const monatHatDaten = verfuegbareMonate.some(s => s.monat === selectedMonat);
+
+      if (!monatHatDaten && verfuegbareMonate.length > 0) {
+        // Wechsle zum neuesten Monat mit Daten
+        setSelectedMonat(verfuegbareMonate[0].monat);
+      }
+    }
+  }, [fahrten, selectedMonat]);
+
   // Quick-Add: Sofort eine Favorit-Strecke erfassen
   const handleQuickAdd = async (strecke: DefaultStrecke) => {
     if (!user) return;
