@@ -26,7 +26,33 @@ import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import { saisonplanungService } from './saisonplanungService';
+import { debitorService } from './debitorService';
 import jsPDF from 'jspdf';
+
+// Helper: Zahlungsziel-String zu Tagen parsen
+// z.B. "14 Tage", "30 Tage netto", "Vorkasse" → Zahl der Tage
+const parseZahlungszielTage = (zahlungsziel: string): number => {
+  if (!zahlungsziel) return 14; // Default: 14 Tage
+
+  const lower = zahlungsziel.toLowerCase().trim();
+
+  // Vorkasse = sofort fällig
+  if (lower.includes('vorkasse') || lower.includes('vorauskasse') || lower === 'sofort') {
+    return 0;
+  }
+
+  // Extrahiere Zahl aus dem String (z.B. "14 Tage", "30 Tage netto", "netto 14 Tage")
+  const zahlenMatch = zahlungsziel.match(/(\d+)/);
+  if (zahlenMatch) {
+    const tage = parseInt(zahlenMatch[1], 10);
+    if (!isNaN(tage) && tage >= 0) {
+      return tage;
+    }
+  }
+
+  // Default: 14 Tage
+  return 14;
+};
 
 // Helper: PDF zu Blob konvertieren
 const pdfToBlob = (pdf: jsPDF): Blob => {
@@ -668,6 +694,46 @@ export const speichereRechnung = async (
         daten: JSON.stringify(daten) // Für Archivierung
       }
     );
+
+    // === PROJEKT-STATUS AUF "RECHNUNG" SETZEN ===
+    // WICHTIG: Damit das Projekt in der Debitorenverwaltung erscheint
+    try {
+      const zahlungszielTage = parseZahlungszielTage(daten.zahlungsziel);
+
+      await projektService.updateProjekt(projektId, {
+        status: 'rechnung',
+        rechnungsnummer: daten.rechnungsnummer,
+        rechnungsdatum: daten.rechnungsdatum,
+        rechnungsDaten: JSON.stringify({
+          gesamtBrutto: summen.bruttobetrag,
+          gesamtNetto: summen.nettobetrag,
+          zahlungsziel: daten.zahlungsziel,
+          zahlungszielTage: zahlungszielTage,
+          positionen: daten.positionen.map(p => ({
+            bezeichnung: p.bezeichnung,
+            menge: p.menge,
+            einzelpreis: p.einzelpreis,
+            gesamtpreis: p.gesamtpreis
+          }))
+        }),
+      });
+      console.log(`✅ Projekt-Status auf "rechnung" gesetzt, erscheint nun in Debitorenverwaltung`);
+
+      // === DEBITOR-METADATEN ERSTELLEN/AKTUALISIEREN ===
+      // Zahlungsziel aus der Rechnung in den Debitor-Metadaten speichern
+      try {
+        await debitorService.getOrCreateMetadaten(projektId);
+        await debitorService.updateMetadaten(projektId, {
+          zahlungszielTage: zahlungszielTage,
+          status: 'offen',
+        });
+        console.log(`✅ Debitor-Metadaten erstellt mit Zahlungsziel: ${zahlungszielTage} Tage`);
+      } catch (debitorError) {
+        console.error('⚠️ Fehler beim Erstellen der Debitor-Metadaten (Rechnung wurde trotzdem gespeichert):', debitorError);
+      }
+    } catch (statusError) {
+      console.error('⚠️ Fehler beim Status-Wechsel (Rechnung wurde trotzdem gespeichert):', statusError);
+    }
 
     // === PREIS IN KUNDENSTAMMDATEN AKTUALISIEREN (Last Year Price) ===
     // Nach erfolgreicher Rechnungsstellung den Preis im Kunden hinterlegen

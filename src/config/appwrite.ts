@@ -69,9 +69,15 @@ export const PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID = 'platzbauer_lieferscheine'
 // Debitorenverwaltung Collection
 export const DEBITOREN_METADATEN_COLLECTION_ID = 'debitoren_metadaten';
 
+// Mahnwesen Collection (Zahlungserinnerungen, Mahnungen)
+export const MAHNWESEN_DOKUMENTE_COLLECTION_ID = 'mahnwesen_dokumente';
+
 // Tourenplanung Collections
 export const TOUREN_COLLECTION_ID = 'touren';
 export const FAHRER_COLLECTION_ID = 'fahrer';
+
+// Ziegelmehl Abgabe Collection (from dachziegelrueckgabe.de website)
+export const ZIEGELMEHL_ABGABEN_COLLECTION_ID = 'ziegelmehl_abgaben';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -134,9 +140,13 @@ export const COLLECTIONS = {
   PLATZBAUER_LIEFERSCHEINE: PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
   // Debitorenverwaltung
   DEBITOREN_METADATEN: DEBITOREN_METADATEN_COLLECTION_ID,
+  // Mahnwesen
+  MAHNWESEN_DOKUMENTE: MAHNWESEN_DOKUMENTE_COLLECTION_ID,
   // Tourenplanung
   TOUREN: TOUREN_COLLECTION_ID,
   FAHRER: FAHRER_COLLECTION_ID,
+  // Ziegelmehl Abgabe (dachziegelrueckgabe.de)
+  ZIEGELMEHL_ABGABEN: ZIEGELMEHL_ABGABEN_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

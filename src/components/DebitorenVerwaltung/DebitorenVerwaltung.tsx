@@ -8,13 +8,15 @@ import {
   Euro,
   Search,
   Filter,
+  Settings,
 } from 'lucide-react';
 import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import DebitorenListe from './DebitorenListe';
 import DebitorDetail from './DebitorDetail';
+import MahnwesenEinstellungen from './MahnwesenEinstellungen';
 
-type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt';
+type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt' | 'einstellungen';
 
 const DebitorenVerwaltung = () => {
   const [debitoren, setDebitoren] = useState<DebitorView[]>([]);
@@ -125,7 +127,7 @@ const DebitorenVerwaltung = () => {
     );
   }
 
-  const tabs: { id: TabId; label: string; count?: number; color: string }[] = [
+  const tabs: { id: TabId; label: string; count?: number; color: string; icon?: typeof Settings }[] = [
     { id: 'dashboard', label: 'Dashboard', color: 'blue' },
     {
       id: 'offen',
@@ -144,6 +146,12 @@ const DebitorenVerwaltung = () => {
       label: 'Bezahlt',
       count: statistik?.anzahlBezahlt || 0,
       color: 'green',
+    },
+    {
+      id: 'einstellungen',
+      label: 'Einstellungen',
+      color: 'gray',
+      icon: Settings,
     },
   ];
 
@@ -200,6 +208,7 @@ const DebitorenVerwaltung = () => {
                   : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800'
               }`}
             >
+              {tab.icon && <tab.icon className="w-4 h-4" />}
               {tab.label}
               {tab.count !== undefined && (
                 <span
@@ -406,8 +415,13 @@ const DebitorenVerwaltung = () => {
           </div>
         )}
 
+        {/* Einstellungen Tab */}
+        {activeTab === 'einstellungen' && (
+          <MahnwesenEinstellungen />
+        )}
+
         {/* Andere Tabs: Liste */}
-        {activeTab !== 'dashboard' && (
+        {activeTab !== 'dashboard' && activeTab !== 'einstellungen' && (
           <div className="space-y-4">
             {/* Suche */}
             <div className="flex gap-4">
