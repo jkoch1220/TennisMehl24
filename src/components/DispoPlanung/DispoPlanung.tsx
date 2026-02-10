@@ -32,6 +32,7 @@ import {
   ZoomIn,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
+import DispoKartenAnsicht from './DispoKartenAnsicht';
 import { AngebotsDaten } from '../../types/projektabwicklung';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -60,7 +61,7 @@ const DISPO_STATUS_CONFIG: Record<DispoStatus, { label: string; color: string; b
 type FilterStatus = 'alle' | DispoStatus;
 
 // Tab-Typen
-type DispoTab = 'auftraege' | 'touren';
+type DispoTab = 'auftraege' | 'touren' | 'karte';
 
 const DispoPlanung = () => {
   const navigate = useNavigate();
@@ -296,11 +297,31 @@ const DispoPlanung = () => {
             <Sparkles className="w-3 h-3" />
             KI-Tourenplanung
           </button>
+          <button
+            onClick={() => setActiveTab('karte')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'karte'
+                ? 'bg-gradient-to-r from-green-600 to-teal-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <MapPin className="w-4 h-4" />
+            Karte
+          </button>
         </div>
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'touren' ? (
+      {activeTab === 'karte' ? (
+        <DispoKartenAnsicht
+          projekte={projekte}
+          kundenMap={kundenMap}
+          onProjektClick={(projekt) => {
+            const projektId = (projekt as any).$id || projekt.id;
+            navigate(`/projektabwicklung/${projektId}`);
+          }}
+        />
+      ) : activeTab === 'touren' ? (
         <TourenPlanungTab
           onNavigateToProjekt={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
         />
