@@ -120,10 +120,14 @@ export interface TourOptimierung {
 // Haupt-Tour Interface
 export interface Tour {
   id: string;
-  datum: string; // ISO Date (YYYY-MM-DD)
+  datum: string; // ISO Date (YYYY-MM-DD) - kann auch leer sein für "später festlegen"
   name: string; // z.B. "Tour 1 - MSP-ZM 123"
   fahrzeugId: string;
   fahrerId?: string;
+
+  // LKW-Typ und Kapazitäten (neu für manuelle Touren)
+  lkwTyp: TourFahrzeugTyp; // 'motorwagen' | 'mit_haenger'
+  kapazitaet: TourKapazitaet; // Variable Kapazitäten
 
   // Stops in optimierter Reihenfolge
   stops: TourStop[];
@@ -196,11 +200,24 @@ export interface ClaudeOptimierungRequest {
 // Fahrzeug-Typ für Touren
 export type TourFahrzeugTyp = 'motorwagen' | 'mit_haenger';
 
-// Kapazitäten
-export const FAHRZEUG_KAPAZITAETEN = {
-  motorwagen: 18, // Tonnen
-  mit_haenger: 28, // Tonnen (18 + 10)
+// Standard-Kapazitäten (können pro Tour überschrieben werden)
+export const STANDARD_KAPAZITAETEN = {
+  motorwagen: 14, // Tonnen (Standard)
+  haenger: 10, // Tonnen (Standard)
 };
+
+// Kapazitäten für Touren (Gesamt)
+export const FAHRZEUG_KAPAZITAETEN = {
+  motorwagen: 14, // Tonnen (nur Motorwagen)
+  mit_haenger: 24, // Tonnen (14 + 10)
+};
+
+// Tour-Kapazitäts-Konfiguration (variabel pro Tour)
+export interface TourKapazitaet {
+  motorwagenTonnen: number; // z.B. 14t
+  haengerTonnen?: number; // z.B. 10t (nur bei mit_haenger)
+  gesamtTonnen: number; // Berechnet: motorwagen + hänger
+}
 
 // Einzelne Tour-Empfehlung von Claude
 export interface ClaudeTourEmpfehlung {

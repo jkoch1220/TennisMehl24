@@ -44,6 +44,14 @@ export interface Stammdaten {
   aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
   saisonStartMonat?: number; // Standard: 11 (November)
 
+  // Liefersaison für PDF-Dokumente
+  // Wird auf Angeboten/Dokumenten angezeigt, z.B. "Liefersaison voraussichtlich 02.03. - 17.04.2025 (10. - 16. KW 2025)"
+  liefersaisonStartDatum?: string; // z.B. "02.03.2025"
+  liefersaisonEndDatum?: string; // z.B. "17.04.2025"
+  liefersaisonStartKW?: number; // z.B. 10
+  liefersaisonEndKW?: number; // z.B. 16
+  liefersaisonJahr?: number; // z.B. 2025
+
   // Metadaten
   erstelltAm?: string;
   aktualisiertAm?: string;
@@ -72,4 +80,10 @@ export interface StammdatenInput {
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
   aktuelleSaison?: number;
   saisonStartMonat?: number;
+  // Liefersaison für PDF-Dokumente
+  liefersaisonStartDatum?: string;
+  liefersaisonEndDatum?: string;
+  liefersaisonStartKW?: number;
+  liefersaisonEndKW?: number;
+  liefersaisonJahr?: number;
 }

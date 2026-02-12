@@ -127,6 +127,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-green-600 to-emerald-600',
   },
   {
+    id: 'raben-rechner',
+    name: 'Raben Rechner',
+    description: 'Frachtkostenrechner Raben Spedition mit Live-Dieselpreisen',
+    href: '/raben-rechner',
+    icon: Truck,
+    color: 'from-blue-600 to-indigo-700',
+  },
+  {
     id: 'speditionskosten',
     name: 'Speditionskosten Rechner',
     description: 'Preisberechnung für Ziegelmehl mit Spedition oder Eigenlieferung',

@@ -390,6 +390,267 @@ export async function verarbeiteAnfrageVollstaendig(
 }
 
 /**
+ * Input für "Nur Kunde und Projekt anlegen" (ohne E-Mail-Versand)
+ */
+export interface NurProjektAnlegenInput {
+  anfrage?: VerarbeiteteAnfrage;
+  kundeNeu: boolean;
+  kundenDaten: {
+    name: string;
+    email: string;
+    telefon?: string;
+    strasse: string;
+    plz: string;
+    ort: string;
+    land?: string;
+    ansprechpartner?: string;
+  };
+  existierenderKundeId?: string;
+  positionen: Position[];
+  preisProTonne: number;
+}
+
+/**
+ * Ergebnis von "Nur Kunde und Projekt anlegen"
+ */
+export interface NurProjektAnlegenErgebnis {
+  success: boolean;
+  kundeId?: string;
+  kundennummer?: string;
+  projektId?: string;
+  error?: string;
+  fortschritt: VerarbeitungsFortschritt[];
+}
+
+/**
+ * Erstellt nur Kunde und Projekt - OHNE E-Mail-Versand
+ *
+ * Flow:
+ * 1. Kunde anlegen (wenn neu) oder laden
+ * 2. Projekt erstellen
+ * 3. Positionen im Projekt speichern
+ * 4. Anfrage in DB speichern (falls vorhanden)
+ */
+export async function erstelleNurKundeUndProjekt(
+  input: NurProjektAnlegenInput,
+  onFortschritt?: (fortschritt: VerarbeitungsFortschritt) => void
+): Promise<NurProjektAnlegenErgebnis> {
+  const fortschritt: VerarbeitungsFortschritt[] = [];
+
+  const reportFortschritt = (schritt: VerarbeitungsSchritt, erfolgreich: boolean, details?: string) => {
+    const f: VerarbeitungsFortschritt = { schritt, erfolgreich, details };
+    fortschritt.push(f);
+    if (onFortschritt) {
+      onFortschritt(f);
+    }
+  };
+
+  try {
+    // ============================================
+    // SCHRITT 1: Kunde anlegen oder laden
+    // ============================================
+    let kundeId = input.existierenderKundeId;
+    let kundennummer: string | undefined;
+
+    if (input.kundeNeu && input.kundenDaten) {
+      try {
+        const neuerKundeInput: NeuerSaisonKunde = {
+          typ: 'verein',
+          name: input.kundenDaten.name,
+          email: input.kundenDaten.email,
+          aktiv: true,
+          rechnungsadresse: {
+            strasse: input.kundenDaten.strasse,
+            plz: input.kundenDaten.plz,
+            ort: input.kundenDaten.ort,
+            bundesland: ''
+          },
+          lieferadresse: {
+            strasse: input.kundenDaten.strasse,
+            plz: input.kundenDaten.plz,
+            ort: input.kundenDaten.ort,
+            bundesland: ''
+          },
+          dispoAnsprechpartner: {
+            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
+            telefon: input.kundenDaten.telefon || '',
+          },
+        };
+
+        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
+        kundeId = neuerKunde.id;
+        kundennummer = neuerKunde.kundennummer;
+        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
+      } catch (error) {
+        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+      }
+    } else if (kundeId) {
+      try {
+        const existierenderKunde = await saisonplanungService.loadKunde(kundeId);
+        if (existierenderKunde) {
+          kundennummer = existierenderKunde.kundennummer;
+          reportFortschritt('kunde_anlegen', true, `Bestehender Kunde verwendet (${kundennummer || kundeId})`);
+        }
+      } catch (error) {
+        reportFortschritt('kunde_anlegen', false, 'Kunde konnte nicht geladen werden');
+        throw new Error('Existierender Kunde konnte nicht geladen werden');
+      }
+    } else {
+      // Kein Kunde ausgewählt - erstelle neuen
+      try {
+        const neuerKundeInput: NeuerSaisonKunde = {
+          typ: 'verein',
+          name: input.kundenDaten.name,
+          email: input.kundenDaten.email,
+          aktiv: true,
+          rechnungsadresse: {
+            strasse: input.kundenDaten.strasse,
+            plz: input.kundenDaten.plz,
+            ort: input.kundenDaten.ort,
+            bundesland: ''
+          },
+          lieferadresse: {
+            strasse: input.kundenDaten.strasse,
+            plz: input.kundenDaten.plz,
+            ort: input.kundenDaten.ort,
+            bundesland: ''
+          },
+          dispoAnsprechpartner: {
+            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
+            telefon: input.kundenDaten.telefon || '',
+          },
+        };
+
+        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
+        kundeId = neuerKunde.id;
+        kundennummer = neuerKunde.kundennummer;
+        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
+      } catch (error) {
+        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+      }
+    }
+
+    // ============================================
+    // SCHRITT 2: Projekt erstellen
+    // ============================================
+    let projektId: string;
+
+    try {
+      const kundenPlzOrt = formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land);
+
+      // Berechne Gesamtmenge aus Positionen
+      const gesamtMenge = input.positionen.reduce((sum, pos) => {
+        if (pos.einheit === 't') return sum + pos.menge;
+        return sum;
+      }, 0);
+
+      const projekt = await projektService.createProjekt({
+        projektName: input.kundenDaten.name,
+        kundeId: kundeId!,
+        kundennummer,
+        kundenname: input.kundenDaten.name,
+        kundenstrasse: input.kundenDaten.strasse,
+        kundenPlzOrt,
+        kundenEmail: input.kundenDaten.email,
+        saisonjahr: new Date().getFullYear(),
+        status: 'angebot', // Status "angebot" (nicht versendet)
+        angefragteMenge: gesamtMenge,
+        preisProTonne: input.preisProTonne,
+        ansprechpartner: input.kundenDaten.ansprechpartner,
+      });
+
+      projektId = projekt.id;
+      reportFortschritt('projekt_erstellen', true, `Projekt erstellt (ID: ${projektId})`);
+    } catch (error) {
+      reportFortschritt('projekt_erstellen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+      throw new Error(`Projekt konnte nicht erstellt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+    }
+
+    // ============================================
+    // SCHRITT 3: Positionen als Angebotsentwurf speichern
+    // ============================================
+    try {
+      const stammdaten = await getStammdatenOderDefault();
+      const heute = new Date().toISOString().split('T')[0];
+      const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
+
+      const angebotsDaten: AngebotsDaten = {
+        kundenname: input.kundenDaten.name,
+        kundenstrasse: input.kundenDaten.strasse,
+        kundenPlzOrt: formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land),
+        ansprechpartner: input.kundenDaten.ansprechpartner,
+        angebotsnummer: 'ENTWURF', // Noch keine Nummer - wird erst bei Versand generiert
+        angebotsdatum: heute,
+        gueltigBis,
+        positionen: input.positionen,
+        zahlungsziel: '14 Tage',
+        lieferbedingungenAktiviert: true,
+        lieferbedingungen: standardLieferbedingungen,
+        firmenname: stammdaten.firmenname,
+        firmenstrasse: stammdaten.firmenstrasse,
+        firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
+        firmenTelefon: stammdaten.firmenTelefon,
+        firmenEmail: stammdaten.firmenEmail,
+      };
+
+      await speichereAngebot(projektId, angebotsDaten);
+      reportFortschritt('angebot_speichern', true, 'Angebotsentwurf gespeichert');
+    } catch (error) {
+      // Nicht kritisch
+      reportFortschritt('angebot_speichern', false, 'Speichern fehlgeschlagen (nicht kritisch)');
+      console.warn('Angebotsentwurf konnte nicht gespeichert werden:', error);
+    }
+
+    // ============================================
+    // SCHRITT 4: Anfrage in DB speichern (falls vorhanden)
+    // ============================================
+    if (input.anfrage) {
+      try {
+        await anfragenService.createAnfrage({
+          emailBetreff: input.anfrage.emailBetreff,
+          emailAbsender: input.anfrage.emailAbsender,
+          emailDatum: input.anfrage.emailDatum,
+          emailText: input.anfrage.emailText,
+          emailHtml: input.anfrage.emailHtml,
+          extrahierteDaten: input.anfrage.extrahierteDaten,
+          status: 'angebot_erstellt', // Projekt angelegt, Angebotsentwurf gespeichert, aber nicht versendet
+          kundeId: kundeId!,
+          projektId,
+        });
+        reportFortschritt('anfrage_speichern', true, 'Anfrage protokolliert');
+      } catch (error) {
+        reportFortschritt('anfrage_speichern', false, 'Protokollierung fehlgeschlagen (nicht kritisch)');
+        console.warn('Anfrage konnte nicht in DB gespeichert werden:', error);
+      }
+    }
+
+    // ============================================
+    // FERTIG!
+    // ============================================
+    reportFortschritt('fertig', true, `Kunde und Projekt erfolgreich angelegt!`);
+
+    return {
+      success: true,
+      kundeId: kundeId!,
+      kundennummer,
+      projektId,
+      fortschritt,
+    };
+
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      fortschritt,
+    };
+  }
+}
+
+/**
  * Input für die erweiterte Positions-Erstellung
  */
 export interface ErstellePositionenInput {
@@ -468,7 +729,8 @@ export async function erstelleAnfragePositionen(
     artikelBeiladung02,
     artikelBeiladung03,
     artikelPE,
-    artikelFP // Frachtkostenpauschale / Mindermengenpauschale
+    artikelFP, // Frachtkostenpauschale / Mindermengenpauschale
+    artikelPalette // Palette für Speditionsware
   ] = await Promise.all([
     sucheArtikelNachNummer('TM-ZM-02'),
     sucheArtikelNachNummer('TM-ZM-03'),
@@ -478,6 +740,7 @@ export async function erstelleAnfragePositionen(
     sucheArtikelNachNummer('TM-ZM-03S'),
     sucheArtikelNachNummer('TM-PE'),
     sucheArtikelNachNummer('TM-FP'),
+    sucheArtikelNachNummer('TM-PAL'),
   ]);
 
   // ==========================================
@@ -667,6 +930,36 @@ export async function erstelleAnfragePositionen(
       gesamtpreisOhneLieferung += preis;
     }
     gesamtMengeGesackt += gesamtSackware03;
+  }
+
+  // ==========================================
+  // PALETTEN (Automatisch bei Sackware per Spedition!)
+  // 1 Palette pro Tonne Sackware
+  // ==========================================
+
+  // Spedition ist eingeschaltet wenn:
+  // - Sackware >= 1t ODER
+  // - Sackware vorhanden UND kein loses Material (also eigene Speditionslieferung)
+  const istSpedition = gesamtSackwareGesamt >= 1 || (gesamtSackwareGesamt > 0 && gesamtMengeLose === 0);
+
+  if (istSpedition && gesamtSackwareGesamt > 0) {
+    const anzahlPaletten = Math.ceil(gesamtSackwareGesamt); // 1 Palette pro Tonne (aufgerundet)
+    const preisPalette = artikelPalette?.einzelpreis ?? 15.00; // Fallback 15€/Palette
+    const infoPalette = getArtikelInfo(artikelPalette, 'Europalette');
+
+    positionen.push({
+      id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelnummer: 'TM-PAL',
+      bezeichnung: infoPalette.bezeichnung,
+      beschreibung: infoPalette.beschreibung || 'Tauschpalette für Palettenware',
+      menge: anzahlPaletten,
+      einheit: 'Stk',
+      einzelpreis: preisPalette,
+      gesamtpreis: anzahlPaletten * preisPalette,
+      istBedarfsposition: false,
+    });
+
+    gesamtpreisOhneLieferung += anzahlPaletten * preisPalette;
   }
 
   // ==========================================

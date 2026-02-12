@@ -36,6 +36,9 @@ import {
   Bot,
   Download,
   Truck,
+  Plus,
+  Trash2,
+  Edit3,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
 import { Position, AngebotsDaten } from '../../types/projektabwicklung';
@@ -53,6 +56,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import {
   verarbeiteAnfrageVollstaendig,
+  erstelleNurKundeUndProjekt,
   erstelleStandardPositionen,
   erstelleAnfragePositionen,
   generiereAngebotsVorschauPDF,
@@ -64,6 +68,8 @@ import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
+import { getAlleArtikel } from '../../services/artikelService';
+import { Artikel } from '../../types/artikel';
 
 // Konstanten für Fremdlieferung (LKW)
 const FREMDLIEFERUNG_STUNDENLOHN = 108; // €/Stunde
@@ -114,6 +120,7 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [processingNurProjekt, setProcessingNurProjekt] = useState(false); // Nur Kunde+Projekt anlegen
   const [sendingTest, setSendingTest] = useState(false);
   const [testSentSuccess, setTestSentSuccess] = useState(false);
   const [generatingPreview, setGeneratingPreview] = useState(false);
@@ -142,6 +149,14 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
     tonnage: number;
   }>({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
 
+  // Alle Positionen (automatisch generiert + manuell hinzugefügt) - ALLE bearbeitbar
+  const [allePositionen, setAllePositionen] = useState<Position[]>([]);
+  const [positionenLaden, setPositionenLaden] = useState(false);
+  const [showArtikelSuche, setShowArtikelSuche] = useState(false);
+  const [artikelSuchtext, setArtikelSuchtext] = useState('');
+  const [verfuegbareArtikel, setVerfuegbareArtikel] = useState<Artikel[]>([]);
+  const [artikelLaden, setArtikelLaden] = useState(false);
+
   // Lade existierende Kunden für Zuordnung
   useEffect(() => {
     const ladeKunden = async () => {
@@ -153,6 +168,22 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
       }
     };
     ladeKunden();
+  }, []);
+
+  // Lade verfügbare Artikel für manuelle Positionen
+  useEffect(() => {
+    const ladeArtikel = async () => {
+      setArtikelLaden(true);
+      try {
+        const artikel = await getAlleArtikel();
+        setVerfuegbareArtikel(artikel);
+      } catch (error) {
+        console.error('Fehler beim Laden der Artikel:', error);
+      } finally {
+        setArtikelLaden(false);
+      }
+    };
+    ladeArtikel();
   }, []);
 
   // Lade E-Mail-Protokoll für Duplikat-Erkennung (mit Zeitpunkten und Projekt-IDs!)
@@ -482,6 +513,8 @@ Bei Fragen sind wir gerne für Sie da.`,
         emailText: selectedAnfrage.emailVorschlag.text,
       });
       setSelectedKundeId(null);
+      setAllePositionen([]); // Reset Positionen bei neuer Anfrage
+      setShowArtikelSuche(false);
       setFortschrittListe([]);
       setShowFortschritt(false);
 
@@ -562,6 +595,63 @@ Bei Fragen sind wir gerne für Sie da.`,
     return () => clearTimeout(timeout);
   }, [editedData?.plz, editedData?.menge, editedData?.tonnenLose02, editedData?.tonnenLose03]);
 
+  // Positionen generieren wenn sich Tonnen-Felder, PLZ oder Preis ändern
+  useEffect(() => {
+    if (!editedData || !selectedAnfrage) return;
+
+    // Nur neu generieren wenn noch keine Positionen vorhanden sind oder ein "Neu generieren" angefordert wurde
+    // Die Positionen werden initial generiert, danach nur manuell bearbeitet
+    if (allePositionen.length > 0) return;
+
+    const generierePositionen = async () => {
+      setPositionenLaden(true);
+      try {
+        const positionenErgebnis = await erstelleAnfragePositionen({
+          tonnenLose02: editedData.tonnenLose02,
+          tonnenGesackt02: editedData.tonnenGesackt02,
+          tonnenLose03: editedData.tonnenLose03,
+          tonnenGesackt03: editedData.tonnenGesackt03,
+          menge: editedData.menge,
+          plz: editedData.plz,
+          preisProTonneInklLieferung: editedData.preisProTonne,
+        });
+        setAllePositionen(positionenErgebnis.positionen);
+      } catch (error) {
+        console.error('Fehler beim Generieren der Positionen:', error);
+      } finally {
+        setPositionenLaden(false);
+      }
+    };
+
+    // Debounce um 300ms
+    const timeout = setTimeout(generierePositionen, 300);
+    return () => clearTimeout(timeout);
+  }, [editedData, selectedAnfrage, allePositionen.length]);
+
+  // Handler zum Neu-Generieren der Positionen (bei Änderung der Tonnen-Felder)
+  const handlePositionenNeuGenerieren = async () => {
+    if (!editedData) return;
+
+    setPositionenLaden(true);
+    try {
+      const positionenErgebnis = await erstelleAnfragePositionen({
+        tonnenLose02: editedData.tonnenLose02,
+        tonnenGesackt02: editedData.tonnenGesackt02,
+        tonnenLose03: editedData.tonnenLose03,
+        tonnenGesackt03: editedData.tonnenGesackt03,
+        menge: editedData.menge,
+        plz: editedData.plz,
+        preisProTonneInklLieferung: editedData.preisProTonne,
+      });
+      setAllePositionen(positionenErgebnis.positionen);
+    } catch (error) {
+      console.error('Fehler beim Generieren der Positionen:', error);
+      alert('Fehler beim Generieren der Positionen');
+    } finally {
+      setPositionenLaden(false);
+    }
+  };
+
   // KI-Analyse Handler
   const handleKiAnalyse = async () => {
     if (!selectedAnfrage || !editedData) return;
@@ -632,21 +722,15 @@ Bei Fragen sind wir gerne für Sie da.`,
   const handlePdfVorschau = async () => {
     if (!editedData || !selectedAnfrage) return;
 
+    if (allePositionen.length === 0) {
+      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
+      return;
+    }
+
     setGeneratingPreview(true);
 
     try {
-      // Erstelle Positionen mit neuer Funktion (Preis inkl. Lieferkosten!)
-      const positionenErgebnis = await erstelleAnfragePositionen({
-        tonnenLose02: editedData.tonnenLose02,
-        tonnenGesackt02: editedData.tonnenGesackt02,
-        tonnenLose03: editedData.tonnenLose03,
-        tonnenGesackt03: editedData.tonnenGesackt03,
-        menge: editedData.menge,
-        plz: editedData.plz,
-        preisProTonneInklLieferung: editedData.preisProTonne,
-      });
-
-      // Generiere PDF Vorschau (OHNE separate Frachtkosten - sind im Preis/t enthalten!)
+      // Verwende die bearbeiteten Positionen direkt
       const pdfUrl = await generiereAngebotsVorschauPDF({
         kundenDaten: {
           name: editedData.kundenname,
@@ -654,9 +738,8 @@ Bei Fragen sind wir gerne für Sie da.`,
           plz: editedData.plz,
           ort: editedData.ort,
         },
-        positionen: positionenErgebnis.positionen,
+        positionen: allePositionen,
         ansprechpartner: editedData.ansprechpartner,
-        // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
       });
 
       // Öffne PDF in neuem Tab
@@ -687,17 +770,12 @@ Bei Fragen sind wir gerne für Sie da.`,
         editedData.kundenname
       );
 
-      // Erstelle Positionen für das Angebot mit neuer Funktion (Preis inkl. Lieferkosten!)
-      const positionenErgebnis = await erstelleAnfragePositionen({
-        tonnenLose02: editedData.tonnenLose02,
-        tonnenGesackt02: editedData.tonnenGesackt02,
-        tonnenLose03: editedData.tonnenLose03,
-        tonnenGesackt03: editedData.tonnenGesackt03,
-        menge: editedData.menge,
-        plz: editedData.plz,
-        preisProTonneInklLieferung: editedData.preisProTonne,
-      });
-      const positionen: Position[] = positionenErgebnis.positionen;
+      // Verwende die bearbeiteten Positionen direkt
+      if (allePositionen.length === 0) {
+        alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
+        setSendingTest(false);
+        return;
+      }
 
       // Erstelle AngebotsDaten
       const heute = new Date().toISOString().split('T')[0];
@@ -713,7 +791,7 @@ Bei Fragen sind wir gerne für Sie da.`,
         angebotsnummer: `TEST-${Date.now()}`,
         angebotsdatum: heute,
         gueltigBis,
-        positionen,
+        positionen: allePositionen,
         zahlungsziel: '14 Tage',
         // z. Hd. Ansprechpartner
         ansprechpartner: editedData.ansprechpartner,
@@ -769,23 +847,18 @@ Bei Fragen sind wir gerne für Sie da.`,
       return;
     }
 
+    // Prüfe ob Positionen vorhanden sind
+    if (allePositionen.length === 0) {
+      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
+      return;
+    }
+
     setProcessing(true);
     setShowFortschritt(true);
     setFortschrittListe([]);
 
     try {
-      // Erstelle Positionen mit neuer Funktion (inkl. PE-Folie, Beiladung, Preis mit Lieferkosten!)
-      const positionenErgebnis = await erstelleAnfragePositionen({
-        tonnenLose02: editedData.tonnenLose02,
-        tonnenGesackt02: editedData.tonnenGesackt02,
-        tonnenLose03: editedData.tonnenLose03,
-        tonnenGesackt03: editedData.tonnenGesackt03,
-        menge: editedData.menge,
-        plz: editedData.plz,
-        preisProTonneInklLieferung: editedData.preisProTonne,
-      });
-      const positionen: Position[] = positionenErgebnis.positionen;
-
+      // Verwende die bearbeiteten Positionen direkt
       const result = await verarbeiteAnfrageVollstaendig(
         {
           anfrage: selectedAnfrage,
@@ -800,7 +873,7 @@ Bei Fragen sind wir gerne für Sie da.`,
             ansprechpartner: editedData.ansprechpartner || undefined,
           },
           existierenderKundeId: selectedKundeId || undefined,
-          positionen,
+          positionen: allePositionen,
           preisProTonne: editedData.preisProTonne,
           // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
           emailVorschlag: {
@@ -849,6 +922,75 @@ Bei Fragen sind wir gerne für Sie da.`,
     // Entferne aus der lokalen Liste
     setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
     setSelectedAnfrage(null);
+  };
+
+  // Nur Kunde und Projekt anlegen (OHNE E-Mail-Versand)
+  const handleNurProjektAnlegen = async () => {
+    if (!selectedAnfrage || !editedData) {
+      alert('Bitte eine Anfrage auswählen.');
+      return;
+    }
+
+    // Prüfe ob Positionen vorhanden sind
+    if (allePositionen.length === 0) {
+      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
+      return;
+    }
+
+    setProcessingNurProjekt(true);
+    setShowFortschritt(true);
+    setFortschrittListe([]);
+
+    try {
+      const result = await erstelleNurKundeUndProjekt(
+        {
+          anfrage: selectedAnfrage,
+          kundeNeu: !selectedKundeId,
+          kundenDaten: {
+            name: editedData.kundenname,
+            email: editedData.email,
+            telefon: editedData.telefon || undefined,
+            strasse: editedData.strasse,
+            plz: editedData.plz,
+            ort: editedData.ort,
+            ansprechpartner: editedData.ansprechpartner || undefined,
+          },
+          existierenderKundeId: selectedKundeId || undefined,
+          positionen: allePositionen,
+          preisProTonne: editedData.preisProTonne,
+        },
+        (fortschritt) => {
+          setFortschrittListe((prev) => [...prev, fortschritt]);
+        }
+      );
+
+      if (result.success) {
+        // Entferne aus der Liste
+        setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
+
+        // Callback
+        if (onAnfrageGenehmigt && result.projektId) {
+          onAnfrageGenehmigt(result.projektId);
+        }
+
+        // Zeige Erfolg für 2 Sekunden, dann schließen
+        setTimeout(() => {
+          setSelectedAnfrage(null);
+          setShowFortschritt(false);
+          // Optional: Navigiere zum Projekt
+          if (result.projektId) {
+            navigate(`/projektabwicklung/${result.projektId}`);
+          }
+        }, 2000);
+      } else {
+        alert(`Fehler: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Fehler beim Anlegen:', error);
+      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+    } finally {
+      setProcessingNurProjekt(false);
+    }
   };
 
   // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)
@@ -1559,6 +1701,184 @@ Bei Fragen sind wir gerne für Sie da.`,
                   )}
                 </div>
 
+                {/* Angebots-Positionen - ALLE BEARBEITBAR */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Edit3 className="w-4 h-4" />
+                      Angebots-Positionen
+                      {positionenLaden && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handlePositionenNeuGenerieren}
+                        disabled={positionenLaden}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-50"
+                        title="Positionen basierend auf Mengen-Feldern neu generieren"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Neu generieren
+                      </button>
+                      <button
+                        onClick={() => setShowArtikelSuche(!showArtikelSuche)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Position hinzufügen
+                      </button>
+                    </div>
+                  </h4>
+
+                  {/* Artikel-Suche zum Hinzufügen */}
+                  {showArtikelSuche && (
+                    <div className="mb-3 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="relative mb-2">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={artikelSuchtext}
+                          onChange={(e) => setArtikelSuchtext(e.target.value)}
+                          placeholder="Artikel suchen (Nr. oder Bezeichnung)..."
+                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-slate-900"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {artikelLaden ? (
+                          <div className="flex items-center justify-center py-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                          </div>
+                        ) : (
+                          verfuegbareArtikel
+                            .filter(a =>
+                              a.artikelnummer.toLowerCase().includes(artikelSuchtext.toLowerCase()) ||
+                              a.bezeichnung.toLowerCase().includes(artikelSuchtext.toLowerCase())
+                            )
+                            .slice(0, 10)
+                            .map((artikel) => (
+                              <button
+                                key={artikel.$id}
+                                onClick={() => {
+                                  // Füge Artikel als neue Position hinzu
+                                  const neuePosition: Position = {
+                                    id: `zusatz-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    artikelnummer: artikel.artikelnummer,
+                                    bezeichnung: artikel.bezeichnung,
+                                    beschreibung: artikel.beschreibung,
+                                    menge: 1,
+                                    einheit: artikel.einheit,
+                                    einzelpreis: artikel.einzelpreis || 0,
+                                    gesamtpreis: artikel.einzelpreis || 0,
+                                    istBedarfsposition: false,
+                                  };
+                                  setAllePositionen([...allePositionen, neuePosition]);
+                                  setArtikelSuchtext('');
+                                  setShowArtikelSuche(false);
+                                }}
+                                className="w-full text-left px-2 py-1.5 text-sm hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded flex justify-between items-center"
+                              >
+                                <span>
+                                  <span className="font-mono text-purple-600 dark:text-purple-400">{artikel.artikelnummer}</span>
+                                  <span className="ml-2">{artikel.bezeichnung}</span>
+                                </span>
+                                <span className="text-gray-500 text-xs">{artikel.einzelpreis?.toFixed(2) || '-'} €/{artikel.einheit}</span>
+                              </button>
+                            ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Liste ALLER Positionen (automatisch + manuell) */}
+                  {allePositionen.length > 0 ? (
+                    <div className="space-y-2">
+                      {allePositionen.map((pos, index) => (
+                        <div
+                          key={pos.id}
+                          className="p-2 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs text-purple-600 dark:text-purple-400">{pos.artikelnummer}</span>
+                                <span className="text-sm font-medium truncate">{pos.bezeichnung}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0.01"
+                                  value={pos.menge}
+                                  onChange={(e) => {
+                                    const neueMenge = parseFloat(e.target.value) || 1;
+                                    setAllePositionen(prev =>
+                                      prev.map((p, i) =>
+                                        i === index
+                                          ? { ...p, menge: neueMenge, gesamtpreis: neueMenge * p.einzelpreis }
+                                          : p
+                                      )
+                                    );
+                                  }}
+                                  className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
+                                />
+                                <span className="text-xs text-gray-500">{pos.einheit}</span>
+                                <span className="text-xs text-gray-400">×</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={pos.einzelpreis}
+                                  onChange={(e) => {
+                                    const neuerPreis = parseFloat(e.target.value) || 0;
+                                    setAllePositionen(prev =>
+                                      prev.map((p, i) =>
+                                        i === index
+                                          ? { ...p, einzelpreis: neuerPreis, gesamtpreis: p.menge * neuerPreis }
+                                          : p
+                                      )
+                                    );
+                                  }}
+                                  className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
+                                />
+                                <span className="text-xs text-gray-500">€/{pos.einheit}</span>
+                                <span className="text-xs text-gray-400">=</span>
+                                <span className="text-xs font-bold text-green-700 dark:text-green-400">
+                                  {pos.gesamtpreis.toFixed(2)} €
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setAllePositionen(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                              title="Position entfernen"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Gesamtsumme */}
+                      <div className="pt-2 border-t-2 border-green-300 dark:border-green-700 flex justify-between text-sm">
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">Gesamtsumme:</span>
+                        <span className="font-bold text-green-700 dark:text-green-400 text-base">
+                          {allePositionen.reduce((sum, p) => sum + p.gesamtpreis, 0).toFixed(2)} € netto
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-gray-50 dark:bg-slate-800 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 text-center">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Keine Positionen vorhanden.
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        Gib oben Mengen ein und klicke "Neu generieren", oder füge manuell Positionen hinzu.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* E-Mail */}
                 <div>
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
@@ -1668,19 +1988,37 @@ Bei Fragen sind wir gerne für Sie da.`,
                 </div>
 
                 {/* Haupt-Aktionen */}
-                <div className="flex gap-3">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={handleAblehnen}
-                    disabled={processing}
-                    className="flex-1 px-4 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                    disabled={processing || processingNurProjekt}
+                    className="px-4 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <X className="w-4 h-4" />
                     Ablehnen
                   </button>
                   <button
+                    onClick={handleNurProjektAnlegen}
+                    disabled={processing || processingNurProjekt || allePositionen.length === 0}
+                    className="flex-1 px-4 py-2.5 border-2 border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                    title="Kunde und Projekt anlegen ohne E-Mail zu versenden"
+                  >
+                    {processingNurProjekt ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Wird angelegt...
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="w-4 h-4" />
+                        Nur Projekt anlegen
+                      </>
+                    )}
+                  </button>
+                  <button
                     onClick={handleBestaetigunUndSenden}
-                    disabled={processing || !editedData?.email}
-                    className="flex-[2] px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
+                    disabled={processing || processingNurProjekt || !editedData?.email || allePositionen.length === 0}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
                   >
                     {processing ? (
                       <>
@@ -1690,7 +2028,7 @@ Bei Fragen sind wir gerne für Sie da.`,
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        Bestätigen & Angebot senden
+                        Angebot senden
                       </>
                     )}
                   </button>

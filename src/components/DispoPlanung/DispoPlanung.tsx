@@ -30,16 +30,20 @@ import {
   Sparkles,
   Image,
   ZoomIn,
+  ArrowRight,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import DispoKartenAnsicht from './DispoKartenAnsicht';
+import TourenManagement, { TourZuweisungDialog } from './TourenManagement';
 import { AngebotsDaten } from '../../types/projektabwicklung';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Fahrzeug } from '../../types/dispo';
+import { Tour, TourStop } from '../../types/tour';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { fahrzeugService } from '../../services/fahrzeugService';
+import { tourenService } from '../../services/tourenService';
 import { projektAnhangService } from '../../services/projektAnhangService';
 import { kundenAktivitaetService } from '../../services/kundenAktivitaetService';
 import { KundenAktivitaet } from '../../types/kundenAktivitaet';
@@ -73,6 +77,7 @@ const DispoPlanung = () => {
   const [projekte, setProjekte] = useState<Projekt[]>([]);
   const [kundenMap, setKundenMap] = useState<Map<string, SaisonKunde>>(new Map());
   const [fahrzeuge, setFahrzeuge] = useState<Fahrzeug[]>([]);
+  const [touren, setTouren] = useState<Tour[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -84,6 +89,10 @@ const DispoPlanung = () => {
   // Ausgewähltes Projekt für Detail-Ansicht
   const [selectedProjekt, setSelectedProjekt] = useState<Projekt | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Tour-Zuweisung Dialog
+  const [zuweisungProjekt, setZuweisungProjekt] = useState<Projekt | null>(null);
+  const [showTourZuweisungDialog, setShowTourZuweisungDialog] = useState(false);
 
   // Daten laden
   const loadData = useCallback(async () => {
@@ -122,12 +131,77 @@ const DispoPlanung = () => {
       // Lade Fahrzeuge
       const geladeneFahrzeuge = await fahrzeugService.loadAlleFahrzeuge();
       setFahrzeuge(geladeneFahrzeuge);
+
+      // Lade Touren
+      const geladeneTouren = await tourenService.loadAlleTouren();
+      setTouren(geladeneTouren);
     } catch (error) {
       console.error('Fehler beim Laden:', error);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Touren separat laden (für Refresh)
+  const loadTouren = useCallback(async () => {
+    try {
+      const geladeneTouren = await tourenService.loadAlleTouren();
+      setTouren(geladeneTouren);
+    } catch (error) {
+      console.error('Fehler beim Laden der Touren:', error);
+    }
+  }, []);
+
+  // Tour für Projekt finden
+  const getTourFuerProjekt = (projektId: string): Tour | undefined => {
+    return touren.find(t => t.stops.some(s => s.projektId === projektId));
+  };
+
+  // Auftrag einer Tour zuweisen
+  const handleAuftragZuweisen = async (tourId: string, projektId: string, tonnen: number) => {
+    setSaving(true);
+    try {
+      const tour = touren.find(t => t.id === tourId);
+      if (!tour) throw new Error('Tour nicht gefunden');
+
+      const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
+      if (!projekt) throw new Error('Projekt nicht gefunden');
+
+      const neuerStop: TourStop = {
+        projektId,
+        position: tour.stops.length + 1,
+        ankunftGeplant: '',
+        abfahrtGeplant: '',
+        kundenname: projekt.kundenname,
+        kundennummer: projekt.kundennummer,
+        adresse: {
+          strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+          plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
+          ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+        },
+        tonnen,
+        belieferungsart: projekt.belieferungsart || 'mit_haenger',
+      };
+
+      const neueStops = [...tour.stops, neuerStop];
+      await tourenService.updateTour(tourId, { stops: neueStops });
+
+      await projektService.updateProjekt(projektId, {
+        routeId: tourId,
+        dispoStatus: 'geplant',
+        liefergewicht: tonnen,
+      });
+
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Zuweisen:', error);
+      alert('Fehler beim Zuweisen des Auftrags');
+    } finally {
+      setSaving(false);
+      setShowTourZuweisungDialog(false);
+      setZuweisungProjekt(null);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -421,38 +495,61 @@ const DispoPlanung = () => {
         </div>
       </div>
 
-      {/* Auftrags-Liste */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Package className="w-5 h-5 text-red-600" />
-              Aufträge ({gefilterteProjekte.length})
-            </h2>
-          </div>
+      {/* 2-Spalten Layout: Touren links, Aufträge rechts */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Touren-Sidebar (links) */}
+        <div className="lg:col-span-1">
+          <TourenManagement
+            projekte={projekte}
+            onProjektUpdate={loadData}
+            onTourenChange={loadTouren}
+          />
         </div>
 
-        {/* Liste */}
-        <div className="divide-y divide-gray-100 dark:divide-slate-700">
-          {gefilterteProjekte.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-              <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Keine Aufträge gefunden</p>
+        {/* Auftrags-Liste (rechts, breiter) */}
+        <div className="lg:col-span-3">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-red-600" />
+                  Aufträge ({gefilterteProjekte.length})
+                </h2>
+              </div>
             </div>
-          ) : (
-            gefilterteProjekte.map((projekt) => (
-              <AuftragsZeile
-                key={(projekt as any).$id || projekt.id}
-                projekt={projekt}
-                kunde={projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined}
-                onStatusChange={(status) => updateDispoStatus(projekt, status)}
-                onOpenDetail={() => openProjektDetail(projekt)}
-                onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
-                onInlineUpdate={handleInlineUpdate}
-              />
-            ))
-          )}
+
+            {/* Liste */}
+            <div className="divide-y divide-gray-100 dark:divide-slate-700 max-h-[calc(100vh-400px)] overflow-y-auto">
+              {gefilterteProjekte.length === 0 ? (
+                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                  <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Keine Aufträge gefunden</p>
+                </div>
+              ) : (
+                gefilterteProjekte.map((projekt) => {
+                  const projektId = (projekt as any).$id || projekt.id;
+                  const projektTour = getTourFuerProjekt(projektId);
+                  return (
+                    <AuftragsZeile
+                      key={projektId}
+                      projekt={projekt}
+                      kunde={projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined}
+                      tour={projektTour}
+                      onStatusChange={(status) => updateDispoStatus(projekt, status)}
+                      onOpenDetail={() => openProjektDetail(projekt)}
+                      onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
+                      onInlineUpdate={handleInlineUpdate}
+                      onTourZuweisen={(p) => {
+                        setZuweisungProjekt(p);
+                        setShowTourZuweisungDialog(true);
+                      }}
+                    />
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
         </>
@@ -493,6 +590,20 @@ const DispoPlanung = () => {
               setSaving(false);
             }
           }}
+        />
+      )}
+
+      {/* Tour-Zuweisung Dialog */}
+      {showTourZuweisungDialog && zuweisungProjekt && (
+        <TourZuweisungDialog
+          open={showTourZuweisungDialog}
+          projekt={zuweisungProjekt}
+          touren={touren}
+          onClose={() => {
+            setShowTourZuweisungDialog(false);
+            setZuweisungProjekt(null);
+          }}
+          onZuweisen={handleAuftragZuweisen}
         />
       )}
     </div>
@@ -540,13 +651,15 @@ const StatCard = ({ label, value, icon, color, onClick, active }: StatCardProps)
 interface AuftragsZeileProps {
   projekt: Projekt;
   kunde?: SaisonKunde;
+  tour?: Tour;
   onStatusChange: (status: DispoStatus) => void;
   onOpenDetail: () => void;
   onGoToProjektabwicklung: () => void;
   onInlineUpdate: (projektId: string, updates: Partial<Projekt>, kundeUpdates?: Partial<SaisonKunde>) => void;
+  onTourZuweisen: (projekt: Projekt) => void;
 }
 
-const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToProjektabwicklung, onInlineUpdate }: AuftragsZeileProps) => {
+const AuftragsZeile = ({ projekt, kunde, tour, onStatusChange, onOpenDetail, onGoToProjektabwicklung, onInlineUpdate, onTourZuweisen }: AuftragsZeileProps) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const status = projekt.dispoStatus || 'offen';
   const statusConfig = DISPO_STATUS_CONFIG[status];
@@ -952,6 +1065,32 @@ const AuftragsZeile = ({ projekt, kunde, onStatusChange, onOpenDetail, onGoToPro
               {projekt.belieferungsart === 'palette_mit_ladekran' && 'Kran'}
               {projekt.belieferungsart === 'bigbag' && 'BigBag'}
             </div>
+          )}
+        </div>
+
+        {/* Tour-Anzeige oder Tour-Zuweisung */}
+        <div className="min-w-[140px]">
+          {tour ? (
+            // Auftrag ist einer Tour zugewiesen
+            <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-2 ${
+              tour.lkwTyp === 'mit_haenger'
+                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
+                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+            }`}>
+              <Truck className="w-3.5 h-3.5" />
+              <span className="font-medium truncate max-w-[100px]" title={tour.name}>
+                {tour.name}
+              </span>
+            </div>
+          ) : (
+            // Kein Tour zugewiesen - Button zum Zuweisen
+            <button
+              onClick={() => onTourZuweisen(projekt)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white hover:from-red-600 hover:to-orange-600 flex items-center gap-1.5 font-medium transition-all hover:shadow-md"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              Tour zuweisen
+            </button>
           )}
         </div>
 

@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Dashboard from './components/Dashboard/Dashboard';
 import SpeditionskostenRechner from './components/SpeditionskostenRechner';
+import RabenRechner from './components/RabenRechner';
 import FixkostenRechner from './components/FixkostenRechner';
 import VariableKostenRechner from './components/VariableKostenRechner';
 import DispoPlanung from './components/DispoPlanung/DispoPlanung';
@@ -64,6 +65,11 @@ function AuthenticatedContent() {
               <Route path="/dashboard" element={
                 <ProtectedRoute toolId="dashboard">
                   <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/raben-rechner" element={
+                <ProtectedRoute toolId="raben-rechner">
+                  <RabenRechner />
                 </ProtectedRoute>
               } />
               <Route path="/speditionskosten" element={

@@ -228,7 +228,18 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'lieferscheinZaehler', type: 'integer', default: 0 },
   { key: 'rechnungZaehler', type: 'integer', default: 0 },
   { key: 'jahr', type: 'integer', default: 2026 },
-  
+
+  // Saison-Einstellungen
+  { key: 'aktuelleSaison', type: 'integer' },
+  { key: 'saisonStartMonat', type: 'integer', default: 11 },
+
+  // Liefersaison für PDF-Dokumente
+  { key: 'liefersaisonStartDatum', type: 'string', size: 20 },
+  { key: 'liefersaisonEndDatum', type: 'string', size: 20 },
+  { key: 'liefersaisonStartKW', type: 'integer' },
+  { key: 'liefersaisonEndKW', type: 'integer' },
+  { key: 'liefersaisonJahr', type: 'integer' },
+
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'aktualisiertAm', type: 'string', size: 50 },
@@ -414,12 +425,14 @@ const mahnwesenDokumenteFields: FieldConfig[] = [
   { key: 'daten', type: 'string', size: 100000, required: true },              // JSON der MahnwesenDokumentDaten
 ];
 
-// Tourenplanung - Touren Collection (KI-optimierte Liefertouren)
+// Tourenplanung - Touren Collection (KI-optimierte und manuelle Liefertouren)
 const tourenFields: FieldConfig[] = [
-  { key: 'datum', type: 'string', size: 20, required: true },                  // ISO Datum für Filter
+  { key: 'datum', type: 'string', size: 20 },                                  // ISO Datum (optional, kann später gesetzt werden)
   { key: 'name', type: 'string', size: 255, required: true },                  // Tour-Name
-  { key: 'fahrzeugId', type: 'string', size: 100, required: true },            // Verknüpfung zum Fahrzeug
+  { key: 'fahrzeugId', type: 'string', size: 100 },                            // Verknüpfung zum Fahrzeug (optional)
   { key: 'fahrerId', type: 'string', size: 100 },                              // Verknüpfung zum Fahrer
+  { key: 'lkwTyp', type: 'string', size: 50 },                                 // 'motorwagen' | 'mit_haenger'
+  { key: 'kapazitaet', type: 'string', size: 500 },                            // JSON: {motorwagenTonnen, haengerTonnen, gesamtTonnen}
   { key: 'status', type: 'string', size: 50, required: true },                 // entwurf, geplant, freigegeben, in_durchfuehrung, abgeschlossen
   { key: 'stops', type: 'string', size: 100000, required: true },              // JSON Array der TourStops
   { key: 'routeDetails', type: 'string', size: 10000, required: true },        // JSON mit Distanz, Zeit, Kosten

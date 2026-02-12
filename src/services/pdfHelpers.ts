@@ -510,9 +510,18 @@ export const getKalenderwoche = (datum: Date): number => {
 };
 
 /**
- * Generiert den Liefersaison-Text mit Datumsbereich
- * @returns Formatierter Text wie "Liefersaison voraussichtlich 02.03 bis 22.03"
+ * Generiert den Liefersaison-Text mit Datumsbereich und Kalenderwochen
+ * Text wird aus den Stammdaten generiert.
+ * @param stammdaten - Die Stammdaten mit Liefersaison-Konfiguration
+ * @returns Formatierter Text wie "Liefersaison voraussichtlich 02.03. - 17.04.2025 (10. - 16. KW 2025)."
  */
-export const getLiefersaisonText = (): string => {
-  return 'Liefersaison voraussichtlich 02.03 bis 22.03';
+export const getLiefersaisonText = (stammdaten?: Stammdaten | null): string => {
+  // Standard-Fallback falls keine Stammdaten vorhanden
+  const startDatum = stammdaten?.liefersaisonStartDatum || '02.03.';
+  const endDatum = stammdaten?.liefersaisonEndDatum || '17.04.';
+  const startKW = stammdaten?.liefersaisonStartKW || 10;
+  const endKW = stammdaten?.liefersaisonEndKW || 16;
+  const jahr = stammdaten?.liefersaisonJahr || 2026;
+
+  return `Liefersaison voraussichtlich ${startDatum} - ${endDatum}${jahr} (${startKW}. - ${endKW}. KW ${jahr}).`;
 };

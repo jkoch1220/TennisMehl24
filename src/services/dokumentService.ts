@@ -566,12 +566,12 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'italic');
-    const liefersaisonText = getLiefersaisonText();
+    const liefersaisonText = getLiefersaisonText(stammdaten);
     doc.text(liefersaisonText, 25, summenY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
   }
-  
+
   // === Lieferbedingungen ===
   summenY += 6;
 
@@ -1113,7 +1113,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
   doc.setFont('helvetica', 'italic');
-  const liefersaisonText = getLiefersaisonText();
+  const liefersaisonText = getLiefersaisonText(stammdaten);
   doc.text(liefersaisonText, 25, summenY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);

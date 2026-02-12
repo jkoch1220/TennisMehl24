@@ -27,6 +27,12 @@ const SaisonEinstellungenTab = () => {
   const [formData, setFormData] = useState({
     aktuelleSaison: '' as string | number,
     saisonStartMonat: 11,
+    // Liefersaison für PDF
+    liefersaisonStartDatum: '',
+    liefersaisonEndDatum: '',
+    liefersaisonStartKW: '' as string | number,
+    liefersaisonEndKW: '' as string | number,
+    liefersaisonJahr: '' as string | number,
   });
 
   useEffect(() => {
@@ -45,6 +51,12 @@ const SaisonEinstellungenTab = () => {
         setFormData({
           aktuelleSaison: stammdaten.aktuelleSaison || '',
           saisonStartMonat: saisonStartMonat,
+          // Liefersaison
+          liefersaisonStartDatum: stammdaten.liefersaisonStartDatum || '',
+          liefersaisonEndDatum: stammdaten.liefersaisonEndDatum || '',
+          liefersaisonStartKW: stammdaten.liefersaisonStartKW || '',
+          liefersaisonEndKW: stammdaten.liefersaisonEndKW || '',
+          liefersaisonJahr: stammdaten.liefersaisonJahr || '',
         });
       }
 
@@ -64,11 +76,35 @@ const SaisonEinstellungenTab = () => {
     try {
       const stammdaten = await ladeStammdaten();
       if (stammdaten) {
-        await speichereStammdaten({
+        // Baue das Update-Objekt - nur Felder mit Werten hinzufügen
+        const updateData: Record<string, unknown> = {
           ...stammdaten,
-          aktuelleSaison: formData.aktuelleSaison ? Number(formData.aktuelleSaison) : undefined,
           saisonStartMonat: formData.saisonStartMonat,
-        });
+        };
+
+        // Saison nur setzen wenn vorhanden
+        if (formData.aktuelleSaison) {
+          updateData.aktuelleSaison = Number(formData.aktuelleSaison);
+        }
+
+        // Liefersaison-Felder nur setzen wenn vorhanden
+        if (formData.liefersaisonStartDatum) {
+          updateData.liefersaisonStartDatum = formData.liefersaisonStartDatum;
+        }
+        if (formData.liefersaisonEndDatum) {
+          updateData.liefersaisonEndDatum = formData.liefersaisonEndDatum;
+        }
+        if (formData.liefersaisonStartKW) {
+          updateData.liefersaisonStartKW = Number(formData.liefersaisonStartKW);
+        }
+        if (formData.liefersaisonEndKW) {
+          updateData.liefersaisonEndKW = Number(formData.liefersaisonEndKW);
+        }
+        if (formData.liefersaisonJahr) {
+          updateData.liefersaisonJahr = Number(formData.liefersaisonJahr);
+        }
+
+        await speichereStammdaten(updateData as any);
         setErfolg(true);
         // Aktualisiere die berechnete Saison
         const berechnet = berechneAktuelleSaison(formData.saisonStartMonat);
@@ -227,6 +263,108 @@ const SaisonEinstellungenTab = () => {
             <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
               Leer lassen für automatische Berechnung
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Liefersaison für PDF */}
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Calendar className="w-6 h-6 text-green-600" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Liefersaison für PDF-Dokumente</h3>
+        </div>
+
+        {/* Info-Box */}
+        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-green-800 dark:text-green-300">
+              <p className="font-medium mb-2">Diese Einstellungen erscheinen auf den PDF-Dokumenten:</p>
+              <p className="text-green-700 dark:text-green-400 italic">
+                "Liefersaison voraussichtlich {formData.liefersaisonStartDatum || '02.03.'} - {formData.liefersaisonEndDatum || '17.04.'}{formData.liefersaisonJahr || '2026'} ({formData.liefersaisonStartKW || '10'}. - {formData.liefersaisonEndKW || '16'}. KW {formData.liefersaisonJahr || '2026'})."
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Eingabefelder */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Jahr */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Jahr
+            </label>
+            <input
+              type="number"
+              min="2020"
+              max="2099"
+              value={formData.liefersaisonJahr}
+              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonJahr: e.target.value }))}
+              placeholder="z.B. 2026"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+          </div>
+
+          {/* Start-Datum */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Start-Datum
+            </label>
+            <input
+              type="text"
+              value={formData.liefersaisonStartDatum}
+              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonStartDatum: e.target.value }))}
+              placeholder="z.B. 02.03."
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">Format: TT.MM.</p>
+          </div>
+
+          {/* End-Datum */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              End-Datum
+            </label>
+            <input
+              type="text"
+              value={formData.liefersaisonEndDatum}
+              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonEndDatum: e.target.value }))}
+              placeholder="z.B. 17.04."
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">Format: TT.MM.</p>
+          </div>
+
+          {/* Start-KW */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Start-Kalenderwoche
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="52"
+              value={formData.liefersaisonStartKW}
+              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonStartKW: e.target.value }))}
+              placeholder="z.B. 10"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+          </div>
+
+          {/* End-KW */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              End-Kalenderwoche
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="52"
+              value={formData.liefersaisonEndKW}
+              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonEndKW: e.target.value }))}
+              placeholder="z.B. 16"
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
+            />
           </div>
         </div>
       </div>

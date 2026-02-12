@@ -260,6 +260,10 @@ const TourenPlanungTab = ({ onNavigateToProjekt: _onNavigateToProjekt }: Props) 
           name: `Tour ${i + 1} - ${istMotorwagen ? 'Motorwagen' : 'Mit Hänger'}`,
           fahrzeugId: '', // Wird später zugewiesen
           fahrerId: undefined,
+          lkwTyp: istMotorwagen ? 'motorwagen' : 'mit_haenger',
+          kapazitaet: istMotorwagen
+            ? { motorwagenTonnen: kapazitaet, haengerTonnen: undefined, gesamtTonnen: kapazitaet }
+            : { motorwagenTonnen: 14, haengerTonnen: kapazitaet - 14, gesamtTonnen: kapazitaet },
           stops,
           routeDetails: {
             gesamtDistanzKm: 0,

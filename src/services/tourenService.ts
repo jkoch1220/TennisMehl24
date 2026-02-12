@@ -12,16 +12,41 @@ import type {
   TourenFilter,
   TourenStatistik,
   TourConstraint,
+  TourKapazitaet,
+  TourFahrzeugTyp,
 } from '../types/tour';
+import { STANDARD_KAPAZITAETEN } from '../types/tour';
+
+// Standard-Kapazität für alte Touren ohne kapazitaet-Feld
+const getDefaultKapazitaet = (lkwTyp: TourFahrzeugTyp): TourKapazitaet => ({
+  motorwagenTonnen: STANDARD_KAPAZITAETEN.motorwagen,
+  haengerTonnen: lkwTyp === 'mit_haenger' ? STANDARD_KAPAZITAETEN.haenger : undefined,
+  gesamtTonnen: lkwTyp === 'mit_haenger'
+    ? STANDARD_KAPAZITAETEN.motorwagen + STANDARD_KAPAZITAETEN.haenger
+    : STANDARD_KAPAZITAETEN.motorwagen,
+});
 
 // Appwrite Dokument zu Tour konvertieren
 const dokumentZuTour = (doc: Record<string, unknown>): Tour => {
+  const lkwTyp = (doc.lkwTyp as TourFahrzeugTyp) || 'motorwagen';
+  let kapazitaet: TourKapazitaet;
+
+  try {
+    kapazitaet = doc.kapazitaet
+      ? JSON.parse(doc.kapazitaet as string) as TourKapazitaet
+      : getDefaultKapazitaet(lkwTyp);
+  } catch {
+    kapazitaet = getDefaultKapazitaet(lkwTyp);
+  }
+
   return {
     id: doc.$id as string,
-    datum: doc.datum as string,
+    datum: (doc.datum as string) || '',
     name: doc.name as string,
-    fahrzeugId: doc.fahrzeugId as string,
+    fahrzeugId: (doc.fahrzeugId as string) || '',
     fahrerId: doc.fahrerId as string | undefined,
+    lkwTyp,
+    kapazitaet,
     stops: JSON.parse((doc.stops as string) || '[]') as TourStop[],
     routeDetails: JSON.parse((doc.routeDetails as string) || '{}') as TourRouteDetails,
     optimierung: JSON.parse((doc.optimierung as string) || '{}') as TourOptimierung,
@@ -114,15 +139,26 @@ export const tourenService = {
 
   // Neue Tour erstellen
   async createTour(tour: NeueTour): Promise<Tour> {
+    // Standard-Kapazität falls nicht angegeben
+    const kapazitaet = tour.kapazitaet || {
+      motorwagenTonnen: STANDARD_KAPAZITAETEN.motorwagen,
+      haengerTonnen: tour.lkwTyp === 'mit_haenger' ? STANDARD_KAPAZITAETEN.haenger : undefined,
+      gesamtTonnen: tour.lkwTyp === 'mit_haenger'
+        ? STANDARD_KAPAZITAETEN.motorwagen + STANDARD_KAPAZITAETEN.haenger
+        : STANDARD_KAPAZITAETEN.motorwagen,
+    };
+
     const doc = await databases.createDocument(
       DATABASE_ID,
       TOUREN_COLLECTION_ID,
       ID.unique(),
       {
-        datum: tour.datum,
+        datum: tour.datum || '',
         name: tour.name,
-        fahrzeugId: tour.fahrzeugId,
+        fahrzeugId: tour.fahrzeugId || '',
         fahrerId: tour.fahrerId || null,
+        lkwTyp: tour.lkwTyp || 'motorwagen',
+        kapazitaet: JSON.stringify(kapazitaet),
         stops: JSON.stringify(tour.stops || []),
         routeDetails: JSON.stringify(tour.routeDetails || leereRouteDetails),
         optimierung: JSON.stringify(tour.optimierung || leereOptimierung),
@@ -142,6 +178,8 @@ export const tourenService = {
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.fahrzeugId !== undefined) data.fahrzeugId = updates.fahrzeugId;
     if (updates.fahrerId !== undefined) data.fahrerId = updates.fahrerId || null;
+    if (updates.lkwTyp !== undefined) data.lkwTyp = updates.lkwTyp;
+    if (updates.kapazitaet !== undefined) data.kapazitaet = JSON.stringify(updates.kapazitaet);
     if (updates.stops !== undefined) data.stops = JSON.stringify(updates.stops);
     if (updates.routeDetails !== undefined) {
       data.routeDetails = JSON.stringify(updates.routeDetails);
@@ -291,5 +329,90 @@ export const tourenService = {
       ...leereOptimierung,
       optimiertAm: new Date().toISOString(),
     };
+  },
+
+  // Alle Touren laden (ohne Filter)
+  async loadAlleTouren(): Promise<Tour[]> {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        TOUREN_COLLECTION_ID,
+        [Query.orderDesc('$createdAt'), Query.limit(200)]
+      );
+      return response.documents.map(dokumentZuTour);
+    } catch (error) {
+      console.error('Fehler beim Laden aller Touren:', error);
+      return [];
+    }
+  },
+
+  // Alle Touren löschen (für Cleanup)
+  async deleteAlleTouren(): Promise<number> {
+    try {
+      const touren = await this.loadAlleTouren();
+      let geloescht = 0;
+      for (const tour of touren) {
+        try {
+          await this.deleteTour(tour.id);
+          geloescht++;
+        } catch (error) {
+          console.error(`Fehler beim Löschen von Tour ${tour.id}:`, error);
+        }
+      }
+      return geloescht;
+    } catch (error) {
+      console.error('Fehler beim Löschen aller Touren:', error);
+      return 0;
+    }
+  },
+
+  // Beladung einer Tour berechnen
+  berechneBeladung(tour: Tour): {
+    geladenTonnen: number;
+    motorwagenTonnen: number;
+    haengerTonnen: number;
+    freieKapazitaet: number;
+    auslastungProzent: number;
+    istUeberladen: boolean;
+  } {
+    const geladenTonnen = tour.stops.reduce((sum, stop) => sum + (stop.tonnen || 0), 0);
+    const gesamtKapazitaet = tour.kapazitaet?.gesamtTonnen || 14;
+    const motorwagenKapazitaet = tour.kapazitaet?.motorwagenTonnen || 14;
+    // haengerKapazitaet wird für zukünftige Validierung vorgehalten
+    const _haengerKapazitaet = tour.kapazitaet?.haengerTonnen || 0;
+    void _haengerKapazitaet; // Suppress unused warning
+
+    // Einfache Berechnung: Erst Motorwagen füllen, dann Hänger
+    const motorwagenTonnen = Math.min(geladenTonnen, motorwagenKapazitaet);
+    const haengerTonnen = tour.lkwTyp === 'mit_haenger'
+      ? Math.max(0, geladenTonnen - motorwagenKapazitaet)
+      : 0;
+
+    return {
+      geladenTonnen,
+      motorwagenTonnen,
+      haengerTonnen,
+      freieKapazitaet: Math.max(0, gesamtKapazitaet - geladenTonnen),
+      auslastungProzent: gesamtKapazitaet > 0 ? (geladenTonnen / gesamtKapazitaet) * 100 : 0,
+      istUeberladen: geladenTonnen > gesamtKapazitaet,
+    };
+  },
+
+  // Aufträge mit nur_motorwagen-Constraint prüfen
+  pruefeBelieferungsartKonflikt(
+    tour: Tour,
+    projektBelieferungsart?: string
+  ): { hatKonflikt: boolean; warnung?: string } {
+    if (!projektBelieferungsart) return { hatKonflikt: false };
+
+    // Wenn Projekt "nur_motorwagen" ist aber Tour mit Hänger fährt
+    if (projektBelieferungsart === 'nur_motorwagen' && tour.lkwTyp === 'mit_haenger') {
+      return {
+        hatKonflikt: false, // Kein Hard-Block, nur Warnung
+        warnung: 'Dieser Auftrag ist für "Nur Motorwagen" vorgesehen, wird aber auf eine Tour mit Hänger gebucht.',
+      };
+    }
+
+    return { hatKonflikt: false };
   },
 };
