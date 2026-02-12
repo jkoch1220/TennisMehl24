@@ -1032,19 +1032,19 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
 
                       {/* Staffeln Tabelle */}
                       <div className="space-y-2">
-                        <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-2">
-                          <span>Von (t)</span>
-                          <span>Bis (t)</span>
-                          <span>Preis/t (€)</span>
-                          <span></span>
+                        <div className="flex gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-2">
+                          <span className="w-24">Von (t)</span>
+                          <span className="w-24">Bis (t)</span>
+                          <span className="w-28">Preis/t (€)</span>
+                          <span className="w-8"></span>
                         </div>
                         {sp.staffeln.map((staffel, staffelIndex) => (
-                          <div key={staffelIndex} className="grid grid-cols-4 gap-2 items-center">
+                          <div key={staffelIndex} className="flex gap-2 items-center">
                             <input
                               type="number"
                               value={staffel.vonMenge}
                               onChange={(e) => updateStaffel(posIndex, staffelIndex, { vonMenge: parseFloat(e.target.value) || 0 })}
-                              className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                               step="1"
                               min="0"
                             />
@@ -1053,7 +1053,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                               value={staffel.bisMenge || ''}
                               onChange={(e) => updateStaffel(posIndex, staffelIndex, { bisMenge: e.target.value ? parseFloat(e.target.value) : null })}
                               placeholder="∞"
-                              className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                               step="1"
                               min="0"
                             />
@@ -1061,7 +1061,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                               type="number"
                               value={staffel.einzelpreis}
                               onChange={(e) => updateStaffel(posIndex, staffelIndex, { einzelpreis: parseFloat(e.target.value) || 0 })}
-                              className="px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                              className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                               step="0.01"
                               min="0"
                             />
@@ -1069,7 +1069,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                               type="button"
                               onClick={() => removeStaffel(posIndex, staffelIndex)}
                               disabled={sp.staffeln.length <= 1}
-                              className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
