@@ -30,6 +30,7 @@ const Saisonplanung = () => {
   const [filterOhneProjekt, setFilterOhneProjekt] = useState(false);
   const [filterKundenTyp, setFilterKundenTyp] = useState<KundenTyp | ''>('');
   const [filterPlatzbauer, setFilterPlatzbauer] = useState<string>(''); // Platzbauer-ID
+  const [filterPlz, setFilterPlz] = useState(''); // PLZ-Filter (Prefix-Suche)
   const [kundenMitProjekt, setKundenMitProjekt] = useState<Set<string>>(new Set());
 
   // Projekte laden um zu prüfen welche Kunden bereits ein Projekt haben
@@ -148,6 +149,11 @@ const Saisonplanung = () => {
         const platzbauerId = kunde.aktuelleSaison?.platzbauerId || kunde.kunde.standardPlatzbauerId;
         if (platzbauerId !== filterPlatzbauer) return false;
       }
+      // PLZ-Filter (Prefix-Suche, z.B. "8" findet alle PLZ die mit 8 beginnen)
+      if (filterPlz) {
+        const plz = kunde.kunde.lieferadresse?.plz || '';
+        if (!plz.startsWith(filterPlz)) return false;
+      }
       return true;
     });
 
@@ -197,7 +203,7 @@ const Saisonplanung = () => {
     );
 
     return searchResults.map(r => r.item);
-  }, [kunden, searchText, filterOhneProjekt, filterKundenTyp, filterPlatzbauer, kundenMitProjekt]);
+  }, [kunden, searchText, filterOhneProjekt, filterKundenTyp, filterPlatzbauer, filterPlz, kundenMitProjekt]);
 
   if (loading) {
     return (
@@ -329,11 +335,12 @@ const Saisonplanung = () => {
                     : `${filteredKunden.length} von ${kunden.length} Kunden`}
                 </p>
               </div>
-              {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer || searchText) && (
+              {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer || filterPlz || searchText) && (
                 <button
                   onClick={() => {
                     setFilterKundenTyp('');
                     setFilterPlatzbauer('');
+                    setFilterPlz('');
                     setFilterOhneProjekt(false);
                     setSearchText('');
                   }}
@@ -429,6 +436,37 @@ const Saisonplanung = () => {
                 )}
               </div>
 
+              {/* PLZ-Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 min-w-[80px]">PLZ</span>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={filterPlz}
+                    onChange={(e) => setFilterPlz(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="z.B. 8 oder 80"
+                    className={`w-32 pl-4 pr-10 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/50 ${
+                      filterPlz
+                        ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-2 border-red-200 dark:border-red-800'
+                        : 'bg-gray-100 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 border-2 border-transparent hover:bg-gray-200 dark:hover:bg-slate-700'
+                    }`}
+                  />
+                  {filterPlz && (
+                    <button
+                      onClick={() => setFilterPlz('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 bg-red-400 dark:bg-red-600 rounded-full flex items-center justify-center hover:bg-red-500 dark:hover:bg-red-500 transition-colors duration-200"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  )}
+                </div>
+                {filterPlz && (
+                  <span className="text-xs text-gray-500 dark:text-slate-400">
+                    Zeigt PLZ die mit "{filterPlz}" beginnen
+                  </span>
+                )}
+              </div>
+
               {/* Ohne Projekt - Toggle Switch */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 min-w-[80px]">Status</span>
@@ -461,7 +499,7 @@ const Saisonplanung = () => {
             </div>
 
             {/* Aktive Filter Pills */}
-            {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer) && (
+            {(filterOhneProjekt || filterKundenTyp || filterPlatzbauer || filterPlz) && (
               <div className="flex items-center gap-2 mt-5 pt-4 border-t border-gray-200/50 dark:border-slate-700/50 flex-wrap">
                 <span className="text-xs font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Aktiv:</span>
                 {filterKundenTyp && (
@@ -482,6 +520,17 @@ const Saisonplanung = () => {
                     <button
                       onClick={() => setFilterPlatzbauer('')}
                       className="w-5 h-5 rounded-full bg-red-200/50 dark:bg-red-700/50 hover:bg-red-300 dark:hover:bg-red-600 flex items-center justify-center transition-colors duration-200"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {filterPlz && (
+                  <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 rounded-full text-sm font-medium shadow-sm">
+                    PLZ: {filterPlz}*
+                    <button
+                      onClick={() => setFilterPlz('')}
+                      className="w-5 h-5 rounded-full bg-green-200/50 dark:bg-green-700/50 hover:bg-green-300 dark:hover:bg-green-600 flex items-center justify-center transition-colors duration-200"
                     >
                       <X className="w-3 h-3" />
                     </button>
