@@ -184,8 +184,8 @@ const Saisonplanung = () => {
         { field: 'bundesland', value: kunde.kunde.lieferadresse.bundesland || '', weight: 1.0 },
         // Straße
         { field: 'strasse', value: kunde.kunde.lieferadresse.strasse || '', weight: 0.8 },
-        // Kundennummer
-        { field: 'kundennummer', value: kunde.kunde.kundennummer || '', weight: 1.5 },
+        // Kundennummer - hohe Gewichtung für exakte Suche!
+        { field: 'kundennummer', value: kunde.kunde.kundennummer || '', weight: 3.0 },
         // E-Mail
         { field: 'email', value: kunde.kunde.email || '', weight: 0.8 },
         // Ansprechpartner Namen
@@ -365,7 +365,7 @@ const Saisonplanung = () => {
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Suchen..."
+                placeholder="Name, PLZ, Kundennummer..."
                 className="w-full pl-12 pr-12 py-3 bg-gray-100/80 dark:bg-slate-700/50 border-0 rounded-xl text-gray-900 dark:text-slate-100 placeholder-gray-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:bg-white dark:focus:bg-slate-700 transition-all duration-200"
               />
               {searchText && (
