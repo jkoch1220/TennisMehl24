@@ -196,15 +196,12 @@ const ProjektVerwaltung = () => {
     loadData();
   }, [loadData]);
 
-  // ULTIMATE FUZZY SEARCH - Filter-Funktion mit Ähnlichkeitssuche
+  // DEDIZIERTE NUMMERN-SUCHE + FUZZY SEARCH
   // WICHTIG: Platzbauer-Projekte werden hier ausgeschlossen - diese werden in der Platzbauer-Verwaltung angezeigt
   const filterProjekte = useCallback((projekte: Projekt[]) => {
     // Schritt 1: Platzbauer-Projekte ausfiltern (diese gehören in die Platzbauer-Verwaltung)
-    // - Projekte mit istPlatzbauerprojekt === true
-    // - Projekte bei denen der Kunde selbst ein Platzbauer ist (typ === 'platzbauer')
     const ohnePlatzbauer = projekte.filter(p => {
       if (p.istPlatzbauerprojekt) return false;
-      // Prüfe ob der Kunde ein Platzbauer ist
       const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
       if (kunde?.typ === 'platzbauer') return false;
       return true;
@@ -212,32 +209,46 @@ const ProjektVerwaltung = () => {
 
     if (!suche.trim()) return ohnePlatzbauer;
 
+    const suchText = suche.trim().toLowerCase();
+
+    // ============================================
+    // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (EXAKT)
+    // Sucht nach Teilstrings in Dokument- und Kundennummern
+    // z.B. "0335" findet "ANG-2026-0335"
+    // ============================================
+    const nummerTreffer = ohnePlatzbauer.filter(p => {
+      // Dokumentnummern prüfen
+      if (p.angebotsnummer?.toLowerCase().includes(suchText)) return true;
+      if (p.auftragsbestaetigungsnummer?.toLowerCase().includes(suchText)) return true;
+      if (p.rechnungsnummer?.toLowerCase().includes(suchText)) return true;
+      if (p.lieferscheinnummer?.toLowerCase().includes(suchText)) return true;
+      // Kundennummer prüfen
+      if (p.kundennummer?.toLowerCase().includes(suchText)) return true;
+      return false;
+    });
+
+    // Wenn Nummern-Treffer gefunden, diese zurückgeben (PRIORITÄT!)
+    if (nummerTreffer.length > 0) {
+      return nummerTreffer;
+    }
+
+    // ============================================
+    // SCHRITT 3: FUZZY SEARCH für Namen, Orte, etc.
+    // ============================================
     const results = fuzzySearch<Projekt>(
       ohnePlatzbauer,
       suche,
       (p) => {
-        // Hole verknüpften Kunden aus der Map
         const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
-
         return [
-          // Projekt-Felder mit Gewichtung
           { field: 'kundenname', value: p.kundenname || '', weight: 2.0 },
           { field: 'projektName', value: p.projektName || '', weight: 1.5 },
-          { field: 'kundennummer', value: p.kundennummer ? String(p.kundennummer) : '', weight: 1.5 },
           { field: 'kundenPlzOrt', value: p.kundenPlzOrt || '', weight: 1.2 },
           { field: 'kundenstrasse', value: p.kundenstrasse || '', weight: 0.8 },
-          // Dokumentnummern - hohe Gewichtung für exakte Suche!
-          { field: 'angebotsnummer', value: p.angebotsnummer || '', weight: 3.0 },
-          { field: 'auftragsbestaetigungsnummer', value: p.auftragsbestaetigungsnummer || '', weight: 3.0 },
-          { field: 'rechnungsnummer', value: p.rechnungsnummer || '', weight: 3.0 },
-          { field: 'lieferscheinnummer', value: p.lieferscheinnummer || '', weight: 3.0 },
           { field: 'lieferadresse_strasse', value: p.lieferadresse?.strasse || '', weight: 0.7 },
           { field: 'lieferadresse_plz', value: p.lieferadresse?.plz || '', weight: 1.0 },
           { field: 'lieferadresse_ort', value: p.lieferadresse?.ort || '', weight: 1.2 },
-          // Kunden-Felder (aus SaisonKunde Map - aktueller Name!)
           { field: 'kunde_name', value: kunde?.name || '', weight: 2.0 },
-          { field: 'kunde_kundennummer', value: kunde?.kundennummer || '', weight: 1.5 },
-          { field: 'kunde_adresse_strasse', value: kunde?.adresse?.strasse || '', weight: 0.7 },
           { field: 'kunde_adresse_plz', value: kunde?.adresse?.plz || '', weight: 1.0 },
           { field: 'kunde_adresse_ort', value: kunde?.adresse?.ort || '', weight: 1.2 },
           { field: 'kunde_email', value: kunde?.email || '', weight: 0.8 },
