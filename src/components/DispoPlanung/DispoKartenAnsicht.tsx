@@ -127,8 +127,7 @@ interface Props {
   kundenMap: Map<string, SaisonKunde>;
   onProjektClick?: (projekt: Projekt) => void;
   onBuchen?: (projektId: string, tourId: string, tonnen: number) => Promise<void>;
-  onNeueTour?: (name: string, lkwTyp: 'motorwagen' | 'mit_haenger', kapazitaet: number) => Promise<string>; // Returns new tour ID
-  onTourenRefresh?: () => void;
+  onNeueTour?: (name: string, lkwTyp: 'motorwagen' | 'mit_haenger', kapazitaet: number) => Promise<string>;
 }
 
 interface GeocodeCache {
@@ -309,7 +308,7 @@ const getMarkerSize = (tonnen: number): number => {
 
 // === COMPONENT ===
 
-const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onNeueTour, onTourenRefresh }: Props) => {
+const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onNeueTour }: Props) => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     language: 'de',
@@ -671,10 +670,21 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   const selectedItem = getSelectedItem();
 
+  // FIXED HEIGHT CONTAINER - Karte soll nicht mit Inhalt wachsen!
+  const containerHeight = isFullscreen ? '100vh' : 'calc(100vh - 180px)';
+  const minContainerHeight = '600px';
+
   return (
-    <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col ${
-      isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : ''
-    }`}>
+    <div
+      className={`bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 overflow-hidden flex flex-col ${
+        isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : ''
+      }`}
+      style={{
+        height: containerHeight,
+        minHeight: minContainerHeight,
+        maxHeight: isFullscreen ? '100vh' : 'calc(100vh - 120px)',
+      }}
+    >
 
       {/* ===== HEADER ===== */}
       <div className="px-4 py-2.5 border-b border-gray-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 flex items-center gap-4 flex-shrink-0">
@@ -768,12 +778,15 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
         </div>
       </div>
 
-      {/* ===== MAIN CONTENT ===== */}
-      <div className="flex flex-1" style={{ height: isFullscreen ? 'calc(100vh - 49px)' : '750px' }}>
+      {/* ===== MAIN CONTENT - Feste Höhe, kein Wachsen! ===== */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ===== SIDEBAR ===== */}
+        {/* ===== SIDEBAR - Feste Breite, intern scrollbar ===== */}
         {showSidebar && (
-          <div className="w-[360px] border-r border-gray-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-900 flex-shrink-0" ref={sidebarRef}>
+          <div
+            className="w-[360px] border-r border-gray-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-900 flex-shrink-0 overflow-hidden"
+            ref={sidebarRef}
+          >
 
             {/* KW Chips */}
             <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800">
@@ -860,8 +873,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
               </div>
             </div>
 
-            {/* Project List */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Project List - SCROLLABLE, füllt restlichen Platz */}
+            <div className="flex-1 overflow-y-auto min-h-0">
               {projekteNachKW.map(([kw, items]) => (
                 <div key={String(kw)}>
                   <div className="sticky top-0 z-10 px-3 py-1.5 bg-gray-50 dark:bg-slate-800/80 backdrop-blur-sm border-b border-gray-100 dark:border-slate-700/50">
@@ -1023,8 +1036,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
           {showSidebar ? <ChevronLeft className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
         </button>
 
-        {/* ===== MAP ===== */}
-        <div className="flex-1 relative overflow-hidden" style={{ containIntrinsicSize: '0 750px', contentVisibility: 'auto' }}>
+        {/* ===== MAP - Füllt restlichen Platz ===== */}
+        <div className="flex-1 relative overflow-hidden min-h-0">
           <GoogleMap
             mapContainerStyle={MAP_STYLE}
             center={WERK_POSITION}
@@ -1483,13 +1496,20 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                                   const neueTourId = await onNeueTour(neueTourName.trim(), neueTourTyp, kapazitaet);
                                   const projektId = (selectedItem.projekt as any).$id || selectedItem.projekt.id;
                                   await onBuchen!(projektId, neueTourId, buchungsTonnen);
+
+                                  // SMOOTH: Optimistisches lokales Update statt Reload
+                                  const neueTour = await tourenService.loadTour(neueTourId);
+                                  setTouren(prev => {
+                                    const exists = prev.some(t => t.id === neueTourId);
+                                    return exists
+                                      ? prev.map(t => t.id === neueTourId ? neueTour : t)
+                                      : [...prev, neueTour];
+                                  });
+
                                   setBuchungsModus(false);
                                   setShowNeueTourForm(false);
                                   setNeueTourName('');
                                   setSelectedId(null);
-                                  if (onTourenRefresh) onTourenRefresh();
-                                  const result = await tourenService.loadAlleTouren();
-                                  setTouren(result);
                                 } catch (err) {
                                   console.error('Fehler:', err);
                                 } finally {
@@ -1537,11 +1557,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                                       try {
                                         const projektId = (selectedItem.projekt as any).$id || selectedItem.projekt.id;
                                         await onBuchen!(projektId, tour.id, buchungsTonnen);
+
+                                        // SMOOTH: Optimistisches lokales Update - nur diese Tour aktualisieren
+                                        const updatedTour = await tourenService.loadTour(tour.id);
+                                        setTouren(prev => prev.map(t => t.id === tour.id ? updatedTour : t));
+
                                         setBuchungsModus(false);
                                         setSelectedId(null);
-                                        if (onTourenRefresh) onTourenRefresh();
-                                        const result = await tourenService.loadAlleTouren();
-                                        setTouren(result);
                                       } catch (err) {
                                         console.error('Fehler beim Buchen:', err);
                                       } finally {

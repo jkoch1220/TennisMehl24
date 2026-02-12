@@ -277,6 +277,7 @@ const DispoPlanung = () => {
   };
 
   // BUCHUNG: Neu buchen, umbuchen, oder Menge ändern
+  // OPTIMISTISCH: Kein loadData() - nur gezielte State-Updates für smooth UX
   const handleSchnellUmbuchen = async (
     projektId: string,
     vonTourId: string,
@@ -289,21 +290,60 @@ const DispoPlanung = () => {
       const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
       if (!projekt) throw new Error('Projekt nicht gefunden');
 
+      // ROBUST: Tour aus State ODER frisch vom Service holen
+      const getTourById = async (tourId: string): Promise<Tour | null> => {
+        const fromState = touren.find(t => t.id === tourId);
+        if (fromState) return fromState;
+        try {
+          const freshTour = await tourenService.loadTour(tourId);
+          // Tour in State einfügen für spätere Verwendung
+          setTouren(prev => [...prev, freshTour]);
+          return freshTour;
+        } catch {
+          return null;
+        }
+      };
+
+      // Neuen Stop erstellen (wird in mehreren Fällen gebraucht)
+      const erstelleNeuenStop = (): TourStop => ({
+        projektId,
+        position: 0, // Wird später gesetzt
+        ankunftGeplant: '',
+        abfahrtGeplant: '',
+        kundenname: projekt.kundenname,
+        kundennummer: projekt.kundennummer,
+        adresse: {
+          strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+          plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
+          ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+        },
+        tonnen,
+        belieferungsart: projekt.belieferungsart || 'mit_haenger',
+      });
+
+      let updatedTouren = [...touren];
+
       // FALL 1: Gleiche Tour (Menge ändern)
       if (vonTourId && vonTourId === zuTourId) {
-        const tour = touren.find(t => t.id === zuTourId);
+        const tour = await getTourById(zuTourId);
         if (!tour) throw new Error('Tour nicht gefunden');
 
-        // Menge aktualisieren
         const neueStops = tour.stops.map(s =>
           s.projektId === projektId ? { ...s, tonnen } : s
         );
         await tourenService.updateTour(zuTourId, { stops: neueStops });
+
+        // Lokales State-Update
+        updatedTouren = updatedTouren.map(t =>
+          t.id === zuTourId ? { ...t, stops: neueStops } : t
+        );
       }
       // FALL 2: Von einer Tour zu einer anderen (Umbuchen)
       else if (vonTourId) {
-        const vonTour = touren.find(t => t.id === vonTourId);
-        const zuTour = touren.find(t => t.id === zuTourId);
+        const [vonTour, zuTour] = await Promise.all([
+          getTourById(vonTourId),
+          getTourById(zuTourId),
+        ]);
         if (!vonTour || !zuTour) throw new Error('Tour nicht gefunden');
 
         // Von alter Tour entfernen
@@ -311,7 +351,7 @@ const DispoPlanung = () => {
         neueStopsVon.forEach((s, i) => { s.position = i + 1; });
         await tourenService.updateTour(vonTourId, { stops: neueStopsVon });
 
-        // Bei Ziel-Tour hinzufügen (oder Menge erhöhen wenn schon da)
+        // Bei Ziel-Tour hinzufügen
         const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
         let neueStopsZu: TourStop[];
         if (existierenderStop) {
@@ -319,66 +359,56 @@ const DispoPlanung = () => {
             s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
           );
         } else {
-          const neuerStop: TourStop = {
-            projektId,
-            position: zuTour.stops.length + 1,
-            ankunftGeplant: '',
-            abfahrtGeplant: '',
-            kundenname: projekt.kundenname,
-            kundennummer: projekt.kundennummer,
-            adresse: {
-              strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
-              plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
-              ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-            },
-            tonnen,
-            belieferungsart: projekt.belieferungsart || 'mit_haenger',
-          };
+          const neuerStop = erstelleNeuenStop();
+          neuerStop.position = zuTour.stops.length + 1;
           neueStopsZu = [...zuTour.stops, neuerStop];
         }
         await tourenService.updateTour(zuTourId, { stops: neueStopsZu });
+
+        // Lokales State-Update für beide Touren
+        updatedTouren = updatedTouren.map(t => {
+          if (t.id === vonTourId) return { ...t, stops: neueStopsVon };
+          if (t.id === zuTourId) return { ...t, stops: neueStopsZu };
+          return t;
+        });
       }
       // FALL 3: Neue Buchung (kein vonTourId)
       else {
-        const zuTour = touren.find(t => t.id === zuTourId);
+        const zuTour = await getTourById(zuTourId);
         if (!zuTour) throw new Error('Ziel-Tour nicht gefunden');
 
-        // Prüfen ob schon gebucht auf dieser Tour
         const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
         let neueStops: TourStop[];
         if (existierenderStop) {
-          // Tonnen addieren (Teilbuchung auf gleiche Tour)
           neueStops = zuTour.stops.map(s =>
             s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
           );
         } else {
-          // Neuen Stop erstellen
-          const neuerStop: TourStop = {
-            projektId,
-            position: zuTour.stops.length + 1,
-            ankunftGeplant: '',
-            abfahrtGeplant: '',
-            kundenname: projekt.kundenname,
-            kundennummer: projekt.kundennummer,
-            adresse: {
-              strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
-              plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
-              ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-            },
-            tonnen,
-            belieferungsart: projekt.belieferungsart || 'mit_haenger',
-          };
+          const neuerStop = erstelleNeuenStop();
+          neuerStop.position = zuTour.stops.length + 1;
           neueStops = [...zuTour.stops, neuerStop];
         }
         await tourenService.updateTour(zuTourId, { stops: neueStops });
+
+        // Lokales State-Update
+        updatedTouren = updatedTouren.map(t =>
+          t.id === zuTourId ? { ...t, stops: neueStops } : t
+        );
       }
 
-      // Status auf geplant setzen
+      // Status auf geplant setzen (Backend)
       await projektService.updateProjekt(projektId, {
         dispoStatus: 'geplant',
       });
 
-      await loadData();
+      // SMOOTH: Nur gezielte State-Updates, KEIN loadData()!
+      setTouren(updatedTouren);
+      setProjekte(prev => prev.map(p =>
+        ((p as any).$id || p.id) === projektId
+          ? { ...p, dispoStatus: 'geplant' as DispoStatus }
+          : p
+      ));
+
     } catch (error) {
       console.error('Fehler beim Buchen:', error);
       throw error;
@@ -599,10 +629,10 @@ const DispoPlanung = () => {
               optimierung: tourenService.getLeereOptimierung(),
               status: 'entwurf',
             });
-            await loadTouren();
+            // SMOOTH: Optimistisches Update - Tour direkt zu State hinzufügen
+            setTouren(prev => [...prev, neueTour]);
             return neueTour.id;
           }}
-          onTourenRefresh={loadTouren}
         />
       ) : activeTab === 'touren' ? (
         <TourenPlanungTab

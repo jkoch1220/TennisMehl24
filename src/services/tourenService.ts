@@ -128,6 +128,16 @@ export const tourenService = {
     }
   },
 
+  // Einzelne Tour per ID laden
+  async loadTour(tourId: string): Promise<Tour> {
+    const response = await databases.getDocument(
+      DATABASE_ID,
+      TOUREN_COLLECTION_ID,
+      tourId
+    );
+    return dokumentZuTour(response);
+  },
+
   // Einzelne Tour laden
   async getTour(id: string): Promise<Tour | null> {
     try {
