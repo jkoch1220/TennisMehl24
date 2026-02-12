@@ -319,7 +319,7 @@ const MobileProjektView = ({
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Suchen: Verein, PLZ, Nummer..."
+              placeholder="Verein, PLZ, Angebots-Nr., Kunden-Nr..."
               value={suche}
               onChange={(e) => setSuche(e.target.value)}
               className="w-full pl-12 pr-12 py-3.5 bg-gray-100 dark:bg-slate-800 border-0 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"

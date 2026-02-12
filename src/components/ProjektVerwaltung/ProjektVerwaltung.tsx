@@ -226,10 +226,11 @@ const ProjektVerwaltung = () => {
           { field: 'kundennummer', value: p.kundennummer ? String(p.kundennummer) : '', weight: 1.5 },
           { field: 'kundenPlzOrt', value: p.kundenPlzOrt || '', weight: 1.2 },
           { field: 'kundenstrasse', value: p.kundenstrasse || '', weight: 0.8 },
-          { field: 'angebotsnummer', value: p.angebotsnummer || '', weight: 1.3 },
-          { field: 'auftragsbestaetigungsnummer', value: p.auftragsbestaetigungsnummer || '', weight: 1.3 },
-          { field: 'rechnungsnummer', value: p.rechnungsnummer || '', weight: 1.3 },
-          { field: 'lieferscheinnummer', value: p.lieferscheinnummer || '', weight: 1.3 },
+          // Dokumentnummern - hohe Gewichtung für exakte Suche!
+          { field: 'angebotsnummer', value: p.angebotsnummer || '', weight: 3.0 },
+          { field: 'auftragsbestaetigungsnummer', value: p.auftragsbestaetigungsnummer || '', weight: 3.0 },
+          { field: 'rechnungsnummer', value: p.rechnungsnummer || '', weight: 3.0 },
+          { field: 'lieferscheinnummer', value: p.lieferscheinnummer || '', weight: 3.0 },
           { field: 'lieferadresse_strasse', value: p.lieferadresse?.strasse || '', weight: 0.7 },
           { field: 'lieferadresse_plz', value: p.lieferadresse?.plz || '', weight: 1.0 },
           { field: 'lieferadresse_ort', value: p.lieferadresse?.ort || '', weight: 1.2 },
@@ -540,7 +541,7 @@ const ProjektVerwaltung = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
               <input
                 type="text"
-                placeholder="Verein, PLZ, Straße, Nummer..."
+                placeholder="Verein, PLZ, Angebots-Nr., Rechnungs-Nr..."
                 value={suche}
                 onChange={(e) => setSuche(e.target.value)}
                 className="pl-10 pr-4 py-2 w-80 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
