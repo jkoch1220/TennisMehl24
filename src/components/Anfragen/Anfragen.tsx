@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Mail, 
-  Filter, 
-  Search, 
-  User, 
-  UserPlus, 
-  FileText, 
-  Send, 
-  CheckCircle, 
+import {
+  Mail,
+  Filter,
+  Search,
+  User,
+  UserPlus,
+  FileText,
+  Send,
+  CheckCircle,
   Eye,
   X,
   Calendar,
@@ -20,10 +20,15 @@ import {
   ChevronUp,
   Workflow,
   Database,
-  Zap
+  Zap,
+  History,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { anfragenService } from '../../services/anfragenService';
 import { Anfrage, AnfrageStatus } from '../../types/anfragen';
+import { ladeAlleEmailProtokolle } from '../../services/emailSendService';
+import { EmailProtokoll } from '../../types/email';
 import { kundenService } from '../../services/kundenService';
 import { Kunde } from '../../types/dispo';
 import { saisonplanungService } from '../../services/saisonplanungService';
@@ -47,6 +52,7 @@ const Anfragen = () => {
   const [kundenSuche, setKundenSuche] = useState('');
   const [isCreatingProjekt, setIsCreatingProjekt] = useState(false);
   const [showBlueprint, setShowBlueprint] = useState(false);
+  const [activeTab, setActiveTab] = useState<'anfragen' | 'verlauf'>('anfragen');
 
   useEffect(() => {
     loadAnfragen();
@@ -258,48 +264,95 @@ const Anfragen = () => {
             </button>
           </div>
 
-          {/* Filter und Suche */}
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Status-Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Filter className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
-              <button
-                onClick={() => setStatusFilter('alle')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  statusFilter === 'alle'
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Alle
-              </button>
-              {(['neu', 'zugeordnet', 'angebot_erstellt', 'angebot_versendet', 'erledigt'] as AnfrageStatus[]).map((status) => (
+          {/* Tab-Umschalter */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setActiveTab('anfragen')}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
+                activeTab === 'anfragen'
+                  ? 'bg-teal-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Mail className="w-5 h-5" />
+              Anfragen
+              {anfragen.filter(a => a.status === 'neu').length > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {anfragen.filter(a => a.status === 'neu').length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('verlauf')}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
+                activeTab === 'verlauf'
+                  ? 'bg-teal-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Send className="w-5 h-5" />
+              E-Mail-Verlauf
+            </button>
+          </div>
+
+          {/* Filter und Suche - nur bei Anfragen-Tab */}
+          {activeTab === 'anfragen' && (
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Status-Filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="w-5 h-5 text-gray-500 dark:text-dark-textMuted" />
                 <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
+                  onClick={() => setStatusFilter('alle')}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    statusFilter === status
+                    statusFilter === 'alle'
                       ? 'bg-teal-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  {getStatusLabel(status)}
+                  Alle
                 </button>
-              ))}
-            </div>
+                {(['neu', 'zugeordnet', 'angebot_erstellt', 'angebot_versendet', 'erledigt'] as AnfrageStatus[]).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      statusFilter === status
+                        ? 'bg-teal-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {getStatusLabel(status)}
+                  </button>
+                ))}
+              </div>
 
-            {/* Suche */}
+              {/* Suche */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Anfragen durchsuchen..."
+                  className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Suche - nur bei Verlauf-Tab */}
+          {activeTab === 'verlauf' && (
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Anfragen durchsuchen..."
+                placeholder="Verlauf durchsuchen..."
                 className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
               />
             </div>
-          </div>
+          )}
         </div>
 
         {/* Blueprint / Konzept-Sektion */}
@@ -472,90 +525,100 @@ const Anfragen = () => {
         )}
 
         {/* Anfragen-Liste */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredAnfragen.map((anfrage) => {
-            const zugeordneterKunde = getKundeFuerAnfrage(anfrage);
-            return (
-              <div
-                key={anfrage.id}
-                className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => setSelectedAnfrage(anfrage)}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(anfrage.status)}`}>
-                        {getStatusLabel(anfrage.status)}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-dark-textMuted">
-                        {new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-1">
-                      {anfrage.emailBetreff}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-2">
-                      Von: {anfrage.emailAbsender}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Extrahierte Daten */}
-                {anfrage.extrahierteDaten.kundenname && (
-                  <div className="bg-teal-50 rounded-lg p-3 mb-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-teal-600" />
-                      <span className="font-medium text-teal-900">
-                        {anfrage.extrahierteDaten.kundenname}
-                      </span>
-                    </div>
-                    {anfrage.extrahierteDaten.menge && (
-                      <div className="flex items-center gap-2 text-sm mt-1">
-                        <Package className="w-4 h-4 text-teal-600" />
-                        <span className="text-teal-700">
-                          {anfrage.extrahierteDaten.menge} {anfrage.extrahierteDaten.artikel || 'Tonnen'}
+        {activeTab === 'anfragen' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filteredAnfragen.map((anfrage) => {
+              const zugeordneterKunde = getKundeFuerAnfrage(anfrage);
+              return (
+                <div
+                  key={anfrage.id}
+                  className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
+                  onClick={() => setSelectedAnfrage(anfrage)}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(anfrage.status)}`}>
+                          {getStatusLabel(anfrage.status)}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">
+                          {new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}
                         </span>
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Zugeordneter Kunde */}
-                {zugeordneterKunde && (
-                  <div className="bg-green-50 rounded-lg p-3 mb-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="font-medium text-green-900">
-                        Kunde: {zugeordneterKunde.name}
-                        {zugeordneterKunde.kundennummer && ` (${zugeordneterKunde.kundennummer})`}
-                      </span>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-1">
+                        {anfrage.emailBetreff}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-2">
+                        Von: {anfrage.emailAbsender}
+                      </p>
                     </div>
                   </div>
-                )}
 
-                {/* Vorschau E-Mail-Text */}
-                <p className="text-sm text-gray-600 dark:text-dark-textMuted line-clamp-3 mb-4">
-                  {anfrage.emailText.substring(0, 150)}...
-                </p>
+                  {/* Extrahierte Daten */}
+                  {anfrage.extrahierteDaten.kundenname && (
+                    <div className="bg-teal-50 rounded-lg p-3 mb-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="w-4 h-4 text-teal-600" />
+                        <span className="font-medium text-teal-900">
+                          {anfrage.extrahierteDaten.kundenname}
+                        </span>
+                      </div>
+                      {anfrage.extrahierteDaten.menge && (
+                        <div className="flex items-center gap-2 text-sm mt-1">
+                          <Package className="w-4 h-4 text-teal-600" />
+                          <span className="text-teal-700">
+                            {anfrage.extrahierteDaten.menge} {anfrage.extrahierteDaten.artikel || 'Tonnen'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAnfrage(anfrage);
-                    }}
-                    className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Details
-                  </button>
+                  {/* Zugeordneter Kunde */}
+                  {zugeordneterKunde && (
+                    <div className="bg-green-50 rounded-lg p-3 mb-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="font-medium text-green-900">
+                          Kunde: {zugeordneterKunde.name}
+                          {zugeordneterKunde.kundennummer && ` (${zugeordneterKunde.kundennummer})`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vorschau E-Mail-Text */}
+                  <p className="text-sm text-gray-600 dark:text-dark-textMuted line-clamp-3 mb-4">
+                    {anfrage.emailText.substring(0, 150)}...
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAnfrage(anfrage);
+                      }}
+                      className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Details
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
-        {filteredAnfragen.length === 0 && !loading && (
+        {/* E-Mail-Verlauf */}
+        {activeTab === 'verlauf' && (
+          <EmailVerlauf
+            searchQuery={searchQuery}
+            navigate={navigate}
+          />
+        )}
+
+        {activeTab === 'anfragen' && filteredAnfragen.length === 0 && !loading && (
           <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-12 text-center">
             <Mail className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
             <p className="text-gray-600 dark:text-dark-textMuted text-lg mb-2">
@@ -1011,6 +1074,271 @@ const ProjektErstellenDialog = ({
   );
 };
 
-export default Anfragen;
+// E-Mail-Verlauf Komponente - zeigt alle versendeten E-Mails
+interface EmailVerlaufProps {
+  searchQuery: string;
+  navigate: (path: string) => void;
+}
 
+const EmailVerlauf = ({ searchQuery, navigate }: EmailVerlaufProps) => {
+  const [emailProtokolle, setEmailProtokolle] = useState<EmailProtokoll[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterTyp, setFilterTyp] = useState<'alle' | 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung'>('alle');
+
+  useEffect(() => {
+    const ladeProtokolle = async () => {
+      setLoading(true);
+      try {
+        // Reduziert auf 200 für bessere Performance
+        const protokolle = await ladeAlleEmailProtokolle(200);
+        setEmailProtokolle(protokolle);
+      } catch (error) {
+        console.error('Fehler beim Laden der E-Mail-Protokolle:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    ladeProtokolle();
+  }, []);
+
+  // Filtere Protokolle
+  const gefilterteProtokolle = emailProtokolle
+    .filter(p => filterTyp === 'alle' || p.dokumentTyp === filterTyp)
+    .filter(p => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        p.empfaenger.toLowerCase().includes(query) ||
+        p.betreff.toLowerCase().includes(query) ||
+        p.dokumentNummer.toLowerCase().includes(query) ||
+        p.absender.toLowerCase().includes(query)
+      );
+    });
+
+  const getDokumentTypLabel = (typ: string): string => {
+    switch (typ) {
+      case 'angebot': return 'Angebot';
+      case 'auftragsbestaetigung': return 'Auftragsbestätigung';
+      case 'lieferschein': return 'Lieferschein';
+      case 'rechnung': return 'Rechnung';
+      default: return typ;
+    }
+  };
+
+  const getDokumentTypColor = (typ: string): string => {
+    switch (typ) {
+      case 'angebot': return 'bg-blue-100 text-blue-800';
+      case 'auftragsbestaetigung': return 'bg-green-100 text-green-800';
+      case 'lieferschein': return 'bg-orange-100 text-orange-800';
+      case 'rechnung': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg p-12 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Lade E-Mail-Verlauf...</p>
+      </div>
+    );
+  }
+
+  if (emailProtokolle.length === 0) {
+    return (
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg p-12 text-center">
+        <History className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+        <p className="text-gray-600 dark:text-dark-textMuted text-lg mb-2">
+          Noch keine E-Mails versendet
+        </p>
+        <p className="text-gray-500 text-sm">
+          Hier erscheinen alle E-Mails, die über das System versendet wurden.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filter-Buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter className="w-5 h-5 text-gray-500" />
+        {(['alle', 'angebot', 'auftragsbestaetigung', 'lieferschein', 'rechnung'] as const).map((typ) => (
+          <button
+            key={typ}
+            onClick={() => setFilterTyp(typ)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              filterTyp === typ
+                ? 'bg-teal-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {typ === 'alle' ? 'Alle' : getDokumentTypLabel(typ)}
+            <span className="ml-1 text-xs opacity-75">
+              ({typ === 'alle'
+                ? emailProtokolle.length
+                : emailProtokolle.filter(p => p.dokumentTyp === typ).length})
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Tabelle */}
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-lg dark:shadow-dark-lg overflow-hidden">
+        <div className="bg-gray-50 dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+          <div className="flex items-center gap-3">
+            <Send className="w-5 h-5 text-teal-600" />
+            <h2 className="font-semibold text-gray-900 dark:text-dark-text">
+              Versendete E-Mails ({gefilterteProtokolle.length})
+            </h2>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Datum / Zeit
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Typ
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Dokument-Nr.
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Empfänger
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Betreff
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 dark:text-dark-textMuted uppercase tracking-wider">
+                  Aktionen
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+              {gefilterteProtokolle.map((protokoll) => (
+                <tr
+                  key={protokoll.$id}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-dark-text">
+                          {new Date(protokoll.gesendetAm).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(protokoll.gesendetAm).toLocaleTimeString('de-DE', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })} Uhr
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDokumentTypColor(protokoll.dokumentTyp)}`}>
+                      {getDokumentTypLabel(protokoll.dokumentTyp)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gray-400" />
+                      <span className="font-mono text-sm text-gray-900 dark:text-dark-text">
+                        {protokoll.dokumentNummer}
+                      </span>
+                      {protokoll.pdfVersion && protokoll.pdfVersion > 1 && (
+                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          v{protokoll.pdfVersion}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-700 dark:text-dark-textMuted truncate max-w-[200px]" title={protokoll.empfaenger}>
+                        {protokoll.empfaenger}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm text-gray-600 dark:text-dark-textMuted truncate max-w-[250px] block" title={protokoll.betreff}>
+                      {protokoll.betreff}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {protokoll.status === 'gesendet' ? (
+                      <span className="inline-flex items-center gap-1 text-green-600 text-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        Gesendet
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-red-600 text-sm" title={protokoll.fehlerMeldung}>
+                        <X className="w-4 h-4" />
+                        Fehler
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => navigate(`/projektabwicklung/${protokoll.projektId}`)}
+                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Projekt öffnen"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {gefilterteProtokolle.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            Keine E-Mails gefunden für die aktuelle Filterung.
+          </div>
+        )}
+
+        {/* Zusammenfassung */}
+        <div className="bg-gray-50 dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-dark-textMuted">
+            <div className="flex items-center gap-6">
+              <span className="flex items-center gap-1">
+                <Send className="w-4 h-4 text-green-500" />
+                {emailProtokolle.filter(p => p.status === 'gesendet').length} erfolgreich gesendet
+              </span>
+              {emailProtokolle.filter(p => p.status === 'fehler').length > 0 && (
+                <span className="flex items-center gap-1 text-red-600">
+                  <X className="w-4 h-4" />
+                  {emailProtokolle.filter(p => p.status === 'fehler').length} fehlgeschlagen
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <span>Angebote: {emailProtokolle.filter(p => p.dokumentTyp === 'angebot').length}</span>
+              <span>AB: {emailProtokolle.filter(p => p.dokumentTyp === 'auftragsbestaetigung').length}</span>
+              <span>LS: {emailProtokolle.filter(p => p.dokumentTyp === 'lieferschein').length}</span>
+              <span>RE: {emailProtokolle.filter(p => p.dokumentTyp === 'rechnung').length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Anfragen;
 

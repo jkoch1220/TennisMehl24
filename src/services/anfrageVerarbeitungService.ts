@@ -750,7 +750,7 @@ export async function erstelleAnfragePositionen(
   const preisLoseMaterial = artikelLose02?.einzelpreis ?? 95.75; // Fallback 95.75€/t
   const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 145.00; // Fallback 145€/t (NUR ABWERKSPREIS!)
   const preisBeiladungProSack = artikelBeiladung02?.einzelpreis ?? 8.50; // Fallback 8.50€/Sack
-  const preisPEFolie = artikelPE?.einzelpreis ?? 25.00; // Fallback 25€/Stk
+  // PE-Folie und Palette: Daten direkt aus Stammdaten, KEIN Fallback
 
   // ==========================================
   // RABEN-FRACHTKOSTEN FÜR SACKWARE BERECHNEN
@@ -942,24 +942,23 @@ export async function erstelleAnfragePositionen(
   // - Sackware vorhanden UND kein loses Material (also eigene Speditionslieferung)
   const istSpedition = gesamtSackwareGesamt >= 1 || (gesamtSackwareGesamt > 0 && gesamtMengeLose === 0);
 
-  if (istSpedition && gesamtSackwareGesamt > 0) {
+  if (istSpedition && gesamtSackwareGesamt > 0 && artikelPalette && artikelPalette.einzelpreis !== undefined) {
     const anzahlPaletten = Math.ceil(gesamtSackwareGesamt); // 1 Palette pro Tonne (aufgerundet)
-    const preisPalette = artikelPalette?.einzelpreis ?? 15.00; // Fallback 15€/Palette
-    const infoPalette = getArtikelInfo(artikelPalette, 'Europalette');
+    const preis = artikelPalette.einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: 'TM-PAL',
-      bezeichnung: infoPalette.bezeichnung,
-      beschreibung: infoPalette.beschreibung || 'Tauschpalette für Palettenware',
+      artikelnummer: artikelPalette.artikelnummer,
+      bezeichnung: artikelPalette.bezeichnung,
+      beschreibung: artikelPalette.beschreibung,
       menge: anzahlPaletten,
-      einheit: 'Stk',
-      einzelpreis: preisPalette,
-      gesamtpreis: anzahlPaletten * preisPalette,
+      einheit: artikelPalette.einheit || 'Stk',
+      einzelpreis: preis,
+      gesamtpreis: anzahlPaletten * preis,
       istBedarfsposition: false,
     });
 
-    gesamtpreisOhneLieferung += anzahlPaletten * preisPalette;
+    gesamtpreisOhneLieferung += anzahlPaletten * preis;
   }
 
   // ==========================================
@@ -967,22 +966,22 @@ export async function erstelleAnfragePositionen(
   // Preis aus Stammdaten (bereits oben geladen)
   // ==========================================
 
-  if (gesamtMengeLose > 0) {
-    const info = getArtikelInfo(artikelPE, 'PE-Folie');
+  if (gesamtMengeLose > 0 && artikelPE && artikelPE.einzelpreis !== undefined) {
+    const preisPE = artikelPE.einzelpreis;
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: 'TM-PE',
-      bezeichnung: info.bezeichnung,
-      beschreibung: info.beschreibung,
+      artikelnummer: artikelPE.artikelnummer,
+      bezeichnung: artikelPE.bezeichnung,
+      beschreibung: artikelPE.beschreibung,
       menge: 1,
-      einheit: 'Stk',
-      einzelpreis: preisPEFolie,
-      gesamtpreis: preisPEFolie,
+      einheit: artikelPE.einheit || 'Stk',
+      einzelpreis: preisPE,
+      gesamtpreis: preisPE,
       istBedarfsposition: false,
     });
 
-    gesamtpreisOhneLieferung += preisPEFolie;
+    gesamtpreisOhneLieferung += preisPE;
   }
 
   // ==========================================

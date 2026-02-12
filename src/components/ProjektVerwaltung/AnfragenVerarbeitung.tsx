@@ -187,9 +187,10 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   }, []);
 
   // Lade E-Mail-Protokoll für Duplikat-Erkennung (mit Zeitpunkten und Projekt-IDs!)
+  // Reduziert auf 100 Einträge für bessere Performance
   const ladeBereitsBeantwortet = useCallback(async () => {
     try {
-      const protokoll = await ladeAlleEmailProtokolle(500);
+      const protokoll = await ladeAlleEmailProtokolle(100);
       // Map: E-Mail-Adresse (lowercase) -> Liste der Antworten mit Details
       const datenMap = new Map<string, AntwortInfo[]>();
 
@@ -425,12 +426,13 @@ Bei Fragen sind wir gerne für Sie da.`,
   const loadAnfragenAusAppwrite = useCallback(async () => {
     setLoading(true);
     try {
-      await ladeBereitsBeantwortet();
-
       console.log('📧 Lade Anfragen aus Appwrite...');
 
-      // Lade alle neuen Anfragen aus Appwrite
-      const alleAnfragen = await anfragenService.loadAlleAnfragen();
+      // Lade Anfragen und E-Mail-Protokoll PARALLEL für bessere Performance
+      const [alleAnfragen] = await Promise.all([
+        anfragenService.loadAlleAnfragen(),
+        ladeBereitsBeantwortet(), // Lädt im Hintergrund, setzt antwortDaten state
+      ]);
       console.log(`📧 ${alleAnfragen.length} Anfragen in Appwrite gefunden`);
 
       // Konvertiere zu VerarbeiteteAnfrage
