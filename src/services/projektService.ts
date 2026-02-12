@@ -64,7 +64,18 @@ class ProjektService {
       }
 
       const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
-      const projekte = response.documents as unknown as Projekt[];
+
+      // WICHTIG: data JSON-Feld parsen, damit alle Felder (angebotsnummer, etc.) verfügbar sind!
+      const projekte = response.documents.map(doc => {
+        if (doc.data && typeof doc.data === 'string') {
+          try {
+            return { ...JSON.parse(doc.data), $id: doc.$id };
+          } catch {
+            return doc as unknown as Projekt;
+          }
+        }
+        return doc as unknown as Projekt;
+      });
 
       return {
         angebot: projekte.filter((p) => p.status === 'angebot'),
