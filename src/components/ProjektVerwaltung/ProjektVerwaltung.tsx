@@ -26,6 +26,7 @@ import {
   Building2,
   BarChart3,
   Mail,
+  Hash,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -118,6 +119,7 @@ const ProjektVerwaltung = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [suche, setSuche] = useState('');
+  const [nummerSuche, setNummerSuche] = useState(''); // Dedizierte Suche für Dokument-Nummern
   const [draggedProjekt, setDraggedProjekt] = useState<Projekt | null>(null);
   const [dragOverTab, setDragOverTab] = useState<ProjektStatus | null>(null);
   const [saisonjahr] = useState(2026); // Aktuelle Saison
@@ -196,74 +198,55 @@ const ProjektVerwaltung = () => {
     loadData();
   }, [loadData]);
 
-  // DEDIZIERTE NUMMERN-SUCHE + FUZZY SEARCH
-  // WICHTIG: Platzbauer-Projekte werden hier ausgeschlossen - diese werden in der Platzbauer-Verwaltung angezeigt
+  // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    // Schritt 1: Platzbauer-Projekte ausfiltern (diese gehören in die Platzbauer-Verwaltung)
-    const ohnePlatzbauer = projekte.filter(p => {
+    // Schritt 1: Platzbauer-Projekte ausfiltern
+    let gefiltert = projekte.filter(p => {
       if (p.istPlatzbauerprojekt) return false;
       const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
       if (kunde?.typ === 'platzbauer') return false;
       return true;
     });
 
-    if (!suche.trim()) return ohnePlatzbauer;
-
-    const suchText = suche.trim().toLowerCase();
-
     // ============================================
-    // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (EXAKT)
-    // Sucht nach Teilstrings in Dokument- und Kundennummern
-    // z.B. "0335" findet "ANG-2026-0335"
+    // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (eigenes Feld!)
     // ============================================
-    const nummerTreffer = ohnePlatzbauer.filter(p => {
-      // Dokumentnummern prüfen
-      if (p.angebotsnummer?.toLowerCase().includes(suchText)) return true;
-      if (p.auftragsbestaetigungsnummer?.toLowerCase().includes(suchText)) return true;
-      if (p.rechnungsnummer?.toLowerCase().includes(suchText)) return true;
-      if (p.lieferscheinnummer?.toLowerCase().includes(suchText)) return true;
-      // Kundennummer prüfen
-      if (p.kundennummer?.toLowerCase().includes(suchText)) return true;
-      return false;
-    });
-
-    // Wenn Nummern-Treffer gefunden, diese zurückgeben (PRIORITÄT!)
-    if (nummerTreffer.length > 0) {
-      return nummerTreffer;
+    if (nummerSuche.trim()) {
+      const nummerText = nummerSuche.trim().toLowerCase();
+      gefiltert = gefiltert.filter(p => {
+        if (p.angebotsnummer?.toLowerCase().includes(nummerText)) return true;
+        if (p.auftragsbestaetigungsnummer?.toLowerCase().includes(nummerText)) return true;
+        if (p.rechnungsnummer?.toLowerCase().includes(nummerText)) return true;
+        if (p.lieferscheinnummer?.toLowerCase().includes(nummerText)) return true;
+        if (p.kundennummer?.toLowerCase().includes(nummerText)) return true;
+        return false;
+      });
     }
 
     // ============================================
-    // SCHRITT 3: FUZZY SEARCH für Namen, Orte, etc.
+    // SCHRITT 3: FUZZY SEARCH für Namen, Orte (wenn Text eingegeben)
     // ============================================
-    const results = fuzzySearch<Projekt>(
-      ohnePlatzbauer,
-      suche,
-      (p) => {
-        const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
-        return [
-          { field: 'kundenname', value: p.kundenname || '', weight: 2.0 },
-          { field: 'projektName', value: p.projektName || '', weight: 1.5 },
-          { field: 'kundenPlzOrt', value: p.kundenPlzOrt || '', weight: 1.2 },
-          { field: 'kundenstrasse', value: p.kundenstrasse || '', weight: 0.8 },
-          { field: 'lieferadresse_strasse', value: p.lieferadresse?.strasse || '', weight: 0.7 },
-          { field: 'lieferadresse_plz', value: p.lieferadresse?.plz || '', weight: 1.0 },
-          { field: 'lieferadresse_ort', value: p.lieferadresse?.ort || '', weight: 1.2 },
-          { field: 'kunde_name', value: kunde?.name || '', weight: 2.0 },
-          { field: 'kunde_adresse_plz', value: kunde?.adresse?.plz || '', weight: 1.0 },
-          { field: 'kunde_adresse_ort', value: kunde?.adresse?.ort || '', weight: 1.2 },
-          { field: 'kunde_email', value: kunde?.email || '', weight: 0.8 },
-        ];
-      },
-      {
-        minScore: 0.25,
-        fuzzyThreshold: 0.6,
-        maxResults: 1000,
-        matchAll: true,
-      }
-    );
+    if (suche.trim()) {
+      const results = fuzzySearch<Projekt>(
+        gefiltert,
+        suche,
+        (p) => {
+          const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
+          return [
+            { field: 'kundenname', value: p.kundenname || '', weight: 2.0 },
+            { field: 'projektName', value: p.projektName || '', weight: 1.5 },
+            { field: 'kundenPlzOrt', value: p.kundenPlzOrt || '', weight: 1.2 },
+            { field: 'kunde_name', value: kunde?.name || '', weight: 2.0 },
+            { field: 'kunde_adresse_ort', value: kunde?.adresse?.ort || '', weight: 1.2 },
+          ];
+        },
+        { minScore: 0.25, fuzzyThreshold: 0.6, maxResults: 1000, matchAll: true }
+      );
+      return results.map(r => r.item);
+    }
 
-    return results.map(r => r.item);
-  }, [suche, kundenMap]);
+    return gefiltert;
+  }, [suche, nummerSuche, kundenMap]);
 
   // Alle Projekte mit Angebot für die Angebotsliste
   const angebotsProjekte = useMemo(() => {
@@ -547,19 +530,39 @@ const ProjektVerwaltung = () => {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Suche */}
+            {/* Suche nach Vereinsname/PLZ */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
               <input
                 type="text"
-                placeholder="Verein, PLZ, Angebots-Nr., Rechnungs-Nr..."
+                placeholder="Verein, PLZ, Stadt..."
                 value={suche}
                 onChange={(e) => setSuche(e.target.value)}
-                className="pl-10 pr-4 py-2 w-80 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
+                className="pl-10 pr-4 py-2 w-56 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
               />
               {suche && (
                 <button
                   onClick={() => setSuche('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Suche nach Dokument-Nummern */}
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
+              <input
+                type="text"
+                placeholder="Nr. (z.B. 0335)"
+                value={nummerSuche}
+                onChange={(e) => setNummerSuche(e.target.value)}
+                className="pl-10 pr-4 py-2 w-40 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
+              />
+              {nummerSuche && (
+                <button
+                  onClick={() => setNummerSuche('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="w-4 h-4" />
