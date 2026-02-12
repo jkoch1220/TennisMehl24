@@ -12,6 +12,9 @@ import { PlatzbauerProjekt } from '../../types/platzbauer';
 import { SaisonKunde, SaisonKundeMitDaten } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerAngebotTab from './PlatzbauerAngebotTab';
+import PlatzbauerAuftragsbestaetigungTab from './PlatzbauerAuftragsbestaetigungTab';
+import PlatzbauerLieferscheinTab from './PlatzbauerLieferscheinTab';
+import PlatzbauerRechnungTab from './PlatzbauerRechnungTab';
 
 // Status-Konfiguration
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -216,25 +219,22 @@ const PlatzbauerProjektabwicklung = () => {
               />
             )}
             {activeTab === 'auftragsbestaetigung' && (
-              <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
-                <FileSignature className="h-16 w-16 text-orange-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Auftragsbestätigung</h3>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">Kommt als nächstes...</p>
-              </div>
+              <PlatzbauerAuftragsbestaetigungTab
+                projekt={projekt}
+                platzbauer={platzbauer}
+              />
             )}
             {activeTab === 'lieferschein' && (
-              <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
-                <Truck className="h-16 w-16 text-green-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Lieferscheine</h3>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">Kommt als nächstes...</p>
-              </div>
+              <PlatzbauerLieferscheinTab
+                projekt={projekt}
+                platzbauer={platzbauer}
+              />
             )}
             {activeTab === 'rechnung' && (
-              <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
-                <FileText className="h-16 w-16 text-red-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">Rechnung</h3>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">Kommt als nächstes...</p>
-              </div>
+              <PlatzbauerRechnungTab
+                projekt={projekt}
+                platzbauer={platzbauer}
+              />
             )}
           </div>
         </div>

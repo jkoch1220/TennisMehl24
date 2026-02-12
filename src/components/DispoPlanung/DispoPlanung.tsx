@@ -30,11 +30,16 @@ import {
   Sparkles,
   Image,
   ZoomIn,
-  ArrowRight,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import DispoKartenAnsicht from './DispoKartenAnsicht';
-import TourenManagement, { TourZuweisungDialog } from './TourenManagement';
+import TourenManagement from './TourenManagement';
+import {
+  SchnellBuchungDialog,
+  BuchungsBadge,
+  erstelleAuftragMitBuchungen,
+  AuftragMitBuchungen,
+} from './TourenBuchung';
 import { AngebotsDaten } from '../../types/projektabwicklung';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -90,9 +95,11 @@ const DispoPlanung = () => {
   const [selectedProjekt, setSelectedProjekt] = useState<Projekt | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
 
-  // Tour-Zuweisung Dialog
-  const [zuweisungProjekt, setZuweisungProjekt] = useState<Projekt | null>(null);
-  const [showTourZuweisungDialog, setShowTourZuweisungDialog] = useState(false);
+  // Buchungs-Dialog State
+  const [buchungAuftrag, setBuchungAuftrag] = useState<AuftragMitBuchungen | null>(null);
+  const [buchungModus, setBuchungModus] = useState<'neu' | 'umbuchen' | 'teil'>('neu');
+  const [buchungVonTourId, setBuchungVonTourId] = useState<string | undefined>(undefined);
+  const [showBuchungDialog, setShowBuchungDialog] = useState(false);
 
   // Daten laden
   const loadData = useCallback(async () => {
@@ -152,54 +159,231 @@ const DispoPlanung = () => {
     }
   }, []);
 
-  // Tour für Projekt finden
-  const getTourFuerProjekt = (projektId: string): Tour | undefined => {
-    return touren.find(t => t.stops.some(s => s.projektId === projektId));
+  // === BUCHUNGS-LOGIK ===
+
+  // Buchung durchführen (neu, umbuchen, teil)
+  const handleBuchen = async (tourId: string, tonnen: number, vonTourId?: string) => {
+    if (!buchungAuftrag) return;
+
+    setSaving(true);
+    try {
+      const zielTour = touren.find(t => t.id === tourId);
+      if (!zielTour) throw new Error('Ziel-Tour nicht gefunden');
+
+      const projektId = buchungAuftrag.projektId;
+      const projekt = buchungAuftrag.projekt;
+
+      // Bei Umbuchen: Erst von alter Tour entfernen
+      if (vonTourId) {
+        const vonTour = touren.find(t => t.id === vonTourId);
+        if (vonTour) {
+          const neueStopsVon = vonTour.stops.filter(s => s.projektId !== projektId);
+          neueStopsVon.forEach((s, i) => { s.position = i + 1; });
+          await tourenService.updateTour(vonTourId, { stops: neueStopsVon });
+        }
+      }
+
+      // Prüfen ob bereits ein Stop für dieses Projekt existiert
+      const existierenderStop = zielTour.stops.find(s => s.projektId === projektId);
+
+      let neueStops: TourStop[];
+      if (existierenderStop) {
+        // Tonnen addieren (Teilbuchung)
+        neueStops = zielTour.stops.map(s =>
+          s.projektId === projektId
+            ? { ...s, tonnen: s.tonnen + tonnen }
+            : s
+        );
+      } else {
+        // Neuen Stop erstellen
+        const neuerStop: TourStop = {
+          projektId,
+          position: zielTour.stops.length + 1,
+          ankunftGeplant: '',
+          abfahrtGeplant: '',
+          kundenname: projekt.kundenname,
+          kundennummer: projekt.kundennummer,
+          adresse: {
+            strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+            plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
+            ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+          },
+          tonnen,
+          belieferungsart: projekt.belieferungsart || 'mit_haenger',
+        };
+        neueStops = [...zielTour.stops, neuerStop];
+      }
+
+      await tourenService.updateTour(tourId, { stops: neueStops });
+
+      // Projekt-Status aktualisieren wenn was gebucht ist
+      const alleBuchungen = touren.flatMap(t =>
+        t.stops.filter(s => s.projektId === projektId)
+      );
+      const hatBuchungen = alleBuchungen.length > 0 || tonnen > 0;
+
+      await projektService.updateProjekt(projektId, {
+        dispoStatus: hatBuchungen ? 'geplant' : 'offen',
+      });
+
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Buchen:', error);
+      throw error;
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Auftrag einer Tour zuweisen
-  const handleAuftragZuweisen = async (tourId: string, projektId: string, tonnen: number) => {
+  // Buchung von Tour entfernen
+  const handleBuchungEntfernen = async (projektId: string, tourId: string) => {
     setSaving(true);
     try {
       const tour = touren.find(t => t.id === tourId);
       if (!tour) throw new Error('Tour nicht gefunden');
 
+      // Stop entfernen
+      const neueStops = tour.stops.filter(s => s.projektId !== projektId);
+      neueStops.forEach((s, i) => { s.position = i + 1; });
+      await tourenService.updateTour(tourId, { stops: neueStops });
+
+      // Prüfen ob noch andere Buchungen existieren
+      const andereBuchungen = touren
+        .filter(t => t.id !== tourId)
+        .some(t => t.stops.some(s => s.projektId === projektId));
+
+      if (!andereBuchungen) {
+        await projektService.updateProjekt(projektId, {
+          dispoStatus: 'offen',
+        });
+      }
+
+      await loadData();
+    } catch (error) {
+      console.error('Fehler beim Entfernen:', error);
+      alert('Fehler beim Entfernen der Buchung');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Dialog-Öffner
+  const openBuchungDialog = (projekt: Projekt, modus: 'neu' | 'umbuchen' | 'teil', vonTourId?: string) => {
+    const auftrag = erstelleAuftragMitBuchungen(projekt, touren);
+    setBuchungAuftrag(auftrag);
+    setBuchungModus(modus);
+    setBuchungVonTourId(vonTourId);
+    setShowBuchungDialog(true);
+  };
+
+  // BUCHUNG: Neu buchen, umbuchen, oder Menge ändern
+  const handleSchnellUmbuchen = async (
+    projektId: string,
+    vonTourId: string,
+    zuTourId: string,
+    tonnen: number
+  ) => {
+    setSaving(true);
+    try {
+      // Projekt-Daten holen
       const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
       if (!projekt) throw new Error('Projekt nicht gefunden');
 
-      const neuerStop: TourStop = {
-        projektId,
-        position: tour.stops.length + 1,
-        ankunftGeplant: '',
-        abfahrtGeplant: '',
-        kundenname: projekt.kundenname,
-        kundennummer: projekt.kundennummer,
-        adresse: {
-          strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
-          plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
-          ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-        },
-        tonnen,
-        belieferungsart: projekt.belieferungsart || 'mit_haenger',
-      };
+      // FALL 1: Gleiche Tour (Menge ändern)
+      if (vonTourId && vonTourId === zuTourId) {
+        const tour = touren.find(t => t.id === zuTourId);
+        if (!tour) throw new Error('Tour nicht gefunden');
 
-      const neueStops = [...tour.stops, neuerStop];
-      await tourenService.updateTour(tourId, { stops: neueStops });
+        // Menge aktualisieren
+        const neueStops = tour.stops.map(s =>
+          s.projektId === projektId ? { ...s, tonnen } : s
+        );
+        await tourenService.updateTour(zuTourId, { stops: neueStops });
+      }
+      // FALL 2: Von einer Tour zu einer anderen (Umbuchen)
+      else if (vonTourId) {
+        const vonTour = touren.find(t => t.id === vonTourId);
+        const zuTour = touren.find(t => t.id === zuTourId);
+        if (!vonTour || !zuTour) throw new Error('Tour nicht gefunden');
 
+        // Von alter Tour entfernen
+        const neueStopsVon = vonTour.stops.filter(s => s.projektId !== projektId);
+        neueStopsVon.forEach((s, i) => { s.position = i + 1; });
+        await tourenService.updateTour(vonTourId, { stops: neueStopsVon });
+
+        // Bei Ziel-Tour hinzufügen (oder Menge erhöhen wenn schon da)
+        const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
+        let neueStopsZu: TourStop[];
+        if (existierenderStop) {
+          neueStopsZu = zuTour.stops.map(s =>
+            s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
+          );
+        } else {
+          const neuerStop: TourStop = {
+            projektId,
+            position: zuTour.stops.length + 1,
+            ankunftGeplant: '',
+            abfahrtGeplant: '',
+            kundenname: projekt.kundenname,
+            kundennummer: projekt.kundennummer,
+            adresse: {
+              strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+              plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
+              ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+            },
+            tonnen,
+            belieferungsart: projekt.belieferungsart || 'mit_haenger',
+          };
+          neueStopsZu = [...zuTour.stops, neuerStop];
+        }
+        await tourenService.updateTour(zuTourId, { stops: neueStopsZu });
+      }
+      // FALL 3: Neue Buchung (kein vonTourId)
+      else {
+        const zuTour = touren.find(t => t.id === zuTourId);
+        if (!zuTour) throw new Error('Ziel-Tour nicht gefunden');
+
+        // Prüfen ob schon gebucht auf dieser Tour
+        const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
+        let neueStops: TourStop[];
+        if (existierenderStop) {
+          // Tonnen addieren (Teilbuchung auf gleiche Tour)
+          neueStops = zuTour.stops.map(s =>
+            s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
+          );
+        } else {
+          // Neuen Stop erstellen
+          const neuerStop: TourStop = {
+            projektId,
+            position: zuTour.stops.length + 1,
+            ankunftGeplant: '',
+            abfahrtGeplant: '',
+            kundenname: projekt.kundenname,
+            kundennummer: projekt.kundennummer,
+            adresse: {
+              strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+              plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
+              ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+            },
+            tonnen,
+            belieferungsart: projekt.belieferungsart || 'mit_haenger',
+          };
+          neueStops = [...zuTour.stops, neuerStop];
+        }
+        await tourenService.updateTour(zuTourId, { stops: neueStops });
+      }
+
+      // Status auf geplant setzen
       await projektService.updateProjekt(projektId, {
-        routeId: tourId,
         dispoStatus: 'geplant',
-        liefergewicht: tonnen,
       });
 
       await loadData();
     } catch (error) {
-      console.error('Fehler beim Zuweisen:', error);
-      alert('Fehler beim Zuweisen des Auftrags');
+      console.error('Fehler beim Buchen:', error);
+      throw error;
     } finally {
       setSaving(false);
-      setShowTourZuweisungDialog(false);
-      setZuweisungProjekt(null);
     }
   };
 
@@ -394,6 +578,31 @@ const DispoPlanung = () => {
             const projektId = (projekt as any).$id || projekt.id;
             navigate(`/projektabwicklung/${projektId}`);
           }}
+          onBuchen={async (projektId, tourId, tonnen) => {
+            // Verwendet handleSchnellUmbuchen mit leerem vonTourId für neue Buchung
+            await handleSchnellUmbuchen(projektId, '', tourId, tonnen);
+          }}
+          onNeueTour={async (name, lkwTyp, kapazitaet) => {
+            // Neue Tour erstellen und ID zurückgeben
+            const neueTour = await tourenService.createTour({
+              name,
+              datum: '',
+              fahrzeugId: '',
+              lkwTyp,
+              kapazitaet: {
+                motorwagenTonnen: lkwTyp === 'mit_haenger' ? 14 : kapazitaet,
+                haengerTonnen: lkwTyp === 'mit_haenger' ? 10 : undefined,
+                gesamtTonnen: kapazitaet,
+              },
+              stops: [],
+              routeDetails: tourenService.getLeereRouteDetails(),
+              optimierung: tourenService.getLeereOptimierung(),
+              status: 'entwurf',
+            });
+            await loadTouren();
+            return neueTour.id;
+          }}
+          onTourenRefresh={loadTouren}
         />
       ) : activeTab === 'touren' ? (
         <TourenPlanungTab
@@ -529,21 +738,22 @@ const DispoPlanung = () => {
               ) : (
                 gefilterteProjekte.map((projekt) => {
                   const projektId = (projekt as any).$id || projekt.id;
-                  const projektTour = getTourFuerProjekt(projektId);
+                  const auftragMitBuchungen = erstelleAuftragMitBuchungen(projekt, touren);
                   return (
                     <AuftragsZeile
                       key={projektId}
                       projekt={projekt}
                       kunde={projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined}
-                      tour={projektTour}
+                      auftragMitBuchungen={auftragMitBuchungen}
+                      touren={touren}
                       onStatusChange={(status) => updateDispoStatus(projekt, status)}
                       onOpenDetail={() => openProjektDetail(projekt)}
                       onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
                       onInlineUpdate={handleInlineUpdate}
-                      onTourZuweisen={(p) => {
-                        setZuweisungProjekt(p);
-                        setShowTourZuweisungDialog(true);
-                      }}
+                      onBuchen={() => openBuchungDialog(projekt, 'neu')}
+                      onSchnellUmbuchen={(vonTourId, zuTourId, tonnen) => handleSchnellUmbuchen(projektId, vonTourId, zuTourId, tonnen)}
+                      onTeilbuchen={() => openBuchungDialog(projekt, 'teil')}
+                      onBuchungEntfernen={(tourId) => handleBuchungEntfernen(projektId, tourId)}
                     />
                   );
                 })
@@ -593,19 +803,20 @@ const DispoPlanung = () => {
         />
       )}
 
-      {/* Tour-Zuweisung Dialog */}
-      {showTourZuweisungDialog && zuweisungProjekt && (
-        <TourZuweisungDialog
-          open={showTourZuweisungDialog}
-          projekt={zuweisungProjekt}
-          touren={touren}
-          onClose={() => {
-            setShowTourZuweisungDialog(false);
-            setZuweisungProjekt(null);
-          }}
-          onZuweisen={handleAuftragZuweisen}
-        />
-      )}
+      {/* Schnell-Buchung Dialog */}
+      <SchnellBuchungDialog
+        open={showBuchungDialog}
+        auftrag={buchungAuftrag}
+        touren={touren}
+        modus={buchungModus}
+        vonTourId={buchungVonTourId}
+        onClose={() => {
+          setShowBuchungDialog(false);
+          setBuchungAuftrag(null);
+          setBuchungVonTourId(undefined);
+        }}
+        onBuchen={handleBuchen}
+      />
     </div>
   );
 };
@@ -651,15 +862,32 @@ const StatCard = ({ label, value, icon, color, onClick, active }: StatCardProps)
 interface AuftragsZeileProps {
   projekt: Projekt;
   kunde?: SaisonKunde;
-  tour?: Tour;
+  auftragMitBuchungen: AuftragMitBuchungen;
+  touren: Tour[];
   onStatusChange: (status: DispoStatus) => void;
   onOpenDetail: () => void;
   onGoToProjektabwicklung: () => void;
   onInlineUpdate: (projektId: string, updates: Partial<Projekt>, kundeUpdates?: Partial<SaisonKunde>) => void;
-  onTourZuweisen: (projekt: Projekt) => void;
+  onBuchen: () => void;
+  onSchnellUmbuchen: (vonTourId: string, zuTourId: string, tonnen: number) => Promise<void>;
+  onTeilbuchen: () => void;
+  onBuchungEntfernen: (tourId: string) => void;
 }
 
-const AuftragsZeile = ({ projekt, kunde, tour, onStatusChange, onOpenDetail, onGoToProjektabwicklung, onInlineUpdate, onTourZuweisen }: AuftragsZeileProps) => {
+const AuftragsZeile = ({
+  projekt,
+  kunde,
+  auftragMitBuchungen,
+  touren,
+  onStatusChange,
+  onOpenDetail,
+  onGoToProjektabwicklung,
+  onInlineUpdate,
+  onBuchen,
+  onSchnellUmbuchen,
+  onTeilbuchen,
+  onBuchungEntfernen,
+}: AuftragsZeileProps) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const status = projekt.dispoStatus || 'offen';
   const statusConfig = DISPO_STATUS_CONFIG[status];
@@ -1068,30 +1296,16 @@ const AuftragsZeile = ({ projekt, kunde, tour, onStatusChange, onOpenDetail, onG
           )}
         </div>
 
-        {/* Tour-Anzeige oder Tour-Zuweisung */}
-        <div className="min-w-[140px]">
-          {tour ? (
-            // Auftrag ist einer Tour zugewiesen
-            <div className={`text-xs px-3 py-1.5 rounded-lg inline-flex items-center gap-2 ${
-              tour.lkwTyp === 'mit_haenger'
-                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'
-                : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
-            }`}>
-              <Truck className="w-3.5 h-3.5" />
-              <span className="font-medium truncate max-w-[100px]" title={tour.name}>
-                {tour.name}
-              </span>
-            </div>
-          ) : (
-            // Kein Tour zugewiesen - Button zum Zuweisen
-            <button
-              onClick={() => onTourZuweisen(projekt)}
-              className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white hover:from-red-600 hover:to-orange-600 flex items-center gap-1.5 font-medium transition-all hover:shadow-md"
-            >
-              <ArrowRight className="w-3.5 h-3.5" />
-              Tour zuweisen
-            </button>
-          )}
+        {/* Buchungs-Badge mit Aktionen */}
+        <div className="min-w-[160px]">
+          <BuchungsBadge
+            auftrag={auftragMitBuchungen}
+            touren={touren}
+            onBuchen={onBuchen}
+            onSchnellUmbuchen={onSchnellUmbuchen}
+            onTeilbuchen={onTeilbuchen}
+            onEntfernen={onBuchungEntfernen}
+          />
         </div>
 
         {/* Indikatoren */}

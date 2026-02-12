@@ -209,9 +209,13 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         return;
       }
 
-      // Validiere Platzbauer-Pflichtfeld bei Bezugsweg "über Platzbauer"
-      if (formData.standardBezugsweg === 'ueber_platzbauer' && !formData.standardPlatzbauerId) {
-        setError('Bei Bezugsweg "Platzbauer" muss ein Platzbauer ausgewählt werden');
+      // Validiere Platzbauer-Pflichtfeld bei Bezugsweg "über Platzbauer" ODER "Direkt Instandsetzung"
+      if (
+        (formData.standardBezugsweg === 'ueber_platzbauer' ||
+         formData.standardBezugsweg === 'direkt_instandsetzung') &&
+        !formData.standardPlatzbauerId
+      ) {
+        setError('Bei diesem Bezugsweg muss ein Platzbauer ausgewählt werden');
         setLoading(false);
         return;
       }
@@ -269,7 +273,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           lieferadresse,
           rechnungsadresse,
           standardPlatzbauerId:
-            kundenDaten.standardBezugsweg === 'ueber_platzbauer'
+            (kundenDaten.standardBezugsweg === 'ueber_platzbauer' ||
+             kundenDaten.standardBezugsweg === 'direkt_instandsetzung')
               ? kundenDaten.standardPlatzbauerId
               : '',
         } as Partial<NeuerSaisonKunde>);
@@ -281,7 +286,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
           lieferadresse,
           rechnungsadresse,
           standardPlatzbauerId:
-            kundenDaten.standardBezugsweg === 'ueber_platzbauer'
+            (kundenDaten.standardBezugsweg === 'ueber_platzbauer' ||
+             kundenDaten.standardBezugsweg === 'direkt_instandsetzung')
               ? kundenDaten.standardPlatzbauerId
               : '',
         } as NeuerSaisonKunde);
@@ -780,7 +786,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                         ...formData,
                         standardBezugsweg: e.target.value as Bezugsweg,
                         standardPlatzbauerId:
-                          e.target.value === 'ueber_platzbauer'
+                          (e.target.value === 'ueber_platzbauer' || e.target.value === 'direkt_instandsetzung')
                             ? formData.standardPlatzbauerId
                             : '',
                       })
@@ -792,7 +798,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                     <option value="ueber_platzbauer">Platzbauer</option>
                   </select>
                 </div>
-                {formData.standardBezugsweg === 'ueber_platzbauer' && (
+                {(formData.standardBezugsweg === 'ueber_platzbauer' ||
+                  formData.standardBezugsweg === 'direkt_instandsetzung') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                       Standard Platzbauer <span className="text-red-500">*</span>

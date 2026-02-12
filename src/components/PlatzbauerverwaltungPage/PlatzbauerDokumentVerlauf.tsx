@@ -53,6 +53,12 @@ const dokumentTypConfig: Record<PlatzbauerDokumentTyp, {
     border: 'border-red-200 dark:border-red-800',
     label: 'Rechnung'
   },
+  proformarechnung: {
+    farbe: 'text-amber-700 dark:text-amber-400',
+    hintergrund: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-200 dark:border-amber-800',
+    label: 'Proforma'
+  },
 };
 
 const PlatzbauerDokumentVerlauf = ({

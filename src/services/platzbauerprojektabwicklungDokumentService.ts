@@ -35,16 +35,19 @@ import {
   PlatzbauerABFormularDaten,
   PlatzbauerRechnungFormularDaten,
   PlatzbauerLieferscheinFormularDaten,
+  PlatzbauerProformaRechnungFormularDaten,
 } from '../types/platzbauer';
 import {
   generierePlatzbauerAngebotPDF,
   generierePlatzbauerAuftragsbestaetigungPDF,
   generierePlatzbauerRechnungPDF,
   generierePlatzbauerLieferscheinPDF,
+  generierePlatzbauerProformaRechnungPDF,
   PlatzbauerAngebotsDaten,
   PlatzbauerAuftragsbestaetigungsDaten,
   PlatzbauerRechnungsDaten,
   PlatzbauerLieferscheinDaten,
+  PlatzbauerProformaRechnungsDaten,
 } from './platzbauerdokumentService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 
@@ -85,6 +88,7 @@ const generiereDokumentNummer = (
     auftragsbestaetigung: 'PB-AB',
     rechnung: 'PB-RE',
     lieferschein: 'PB-LS',
+    proformarechnung: 'PB-PF',
   }[typ];
 
   return `${prefix}-${saisonjahr}-${String(laufendeNummer).padStart(3, '0')}`;
@@ -107,6 +111,7 @@ const zaehleBesteheneDokumente = async (
       auftragsbestaetigung: 'PB-AB',
       rechnung: 'PB-RE',
       lieferschein: 'PB-LS',
+      proformarechnung: 'PB-PF',
     }[typ];
 
     const response = await databases.listDocuments(
@@ -540,6 +545,109 @@ export const speicherePlatzbauerRechnung = async (
   };
 };
 
+// ==================== PROFORMA-RECHNUNG ====================
+
+/**
+ * Speichert eine Proforma-Rechnung (versioniert, nicht final)
+ */
+export const speicherePlatzbauerProformaRechnung = async (
+  projekt: PlatzbauerProjekt,
+  daten: PlatzbauerProformaRechnungFormularDaten
+): Promise<GespeichertesPlatzbauerDokument> => {
+  // Dokumentnummer generieren falls nicht vorhanden
+  if (!daten.proformarechnungsnummer) {
+    const anzahl = await zaehleBesteheneDokumente('proformarechnung', projekt.saisonjahr);
+    daten.proformarechnungsnummer = generiereDokumentNummer('proformarechnung', projekt.saisonjahr, anzahl + 1);
+  }
+
+  // Version ermitteln
+  const bestehendeProformas = await ladeDokumenteNachTyp(projekt.id, 'proformarechnung');
+  const version = bestehendeProformas.length + 1;
+
+  // PDF-Daten vorbereiten
+  const pdfDaten: PlatzbauerProformaRechnungsDaten = {
+    projekt,
+    proformarechnungsnummer: daten.proformarechnungsnummer,
+    proformarechnungsdatum: daten.proformarechnungsdatum,
+    leistungsdatum: daten.leistungsdatum,
+    platzbauerId: daten.platzbauerId,
+    platzbauername: daten.platzbauername,
+    platzbauerstrasse: daten.platzbauerstrasse,
+    platzbauerPlzOrt: daten.platzbauerPlzOrt,
+    platzbauerAnsprechpartner: daten.platzbauerAnsprechpartner,
+    positionen: daten.positionen,
+    zahlungsziel: daten.zahlungsziel,
+    skontoAktiviert: daten.skontoAktiviert,
+    skonto: daten.skonto,
+    bemerkung: daten.bemerkung,
+    ihreAnsprechpartner: daten.ihreAnsprechpartner,
+  };
+
+  // PDF generieren
+  const pdf = await generierePlatzbauerProformaRechnungPDF(pdfDaten);
+  const blob = pdfToBlob(pdf);
+
+  // Dateiname: "Proforma-Rechnung Platzbauername Saison.pdf"
+  const dateiname = `Proforma-Rechnung ${daten.platzbauername} ${projekt.saisonjahr}.pdf`;
+
+  // In Storage hochladen
+  const file = new File([blob], dateiname, { type: 'application/pdf' });
+  const uploadedFile = await storage.createFile(
+    PLATZBAUER_DATEIEN_BUCKET_ID,
+    ID.unique(),
+    file
+  );
+
+  // Summen berechnen
+  const nettobetrag = daten.positionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+  const bruttobetrag = nettobetrag * 1.19;
+  const gesamtMenge = daten.positionen.reduce((sum, p) => sum + p.menge, 0);
+
+  // Metadaten in DB speichern
+  const dokumentDaten = {
+    ...daten,
+    bruttobetrag,
+    nettobetrag,
+    gesamtMenge,
+    anzahlPositionen: daten.positionen.length,
+    istFinal: false, // Proforma ist nie final
+    version,
+  };
+
+  const dokument = await databases.createDocument(
+    DATABASE_ID,
+    PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+    ID.unique(),
+    {
+      platzbauerprojektId: projekt.id,
+      dokumentTyp: 'proformarechnung',
+      dokumentNummer: daten.proformarechnungsnummer,
+      dateiId: uploadedFile.$id,
+      dateiname,
+      daten: JSON.stringify(dokumentDaten),
+    }
+  );
+
+  return {
+    $id: dokument.$id,
+    id: dokument.$id,
+    platzbauerprojektId: projekt.id,
+    dokumentTyp: 'proformarechnung',
+    dokumentNummer: daten.proformarechnungsnummer,
+    dateiId: uploadedFile.$id,
+    dateiname,
+    bruttobetrag,
+    nettobetrag,
+    gesamtMenge,
+    anzahlPositionen: daten.positionen.length,
+    istFinal: false,
+    daten: JSON.stringify(daten),
+    version,
+    $createdAt: dokument.$createdAt,
+    $updatedAt: dokument.$updatedAt,
+  };
+};
+
 // ==================== LIEFERSCHEIN ====================
 
 /**
@@ -956,6 +1064,7 @@ export const platzbauerprojektabwicklungDokumentService = {
   speicherePlatzbauerAngebot,
   speicherePlatzbauerAuftragsbestaetigung,
   speicherePlatzbauerRechnung,
+  speicherePlatzbauerProformaRechnung,
   speicherePlatzbauerLieferschein,
 
   // Laden

@@ -113,6 +113,32 @@ export interface PlatzbauerPosition {
   lieferscheinId?: string;
 }
 
+// ==================== STAFFELPREISE TYPES ====================
+
+// Einzelne Staffel für Staffelpreise
+export interface Preisstaffel {
+  vonMenge: number;              // Ab dieser Menge gilt der Preis
+  bisMenge: number | null;       // Bis zu dieser Menge (null = unbegrenzt)
+  einzelpreis: number;           // Preis pro Einheit in dieser Staffel
+}
+
+// Staffelpreis-Konfiguration
+export interface StaffelpreisKonfiguration {
+  staffeln: Preisstaffel[];      // Die Preisstaffeln
+  basisArtikel: string;          // Basisartikel-Nummer (z.B. "TM-ZM-02")
+  basisBezeichnung: string;      // Basisartikel-Bezeichnung
+}
+
+// Positionstyp: Normal, Staffelpreis oder Bedarf
+export type PositionsTyp = 'normal' | 'staffelpreis' | 'bedarf';
+
+// ==================== BEDARFSPOSITIONEN TYPES ====================
+
+// Status einer Bedarfsposition
+export type BedarfsStatus = 'geschaetzt' | 'bestaetigt' | 'storniert';
+
+// ==================== ERWEITERTE POSITION ====================
+
 // Erweiterte Position für Platzbauer-Angebote mit Artikel-Auswahl
 export interface PlatzbauerAngebotPosition {
   id: string;                    // Eindeutige Position-ID (für UI)
@@ -129,6 +155,17 @@ export interface PlatzbauerAngebotPosition {
   einzelpreis: number;           // Preis pro Tonne
   gesamtpreis: number;           // menge * einzelpreis
 
+  // Positionstyp (neu)
+  positionsTyp?: PositionsTyp;   // 'normal' | 'staffelpreis' | 'bedarf'
+
+  // Staffelpreis-Daten (wenn positionsTyp === 'staffelpreis')
+  staffelpreise?: StaffelpreisKonfiguration;
+
+  // Bedarfsposition-Daten (wenn positionsTyp === 'bedarf')
+  bedarfsStatus?: BedarfsStatus; // 'geschaetzt' | 'bestaetigt' | 'storniert'
+  geschaetzteMenge?: number;     // Ursprünglich geschätzte Menge
+  bedarfsNotiz?: string;         // Notiz zur Bedarfsschätzung
+
   // Verein-Referenz (optional - für Positionen die zu einem Verein gehören)
   vereinId?: string;             // SaisonKunde ID
   vereinsname?: string;
@@ -140,6 +177,18 @@ export interface PlatzbauerAngebotPosition {
     plz: string;
     ort: string;
   };
+}
+
+// ==================== STAFFELPREIS-ANGEBOT ====================
+
+// Staffelpreis-Angebot Typ (für reine Staffelpreis-Angebote ohne Vereine)
+export interface StaffelpreisAngebot {
+  id: string;
+  bezeichnung: string;           // z.B. "Saisonpreise 2026"
+  beschreibung?: string;
+  staffelpreise: StaffelpreisKonfiguration;
+  gueltigAb: string;
+  gueltigBis: string;
 }
 
 // ==================== AGGREGIERTE TYPES ====================
@@ -226,7 +275,7 @@ export interface PBVKanbanDaten {
 // ==================== DOKUMENT TYPES ====================
 
 // Dokumenttyp für Platzbauer
-export type PlatzbauerDokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'rechnung';
+export type PlatzbauerDokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'rechnung' | 'proformarechnung';
 
 // Gespeichertes Platzbauer-Dokument (in Appwrite)
 export interface GespeichertesPlatzbauerDokument {
@@ -359,6 +408,26 @@ export interface PlatzbauerABFormularDaten extends PlatzbauerDokumentBasis {
 export interface PlatzbauerRechnungFormularDaten extends PlatzbauerDokumentBasis {
   rechnungsnummer: string;
   rechnungsdatum: string;
+  leistungsdatum?: string;
+
+  // Zahlungsbedingungen
+  zahlungsziel: string;
+  skontoAktiviert?: boolean;
+  skonto?: {
+    prozent: number;
+    tage: number;
+  };
+
+  // Proforma-Abzug (optional)
+  proformaAbzugAktiviert?: boolean;
+  proformaAbzugBetrag?: number;
+  proformaAbzugNummer?: string;
+}
+
+// Formular-Daten für Proforma-Rechnung
+export interface PlatzbauerProformaRechnungFormularDaten extends PlatzbauerDokumentBasis {
+  proformarechnungsnummer: string;
+  proformarechnungsdatum: string;
   leistungsdatum?: string;
 
   // Zahlungsbedingungen

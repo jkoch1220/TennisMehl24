@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X, FileX } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
@@ -16,6 +16,7 @@ import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
 
 const Saisonplanung = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [kunden, setKunden] = useState<SaisonKundeMitDaten[]>([]);
   const [statistik, setStatistik] = useState<SaisonplanungStatistik | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +74,21 @@ const Saisonplanung = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // URL-Parameter "kunde" verarbeiten - öffnet Kunden-Detail automatisch
+  useEffect(() => {
+    const kundeIdFromUrl = searchParams.get('kunde');
+    if (kundeIdFromUrl && kunden.length > 0 && !loading) {
+      const gefundenerKunde = kunden.find(k => k.kunde.id === kundeIdFromUrl);
+      if (gefundenerKunde) {
+        setSelectedKunde(gefundenerKunde);
+        setShowDetail(true);
+        // URL-Parameter entfernen nach dem Öffnen
+        searchParams.delete('kunde');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, kunden, loading, setSearchParams]);
 
   const handleSave = () => {
     setShowFormular(false);

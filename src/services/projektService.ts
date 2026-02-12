@@ -135,7 +135,16 @@ class ProjektService {
       ]);
 
       if (response.documents.length > 0) {
-        return response.documents[0] as unknown as Projekt;
+        const doc = response.documents[0];
+        // WICHTIG: data JSON-Feld parsen, damit alle Felder (dispoAnsprechpartner, etc.) verfügbar sind!
+        if (doc.data && typeof doc.data === 'string') {
+          try {
+            return { ...JSON.parse(doc.data), $id: doc.$id };
+          } catch {
+            return doc as unknown as Projekt;
+          }
+        }
+        return doc as unknown as Projekt;
       }
       return null;
     } catch (error) {

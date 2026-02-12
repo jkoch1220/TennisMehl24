@@ -66,6 +66,9 @@ export const PROJEKT_ZUORDNUNGEN_COLLECTION_ID = 'projekt_zuordnungen';
 export const PLATZBAUER_DOKUMENTE_COLLECTION_ID = 'platzbauer_dokumente';
 export const PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID = 'platzbauer_lieferscheine';
 
+// Instandsetzungsaufträge Collection (für "Direkt Platzbauer"-Kunden)
+export const INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID = 'instandsetzungsauftraege';
+
 // Debitorenverwaltung Collection
 export const DEBITOREN_METADATEN_COLLECTION_ID = 'debitoren_metadaten';
 
@@ -138,6 +141,8 @@ export const COLLECTIONS = {
   PROJEKT_ZUORDNUNGEN: PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
   PLATZBAUER_DOKUMENTE: PLATZBAUER_DOKUMENTE_COLLECTION_ID,
   PLATZBAUER_LIEFERSCHEINE: PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
+  // Instandsetzungsaufträge
+  INSTANDSETZUNGSAUFTRAEGE: INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID,
   // Debitorenverwaltung
   DEBITOREN_METADATEN: DEBITOREN_METADATEN_COLLECTION_ID,
   // Mahnwesen

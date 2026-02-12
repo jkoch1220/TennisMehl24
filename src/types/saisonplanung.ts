@@ -197,6 +197,15 @@ export interface SaisonKunde {
     telefon: string;
   };
 
+  // === NUR FÜR PLATZBAUER (typ='platzbauer') ===
+  // Saisonpreise für Instandsetzungs-Dienste pro Saison
+  // Format: { [saisonjahr]: { [dienstName]: preisProPlatz } }
+  saisonpreise?: {
+    [saisonjahr: number]: {
+      [dienst: string]: number; // Preis pro Platz in EUR
+    };
+  };
+
   erstelltAm: string;
   geaendertAm: string;
 }

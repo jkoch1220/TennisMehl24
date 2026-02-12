@@ -11,6 +11,11 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Clock,
+  Navigation,
+  User,
+  Edit3,
+  Check,
 } from 'lucide-react';
 import { Tour, TourStop, TourFahrzeugTyp, TourKapazitaet, STANDARD_KAPAZITAETEN } from '../../types/tour';
 import { Projekt } from '../../types/projekt';
@@ -243,6 +248,263 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
               className="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-orange-500 text-white rounded-xl font-medium hover:from-red-700 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Tour erstellen
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Dialog für Tour bearbeiten (ALLE Felder)
+interface TourBearbeitenDialogProps {
+  open: boolean;
+  tour: Tour | null;
+  onClose: () => void;
+  onSave: (tourId: string, updates: Partial<Tour>) => void;
+}
+
+const TourBearbeitenDialog = ({ open, tour, onClose, onSave }: TourBearbeitenDialogProps) => {
+  const [name, setName] = useState('');
+  const [lkwTyp, setLkwTyp] = useState<TourFahrzeugTyp>('motorwagen');
+  const [motorwagenTonnen, setMotorwagenTonnen] = useState(STANDARD_KAPAZITAETEN.motorwagen);
+  const [haengerTonnen, setHaengerTonnen] = useState(STANDARD_KAPAZITAETEN.haenger);
+  const [datum, setDatum] = useState('');
+  const [fahrerName, setFahrerName] = useState('');
+  const [kennzeichen, setKennzeichen] = useState('');
+
+  useEffect(() => {
+    if (tour) {
+      setName(tour.name || '');
+      setLkwTyp(tour.lkwTyp || 'motorwagen');
+      setMotorwagenTonnen(tour.kapazitaet?.motorwagenTonnen || STANDARD_KAPAZITAETEN.motorwagen);
+      setHaengerTonnen(tour.kapazitaet?.haengerTonnen || STANDARD_KAPAZITAETEN.haenger);
+      setDatum(tour.datum || '');
+      setFahrerName(tour.fahrerName || '');
+      setKennzeichen(tour.kennzeichen || '');
+    }
+  }, [tour]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tour || !name.trim()) return;
+
+    const gesamtTonnen = lkwTyp === 'mit_haenger'
+      ? motorwagenTonnen + haengerTonnen
+      : motorwagenTonnen;
+
+    onSave(tour.id, {
+      name: name.trim(),
+      lkwTyp,
+      kapazitaet: {
+        motorwagenTonnen,
+        haengerTonnen: lkwTyp === 'mit_haenger' ? haengerTonnen : undefined,
+        gesamtTonnen,
+      },
+      datum,
+      fahrerName: fahrerName || undefined,
+      kennzeichen: kennzeichen || undefined,
+    });
+    onClose();
+  };
+
+  if (!open || !tour) return null;
+
+  const gesamtKapazitaet = lkwTyp === 'mit_haenger'
+    ? motorwagenTonnen + haengerTonnen
+    : motorwagenTonnen;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-500 px-6 py-4 sticky top-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Edit3 className="w-6 h-6" />
+              Tour bearbeiten
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-1 text-white/80 hover:text-white rounded-lg hover:bg-white/20"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Tour-Name */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tour-Name *
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="z.B. Tour 1, Tour Frankfurt, etc."
+              className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+              required
+            />
+          </div>
+
+          {/* LKW-Typ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              LKW-Typ
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setLkwTyp('motorwagen')}
+                className={`p-3 rounded-xl border-2 transition-all text-left ${
+                  lkwTyp === 'motorwagen'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🚛</span>
+                  <span className={`font-semibold text-sm ${
+                    lkwTyp === 'motorwagen' ? 'text-red-700 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    Motorwagen
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLkwTyp('mit_haenger')}
+                className={`p-3 rounded-xl border-2 transition-all text-left ${
+                  lkwTyp === 'mit_haenger'
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🚛+</span>
+                  <span className={`font-semibold text-sm ${
+                    lkwTyp === 'mit_haenger' ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    Mit Hänger
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Kapazitäten */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Kapazitäten (Tonnen)
+            </label>
+            <div className={`grid gap-3 ${lkwTyp === 'mit_haenger' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  {lkwTyp === 'mit_haenger' ? 'Motorwagen' : 'Gesamtkapazität'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    max="30"
+                    value={motorwagenTonnen}
+                    onChange={(e) => setMotorwagenTonnen(parseFloat(e.target.value) || 14)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-10"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
+                </div>
+              </div>
+              {lkwTyp === 'mit_haenger' && (
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hänger</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      max="20"
+                      value={haengerTonnen}
+                      onChange={(e) => setHaengerTonnen(parseFloat(e.target.value) || 10)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-10"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Gesamtkapazität:</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">{gesamtKapazitaet} t</span>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 dark:border-slate-700 pt-5">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Fahrzeug & Fahrer</p>
+
+            {/* Datum */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Datum
+              </label>
+              <input
+                type="date"
+                value={datum}
+                onChange={(e) => setDatum(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Fahrer */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <User className="w-4 h-4 inline mr-1" />
+                Fahrer
+              </label>
+              <input
+                type="text"
+                value={fahrerName}
+                onChange={(e) => setFahrerName(e.target.value)}
+                placeholder="Name des Fahrers"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Kennzeichen */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <Truck className="w-4 h-4 inline mr-1" />
+                Kennzeichen
+              </label>
+              <input
+                type="text"
+                value={kennzeichen}
+                onChange={(e) => setKennzeichen(e.target.value.toUpperCase())}
+                placeholder="z.B. MSP-ZM 123"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white uppercase"
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-indigo-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Check className="w-5 h-5" />
+              Speichern
             </button>
           </div>
         </form>
@@ -527,6 +789,10 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
   const [showNeueTourDialog, setShowNeueTourDialog] = useState(false);
   const [expandedTour, setExpandedTour] = useState<string | null>(null);
 
+  // Tour bearbeiten
+  const [bearbeitenTour, setBearbeitenTour] = useState<Tour | null>(null);
+  const [showBearbeitenDialog, setShowBearbeitenDialog] = useState(false);
+
   // Zuweisung
   const [zuweisungProjekt, setZuweisungProjekt] = useState<Projekt | null>(null);
   const [showZuweisungDialog, setShowZuweisungDialog] = useState(false);
@@ -583,6 +849,24 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
     } catch (error) {
       console.error('Fehler beim Erstellen der Tour:', error);
       alert('Fehler beim Erstellen der Tour');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Tour bearbeiten (alle Felder)
+  const handleTourBearbeiten = async (
+    tourId: string,
+    updates: Partial<Tour>
+  ) => {
+    setSaving(true);
+    try {
+      await tourenService.updateTour(tourId, updates);
+      await loadTouren();
+      onTourenChange?.();
+    } catch (error) {
+      console.error('Fehler beim Bearbeiten der Tour:', error);
+      alert('Fehler beim Speichern');
     } finally {
       setSaving(false);
     }
@@ -760,6 +1044,7 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
             touren.map(tour => {
               const beladung = tourenService.berechneBeladung(tour);
               const isExpanded = expandedTour === tour.id;
+              const tourDauer = tourenService.schaetzeTourDauer(tour);
 
               return (
                 <div key={tour.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -780,14 +1065,33 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                           }`} />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">
-                            {tour.name}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            {/* X-Flag wenn kein Fahrer zugewiesen */}
+                            {!tour.fahrerName && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-red-100 dark:bg-red-900/40 rounded text-red-600 dark:text-red-400" title="Kein Fahrer zugewiesen">
+                                <X className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                              {tour.name}
+                            </h3>
+                            {tour.kennzeichen && (
+                              <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded text-gray-600 dark:text-gray-400 font-mono">
+                                {tour.kennzeichen}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {tour.lkwTyp === 'mit_haenger' ? 'Motorwagen + Hänger' : 'Nur Motorwagen'}
+                            {tour.lkwTyp === 'mit_haenger' ? 'MW + HG' : 'Nur MW'}
                             {' • '}
                             {tour.stops.length} Stopp{tour.stops.length !== 1 ? 's' : ''}
                             {tour.datum && ` • ${new Date(tour.datum).toLocaleDateString('de-DE')}`}
+                            {tour.fahrerName && (
+                              <>
+                                {' • '}
+                                <User className="w-3 h-3 inline" /> {tour.fahrerName}
+                              </>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -797,6 +1101,17 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                             <AlertTriangle className="w-4 h-4 text-red-600" />
                           </span>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBearbeitenTour(tour);
+                            setShowBearbeitenDialog(true);
+                          }}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                          title="Tour bearbeiten"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -814,6 +1129,28 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                         )}
                       </div>
                     </div>
+
+                    {/* Zeit-Informationen (nur bei Stopps) */}
+                    {tour.stops.length > 0 && (
+                      <div className="flex items-center gap-4 mb-3 text-xs">
+                        <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                          <Navigation className="w-3.5 h-3.5" />
+                          <span>~{tourDauer.streckeKm} km</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Fahrt: {tourenService.formatiereZeit(tourDauer.fahrzeitMinuten)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                          <Package className="w-3.5 h-3.5" />
+                          <span>Abladung: {tourenService.formatiereZeit(tourDauer.abladeZeitMinuten)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400 font-medium">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Gesamt: {tourenService.formatiereZeit(tourDauer.gesamtZeitMinuten)}</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Kapazitäts-Balken */}
                     <KapazitaetsBalken tour={tour} beladung={beladung} />
@@ -868,6 +1205,16 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
         open={showNeueTourDialog}
         onClose={() => setShowNeueTourDialog(false)}
         onSave={handleNeueTourErstellen}
+      />
+
+      <TourBearbeitenDialog
+        open={showBearbeitenDialog}
+        tour={bearbeitenTour}
+        onClose={() => {
+          setShowBearbeitenDialog(false);
+          setBearbeitenTour(null);
+        }}
+        onSave={handleTourBearbeiten}
       />
 
       <TourZuweisungDialog

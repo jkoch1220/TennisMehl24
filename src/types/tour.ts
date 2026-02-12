@@ -125,6 +125,10 @@ export interface Tour {
   fahrzeugId: string;
   fahrerId?: string;
 
+  // Fahrer und Fahrzeug-Info (direkt auf der Tour für einfache Anzeige)
+  fahrerName?: string; // Name des Fahrers
+  kennzeichen?: string; // Kennzeichen des LKW (z.B. "MSP-ZM 123")
+
   // LKW-Typ und Kapazitäten (neu für manuelle Touren)
   lkwTyp: TourFahrzeugTyp; // 'motorwagen' | 'mit_haenger'
   kapazitaet: TourKapazitaet; // Variable Kapazitäten

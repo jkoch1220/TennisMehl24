@@ -10,6 +10,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 import { Stammdaten } from '../types/stammdaten';
 import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition } from '../types/platzbauer';
 import { getStammdatenOderDefault } from './stammdatenService';
@@ -27,6 +28,45 @@ import {
 
 // Farbe für Platzbauer-Dokumente (orange)
 const primaryColor: [number, number, number] = [237, 137, 54]; // orange-500
+
+/**
+ * Generiert einen EPC-QR-Code String nach dem GiroCode Standard
+ * für SEPA-Überweisungen
+ */
+const generiereEPCString = (
+  empfaengerName: string,
+  iban: string,
+  bic: string,
+  betrag: number,
+  verwendungszweck: string
+): string => {
+  // IBAN ohne Leerzeichen
+  const ibanOhneLeerzeichen = iban.replace(/\s/g, '');
+
+  // Betrag auf 2 Dezimalstellen formatiert
+  const betragFormatiert = betrag.toFixed(2);
+
+  // Verwendungszweck auf 140 Zeichen begrenzen
+  const verwendungszweckGekuerzt = verwendungszweck.substring(0, 140);
+
+  // EPC-QR-Code String aufbauen
+  const epcLines = [
+    'BCD',                    // Service Tag
+    '002',                    // Version
+    '1',                      // Character Set (1 = UTF-8)
+    'SCT',                    // Identification (SEPA Credit Transfer)
+    bic,                      // BIC
+    empfaengerName,           // Empfängername (max 70 Zeichen)
+    ibanOhneLeerzeichen,      // IBAN
+    `EUR${betragFormatiert}`, // Währung und Betrag
+    '',                       // Purpose (optional)
+    '',                       // Structured Reference (optional)
+    verwendungszweckGekuerzt, // Unstructured Remittance Information
+    ''                        // Beneficiary to Originator Information (optional)
+  ];
+
+  return epcLines.join('\n');
+};
 
 // ==================== TYPES ====================
 
@@ -123,6 +163,45 @@ export interface PlatzbauerRechnungsDaten {
   // Rechnungsnummer & Datum
   rechnungsnummer: string;
   rechnungsdatum: string;
+  leistungsdatum?: string;
+
+  // Platzbauer-Daten (Empfänger)
+  platzbauerId: string;
+  platzbauername: string;
+  platzbauerstrasse: string;
+  platzbauerPlzOrt: string;
+  platzbauerAnsprechpartner?: string;
+
+  // Positionen (Vereine)
+  positionen: PlatzbauerPosition[];
+
+  // Zahlungsbedingungen
+  zahlungsziel: string;
+  skontoAktiviert?: boolean;
+  skonto?: {
+    prozent: number;
+    tage: number;
+  };
+
+  // Proforma-Abzug (optional)
+  proformaAbzugAktiviert?: boolean;
+  proformaAbzugBetrag?: number;
+  proformaAbzugNummer?: string;
+
+  // Bemerkung
+  bemerkung?: string;
+
+  // Ihr Ansprechpartner (bei TennisMehl)
+  ihreAnsprechpartner?: string;
+}
+
+export interface PlatzbauerProformaRechnungsDaten {
+  // Projekt-Informationen
+  projekt: PlatzbauerProjekt;
+
+  // Proforma-Rechnungsnummer & Datum
+  proformarechnungsnummer: string;
+  proformarechnungsdatum: string;
   leistungsdatum?: string;
 
   // Platzbauer-Daten (Empfänger)
@@ -295,14 +374,27 @@ export const generierePlatzbauerAngebotPDF = async (
   // Prüfen ob erweiterte angebotPositionen vorhanden sind
   const hatErweitertePositionen = daten.angebotPositionen && daten.angebotPositionen.length > 0;
 
+  // Positionen nach Typ trennen
+  const normalPositionen = hatErweitertePositionen
+    ? daten.angebotPositionen!.filter(p => !p.positionsTyp || p.positionsTyp === 'normal')
+    : [];
+  const staffelpreisPositionen = hatErweitertePositionen
+    ? daten.angebotPositionen!.filter(p => p.positionsTyp === 'staffelpreis')
+    : [];
+  const bedarfsPositionen = hatErweitertePositionen
+    ? daten.angebotPositionen!.filter(p => p.positionsTyp === 'bedarf')
+    : [];
+
   let tableData: string[][];
   let tableHeaders: string[];
 
-  if (hatErweitertePositionen) {
-    // Neue Struktur mit Artikelnummer und Beschreibung
+  // === NORMALE POSITIONEN ===
+  if (hatErweitertePositionen && (normalPositionen.length > 0 || (!staffelpreisPositionen.length && !bedarfsPositionen.length))) {
+    // Alle normalen Positionen (inkl. alte Struktur falls keine erweiterten)
+    const positionenZuZeigen = normalPositionen.length > 0 ? normalPositionen : daten.angebotPositionen!;
+
     tableHeaders = ['Pos.', 'Art.-Nr.', 'Bezeichnung / Beschreibung', 'Menge', 'Einh.', 'Preis/E', 'Gesamt'];
-    tableData = daten.angebotPositionen!.map((pos, index) => {
-      // Bezeichnung + Beschreibung kombinieren
+    tableData = positionenZuZeigen.map((pos, index) => {
       let beschreibungText = pos.bezeichnung || '';
       if (pos.beschreibung) {
         beschreibungText += `\n${pos.beschreibung}`;
@@ -321,11 +413,45 @@ export const generierePlatzbauerAngebotPDF = async (
         formatWaehrung(pos.gesamtpreis)
       ];
     });
-  } else {
+
+    autoTable(doc, {
+      startY: yPos,
+      margin: { left: 25, right: 20, top: 45, bottom: 30 },
+      head: [tableHeaders],
+      body: tableData,
+      theme: 'striped',
+      rowPageBreak: 'avoid',
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 58, valign: 'top' },
+        3: { cellWidth: 15, halign: 'right' },
+        4: { cellWidth: 12 },
+        5: { cellWidth: 20, halign: 'right' },
+        6: { cellWidth: 23, halign: 'right' }
+      },
+      didDrawPage: function(data) {
+        if (data.pageNumber > 1) {
+          addFollowPageHeader(doc, stammdaten);
+          addDIN5008Footer(doc, stammdaten);
+        }
+      }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 5;
+  } else if (!hatErweitertePositionen && daten.positionen.length > 0) {
     // Alte Struktur für Kompatibilität
     tableHeaders = ['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt'];
     tableData = daten.positionen.map((pos, index) => {
-      // Adresse formatieren
       let adresseText = pos.vereinsname;
       if (pos.lieferadresse) {
         adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
@@ -340,56 +466,219 @@ export const generierePlatzbauerAngebotPDF = async (
         formatWaehrung(pos.gesamtpreis)
       ];
     });
+
+    autoTable(doc, {
+      startY: yPos,
+      margin: { left: 25, right: 20, top: 45, bottom: 30 },
+      head: [tableHeaders],
+      body: tableData,
+      theme: 'striped',
+      rowPageBreak: 'avoid',
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 70, valign: 'top' },
+        2: { cellWidth: 18, halign: 'right' },
+        3: { cellWidth: 14 },
+        4: { cellWidth: 22, halign: 'right' },
+        5: { cellWidth: 24, halign: 'right' }
+      },
+      didDrawPage: function(data) {
+        if (data.pageNumber > 1) {
+          addFollowPageHeader(doc, stammdaten);
+          addDIN5008Footer(doc, stammdaten);
+        }
+      }
+    });
+    yPos = (doc as any).lastAutoTable.finalY + 5;
   }
 
-  autoTable(doc, {
-    startY: yPos,
-    margin: { left: 25, right: 20, top: 45, bottom: 30 },
-    head: [tableHeaders],
-    body: tableData,
-    theme: 'striped',
-    rowPageBreak: 'avoid',
-    headStyles: {
-      fillColor: primaryColor,
-      textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 3
-    },
-    columnStyles: hatErweitertePositionen ? {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 22 },
-      2: { cellWidth: 58, valign: 'top' },
-      3: { cellWidth: 15, halign: 'right' },
-      4: { cellWidth: 12 },
-      5: { cellWidth: 20, halign: 'right' },
-      6: { cellWidth: 23, halign: 'right' }
-    } : {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 70, valign: 'top' },
-      2: { cellWidth: 18, halign: 'right' },
-      3: { cellWidth: 14 },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 24, halign: 'right' }
-    },
-    didDrawPage: function(data) {
-      if (data.pageNumber > 1) {
-        addFollowPageHeader(doc, stammdaten);
-        addDIN5008Footer(doc, stammdaten);
+  // === STAFFELPREISE ===
+  if (staffelpreisPositionen.length > 0) {
+    yPos = await ensureSpace(doc, yPos, 50, stammdaten);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('Staffelpreise (Mengenrabatt)', 25, yPos);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    yPos += 5;
+
+    for (const staffelPos of staffelpreisPositionen) {
+      yPos = await ensureSpace(doc, yPos, 50, stammdaten);
+
+      // Artikel-Header
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${staffelPos.artikelnummer} - ${staffelPos.bezeichnung}`, 25, yPos);
+      doc.setFont('helvetica', 'normal');
+
+      // Beschreibung (Lieferregion und Bemerkung)
+      if (staffelPos.beschreibung) {
+        yPos += 4;
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        const beschreibungLines = doc.splitTextToSize(staffelPos.beschreibung, 140);
+        doc.text(beschreibungLines, 25, yPos);
+        yPos += beschreibungLines.length * 3;
+        doc.setTextColor(0, 0, 0);
+      }
+      yPos += 2;
+
+      if (staffelPos.staffelpreise && staffelPos.staffelpreise.staffeln) {
+        const staffelTableData = staffelPos.staffelpreise.staffeln.map((staffel, idx) => {
+          const vonText = staffel.vonMenge.toFixed(0);
+          const bisText = staffel.bisMenge ? staffel.bisMenge.toFixed(0) : '∞';
+          return [
+            `Staffel ${idx + 1}`,
+            `ab ${vonText} t`,
+            `bis ${bisText} t`,
+            formatWaehrung(staffel.einzelpreis) + '/t'
+          ];
+        });
+
+        autoTable(doc, {
+          startY: yPos,
+          margin: { left: 25, right: 20, top: 45, bottom: 30 },
+          head: [['Staffel', 'Von Menge', 'Bis Menge', 'Preis pro Einheit']],
+          body: staffelTableData,
+          theme: 'striped',
+          rowPageBreak: 'avoid',
+          headStyles: {
+            fillColor: [217, 119, 6] as [number, number, number], // amber-600
+            textColor: [255, 255, 255],
+            fontSize: 8,
+            fontStyle: 'bold'
+          },
+          styles: {
+            fontSize: 8,
+            cellPadding: 2
+          },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: 30, halign: 'right' },
+            2: { cellWidth: 30, halign: 'right' },
+            3: { cellWidth: 35, halign: 'right' }
+          },
+          didDrawPage: function(data) {
+            if (data.pageNumber > 1) {
+              addFollowPageHeader(doc, stammdaten);
+              addDIN5008Footer(doc, stammdaten);
+            }
+          }
+        });
+        yPos = (doc as any).lastAutoTable.finalY + 5;
       }
     }
-  });
+
+    // Staffelpreis-Hinweis
+    yPos = await ensureSpace(doc, yPos, 15, stammdaten);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Hinweis: Der endgültige Preis richtet sich nach der Gesamtabnahmemenge während der Saison.', 25, yPos);
+    doc.setTextColor(0, 0, 0);
+    yPos += 8;
+  }
+
+  // === BEDARFSPOSITIONEN ===
+  if (bedarfsPositionen.length > 0) {
+    yPos = await ensureSpace(doc, yPos, 40, stammdaten);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(13, 148, 136); // teal-600
+    doc.text('Bedarfspositionen (Geschätzte Mengen)', 25, yPos);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    yPos += 5;
+
+    const bedarfsTableData = bedarfsPositionen.map((pos, index) => {
+      let beschreibungText = pos.bezeichnung || '';
+      if (pos.beschreibung) {
+        beschreibungText += `\n${pos.beschreibung}`;
+      }
+      if (pos.bedarfsNotiz) {
+        beschreibungText += `\n(${pos.bedarfsNotiz})`;
+      }
+
+      return [
+        (index + 1).toString(),
+        beschreibungText,
+        `ca. ${(pos.geschaetzteMenge || pos.menge).toFixed(1)}`,
+        pos.einheit || 't',
+        formatWaehrung(pos.einzelpreis),
+        `ca. ${formatWaehrung(pos.gesamtpreis)}`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      margin: { left: 25, right: 20, top: 45, bottom: 30 },
+      head: [['Pos.', 'Bezeichnung', 'Geschätzte Menge', 'Einh.', 'Preis/E', 'Geschätzter Betrag']],
+      body: bedarfsTableData,
+      theme: 'striped',
+      rowPageBreak: 'avoid',
+      headStyles: {
+        fillColor: [13, 148, 136] as [number, number, number], // teal-600
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 55, valign: 'top' },
+        2: { cellWidth: 28, halign: 'right' },
+        3: { cellWidth: 12 },
+        4: { cellWidth: 22, halign: 'right' },
+        5: { cellWidth: 30, halign: 'right' }
+      },
+      didDrawPage: function(data) {
+        if (data.pageNumber > 1) {
+          addFollowPageHeader(doc, stammdaten);
+          addDIN5008Footer(doc, stammdaten);
+        }
+      }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 3;
+
+    // Bedarfs-Hinweis
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Hinweis: Bedarfspositionen sind Schätzungen. Die tatsächliche Abrechnung erfolgt nach gelieferter Menge.', 25, yPos);
+    doc.setTextColor(0, 0, 0);
+    yPos += 5;
+  }
 
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   summenY = await ensureSpace(doc, summenY, 35, stammdaten);
 
-  // Summen aus den korrekten Positionen berechnen
+  // Summen aus den korrekten Positionen berechnen (nur normale und Bedarfspositionen)
+  let normaleUndBedarfPositionen: Array<{ gesamtpreis: number }>;
+  if (hatErweitertePositionen) {
+    normaleUndBedarfPositionen = daten.angebotPositionen!.filter(p => !p.positionsTyp || p.positionsTyp === 'normal' || p.positionsTyp === 'bedarf');
+  } else {
+    normaleUndBedarfPositionen = daten.positionen;
+  }
+  const hatNurStaffelpreise = hatErweitertePositionen && normaleUndBedarfPositionen.length === 0 && staffelpreisPositionen.length > 0;
   const positionenFuerSummen = hatErweitertePositionen ? daten.angebotPositionen! : daten.positionen;
-  const nettobetrag = positionenFuerSummen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+
+  const nettobetrag = normaleUndBedarfPositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
   const nettoGesamt = nettobetrag + frachtUndVerpackung;
   const umsatzsteuer = nettoGesamt * 0.19;
@@ -402,31 +691,42 @@ export const generierePlatzbauerAngebotPDF = async (
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
-  doc.text('Nettobetrag:', summenX, summenY);
-  doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
+  if (hatNurStaffelpreise) {
+    // Bei reinen Staffelpreis-Angeboten keine feste Summe
+    doc.setFont('helvetica', 'italic');
+    doc.text('Bei Staffelpreis-Angeboten ergibt sich der', summenX - 10, summenY);
+    summenY += 5;
+    doc.text('Gesamtbetrag aus der tatsächlichen', summenX - 10, summenY);
+    summenY += 5;
+    doc.text('Abnahmemenge während der Saison.', summenX - 10, summenY);
+    doc.setFont('helvetica', 'normal');
+  } else {
+    doc.text('Nettobetrag:', summenX, summenY);
+    doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
 
-  if (frachtUndVerpackung > 0) {
+    if (frachtUndVerpackung > 0) {
+      summenY += 6;
+      doc.text('Fracht/Verpackung:', summenX, summenY);
+      doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    }
+
     summenY += 6;
-    doc.text('Fracht/Verpackung:', summenX, summenY);
-    doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    doc.text('MwSt. (19%):', summenX, summenY);
+    doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+
+    // Trennlinie
+    summenY += 2;
+    doc.setLineWidth(0.5);
+    doc.line(summenX, summenY, 180, summenY);
+
+    // Bruttobetrag
+    summenY += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Angebotssumme:', summenX, summenY);
+    doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
   }
-
-  summenY += 6;
-  doc.text('MwSt. (19%):', summenX, summenY);
-  doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
-
-  // Trennlinie
-  summenY += 2;
-  doc.setLineWidth(0.5);
-  doc.line(summenX, summenY, 180, summenY);
-
-  // Bruttobetrag
-  summenY += 6;
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Angebotssumme:', summenX, summenY);
-  doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
 
   // === Lieferbedingungen ===
   summenY += 10;
@@ -967,6 +1267,10 @@ export const generierePlatzbauerRechnungPDF = async (
   const umsatzsteuer = nettobetrag * 0.19;
   const bruttobetrag = nettobetrag + umsatzsteuer;
 
+  // Proforma-Abzug berechnen
+  const proformaAbzug = daten.proformaAbzugAktiviert && daten.proformaAbzugBetrag ? daten.proformaAbzugBetrag : 0;
+  const zahlbetrag = bruttobetrag - proformaAbzug;
+
   const summenX = 125;
   summenY += 6;
 
@@ -993,6 +1297,27 @@ export const generierePlatzbauerRechnungPDF = async (
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
 
+  // Proforma-Abzug anzeigen falls vorhanden
+  if (proformaAbzug > 0) {
+    summenY += 6;
+    doc.setFontSize(10);
+    doc.text(`./. bereits gezahlt (${daten.proformaAbzugNummer || 'Proforma'}):`, summenX, summenY);
+    doc.text(`-${formatWaehrung(proformaAbzug)}`, 180, summenY, { align: 'right' });
+
+    // Trennlinie
+    summenY += 2;
+    doc.setLineWidth(0.5);
+    doc.line(summenX, summenY, 180, summenY);
+
+    // Zahlbetrag
+    summenY += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Zu zahlender Betrag:', summenX, summenY);
+    doc.text(formatWaehrung(zahlbetrag), 180, summenY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+  }
+
   // === Zahlungsbedingungen ===
   summenY += 10;
   summenY = await ensureSpace(doc, summenY, 25, stammdaten);
@@ -1017,15 +1342,390 @@ export const generierePlatzbauerRechnungPDF = async (
   }
 
   // Bankverbindung
+  const bankdatenStartY = summenY + 8;
   summenY += 8;
   doc.setFontSize(9);
   doc.text(`Bitte überweisen Sie den Betrag auf folgendes Konto:`, 25, summenY);
+  summenY += 5;
+  doc.text(`Bank: ${stammdaten.bankname}`, 25, summenY);
   summenY += 4;
-  doc.text(`${stammdaten.bankname} · IBAN: ${stammdaten.iban} · BIC: ${stammdaten.bic}`, 25, summenY);
+  doc.text(`IBAN: ${stammdaten.iban}`, 25, summenY);
+  summenY += 4;
+  doc.text(`BIC: ${stammdaten.bic}`, 25, summenY);
+
+  // === GiroCode (EPC-QR-Code) ===
+  try {
+    const verwendungszweck = `Rechnung ${daten.rechnungsnummer}`;
+    const zahlbetrag = bruttobetrag - proformaAbzug;
+    const epcString = generiereEPCString(
+      stammdaten.firmenname,
+      stammdaten.iban,
+      stammdaten.bic,
+      zahlbetrag,
+      verwendungszweck
+    );
+
+    const qrDataUrl = await QRCode.toDataURL(epcString, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 256
+    });
+
+    const qrSize = 35;
+    const qrX = 145;
+    const qrY = bankdatenStartY - 5;
+
+    // GiroCode Überschrift
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GiroCode', qrX + qrSize / 2, qrY - 2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+
+    // QR-Code Beschriftung
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Zum Bezahlen', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
+    doc.text('im Online Banking', qrX + qrSize / 2, qrY + qrSize + 6, { align: 'center' });
+    doc.text('scannen', qrX + qrSize / 2, qrY + qrSize + 9, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+  } catch (error) {
+    console.error('Fehler beim Generieren des GiroCode:', error);
+  }
+
+  // === Zahlungshinweis ===
+  summenY += 6;
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const hinweisText = 'Bitte verwenden Sie für die Zahlung die angegebene Rechnungsnummer als Verwendungszweck.';
+  const hinweisLines = doc.splitTextToSize(hinweisText, 115);
+  doc.text(hinweisLines, 25, summenY);
+  summenY += (hinweisLines.length * 4);
+  doc.setTextColor(0, 0, 0);
 
   // === Bemerkung ===
   if (daten.bemerkung) {
-    summenY += 8;
+    summenY += 6;
+    const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+    summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
+    doc.setFontSize(9);
+    doc.text('Bemerkung:', 25, summenY);
+    summenY += 4;
+    doc.text(bemerkungLines, 25, summenY);
+    summenY += (bemerkungLines.length * 4);
+  }
+
+  // === Grußformel ===
+  summenY += 8;
+  summenY = await ensureSpace(doc, summenY, 10, stammdaten);
+
+  doc.setFontSize(10);
+  doc.text('Mit freundlichen Grüßen', 25, summenY);
+  summenY += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.text(stammdaten.firmenname, 25, summenY);
+  doc.setFont('helvetica', 'normal');
+
+  // Footer auf allen Seiten
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    addDIN5008Footer(doc, stammdaten);
+  }
+
+  return doc;
+};
+
+// ==================== PROFORMA-RECHNUNG ====================
+
+export const generierePlatzbauerProformaRechnungPDF = async (
+  daten: PlatzbauerProformaRechnungsDaten,
+  stammdaten?: Stammdaten
+): Promise<jsPDF> => {
+  if (!stammdaten) {
+    stammdaten = await getStammdatenOderDefault();
+  }
+
+  const doc = new jsPDF();
+
+  // DIN 5008 Header
+  await addDIN5008Header(doc, stammdaten);
+
+  // === INFORMATIONSBLOCK - Rechts oben ===
+  let infoYPos = 55;
+  const infoX = 130;
+
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Proforma-Nr.:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(daten.proformarechnungsnummer, infoX, infoYPos + 4);
+  doc.setFont('helvetica', 'normal');
+
+  infoYPos += 12;
+  doc.setTextColor(100, 100, 100);
+  doc.text('Datum:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.text(formatDatum(daten.proformarechnungsdatum), infoX, infoYPos + 4);
+
+  if (daten.leistungsdatum) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Leistungsdatum:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatDatum(daten.leistungsdatum), infoX, infoYPos + 4);
+  }
+
+  infoYPos += 10;
+  doc.setTextColor(100, 100, 100);
+  doc.text('Saison:', infoX, infoYPos);
+  doc.setTextColor(0, 0, 0);
+  doc.text(daten.projekt.saisonjahr.toString(), infoX, infoYPos + 4);
+
+  if (daten.ihreAnsprechpartner) {
+    infoYPos += 10;
+    doc.setTextColor(100, 100, 100);
+    doc.text('Ihr Ansprechpartner:', infoX, infoYPos);
+    doc.setTextColor(0, 0, 0);
+    doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
+  }
+
+  // DIN 5008 Absenderzeile
+  addAbsenderzeile(doc, stammdaten);
+
+  // === EMPFÄNGERADRESSE (Platzbauer) ===
+  let yPos = 50;
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(daten.platzbauername, 25, yPos);
+  doc.setFont('helvetica', 'normal');
+  yPos += 6;
+  doc.text(formatStrasseHausnummer(daten.platzbauerstrasse), 25, yPos);
+  yPos += 5;
+  doc.text(daten.platzbauerPlzOrt, 25, yPos);
+
+  if (daten.platzbauerAnsprechpartner) {
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`z. Hd. ${daten.platzbauerAnsprechpartner}`, 25, yPos);
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+  }
+
+  // === BETREFF ===
+  yPos = 95;
+  doc.setFontSize(12);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Proforma-Rechnung Nr. ${daten.proformarechnungsnummer}`, 25, yPos);
+  doc.setFont('helvetica', 'normal');
+
+  // Untertitel mit Projektname
+  yPos += 5;
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Projekt: ${daten.projekt.projektName}`, 25, yPos);
+  doc.setTextColor(0, 0, 0);
+
+  // === Anrede ===
+  yPos += 10;
+  doc.setFontSize(10);
+  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+
+  // === Einleitungstext ===
+  yPos += 8;
+  doc.text('wir erlauben uns, Ihnen folgende Lieferungen als Proforma-Rechnung zu übermitteln:', 25, yPos);
+
+  // === Positionen Tabelle (Vereine) ===
+  yPos += 8;
+
+  const tableData = daten.positionen.map((pos, index) => {
+    let adresseText = pos.vereinsname;
+    if (pos.lieferadresse) {
+      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
+    }
+
+    return [
+      (index + 1).toString(),
+      adresseText,
+      pos.menge.toFixed(1),
+      't',
+      formatWaehrung(pos.einzelpreis),
+      formatWaehrung(pos.gesamtpreis)
+    ];
+  });
+
+  autoTable(doc, {
+    startY: yPos,
+    margin: { left: 25, right: 20, top: 45, bottom: 30 },
+    head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
+    body: tableData,
+    theme: 'striped',
+    rowPageBreak: 'avoid',
+    headStyles: {
+      fillColor: primaryColor,
+      textColor: [255, 255, 255],
+      fontSize: 9,
+      fontStyle: 'bold'
+    },
+    styles: {
+      fontSize: 9,
+      cellPadding: 3
+    },
+    columnStyles: {
+      0: { cellWidth: 12, halign: 'center' },
+      1: { cellWidth: 70, valign: 'top' },
+      2: { cellWidth: 18, halign: 'right' },
+      3: { cellWidth: 14 },
+      4: { cellWidth: 22, halign: 'right' },
+      5: { cellWidth: 24, halign: 'right' }
+    },
+    didDrawPage: function(data) {
+      if (data.pageNumber > 1) {
+        addFollowPageHeader(doc, stammdaten);
+        addDIN5008Footer(doc, stammdaten);
+      }
+    }
+  });
+
+  // === Summen ===
+  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
+  summenY = await ensureSpace(doc, summenY, 35, stammdaten);
+
+  const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+  const umsatzsteuer = nettobetrag * 0.19;
+  const bruttobetrag = nettobetrag + umsatzsteuer;
+
+  const summenX = 125;
+  summenY += 6;
+
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+
+  doc.text('Nettobetrag:', summenX, summenY);
+  doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
+
+  summenY += 6;
+  doc.text('MwSt. (19%):', summenX, summenY);
+  doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+
+  // Trennlinie
+  summenY += 2;
+  doc.setLineWidth(0.5);
+  doc.line(summenX, summenY, 180, summenY);
+
+  // Bruttobetrag
+  summenY += 6;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Proforma-Betrag:', summenX, summenY);
+  doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+
+  // === Hinweis Proforma ===
+  summenY += 10;
+  summenY = await ensureSpace(doc, summenY, 20, stammdaten);
+
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Hinweis: Dies ist eine Proforma-Rechnung. Sie dient zur Vorabinformation und', 25, summenY);
+  summenY += 4;
+  doc.text('ist keine rechtsverbindliche Rechnung. Die finale Rechnung erfolgt nach Lieferung.', 25, summenY);
+  doc.setTextColor(0, 0, 0);
+
+  // === Zahlungsbedingungen ===
+  summenY += 8;
+  summenY = await ensureSpace(doc, summenY, 25, stammdaten);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Zahlungsbedingungen:', 25, summenY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+
+  summenY += 5;
+  doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
+
+  if (daten.skontoAktiviert && daten.skonto) {
+    summenY += 4;
+    const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
+    doc.text(
+      `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
+      25,
+      summenY
+    );
+  }
+
+  // Bankverbindung
+  const proformaBankdatenStartY = summenY + 8;
+  summenY += 8;
+  doc.setFontSize(9);
+  doc.text(`Bitte überweisen Sie den Betrag auf folgendes Konto:`, 25, summenY);
+  summenY += 5;
+  doc.text(`Bank: ${stammdaten.bankname}`, 25, summenY);
+  summenY += 4;
+  doc.text(`IBAN: ${stammdaten.iban}`, 25, summenY);
+  summenY += 4;
+  doc.text(`BIC: ${stammdaten.bic}`, 25, summenY);
+
+  // === GiroCode (EPC-QR-Code) für Proforma ===
+  try {
+    const proformaVerwendungszweck = `Proforma ${daten.proformarechnungsnummer}`;
+    const proformaEpcString = generiereEPCString(
+      stammdaten.firmenname,
+      stammdaten.iban,
+      stammdaten.bic,
+      bruttobetrag,
+      proformaVerwendungszweck
+    );
+
+    const proformaQrDataUrl = await QRCode.toDataURL(proformaEpcString, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 256
+    });
+
+    const proformaQrSize = 35;
+    const proformaQrX = 145;
+    const proformaQrY = proformaBankdatenStartY - 5;
+
+    // GiroCode Überschrift
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GiroCode', proformaQrX + proformaQrSize / 2, proformaQrY - 2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    doc.addImage(proformaQrDataUrl, 'PNG', proformaQrX, proformaQrY, proformaQrSize, proformaQrSize);
+
+    // QR-Code Beschriftung
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Zum Bezahlen', proformaQrX + proformaQrSize / 2, proformaQrY + proformaQrSize + 3, { align: 'center' });
+    doc.text('scannen', proformaQrX + proformaQrSize / 2, proformaQrY + proformaQrSize + 6, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+  } catch (error) {
+    console.error('Fehler beim Generieren des GiroCode:', error);
+  }
+
+  // === Zahlungshinweis ===
+  summenY += 6;
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const proformaHinweisText = `Bitte verwenden Sie "${daten.proformarechnungsnummer}" als Verwendungszweck.`;
+  doc.text(proformaHinweisText, 25, summenY);
+  summenY += 4;
+  doc.setTextColor(0, 0, 0);
+
+  // === Bemerkung ===
+  if (daten.bemerkung) {
+    summenY += 4;
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
     const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);

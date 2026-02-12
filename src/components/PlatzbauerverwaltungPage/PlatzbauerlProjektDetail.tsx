@@ -253,7 +253,7 @@ const PlatzbauerlProjektDetail = ({
               positionen={positionen}
               gesamtMenge={gesamtMenge}
               gesamtPreis={gesamtPreis}
-              onNavigateToVerein={(id) => navigate(`/kundenliste?kunde=${id}`)}
+              onNavigateToVerein={(id) => navigate(`/saisonplanung?kunde=${id}`)}
             />
           )}
           {activeTab === 'angebot' && (

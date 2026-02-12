@@ -48,6 +48,8 @@ import {
   PLATZBAUER_DOKUMENTE_COLLECTION_ID,
   PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
   PLATZBAUER_DATEIEN_BUCKET_ID,
+  // Instandsetzungsaufträge
+  INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID,
   // Debitorenverwaltung
   DEBITOREN_METADATEN_COLLECTION_ID,
   // Mahnwesen
@@ -64,7 +66,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '33'; // Mahnwesen: typ-Feld in Stammdaten für Vorlagen
+const APPWRITE_SETUP_VERSION = '34'; // Instandsetzungsaufträge Collection für "Direkt Platzbauer"-Kunden
 
 type FieldConfig = {
   key: string;
@@ -232,6 +234,10 @@ const stammdatenFields: FieldConfig[] = [
   // Saison-Einstellungen
   { key: 'aktuelleSaison', type: 'integer' },
   { key: 'saisonStartMonat', type: 'integer', default: 11 },
+
+  // Instandsetzungsaufträge (für "Direkt Platzbauer"-Kunden)
+  { key: 'instandsetzungsDienste', type: 'string', size: 2000 }, // JSON Array der Dienste
+  { key: 'instandsetzungsauftragZaehler', type: 'integer', default: 0 },
 
   // Liefersaison für PDF-Dokumente
   { key: 'liefersaisonStartDatum', type: 'string', size: 20 },
@@ -403,6 +409,20 @@ const platzbauerLieferscheineFields: FieldConfig[] = [
   { key: 'daten', type: 'string', size: 50000 },                               // JSON-String der Formular-Daten
 ];
 
+// Instandsetzungsaufträge Collection (für "Direkt Platzbauer"-Kunden)
+const instandsetzungsauftraegeFields: FieldConfig[] = [
+  { key: 'platzbauerId', type: 'string', size: 100, required: true },          // Für Filter
+  { key: 'saisonjahr', type: 'integer', required: true },                      // Für Filter
+  { key: 'auftragsnummer', type: 'string', size: 50, required: true },         // IA-2026-001
+  { key: 'status', type: 'string', size: 20, required: true },                 // erstellt, gesendet, bestaetigt, erledigt
+  { key: 'positionen', type: 'string', size: 16000, required: true },          // JSON-Array der Positionen
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'gesendetAm', type: 'string', size: 50 },
+  { key: 'bestaetigtAm', type: 'string', size: 50 },
+  { key: 'erledigtAm', type: 'string', size: 50 },
+  { key: 'data', type: 'string', size: 16000 },                                // JSON für zusätzliche Daten
+];
+
 // Debitoren-Metadaten Collection (offene Forderungen von Kunden)
 const debitorenMetadatenFields: FieldConfig[] = [
   { key: 'projektId', type: 'string', size: 100, required: true },             // Verknüpfung zum Projekt (unique)
@@ -431,6 +451,8 @@ const tourenFields: FieldConfig[] = [
   { key: 'name', type: 'string', size: 255, required: true },                  // Tour-Name
   { key: 'fahrzeugId', type: 'string', size: 100 },                            // Verknüpfung zum Fahrzeug (optional)
   { key: 'fahrerId', type: 'string', size: 100 },                              // Verknüpfung zum Fahrer
+  { key: 'fahrerName', type: 'string', size: 255 },                            // Name des Fahrers (direkt)
+  { key: 'kennzeichen', type: 'string', size: 50 },                            // LKW-Kennzeichen (z.B. "MSP-ZM 123")
   { key: 'lkwTyp', type: 'string', size: 50 },                                 // 'motorwagen' | 'mit_haenger'
   { key: 'kapazitaet', type: 'string', size: 500 },                            // JSON: {motorwagenTonnen, haengerTonnen, gesamtTonnen}
   { key: 'status', type: 'string', size: 50, required: true },                 // entwurf, geplant, freigegeben, in_durchfuehrung, abgeschlossen
@@ -750,6 +772,13 @@ export async function setupAppwriteFields() {
         fields: platzbauerLieferscheineFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Instandsetzungsaufträge (für "Direkt Platzbauer"-Kunden)
+      {
+        id: INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID,
+        name: 'Instandsetzungsaufträge',
+        fields: instandsetzungsauftraegeFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
       // Debitorenverwaltung
       {
         id: DEBITOREN_METADATEN_COLLECTION_ID,
@@ -851,6 +880,12 @@ export async function setupAppwriteFields() {
     // Indizes für Platzbauer-Lieferscheine
     await ensureIndex(PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID, 'platzbauerprojektId_index', ['platzbauerprojektId']);
     await ensureIndex(PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID, 'vereinId_index', ['vereinId']);
+
+    // Indizes für Instandsetzungsaufträge
+    await ensureIndex(INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID, 'platzbauerId_index', ['platzbauerId']);
+    await ensureIndex(INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID, 'saisonjahr_index', ['saisonjahr']);
+    await ensureIndex(INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(INSTANDSETZUNGSAUFTRAEGE_COLLECTION_ID, 'auftragsnummer_index', ['auftragsnummer'], 'unique');
 
     // Indizes für Debitoren-Metadaten
     await ensureIndex(DEBITOREN_METADATEN_COLLECTION_ID, 'projektId_index', ['projektId'], 'unique');

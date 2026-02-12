@@ -52,6 +52,13 @@ export interface Stammdaten {
   liefersaisonEndKW?: number; // z.B. 16
   liefersaisonJahr?: number; // z.B. 2025
 
+  // Instandsetzungs-Dienste (für "Direkt Platzbauer"-Kunden)
+  // Liste der verfügbaren Dienste, die ein Platzbauer ausführen kann
+  instandsetzungsDienste?: string[]; // z.B. ["Frühjahrs-Instandsetzung", "Herbst-Instandsetzung"]
+
+  // Nummernkreis-Zähler für Instandsetzungsaufträge
+  instandsetzungsauftragZaehler?: number;
+
   // Metadaten
   erstelltAm?: string;
   aktualisiertAm?: string;
@@ -86,4 +93,7 @@ export interface StammdatenInput {
   liefersaisonStartKW?: number;
   liefersaisonEndKW?: number;
   liefersaisonJahr?: number;
+  // Instandsetzungs-Dienste
+  instandsetzungsDienste?: string[];
+  instandsetzungsauftragZaehler?: number;
 }

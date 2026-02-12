@@ -3,8 +3,9 @@ import {
   Mail,
   Search,
   ChevronRight,
+  Filter,
 } from 'lucide-react';
-import { SaisonKundeMitDaten } from '../../types/saisonplanung';
+import { SaisonKundeMitDaten, Bezugsweg } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
 
 interface PlatzbauerlVereineProps {
@@ -13,17 +14,58 @@ interface PlatzbauerlVereineProps {
   saisonjahr: number;
 }
 
+// Labels für Bezugsweg-Anzeige
+const BEZUGSWEG_LABELS: Record<Bezugsweg, string> = {
+  direkt: 'Direkt',
+  direkt_instandsetzung: 'Direkt Instandsetzung',
+  ueber_platzbauer: 'Platzbauer',
+};
+
+// Farben für Bezugsweg-Badges
+const BEZUGSWEG_COLORS: Record<Bezugsweg, { bg: string; text: string }> = {
+  direkt: {
+    bg: 'bg-gray-100 dark:bg-gray-800',
+    text: 'text-gray-700 dark:text-gray-300',
+  },
+  direkt_instandsetzung: {
+    bg: 'bg-orange-100 dark:bg-orange-900/30',
+    text: 'text-orange-700 dark:text-orange-400',
+  },
+  ueber_platzbauer: {
+    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    text: 'text-blue-700 dark:text-blue-400',
+  },
+};
+
+type BezugswegFilter = 'alle' | 'direkt_instandsetzung' | 'ueber_platzbauer';
+
 const PlatzbauerlVereine = ({
   vereine,
 }: PlatzbauerlVereineProps) => {
   const navigate = useNavigate();
   const [suche, setSuche] = useState('');
+  const [bezugswegFilter, setBezugswegFilter] = useState<BezugswegFilter>('alle');
+
+  // Statistik berechnen
+  const anzahlDirektInstandsetzung = vereine.filter(
+    v => v.kunde.standardBezugsweg === 'direkt_instandsetzung'
+  ).length;
+  const anzahlUeberPlatzbauer = vereine.filter(
+    v => v.kunde.standardBezugsweg === 'ueber_platzbauer'
+  ).length;
 
   // Filter
   const gefilterteVereine = vereine.filter(v => {
+    const kunde = v.kunde;
+
+    // Bezugsweg-Filter
+    if (bezugswegFilter !== 'alle' && kunde.standardBezugsweg !== bezugswegFilter) {
+      return false;
+    }
+
+    // Suche
     if (!suche.trim()) return true;
     const sucheLower = suche.toLowerCase();
-    const kunde = v.kunde;
     return (
       kunde.name.toLowerCase().includes(sucheLower) ||
       kunde.lieferadresse?.ort?.toLowerCase().includes(sucheLower) ||
@@ -38,7 +80,8 @@ const PlatzbauerlVereine = ({
           Diesem Platzbauer sind noch keine Vereine zugeordnet.
         </p>
         <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          Vereine werden automatisch zugeordnet, wenn bei ihnen der Bezugsweg "Platzbauer" ausgewählt wird.
+          Vereine werden automatisch zugeordnet, wenn bei ihnen der Bezugsweg
+          &quot;Platzbauer&quot; oder &quot;Direkt Instandsetzung&quot; ausgewählt wird.
         </p>
       </div>
     );
@@ -46,21 +89,47 @@ const PlatzbauerlVereine = ({
 
   return (
     <div className="space-y-4">
-      {/* Suche */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Verein suchen..."
-          value={suche}
-          onChange={(e) => setSuche(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none"
-        />
+      {/* Filter-Leiste */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Suche */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Verein suchen..."
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Bezugsweg-Filter */}
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <select
+            value={bezugswegFilter}
+            onChange={(e) => setBezugswegFilter(e.target.value as BezugswegFilter)}
+            className="pl-9 pr-8 py-2 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:border-amber-500 focus:outline-none appearance-none cursor-pointer"
+          >
+            <option value="alle">Alle Bezugswege ({vereine.length})</option>
+            <option value="direkt_instandsetzung">
+              Direkt Instandsetzung ({anzahlDirektInstandsetzung})
+            </option>
+            <option value="ueber_platzbauer">
+              Platzbauer ({anzahlUeberPlatzbauer})
+            </option>
+          </select>
+        </div>
       </div>
 
       {/* Info */}
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        {gefilterteVereine.length} von {vereine.length} Vereine{vereine.length !== 1 ? 'n' : ''}
+        {gefilterteVereine.length} von {vereine.length} Vereine
+        {bezugswegFilter !== 'alle' && (
+          <span className="ml-1">
+            ({BEZUGSWEG_LABELS[bezugswegFilter as Bezugsweg]})
+          </span>
+        )}
       </p>
 
       {/* Tabelle */}
@@ -70,6 +139,7 @@ const PlatzbauerlVereine = ({
             <tr className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-dark-border">
               <th className="pb-3 pr-4">Verein</th>
               <th className="pb-3 pr-4">Ort</th>
+              <th className="pb-3 pr-4">Bezugsweg</th>
               <th className="pb-3 pr-4">Kontakt</th>
               <th className="pb-3 pr-4 text-right">Menge (Vorjahr)</th>
               <th className="pb-3 w-10"></th>
@@ -78,12 +148,14 @@ const PlatzbauerlVereine = ({
           <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
             {gefilterteVereine.map(({ kunde }) => {
               const adresse = kunde.lieferadresse || kunde.rechnungsadresse;
+              const bezugsweg = kunde.standardBezugsweg || 'direkt';
+              const bezugswegColors = BEZUGSWEG_COLORS[bezugsweg] || BEZUGSWEG_COLORS.direkt;
 
               return (
                 <tr
                   key={kunde.id}
                   className="group hover:bg-gray-50 dark:hover:bg-dark-bg cursor-pointer"
-                  onClick={() => navigate(`/kundenliste?kunde=${kunde.id}`)}
+                  onClick={() => navigate(`/saisonplanung?kunde=${kunde.id}`)}
                 >
                   <td className="py-3 pr-4">
                     <div className="font-medium text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400">
@@ -105,10 +177,17 @@ const PlatzbauerlVereine = ({
                     )}
                   </td>
                   <td className="py-3 pr-4">
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${bezugswegColors.bg} ${bezugswegColors.text}`}
+                    >
+                      {BEZUGSWEG_LABELS[bezugsweg]}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-4">
                     <div className="flex flex-col gap-1 text-sm">
                       {kunde.email ? (
-                        <span className="text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate max-w-[200px]">
-                          <Mail className="w-3 h-3" />
+                        <span className="text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate max-w-[180px]">
+                          <Mail className="w-3 h-3 flex-shrink-0" />
                           {kunde.email}
                         </span>
                       ) : (
@@ -129,6 +208,22 @@ const PlatzbauerlVereine = ({
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Legende */}
+      <div className="flex flex-wrap gap-4 pt-2 border-t border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span className={`px-2 py-0.5 rounded-full ${BEZUGSWEG_COLORS.direkt_instandsetzung.bg} ${BEZUGSWEG_COLORS.direkt_instandsetzung.text}`}>
+            Direkt Instandsetzung
+          </span>
+          <span>= Bestellt bei uns, Instandsetzung durch Platzbauer</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span className={`px-2 py-0.5 rounded-full ${BEZUGSWEG_COLORS.ueber_platzbauer.bg} ${BEZUGSWEG_COLORS.ueber_platzbauer.text}`}>
+            Platzbauer
+          </span>
+          <span>= Bestellt über Platzbauer (Sammelbestellung)</span>
+        </div>
       </div>
     </div>
   );

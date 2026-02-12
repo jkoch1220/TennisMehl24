@@ -12,11 +12,13 @@ import {
   Building2,
   ChevronRight,
   RefreshCw,
+  Wrench,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PlatzbauerProjekt } from '../../types/platzbauer';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerlVereine from './PlatzbauerlVereine';
+import InstandsetzungsTab from './InstandsetzungsTab';
 
 interface PlatzbauerlDetailPopupProps {
   platzbauerId: string;
@@ -28,7 +30,7 @@ interface PlatzbauerlDetailPopupProps {
   setSelectedProjektId: (id: string | null) => void;
 }
 
-type TabId = 'stammdaten' | 'vereine' | 'projekte';
+type TabId = 'stammdaten' | 'vereine' | 'projekte' | 'instandsetzung';
 
 const PlatzbauerlDetailPopup = ({
   platzbauerId,
@@ -164,11 +166,12 @@ const PlatzbauerlDetailPopup = ({
             </div>
 
             {/* Tabs */}
-            <div className="px-6 flex gap-1">
+            <div className="px-6 flex gap-1 overflow-x-auto">
               {[
                 { id: 'stammdaten' as TabId, label: 'Stammdaten', icon: Building2 },
                 { id: 'vereine' as TabId, label: `Vereine (${vereine.length})`, icon: Users },
                 { id: 'projekte' as TabId, label: `Projekte (${projekte.length})`, icon: FileCheck },
+                { id: 'instandsetzung' as TabId, label: 'Instandsetzung', icon: Wrench },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -203,6 +206,14 @@ const PlatzbauerlDetailPopup = ({
                 projekte={projekte}
                 onSelectProjekt={handleSelectProjekt}
                 onCreateNachtrag={handleCreateNachtrag}
+              />
+            )}
+            {activeTab === 'instandsetzung' && (
+              <InstandsetzungsTab
+                platzbauerId={platzbauerId}
+                platzbauerName={platzbauer.name}
+                saisonjahr={saisonjahr}
+                onRefresh={onRefresh}
               />
             )}
           </div>

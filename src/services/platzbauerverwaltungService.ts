@@ -164,7 +164,7 @@ class PlatzbauerverwaltungService {
   }
 
   /**
-   * Vereine für einen Platzbauer laden
+   * Vereine für einen Platzbauer laden (alle Bezugswege)
    */
   async loadVereineFuerPlatzbauer(platzbauerId: string): Promise<SaisonKundeMitDaten[]> {
     const alleKunden = await saisonplanungService.loadAlleKunden();
@@ -172,6 +172,44 @@ class PlatzbauerverwaltungService {
       k => k.typ === 'verein' && k.aktiv && k.standardPlatzbauerId === platzbauerId
     );
     return vereine.map(v => ({ kunde: v } as SaisonKundeMitDaten));
+  }
+
+  /**
+   * Vereine für einen Platzbauer laden, gefiltert nach Bezugsweg
+   * @param platzbauerId - ID des Platzbauers
+   * @param bezugsweg - Optional: Filter nach 'direkt_instandsetzung' oder 'ueber_platzbauer'
+   */
+  async loadVereineFuerPlatzbauermitBezugsweg(
+    platzbauerId: string,
+    bezugsweg?: 'direkt_instandsetzung' | 'ueber_platzbauer'
+  ): Promise<SaisonKundeMitDaten[]> {
+    const alleKunden = await saisonplanungService.loadAlleKunden();
+    const vereine = alleKunden.filter(k => {
+      if (k.typ !== 'verein' || !k.aktiv || k.standardPlatzbauerId !== platzbauerId) {
+        return false;
+      }
+      if (bezugsweg) {
+        return k.standardBezugsweg === bezugsweg;
+      }
+      return true;
+    });
+    return vereine.map(v => ({ kunde: v } as SaisonKundeMitDaten));
+  }
+
+  /**
+   * Nur "Direkt Platzbauer"-Vereine für einen Platzbauer laden
+   * Diese Kunden bestellen direkt bei TennisMehl, aber bekommen Instandsetzung vom Platzbauer
+   */
+  async loadDirektInstandsetzungVereine(platzbauerId: string): Promise<SaisonKundeMitDaten[]> {
+    return this.loadVereineFuerPlatzbauermitBezugsweg(platzbauerId, 'direkt_instandsetzung');
+  }
+
+  /**
+   * Nur "Über Platzbauer"-Vereine für einen Platzbauer laden
+   * Diese Kunden bestellen über den Platzbauer (Sammelbestellung)
+   */
+  async loadUeberPlatzbauermVereine(platzbauerId: string): Promise<SaisonKundeMitDaten[]> {
+    return this.loadVereineFuerPlatzbauermitBezugsweg(platzbauerId, 'ueber_platzbauer');
   }
 
   // ==================== PLATZBAUER-PROJEKTE ====================

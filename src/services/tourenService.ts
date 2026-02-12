@@ -45,6 +45,8 @@ const dokumentZuTour = (doc: Record<string, unknown>): Tour => {
     name: doc.name as string,
     fahrzeugId: (doc.fahrzeugId as string) || '',
     fahrerId: doc.fahrerId as string | undefined,
+    fahrerName: doc.fahrerName as string | undefined,
+    kennzeichen: doc.kennzeichen as string | undefined,
     lkwTyp,
     kapazitaet,
     stops: JSON.parse((doc.stops as string) || '[]') as TourStop[],
@@ -148,24 +150,28 @@ export const tourenService = {
         : STANDARD_KAPAZITAETEN.motorwagen,
     };
 
+    // Basis-Daten für die Tour (ohne optimierung - Collection-Limit erreicht)
+    const tourData: Record<string, unknown> = {
+      datum: tour.datum || '',
+      name: tour.name,
+      fahrzeugId: tour.fahrzeugId || '',
+      fahrerId: tour.fahrerId || null,
+      fahrerName: tour.fahrerName || null,
+      kennzeichen: tour.kennzeichen || null,
+      lkwTyp: tour.lkwTyp || 'motorwagen',
+      kapazitaet: JSON.stringify(kapazitaet),
+      stops: JSON.stringify(tour.stops || []),
+      routeDetails: JSON.stringify(tour.routeDetails || leereRouteDetails),
+      encodedPolyline: tour.encodedPolyline || null,
+      status: tour.status || 'entwurf',
+      erstelltVon: tour.erstelltVon || null,
+    };
+
     const doc = await databases.createDocument(
       DATABASE_ID,
       TOUREN_COLLECTION_ID,
       ID.unique(),
-      {
-        datum: tour.datum || '',
-        name: tour.name,
-        fahrzeugId: tour.fahrzeugId || '',
-        fahrerId: tour.fahrerId || null,
-        lkwTyp: tour.lkwTyp || 'motorwagen',
-        kapazitaet: JSON.stringify(kapazitaet),
-        stops: JSON.stringify(tour.stops || []),
-        routeDetails: JSON.stringify(tour.routeDetails || leereRouteDetails),
-        optimierung: JSON.stringify(tour.optimierung || leereOptimierung),
-        encodedPolyline: tour.encodedPolyline || null,
-        status: tour.status || 'entwurf',
-        erstelltVon: tour.erstelltVon || null,
-      }
+      tourData
     );
     return dokumentZuTour(doc);
   },
@@ -178,15 +184,15 @@ export const tourenService = {
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.fahrzeugId !== undefined) data.fahrzeugId = updates.fahrzeugId;
     if (updates.fahrerId !== undefined) data.fahrerId = updates.fahrerId || null;
+    if (updates.fahrerName !== undefined) data.fahrerName = updates.fahrerName || null;
+    if (updates.kennzeichen !== undefined) data.kennzeichen = updates.kennzeichen || null;
     if (updates.lkwTyp !== undefined) data.lkwTyp = updates.lkwTyp;
     if (updates.kapazitaet !== undefined) data.kapazitaet = JSON.stringify(updates.kapazitaet);
     if (updates.stops !== undefined) data.stops = JSON.stringify(updates.stops);
     if (updates.routeDetails !== undefined) {
       data.routeDetails = JSON.stringify(updates.routeDetails);
     }
-    if (updates.optimierung !== undefined) {
-      data.optimierung = JSON.stringify(updates.optimierung);
-    }
+    // optimierung wird nicht mehr gespeichert (Collection-Limit erreicht)
     if (updates.encodedPolyline !== undefined) {
       data.encodedPolyline = updates.encodedPolyline || null;
     }
@@ -414,5 +420,47 @@ export const tourenService = {
     }
 
     return { hatKonflikt: false };
+  },
+
+  // Tour-Dauer schätzen (Fahrzeit + Abladung)
+  schaetzeTourDauer(tour: Tour): {
+    fahrzeitMinuten: number;
+    abladeZeitMinuten: number;
+    gesamtZeitMinuten: number;
+    streckeKm: number;
+  } {
+    // Fahrzeit aus routeDetails (falls von Google Routes berechnet)
+    let fahrzeitMinuten = tour.routeDetails?.gesamtFahrzeitMinuten || 0;
+    let streckeKm = tour.routeDetails?.gesamtDistanzKm || 0;
+
+    // Falls keine Routenberechnung vorhanden: Schätzung basierend auf Stopps
+    // Durchschnittlich 30 km zwischen Stopps, 50 km/h Durchschnitt
+    if (fahrzeitMinuten === 0 && tour.stops.length > 0) {
+      const geschaetzteKm = tour.stops.length * 30; // 30 km pro Stopp im Schnitt
+      fahrzeitMinuten = Math.round((geschaetzteKm / 50) * 60); // 50 km/h Durchschnitt
+      streckeKm = geschaetzteKm;
+    }
+
+    // Abladezeit: 30 Minuten pro Stopp (unabhängig von Tonnage)
+    // Plus Puffer für Rangieren, Papiere, etc.
+    const ABLADE_ZEIT_PRO_STOPP = 30; // Minuten
+    const abladeZeitMinuten = tour.stops.length * ABLADE_ZEIT_PRO_STOPP;
+
+    return {
+      fahrzeitMinuten,
+      abladeZeitMinuten,
+      gesamtZeitMinuten: fahrzeitMinuten + abladeZeitMinuten,
+      streckeKm,
+    };
+  },
+
+  // Zeit formatieren (Minuten -> "Xh Ym")
+  formatiereZeit(minuten: number): string {
+    if (minuten <= 0) return '-';
+    const stunden = Math.floor(minuten / 60);
+    const restMinuten = Math.round(minuten % 60);
+    if (stunden === 0) return `${restMinuten} min`;
+    if (restMinuten === 0) return `${stunden}h`;
+    return `${stunden}h ${restMinuten}min`;
   },
 };

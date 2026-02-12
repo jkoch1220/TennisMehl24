@@ -171,6 +171,10 @@ export interface Projekt {
   istPlatzbauerprojekt?: boolean;
   zugeordnetesPlatzbauerprojektId?: string;
 
+  // === INSTANDSETZUNG ===
+  // Gewünschter Termin für Frühjahrs-Instandsetzung (für "Direkt Platzbauer"-Kunden)
+  instandsetzungTermin?: string; // ISO Date
+
   // Timestamps
   erstelltAm: string;
   geaendertAm: string;
