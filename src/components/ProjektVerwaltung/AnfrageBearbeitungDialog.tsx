@@ -878,11 +878,13 @@ const AnfrageBearbeitungDialog = ({
       k.email?.toLowerCase().includes(kundenSuche.toLowerCase())
   );
 
-  // Artikel hinzufugen
+  // Artikel hinzufugen - ALLE Daten aus Stammdaten übernehmen!
   const handleArtikelHinzufuegen = (artikel: Artikel) => {
     const neuePosition: Position = {
       id: `neu-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      artikelnummer: artikel.artikelnummer, // WICHTIG: Artikelnummer aus Stammdaten!
       bezeichnung: artikel.bezeichnung,
+      beschreibung: artikel.beschreibung || undefined, // Beschreibung aus Stammdaten
       menge: 1,
       einheit: artikel.einheit || 't',
       einzelpreis: artikel.einzelpreis || 0,
