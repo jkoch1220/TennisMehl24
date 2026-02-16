@@ -691,7 +691,7 @@ export interface ErstellePositionenErgebnis {
  * REGELN (BULLET-PROOF!):
  *
  * 1. LOSES MATERIAL:
- *    → TM-ZM-02 oder TM-ZM-03 (Werkspreis: 95.75€/t)
+ *    → TM-ZM-02 oder TM-ZM-03 (Werkspreis: 98.70€/t)
  *    → PE-Folie ist Pflicht!
  *
  * 2. SACKWARE ALS BEILADUNG (< 1t UND loses Material vorhanden):
@@ -753,7 +753,7 @@ export async function erstelleAnfragePositionen(
   // PREISE AUS APPWRITE ARTIKEL-COLLECTION (einzelpreis = Verkaufspreis)
   // Fallback nur wenn Artikel nicht gefunden oder kein Preis hinterlegt
   // ==========================================
-  const preisLoseMaterial = artikelLose02?.einzelpreis ?? 95.75; // Fallback 95.75€/t
+  const preisLoseMaterial = artikelLose02?.einzelpreis ?? 98.70; // Fallback 98.70€/t
   const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 145.00; // Fallback 145€/t (NUR ABWERKSPREIS!)
   const preisBigbagAbWerk = artikelBigbag02?.einzelpreis ?? 125.00; // Fallback 125€/t (günstiger als Sackware!)
   const preisBeiladungProSack = artikelBeiladung02?.einzelpreis ?? 8.50; // Fallback 8.50€/Sack
