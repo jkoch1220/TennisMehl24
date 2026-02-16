@@ -287,6 +287,114 @@ const getUnreadCount = (account: EmailAccount, folder: string): Promise<number> 
   });
 };
 
+// Search emails by email address (FROM or TO)
+const searchEmailsByAddress = (
+  account: EmailAccount,
+  emailAddress: string,
+  folders: string[] = ['INBOX', 'Sent']
+): Promise<EmailResponse[]> => {
+  return new Promise((resolve, reject) => {
+    const imap = new Imap({
+      user: account.email,
+      password: account.password,
+      host: process.env.EMAIL_IMAP_HOST || 'web3.ipp-webspace.net',
+      port: parseInt(process.env.EMAIL_IMAP_PORT || '993'),
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+    });
+
+    const allEmails: EmailResponse[] = [];
+    let currentFolderIndex = 0;
+
+    const processFolder = () => {
+      if (currentFolderIndex >= folders.length) {
+        imap.end();
+        // Sort by date descending and remove duplicates
+        allEmails.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const seen = new Set<string>();
+        const unique = allEmails.filter((email) => {
+          const key = `${email.date}-${email.subject}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        resolve(unique);
+        return;
+      }
+
+      const folder = folders[currentFolderIndex];
+      currentFolderIndex++;
+
+      imap.openBox(folder, true, (err) => {
+        if (err) {
+          // Folder might not exist, skip to next
+          processFolder();
+          return;
+        }
+
+        // Search for emails FROM or TO the address
+        // IMAP search: OR FROM <address> TO <address>
+        imap.search([['OR', ['FROM', emailAddress], ['TO', emailAddress]]], (searchErr, uids) => {
+          if (searchErr || !uids || uids.length === 0) {
+            processFolder();
+            return;
+          }
+
+          // Limit to last 50 results per folder
+          const limitedUids = uids.slice(-50);
+
+          const f = imap.fetch(limitedUids, {
+            bodies: '',
+            struct: true,
+          });
+
+          f.on('message', (msg, seqno) => {
+            let uid = 0;
+            let flags: string[] = [];
+
+            msg.on('body', (stream) => {
+              const chunks: Buffer[] = [];
+              stream.on('data', (chunk) => chunks.push(chunk));
+              stream.once('end', () => {
+                const buffer = Buffer.concat(chunks);
+                simpleParser(buffer)
+                  .then((mail) => {
+                    allEmails.push(parseEmail(mail, uid || seqno, flags));
+                  })
+                  .catch(console.error);
+              });
+            });
+
+            msg.once('attributes', (attrs) => {
+              uid = attrs.uid;
+              flags = attrs.flags || [];
+            });
+          });
+
+          f.once('error', () => {
+            processFolder();
+          });
+
+          f.once('end', () => {
+            // Small delay to ensure all emails are parsed
+            setTimeout(() => processFolder(), 200);
+          });
+        });
+      });
+    };
+
+    imap.once('ready', () => {
+      processFolder();
+    });
+
+    imap.once('error', (err: Error) => {
+      reject(err);
+    });
+
+    imap.connect();
+  });
+};
+
 // Main handler
 const handler: Handler = async (event: HandlerEvent) => {
   // CORS headers
@@ -322,6 +430,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     const folder = params.folder || 'INBOX';
     const limit = parseInt(params.limit || '50');
     const uid = params.uid ? parseInt(params.uid) : undefined;
+    const searchEmail = params.email; // For search action
 
     // Get accounts list
     if (action === 'accounts') {
@@ -389,6 +498,48 @@ const handler: Handler = async (event: HandlerEvent) => {
           statusCode: 200,
           headers,
           body: JSON.stringify({ unread: count, folder }),
+        };
+      }
+
+      case 'search': {
+        if (!searchEmail) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Email address required for search' }),
+          };
+        }
+        // Search across all accounts if no specific account given
+        const accountsToSearch = accountEmail ? [account] : accounts;
+        const allResults: EmailResponse[] = [];
+
+        for (const acc of accountsToSearch) {
+          try {
+            const results = await searchEmailsByAddress(acc, searchEmail, ['INBOX', 'Sent', 'INBOX.Sent']);
+            allResults.push(...results);
+          } catch (err) {
+            console.error(`Search failed for ${acc.email}:`, err);
+          }
+        }
+
+        // Sort all results by date and remove duplicates
+        allResults.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const seen = new Set<string>();
+        const uniqueResults = allResults.filter((email) => {
+          const key = `${email.date}-${email.subject}-${email.from.address}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            emails: uniqueResults,
+            searchedEmail: searchEmail,
+            accountsSearched: accountsToSearch.map(a => a.email)
+          }),
         };
       }
 

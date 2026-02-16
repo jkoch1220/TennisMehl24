@@ -378,6 +378,53 @@ export const getUnreadCount = async (
 // Check if running in dev mode
 export const isInDevMode = (): boolean => isDevMode;
 
+// Search Response
+interface SearchResponse {
+  emails: Email[];
+  searchedEmail: string;
+  accountsSearched: string[];
+}
+
+// Search emails by email address (across all accounts)
+export const searchEmailsByAddress = async (emailAddress: string): Promise<Email[]> => {
+  if (await checkDevMode()) {
+    // Generate mock search results in dev mode
+    const mockResults: Email[] = [
+      {
+        id: 'search-mock-1',
+        uid: 9001,
+        subject: `Re: Angebot Tennismehl - ${emailAddress}`,
+        from: { name: 'TennisMehl', address: 'anfrage@tennismehl.com' },
+        to: [{ name: '', address: emailAddress }],
+        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+        bodyPreview: 'Vielen Dank für Ihre Anfrage. Anbei erhalten Sie unser Angebot...',
+        body: 'Vielen Dank für Ihre Anfrage.\n\nAnbei erhalten Sie unser Angebot für Tennismehl.\n\nMit freundlichen Grüßen\nTennisMehl24',
+        isRead: true,
+        hasAttachments: true,
+      },
+      {
+        id: 'search-mock-2',
+        uid: 9002,
+        subject: 'Kontaktformular: Anfrage Tennismehl',
+        from: { name: '', address: emailAddress },
+        to: [{ name: 'TennisMehl', address: 'anfrage@tennismehl.com' }],
+        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+        bodyPreview: 'Anfrage über das Kontaktformular...',
+        body: 'Vorname: Max\nNachname: Mustermann\nVerein: TC Musterstadt\n...',
+        isRead: true,
+        hasAttachments: false,
+      },
+    ];
+    return mockResults;
+  }
+
+  const response = await callApi<SearchResponse>({
+    action: 'search',
+    email: emailAddress,
+  });
+  return response.emails;
+};
+
 // ============== UNIFIED INBOX ==============
 
 export interface UnifiedEmail extends Email {

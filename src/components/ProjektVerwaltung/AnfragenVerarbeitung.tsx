@@ -15,93 +15,33 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail,
-  User,
   MapPin,
   Package,
-  Send,
-  X,
   RefreshCw,
   ChevronRight,
-  AlertCircle,
   Clock,
   CheckCircle2,
   Loader2,
   Sparkles,
   Building2,
-  CheckSquare,
-  AlertTriangle,
-  UserPlus,
-  Search,
-  Eye,
-  Bot,
   Download,
-  Truck,
-  Plus,
-  Trash2,
-  Edit3,
+  Map as MapIcon,
+  List,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
-import { Position, AngebotsDaten } from '../../types/projektabwicklung';
 import {
   parseWebformularAnfrage,
-  generiereAngebotsEmailMitSignatur,
   berechneEmpfohlenenPreis,
 } from '../../services/anfrageParserService';
-import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { anfragenService } from '../../services/anfragenService';
-import { ladeAlleEmailProtokolle, wrapInEmailTemplate, sendeEmail, pdfZuBase64 } from '../../services/emailSendService';
-import { generiereAngebotPDF } from '../../services/dokumentService';
-import { getStammdatenOderDefault } from '../../services/stammdatenService';
-import { saisonplanungService } from '../../services/saisonplanungService';
-import { SaisonKunde } from '../../types/saisonplanung';
+import { ladeAlleEmailProtokolle } from '../../services/emailSendService';
+import { searchEmailsByAddress } from '../../services/emailService';
 import {
-  verarbeiteAnfrageVollstaendig,
-  erstelleNurKundeUndProjekt,
   erstelleStandardPositionen,
-  erstelleAnfragePositionen,
-  generiereAngebotsVorschauPDF,
-  VerarbeitungsFortschritt,
-  VerarbeitungsSchritt,
 } from '../../services/anfrageVerarbeitungService';
-import { istBeiladung } from '../../constants/artikelPreise';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
-import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
-import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
-import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
-import { getAlleArtikel } from '../../services/artikelService';
-import { Artikel } from '../../types/artikel';
-
-// Konstanten für Fremdlieferung (LKW)
-const FREMDLIEFERUNG_STUNDENLOHN = 108; // €/Stunde
-const BELADUNGSZEIT_MINUTEN = 30;
-const ABLADUNGSZEIT_MINUTEN = 30;
-const START_PLZ = '97828'; // Marktheidenfeld
-
-// Standard-Absender für Angebote
-const DEFAULT_ABSENDER_EMAIL = 'anfrage@tennismehl.com';
-
-// Test-E-Mail-Adresse
-const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
-
-interface BearbeitbareDaten {
-  kundenname: string;
-  ansprechpartner: string;
-  email: string;
-  telefon: string;
-  strasse: string;
-  plz: string;
-  ort: string;
-  // Einzelne Tonnen-Felder für präzise Kalkulation
-  tonnenLose02: number;
-  tonnenGesackt02: number;
-  tonnenLose03: number;
-  tonnenGesackt03: number;
-  menge: number; // Gesamtmenge (berechnet)
-  preisProTonne: number;
-  frachtkosten: number;
-  emailBetreff: string;
-  emailText: string;
-}
+import AnfrageBearbeitungDialog from './AnfrageBearbeitungDialog';
+import AnfragenKartenansicht from './AnfragenKartenansicht';
 
 interface AnfragenVerarbeitungProps {
   onAnfrageGenehmigt?: (projektId: string) => void;
@@ -112,88 +52,30 @@ interface AntwortInfo {
   gesendetAm: string;
   projektId: string;
   dokumentNummer: string;
+  quelle: 'app' | 'imap'; // Woher kommt die Info?
 }
+
+type ViewMode = 'list' | 'map';
 
 const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps) => {
   const navigate = useNavigate();
   const [anfragen, setAnfragen] = useState<VerarbeiteteAnfrage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
-  const [processing, setProcessing] = useState(false);
-  const [processingNurProjekt, setProcessingNurProjekt] = useState(false); // Nur Kunde+Projekt anlegen
-  const [sendingTest, setSendingTest] = useState(false);
-  const [testSentSuccess, setTestSentSuccess] = useState(false);
-  const [generatingPreview, setGeneratingPreview] = useState(false);
-  const [runningAiAnalysis, setRunningAiAnalysis] = useState(false);
-  const [aiAnalyseVerfuegbar] = useState(() => claudeAnfrageService.isAvailable());
-  // Map: E-Mail-Adresse -> Liste der Antworten mit Zeitpunkt und Projekt-ID
   const [antwortDaten, setAntwortDaten] = useState<Map<string, AntwortInfo[]>>(new Map());
-  const [fortschrittListe, setFortschrittListe] = useState<VerarbeitungsFortschritt[]>([]);
-  const [showFortschritt, setShowFortschritt] = useState(false);
-  const [zeigeBeantwortet, setZeigeBeantwortet] = useState(false); // Toggle für bereits beantwortete
-
-  // Bearbeitbare Daten für das Detail-Panel
-  const [editedData, setEditedData] = useState<BearbeitbareDaten | null>(null);
-
-  // Kunden-Auswahl
-  const [showKundenAuswahl, setShowKundenAuswahl] = useState(false);
-  const [kundenSuche, setKundenSuche] = useState('');
-  const [existierendeKunden, setExistierendeKunden] = useState<SaisonKunde[]>([]);
-  const [selectedKundeId, setSelectedKundeId] = useState<string | null>(null);
-
-  // Lieferkosten-Berechnung
-  const [lieferkostenBerechnung, setLieferkostenBerechnung] = useState<{
-    isLoading: boolean;
-    ergebnis: FremdlieferungRoutenBerechnung | null;
-    plz: string | null;
-    tonnage: number;
-  }>({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
-
-  // Alle Positionen (automatisch generiert + manuell hinzugefügt) - ALLE bearbeitbar
-  const [allePositionen, setAllePositionen] = useState<Position[]>([]);
-  const [positionenLaden, setPositionenLaden] = useState(false);
-  const [showArtikelSuche, setShowArtikelSuche] = useState(false);
-  const [artikelSuchtext, setArtikelSuchtext] = useState('');
-  const [verfuegbareArtikel, setVerfuegbareArtikel] = useState<Artikel[]>([]);
-  const [artikelLaden, setArtikelLaden] = useState(false);
-
-  // Lade existierende Kunden für Zuordnung
-  useEffect(() => {
-    const ladeKunden = async () => {
-      try {
-        const kunden = await saisonplanungService.loadAlleKunden();
-        setExistierendeKunden(kunden);
-      } catch (error) {
-        console.error('Fehler beim Laden der Kunden:', error);
-      }
-    };
-    ladeKunden();
-  }, []);
-
-  // Lade verfügbare Artikel für manuelle Positionen
-  useEffect(() => {
-    const ladeArtikel = async () => {
-      setArtikelLaden(true);
-      try {
-        const artikel = await getAlleArtikel();
-        setVerfuegbareArtikel(artikel);
-      } catch (error) {
-        console.error('Fehler beim Laden der Artikel:', error);
-      } finally {
-        setArtikelLaden(false);
-      }
-    };
-    ladeArtikel();
-  }, []);
+  const [zeigeBeantwortet, setZeigeBeantwortet] = useState(false);
+  const [imapPruefungLaeuft, setImapPruefungLaeuft] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   // Lade E-Mail-Protokoll für Duplikat-Erkennung (mit Zeitpunkten und Projekt-IDs!)
-  // Reduziert auf 100 Einträge für bessere Performance
-  const ladeBereitsBeantwortet = useCallback(async () => {
+  // Prüft SOWOHL App-Protokoll ALS AUCH IMAP Gesendet-Ordner
+  const ladeBereitsBeantwortet = useCallback(async (emailAdressen?: string[]) => {
     try {
-      const protokoll = await ladeAlleEmailProtokolle(100);
+      const protokoll = await ladeAlleEmailProtokolle(200); // Mehr laden für bessere Abdeckung
       // Map: E-Mail-Adresse (lowercase) -> Liste der Antworten mit Details
       const datenMap = new Map<string, AntwortInfo[]>();
 
+      // 1. App-Protokoll durchsuchen
       protokoll.forEach((p) => {
         if (p.dokumentTyp === 'angebot' && p.empfaenger && p.gesendetAm) {
           // Extrahiere die echte E-Mail (falls Test-Mode aktiv war)
@@ -206,14 +88,63 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
             gesendetAm: p.gesendetAm,
             projektId: p.projektId,
             dokumentNummer: p.dokumentNummer,
+            quelle: 'app',
           });
           datenMap.set(email, bisherige);
         }
       });
 
-      setAntwortDaten(datenMap);
+      setAntwortDaten(new Map(datenMap));
+
+      // 2. IMAP Gesendet-Ordner durchsuchen für jede E-Mail-Adresse
+      if (emailAdressen && emailAdressen.length > 0) {
+        setImapPruefungLaeuft(true);
+
+        // Nur die ersten 20 Adressen prüfen um Performance zu erhalten
+        const zuPruefen = [...new Set(emailAdressen)].slice(0, 20);
+
+        for (const email of zuPruefen) {
+          try {
+            const imapErgebnis = await searchEmailsByAddress(email);
+
+            // Finde gesendete E-Mails AN diese Adresse (nicht VON)
+            const gesendeteEmails = imapErgebnis.filter(e => {
+              const toAddresses = e.to.map(t => t.address.toLowerCase());
+              return toAddresses.includes(email.toLowerCase());
+            });
+
+            if (gesendeteEmails.length > 0) {
+              const bisherige = datenMap.get(email.toLowerCase()) || [];
+
+              gesendeteEmails.forEach(e => {
+                // Prüfe ob nicht bereits in der Liste (Duplikat-Vermeidung)
+                const bereitsVorhanden = bisherige.some(b =>
+                  Math.abs(new Date(b.gesendetAm).getTime() - new Date(e.date).getTime()) < 60000 // 1 Minute Toleranz
+                );
+
+                if (!bereitsVorhanden) {
+                  bisherige.push({
+                    gesendetAm: e.date,
+                    projektId: '', // Unbekannt bei IMAP
+                    dokumentNummer: e.subject || 'IMAP-Email',
+                    quelle: 'imap',
+                  });
+                }
+              });
+
+              datenMap.set(email.toLowerCase(), bisherige);
+            }
+          } catch (imapError) {
+            console.warn(`IMAP-Suche für ${email} fehlgeschlagen:`, imapError);
+          }
+        }
+
+        setAntwortDaten(new Map(datenMap));
+        setImapPruefungLaeuft(false);
+      }
     } catch (error) {
       console.error('Fehler beim Laden der beantworteten E-Mails:', error);
+      setImapPruefungLaeuft(false);
     }
   }, []);
 
@@ -422,17 +353,13 @@ Bei Fragen sind wir gerne für Sie da.`,
     return undefined;
   };
 
-  // Lade Anfragen aus Appwrite
+  // Lade Anfragen aus Appwrite - OPTIMIERT für schnelles Laden
   const loadAnfragenAusAppwrite = useCallback(async () => {
     setLoading(true);
     try {
       console.log('📧 Lade Anfragen aus Appwrite...');
 
-      // Lade Anfragen und E-Mail-Protokoll PARALLEL für bessere Performance
-      const [alleAnfragen] = await Promise.all([
-        anfragenService.loadAlleAnfragen(),
-        ladeBereitsBeantwortet(), // Lädt im Hintergrund, setzt antwortDaten state
-      ]);
+      const alleAnfragen = await anfragenService.loadAlleAnfragen();
       console.log(`📧 ${alleAnfragen.length} Anfragen in Appwrite gefunden`);
 
       // Konvertiere zu VerarbeiteteAnfrage
@@ -441,33 +368,47 @@ Bei Fragen sind wir gerne für Sie da.`,
       // Sortiere nach Datum (neueste zuerst)
       verarbeitete.sort((a, b) => new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime());
 
+      // SOFORT anzeigen - ohne auf KI-Analyse zu warten!
       setAnfragen(verarbeitete);
+      setLoading(false); // UI sofort freigeben!
 
-      // Analysiere Nachrichten im Hintergrund mit Claude
+      // Sammle alle E-Mail-Adressen für IMAP-Prüfung
+      const emailAdressen = verarbeitete
+        .map(a => a.analysiert.email || a.emailAbsender)
+        .filter(Boolean) as string[];
+
+      // Starte E-Mail-Protokoll UND IMAP-Prüfung (non-blocking)
+      ladeBereitsBeantwortet(emailAdressen).catch(console.error);
+
+      // KI-Analyse ASYNCHRON im Hintergrund (blockiert UI nicht mehr!)
       if (claudeAnfrageService.isAvailable()) {
-        for (const anfrage of verarbeitete) {
-          const nachricht = extrahiereNachricht(anfrage.emailText);
-          if (nachricht && !anfrage.notizen) {
-            console.log(`🤖 Analysiere Nachricht für ${anfrage.analysiert.kundenname}...`);
+        // Nur die ersten 5 analysieren und mit Delay, um API nicht zu überlasten
+        const zuAnalysieren = verarbeitete.filter(a => {
+          const nachricht = extrahiereNachricht(a.emailText);
+          return nachricht && !a.notizen;
+        }).slice(0, 5);
+
+        // Starte Analysen im Hintergrund mit setTimeout
+        zuAnalysieren.forEach((anfrage, index) => {
+          setTimeout(async () => {
+            const nachricht = extrahiereNachricht(anfrage.emailText);
+            if (!nachricht) return;
+
             try {
               const analyse = await claudeAnfrageService.analysiereNachricht(nachricht);
               if (analyse.notizen) {
-                // Update die Anfrage mit den Notizen
                 anfrage.notizen = analyse.notizen;
-                // Trigger re-render
                 setAnfragen(prev => [...prev]);
-                console.log(`✅ Notizen erstellt: ${analyse.notizen}`);
               }
             } catch (error) {
               console.warn('Nachricht-Analyse fehlgeschlagen:', error);
             }
-          }
-        }
+          }, index * 2000); // 2 Sekunden Verzögerung zwischen Analysen
+        });
       }
     } catch (error) {
       console.error('Fehler beim Laden der Anfragen:', error);
       setAnfragen([]);
-    } finally {
       setLoading(false);
     }
   }, [ladeBereitsBeantwortet]);
@@ -479,521 +420,6 @@ Bei Fragen sind wir gerne für Sie da.`,
     loadAnfragen();
   }, [loadAnfragen]);
 
-  // Wenn Anfrage ausgewählt wird, initialisiere bearbeitbare Daten
-  useEffect(() => {
-    if (selectedAnfrage) {
-      const a = selectedAnfrage.analysiert;
-      const empfohlenerPreis = selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne || 85;
-
-      // Extrahiere einzelne Tonnen-Felder
-      const tonnenLose02 = a.tonnenLose02 || 0;
-      const tonnenGesackt02 = a.tonnenGesackt02 || 0;
-      const tonnenLose03 = a.tonnenLose03 || 0;
-      const tonnenGesackt03 = a.tonnenGesackt03 || 0;
-
-      // Berechne Gesamtmenge
-      const berechneteGesamtmenge = tonnenLose02 + tonnenGesackt02 + tonnenLose03 + tonnenGesackt03;
-      const menge = berechneteGesamtmenge > 0 ? berechneteGesamtmenge : (a.menge || 0);
-
-      // Setze initiale Daten
-      setEditedData({
-        kundenname: a.kundenname || '',
-        ansprechpartner: a.ansprechpartner || '',
-        email: a.email || '',
-        telefon: a.telefon || '',
-        strasse: a.strasse || '',
-        plz: a.plz || '',
-        ort: a.ort || '',
-        tonnenLose02,
-        tonnenGesackt02,
-        tonnenLose03,
-        tonnenGesackt03,
-        menge,
-        preisProTonne: empfohlenerPreis,
-        frachtkosten: 0,
-        emailBetreff: selectedAnfrage.emailVorschlag.betreff,
-        emailText: selectedAnfrage.emailVorschlag.text,
-      });
-      setSelectedKundeId(null);
-      setAllePositionen([]); // Reset Positionen bei neuer Anfrage
-      setShowArtikelSuche(false);
-      setFortschrittListe([]);
-      setShowFortschritt(false);
-
-      // Lade E-Mail mit Signatur aus Stammdaten (async)
-      generiereAngebotsEmailMitSignatur(a.kundenname || '', a.ansprechpartner).then((result) => {
-        setEditedData((prev) =>
-          prev
-            ? {
-                ...prev,
-                emailBetreff: result.betreff,
-                emailText: result.text,
-              }
-            : prev
-        );
-      });
-    }
-  }, [selectedAnfrage]);
-
-  // Lieferkosten berechnen wenn PLZ oder Tonnage sich ändern
-  useEffect(() => {
-    if (!editedData || !editedData.plz || editedData.plz.length < 5) {
-      setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
-      return;
-    }
-
-    const plz = editedData.plz;
-    const tonnage = editedData.menge || 0;
-
-    // Nur neu berechnen wenn sich PLZ oder Tonnage geändert haben
-    if (plz === lieferkostenBerechnung.plz && tonnage === lieferkostenBerechnung.tonnage && lieferkostenBerechnung.ergebnis) {
-      return;
-    }
-
-    // Nur bei losem Material Lieferkosten berechnen (LKW-Transport)
-    const hatLosesMaterial = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0) > 0;
-    if (!hatLosesMaterial && tonnage <= 0) {
-      setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz, tonnage });
-      return;
-    }
-
-    const berechneLieferkosten = async () => {
-      setLieferkostenBerechnung(prev => ({ ...prev, isLoading: true, plz, tonnage }));
-
-      try {
-        // Fremdlieferung-Stammdaten mit 108€ Stundensatz
-        const fremdlieferungStammdaten: FremdlieferungStammdaten = {
-          stundenlohn: FREMDLIEFERUNG_STUNDENLOHN,
-          durchschnittsgeschwindigkeit: 60.0,
-          beladungszeit: BELADUNGSZEIT_MINUTEN,
-          abladungszeit: ABLADUNGSZEIT_MINUTEN,
-          anzahlAbladestellen: 1,
-          pausenzeit: 45, // EU-Verordnung
-          lkwLadungInTonnen: tonnage,
-        };
-
-        const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
-
-        // Berechne empfohlenen Preis pro Tonne (Werkspreis + Lieferkosten/Menge)
-        const werkspreis = 95.75; // Werkspreis für loses Material
-        const lieferkostenProTonne = tonnage > 0 ? ergebnis.lohnkosten / tonnage : 0;
-        const empfohlenerPreisProTonne = Math.round((werkspreis + lieferkostenProTonne) * 100) / 100;
-
-        // Setze die berechneten Frachtkosten UND den empfohlenen Preis/Tonne automatisch
-        setEditedData(prev => prev ? {
-          ...prev,
-          frachtkosten: Math.round(ergebnis.lohnkosten * 100) / 100,
-          preisProTonne: empfohlenerPreisProTonne,
-        } : prev);
-        setLieferkostenBerechnung({ isLoading: false, ergebnis, tonnage, plz });
-      } catch (error) {
-        console.error('Fehler bei Lieferkosten-Berechnung:', error);
-        setLieferkostenBerechnung(prev => ({ ...prev, isLoading: false, ergebnis: null }));
-      }
-    };
-
-    // Debounce die Berechnung um 500ms
-    const timeout = setTimeout(berechneLieferkosten, 500);
-    return () => clearTimeout(timeout);
-  }, [editedData?.plz, editedData?.menge, editedData?.tonnenLose02, editedData?.tonnenLose03]);
-
-  // Positionen generieren wenn sich Tonnen-Felder, PLZ oder Preis ändern
-  useEffect(() => {
-    if (!editedData || !selectedAnfrage) return;
-
-    // Nur neu generieren wenn noch keine Positionen vorhanden sind oder ein "Neu generieren" angefordert wurde
-    // Die Positionen werden initial generiert, danach nur manuell bearbeitet
-    if (allePositionen.length > 0) return;
-
-    const generierePositionen = async () => {
-      setPositionenLaden(true);
-      try {
-        const positionenErgebnis = await erstelleAnfragePositionen({
-          tonnenLose02: editedData.tonnenLose02,
-          tonnenGesackt02: editedData.tonnenGesackt02,
-          tonnenLose03: editedData.tonnenLose03,
-          tonnenGesackt03: editedData.tonnenGesackt03,
-          menge: editedData.menge,
-          plz: editedData.plz,
-          preisProTonneInklLieferung: editedData.preisProTonne,
-        });
-        setAllePositionen(positionenErgebnis.positionen);
-      } catch (error) {
-        console.error('Fehler beim Generieren der Positionen:', error);
-      } finally {
-        setPositionenLaden(false);
-      }
-    };
-
-    // Debounce um 300ms
-    const timeout = setTimeout(generierePositionen, 300);
-    return () => clearTimeout(timeout);
-  }, [editedData, selectedAnfrage, allePositionen.length]);
-
-  // Handler zum Neu-Generieren der Positionen (bei Änderung der Tonnen-Felder)
-  const handlePositionenNeuGenerieren = async () => {
-    if (!editedData) return;
-
-    setPositionenLaden(true);
-    try {
-      const positionenErgebnis = await erstelleAnfragePositionen({
-        tonnenLose02: editedData.tonnenLose02,
-        tonnenGesackt02: editedData.tonnenGesackt02,
-        tonnenLose03: editedData.tonnenLose03,
-        tonnenGesackt03: editedData.tonnenGesackt03,
-        menge: editedData.menge,
-        plz: editedData.plz,
-        preisProTonneInklLieferung: editedData.preisProTonne,
-      });
-      setAllePositionen(positionenErgebnis.positionen);
-    } catch (error) {
-      console.error('Fehler beim Generieren der Positionen:', error);
-      alert('Fehler beim Generieren der Positionen');
-    } finally {
-      setPositionenLaden(false);
-    }
-  };
-
-  // KI-Analyse Handler
-  const handleKiAnalyse = async () => {
-    if (!selectedAnfrage || !editedData) return;
-
-    setRunningAiAnalysis(true);
-
-    try {
-      const analyse = await claudeAnfrageService.analysiereAnfrage({
-        emailText: selectedAnfrage.emailText,
-        emailBetreff: selectedAnfrage.emailBetreff,
-        absenderEmail: selectedAnfrage.emailAbsender,
-        absenderName: selectedAnfrage.analysiert.ansprechpartner,
-        extrahiert: {
-          kundenname: editedData.kundenname,
-          ansprechpartner: editedData.ansprechpartner,
-          strasse: editedData.strasse,
-          plz: editedData.plz,
-          ort: editedData.ort,
-          telefon: editedData.telefon,
-          menge: editedData.menge,
-          artikel: selectedAnfrage.analysiert?.artikel,
-          koernung: selectedAnfrage.analysiert?.koernung,
-          lieferart: selectedAnfrage.analysiert?.lieferart,
-          anzahlPlaetze: selectedAnfrage.analysiert?.anzahlPlaetze,
-        },
-      });
-
-      console.log('✅ KI-Analyse abgeschlossen:', analyse);
-
-      // Update editedData mit den KI-Ergebnissen
-      setEditedData({
-        ...editedData,
-        kundenname: analyse.kunde.name || editedData.kundenname,
-        ansprechpartner: analyse.kunde.ansprechpartner || editedData.ansprechpartner,
-        email: analyse.kunde.email || editedData.email,
-        telefon: analyse.kunde.telefon || editedData.telefon,
-        strasse: analyse.kunde.adresse.strasse || editedData.strasse,
-        plz: analyse.kunde.adresse.plz || editedData.plz,
-        ort: analyse.kunde.adresse.ort || editedData.ort,
-        menge: analyse.angebot.menge || editedData.menge,
-        preisProTonne: analyse.angebot.empfohlenerPreis || editedData.preisProTonne,
-        frachtkosten: analyse.angebot.frachtkosten || editedData.frachtkosten,
-        emailBetreff: analyse.email.betreff || editedData.emailBetreff,
-        emailText: analyse.email.volltext || editedData.emailText,
-      });
-
-      // Zeige Qualitätshinweise
-      if (analyse.qualitaet.hinweise.length > 0) {
-        console.log('📋 Qualitätshinweise:', analyse.qualitaet.hinweise);
-      }
-
-      alert(
-        `KI-Analyse abgeschlossen!\n\nDatenqualität: ${analyse.qualitaet.datenVollstaendigkeit}%\nTyp: ${analyse.qualitaet.anfrageTyp}\nPriorität: ${analyse.qualitaet.prioritaet}${
-          analyse.qualitaet.hinweise.length > 0
-            ? '\n\nHinweise:\n- ' + analyse.qualitaet.hinweise.join('\n- ')
-            : ''
-        }`
-      );
-    } catch (error) {
-      console.error('Fehler bei KI-Analyse:', error);
-      alert(`KI-Analyse fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-    } finally {
-      setRunningAiAnalysis(false);
-    }
-  };
-
-  // PDF Vorschau Handler
-  const handlePdfVorschau = async () => {
-    if (!editedData || !selectedAnfrage) return;
-
-    if (allePositionen.length === 0) {
-      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
-      return;
-    }
-
-    setGeneratingPreview(true);
-
-    try {
-      // Verwende die bearbeiteten Positionen direkt
-      const pdfUrl = await generiereAngebotsVorschauPDF({
-        kundenDaten: {
-          name: editedData.kundenname,
-          strasse: editedData.strasse,
-          plz: editedData.plz,
-          ort: editedData.ort,
-        },
-        positionen: allePositionen,
-        ansprechpartner: editedData.ansprechpartner,
-      });
-
-      // Öffne PDF in neuem Tab
-      window.open(pdfUrl, '_blank');
-    } catch (error) {
-      console.error('Fehler beim Generieren der PDF-Vorschau:', error);
-      alert(`Fehler beim Generieren der Vorschau: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-    } finally {
-      setGeneratingPreview(false);
-    }
-  };
-
-  // Test-Mail senden Handler (mit PDF-Anhang)
-  const handleTestMailSenden = async () => {
-    if (!editedData || !selectedAnfrage) return;
-
-    setSendingTest(true);
-    setTestSentSuccess(false);
-
-    try {
-      // Lade Stammdaten für PDF
-      const stammdaten = await getStammdatenOderDefault();
-
-      // Lade E-Mail-Template mit Signatur
-      const emailTemplate = await generiereStandardEmail(
-        'angebot',
-        'TEST',
-        editedData.kundenname
-      );
-
-      // Verwende die bearbeiteten Positionen direkt
-      if (allePositionen.length === 0) {
-        alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
-        setSendingTest(false);
-        return;
-      }
-
-      // Erstelle AngebotsDaten
-      const heute = new Date().toISOString().split('T')[0];
-      const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      // Standard-Lieferbedingungen (wie in Projektabwicklung)
-      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
-
-      const angebotsDaten: AngebotsDaten = {
-        kundenname: editedData.kundenname,
-        kundenstrasse: editedData.strasse,
-        kundenPlzOrt: `${editedData.plz} ${editedData.ort}`,
-        angebotsnummer: `TEST-${Date.now()}`,
-        angebotsdatum: heute,
-        gueltigBis,
-        positionen: allePositionen,
-        zahlungsziel: '14 Tage',
-        // z. Hd. Ansprechpartner
-        ansprechpartner: editedData.ansprechpartner,
-        // Lieferbedingungen
-        lieferbedingungenAktiviert: true,
-        lieferbedingungen: standardLieferbedingungen,
-        // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
-        firmenname: stammdaten.firmenname,
-        firmenstrasse: stammdaten.firmenstrasse,
-        firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
-        firmenTelefon: stammdaten.firmenTelefon,
-        firmenEmail: stammdaten.firmenEmail,
-      };
-
-      // Generiere PDF
-      const pdf = await generiereAngebotPDF(angebotsDaten, stammdaten);
-      const pdfBase64 = pdfZuBase64(pdf);
-
-      // Hole HTML-Signatur aus E-Mail-Template
-      const signaturHtml = emailTemplate.signatur || '';
-
-      // Erstelle HTML-Body mit Signatur
-      const htmlBody = wrapInEmailTemplate(editedData.emailText, signaturHtml);
-
-      // Sende E-Mail mit PDF-Anhang
-      const result = await sendeEmail({
-        to: TEST_EMAIL_ADDRESS,
-        from: DEFAULT_ABSENDER_EMAIL,
-        subject: `[TEST] ${editedData.emailBetreff}`,
-        htmlBody,
-        pdfBase64,
-        pdfFilename: `Angebot_TEST_${editedData.kundenname.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
-      });
-
-      if (result.success) {
-        setTestSentSuccess(true);
-        alert(`Test-Mail mit PDF erfolgreich gesendet an ${TEST_EMAIL_ADDRESS}!`);
-      } else {
-        alert(`Fehler beim Senden der Test-Mail: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Fehler bei Test-Mail:', error);
-      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
-    } finally {
-      setSendingTest(false);
-    }
-  };
-
-  // Bestätigen & Senden Handler
-  const handleBestaetigunUndSenden = async () => {
-    if (!selectedAnfrage || !editedData || !editedData.email) {
-      alert('E-Mail-Adresse fehlt! Bitte ergänzen.');
-      return;
-    }
-
-    // Prüfe ob Positionen vorhanden sind
-    if (allePositionen.length === 0) {
-      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
-      return;
-    }
-
-    setProcessing(true);
-    setShowFortschritt(true);
-    setFortschrittListe([]);
-
-    try {
-      // Verwende die bearbeiteten Positionen direkt
-      const result = await verarbeiteAnfrageVollstaendig(
-        {
-          anfrage: selectedAnfrage,
-          kundeNeu: !selectedKundeId,
-          kundenDaten: {
-            name: editedData.kundenname,
-            email: editedData.email,
-            telefon: editedData.telefon || undefined,
-            strasse: editedData.strasse,
-            plz: editedData.plz,
-            ort: editedData.ort,
-            ansprechpartner: editedData.ansprechpartner || undefined,
-          },
-          existierenderKundeId: selectedKundeId || undefined,
-          positionen: allePositionen,
-          preisProTonne: editedData.preisProTonne,
-          // frachtkosten werden NICHT übergeben - sind bereits im Preis/Tonne enthalten!
-          emailVorschlag: {
-            betreff: editedData.emailBetreff,
-            text: editedData.emailText,
-          },
-          absenderEmail: DEFAULT_ABSENDER_EMAIL,
-          freibleibend: true,
-        },
-        (fortschritt) => {
-          setFortschrittListe((prev) => [...prev, fortschritt]);
-        }
-      );
-
-      if (result.success) {
-        // Entferne aus der Liste
-        setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
-
-        // Callback
-        if (onAnfrageGenehmigt && result.projektId) {
-          onAnfrageGenehmigt(result.projektId);
-        }
-
-        // Zeige Erfolg für 2 Sekunden, dann schließen
-        setTimeout(() => {
-          setSelectedAnfrage(null);
-          setShowFortschritt(false);
-        }, 2000);
-      } else {
-        // Fehler bleibt sichtbar
-        alert(`Fehler: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Fehler beim Verarbeiten:', error);
-      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  // Ablehnen Handler
-  const handleAblehnen = async () => {
-    if (!selectedAnfrage) return;
-    if (!confirm('Anfrage wirklich ablehnen? Sie bleibt im E-Mail-Postfach.')) return;
-
-    // Entferne aus der lokalen Liste
-    setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
-    setSelectedAnfrage(null);
-  };
-
-  // Nur Kunde und Projekt anlegen (OHNE E-Mail-Versand)
-  const handleNurProjektAnlegen = async () => {
-    if (!selectedAnfrage || !editedData) {
-      alert('Bitte eine Anfrage auswählen.');
-      return;
-    }
-
-    // Prüfe ob Positionen vorhanden sind
-    if (allePositionen.length === 0) {
-      alert('Keine Positionen vorhanden. Bitte erst Mengen eingeben oder Positionen hinzufügen.');
-      return;
-    }
-
-    setProcessingNurProjekt(true);
-    setShowFortschritt(true);
-    setFortschrittListe([]);
-
-    try {
-      const result = await erstelleNurKundeUndProjekt(
-        {
-          anfrage: selectedAnfrage,
-          kundeNeu: !selectedKundeId,
-          kundenDaten: {
-            name: editedData.kundenname,
-            email: editedData.email,
-            telefon: editedData.telefon || undefined,
-            strasse: editedData.strasse,
-            plz: editedData.plz,
-            ort: editedData.ort,
-            ansprechpartner: editedData.ansprechpartner || undefined,
-          },
-          existierenderKundeId: selectedKundeId || undefined,
-          positionen: allePositionen,
-          preisProTonne: editedData.preisProTonne,
-        },
-        (fortschritt) => {
-          setFortschrittListe((prev) => [...prev, fortschritt]);
-        }
-      );
-
-      if (result.success) {
-        // Entferne aus der Liste
-        setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
-
-        // Callback
-        if (onAnfrageGenehmigt && result.projektId) {
-          onAnfrageGenehmigt(result.projektId);
-        }
-
-        // Zeige Erfolg für 2 Sekunden, dann schließen
-        setTimeout(() => {
-          setSelectedAnfrage(null);
-          setShowFortschritt(false);
-          // Optional: Navigiere zum Projekt
-          if (result.projektId) {
-            navigate(`/projektabwicklung/${result.projektId}`);
-          }
-        }, 2000);
-      } else {
-        alert(`Fehler: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Fehler beim Anlegen:', error);
-      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-    } finally {
-      setProcessingNurProjekt(false);
-    }
-  };
 
   // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)
   // Eine Anfrage gilt nur als beantwortet, wenn NACH dem Eingang der Anfrage
@@ -1030,13 +456,31 @@ Bei Fragen sind wir gerne für Sie da.`,
     }) || null;
   };
 
-  // Filtere Kunden für Suche
-  const gefilterteKunden = existierendeKunden.filter(
-    (k) =>
-      k.name?.toLowerCase().includes(kundenSuche.toLowerCase()) ||
-      k.kundennummer?.toLowerCase().includes(kundenSuche.toLowerCase()) ||
-      k.email?.toLowerCase().includes(kundenSuche.toLowerCase())
-  );
+  // Callback wenn Dialog ein Duplikat via IMAP findet - aktualisiert die Liste
+  const handleDuplikatGefunden = useCallback((email: string, gesendetAm: string, betreff: string) => {
+    console.log(`📨 Duplikat-Info von Dialog erhalten: ${email} am ${gesendetAm}`);
+    setAntwortDaten(prev => {
+      const neueMap = new Map(prev);
+      const bisherige = neueMap.get(email.toLowerCase()) || [];
+
+      // Prüfe ob bereits vorhanden
+      const bereitsVorhanden = bisherige.some(b =>
+        Math.abs(new Date(b.gesendetAm).getTime() - new Date(gesendetAm).getTime()) < 60000
+      );
+
+      if (!bereitsVorhanden) {
+        bisherige.push({
+          gesendetAm,
+          projektId: '',
+          dokumentNummer: betreff,
+          quelle: 'imap',
+        });
+        neueMap.set(email.toLowerCase(), bisherige);
+      }
+
+      return neueMap;
+    });
+  }, []);
 
   if (loading) {
     return (
@@ -1077,22 +521,73 @@ Bei Fragen sind wir gerne für Sie da.`,
                   ({beantwortetAnfragen.length} bereits beantwortet)
                 </span>
               )}
+              {imapPruefungLaeuft && (
+                <span className="ml-2 text-blue-500 flex items-center gap-1 inline-flex">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Prüfe Gesendet-Ordner...
+                </span>
+              )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Toggle für bereits beantwortete */}
-          <button
-            onClick={() => setZeigeBeantwortet(!zeigeBeantwortet)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${
-              zeigeBeantwortet
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            {zeigeBeantwortet ? 'Alle zeigen' : 'Beantwortete ausblenden'}
-          </button>
+          {/* View Mode Toggle */}
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-700 shadow text-purple-600 dark:text-purple-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span className="hidden sm:inline">Liste</span>
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                viewMode === 'map'
+                  ? 'bg-white dark:bg-slate-700 shadow text-purple-600 dark:text-purple-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              <MapIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Karte</span>
+            </button>
+          </div>
+
+          {/* Filter-Dropdown */}
+          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setZeigeBeantwortet(false)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                !zeigeBeantwortet
+                  ? 'bg-white dark:bg-slate-700 shadow text-orange-600 dark:text-orange-400 font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              <Mail className="w-4 h-4" />
+              <span>Nur offene</span>
+              <span className="bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                {offeneAnfragen.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setZeigeBeantwortet(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors text-sm ${
+                zeigeBeantwortet
+                  ? 'bg-white dark:bg-slate-700 shadow text-green-600 dark:text-green-400 font-medium'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Alle</span>
+              <span className="bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full text-xs font-bold">
+                {anfragen.length}
+              </span>
+            </button>
+          </div>
           <button
             onClick={loadAnfragen}
             disabled={loading}
@@ -1118,955 +613,92 @@ Bei Fragen sind wir gerne für Sie da.`,
         </div>
       </div>
 
-      {/* Anfragen-Liste und Detail-Ansicht */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Liste */}
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          {anzuzeigendeAnfragen.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
-              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <p className="text-gray-600 dark:text-gray-400 font-medium">
-                {anfragen.length === 0 ? 'Keine E-Mails im Posteingang' : 'Alle offenen Anfragen verarbeitet!'}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                {anfragen.length === 0
-                  ? 'Neue Anfragen erscheinen hier automatisch.'
-                  : `${beantwortetAnfragen.length} Anfragen wurden bereits beantwortet.`}
-              </p>
-              {beantwortetAnfragen.length > 0 && !zeigeBeantwortet && (
-                <button
-                  onClick={() => setZeigeBeantwortet(true)}
-                  className="mt-3 text-sm text-purple-600 hover:text-purple-700 underline"
-                >
-                  Alle anzeigen
-                </button>
-              )}
-            </div>
-          ) : (
-            anzuzeigendeAnfragen.map((anfrage) => {
-              const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum);
-              const antwortInfo = beantwortet
-                ? getAntwortInfo(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum)
-                : null;
-              // Alle Einträge aus Appwrite sind Webformular-Anfragen (vom Sync gefiltert)
-              const istWebformular = true;
-              return (
-                <AnfrageCard
-                  key={anfrage.id}
-                  anfrage={anfrage}
-                  isSelected={selectedAnfrage?.id === anfrage.id}
-                  istBeantwortet={beantwortet}
-                  istWebformular={istWebformular}
-                  antwortInfo={antwortInfo}
-                  onClick={() => setSelectedAnfrage(anfrage)}
-                  onProjektClick={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
-                />
-              );
-            })
-          )}
-        </div>
+      {/* Kartenansicht */}
+      {viewMode === 'map' && (
+        <AnfragenKartenansicht
+          anfragen={anzuzeigendeAnfragen}
+          istBeantwortet={(email, datum) => istBereitsBeantwortet(email, datum)}
+          onAnfrageClick={(anfrage) => setSelectedAnfrage(anfrage)}
+        />
+      )}
 
-        {/* Detail-Ansicht - ZWEI SPALTEN: Formular links, Original-Mail rechts */}
-        {selectedAnfrage && editedData && (
-          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border-2 border-gray-200 dark:border-slate-700 shadow-lg overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 sticky top-0 z-10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 text-white">
-                  <Building2 className="w-6 h-6" />
-                  <div>
-                    <h3 className="font-bold text-lg">{editedData.kundenname}</h3>
-                    <p className="text-purple-200 text-sm">
-                      {editedData.plz} {editedData.ort}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* KI-Analyse Button */}
-                  {aiAnalyseVerfuegbar && (
-                    <button
-                      onClick={handleKiAnalyse}
-                      disabled={runningAiAnalysis || processing}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50"
-                      title="Mit KI analysieren und optimieren"
-                    >
-                      {runningAiAnalysis ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="hidden sm:inline">Analysiert...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bot className="w-4 h-4" />
-                          <span className="hidden sm:inline">KI-Analyse</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setSelectedAnfrage(null)}
-                    className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5 text-white" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Fortschrittsanzeige während Verarbeitung */}
-            {showFortschritt && (
-              <div className="p-4 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <Loader2 className={`w-4 h-4 ${processing ? 'animate-spin' : ''}`} />
-                  Verarbeitung
-                </h4>
-                <div className="space-y-2">
-                  {fortschrittListe.map((f, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-sm">
-                      {f.erfolgreich ? (
-                        <CheckSquare className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                      )}
-                      <span className={f.erfolgreich ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
-                        {getSchrittLabel(f.schritt)}: {f.details || (f.erfolgreich ? 'OK' : 'Fehler')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+      {/* Anfragen-Liste als Grid */}
+      {viewMode === 'list' && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[80vh] overflow-y-auto">
+        {anzuzeigendeAnfragen.length === 0 ? (
+          <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
+            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            <p className="text-gray-600 dark:text-gray-400 font-medium">
+              {anfragen.length === 0 ? 'Keine E-Mails im Posteingang' : 'Alle offenen Anfragen verarbeitet!'}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+              {anfragen.length === 0
+                ? 'Neue Anfragen erscheinen hier automatisch.'
+                : `${beantwortetAnfragen.length} Anfragen wurden bereits beantwortet.`}
+            </p>
+            {beantwortetAnfragen.length > 0 && !zeigeBeantwortet && (
+              <button
+                onClick={() => setZeigeBeantwortet(true)}
+                className="mt-3 text-sm text-purple-600 hover:text-purple-700 underline"
+              >
+                Alle anzeigen
+              </button>
             )}
-
-            {/* ZWEI-SPALTEN LAYOUT: Formular links, Original-Mail rechts */}
-            {!showFortschritt && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-                {/* LINKE SEITE: Bearbeitbare Felder (2/3 Breite) */}
-                <div className="lg:col-span-2 p-4 space-y-4 max-h-[60vh] overflow-y-auto border-r border-gray-200 dark:border-slate-700">
-                  {/* Warnung wenn bereits beantwortet */}
-                  {selectedAnfrage && istBereitsBeantwortet(editedData.email, selectedAnfrage.emailDatum) && (
-                    <div className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                      <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        An diese E-Mail-Adresse wurde bereits ein Angebot gesendet (nach Eingang dieser Anfrage)!
-                      </p>
-                    </div>
-                  )}
-
-                {/* Kundendaten */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Kundendaten
-                  </h4>
-
-                  {/* Bestehenden Kunden zuordnen */}
-                  <div className="mb-3">
-                    <button
-                      onClick={() => setShowKundenAuswahl(!showKundenAuswahl)}
-                      className="text-sm text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
-                    >
-                      <UserPlus className="w-3 h-3" />
-                      {selectedKundeId ? 'Anderen Kunden wählen' : 'Bestehenden Kunden zuordnen'}
-                    </button>
-                    {selectedKundeId && (
-                      <span className="text-xs text-green-600 ml-2">
-                        (Bestehender Kunde ausgewählt)
-                      </span>
-                    )}
-                  </div>
-
-                  {showKundenAuswahl && (
-                    <div className="mb-4 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg">
-                      <div className="relative mb-2">
-                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={kundenSuche}
-                          onChange={(e) => setKundenSuche(e.target.value)}
-                          placeholder="Kunde suchen..."
-                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
-                        {gefilterteKunden.slice(0, 10).map((k) => (
-                          <button
-                            key={k.id}
-                            onClick={() => {
-                              setSelectedKundeId(k.id);
-                              setEditedData({
-                                ...editedData,
-                                kundenname: k.name,
-                                email: k.email || editedData.email,
-                                telefon: k.dispoAnsprechpartner?.telefon || editedData.telefon,
-                                strasse: k.rechnungsadresse?.strasse || editedData.strasse,
-                                plz: k.rechnungsadresse?.plz || editedData.plz,
-                                ort: k.rechnungsadresse?.ort || editedData.ort,
-                              });
-                              setShowKundenAuswahl(false);
-                            }}
-                            className="w-full text-left px-2 py-1 text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded"
-                          >
-                            <span className="font-medium">{k.name}</span>
-                            {k.kundennummer && <span className="text-gray-500 ml-1">({k.kundennummer})</span>}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSelectedKundeId(null);
-                          setShowKundenAuswahl(false);
-                        }}
-                        className="mt-2 text-xs text-gray-500 hover:text-gray-700"
-                      >
-                        Neuen Kunden anlegen
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2">
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Name/Verein</label>
-                      <input
-                        type="text"
-                        value={editedData.kundenname}
-                        onChange={(e) => setEditedData({ ...editedData, kundenname: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Ansprechpartner</label>
-                      <input
-                        type="text"
-                        value={editedData.ansprechpartner}
-                        onChange={(e) => setEditedData({ ...editedData, ansprechpartner: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Telefon</label>
-                      <input
-                        type="text"
-                        value={editedData.telefon}
-                        onChange={(e) => setEditedData({ ...editedData, telefon: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        E-Mail <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={editedData.email}
-                        onChange={(e) => setEditedData({ ...editedData, email: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Straße</label>
-                      <input
-                        type="text"
-                        value={editedData.strasse}
-                        onChange={(e) => setEditedData({ ...editedData, strasse: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">PLZ</label>
-                      <input
-                        type="text"
-                        value={editedData.plz}
-                        onChange={(e) => setEditedData({ ...editedData, plz: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Ort</label>
-                      <input
-                        type="text"
-                        value={editedData.ort}
-                        onChange={(e) => setEditedData({ ...editedData, ort: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notizen aus Kundenanfrage - Wichtige Infos wie Lieferwünsche */}
-                {selectedAnfrage.notizen && (
-                  <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                    <h4 className="font-semibold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      Wichtige Kundennotiz
-                    </h4>
-                    <p className="text-sm text-amber-900 dark:text-amber-200 whitespace-pre-wrap">
-                      {selectedAnfrage.notizen}
-                    </p>
-                  </div>
-                )}
-
-                {/* Angebot */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <Package className="w-4 h-4" />
-                    Angebot - Mengen
-                  </h4>
-
-                  {/* Einzelne Tonnen-Felder */}
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        0-2mm lose (t)
-                        <span className="ml-1 text-green-600">95.75€/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenLose02 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = newVal + editedData.tonnenGesackt02 + editedData.tonnenLose03 + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenLose02: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/20"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        0-2mm gesackt (t)
-                        <span className="ml-1 text-green-600">145€/t</span>
-                        {istBeiladung(editedData.tonnenGesackt02, editedData.tonnenLose02 + editedData.tonnenLose03) && (
-                          <span className="ml-1 text-blue-600 font-medium">(Beiladung)</span>
-                        )}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenGesackt02 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + newVal + editedData.tonnenLose03 + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenGesackt02: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-700 rounded-lg bg-orange-50 dark:bg-orange-950/20"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        0-3mm lose (t)
-                        <span className="ml-1 text-green-600">95.75€/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenLose03 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + newVal + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenLose03: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 text-sm border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/20"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        0-3mm gesackt (t)
-                        <span className="ml-1 text-green-600">145€/t</span>
-                        {istBeiladung(editedData.tonnenGesackt03, editedData.tonnenLose02 + editedData.tonnenLose03) && (
-                          <span className="ml-1 text-blue-600 font-medium">(Beiladung)</span>
-                        )}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenGesackt03 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenLose03 + newVal;
-                          setEditedData({ ...editedData, tonnenGesackt03: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 text-sm border border-orange-300 dark:border-orange-700 rounded-lg bg-orange-50 dark:bg-orange-950/20"
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Gesamtmenge und Preis */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Gesamt (t)</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={editedData.menge}
-                        readOnly
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-700 font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Preis/t (EUR)</label>
-                      <input
-                        type="number"
-                        step="0.50"
-                        value={editedData.preisProTonne}
-                        onChange={(e) =>
-                          setEditedData({ ...editedData, preisProTonne: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        Fracht (EUR)
-                        {lieferkostenBerechnung.isLoading && (
-                          <Loader2 className="w-3 h-3 ml-1 inline animate-spin" />
-                        )}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.50"
-                        value={editedData.frachtkosten}
-                        onChange={(e) =>
-                          setEditedData({ ...editedData, frachtkosten: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Lieferkosten-Berechnung Breakdown */}
-                  {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <h5 className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-1">
-                        <Truck className="w-3 h-3" />
-                        Lieferkosten-Berechnung (LKW)
-                      </h5>
-                      <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <span>Strecke (hin + zurück):</span>
-                          <span className="font-medium">{lieferkostenBerechnung.ergebnis.distanz.toFixed(0)} km</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <span>Fahrzeit:</span>
-                          <span className="font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.fahrzeit)}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <span>Beladung:</span>
-                          <span className="font-medium">{BELADUNGSZEIT_MINUTEN} min</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <span>Abladung:</span>
-                          <span className="font-medium">{lieferkostenBerechnung.ergebnis.abladungszeit} min</span>
-                        </div>
-                        {lieferkostenBerechnung.ergebnis.pausenzeit > 0 && (
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>Pause (EU-Regel):</span>
-                            <span className="font-medium">{lieferkostenBerechnung.ergebnis.pausenzeit} min</span>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-blue-200 dark:border-blue-700">
-                          <span className="font-semibold">Gesamtzeit:</span>
-                          <span className="font-bold">{formatZeit(lieferkostenBerechnung.ergebnis.gesamtzeit)}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2">
-                          <span>Stundenlohn:</span>
-                          <span className="font-medium">{FREMDLIEFERUNG_STUNDENLOHN} €/h</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-blue-200 dark:border-blue-700">
-                          <span className="font-bold">Lieferkosten:</span>
-                          <span className="font-bold text-blue-900 dark:text-blue-200">{lieferkostenBerechnung.ergebnis.lohnkosten.toFixed(2)} €</span>
-                        </div>
-
-                        {/* Preisberechnung */}
-                        <div className="mt-2 pt-2 border-t border-blue-300 dark:border-blue-600">
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>Werkspreis:</span>
-                            <span className="font-medium">95,75 €/t</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>+ Lieferkosten/t:</span>
-                            <span className="font-medium">
-                              {editedData.menge > 0 ? (lieferkostenBerechnung.ergebnis.lohnkosten / editedData.menge).toFixed(2) : '0.00'} €/t
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2 pt-1 font-bold text-green-700 dark:text-green-400">
-                            <span>= Empf. Preis/t:</span>
-                            <span>
-                              {editedData.menge > 0
-                                ? (95.75 + (lieferkostenBerechnung.ergebnis.lohnkosten / editedData.menge)).toFixed(2)
-                                : '95.75'} €/t
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PE-Folie Hinweis */}
-                  {(editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (
-                    <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 text-xs rounded-full">
-                      <Package className="w-3 h-3" />
-                      PE-Folie wird automatisch hinzugefügt (loses Material)
-                    </div>
-                  )}
-
-                  {/* Sackware Kostenberechnung (Raben-Modell) */}
-                  {(() => {
-                    const gesamtSackware = (editedData.tonnenGesackt02 || 0) + (editedData.tonnenGesackt03 || 0);
-                    const gesamtLose = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0);
-                    const istNurSackware = gesamtSackware > 0 && gesamtLose === 0;
-                    const istSackwarePerSpedition = gesamtSackware >= 1 || (gesamtSackware > 0 && gesamtLose === 0);
-
-                    if (!istSackwarePerSpedition || !editedData.plz) return null;
-
-                    const gewichtKg = gesamtSackware * 1000;
-                    const rabenFracht = berechneSpeditionskosten(editedData.plz, gewichtKg);
-                    const zone = getZoneFromPLZ(editedData.plz);
-                    const werkspreisSackware = 145; // €/t ab Werk
-                    const frachtProTonne = rabenFracht ? rabenFracht / gesamtSackware : 0;
-                    const endpreisProTonne = werkspreisSackware + frachtProTonne;
-
-                    return (
-                      <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
-                        <h5 className="text-xs font-semibold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-1">
-                          <Package className="w-3 h-3" />
-                          Sackware Kostenberechnung (Raben Spedition)
-                        </h5>
-                        <div className="text-xs text-purple-700 dark:text-purple-400 space-y-1">
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>Menge Sackware:</span>
-                            <span className="font-medium">{gesamtSackware.toFixed(2)} t ({(gewichtKg).toFixed(0)} kg)</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>Ziel-PLZ:</span>
-                            <span className="font-medium">{editedData.plz} {zone ? `(Zone ${zone})` : ''}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-purple-200 dark:border-purple-700">
-                            <span>Werkspreis Sackware:</span>
-                            <span className="font-medium">{werkspreisSackware.toFixed(2)} €/t</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>+ Raben Frachtkosten:</span>
-                            <span className="font-medium">{rabenFracht ? `${rabenFracht.toFixed(2)} € gesamt` : 'n/a'}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2">
-                            <span>= Fracht pro Tonne:</span>
-                            <span className="font-medium">{frachtProTonne.toFixed(2)} €/t</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-2 pt-1 border-t border-purple-200 dark:border-purple-700 font-bold text-green-700 dark:text-green-400">
-                            <span>= Empf. Endpreis/t:</span>
-                            <span>{endpreisProTonne.toFixed(2)} €/t</span>
-                          </div>
-                          {istNurSackware && (
-                            <div className="mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
-                              <div className="grid grid-cols-2 gap-x-2 font-bold">
-                                <span>Gesamtpreis:</span>
-                                <span className="text-purple-900 dark:text-purple-200">
-                                  {(gesamtSackware * endpreisProTonne).toFixed(2)} € netto
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Empfohlener Preis */}
-                  {selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne && (
-                    <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs rounded-full">
-                      <Sparkles className="w-3 h-3" />
-                      Empfohlen: {selectedAnfrage.angebotsvorschlag.empfohlenerPreisProTonne} EUR/t
-                    </div>
-                  )}
-
-                  {/* Summe */}
-                  {editedData.menge > 0 && editedData.preisProTonne > 0 && (
-                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-amber-800 dark:text-amber-300">
-                          {editedData.menge}t x {editedData.preisProTonne} EUR
-                        </span>
-                        <span className="font-bold text-amber-900 dark:text-amber-200">
-                          {(editedData.menge * editedData.preisProTonne + editedData.frachtkosten).toFixed(2)} EUR netto
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Angebots-Positionen - ALLE BEARBEITBAR */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <Edit3 className="w-4 h-4" />
-                      Angebots-Positionen
-                      {positionenLaden && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handlePositionenNeuGenerieren}
-                        disabled={positionenLaden}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-50"
-                        title="Positionen basierend auf Mengen-Feldern neu generieren"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        Neu generieren
-                      </button>
-                      <button
-                        onClick={() => setShowArtikelSuche(!showArtikelSuche)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Position hinzufügen
-                      </button>
-                    </div>
-                  </h4>
-
-                  {/* Artikel-Suche zum Hinzufügen */}
-                  {showArtikelSuche && (
-                    <div className="mb-3 p-3 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
-                      <div className="relative mb-2">
-                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={artikelSuchtext}
-                          onChange={(e) => setArtikelSuchtext(e.target.value)}
-                          placeholder="Artikel suchen (Nr. oder Bezeichnung)..."
-                          className="w-full pl-8 pr-3 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-slate-900"
-                          autoFocus
-                        />
-                      </div>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
-                        {artikelLaden ? (
-                          <div className="flex items-center justify-center py-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                          </div>
-                        ) : (
-                          verfuegbareArtikel
-                            .filter(a =>
-                              a.artikelnummer.toLowerCase().includes(artikelSuchtext.toLowerCase()) ||
-                              a.bezeichnung.toLowerCase().includes(artikelSuchtext.toLowerCase())
-                            )
-                            .slice(0, 10)
-                            .map((artikel) => (
-                              <button
-                                key={artikel.$id}
-                                onClick={() => {
-                                  // Füge Artikel als neue Position hinzu
-                                  const neuePosition: Position = {
-                                    id: `zusatz-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                                    artikelnummer: artikel.artikelnummer,
-                                    bezeichnung: artikel.bezeichnung,
-                                    beschreibung: artikel.beschreibung,
-                                    menge: 1,
-                                    einheit: artikel.einheit,
-                                    einzelpreis: artikel.einzelpreis || 0,
-                                    gesamtpreis: artikel.einzelpreis || 0,
-                                    istBedarfsposition: false,
-                                  };
-                                  setAllePositionen([...allePositionen, neuePosition]);
-                                  setArtikelSuchtext('');
-                                  setShowArtikelSuche(false);
-                                }}
-                                className="w-full text-left px-2 py-1.5 text-sm hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded flex justify-between items-center"
-                              >
-                                <span>
-                                  <span className="font-mono text-purple-600 dark:text-purple-400">{artikel.artikelnummer}</span>
-                                  <span className="ml-2">{artikel.bezeichnung}</span>
-                                </span>
-                                <span className="text-gray-500 text-xs">{artikel.einzelpreis?.toFixed(2) || '-'} €/{artikel.einheit}</span>
-                              </button>
-                            ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Liste ALLER Positionen (automatisch + manuell) */}
-                  {allePositionen.length > 0 ? (
-                    <div className="space-y-2">
-                      {allePositionen.map((pos, index) => (
-                        <div
-                          key={pos.id}
-                          className="p-2 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs text-purple-600 dark:text-purple-400">{pos.artikelnummer}</span>
-                                <span className="text-sm font-medium truncate">{pos.bezeichnung}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  min="0.01"
-                                  value={pos.menge}
-                                  onChange={(e) => {
-                                    const neueMenge = parseFloat(e.target.value) || 1;
-                                    setAllePositionen(prev =>
-                                      prev.map((p, i) =>
-                                        i === index
-                                          ? { ...p, menge: neueMenge, gesamtpreis: neueMenge * p.einzelpreis }
-                                          : p
-                                      )
-                                    );
-                                  }}
-                                  className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                                />
-                                <span className="text-xs text-gray-500">{pos.einheit}</span>
-                                <span className="text-xs text-gray-400">×</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={pos.einzelpreis}
-                                  onChange={(e) => {
-                                    const neuerPreis = parseFloat(e.target.value) || 0;
-                                    setAllePositionen(prev =>
-                                      prev.map((p, i) =>
-                                        i === index
-                                          ? { ...p, einzelpreis: neuerPreis, gesamtpreis: p.menge * neuerPreis }
-                                          : p
-                                      )
-                                    );
-                                  }}
-                                  className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                                />
-                                <span className="text-xs text-gray-500">€/{pos.einheit}</span>
-                                <span className="text-xs text-gray-400">=</span>
-                                <span className="text-xs font-bold text-green-700 dark:text-green-400">
-                                  {pos.gesamtpreis.toFixed(2)} €
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setAllePositionen(prev => prev.filter((_, i) => i !== index));
-                              }}
-                              className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                              title="Position entfernen"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {/* Gesamtsumme */}
-                      <div className="pt-2 border-t-2 border-green-300 dark:border-green-700 flex justify-between text-sm">
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">Gesamtsumme:</span>
-                        <span className="font-bold text-green-700 dark:text-green-400 text-base">
-                          {allePositionen.reduce((sum, p) => sum + p.gesamtpreis, 0).toFixed(2)} € netto
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-gray-50 dark:bg-slate-800 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 text-center">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Keine Positionen vorhanden.
-                      </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        Gib oben Mengen ein und klicke "Neu generieren", oder füge manuell Positionen hinzu.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* E-Mail */}
-                <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    E-Mail Vorschau
-                  </h4>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Betreff</label>
-                      <input
-                        type="text"
-                        value={editedData.emailBetreff}
-                        onChange={(e) => setEditedData({ ...editedData, emailBetreff: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Nachricht</label>
-                      <textarea
-                        value={editedData.emailText}
-                        onChange={(e) => setEditedData({ ...editedData, emailText: e.target.value })}
-                        rows={6}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                </div>
-
-                {/* RECHTE SEITE: Original E-Mail (1/3 Breite) */}
-                <div className="lg:col-span-1 p-4 bg-slate-50 dark:bg-slate-800/50 max-h-[60vh] overflow-y-auto">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 sticky top-0 bg-slate-50 dark:bg-slate-800/50 pb-2">
-                    <Mail className="w-4 h-4" />
-                    Original E-Mail
-                  </h4>
-                  <div className="space-y-3">
-                    {/* E-Mail Metadaten */}
-                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                      <p><span className="font-medium">Von:</span> {selectedAnfrage.emailAbsender}</p>
-                      <p><span className="font-medium">Betreff:</span> {selectedAnfrage.emailBetreff}</p>
-                      <p><span className="font-medium">Datum:</span> {new Date(selectedAnfrage.emailDatum).toLocaleString('de-DE')}</p>
-                    </div>
-
-                    {/* E-Mail Inhalt */}
-                    <div className="mt-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
-                      <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">
-                        {selectedAnfrage.emailText}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="p-4 bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 sticky bottom-0">
-              <div className="flex flex-col gap-2">
-                {/* PDF Vorschau und Test-Mail Buttons */}
-                <div className="flex gap-2">
-                  {/* PDF Vorschau Button */}
-                  <button
-                    onClick={handlePdfVorschau}
-                    disabled={generatingPreview || processing || editedData.menge <= 0}
-                    className="flex-1 px-4 py-2 border border-purple-300 dark:border-purple-700 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-                  >
-                    {generatingPreview ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        PDF wird erstellt...
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4" />
-                        PDF Vorschau
-                      </>
-                    )}
-                  </button>
-
-                  {/* Test-Mail Button */}
-                  <button
-                    onClick={handleTestMailSenden}
-                    disabled={sendingTest || processing}
-                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${
-                      testSentSuccess
-                        ? 'border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50'
-                        : 'border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50'
-                    }`}
-                  >
-                    {sendingTest ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Sende...
-                      </>
-                    ) : testSentSuccess ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Gesendet
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="w-4 h-4" />
-                        Test-Mail
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Haupt-Aktionen */}
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={handleAblehnen}
-                    disabled={processing || processingNurProjekt}
-                    className="px-4 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <X className="w-4 h-4" />
-                    Ablehnen
-                  </button>
-                  <button
-                    onClick={handleNurProjektAnlegen}
-                    disabled={processing || processingNurProjekt || allePositionen.length === 0}
-                    className="flex-1 px-4 py-2.5 border-2 border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2"
-                    title="Kunde und Projekt anlegen ohne E-Mail zu versenden"
-                  >
-                    {processingNurProjekt ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Wird angelegt...
-                      </>
-                    ) : (
-                      <>
-                        <Building2 className="w-4 h-4" />
-                        Nur Projekt anlegen
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleBestaetigunUndSenden}
-                    disabled={processing || processingNurProjekt || !editedData?.email || allePositionen.length === 0}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
-                  >
-                    {processing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Wird verarbeitet...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        Angebot senden
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
           </div>
+        ) : (
+          anzuzeigendeAnfragen.map((anfrage) => {
+            const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum);
+            const antwortInfo = beantwortet
+              ? getAntwortInfo(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum)
+              : null;
+            const istWebformular = true;
+            return (
+              <AnfrageCard
+                key={anfrage.id}
+                anfrage={anfrage}
+                isSelected={selectedAnfrage?.id === anfrage.id}
+                istBeantwortet={beantwortet}
+                istWebformular={istWebformular}
+                antwortInfo={antwortInfo}
+                onClick={() => setSelectedAnfrage(anfrage)}
+                onProjektClick={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
+              />
+            );
+          })
         )}
       </div>
+      )}
+
+      {/* Dialog für Anfrage-Bearbeitung */}
+      {selectedAnfrage && (() => {
+        const beantwortet = istBereitsBeantwortet(selectedAnfrage.analysiert.email || selectedAnfrage.emailAbsender, selectedAnfrage.emailDatum);
+        const antwortInfoFuerDialog = beantwortet
+          ? getAntwortInfo(selectedAnfrage.analysiert.email || selectedAnfrage.emailAbsender, selectedAnfrage.emailDatum)
+          : null;
+        return (
+          <AnfrageBearbeitungDialog
+            anfrage={selectedAnfrage}
+            isOpen={!!selectedAnfrage}
+            istBereitsBeantwortet={beantwortet}
+            antwortInfo={antwortInfoFuerDialog}
+            onClose={() => setSelectedAnfrage(null)}
+            onSuccess={(projektId) => {
+              // Entferne aus der Liste
+              setAnfragen((prev) => prev.filter((a) => a.id !== selectedAnfrage.id));
+              setSelectedAnfrage(null);
+              // Callback
+              if (onAnfrageGenehmigt && projektId) {
+                onAnfrageGenehmigt(projektId);
+              }
+            }}
+            onNavigateToProjekt={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
+            onDuplikatGefunden={handleDuplikatGefunden}
+          />
+        );
+      })()}
     </div>
   );
 };
-
-// Helper: Label für Verarbeitungsschritt
-function getSchrittLabel(schritt: VerarbeitungsSchritt): string {
-  switch (schritt) {
-    case 'kunde_anlegen':
-      return 'Kunde';
-    case 'projekt_erstellen':
-      return 'Projekt';
-    case 'angebot_generieren':
-      return 'Angebot';
-    case 'angebot_speichern':
-      return 'Speichern';
-    case 'email_versenden':
-      return 'E-Mail';
-    case 'status_aktualisieren':
-      return 'Status';
-    case 'anfrage_speichern':
-      return 'Protokoll';
-    case 'fertig':
-      return 'Fertig';
-    default:
-      return schritt;
-  }
-}
 
 // Anfrage-Card Komponente
 interface AnfrageCardProps {
