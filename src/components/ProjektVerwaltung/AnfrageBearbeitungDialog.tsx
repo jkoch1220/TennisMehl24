@@ -64,6 +64,7 @@ import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../
 import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { searchEmailsByAddress, Email } from '../../services/emailService';
+import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
 
 // Konstanten
 const FREMDLIEFERUNG_STUNDENLOHN = 108;
@@ -160,6 +161,15 @@ const AnfrageBearbeitungDialog = ({
     plz: string | null;
     tonnage: number;
   }>({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
+
+  // Speditionskosten für Palettenware (Sackware + BigBag)
+  const [speditionskostenBerechnung, setSpeditionskostenBerechnung] = useState<{
+    kosten: number | null;
+    kostenProTonne: number | null;
+    zone: number | null;
+    gewichtKg: number;
+    plz: string | null;
+  }>({ kosten: null, kostenProTonne: null, zone: null, gewichtKg: 0, plz: null });
 
   // Positionen
   const [allePositionen, setAllePositionen] = useState<Position[]>([]);
@@ -449,6 +459,35 @@ const AnfrageBearbeitungDialog = ({
     const timeout = setTimeout(berechneLieferkosten, 500);
     return () => clearTimeout(timeout);
   }, [editedData?.plz, editedData?.menge, editedData?.tonnenLose02, editedData?.tonnenLose03]);
+
+  // Speditionskosten für Palettenware berechnen
+  useEffect(() => {
+    if (!editedData || !editedData.plz || editedData.plz.length < 5) {
+      setSpeditionskostenBerechnung({ kosten: null, kostenProTonne: null, zone: null, gewichtKg: 0, plz: null });
+      return;
+    }
+
+    const plz = editedData.plz;
+    const mengePalette = (editedData.tonnenGesackt02 || 0) + (editedData.tonnenGesackt03 || 0) +
+                         (editedData.tonnenBigbag02 || 0) + (editedData.tonnenBigbag03 || 0);
+
+    if (mengePalette <= 0) {
+      setSpeditionskostenBerechnung({ kosten: null, kostenProTonne: null, zone: null, gewichtKg: 0, plz });
+      return;
+    }
+
+    const gewichtKg = mengePalette * 1000;
+    const kosten = berechneSpeditionskosten(plz, gewichtKg);
+    const zone = getZoneFromPLZ(plz);
+
+    setSpeditionskostenBerechnung({
+      kosten,
+      kostenProTonne: kosten !== null && mengePalette > 0 ? kosten / mengePalette : null,
+      zone,
+      gewichtKg,
+      plz,
+    });
+  }, [editedData?.plz, editedData?.tonnenGesackt02, editedData?.tonnenGesackt03, editedData?.tonnenBigbag02, editedData?.tonnenBigbag03]);
 
   // Positionen generieren
   useEffect(() => {
@@ -1558,6 +1597,89 @@ const AnfrageBearbeitungDialog = ({
                             <div className="flex justify-between">
                               <span className="text-blue-600/70 font-medium">Lieferkosten gesamt:</span>
                               <span className="font-bold">{lieferkostenGesamt.toFixed(2)} EUR</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Speditionskosten für Palettenware (Sackware + BigBag) */}
+                  {speditionskostenBerechnung.kosten !== null && (() => {
+                    const mengeSackware = (editedData.tonnenGesackt02 || 0) + (editedData.tonnenGesackt03 || 0);
+                    const mengeBigbag = (editedData.tonnenBigbag02 || 0) + (editedData.tonnenBigbag03 || 0);
+                    const mengeGesamt = mengeSackware + mengeBigbag;
+                    const werkspreisSackware = 145;
+                    const werkspreisBigbag = 125;
+                    const frachtProTonne = speditionskostenBerechnung.kostenProTonne || 0;
+
+                    return (
+                      <div className="mt-4 space-y-3">
+                        {/* Preisberechnung Palettenware */}
+                        <div className="p-4 bg-gradient-to-r from-purple-50 to-orange-50 dark:from-purple-950/30 dark:to-orange-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
+                          <div className="flex items-center gap-2 text-purple-800 dark:text-purple-300 font-medium mb-3">
+                            <Package className="w-4 h-4" />
+                            Preiskalkulation Palettenware ({mengeGesamt}t per Spedition)
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            {mengeBigbag > 0 && (
+                              <>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 dark:text-gray-400">BigBag Werkspreis:</span>
+                                  <span className="font-medium text-gray-900 dark:text-white">{werkspreisBigbag.toFixed(2)} EUR/t</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 dark:text-gray-400">+ Spedition/t:</span>
+                                  <span className="font-medium text-purple-600 dark:text-purple-400">{frachtProTonne.toFixed(2)} EUR/t</span>
+                                </div>
+                                <div className="flex justify-between items-center text-purple-700 dark:text-purple-300">
+                                  <span className="font-medium">= BigBag Endpreis:</span>
+                                  <span className="font-bold">{(werkspreisBigbag + frachtProTonne).toFixed(2)} EUR/t</span>
+                                </div>
+                              </>
+                            )}
+                            {mengeSackware > 0 && (
+                              <>
+                                {mengeBigbag > 0 && <div className="border-t border-purple-200 dark:border-purple-700 my-2" />}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 dark:text-gray-400">Sackware Werkspreis:</span>
+                                  <span className="font-medium text-gray-900 dark:text-white">{werkspreisSackware.toFixed(2)} EUR/t</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-gray-600 dark:text-gray-400">+ Spedition/t:</span>
+                                  <span className="font-medium text-orange-600 dark:text-orange-400">{frachtProTonne.toFixed(2)} EUR/t</span>
+                                </div>
+                                <div className="flex justify-between items-center text-orange-700 dark:text-orange-300">
+                                  <span className="font-medium">= Sackware Endpreis:</span>
+                                  <span className="font-bold">{(werkspreisSackware + frachtProTonne).toFixed(2)} EUR/t</span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Speditionskosten-Details */}
+                        <div className="p-4 bg-orange-50 dark:bg-orange-950/30 rounded-xl border border-orange-200 dark:border-orange-800">
+                          <div className="flex items-center gap-2 text-orange-800 dark:text-orange-300 font-medium mb-2">
+                            <Truck className="w-4 h-4" />
+                            Speditionskosten-Details (Raben)
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-orange-700 dark:text-orange-400">
+                            <div className="flex justify-between">
+                              <span className="text-orange-600/70">Lieferzone:</span>
+                              <span className="font-medium">{speditionskostenBerechnung.zone ? `Zone ${speditionskostenBerechnung.zone}` : '–'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-600/70">Gewicht:</span>
+                              <span className="font-medium">{(speditionskostenBerechnung.gewichtKg / 1000).toFixed(1)} t</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-600/70">Kosten/t:</span>
+                              <span className="font-medium">{frachtProTonne.toFixed(2)} EUR</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-600/70 font-medium">Spedition gesamt:</span>
+                              <span className="font-bold">{speditionskostenBerechnung.kosten?.toFixed(2)} EUR</span>
                             </div>
                           </div>
                         </div>
