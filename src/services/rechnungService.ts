@@ -18,12 +18,18 @@ import {
 } from './pdfHelpers';
 
 // Gemeinsame Berechnungsfunktion
-export const berechneDokumentSummen = (positionen: Position[]): DokumentBerechnung => {
+// Parameter: positionen, ohneMehrwertsteuer (für Reverse Charge), mehrwertsteuersatz (optional, Standard: 19%)
+export const berechneDokumentSummen = (
+  positionen: Position[],
+  ohneMehrwertsteuer: boolean = false,
+  mehrwertsteuersatz?: number
+): DokumentBerechnung => {
   const nettobetrag = positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
-  const umsatzsteuersatz = 19; // Standard MwSt.-Satz in Deutschland
+  // Bei Reverse Charge: 0%, sonst benutzerdefinierter Satz oder Standard 19%
+  const umsatzsteuersatz = ohneMehrwertsteuer ? 0 : (mehrwertsteuersatz ?? 19);
   const umsatzsteuer = nettobetrag * (umsatzsteuersatz / 100);
   const bruttobetrag = nettobetrag + umsatzsteuer;
-  
+
   return {
     nettobetrag,
     umsatzsteuer,
@@ -402,30 +408,38 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
-  const berechnung = berechneRechnungsSummen(daten.positionen);
+  const berechnung = berechneRechnungsSummen(daten.positionen, daten.ohneMehrwertsteuer, daten.mehrwertsteuersatz);
 
-  // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 45mm)
-  summenY = await ensureSpace(doc, summenY, 45, stammdaten);
+  // Prüfe ob genug Platz für Summen-Block (inkl. QR-Code, ca. 45mm + ggf. Reverse Charge Hinweis)
+  summenY = await ensureSpace(doc, summenY, daten.ohneMehrwertsteuer ? 60 : 45, stammdaten);
 
   const summenX = 125;
   summenY += 6;
-  
+
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  
+
   // Nettobetrag
   doc.text('Nettobetrag:', summenX, summenY);
   doc.text(formatWaehrung(berechnung.nettobetrag), 180, summenY, { align: 'right' });
-  
+
   summenY += 6;
-  doc.text(`MwSt. (${berechnung.umsatzsteuersatz}%):`, summenX, summenY);
-  doc.text(formatWaehrung(berechnung.umsatzsteuer), 180, summenY, { align: 'right' });
-  
+  if (daten.ohneMehrwertsteuer) {
+    // Steuerfreie Rechnung (Ausland)
+    doc.setTextColor(100, 100, 100);
+    doc.text('MwSt.:', summenX, summenY);
+    doc.text('steuerfrei', 180, summenY, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+  } else {
+    doc.text(`MwSt. (${berechnung.umsatzsteuersatz}%):`, summenX, summenY);
+    doc.text(formatWaehrung(berechnung.umsatzsteuer), 180, summenY, { align: 'right' });
+  }
+
   // Trennlinie
   summenY += 2;
   doc.setLineWidth(0.5);
   doc.line(summenX, summenY, 180, summenY);
-  
+
   // Bruttobetrag (fett)
   summenY += 6;
   doc.setFontSize(11);
@@ -433,6 +447,29 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.text('Rechnungsbetrag:', summenX, summenY);
   doc.text(formatWaehrung(berechnung.bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
+
+  // === Hinweis Reverse Charge / steuerfreie Lieferung (nur bei Auslandsrechnung) ===
+  if (daten.ohneMehrwertsteuer) {
+    summenY += 10;
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.setDrawColor(245, 158, 11); // amber-500
+    doc.setLineWidth(0.5);
+    const hinweisHoehe = daten.kundenUstIdNr ? 16 : 12;
+    doc.roundedRect(25, summenY - 4, 160, hinweisHoehe, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setTextColor(146, 64, 14); // amber-800
+    doc.setFont('helvetica', 'bold');
+    doc.text('Steuerfreie innergemeinschaftliche Lieferung', 30, summenY + 1);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text('Reverse Charge - Steuerschuldnerschaft des Leistungsempfängers gem. § 13b UStG', 30, summenY + 5);
+    if (daten.kundenUstIdNr) {
+      doc.text(`USt-IdNr. des Leistungsempfängers: ${daten.kundenUstIdNr}`, 30, summenY + 9);
+    }
+    doc.setTextColor(0, 0, 0);
+    summenY += hinweisHoehe;
+  }
   
   // === Zahlungsbedingungen ===
   summenY += 10;

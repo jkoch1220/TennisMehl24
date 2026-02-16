@@ -217,16 +217,21 @@ export interface RechnungsDaten extends BaseDokument {
   rechnungsnummer: string;
   rechnungsdatum: string;
   leistungsdatum?: string;
-  
+
   // Bankdaten
   bankname: string;
   iban: string;
   bic: string;
-  
+
   // Steuerdaten
   steuernummer?: string;
   ustIdNr?: string;
-  
+
+  // Mehrwertsteuer-Optionen
+  mehrwertsteuersatz?: number; // MwSt.-Satz in Prozent (Standard: 19% Deutschland)
+  ohneMehrwertsteuer?: boolean; // Rechnung ohne MwSt. (Reverse Charge)
+  kundenUstIdNr?: string; // USt-IdNr. des Kunden (für Reverse Charge)
+
   // Positionen
   positionen: Position[];
 

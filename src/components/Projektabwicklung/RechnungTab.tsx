@@ -616,7 +616,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     }
   };
 
-  const berechnung = berechneRechnungsSummen(rechnungsDaten.positionen);
+  const berechnung = berechneRechnungsSummen(rechnungsDaten.positionen, rechnungsDaten.ohneMehrwertsteuer, rechnungsDaten.mehrwertsteuersatz);
 
   // Zeige Lade-Indikator
   if (ladeStatus === 'laden') {
@@ -1289,6 +1289,68 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
           </DndContext>
         </div>
 
+        {/* Steueroptionen */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Steueroptionen</h2>
+          <div className="space-y-4">
+            {/* Checkbox: Nettorechnung (ohne MwSt.) */}
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rechnungsDaten.ohneMehrwertsteuer || false}
+                onChange={(e) => handleInputChange('ohneMehrwertsteuer', e.target.checked)}
+                className="w-5 h-5 mt-0.5 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-dark-text">Nettorechnung (ohne Mehrwertsteuer)</span>
+                <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                  Steuerfreie innergemeinschaftliche Lieferung / Reverse Charge gem. § 13b UStG
+                </p>
+              </div>
+            </label>
+
+            {/* MwSt.-Satz Auswahl (nur wenn NICHT Nettorechnung) */}
+            {!rechnungsDaten.ohneMehrwertsteuer && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Mehrwertsteuersatz
+                </label>
+                <select
+                  value={(rechnungsDaten.mehrwertsteuersatz ?? 19).toString()}
+                  onChange={(e) => handleInputChange('mehrwertsteuersatz', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                >
+                  <option value="19">19% (Deutschland)</option>
+                  <option value="20">20% (Österreich)</option>
+                  <option value="8.1">8,1% (Schweiz)</option>
+                  <option value="21">21% (Niederlande, Belgien)</option>
+                  <option value="22">22% (Italien)</option>
+                  <option value="7">7% (Deutschland ermäßigt)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Reverse Charge Hinweis und USt-IdNr. (nur bei Nettorechnung) */}
+            {rechnungsDaten.ohneMehrwertsteuer && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  USt-IdNr. des Kunden (optional)
+                </label>
+                <input
+                  type="text"
+                  value={rechnungsDaten.kundenUstIdNr || ''}
+                  onChange={(e) => handleInputChange('kundenUstIdNr', e.target.value)}
+                  placeholder="z.B. ATU12345678"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
+                />
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  Die USt-IdNr. wird auf der Rechnung ausgewiesen
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Zahlungsbedingungen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1391,8 +1453,12 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
               </div>
 
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 dark:text-dark-textMuted">MwSt. ({berechnung.umsatzsteuersatz}%):</span>
-                <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.umsatzsteuer.toFixed(2)} €</span>
+                <span className="text-gray-600 dark:text-dark-textMuted">
+                  {rechnungsDaten.ohneMehrwertsteuer ? 'MwSt.:' : `MwSt. (${berechnung.umsatzsteuersatz}%):`}
+                </span>
+                <span className={`font-medium ${rechnungsDaten.ohneMehrwertsteuer ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-dark-text'}`}>
+                  {rechnungsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${berechnung.umsatzsteuer.toFixed(2)} €`}
+                </span>
               </div>
 
               <div className="border-t border-red-200 dark:border-red-800 pt-3 mt-3">

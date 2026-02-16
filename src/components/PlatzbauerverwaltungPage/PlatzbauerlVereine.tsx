@@ -4,14 +4,18 @@ import {
   Search,
   ChevronRight,
   Filter,
+  Plus,
 } from 'lucide-react';
 import { SaisonKundeMitDaten, Bezugsweg } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
+import VereinSchnellerfassung from './VereinSchnellerfassung';
 
 interface PlatzbauerlVereineProps {
   vereine: SaisonKundeMitDaten[];
   platzbauerId: string;
+  platzbauerName: string;
   saisonjahr: number;
+  onRefresh?: () => void;
 }
 
 // Labels für Bezugsweg-Anzeige
@@ -41,10 +45,14 @@ type BezugswegFilter = 'alle' | 'direkt_instandsetzung' | 'ueber_platzbauer';
 
 const PlatzbauerlVereine = ({
   vereine,
+  platzbauerId,
+  platzbauerName,
+  onRefresh,
 }: PlatzbauerlVereineProps) => {
   const navigate = useNavigate();
   const [suche, setSuche] = useState('');
   const [bezugswegFilter, setBezugswegFilter] = useState<BezugswegFilter>('alle');
+  const [showSchnellerfassung, setShowSchnellerfassung] = useState(false);
 
   // Statistik berechnen
   const anzahlDirektInstandsetzung = vereine.filter(
@@ -75,19 +83,37 @@ const PlatzbauerlVereine = ({
 
   if (vereine.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-gray-500 dark:text-gray-400">
-          Diesem Platzbauer sind noch keine Vereine zugeordnet.
-        </p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-          Vereine werden automatisch zugeordnet, wenn bei ihnen der Bezugsweg
-          &quot;Platzbauer&quot; oder &quot;Direkt Instandsetzung&quot; ausgewählt wird.
-        </p>
-      </div>
+      <>
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">
+            Diesem Platzbauer sind noch keine Vereine zugeordnet.
+          </p>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+            Vereine werden automatisch zugeordnet, wenn bei ihnen der Bezugsweg
+            &quot;Platzbauer&quot; oder &quot;Direkt Instandsetzung&quot; ausgewählt wird.
+          </p>
+          <button
+            onClick={() => setShowSchnellerfassung(true)}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Verein schnell anlegen
+          </button>
+        </div>
+        {showSchnellerfassung && (
+          <VereinSchnellerfassung
+            platzbauerId={platzbauerId}
+            platzbauerName={platzbauerName}
+            onClose={() => setShowSchnellerfassung(false)}
+            onSuccess={() => onRefresh?.()}
+          />
+        )}
+      </>
     );
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Filter-Leiste */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -120,6 +146,15 @@ const PlatzbauerlVereine = ({
             </option>
           </select>
         </div>
+
+        {/* Fast Add Button */}
+        <button
+          onClick={() => setShowSchnellerfassung(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" />
+          Verein anlegen
+        </button>
       </div>
 
       {/* Info */}
@@ -226,6 +261,17 @@ const PlatzbauerlVereine = ({
         </div>
       </div>
     </div>
+
+    {/* Schnellerfassung Modal */}
+    {showSchnellerfassung && (
+      <VereinSchnellerfassung
+        platzbauerId={platzbauerId}
+        platzbauerName={platzbauerName}
+        onClose={() => setShowSchnellerfassung(false)}
+        onSuccess={() => onRefresh?.()}
+      />
+    )}
+    </>
   );
 };
 

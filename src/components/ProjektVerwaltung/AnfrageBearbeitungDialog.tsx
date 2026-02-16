@@ -58,6 +58,7 @@ import {
   VerarbeitungsFortschritt,
   VerarbeitungsSchritt,
 } from '../../services/anfrageVerarbeitungService';
+import { anfragenService } from '../../services/anfragenService';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
@@ -845,12 +846,19 @@ const AnfrageBearbeitungDialog = ({
     }
   };
 
-  // Handler: Ablehnen
+  // Handler: Ablehnen (löscht aus Datenbank!)
   const handleAblehnen = async () => {
     if (!anfrage) return;
-    if (!confirm('Anfrage wirklich ablehnen?')) return;
-    handleClose();
-    onSuccess();
+    if (!confirm('Anfrage wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+
+    try {
+      await anfragenService.deleteAnfrage(anfrage.id);
+      handleClose();
+      onSuccess();
+    } catch (error) {
+      console.error('Fehler beim Löschen der Anfrage:', error);
+      alert('Fehler beim Löschen der Anfrage');
+    }
   };
 
   // Handler: Dialog schliessen mit Animation

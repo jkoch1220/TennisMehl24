@@ -27,6 +27,11 @@ import {
   Download,
   Map as MapIcon,
   List,
+  Trash2,
+  Star,
+  CheckSquare,
+  Square,
+  X,
 } from 'lucide-react';
 import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
 import {
@@ -66,6 +71,11 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [zeigeBeantwortet, setZeigeBeantwortet] = useState(false);
   const [imapPruefungLaeuft, setImapPruefungLaeuft] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+
+  // Multi-Select
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   // Lade E-Mail-Protokoll für Duplikat-Erkennung (mit Zeitpunkten und Projekt-IDs!)
   // Prüft SOWOHL App-Protokoll ALS AUCH IMAP Gesendet-Ordner
@@ -482,6 +492,75 @@ Bei Fragen sind wir gerne für Sie da.`,
     });
   }, []);
 
+  // Multi-Select: Toggle einzelne Anfrage
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const neu = new Set(prev);
+      if (neu.has(id)) {
+        neu.delete(id);
+      } else {
+        neu.add(id);
+      }
+      return neu;
+    });
+  };
+
+  // Multi-Select: Alle auswählen/abwählen
+  const toggleSelectAll = (anfrageIds: string[]) => {
+    const alleAusgewaehlt = anfrageIds.every(id => selectedIds.has(id));
+    if (alleAusgewaehlt) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(anfrageIds));
+    }
+  };
+
+  // Bulk-Aktion: Ausgewählte löschen
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`${selectedIds.size} Anfrage(n) wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+
+    setBulkActionLoading(true);
+    try {
+      await anfragenService.deleteAnfragen(Array.from(selectedIds));
+      setAnfragen(prev => prev.filter(a => !selectedIds.has(a.id)));
+      setSelectedIds(new Set());
+      setMultiSelectMode(false);
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      alert('Fehler beim Löschen der Anfragen');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Bulk-Aktion: Als wichtig markieren
+  const handleBulkMarkWichtig = async () => {
+    if (selectedIds.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      await anfragenService.markiereAlsWichtig(Array.from(selectedIds), true);
+      // Aktualisiere lokale Daten
+      setAnfragen(prev => prev.map(a =>
+        selectedIds.has(a.id) ? { ...a, notizen: '⭐ WICHTIG' } : a
+      ));
+      setSelectedIds(new Set());
+      setMultiSelectMode(false);
+    } catch (error) {
+      console.error('Fehler beim Markieren:', error);
+      alert('Fehler beim Markieren der Anfragen');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // Multi-Select beenden
+  const exitMultiSelect = () => {
+    setMultiSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -610,8 +689,78 @@ Bei Fragen sind wir gerne für Sie da.`,
               {syncResult.neu} neu, {syncResult.duplikate} bereits vorhanden
             </span>
           )}
+
+          {/* Multi-Select Toggle */}
+          <button
+            onClick={() => {
+              if (multiSelectMode) {
+                exitMultiSelect();
+              } else {
+                setMultiSelectMode(true);
+              }
+            }}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${
+              multiSelectMode
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200'
+            }`}
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">{multiSelectMode ? 'Abbrechen' : 'Auswählen'}</span>
+          </button>
         </div>
       </div>
+
+      {/* Multi-Select Actions Bar */}
+      {multiSelectMode && (
+        <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => toggleSelectAll(anzuzeigendeAnfragen.map(a => a.id))}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-purple-300 dark:border-purple-700 text-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"
+            >
+              {anzuzeigendeAnfragen.every(a => selectedIds.has(a.id)) ? (
+                <CheckSquare className="w-4 h-4 text-purple-600" />
+              ) : (
+                <Square className="w-4 h-4 text-gray-400" />
+              )}
+              Alle auswählen
+            </button>
+            <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+              {selectedIds.size} ausgewählt
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBulkMarkWichtig}
+              disabled={selectedIds.size === 0 || bulkActionLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white rounded-lg text-sm transition-colors"
+            >
+              <Star className="w-4 h-4" />
+              <span className="hidden sm:inline">Wichtig</span>
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={selectedIds.size === 0 || bulkActionLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white rounded-lg text-sm transition-colors"
+            >
+              {bulkActionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Löschen</span>
+            </button>
+            <button
+              onClick={exitMultiSelect}
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Kartenansicht */}
       {viewMode === 'map' && (
@@ -660,8 +809,17 @@ Bei Fragen sind wir gerne für Sie da.`,
                 istBeantwortet={beantwortet}
                 istWebformular={istWebformular}
                 antwortInfo={antwortInfo}
-                onClick={() => setSelectedAnfrage(anfrage)}
+                onClick={() => {
+                  if (multiSelectMode) {
+                    toggleSelect(anfrage.id);
+                  } else {
+                    setSelectedAnfrage(anfrage);
+                  }
+                }}
                 onProjektClick={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
+                multiSelectMode={multiSelectMode}
+                isChecked={selectedIds.has(anfrage.id)}
+                onToggleSelect={() => toggleSelect(anfrage.id)}
               />
             );
           })
@@ -706,17 +864,22 @@ interface AnfrageCardProps {
   isSelected: boolean;
   istBeantwortet: boolean;
   istWebformular?: boolean;
-  antwortInfo?: AntwortInfo | null; // Info über die Antwort (Projekt-ID etc.)
+  antwortInfo?: AntwortInfo | null;
   onClick: () => void;
-  onProjektClick?: (projektId: string) => void; // Callback für Projekt-Link
+  onProjektClick?: (projektId: string) => void;
+  multiSelectMode?: boolean;
+  isChecked?: boolean;
+  onToggleSelect?: () => void;
 }
 
-const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antwortInfo, onClick, onProjektClick }: AnfrageCardProps) => {
+const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antwortInfo, onClick, onProjektClick, multiSelectMode, isChecked, onToggleSelect }: AnfrageCardProps) => {
   return (
     <div
       onClick={onClick}
       className={`bg-white dark:bg-slate-900 rounded-xl border-2 p-4 cursor-pointer transition-all hover:shadow-md ${
-        isSelected
+        isChecked
+          ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-200 dark:ring-purple-900/50 bg-purple-50 dark:bg-purple-950/20'
+          : isSelected
           ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-200 dark:ring-purple-900/50'
           : istBeantwortet
           ? 'border-green-200 dark:border-green-800 opacity-60'
@@ -724,9 +887,33 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antw
       }`}
     >
       <div className="flex items-start justify-between gap-3">
+        {/* Checkbox für Multi-Select */}
+        {multiSelectMode && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.();
+            }}
+            className="flex-shrink-0 mt-1"
+          >
+            {isChecked ? (
+              <CheckSquare className="w-5 h-5 text-purple-600" />
+            ) : (
+              <Square className="w-5 h-5 text-gray-400 hover:text-purple-500" />
+            )}
+          </div>
+        )}
+
         <div className="flex-1 min-w-0">
           {/* Status-Badges */}
           <div className="flex flex-wrap gap-1 mb-2">
+            {/* Wichtig-Badge */}
+            {anfrage.notizen?.includes('WICHTIG') && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 text-xs rounded-full">
+                <Star className="w-3 h-3" />
+                Wichtig
+              </div>
+            )}
             {istBeantwortet && (
               <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs rounded-full">
                 <CheckCircle2 className="w-3 h-3" />

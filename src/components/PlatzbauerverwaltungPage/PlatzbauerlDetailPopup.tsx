@@ -198,7 +198,9 @@ const PlatzbauerlDetailPopup = ({
               <PlatzbauerlVereine
                 vereine={vereine}
                 platzbauerId={platzbauerId}
+                platzbauerName={platzbauer.name}
                 saisonjahr={saisonjahr}
+                onRefresh={onRefresh}
               />
             )}
             {activeTab === 'projekte' && (

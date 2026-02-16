@@ -174,6 +174,57 @@ export const anfragenService = {
   },
 
   /**
+   * Lösche eine Anfrage
+   */
+  async deleteAnfrage(id: string): Promise<void> {
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        ANFRAGEN_COLLECTION_ID,
+        id
+      );
+    } catch (error) {
+      console.error('Fehler beim Löschen der Anfrage:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Lösche mehrere Anfragen
+   */
+  async deleteAnfragen(ids: string[]): Promise<void> {
+    try {
+      await Promise.all(ids.map(id => this.deleteAnfrage(id)));
+    } catch (error) {
+      console.error('Fehler beim Löschen der Anfragen:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Markiere mehrere Anfragen als wichtig
+   */
+  async markiereAlsWichtig(ids: string[], wichtig: boolean): Promise<void> {
+    const jetzt = new Date().toISOString();
+    try {
+      await Promise.all(ids.map(id =>
+        databases.updateDocument(
+          DATABASE_ID,
+          ANFRAGEN_COLLECTION_ID,
+          id,
+          {
+            notizen: wichtig ? '⭐ WICHTIG' : '',
+            aktualisiertAm: jetzt,
+          }
+        )
+      ));
+    } catch (error) {
+      console.error('Fehler beim Markieren als wichtig:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Markiere Angebot als versendet
    */
   async markiereAngebotAlsVersendet(anfrageId: string): Promise<Anfrage> {

@@ -27,6 +27,7 @@ import {
   BarChart3,
   Mail,
   Hash,
+  Map as MapIcon,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -36,6 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
+import ProjektKartenansicht from './ProjektKartenansicht';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 
 // Hook für Mobile-Erkennung
@@ -65,7 +67,7 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
 // Verloren-Tab separat (wird versteckt angezeigt)
 const VERLOREN_TAB = { id: 'verloren' as ProjektStatus, label: 'Verloren', icon: XCircle, color: 'text-gray-500', darkColor: 'dark:text-gray-400', bgColor: 'bg-gray-100 border-gray-300', darkBgColor: 'dark:bg-gray-800/50 dark:border-gray-600' };
 
-type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen';
+type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -616,6 +618,17 @@ const ProjektVerwaltung = () => {
                 <BarChart3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Statistik</span>
               </button>
+              <button
+                onClick={() => setViewMode('karte')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'karte'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <MapIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Karte</span>
+              </button>
             </div>
 
             {/* Kompakte Ansicht Toggle (nur im Kanban) */}
@@ -739,6 +752,22 @@ const ProjektVerwaltung = () => {
             // Nach Genehmigung zum Kanban wechseln und Daten neu laden
             loadData();
           }}
+        />
+      )}
+
+      {/* Karten-Ansicht */}
+      {viewMode === 'karte' && (
+        <ProjektKartenansicht
+          projekte={[
+            ...filterProjekte(projekteGruppiert.angebot),
+            ...filterProjekte(projekteGruppiert.angebot_versendet),
+            ...filterProjekte(projekteGruppiert.auftragsbestaetigung),
+            ...filterProjekte(projekteGruppiert.lieferschein),
+            ...filterProjekte(projekteGruppiert.rechnung),
+            ...filterProjekte(projekteGruppiert.bezahlt),
+            ...(showVerlorenSpalte ? filterProjekte(projekteGruppiert.verloren) : []),
+          ]}
+          onProjektClick={handleProjektClick}
         />
       )}
 
