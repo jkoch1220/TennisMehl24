@@ -1444,33 +1444,74 @@ const AnfrageBearbeitungDialog = ({
                     </div>
                   </div>
 
-                  {/* Lieferkosten-Info */}
-                  {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (
-                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-medium mb-2">
-                        <Truck className="w-4 h-4" />
-                        Lieferkosten-Berechnung (LKW)
+                  {/* Lieferkosten-Info & Preisberechnung */}
+                  {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (() => {
+                    const werkspreis = 95.75;
+                    const tonnage = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0);
+                    const lieferkostenGesamt = lieferkostenBerechnung.ergebnis.lohnkosten;
+                    const lieferkostenProTonne = tonnage > 0 ? lieferkostenGesamt / tonnage : 0;
+                    const empfohlenerPreis = werkspreis + lieferkostenProTonne;
+
+                    return (
+                      <div className="mt-4 space-y-3">
+                        {/* Preisberechnung */}
+                        <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 rounded-xl border border-green-200 dark:border-green-800">
+                          <div className="flex items-center gap-2 text-green-800 dark:text-green-300 font-medium mb-3">
+                            <Sparkles className="w-4 h-4" />
+                            Preiskalkulation ({tonnage}t lose)
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 dark:text-gray-400">Werkspreis:</span>
+                              <span className="font-medium text-gray-900 dark:text-white">{werkspreis.toFixed(2)} EUR/t</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-600 dark:text-gray-400">+ Lieferkosten/t:</span>
+                              <span className="font-medium text-blue-600 dark:text-blue-400">{lieferkostenProTonne.toFixed(2)} EUR/t</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2 border-t border-green-300 dark:border-green-700">
+                              <span className="font-bold text-gray-900 dark:text-white">= Empfohlener Preis:</span>
+                              <span className="font-bold text-lg text-green-600 dark:text-green-400">{empfohlenerPreis.toFixed(2)} EUR/t</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Lieferkosten-Details */}
+                        <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-medium mb-2">
+                            <Truck className="w-4 h-4" />
+                            Lieferkosten-Details
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-blue-700 dark:text-blue-400">
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70">Strecke:</span>
+                              <span className="font-medium">{lieferkostenBerechnung.ergebnis.distanz.toFixed(0)} km</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70">Fahrzeit (hin+rück):</span>
+                              <span className="font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.fahrzeit)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70">Be-/Entladung:</span>
+                              <span className="font-medium">{BELADUNGSZEIT_MINUTEN + ABLADUNGSZEIT_MINUTEN} min</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70">Gesamtzeit:</span>
+                              <span className="font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.gesamtzeit)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70">Stundensatz:</span>
+                              <span className="font-medium">{FREMDLIEFERUNG_STUNDENLOHN} EUR/h</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-600/70 font-medium">Lieferkosten gesamt:</span>
+                              <span className="font-bold">{lieferkostenGesamt.toFixed(2)} EUR</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm text-blue-700 dark:text-blue-400">
-                        <div>
-                          <span className="text-blue-600/70">Strecke:</span>
-                          <span className="ml-1 font-medium">{lieferkostenBerechnung.ergebnis.distanz.toFixed(0)} km</span>
-                        </div>
-                        <div>
-                          <span className="text-blue-600/70">Fahrzeit:</span>
-                          <span className="ml-1 font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.fahrzeit)}</span>
-                        </div>
-                        <div>
-                          <span className="text-blue-600/70">Gesamtzeit:</span>
-                          <span className="ml-1 font-medium">{formatZeit(lieferkostenBerechnung.ergebnis.gesamtzeit)}</span>
-                        </div>
-                        <div>
-                          <span className="text-blue-600/70">Kosten:</span>
-                          <span className="ml-1 font-bold">{lieferkostenBerechnung.ergebnis.lohnkosten.toFixed(2)} EUR</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Positionen */}
@@ -1527,27 +1568,73 @@ const AnfrageBearbeitungDialog = ({
                       {allePositionen.map((pos, index) => (
                         <div
                           key={index}
-                          className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 group hover:border-green-300 dark:hover:border-green-700 transition-colors"
+                          className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 group hover:border-green-300 dark:hover:border-green-700 transition-colors"
                         >
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 dark:text-white truncate">
-                              {pos.bezeichnung}
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {pos.menge} {pos.einheit} x {pos.einzelpreis.toFixed(2)} EUR
-                            </div>
+                          {/* Bezeichnung */}
+                          <div className="font-medium text-gray-900 dark:text-white truncate mb-2">
+                            {pos.bezeichnung}
                           </div>
-                          <div className="text-right">
-                            <div className="font-bold text-green-600 dark:text-green-400">
+
+                          {/* Editierbare Felder */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Menge */}
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={pos.menge}
+                                onChange={(e) => {
+                                  const neueMenge = parseFloat(e.target.value) || 0;
+                                  setAllePositionen(prev => prev.map((p, i) =>
+                                    i === index
+                                      ? { ...p, menge: neueMenge, gesamtpreis: neueMenge * p.einzelpreis }
+                                      : p
+                                  ));
+                                }}
+                                className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                step="0.5"
+                                min="0"
+                              />
+                              <span className="text-sm text-gray-500 dark:text-gray-400">{pos.einheit}</span>
+                            </div>
+
+                            <span className="text-gray-400">×</span>
+
+                            {/* Einzelpreis */}
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={pos.einzelpreis}
+                                onChange={(e) => {
+                                  const neuerPreis = parseFloat(e.target.value) || 0;
+                                  setAllePositionen(prev => prev.map((p, i) =>
+                                    i === index
+                                      ? { ...p, einzelpreis: neuerPreis, gesamtpreis: p.menge * neuerPreis }
+                                      : p
+                                  ));
+                                }}
+                                className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                step="0.50"
+                                min="0"
+                              />
+                              <span className="text-sm text-gray-500 dark:text-gray-400">EUR</span>
+                            </div>
+
+                            <span className="text-gray-400">=</span>
+
+                            {/* Gesamtpreis (berechnet) */}
+                            <div className="font-bold text-green-600 dark:text-green-400 min-w-[80px] text-right">
                               {pos.gesamtpreis.toFixed(2)} EUR
                             </div>
+
+                            {/* Löschen */}
+                            <button
+                              onClick={() => setAllePositionen(prev => prev.filter((_, i) => i !== index))}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg ml-auto"
+                              title="Position entfernen"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setAllePositionen(prev => prev.filter((_, i) => i !== index))}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
                       ))}
 
