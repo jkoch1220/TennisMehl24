@@ -83,8 +83,10 @@ interface BearbeitbareDaten {
   ort: string;
   tonnenLose02: number;
   tonnenGesackt02: number;
+  tonnenBigbag02: number;
   tonnenLose03: number;
   tonnenGesackt03: number;
+  tonnenBigbag03: number;
   menge: number;
   preisProTonne: number;
   frachtkosten: number;
@@ -348,9 +350,11 @@ const AnfrageBearbeitungDialog = ({
 
       const tonnenLose02 = a.tonnenLose02 || 0;
       const tonnenGesackt02 = a.tonnenGesackt02 || 0;
+      const tonnenBigbag02 = 0; // BigBag wird manuell hinzugefügt
       const tonnenLose03 = a.tonnenLose03 || 0;
       const tonnenGesackt03 = a.tonnenGesackt03 || 0;
-      const berechneteGesamtmenge = tonnenLose02 + tonnenGesackt02 + tonnenLose03 + tonnenGesackt03;
+      const tonnenBigbag03 = 0; // BigBag wird manuell hinzugefügt
+      const berechneteGesamtmenge = tonnenLose02 + tonnenGesackt02 + tonnenBigbag02 + tonnenLose03 + tonnenGesackt03 + tonnenBigbag03;
       const menge = berechneteGesamtmenge > 0 ? berechneteGesamtmenge : (a.menge || 0);
 
       setEditedData({
@@ -363,8 +367,10 @@ const AnfrageBearbeitungDialog = ({
         ort: a.ort || '',
         tonnenLose02,
         tonnenGesackt02,
+        tonnenBigbag02,
         tonnenLose03,
         tonnenGesackt03,
+        tonnenBigbag03,
         menge,
         preisProTonne: empfohlenerPreis,
         frachtkosten: 0,
@@ -455,8 +461,10 @@ const AnfrageBearbeitungDialog = ({
         const positionenErgebnis = await erstelleAnfragePositionen({
           tonnenLose02: editedData.tonnenLose02,
           tonnenGesackt02: editedData.tonnenGesackt02,
+          tonnenBigbag02: editedData.tonnenBigbag02,
           tonnenLose03: editedData.tonnenLose03,
           tonnenGesackt03: editedData.tonnenGesackt03,
+          tonnenBigbag03: editedData.tonnenBigbag03,
           menge: editedData.menge,
           plz: editedData.plz,
           preisProTonneInklLieferung: editedData.preisProTonne,
@@ -508,8 +516,10 @@ const AnfrageBearbeitungDialog = ({
       const positionenErgebnis = await erstelleAnfragePositionen({
         tonnenLose02: editedData.tonnenLose02,
         tonnenGesackt02: editedData.tonnenGesackt02,
+        tonnenBigbag02: editedData.tonnenBigbag02,
         tonnenLose03: editedData.tonnenLose03,
         tonnenGesackt03: editedData.tonnenGesackt03,
+        tonnenBigbag03: editedData.tonnenBigbag03,
         menge: editedData.menge,
         plz: editedData.plz,
         preisProTonneInklLieferung: editedData.preisProTonne,
@@ -1332,83 +1342,125 @@ const AnfrageBearbeitungDialog = ({
                     </button>
                   </div>
 
-                  {/* Mengen-Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        0-2mm lose
-                        <span className="ml-1 text-green-600">95.75EUR/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenLose02 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = newVal + editedData.tonnenGesackt02 + editedData.tonnenLose03 + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenLose02: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 border-2 border-amber-300 dark:border-amber-700 rounded-xl bg-amber-50 dark:bg-amber-950/20 focus:ring-2 focus:ring-amber-500"
-                        placeholder="0"
-                      />
+                  {/* Mengen-Grid - 0-2mm */}
+                  <div className="mb-3">
+                    <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Körnung 0-2mm</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Lose <span className="text-green-600">95.75€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenLose02 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = newVal + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
+                            setEditedData({ ...editedData, tonnenLose02: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-amber-300 dark:border-amber-700 rounded-xl bg-amber-50 dark:bg-amber-950/20 focus:ring-2 focus:ring-amber-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          BigBag <span className="text-green-600">125€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenBigbag02 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + newVal + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
+                            setEditedData({ ...editedData, tonnenBigbag02: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-purple-300 dark:border-purple-700 rounded-xl bg-purple-50 dark:bg-purple-950/20 focus:ring-2 focus:ring-purple-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Gesackt <span className="text-green-600">145€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenGesackt02 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = editedData.tonnenLose02 + newVal + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
+                            setEditedData({ ...editedData, tonnenGesackt02: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-orange-300 dark:border-orange-700 rounded-xl bg-orange-50 dark:bg-orange-950/20 focus:ring-2 focus:ring-orange-500"
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        0-2mm gesackt
-                        <span className="ml-1 text-green-600">145EUR/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenGesackt02 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + newVal + editedData.tonnenLose03 + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenGesackt02: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 border-2 border-orange-300 dark:border-orange-700 rounded-xl bg-orange-50 dark:bg-orange-950/20 focus:ring-2 focus:ring-orange-500"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        0-3mm lose
-                        <span className="ml-1 text-green-600">95.75EUR/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenLose03 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + newVal + editedData.tonnenGesackt03;
-                          setEditedData({ ...editedData, tonnenLose03: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 border-2 border-amber-300 dark:border-amber-700 rounded-xl bg-amber-50 dark:bg-amber-950/20 focus:ring-2 focus:ring-amber-500"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        0-3mm gesackt
-                        <span className="ml-1 text-green-600">145EUR/t</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        value={editedData.tonnenGesackt03 || ''}
-                        onChange={(e) => {
-                          const newVal = parseFloat(e.target.value) || 0;
-                          const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenLose03 + newVal;
-                          setEditedData({ ...editedData, tonnenGesackt03: newVal, menge: newMenge });
-                        }}
-                        className="w-full px-3 py-2 border-2 border-orange-300 dark:border-orange-700 rounded-xl bg-orange-50 dark:bg-orange-950/20 focus:ring-2 focus:ring-orange-500"
-                        placeholder="0"
-                      />
+                  </div>
+
+                  {/* Mengen-Grid - 0-3mm */}
+                  <div className="mb-4">
+                    <div className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Körnung 0-3mm</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Lose <span className="text-green-600">95.75€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenLose03 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + newVal + editedData.tonnenGesackt03 + editedData.tonnenBigbag03;
+                            setEditedData({ ...editedData, tonnenLose03: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-amber-300 dark:border-amber-700 rounded-xl bg-amber-50 dark:bg-amber-950/20 focus:ring-2 focus:ring-amber-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          BigBag <span className="text-green-600">125€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenBigbag03 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + editedData.tonnenGesackt03 + newVal;
+                            setEditedData({ ...editedData, tonnenBigbag03: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-purple-300 dark:border-purple-700 rounded-xl bg-purple-50 dark:bg-purple-950/20 focus:ring-2 focus:ring-purple-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Gesackt <span className="text-green-600">145€/t</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={editedData.tonnenGesackt03 || ''}
+                          onChange={(e) => {
+                            const newVal = parseFloat(e.target.value) || 0;
+                            const newMenge = editedData.tonnenLose02 + editedData.tonnenGesackt02 + editedData.tonnenBigbag02 + editedData.tonnenLose03 + newVal + editedData.tonnenBigbag03;
+                            setEditedData({ ...editedData, tonnenGesackt03: newVal, menge: newMenge });
+                          }}
+                          className="w-full px-3 py-2 border-2 border-orange-300 dark:border-orange-700 rounded-xl bg-orange-50 dark:bg-orange-950/20 focus:ring-2 focus:ring-orange-500"
+                          placeholder="0"
+                        />
+                      </div>
                     </div>
                   </div>
 

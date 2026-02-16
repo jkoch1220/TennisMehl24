@@ -657,8 +657,10 @@ export interface ErstellePositionenInput {
   // Einzelne Tonnen-Felder
   tonnenLose02?: number;
   tonnenGesackt02?: number;
+  tonnenBigbag02?: number;
   tonnenLose03?: number;
   tonnenGesackt03?: number;
+  tonnenBigbag03?: number;
   // Fallback für alte Aufrufe
   menge?: number;
   koernung?: string;
@@ -726,6 +728,8 @@ export async function erstelleAnfragePositionen(
     artikelLose03,
     artikelGesackt02,
     artikelGesackt03,
+    artikelBigbag02,
+    artikelBigbag03,
     artikelBeiladung02,
     artikelBeiladung03,
     artikelPE,
@@ -736,6 +740,8 @@ export async function erstelleAnfragePositionen(
     sucheArtikelNachNummer('TM-ZM-03'),
     sucheArtikelNachNummer('TM-ZM-02St'),
     sucheArtikelNachNummer('TM-ZM-03St'),
+    sucheArtikelNachNummer('TM-ZM-02BB'), // BigBag 0-2mm
+    sucheArtikelNachNummer('TM-ZM-03BB'), // BigBag 0-3mm
     sucheArtikelNachNummer('TM-ZM-02S'),
     sucheArtikelNachNummer('TM-ZM-03S'),
     sucheArtikelNachNummer('TM-PE'),
@@ -749,6 +755,7 @@ export async function erstelleAnfragePositionen(
   // ==========================================
   const preisLoseMaterial = artikelLose02?.einzelpreis ?? 95.75; // Fallback 95.75€/t
   const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 145.00; // Fallback 145€/t (NUR ABWERKSPREIS!)
+  const preisBigbagAbWerk = artikelBigbag02?.einzelpreis ?? 125.00; // Fallback 125€/t (günstiger als Sackware!)
   const preisBeiladungProSack = artikelBeiladung02?.einzelpreis ?? 8.50; // Fallback 8.50€/Sack
   // PE-Folie und Palette: Daten direkt aus Stammdaten, KEIN Fallback
 
@@ -822,6 +829,60 @@ export async function erstelleAnfragePositionen(
 
     gesamtpreisOhneLieferung += preis;
     gesamtMengeLose += menge;
+  }
+
+  // ==========================================
+  // BIGBAG - Alternative zu Sackware (günstiger)
+  // BigBags werden per Spedition geliefert
+  // ==========================================
+  let gesamtMengeBigbag = 0;
+
+  // 0-2mm BigBag
+  if (input.tonnenBigbag02 && input.tonnenBigbag02 > 0) {
+    const info = getArtikelInfo(artikelBigbag02, 'Tennismehl 0/2 BigBag (1t)');
+    const menge = input.tonnenBigbag02;
+    // BigBag: Werkspreis + Frachtkosten
+    const einzelpreis = preisBigbagAbWerk + frachtProTonneSackware;
+    const preis = menge * einzelpreis;
+
+    positionen.push({
+      id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelnummer: 'TM-ZM-02BB',
+      bezeichnung: info.bezeichnung,
+      beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
+      menge,
+      einheit: 't',
+      einzelpreis,
+      gesamtpreis: preis,
+      istBedarfsposition: false,
+    });
+
+    gesamtpreisOhneLieferung += preis;
+    gesamtMengeBigbag += menge;
+  }
+
+  // 0-3mm BigBag
+  if (input.tonnenBigbag03 && input.tonnenBigbag03 > 0) {
+    const info = getArtikelInfo(artikelBigbag03, 'Tennismehl 0/3 BigBag (1t)');
+    const menge = input.tonnenBigbag03;
+    // BigBag: Werkspreis + Frachtkosten
+    const einzelpreis = preisBigbagAbWerk + frachtProTonneSackware;
+    const preis = menge * einzelpreis;
+
+    positionen.push({
+      id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelnummer: 'TM-ZM-03BB',
+      bezeichnung: info.bezeichnung,
+      beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
+      menge,
+      einheit: 't',
+      einzelpreis,
+      gesamtpreis: preis,
+      istBedarfsposition: false,
+    });
+
+    gesamtpreisOhneLieferung += preis;
+    gesamtMengeBigbag += menge;
   }
 
   // ==========================================
