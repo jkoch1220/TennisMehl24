@@ -205,19 +205,13 @@ export const anfragenService = {
    * Markiere mehrere Anfragen als wichtig
    */
   async markiereAlsWichtig(ids: string[], wichtig: boolean): Promise<void> {
-    const jetzt = new Date().toISOString();
     try {
-      await Promise.all(ids.map(id =>
-        databases.updateDocument(
-          DATABASE_ID,
-          ANFRAGEN_COLLECTION_ID,
-          id,
-          {
-            notizen: wichtig ? '⭐ WICHTIG' : '',
-            aktualisiertAm: jetzt,
-          }
-        )
-      ));
+      // Nutze updateAnfrage für jede ID
+      for (const id of ids) {
+        await this.updateAnfrage(id, {
+          notizen: wichtig ? '⭐ WICHTIG' : '',
+        });
+      }
     } catch (error) {
       console.error('Fehler beim Markieren als wichtig:', error);
       throw error;
