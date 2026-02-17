@@ -712,9 +712,6 @@ const handler: Handler = async (event: HandlerEvent) => {
     let fehler = 0;
     const gespeicherteIds: string[] = [];
 
-    // UIDs der erfolgreich verarbeiteten Emails (für späteres Verschieben)
-    const zuVerschiebendeUids: number[] = [];
-
     for (const email of webformularEmails) {
       try {
         // Prüfe ob bereits in DB
@@ -727,8 +724,6 @@ const handler: Handler = async (event: HandlerEvent) => {
 
         if (existiert) {
           duplikate++;
-          // AUCH bereits verarbeitete Emails verschieben!
-          zuVerschiebendeUids.push(email.uid);
           continue;
         }
 
@@ -741,30 +736,17 @@ const handler: Handler = async (event: HandlerEvent) => {
         neueSpeicherungen++;
         console.log(`✅ Gespeichert: ${email.subject.substring(0, 50)}...`);
 
-        // Merken zum Verschieben
-        zuVerschiebendeUids.push(email.uid);
-
       } catch (error) {
         console.error(`❌ Fehler bei E-Mail ${email.uid}:`, error);
         fehler++;
       }
     }
 
-    // NACH dem Speichern: Alle verarbeiteten Emails aus INBOX verschieben
-    let verschoben = 0;
-    if (zuVerschiebendeUids.length > 0) {
-      console.log(`📤 Verschiebe ${zuVerschiebendeUids.length} Emails nach INBOX.Verarbeitet...`);
-      for (const uid of zuVerschiebendeUids) {
-        try {
-          await moveEmailToFolder(anfrageAccount, uid, 'INBOX.Verarbeitet');
-          verschoben++;
-        } catch (moveErr) {
-          console.warn(`⚠️ Konnte Email ${uid} nicht verschieben:`, moveErr);
-          // Nicht als Fehler zählen - Hauptsache gespeichert
-        }
-      }
-      console.log(`✅ ${verschoben}/${zuVerschiebendeUids.length} Emails verschoben`);
-    }
+    // EMAIL-VERSCHIEBEN DEAKTIVIERT - verursacht Timeouts bei Netlify Functions
+    // TODO: Separaten Endpoint für Batch-Verschieben implementieren
+    const verschoben = 0;
+    // Die Duplikat-Erkennung in Appwrite verhindert doppelte Einträge,
+    // auch wenn Emails in der INBOX bleiben
 
     return {
       statusCode: 200,
