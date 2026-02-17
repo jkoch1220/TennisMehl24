@@ -12,7 +12,8 @@ export type AnfrageStatus =
   | 'angebot_versendet' // Angebot wurde versendet
   | 'verarbeitet'      // Vollständig verarbeitet (Kunde + Projekt + Angebot + E-Mail)
   | 'abgelehnt'        // Anfrage wurde abgelehnt/ignoriert
-  | 'erledigt';        // Vollständig bearbeitet
+  | 'erledigt'         // Vollständig bearbeitet
+  | 'geloescht';       // Gelöscht (bleibt in DB für Duplikat-Erkennung)
 
 export interface ExtrahierteDaten {
   // Vom n8n-Workflow oder Netlify Function extrahierte Informationen

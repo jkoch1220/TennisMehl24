@@ -372,8 +372,12 @@ Bei Fragen sind wir gerne für Sie da.`,
       const alleAnfragen = await anfragenService.loadAlleAnfragen();
       console.log(`📧 ${alleAnfragen.length} Anfragen in Appwrite gefunden`);
 
+      // Filtere gelöschte Anfragen aus (bleiben in DB für Duplikat-Erkennung)
+      const aktiveAnfragen = alleAnfragen.filter(a => a.status !== 'geloescht');
+      console.log(`📧 ${aktiveAnfragen.length} aktive Anfragen (ohne gelöschte)`);
+
       // Konvertiere zu VerarbeiteteAnfrage
-      const verarbeitete: VerarbeiteteAnfrage[] = alleAnfragen.map(konvertiereZuVerarbeiteteAnfrage);
+      const verarbeitete: VerarbeiteteAnfrage[] = aktiveAnfragen.map(konvertiereZuVerarbeiteteAnfrage);
 
       // Sortiere nach Datum (neueste zuerst)
       verarbeitete.sort((a, b) => new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime());

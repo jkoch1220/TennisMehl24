@@ -174,14 +174,19 @@ export const anfragenService = {
   },
 
   /**
-   * Lösche eine Anfrage
+   * "Lösche" eine Anfrage (setzt Status auf 'geloescht')
+   * WICHTIG: Nicht wirklich löschen, damit Duplikat-Erkennung beim Sync funktioniert!
    */
   async deleteAnfrage(id: string): Promise<void> {
     try {
-      await databases.deleteDocument(
+      await databases.updateDocument(
         DATABASE_ID,
         ANFRAGEN_COLLECTION_ID,
-        id
+        id,
+        {
+          status: 'geloescht',
+          aktualisiertAm: new Date().toISOString(),
+        }
       );
     } catch (error) {
       console.error('Fehler beim Löschen der Anfrage:', error);
@@ -190,7 +195,7 @@ export const anfragenService = {
   },
 
   /**
-   * Lösche mehrere Anfragen
+   * "Lösche" mehrere Anfragen (setzt Status auf 'geloescht')
    */
   async deleteAnfragen(ids: string[]): Promise<void> {
     try {
