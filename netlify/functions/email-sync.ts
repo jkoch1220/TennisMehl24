@@ -609,30 +609,49 @@ const speichereAnfrage = async (
 ): Promise<string> => {
   const jetzt = new Date().toISOString();
 
-  const document = await databases.createDocument(
-    DATABASE_ID,
-    ANFRAGEN_COLLECTION_ID,
-    ID.unique(),
-    {
-      emailBetreff: email.subject.substring(0, 500),
-      emailAbsender: email.fromAddress,
-      emailDatum: email.date,
-      emailText: email.body.substring(0, 10000),
-      emailHtml: (email.bodyHtml || '').substring(0, 50000),
-      extrahierteDaten: JSON.stringify(extrahierteDaten),
-      status: 'neu',
-      kundeId: '',
-      projektId: '',
-      angebotVersendetAm: '',
-      bearbeitetVon: '',
-      erstelltAm: jetzt,
-      // NEU: Email-Tracking für späteres Verschieben
-      emailUid: email.uid,
-      emailKonto: emailKonto,
-    }
-  );
+  // Basis-Daten (immer vorhanden)
+  const basisDaten = {
+    emailBetreff: email.subject.substring(0, 500),
+    emailAbsender: email.fromAddress,
+    emailDatum: email.date,
+    emailText: email.body.substring(0, 10000),
+    emailHtml: (email.bodyHtml || '').substring(0, 50000),
+    extrahierteDaten: JSON.stringify(extrahierteDaten),
+    status: 'neu',
+    kundeId: '',
+    projektId: '',
+    angebotVersendetAm: '',
+    bearbeitetVon: '',
+    erstelltAm: jetzt,
+  };
 
-  return document.$id;
+  try {
+    // Versuche mit neuen Feldern zu speichern
+    const document = await databases.createDocument(
+      DATABASE_ID,
+      ANFRAGEN_COLLECTION_ID,
+      ID.unique(),
+      {
+        ...basisDaten,
+        emailUid: email.uid,
+        emailKonto: emailKonto,
+      }
+    );
+    return document.$id;
+  } catch (error: any) {
+    // Falls Fehler wegen unbekannter Attribute, ohne neue Felder speichern
+    if (error?.message?.includes('Unknown attribute') || error?.code === 400) {
+      console.log('⚠️ Neue Felder noch nicht in Appwrite - speichere ohne emailUid/emailKonto');
+      const document = await databases.createDocument(
+        DATABASE_ID,
+        ANFRAGEN_COLLECTION_ID,
+        ID.unique(),
+        basisDaten
+      );
+      return document.$id;
+    }
+    throw error;
+  }
 };
 
 // Main Handler
