@@ -265,6 +265,8 @@ export const anfragenService = {
       emailDatum: doc.emailDatum || doc.$createdAt,
       emailText: doc.emailText || '',
       emailHtml: doc.emailHtml || '',
+      emailUid: doc.emailUid || undefined,
+      emailKonto: doc.emailKonto || undefined,
       extrahierteDaten: extrahierteDaten as any,
       status: doc.status || 'neu',
       zugeordneterKundeId: doc.zugeordneterKundeId || undefined,

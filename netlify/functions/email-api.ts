@@ -287,6 +287,75 @@ const getUnreadCount = (account: EmailAccount, folder: string): Promise<number> 
   });
 };
 
+// Move email to another folder (or delete by moving to Trash)
+const moveEmail = (
+  account: EmailAccount,
+  sourceFolder: string,
+  uid: number,
+  targetFolder: string
+): Promise<{ success: boolean; message: string }> => {
+  return new Promise((resolve, reject) => {
+    const imap = new Imap({
+      user: account.email,
+      password: account.password,
+      host: process.env.EMAIL_IMAP_HOST || 'web3.ipp-webspace.net',
+      port: parseInt(process.env.EMAIL_IMAP_PORT || '993'),
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+    });
+
+    imap.once('ready', () => {
+      // Erst Zielordner erstellen falls nicht vorhanden
+      imap.addBox(targetFolder, (addErr) => {
+        // Fehler ignorieren wenn Ordner schon existiert
+        if (addErr && !addErr.message.includes('ALREADYEXISTS') && !addErr.message.includes('already exists')) {
+          console.log('Ordner existiert möglicherweise schon:', addErr.message);
+        }
+
+        // Source-Folder öffnen (nicht readonly!)
+        imap.openBox(sourceFolder, false, (openErr) => {
+          if (openErr) {
+            imap.end();
+            return reject(openErr);
+          }
+
+          // Email in Zielordner kopieren
+          imap.copy(uid, targetFolder, (copyErr) => {
+            if (copyErr) {
+              imap.end();
+              return reject(copyErr);
+            }
+
+            // Original als gelöscht markieren
+            imap.addFlags(uid, ['\\Deleted'], (flagErr) => {
+              if (flagErr) {
+                imap.end();
+                return reject(flagErr);
+              }
+
+              // Expunge um gelöschte Emails endgültig zu entfernen
+              imap.expunge((expungeErr) => {
+                imap.end();
+                if (expungeErr) {
+                  // Expunge-Fehler sind nicht kritisch
+                  console.warn('Expunge warning:', expungeErr.message);
+                }
+                resolve({ success: true, message: `Email moved to ${targetFolder}` });
+              });
+            });
+          });
+        });
+      });
+    });
+
+    imap.once('error', (err: Error) => {
+      reject(err);
+    });
+
+    imap.connect();
+  });
+};
+
 // Search emails by email address (FROM or TO)
 const searchEmailsByAddress = (
   account: EmailAccount,
@@ -498,6 +567,23 @@ const handler: Handler = async (event: HandlerEvent) => {
           statusCode: 200,
           headers,
           body: JSON.stringify({ unread: count, folder }),
+        };
+      }
+
+      case 'move': {
+        if (!uid) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'UID required' }),
+          };
+        }
+        const targetFolder = params.target || 'INBOX.Verarbeitet';
+        const result = await moveEmail(account, folder, uid, targetFolder);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(result),
         };
       }
 

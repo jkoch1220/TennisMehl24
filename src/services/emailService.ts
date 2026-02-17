@@ -425,6 +425,29 @@ export const searchEmailsByAddress = async (emailAddress: string): Promise<Email
   return response.emails;
 };
 
+// Move email to folder (e.g., after processing)
+export const moveEmail = async (
+  account: string,
+  folder: string,
+  uid: number,
+  targetFolder: string = 'INBOX.Verarbeitet'
+): Promise<{ success: boolean; message: string }> => {
+  if (await checkDevMode()) {
+    // In dev mode, just pretend it worked
+    console.log(`[DEV] Would move email ${uid} from ${folder} to ${targetFolder}`);
+    return { success: true, message: 'Email moved (dev mode)' };
+  }
+
+  const response = await callApi<{ success: boolean; message: string }>({
+    action: 'move',
+    account,
+    folder,
+    uid: uid.toString(),
+    target: targetFolder,
+  });
+  return response;
+};
+
 // ============== UNIFIED INBOX ==============
 
 export interface UnifiedEmail extends Email {

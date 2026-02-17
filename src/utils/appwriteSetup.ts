@@ -484,6 +484,8 @@ const anfragenFields: FieldConfig[] = [
   { key: 'emailDatum', type: 'string', size: 50, required: true },
   { key: 'emailText', type: 'string', size: 10000, required: true },
   { key: 'emailHtml', type: 'string', size: 50000 },
+  { key: 'emailUid', type: 'integer' },                                        // IMAP UID für Verschieben/Löschen
+  { key: 'emailKonto', type: 'string', size: 255 },                            // E-Mail-Konto (z.B. anfrage@tennismehl.com)
   { key: 'extrahierteDaten', type: 'string', size: 50000 },                    // JSON mit Kundenname, Adresse, Menge etc.
   { key: 'status', type: 'string', size: 50, required: true },                 // neu, verarbeitet, abgelehnt
   { key: 'kundeId', type: 'string', size: 100 },                               // Verknüpfung zum erstellten Kunden

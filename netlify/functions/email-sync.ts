@@ -530,11 +530,82 @@ const emailExistiertBereits = async (
   }
 };
 
+// Move email to folder (copy + delete)
+const moveEmailToFolder = (
+  account: EmailAccount,
+  uid: number,
+  targetFolder: string
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const imap = new Imap({
+      user: account.email,
+      password: account.password,
+      host: account.imapHost || process.env.EMAIL_IMAP_HOST || 'web3.ipp-webspace.net',
+      port: account.imapPort || parseInt(process.env.EMAIL_IMAP_PORT || '993'),
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+    });
+
+    imap.once('ready', () => {
+      // Erst Zielordner erstellen falls nicht vorhanden
+      imap.addBox(targetFolder, (addErr) => {
+        // Fehler ignorieren wenn Ordner schon existiert
+        if (addErr && !addErr.message?.includes('ALREADYEXISTS') && !addErr.message?.includes('already exists')) {
+          console.log('📁 Ordner-Info:', addErr.message);
+        }
+
+        // INBOX öffnen (nicht readonly!)
+        imap.openBox('INBOX', false, (openErr) => {
+          if (openErr) {
+            imap.end();
+            return reject(openErr);
+          }
+
+          // Email in Zielordner kopieren
+          imap.copy(uid, targetFolder, (copyErr) => {
+            if (copyErr) {
+              imap.end();
+              console.error('❌ Copy-Fehler:', copyErr);
+              return reject(copyErr);
+            }
+
+            // Original als gelöscht markieren
+            imap.addFlags(uid, ['\\Deleted'], (flagErr) => {
+              if (flagErr) {
+                imap.end();
+                console.error('❌ Flag-Fehler:', flagErr);
+                return reject(flagErr);
+              }
+
+              // Expunge um gelöschte Emails endgültig zu entfernen
+              imap.expunge((expungeErr) => {
+                imap.end();
+                if (expungeErr) {
+                  console.warn('⚠️ Expunge warning:', expungeErr.message);
+                }
+                console.log(`📤 Email ${uid} nach ${targetFolder} verschoben`);
+                resolve();
+              });
+            });
+          });
+        });
+      });
+    });
+
+    imap.once('error', (err: Error) => {
+      reject(err);
+    });
+
+    imap.connect();
+  });
+};
+
 // Speichere Anfrage in Appwrite
 const speichereAnfrage = async (
   databases: Databases,
   email: EmailData,
-  extrahierteDaten: ExtrahierteDaten
+  extrahierteDaten: ExtrahierteDaten,
+  emailKonto: string
 ): Promise<string> => {
   const jetzt = new Date().toISOString();
 
@@ -555,6 +626,9 @@ const speichereAnfrage = async (
       angebotVersendetAm: '',
       bearbeitetVon: '',
       erstelltAm: jetzt,
+      // NEU: Email-Tracking für späteres Verschieben
+      emailUid: email.uid,
+      emailKonto: emailKonto,
     }
   );
 
@@ -619,6 +693,9 @@ const handler: Handler = async (event: HandlerEvent) => {
     let fehler = 0;
     const gespeicherteIds: string[] = [];
 
+    // UIDs der erfolgreich verarbeiteten Emails (für späteres Verschieben)
+    const zuVerschiebendeUids: number[] = [];
+
     for (const email of webformularEmails) {
       try {
         // Prüfe ob bereits in DB
@@ -631,6 +708,8 @@ const handler: Handler = async (event: HandlerEvent) => {
 
         if (existiert) {
           duplikate++;
+          // AUCH bereits verarbeitete Emails verschieben!
+          zuVerschiebendeUids.push(email.uid);
           continue;
         }
 
@@ -638,15 +717,34 @@ const handler: Handler = async (event: HandlerEvent) => {
         const extrahierteDaten = extrahiereWebformularDaten(email.body);
 
         // In Appwrite speichern
-        const docId = await speichereAnfrage(databases, email, extrahierteDaten);
+        const docId = await speichereAnfrage(databases, email, extrahierteDaten, ANFRAGEN_EMAIL_KONTO);
         gespeicherteIds.push(docId);
         neueSpeicherungen++;
         console.log(`✅ Gespeichert: ${email.subject.substring(0, 50)}...`);
+
+        // Merken zum Verschieben
+        zuVerschiebendeUids.push(email.uid);
 
       } catch (error) {
         console.error(`❌ Fehler bei E-Mail ${email.uid}:`, error);
         fehler++;
       }
+    }
+
+    // NACH dem Speichern: Alle verarbeiteten Emails aus INBOX verschieben
+    let verschoben = 0;
+    if (zuVerschiebendeUids.length > 0) {
+      console.log(`📤 Verschiebe ${zuVerschiebendeUids.length} Emails nach INBOX.Verarbeitet...`);
+      for (const uid of zuVerschiebendeUids) {
+        try {
+          await moveEmailToFolder(anfrageAccount, uid, 'INBOX.Verarbeitet');
+          verschoben++;
+        } catch (moveErr) {
+          console.warn(`⚠️ Konnte Email ${uid} nicht verschieben:`, moveErr);
+          // Nicht als Fehler zählen - Hauptsache gespeichert
+        }
+      }
+      console.log(`✅ ${verschoben}/${zuVerschiebendeUids.length} Emails verschoben`);
     }
 
     return {
@@ -659,6 +757,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         neueSpeicherungen,
         duplikate,
         fehler,
+        verschoben,
         gespeicherteIds,
       }),
     };

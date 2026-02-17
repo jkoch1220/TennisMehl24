@@ -60,6 +60,8 @@ export interface Anfrage {
   emailDatum: string; // ISO-Datum
   emailText: string; // Vollständiger E-Mail-Text
   emailHtml?: string; // HTML-Version falls verfügbar
+  emailUid?: number; // IMAP UID für späteres Verschieben/Löschen
+  emailKonto?: string; // E-Mail-Konto (z.B. anfrage@tennismehl.com)
   
   // Extrahierte Daten (von n8n)
   extrahierteDaten: ExtrahierteDaten;
