@@ -1128,9 +1128,20 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
         }
       }
 
-      // Ansprechpartner und Platzbauer beim Projekt hinterlegen
+      // Ansprechpartner, Platzbauer und Angebotsdaten beim Projekt hinterlegen
       try {
         const projektUpdateDaten: Record<string, unknown> = {};
+
+        // WICHTIG: Angebotsnummer, Datum und ID zum Projekt speichern (für Kanban-Anzeige und Suche!)
+        if (angebotsDaten.angebotsnummer) {
+          projektUpdateDaten.angebotsnummer = angebotsDaten.angebotsnummer;
+        }
+        if (angebotsDaten.angebotsdatum) {
+          projektUpdateDaten.angebotsdatum = angebotsDaten.angebotsdatum;
+        }
+        if (neuesDokument.$id) {
+          projektUpdateDaten.angebotId = neuesDokument.$id;
+        }
 
         // Ansprechpartner beim Kunden zum Projekt speichern (für Übernahme in andere Tabs)
         if (angebotsDaten.ansprechpartner) {
@@ -1143,7 +1154,7 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
 
         if (Object.keys(projektUpdateDaten).length > 0) {
           await projektService.updateProjekt(projekt.$id, projektUpdateDaten);
-          console.log('✅ Projektdaten aktualisiert (Ansprechpartner/Platzbauer)');
+          console.log('✅ Projektdaten aktualisiert (Angebotsnummer/Ansprechpartner/Platzbauer)');
         }
       } catch (error) {
         console.warn('Projektdaten konnten nicht aktualisiert werden:', error);
