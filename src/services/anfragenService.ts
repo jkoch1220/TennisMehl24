@@ -185,7 +185,6 @@ export const anfragenService = {
         id,
         {
           status: 'geloescht',
-          aktualisiertAm: new Date().toISOString(),
         }
       );
     } catch (error) {

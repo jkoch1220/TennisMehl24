@@ -41,6 +41,11 @@ import {
   AuftragMitBuchungen,
 } from './TourenBuchung';
 import { AngebotsDaten } from '../../types/projektabwicklung';
+import {
+  parseMaterialAufschluesselung,
+  getBelieungsartLabel,
+  getBelieungsartFarbe,
+} from '../../utils/dispoMaterialParser';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Fahrzeug } from '../../types/dispo';
@@ -950,6 +955,11 @@ const AuftragsZeile = ({
   })();
   const bemerkung = parsedAngebotsDaten?.bemerkung || '';
 
+  // Material-Aufschlüsselung aus Positionen berechnen
+  const material = parseMaterialAufschluesselung(projekt);
+  const belieferungsartLabel = getBelieungsartLabel(projekt.belieferungsart);
+  const belieferungsartFarbe = getBelieungsartFarbe(projekt.belieferungsart);
+
   // ASP-Telefon (Projekt überschreibt Kunde)
   const aspName = projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name || '';
   const aspTelefon = projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon || '';
@@ -1114,10 +1124,48 @@ const AuftragsZeile = ({
               <MapPin className="w-3 h-3" />
               {projekt.kundenPlzOrt || kunde?.adresse?.plz + ' ' + kunde?.adresse?.ort}
             </span>
-            {projekt.angefragteMenge && (
-              <span className="flex items-center gap-1">
-                <Package className="w-3 h-3" />
-                {projekt.angefragteMenge}t
+          </div>
+
+          {/* Material-Aufschlüsselung */}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {/* Belieferungsart Badge */}
+            {belieferungsartLabel && (
+              <span className={`px-2 py-0.5 text-xs font-medium rounded ${belieferungsartFarbe.bg} ${belieferungsartFarbe.text}`}>
+                {belieferungsartLabel}
+              </span>
+            )}
+
+            {/* 0-2 Lose */}
+            {material.lose02 > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                {material.lose02}t 0-2
+              </span>
+            )}
+
+            {/* 0-3 Lose */}
+            {material.lose03 > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300">
+                {material.lose03}t 0-3
+              </span>
+            )}
+
+            {/* Sackware */}
+            {material.gesamtGesackt > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+                {material.gesamtGesackt.toFixed(1)}t Sack
+                {material.hatBeiladung && ' (Beil.)'}
+              </span>
+            )}
+
+            {/* Gesamt-Tonnage */}
+            <span className="px-2 py-0.5 text-xs font-bold rounded bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-gray-200">
+              Σ {material.gesamtTonnen.toFixed(1)}t
+            </span>
+
+            {/* Paletten-Info */}
+            {material.istPalettenware && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">
+                Palette
               </span>
             )}
           </div>

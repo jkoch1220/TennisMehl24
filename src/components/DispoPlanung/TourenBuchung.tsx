@@ -30,6 +30,8 @@ import {
 import { Tour, TourFahrzeugTyp } from '../../types/tour';
 import { Projekt } from '../../types/projekt';
 import { tourenService } from '../../services/tourenService';
+import { parseMaterialAufschluesselung, MaterialAufschluesselung } from '../../utils/dispoMaterialParser';
+import { LKWVisualisierung } from './LKWVisualisierung';
 
 // === TYPES ===
 
@@ -44,6 +46,7 @@ interface AuftragMitBuchungen {
   projekt: Projekt;
   projektId: string;
   gesamtMenge: number;
+  material: MaterialAufschluesselung; // Detaillierte Material-Aufschlüsselung
   buchungen: Buchung[];
   gebuchteTonnen: number;
   offeneTonnen: number;
@@ -74,6 +77,9 @@ const TourAuswahlPanel = ({
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [tonnen, setTonnen] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Für LKW-Visualisierung: Welcher Bereich ist ausgewählt?
+  const [ausgewaehlterBereich, setAusgewaehlterBereich] = useState<'motorwagen' | 'haenger' | null>(null);
 
   // Prüfen ob Tour bereits gebucht ist
   const getBuchungFuerTour = (tourId: string) => {
@@ -153,15 +159,34 @@ const TourAuswahlPanel = ({
             <div>
               <h2 className="text-lg font-bold text-white">Tour-Buchung</h2>
               <p className="text-blue-100 text-sm">
-                {auftrag.projekt.kundenname} •
-                <span className="font-bold ml-1">{formatTonnen(auftrag.gesamtMenge)} gesamt</span>
-                {auftrag.gebuchteTonnen > 0 && (
-                  <span className="ml-2">
-                    ({formatTonnen(auftrag.gebuchteTonnen)} gebucht,
-                    <span className="text-yellow-200 font-bold ml-1">{formatTonnen(auftrag.offeneTonnen)} offen</span>)
+                {auftrag.projekt.kundenname}
+              </p>
+              {/* Material-Details */}
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {auftrag.material.lose02 > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-500/30 text-blue-100">
+                    {auftrag.material.lose02}t 0-2
                   </span>
                 )}
-              </p>
+                {auftrag.material.lose03 > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-500/30 text-green-100">
+                    {auftrag.material.lose03}t 0-3
+                  </span>
+                )}
+                {auftrag.material.gesamtGesackt > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-500/30 text-amber-100">
+                    {auftrag.material.gesamtGesackt.toFixed(1)}t Sack
+                  </span>
+                )}
+                <span className="px-2 py-0.5 text-xs font-bold rounded bg-white/20 text-white">
+                  Σ {formatTonnen(auftrag.gesamtMenge)}
+                </span>
+                {auftrag.gebuchteTonnen > 0 && (
+                  <span className="text-yellow-200 text-xs">
+                    • {formatTonnen(auftrag.offeneTonnen)} offen
+                  </span>
+                )}
+              </div>
             </div>
             <button onClick={onClose} className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg">
               <X className="w-5 h-5" />
@@ -209,90 +234,110 @@ const TourAuswahlPanel = ({
                 <p className="text-sm text-gray-500">
                   {getBuchungFuerTour(selectedTour.id)
                     ? `Bereits ${formatTonnen(getBuchungFuerTour(selectedTour.id)!.tonnen)} gebucht - Menge ändern?`
-                    : `Wie viel Tonnen auf diese Tour?`
+                    : selectedTour.lkwTyp === 'mit_haenger'
+                    ? 'Klicke auf Motorwagen oder Hänger zum Beladen'
+                    : 'Wie viel Tonnen auf diese Tour?'
                   }
                 </p>
               </div>
               <button
-                onClick={() => setSelectedTour(null)}
+                onClick={() => {
+                  setSelectedTour(null);
+                  setAusgewaehlterBereich(null);
+                }}
                 className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Tonnen-Eingabe */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setTonnen(Math.max(0.5, tonnen - 0.5))}
-                className="p-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-100 border border-gray-300 dark:border-slate-600"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
+            {/* LKW-Visualisierung für Touren mit Hänger */}
+            {selectedTour.lkwTyp === 'mit_haenger' ? (
+              <LKWVisualisierung
+                tour={selectedTour}
+                ausgewaehlterBereich={ausgewaehlterBereich}
+                onBereichWaehlen={setAusgewaehlterBereich}
+                tonnenEingabe={tonnen}
+                onTonnenChange={setTonnen}
+                maxTonnen={maxTonnen}
+                onBuchen={handleConfirm}
+                saving={saving}
+              />
+            ) : (
+              <>
+                {/* Standard Tonnen-Eingabe für Motorwagen ohne Hänger */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTonnen(Math.max(0.5, tonnen - 0.5))}
+                    className="p-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-100 border border-gray-300 dark:border-slate-600"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
 
-              <div className="flex-1 relative">
-                <input
-                  ref={inputRef}
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  max={maxTonnen}
-                  value={tonnen}
-                  onChange={(e) => setTonnen(Math.min(parseFloat(e.target.value) || 0, maxTonnen))}
-                  onKeyDown={handleKeyDown}
-                  className="w-full px-4 py-3 text-center text-2xl font-bold border-2 border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">t</span>
-              </div>
+                  <div className="flex-1 relative">
+                    <input
+                      ref={inputRef}
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max={maxTonnen}
+                      value={tonnen}
+                      onChange={(e) => setTonnen(Math.min(parseFloat(e.target.value) || 0, maxTonnen))}
+                      onKeyDown={handleKeyDown}
+                      className="w-full px-4 py-3 text-center text-2xl font-bold border-2 border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">t</span>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => setTonnen(Math.min(maxTonnen, tonnen + 0.5))}
-                className="p-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-100 border border-gray-300 dark:border-slate-600"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setTonnen(Math.min(maxTonnen, tonnen + 0.5))}
+                    className="p-2 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-100 border border-gray-300 dark:border-slate-600"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
 
-              <button
-                onClick={handleConfirm}
-                disabled={tonnen <= 0 || saving}
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 flex items-center gap-2 shadow-lg"
-              >
-                {saving ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Check className="w-5 h-5" />
-                    Buchen
-                  </>
-                )}
-              </button>
-            </div>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={tonnen <= 0 || saving}
+                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 flex items-center gap-2 shadow-lg"
+                  >
+                    {saving ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Buchen
+                      </>
+                    )}
+                  </button>
+                </div>
 
-            {/* Quick-Buttons */}
-            <div className="flex gap-2 mt-3">
-              {maxTonnen > 0 && [
-                { label: '5t', value: 5 },
-                { label: '10t', value: 10 },
-                { label: '14t', value: 14 },
-                { label: '20t', value: 20 },
-                { label: `Alles (${formatTonnen(maxTonnen)})`, value: maxTonnen },
-              ].filter(opt => opt.value <= maxTonnen).map(opt => (
-                <button
-                  key={opt.label}
-                  type="button"
-                  onClick={() => setTonnen(opt.value)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    tonnen === opt.value
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 border border-gray-200 dark:border-slate-600'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+                {/* Quick-Buttons */}
+                <div className="flex gap-2 mt-3">
+                  {maxTonnen > 0 && [
+                    { label: '5t', value: 5 },
+                    { label: '10t', value: 10 },
+                    { label: '14t', value: 14 },
+                    { label: `Alles (${formatTonnen(maxTonnen)})`, value: maxTonnen },
+                  ].filter(opt => opt.value <= maxTonnen).map(opt => (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setTonnen(opt.value)}
+                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        tonnen === opt.value
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 border border-gray-200 dark:border-slate-600'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -569,7 +614,12 @@ export const erstelleAuftragMitBuchungen = (
   touren: Tour[]
 ): AuftragMitBuchungen => {
   const projektId = (projekt as any).$id || projekt.id;
-  const gesamtMenge = projekt.liefergewicht || projekt.angefragteMenge || 0;
+
+  // Material-Aufschlüsselung aus Positionen berechnen (NICHT aus liefergewicht!)
+  const material = parseMaterialAufschluesselung(projekt);
+
+  // Gesamtmenge aus Material-Aufschlüsselung (korrekt berechnet)
+  const gesamtMenge = material.gesamtTonnen;
 
   const buchungen: Buchung[] = [];
   for (const tour of touren) {
@@ -592,6 +642,7 @@ export const erstelleAuftragMitBuchungen = (
     projekt,
     projektId,
     gesamtMenge,
+    material,
     buchungen,
     gebuchteTonnen,
     offeneTonnen,

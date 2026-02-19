@@ -37,6 +37,7 @@ import { Projekt, DispoStatus, Belieferungsart } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Tour } from '../../types/tour';
 import { tourenService } from '../../services/tourenService';
+import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
 
 // === CONSTANTS ===
 
@@ -428,11 +429,14 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
       if (!position) continue;
 
+      // Material-Aufschlüsselung für korrekte Tonnenzahl
+      const material = parseMaterialAufschluesselung(projekt);
+
       result.push({
         projekt,
         kunde,
         position,
-        tonnen: projekt.liefergewicht || projekt.angefragteMenge || 0,
+        tonnen: material.gesamtTonnen,
         kw: projekt.lieferKW || (projekt.geplantesDatum ? getKW(projekt.geplantesDatum) : undefined),
       });
     }
@@ -647,12 +651,14 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   // === RENDER ===
 
   if (loadError) {
+    console.error('Google Maps Load Error:', loadError);
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-12 text-center">
         <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Google Maps nicht verfügbar</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-4">API Key in .env hinterlegen:</p>
         <code className="px-4 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm">VITE_GOOGLE_MAPS_API_KEY=...</code>
+        <p className="text-red-500 mt-4 text-sm">Fehler: {loadError.message}</p>
       </div>
     );
   }
