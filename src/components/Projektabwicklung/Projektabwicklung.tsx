@@ -334,10 +334,10 @@ const Projektabwicklung = () => {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'angebot' && <AngebotTab projekt={projekt} />}
-        {activeTab === 'auftragsbestaetigung' && <AuftragsbestaetigungTab projekt={projekt} />}
-        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} />}
-        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} />}
+        {activeTab === 'angebot' && <AngebotTab projekt={projekt} kunde={kunde} />}
+        {activeTab === 'auftragsbestaetigung' && <AuftragsbestaetigungTab projekt={projekt} kunde={kunde} />}
+        {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} kunde={kunde} />}
+        {activeTab === 'rechnung' && <RechnungTab projekt={projekt} kunde={kunde} />}
       </div>
 
       {/* Kunden-Detail-Popup */}

@@ -41,6 +41,7 @@ import { formatAdresszeile } from '../../services/pdfHelpers';
 import { SaisonKunde } from '../../types/saisonplanung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 import { Stueckliste, getStuecklistenNachKategorie } from '../../constants/stuecklisten';
@@ -49,6 +50,7 @@ import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../
 
 interface AngebotTabProps {
   projekt?: Projekt;
+  kunde?: SaisonKunde | null;
   kundeInfo?: {
     kundennummer?: string;
     kundenname: string;
@@ -61,11 +63,32 @@ interface AngebotTabProps {
   };
 }
 
-const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
+const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabProps) => {
   const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
     'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
     'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
     'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
+
+  // Geladener Kunde (Fallback wenn nicht von Props übergeben)
+  const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
+
+  // Kunde laden, wenn nicht von Props übergeben
+  useEffect(() => {
+    const ladeKunde = async () => {
+      if (!kundeFromProps && projekt?.kundeId) {
+        try {
+          const k = await saisonplanungService.loadKunde(projekt.kundeId);
+          setGeladenerKunde(k);
+        } catch (error) {
+          console.warn('Kunde konnte nicht geladen werden:', error);
+        }
+      }
+    };
+    ladeKunde();
+  }, [projekt?.kundeId, kundeFromProps]);
+
+  // Verwende Props-Kunde oder geladenen Kunden
+  const kunde = kundeFromProps || geladenerKunde;
 
   // Initialisiere mit leeren Daten
   const [angebotsDaten, setAngebotsDaten] = useState<AngebotsDaten>({
@@ -1461,20 +1484,29 @@ const AngebotTab = ({ projekt, kundeInfo }: AngebotTabProps) => {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kundenname</label>
-              <input
-                type="text"
-                value={angebotsDaten.kundenname}
-                onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
-              />
-            </div>
-            <div className="sm:col-span-2 text-sm text-gray-500 dark:text-dark-textMuted">
-              Die Rechnungsadresse wird aus den oben hinterlegten Kundendaten übernommen.
-            </div>
           </div>
         </div>
+
+        {/* Dokument-Adresse (wird auf dem Angebot gedruckt) */}
+        <DokumentAdresseFormular
+          adresse={{
+            name: angebotsDaten.kundenname,
+            strasse: angebotsDaten.kundenstrasse,
+            plzOrt: angebotsDaten.kundenPlzOrt,
+          }}
+          onChange={(adresse: DokumentAdresse) => {
+            setAngebotsDaten(prev => ({
+              ...prev,
+              kundenname: adresse.name,
+              kundenstrasse: adresse.strasse,
+              kundenPlzOrt: adresse.plzOrt,
+            }));
+            hatGeaendert.current = true;
+          }}
+          kunde={kunde}
+          dokumentTyp="angebot"
+          projektKundenname={projekt?.kundenname}
+        />
 
         {/* DISPO-Ansprechpartner - prominenter Bereich */}
         <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg sm:rounded-xl shadow-sm border-2 border-purple-300 dark:border-purple-700 p-4 sm:p-6">

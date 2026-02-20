@@ -40,11 +40,14 @@ import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Belieferungsart } from '../../types/projektabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
+import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
+  kunde?: SaisonKunde | null;
   kundeInfo?: {
     kundennummer?: string;
     kundenname: string;
@@ -57,7 +60,28 @@ interface AuftragsbestaetigungTabProps {
   };
 }
 
-const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTabProps) => {
+const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AuftragsbestaetigungTabProps) => {
+  // Geladener Kunde (Fallback wenn nicht von Props übergeben)
+  const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
+
+  // Kunde laden, wenn nicht von Props übergeben
+  useEffect(() => {
+    const ladeKunde = async () => {
+      if (!kundeFromProps && projekt?.kundeId) {
+        try {
+          const k = await saisonplanungService.loadKunde(projekt.kundeId);
+          setGeladenerKunde(k);
+        } catch (error) {
+          console.warn('Kunde konnte nicht geladen werden:', error);
+        }
+      }
+    };
+    ladeKunde();
+  }, [projekt?.kundeId, kundeFromProps]);
+
+  // Verwende Props-Kunde oder geladenen Kunden
+  const kunde = kundeFromProps || geladenerKunde;
+
   const [auftragsbestaetigungsDaten, setAuftragsbestaetigungsDaten] = useState<AuftragsbestaetigungsDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
@@ -65,7 +89,7 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
     firmenTelefon: '+49 123 456789',
     firmenEmail: 'info@kochdienste.de',
     firmenWebsite: 'www.kochdienste.de',
-    
+
     kundenname: '',
     kundenstrasse: '',
     kundenPlzOrt: '',
@@ -1103,38 +1127,30 @@ const AuftragsbestaetigungTab = ({ projekt, kundeInfo }: AuftragsbestaetigungTab
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kundenname</label>
-              <input
-                type="text"
-                value={auftragsbestaetigungsDaten.kundenname}
-                onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
-              <input
-                type="text"
-                value={auftragsbestaetigungsDaten.kundenstrasse}
-                onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
-              <input
-                type="text"
-                value={auftragsbestaetigungsDaten.kundenPlzOrt}
-                onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
-              />
-            </div>
           </div>
         </div>
+
+        {/* Dokument-Adresse (wird auf der Auftragsbestätigung gedruckt) */}
+        <DokumentAdresseFormular
+          adresse={{
+            name: auftragsbestaetigungsDaten.kundenname,
+            strasse: auftragsbestaetigungsDaten.kundenstrasse,
+            plzOrt: auftragsbestaetigungsDaten.kundenPlzOrt,
+          }}
+          onChange={(adresse: DokumentAdresse) => {
+            setAuftragsbestaetigungsDaten(prev => ({
+              ...prev,
+              kundenname: adresse.name,
+              kundenstrasse: adresse.strasse,
+              kundenPlzOrt: adresse.plzOrt,
+            }));
+            hatGeaendert.current = true;
+          }}
+          kunde={kunde}
+          dokumentTyp="auftragsbestaetigung"
+          projektKundenname={projekt?.kundenname}
+          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+        />
 
         {/* Lieferadresse */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">

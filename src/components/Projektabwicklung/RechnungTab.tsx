@@ -34,12 +34,16 @@ import {
 } from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 import { formatAdresszeile } from '../../services/pdfHelpers';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
+import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
 
 interface RechnungTabProps {
   projekt?: Projekt;
+  kunde?: SaisonKunde | null;
   kundeInfo?: {
     kundennummer?: string;
     kundenname: string;
@@ -52,7 +56,28 @@ interface RechnungTabProps {
   };
 }
 
-const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
+const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabProps) => {
+  // Geladener Kunde (Fallback wenn nicht von Props übergeben)
+  const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
+
+  // Kunde laden, wenn nicht von Props übergeben
+  useEffect(() => {
+    const ladeKunde = async () => {
+      if (!kundeFromProps && projekt?.kundeId) {
+        try {
+          const k = await saisonplanungService.loadKunde(projekt.kundeId);
+          setGeladenerKunde(k);
+        } catch (error) {
+          console.warn('Kunde konnte nicht geladen werden:', error);
+        }
+      }
+    };
+    ladeKunde();
+  }, [projekt?.kundeId, kundeFromProps]);
+
+  // Verwende Props-Kunde oder geladenen Kunden
+  const kunde = kundeFromProps || geladenerKunde;
+
   const [rechnungsDaten, setRechnungsDaten] = useState<RechnungsDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
@@ -60,33 +85,33 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     firmenTelefon: '+49 123 456789',
     firmenEmail: 'info@kochdienste.de',
     firmenWebsite: 'www.kochdienste.de',
-    
+
     kundenname: '',
     kundenstrasse: '',
     kundenPlzOrt: '',
-    
+
     bankname: 'Sparkasse Tauberfranken',
     iban: 'DE49 6735 0130 0000254019',
     bic: 'SOLADES1TBB',
-    
+
     rechnungsnummer: '',
     rechnungsdatum: new Date().toISOString().split('T')[0],
     leistungsdatum: new Date().toISOString().split('T')[0],
-    
+
     positionen: [],
     zahlungsziel: '14 Tage',
   });
-  
+
   // Dokument-Status
   const [gespeichertesDokument, setGespeichertesDokument] = useState<GespeichertesDokument | null>(null);
   const [ladeStatus, setLadeStatus] = useState<'laden' | 'bereit' | 'speichern' | 'fehler'>('laden');
   const [statusMeldung, setStatusMeldung] = useState<{ typ: 'erfolg' | 'fehler' | 'warnung'; text: string } | null>(null);
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
-  
+
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
-  
+
   // Storno-Status
   const [showStornoDialog, setShowStornoDialog] = useState(false);
   const [stornoGrund, setStornoGrund] = useState('');
@@ -274,15 +299,15 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
     const ladeDaten = async () => {
       // Nicht überschreiben wenn bereits ein Dokument geladen wurde (Rechnung ist FINAL!)
       if (gespeichertesDokument) return;
-      
+
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
-        
+
         // AUTOMATISCH: Versuche Positionen vom vorherigen Dokument (Auftragsbestätigung) zu übernehmen
         // WICHTIG: Wir nehmen die Positionen von der AB (mit Preisen), nicht vom Lieferschein!
         let initialePositionen: Position[] = [];
-        
+
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'rechnung');
           if (positionen && positionen.length > 0) {
@@ -290,7 +315,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             console.log('✅ Stückliste von Auftragsbestätigung übernommen:', initialePositionen.length, 'Positionen');
           }
         }
-        
+
         // Fallback: Wenn keine Positionen von AB, versuche aus Projektdaten
         if (initialePositionen.length === 0) {
           const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
@@ -308,7 +333,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             });
           }
         }
-        
+
         // Rechnungsnummer generieren, falls nicht vorhanden
         let rechnungsnummer = projekt?.rechnungsnummer;
         if (!rechnungsnummer) {
@@ -321,30 +346,73 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
             rechnungsnummer = `RE-${laufnummer}`;
           }
         }
-        
-        // Übernehme Lieferadresse aus Projekt, falls vorhanden
-        const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
-        const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
-        const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-        const lieferadressePlzOrt = projekt?.lieferadresse
+
+        // KRITISCH: Lade RECHNUNGSADRESSE direkt vom Kunden (SaisonKunde)!
+        // Die Rechnungsadresse muss IMMER vom Kunden kommen - nicht aus dem Projekt!
+        let kundenname = projekt?.kundenname || kundeInfo?.kundenname || '';
+        let kundenstrasse = projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
+        let kundenPlzOrt = projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
+        let kundennummer = projekt?.kundennummer || kundeInfo?.kundennummer;
+        let lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+        let lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        let lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+        let lieferadressePlzOrt = projekt?.lieferadresse
           ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
           : undefined;
-        
+
+        // Lade aktuelle Kundendaten vom SaisonKunden
+        if (projekt?.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde) {
+              // RECHNUNGSADRESSE vom Kunden übernehmen!
+              kundenname = kunde.name;
+              kundennummer = kunde.kundennummer;
+              kundenstrasse = kunde.rechnungsadresse.strasse;
+              kundenPlzOrt = formatAdresszeile(
+                kunde.rechnungsadresse.plz,
+                kunde.rechnungsadresse.ort,
+                kunde.rechnungsadresse.land
+              );
+
+              // LIEFERADRESSE vom Kunden (falls abweichend von Rechnungsadresse)
+              const lieferAdresseIstAnders =
+                kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
+                kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
+
+              if (lieferAdresseIstAnders) {
+                lieferadresseAbweichend = true;
+                lieferadresseName = kunde.name;
+                lieferadresseStrasse = kunde.lieferadresse.strasse;
+                lieferadressePlzOrt = formatAdresszeile(
+                  kunde.lieferadresse.plz,
+                  kunde.lieferadresse.ort,
+                  kunde.lieferadresse.land
+                );
+              }
+
+              console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+            }
+          } catch (error) {
+            console.warn('Kunde konnte nicht geladen werden, verwende Projektdaten:', error);
+          }
+        }
+
         setRechnungsDaten(prev => ({
           ...prev,
-          kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
-          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
-          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
-          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          kundennummer,
+          kundenname,
+          kundenstrasse,
+          kundenPlzOrt,
           ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           rechnungsnummer: rechnungsnummer,
           rechnungsdatum: projekt?.rechnungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           leistungsdatum: heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
-          lieferadresseAbweichend: lieferadresseAbweichend,
-          lieferadresseName: lieferadresseName,
-          lieferadresseStrasse: lieferadresseStrasse,
-          lieferadressePlzOrt: lieferadressePlzOrt,
+          lieferadresseAbweichend,
+          lieferadresseName,
+          lieferadresseStrasse,
+          lieferadressePlzOrt,
         }));
       }
     };
@@ -586,29 +654,62 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
 
   // === NEUE RECHNUNG NACH STORNO ===
   const starteNeueRechnung = async () => {
-    if (!projekt?.$id) return;
+    if (!projekt?.$id || !projekt?.kundeId) return;
 
     try {
       // Neues Formular vorbereiten
       const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
 
-      // WICHTIG: Aktuelle Projektdaten verwenden (falls korrigiert)
-      // Die Rechnungsadresse kommt aus projekt.kundenstrasse/kundenPlzOrt
-      // Die Lieferadresse kommt aus projekt.lieferadresse (falls abweichend)
-      const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
-      const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
-      const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
-      const lieferadressePlzOrt = projekt?.lieferadresse
+      // KRITISCH: Lade aktuelle Kundendaten direkt vom Kunden (SaisonKunde)!
+      // Die RECHNUNGSADRESSE muss IMMER vom Kunden kommen - nicht aus dem Projekt!
+      const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+
+      let kundenname = projekt?.kundenname || '';
+      let kundenstrasse = projekt?.kundenstrasse || '';
+      let kundenPlzOrt = projekt?.kundenPlzOrt || '';
+      let lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+      let lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+      let lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+      let lieferadressePlzOrt = projekt?.lieferadresse
         ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
         : undefined;
 
+      if (kunde) {
+        // RECHNUNGSADRESSE vom Kunden übernehmen!
+        kundenname = kunde.name;
+        kundenstrasse = kunde.rechnungsadresse.strasse;
+        kundenPlzOrt = formatAdresszeile(
+          kunde.rechnungsadresse.plz,
+          kunde.rechnungsadresse.ort,
+          kunde.rechnungsadresse.land
+        );
+
+        // LIEFERADRESSE vom Kunden (falls abweichend)
+        const lieferAdresseIstAnders =
+          kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
+          kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
+
+        if (lieferAdresseIstAnders) {
+          lieferadresseAbweichend = true;
+          lieferadresseName = kunde.name;
+          lieferadresseStrasse = kunde.lieferadresse.strasse;
+          lieferadressePlzOrt = formatAdresszeile(
+            kunde.lieferadresse.plz,
+            kunde.lieferadresse.ort,
+            kunde.lieferadresse.land
+          );
+        }
+
+        console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+      }
+
       setRechnungsDaten(prev => ({
         ...prev,
-        // KRITISCH: Aktuelle Projektdaten für Rechnungsadresse verwenden!
-        kundennummer: projekt?.kundennummer || prev.kundennummer,
-        kundenname: projekt?.kundenname || prev.kundenname,
-        kundenstrasse: projekt?.kundenstrasse || prev.kundenstrasse,
-        kundenPlzOrt: projekt?.kundenPlzOrt || prev.kundenPlzOrt,
+        // RECHNUNGSADRESSE vom Kunden!
+        kundennummer: kunde?.kundennummer || projekt?.kundennummer || prev.kundennummer,
+        kundenname,
+        kundenstrasse,
+        kundenPlzOrt,
         ansprechpartner: projekt?.ansprechpartner || prev.ansprechpartner,
         // Lieferadresse (falls abweichend)
         lieferadresseAbweichend,
@@ -629,7 +730,7 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
 
       setStatusMeldung({
         typ: 'erfolg',
-        text: `Neue Rechnungsnummer ${neueNummer} generiert. WICHTIG: Bitte überprüfen Sie die Rechnungsadresse und finalisieren Sie dann die neue Rechnung.`
+        text: `Neue Rechnungsnummer ${neueNummer} generiert. Rechnungsadresse wurde vom Kunden aktualisiert!`
       });
 
     } catch (error) {
@@ -639,6 +740,13 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
   };
 
   const berechnung = berechneRechnungsSummen(rechnungsDaten.positionen, rechnungsDaten.ohneMehrwertsteuer, rechnungsDaten.mehrwertsteuersatz);
+
+  // Prüfen ob Formular deaktiviert sein soll (finale Rechnung die nicht storniert ist)
+  const istFormularDisabled = Boolean(
+    gespeichertesDokument &&
+    gespeichertesDokument.istFinal === true &&
+    gespeichertesDokument.rechnungsStatus !== 'storniert'
+  );
 
   // Zeige Lade-Indikator
   if (ladeStatus === 'laden') {
@@ -1092,35 +1200,30 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kundenname</label>
-              <input
-                type="text"
-                value={rechnungsDaten.kundenname}
-                onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
-              <input
-                type="text"
-                value={rechnungsDaten.kundenstrasse}
-                onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
-              <input
-                type="text"
-                value={rechnungsDaten.kundenPlzOrt}
-                onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-              />
-            </div>
           </div>
         </div>
+
+        {/* Dokument-Adresse (wird auf der Rechnung gedruckt) */}
+        <DokumentAdresseFormular
+          adresse={{
+            name: rechnungsDaten.kundenname,
+            strasse: rechnungsDaten.kundenstrasse,
+            plzOrt: rechnungsDaten.kundenPlzOrt,
+          }}
+          onChange={(adresse: DokumentAdresse) => {
+            setRechnungsDaten(prev => ({
+              ...prev,
+              kundenname: adresse.name,
+              kundenstrasse: adresse.strasse,
+              kundenPlzOrt: adresse.plzOrt,
+            }));
+            hatGeaendert.current = true;
+          }}
+          kunde={kunde}
+          dokumentTyp="rechnung"
+          projektKundenname={projekt?.kundenname}
+          disabled={istFormularDisabled}
+        />
 
         {/* Lieferadresse */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">

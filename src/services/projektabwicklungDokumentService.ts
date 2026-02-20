@@ -656,10 +656,11 @@ export const speichereRechnung = async (
   daten: RechnungsDaten
 ): Promise<GespeichertesDokument> => {
   try {
-    // Prüfen ob bereits eine Rechnung existiert
+    // Prüfen ob bereits eine AKTIVE Rechnung existiert
+    // WICHTIG: Stornierte Rechnungen blockieren NICHT die Erstellung einer neuen Rechnung!
     const bestehendeRechnung = await ladeDokumentNachTyp(projektId, 'rechnung');
-    if (bestehendeRechnung) {
-      throw new Error('Für dieses Projekt existiert bereits eine Rechnung. Rechnungen können nicht überschrieben werden.');
+    if (bestehendeRechnung && bestehendeRechnung.rechnungsStatus !== 'storniert') {
+      throw new Error('Für dieses Projekt existiert bereits eine aktive Rechnung. Rechnungen können nicht überschrieben werden. Bitte erst stornieren!');
     }
 
     // PDF generieren

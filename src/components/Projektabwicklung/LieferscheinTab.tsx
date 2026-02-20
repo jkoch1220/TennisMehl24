@@ -38,11 +38,14 @@ import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
+import { SaisonKunde } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 
 interface LieferscheinTabProps {
   projekt?: Projekt;
+  kunde?: SaisonKunde | null;
   kundeInfo?: {
     kundennummer?: string;
     kundenname: string;
@@ -55,8 +58,30 @@ interface LieferscheinTabProps {
   };
 }
 
-const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
+const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: LieferscheinTabProps) => {
   const navigate = useNavigate();
+
+  // Geladener Kunde (Fallback wenn nicht von Props übergeben)
+  const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
+
+  // Kunde laden, wenn nicht von Props übergeben
+  useEffect(() => {
+    const ladeKunde = async () => {
+      if (!kundeFromProps && projekt?.kundeId) {
+        try {
+          const k = await saisonplanungService.loadKunde(projekt.kundeId);
+          setGeladenerKunde(k);
+        } catch (error) {
+          console.warn('Kunde konnte nicht geladen werden:', error);
+        }
+      }
+    };
+    ladeKunde();
+  }, [projekt?.kundeId, kundeFromProps]);
+
+  // Verwende Props-Kunde oder geladenen Kunden
+  const kunde = kundeFromProps || geladenerKunde;
+
   const [lieferscheinDaten, setLieferscheinDaten] = useState<LieferscheinDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
@@ -64,7 +89,7 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
     firmenTelefon: '+49 123 456789',
     firmenEmail: 'info@kochdienste.de',
     firmenWebsite: 'www.kochdienste.de',
-    
+
     kundenname: '',
     kundenstrasse: '',
     kundenPlzOrt: '',
@@ -839,38 +864,30 @@ const LieferscheinTab = ({ projekt, kundeInfo }: LieferscheinTabProps) => {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Name</label>
-              <input
-                type="text"
-                value={lieferscheinDaten.kundenname}
-                onChange={(e) => handleInputChange('kundenname', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Straße</label>
-              <input
-                type="text"
-                value={lieferscheinDaten.kundenstrasse}
-                onChange={(e) => handleInputChange('kundenstrasse', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">PLZ & Ort</label>
-              <input
-                type="text"
-                value={lieferscheinDaten.kundenPlzOrt}
-                onChange={(e) => handleInputChange('kundenPlzOrt', e.target.value)}
-                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted"
-              />
-            </div>
           </div>
         </div>
+
+        {/* Dokument-Adresse (wird auf dem Lieferschein gedruckt - Default: LIEFERADRESSE) */}
+        <DokumentAdresseFormular
+          adresse={{
+            name: lieferscheinDaten.kundenname,
+            strasse: lieferscheinDaten.kundenstrasse,
+            plzOrt: lieferscheinDaten.kundenPlzOrt,
+          }}
+          onChange={(adresse: DokumentAdresse) => {
+            setLieferscheinDaten(prev => ({
+              ...prev,
+              kundenname: adresse.name,
+              kundenstrasse: adresse.strasse,
+              kundenPlzOrt: adresse.plzOrt,
+            }));
+            hatGeaendert.current = true;
+          }}
+          kunde={kunde}
+          dokumentTyp="lieferschein"
+          projektKundenname={projekt?.kundenname}
+          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+        />
 
         {/* Lieferadresse */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">

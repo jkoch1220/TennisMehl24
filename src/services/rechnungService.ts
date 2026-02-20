@@ -182,28 +182,28 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     doc.setTextColor(0, 0, 0);
   }
 
-  // === Lieferadresse (falls abweichend) - Rechts neben Empfängeradresse ===
+  // === Lieferadresse (falls abweichend) - UNTER der Rechnungsadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 50;
-    const lieferX = 120;
-    const lieferBreite = 65; // Breite für Lieferadresse rechts
+    yPos += 3; // Abstand nach Rechnungsadresse
 
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text('Lieferadresse:', lieferX, lieferYPos);
-    lieferYPos += 5;
+    doc.text('Lieferadresse:', 25, yPos);
+    yPos += 4;
 
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    lieferYPos = addWrappedText(doc, daten.lieferadresseName, lieferX, lieferYPos, lieferBreite, 4);
+    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreiteRE, 4);
     doc.setFont('helvetica', 'normal');
-    lieferYPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos, lieferBreite, 4);
-    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+    yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), 25, yPos, adressfeldBreiteRE, 4);
+    doc.text(daten.lieferadressePlzOrt || '', 25, yPos);
+    yPos += 5;
   }
 
   // === DIN 5008: BETREFF ===
-  yPos = 95; // DIN 5008: Betreff beginnt nach Empfängerfeld
+  // Betreff beginnt nach Empfängerfeld - mindestens bei Y=95, oder weiter unten wenn Lieferadresse lang ist
+  yPos = Math.max(yPos + 5, 95);
   doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -713,28 +713,28 @@ export const generiereProformaRechnungPDF = async (daten: ProformaRechnungsDaten
     doc.setTextColor(0, 0, 0);
   }
 
-  // === Lieferadresse (falls abweichend) ===
+  // === Lieferadresse (falls abweichend) - UNTER der Rechnungsadresse ===
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    let lieferYPos = 50;
-    const lieferX = 120;
-    const lieferBreitePF = 65; // Breite für Lieferadresse rechts
+    yPos += 3; // Abstand nach Rechnungsadresse
 
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text('Lieferadresse:', lieferX, lieferYPos);
-    lieferYPos += 5;
+    doc.text('Lieferadresse:', 25, yPos);
+    yPos += 4;
 
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    lieferYPos = addWrappedText(doc, daten.lieferadresseName, lieferX, lieferYPos, lieferBreitePF, 4);
+    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreitePF, 4);
     doc.setFont('helvetica', 'normal');
-    lieferYPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), lieferX, lieferYPos, lieferBreitePF, 4);
-    doc.text(daten.lieferadressePlzOrt || '', lieferX, lieferYPos);
+    yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse || ''), 25, yPos, adressfeldBreitePF, 4);
+    doc.text(daten.lieferadressePlzOrt || '', 25, yPos);
+    yPos += 5;
   }
 
   // === DIN 5008: BETREFF - PROFORMA-RECHNUNG ===
-  yPos = 95;
+  // Betreff beginnt nach Empfängerfeld - mindestens bei Y=95, oder weiter unten wenn Lieferadresse lang ist
+  yPos = Math.max(yPos + 5, 95);
   doc.setFontSize(12);
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFont('helvetica', 'bold');
