@@ -366,13 +366,25 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           }
         }
 
-        // DISPO-Ansprechpartner: Erst AB, dann Projekt, dann Kunde
-        let dispoAnsprechpartner: { name: string; telefon: string } | undefined =
-          lieferdatenAusAB?.dispoAnsprechpartner || projekt?.dispoAnsprechpartner;
-        if (!dispoAnsprechpartner?.name && projekt?.kundeId) {
+        // DISPO-Ansprechpartner: Erst AB (nur wenn Name vorhanden), dann Projekt, dann Kunde
+        // WICHTIG: Leere Strings werden NICHT als gültige Werte behandelt!
+        let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
+
+        // 1. Versuche aus AB zu laden (nur wenn Name wirklich gesetzt)
+        if (lieferdatenAusAB?.dispoAnsprechpartner?.name?.trim()) {
+          dispoAnsprechpartner = lieferdatenAusAB.dispoAnsprechpartner;
+          console.log('✅ DISPO-Ansprechpartner von Auftragsbestätigung übernommen:', dispoAnsprechpartner.name);
+        }
+        // 2. Fallback: Aus Projekt laden (nur wenn Name wirklich gesetzt)
+        if (!dispoAnsprechpartner?.name?.trim() && projekt?.dispoAnsprechpartner?.name?.trim()) {
+          dispoAnsprechpartner = projekt.dispoAnsprechpartner;
+          console.log('✅ DISPO-Ansprechpartner vom Projekt übernommen:', dispoAnsprechpartner.name);
+        }
+        // 3. Fallback: Aus Kundenstammdaten laden
+        if (!dispoAnsprechpartner?.name?.trim() && projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-            if (kunde?.dispoAnsprechpartner?.name) {
+            if (kunde?.dispoAnsprechpartner?.name?.trim()) {
               dispoAnsprechpartner = kunde.dispoAnsprechpartner;
               console.log('✅ DISPO-Ansprechpartner vom Kunden geladen:', dispoAnsprechpartner.name);
             }
@@ -388,7 +400,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
           ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
-          dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
+          dispoAnsprechpartner: prev.dispoAnsprechpartner?.name ? prev.dispoAnsprechpartner : dispoAnsprechpartner,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
           positionen: initialePositionen.length > 0 ? initialePositionen : prev.positionen,
@@ -396,12 +408,12 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           lieferadresseName: lieferadresseName,
           lieferadresseStrasse: lieferadresseStrasse,
           lieferadressePlzOrt: lieferadressePlzOrt,
-          // Lieferdaten von AB übernehmen (falls nicht bereits gesetzt)
-          lieferdatumTyp: prev.lieferdatumTyp || lieferdatenAusAB?.lieferdatumTyp,
-          lieferKW: prev.lieferKW || lieferdatenAusAB?.lieferKW,
-          lieferKWJahr: prev.lieferKWJahr || lieferdatenAusAB?.lieferKWJahr,
-          bevorzugterTag: prev.bevorzugterTag || lieferdatenAusAB?.bevorzugterTag,
-          belieferungsart: prev.belieferungsart || lieferdatenAusAB?.belieferungsart,
+          // Lieferdaten: Erst prev, dann AB, dann Projekt (Fallback-Kaskade)
+          lieferdatumTyp: prev.lieferdatumTyp || lieferdatenAusAB?.lieferdatumTyp || projekt?.lieferdatumTyp,
+          lieferKW: prev.lieferKW || lieferdatenAusAB?.lieferKW || projekt?.lieferKW,
+          lieferKWJahr: prev.lieferKWJahr || lieferdatenAusAB?.lieferKWJahr || projekt?.lieferKWJahr,
+          bevorzugterTag: prev.bevorzugterTag || lieferdatenAusAB?.bevorzugterTag || projekt?.bevorzugterTag,
+          belieferungsart: prev.belieferungsart || lieferdatenAusAB?.belieferungsart || projekt?.belieferungsart,
         }));
       }
     };
@@ -1056,8 +1068,8 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                   type="text"
                   value={lieferscheinDaten.dispoAnsprechpartner?.name || ''}
                   onChange={(e) => handleInputChange('dispoAnsprechpartner', {
-                    ...lieferscheinDaten.dispoAnsprechpartner,
                     name: e.target.value,
+                    telefon: lieferscheinDaten.dispoAnsprechpartner?.telefon || '',
                   })}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                   placeholder="z.B. Herr Müller (Platzwart)"
@@ -1072,7 +1084,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                   type="tel"
                   value={lieferscheinDaten.dispoAnsprechpartner?.telefon || ''}
                   onChange={(e) => handleInputChange('dispoAnsprechpartner', {
-                    ...lieferscheinDaten.dispoAnsprechpartner,
+                    name: lieferscheinDaten.dispoAnsprechpartner?.name || '',
                     telefon: e.target.value,
                   })}
                   disabled={!!gespeichertesDokument && !istBearbeitungsModus}

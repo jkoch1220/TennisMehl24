@@ -30,6 +30,10 @@ import {
   Sparkles,
   Image,
   ZoomIn,
+  PackageCheck,
+  AlertTriangle,
+  Boxes,
+  ExternalLink,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import DispoKartenAnsicht from './DispoKartenAnsicht';
@@ -74,6 +78,9 @@ const DISPO_STATUS_CONFIG: Record<DispoStatus, { label: string; color: string; b
 
 type FilterStatus = 'alle' | DispoStatus;
 
+// Lieferart-Filter für Spedition vs. Eigentransport
+type FilterLieferart = 'alle' | 'eigenlager' | 'spedition' | 'gemischt' | 'beiladung';
+
 // Tab-Typen
 type DispoTab = 'auftraege' | 'touren' | 'karte';
 
@@ -95,6 +102,7 @@ const DispoPlanung = () => {
   const [suche, setSuche] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('alle');
   const [filterDatum, setFilterDatum] = useState<string>('');
+  const [filterLieferart, setFilterLieferart] = useState<FilterLieferart>('alle');
 
   // Ausgewähltes Projekt für Detail-Ansicht
   const [selectedProjekt, setSelectedProjekt] = useState<Projekt | null>(null);
@@ -434,6 +442,15 @@ const DispoPlanung = () => {
     // Datum-Filter
     if (filterDatum && p.geplantesDatum !== filterDatum) return false;
 
+    // Lieferart-Filter (Spedition vs. Eigentransport)
+    if (filterLieferart !== 'alle') {
+      const material = parseMaterialAufschluesselung(p);
+      if (filterLieferart === 'eigenlager' && material.transportTyp !== 'eigenlager') return false;
+      if (filterLieferart === 'spedition' && material.transportTyp !== 'spedition') return false;
+      if (filterLieferart === 'gemischt' && material.transportTyp !== 'gemischt') return false;
+      if (filterLieferart === 'beiladung' && !material.hatBeiladung) return false;
+    }
+
     // Suche
     if (suche) {
       const s = suche.toLowerCase();
@@ -516,7 +533,12 @@ const DispoPlanung = () => {
     }
   };
 
-  // Statistiken berechnen
+  // Statistiken berechnen (inkl. Lieferart-Stats)
+  const projekteMitMaterial = projekte.map(p => ({
+    projekt: p,
+    material: parseMaterialAufschluesselung(p),
+  }));
+
   const stats = {
     gesamt: projekte.length,
     offen: projekte.filter(p => p.dispoStatus === 'offen').length,
@@ -524,6 +546,11 @@ const DispoPlanung = () => {
     unterwegs: projekte.filter(p => p.dispoStatus === 'beladen' || p.dispoStatus === 'unterwegs').length,
     geliefert: projekte.filter(p => p.dispoStatus === 'geliefert').length,
     heute: projekte.filter(p => p.geplantesDatum === new Date().toISOString().split('T')[0]).length,
+    // Lieferart-Stats
+    eigenlager: projekteMitMaterial.filter(pm => pm.material.transportTyp === 'eigenlager').length,
+    spedition: projekteMitMaterial.filter(pm => pm.material.transportTyp === 'spedition').length,
+    gemischt: projekteMitMaterial.filter(pm => pm.material.transportTyp === 'gemischt').length,
+    beiladung: projekteMitMaterial.filter(pm => pm.material.hatBeiladung).length,
   };
 
   if (loading) {
@@ -724,18 +751,78 @@ const DispoPlanung = () => {
           </div>
 
           {/* Filter-Reset */}
-          {(filterStatus !== 'alle' || filterDatum || suche) && (
+          {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle') && (
             <button
               onClick={() => {
                 setFilterStatus('alle');
                 setFilterDatum('');
                 setSuche('');
+                setFilterLieferart('alle');
               }}
               className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
             >
               Filter zurücksetzen
             </button>
           )}
+        </div>
+
+        {/* Lieferart-Filter (Spedition vs. Eigentransport) */}
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
+          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Lieferart:</span>
+          <button
+            onClick={() => setFilterLieferart('alle')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+              filterLieferart === 'alle'
+                ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 font-medium'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+            }`}
+          >
+            Alle
+          </button>
+          <button
+            onClick={() => setFilterLieferart('eigenlager')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+              filterLieferart === 'eigenlager'
+                ? 'bg-blue-600 text-white font-medium'
+                : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            Eigentransport ({stats.eigenlager})
+          </button>
+          <button
+            onClick={() => setFilterLieferart('spedition')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+              filterLieferart === 'spedition'
+                ? 'bg-orange-600 text-white font-medium'
+                : 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/50'
+            }`}
+          >
+            <Boxes className="w-4 h-4" />
+            Spedition ({stats.spedition})
+          </button>
+          <button
+            onClick={() => setFilterLieferart('gemischt')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+              filterLieferart === 'gemischt'
+                ? 'bg-amber-600 text-white font-medium'
+                : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Gemischt ({stats.gemischt})
+          </button>
+          <button
+            onClick={() => setFilterLieferart('beiladung')}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+              filterLieferart === 'beiladung'
+                ? 'bg-yellow-500 text-white font-medium'
+                : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50'
+            }`}
+          >
+            <PackageCheck className="w-4 h-4" />
+            Mit Beiladung ({stats.beiladung})
+          </button>
         </div>
       </div>
 
@@ -1065,9 +1152,14 @@ const AuftragsZeile = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0" />
-            <span className="font-semibold text-gray-900 dark:text-white truncate">
+            <button
+              onClick={onGoToProjektabwicklung}
+              className="font-semibold text-gray-900 dark:text-white truncate hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 group"
+              title="Projekt öffnen"
+            >
               {projekt.kundenname}
-            </span>
+              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
             {projekt.kundennummer && (
               <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded-full text-gray-600 dark:text-gray-400">
                 {projekt.kundennummer}
@@ -1128,6 +1220,20 @@ const AuftragsZeile = ({
 
           {/* Material-Aufschlüsselung */}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {/* Transport-Typ Badge (Spedition / Gemischt) */}
+            {material.transportTyp === 'spedition' && (
+              <span className="px-2 py-0.5 text-xs font-bold rounded bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-100 border border-orange-400 dark:border-orange-600 flex items-center gap-1">
+                <Boxes className="w-3 h-3" />
+                SPEDITION
+              </span>
+            )}
+            {material.transportTyp === 'gemischt' && (
+              <span className="px-2 py-0.5 text-xs font-bold rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-100 border border-amber-400 dark:border-amber-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                GEMISCHT
+              </span>
+            )}
+
             {/* Belieferungsart Badge */}
             {belieferungsartLabel && (
               <span className={`px-2 py-0.5 text-xs font-medium rounded ${belieferungsartFarbe.bg} ${belieferungsartFarbe.text}`}>
@@ -1157,6 +1263,13 @@ const AuftragsZeile = ({
               </span>
             )}
 
+            {/* BigBag Info */}
+            {material.gesamtBigBag > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300">
+                {material.gesamtBigBag.toFixed(1)}t BigBag
+              </span>
+            )}
+
             {/* Gesamt-Tonnage */}
             <span className="px-2 py-0.5 text-xs font-bold rounded bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-gray-200">
               Σ {material.gesamtTonnen.toFixed(1)}t
@@ -1169,6 +1282,14 @@ const AuftragsZeile = ({
               </span>
             )}
           </div>
+
+          {/* BEILADUNGS-HINWEIS - Prominent und auffällig */}
+          {material.beiladungsHinweis?.dringend && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 rounded-lg text-xs font-semibold border-2 border-yellow-400 dark:border-yellow-600 animate-pulse">
+              <PackageCheck className="w-4 h-4 flex-shrink-0" />
+              <span>SÄCKE MITLADEN: {material.beiladungsHinweis.anzeigeText}</span>
+            </div>
+          )}
         </div>
 
         {/* DISPO-Ansprechpartner mit bearbeitbarem Telefon */}

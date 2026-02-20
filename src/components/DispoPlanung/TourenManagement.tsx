@@ -16,11 +16,16 @@ import {
   User,
   Edit3,
   Check,
+  Boxes,
+  PackageCheck,
+  ExternalLink,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Tour, TourStop, TourFahrzeugTyp, TourKapazitaet, STANDARD_KAPAZITAETEN } from '../../types/tour';
 import { Projekt } from '../../types/projekt';
 import { tourenService } from '../../services/tourenService';
 import { projektService } from '../../services/projektService';
+import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
 
 interface TourenManagementProps {
   projekte: Projekt[];
@@ -107,12 +112,12 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
             />
           </div>
 
-          {/* LKW-Typ */}
+          {/* Tour-Typ */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-              LKW-Typ
+              Tour-Typ
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => setLkwTyp('motorwagen')}
@@ -137,7 +142,7 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Nur LKW ohne Anhänger
+                  Eigener LKW
                 </p>
               </button>
 
@@ -170,13 +175,42 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  LKW mit Anhänger
+                  LKW + Anhänger
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLkwTyp('spedition')}
+                className={`p-4 rounded-xl border-2 transition-all text-left ${
+                  lkwTyp === 'spedition'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                    : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`p-2 rounded-lg ${
+                    lkwTyp === 'spedition' ? 'bg-orange-100 dark:bg-orange-900/40' : 'bg-gray-100 dark:bg-slate-700'
+                  }`}>
+                    <Boxes className={`w-5 h-5 ${
+                      lkwTyp === 'spedition' ? 'text-orange-600' : 'text-gray-500'
+                    }`} />
+                  </div>
+                  <span className={`font-semibold ${
+                    lkwTyp === 'spedition' ? 'text-orange-700 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    Spedition
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Raben & Co.
                 </p>
               </button>
             </div>
           </div>
 
-          {/* Kapazitäten */}
+          {/* Kapazitäten (nur für LKW, nicht für Spedition) */}
+          {lkwTyp !== 'spedition' && (
           <div className="space-y-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Kapazitäten (Tonnen)
@@ -232,6 +266,22 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
               </span>
             </div>
           </div>
+          )}
+
+          {/* Spedition Info */}
+          {lkwTyp === 'spedition' && (
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-3">
+                <Boxes className="w-6 h-6 text-orange-600" />
+                <div>
+                  <p className="font-medium text-orange-800 dark:text-orange-200">Speditions-Sammelauftrag</p>
+                  <p className="text-sm text-orange-600 dark:text-orange-300">
+                    Für Palettenware und BigBags - wird an externe Spedition übergeben
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
@@ -714,7 +764,9 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                          {tour.lkwTyp === 'mit_haenger' ? (
+                          {tour.lkwTyp === 'spedition' ? (
+                            <span className="text-orange-600">📦</span>
+                          ) : tour.lkwTyp === 'mit_haenger' ? (
                             <span className="text-purple-600">🚛+</span>
                           ) : (
                             <span className="text-blue-600">🚛</span>
@@ -722,7 +774,9 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
                           {tour.name}
                         </span>
                         <span className="text-sm text-gray-500">
-                          {beladung.geladenTonnen.toFixed(1)}t / {tour.kapazitaet.gesamtTonnen}t
+                          {tour.lkwTyp === 'spedition'
+                            ? `${beladung.geladenTonnen.toFixed(1)}t gesammelt`
+                            : `${beladung.geladenTonnen.toFixed(1)}t / ${tour.kapazitaet.gesamtTonnen}t`}
                         </span>
                       </div>
 
@@ -781,6 +835,7 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
 
 // Haupt-Komponente
 const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenManagementProps) => {
+  const navigate = useNavigate();
   const [touren, setTouren] = useState<Tour[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -823,13 +878,19 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
   }) => {
     setSaving(true);
     try {
-      const kapazitaet: TourKapazitaet = {
-        motorwagenTonnen: data.motorwagenTonnen,
-        haengerTonnen: data.haengerTonnen,
-        gesamtTonnen: data.lkwTyp === 'mit_haenger'
-          ? data.motorwagenTonnen + (data.haengerTonnen || 0)
-          : data.motorwagenTonnen,
-      };
+      // Spedition hat keine echte Kapazitätsgrenze
+      const kapazitaet: TourKapazitaet = data.lkwTyp === 'spedition'
+        ? {
+            motorwagenTonnen: 999,
+            gesamtTonnen: 999,
+          }
+        : {
+            motorwagenTonnen: data.motorwagenTonnen,
+            haengerTonnen: data.haengerTonnen,
+            gesamtTonnen: data.lkwTyp === 'mit_haenger'
+              ? data.motorwagenTonnen + (data.haengerTonnen || 0)
+              : data.motorwagenTonnen,
+          };
 
       await tourenService.createTour({
         name: data.name,
@@ -876,28 +937,33 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
   const handleTourLoeschen = async (tourId: string) => {
     if (!confirm('Tour wirklich löschen? Alle zugewiesenen Aufträge werden freigegeben.')) return;
 
-    setSaving(true);
+    // Tour aus State holen bevor wir sie entfernen
+    const tour = touren.find(t => t.id === tourId);
+
+    // Optimistisches UI-Update: Tour sofort aus dem State entfernen
+    setTouren(prev => prev.filter(t => t.id !== tourId));
+
     try {
-      // Zuerst alle Projekte von dieser Tour lösen
-      const tour = touren.find(t => t.id === tourId);
-      if (tour) {
-        for (const stop of tour.stops) {
-          await projektService.updateProjekt(stop.projektId, {
-            routeId: undefined,
-            dispoStatus: 'offen',
-          });
-        }
+      // Projekte parallel aktualisieren (schneller als sequentiell)
+      if (tour && tour.stops.length > 0) {
+        await Promise.all(
+          tour.stops.map(stop =>
+            projektService.updateProjekt(stop.projektId, {
+              routeId: undefined,
+              dispoStatus: 'offen',
+            })
+          )
+        );
       }
 
       await tourenService.deleteTour(tourId);
-      await loadTouren();
       onProjektUpdate();
       onTourenChange?.();
     } catch (error) {
       console.error('Fehler beim Löschen der Tour:', error);
       alert('Fehler beim Löschen der Tour');
-    } finally {
-      setSaving(false);
+      // Bei Fehler: Touren neu laden um konsistenten State zu haben
+      loadTouren();
     }
   };
 
@@ -912,6 +978,33 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
       // Projekt laden
       const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
       if (!projekt) throw new Error('Projekt nicht gefunden');
+
+      // Prüfen ob Speditionsware auf falsche Tour gebucht wird
+      const material = parseMaterialAufschluesselung(projekt);
+
+      // Warnung: Speditionsware auf LKW-Tour
+      if (material.hatSpeditionsware && tour.lkwTyp !== 'spedition') {
+        const warnung = material.transportTyp === 'spedition'
+          ? 'Dieser Auftrag enthält NUR Speditionsware (Palette/BigBag) und sollte auf eine SPEDITIONS-Tour gebucht werden!'
+          : 'Dieser Auftrag enthält GEMISCHTE Ware: Schüttgut + Speditionsware. Die Speditionsware muss separat über eine Speditions-Tour geplant werden!';
+
+        const fortfahren = window.confirm(`⚠️ WARNUNG!\n\n${warnung}\n\nTrotzdem zur LKW-Tour hinzufügen?`);
+        if (!fortfahren) {
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Warnung: Schüttgut auf Speditions-Tour
+      if (tour.lkwTyp === 'spedition' && material.gesamtLose > 0) {
+        const fortfahren = window.confirm(
+          `⚠️ WARNUNG!\n\nDieser Auftrag enthält ${material.gesamtLose}t Schüttgut, das mit eigenem LKW geliefert werden sollte!\n\nTrotzdem zur Speditions-Tour hinzufügen?`
+        );
+        if (!fortfahren) {
+          setSaving(false);
+          return;
+        }
+      }
 
       // Neuen Stop erstellen
       const neuerStop: TourStop = {
@@ -1082,7 +1175,9 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                             )}
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {tour.lkwTyp === 'mit_haenger' ? 'MW + HG' : 'Nur MW'}
+                            {tour.lkwTyp === 'spedition' ? (
+                              <span className="text-orange-600 dark:text-orange-400 font-medium">Spedition</span>
+                            ) : tour.lkwTyp === 'mit_haenger' ? 'MW + HG' : 'Nur MW'}
                             {' • '}
                             {tour.stops.length} Stopp{tour.stops.length !== 1 ? 's' : ''}
                             {tour.datum && ` • ${new Date(tour.datum).toLocaleDateString('de-DE')}`}
@@ -1160,36 +1255,74 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                   {isExpanded && tour.stops.length > 0 && (
                     <div className="px-4 pb-4">
                       <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-3 space-y-2">
-                        {tour.stops.map((stop, index) => (
-                          <div
-                            key={stop.projektId}
-                            className="flex items-center justify-between p-2 bg-white dark:bg-slate-700 rounded-lg"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="w-6 h-6 flex items-center justify-center bg-gray-200 dark:bg-slate-600 rounded-full text-xs font-bold">
-                                {index + 1}
-                              </span>
-                              <div>
-                                <p className="font-medium text-sm text-gray-900 dark:text-white">
-                                  {stop.kundenname}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {stop.adresse.plz} {stop.adresse.ort} • {stop.tonnen}t
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAuftragEntfernen(tour.id, stop.projektId);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
-                              title="Auftrag entfernen"
+                        {tour.stops.map((stop, index) => {
+                          // Projekt für Material-Check laden
+                          const stopProjekt = projekte.find(p => ((p as any).$id || p.id) === stop.projektId);
+                          const stopMaterial = stopProjekt ? parseMaterialAufschluesselung(stopProjekt) : null;
+                          const istSpeditionsware = stopMaterial?.hatSpeditionsware;
+                          const hatBeiladung = stopMaterial?.beiladungsHinweis?.dringend;
+
+                          return (
+                            <div
+                              key={stop.projektId}
+                              className={`flex items-center justify-between p-2 rounded-lg ${
+                                istSpeditionsware
+                                  ? 'bg-orange-50 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700'
+                                  : 'bg-white dark:bg-slate-700'
+                              }`}
                             >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
+                              <div className="flex items-center gap-3">
+                                <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${
+                                  istSpeditionsware
+                                    ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200'
+                                    : 'bg-gray-200 dark:bg-slate-600'
+                                }`}>
+                                  {index + 1}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/projektabwicklung/${stop.projektId}`);
+                                      }}
+                                      className="font-medium text-sm text-gray-900 dark:text-white hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 group"
+                                      title="Projekt öffnen"
+                                    >
+                                      {stop.kundenname}
+                                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </button>
+                                    {istSpeditionsware && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 flex items-center gap-0.5">
+                                        <Boxes className="w-3 h-3" />
+                                        SPEDITION!
+                                      </span>
+                                    )}
+                                    {hatBeiladung && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 flex items-center gap-0.5">
+                                        <PackageCheck className="w-3 h-3" />
+                                        {stopMaterial?.beiladungsHinweis?.anzeigeText}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {stop.adresse.plz} {stop.adresse.ort} • {stop.tonnen}t
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAuftragEntfernen(tour.id, stop.projektId);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                                title="Auftrag entfernen"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

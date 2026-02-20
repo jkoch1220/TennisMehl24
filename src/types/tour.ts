@@ -202,18 +202,20 @@ export interface ClaudeOptimierungRequest {
 }
 
 // Fahrzeug-Typ für Touren
-export type TourFahrzeugTyp = 'motorwagen' | 'mit_haenger';
+export type TourFahrzeugTyp = 'motorwagen' | 'mit_haenger' | 'spedition';
 
 // Standard-Kapazitäten (können pro Tour überschrieben werden)
 export const STANDARD_KAPAZITAETEN = {
   motorwagen: 14, // Tonnen (Standard)
   haenger: 10, // Tonnen (Standard)
+  spedition: 999, // Spedition hat keine echte Kapazitätsgrenze
 };
 
 // Kapazitäten für Touren (Gesamt)
 export const FAHRZEUG_KAPAZITAETEN = {
   motorwagen: 14, // Tonnen (nur Motorwagen)
   mit_haenger: 24, // Tonnen (14 + 10)
+  spedition: 999, // Unbegrenzt (sammelt Aufträge für Spedition)
 };
 
 // Tour-Kapazitäts-Konfiguration (variabel pro Tour)

@@ -406,7 +406,63 @@ export const generiereMahnwesenPDF = async (
   doc.text(formatWaehrung(daten.gesamtforderung || daten.offenerBetrag), betragX, yPos, { align: 'right' });
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
-  yPos += 10;
+  yPos += 8;
+
+  // === FRIST-BOX ===
+  yPos = await ensureSpace(doc, yPos, 25, stammdaten);
+
+  // Farbliche Hervorhebung basierend auf Dokumenttyp
+  let boxFarbe: [number, number, number];
+  let rahmenFarbe: [number, number, number];
+  if (daten.dokumentTyp === 'mahnung_2') {
+    boxFarbe = [254, 226, 226]; // red-100
+    rahmenFarbe = [220, 38, 38]; // red-600
+  } else if (daten.dokumentTyp === 'mahnung_1') {
+    boxFarbe = [255, 237, 213]; // orange-100
+    rahmenFarbe = [234, 88, 12]; // orange-600
+  } else {
+    boxFarbe = [219, 234, 254]; // blue-100
+    rahmenFarbe = [37, 99, 235]; // blue-600
+  }
+
+  // Box zeichnen
+  const boxX = 25;
+  const boxY = yPos;
+  const boxBreite = 160;
+  const boxHoehe = 18;
+
+  doc.setFillColor(...boxFarbe);
+  doc.setDrawColor(...rahmenFarbe);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(boxX, boxY, boxBreite, boxHoehe, 2, 2, 'FD');
+
+  // Frist-Text in der Box
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...rahmenFarbe);
+
+  const fristLabel = daten.dokumentTyp === 'mahnung_2'
+    ? 'Letzte Zahlungsfrist:'
+    : 'Zahlungsfrist:';
+  doc.text(fristLabel, boxX + 5, boxY + 8);
+
+  doc.setFontSize(12);
+  doc.text(formatDatum(daten.neueZahlungsfrist), boxX + boxBreite - 5, boxY + 8, { align: 'right' });
+
+  // Zusatzhinweis bei 2. Mahnung
+  if (daten.dokumentTyp === 'mahnung_2') {
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Bei Nichtzahlung erfolgt Inkasso-Übergabe', boxX + 5, boxY + 14);
+  } else {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const tageText = `(${daten.tageUeberfaellig} Tage überfällig)`;
+    doc.text(tageText, boxX + 5, boxY + 14);
+  }
+
+  doc.setTextColor(0, 0, 0);
+  yPos = boxY + boxHoehe + 8;
 
   // === SCHLUSSTEXT ===
   yPos = await ensureSpace(doc, yPos, 30, stammdaten);

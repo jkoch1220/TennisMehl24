@@ -1175,6 +1175,10 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           projektUpdateDaten.platzbauerId = angebotsDaten.platzbauerId;
         }
 
+        // WICHTIG: Angebotsdaten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
+        // Der dispoMaterialParser liest projekt.angebotsDaten um die Artikelpositionen zu analysieren
+        projektUpdateDaten.angebotsDaten = JSON.stringify(angebotsDaten);
+
         if (Object.keys(projektUpdateDaten).length > 0) {
           await projektService.updateProjekt(projekt.$id, projektUpdateDaten);
           console.log('✅ Projektdaten aktualisiert (Angebotsnummer/Ansprechpartner/Platzbauer)');

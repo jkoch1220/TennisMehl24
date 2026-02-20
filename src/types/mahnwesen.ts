@@ -111,6 +111,8 @@ export const STANDARD_MAHNWESEN_VORLAGEN: MahnwesenTextVorlagen = {
     anrede: 'Sehr geehrte Damen und Herren,',
     haupttext: `sicherlich ist es nur in der Hektik des Alltags untergegangen - wir möchten Sie freundlich daran erinnern, dass die Zahlung für die oben genannte Rechnung noch aussteht.
 
+Bitte überweisen Sie den offenen Betrag von {offenerBetrag} bis zum {neueZahlungsfrist} auf unser unten angegebenes Konto.
+
 Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.`,
     schlusstext: `Bei Fragen zu dieser Rechnung stehen wir Ihnen gerne zur Verfügung.
 
@@ -123,7 +125,7 @@ Mit freundlichen Grüßen`,
     anrede: 'Sehr geehrte Damen und Herren,',
     haupttext: `trotz unserer Zahlungserinnerung haben wir leider noch keinen Zahlungseingang für die oben genannte Rechnung feststellen können.
 
-Wir bitten Sie daher, den ausstehenden Betrag innerhalb der genannten Frist zu begleichen.`,
+Wir bitten Sie daher, den ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens zum {neueZahlungsfrist} auf unser unten angegebenes Konto zu überweisen.`,
     schlusstext: `Sollte die Zahlung bereits veranlasst sein, bitten wir Sie, dieses Schreiben als gegenstandslos zu betrachten.
 
 Mit freundlichen Grüßen`,
@@ -136,13 +138,13 @@ Mit freundlichen Grüßen`,
     anrede: 'Sehr geehrte Damen und Herren,',
     haupttext: `trotz unserer bisherigen Mahnungen ist die Zahlung für die oben genannte Rechnung noch immer nicht bei uns eingegangen.
 
-Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag inklusive Mahngebühren fristgerecht zu begleichen.`,
+Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens zum {neueZahlungsfrist} zu begleichen.`,
     schlusstext: `Wir hoffen, dass wir diese Angelegenheit noch einvernehmlich klären können, und verbleiben
 
 mit freundlichen Grüßen`,
     fristTage: 7,
     mahngebuehren: 10.00,
-    inkassoHinweis: 'Sollte die Zahlung nicht fristgerecht erfolgen, werden wir die Forderung ohne weitere Ankündigung an ein Inkassounternehmen übergeben. Die dadurch entstehenden Kosten gehen zu Ihren Lasten.',
+    inkassoHinweis: 'Sollte die Zahlung nicht bis zum {neueZahlungsfrist} bei uns eingegangen sein, werden wir die Forderung ohne weitere Ankündigung an ein Inkassounternehmen übergeben. Die dadurch entstehenden Kosten gehen zu Ihren Lasten.',
   },
 };
 

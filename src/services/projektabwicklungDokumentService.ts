@@ -385,6 +385,9 @@ export const speichereAuftragsbestaetigung = async (
           }, 0) || undefined,
           // DISPO-Ansprechpartner aus AB übernehmen
           dispoAnsprechpartner: daten.dispoAnsprechpartner?.name ? daten.dispoAnsprechpartner : undefined,
+          // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
+          // Der dispoMaterialParser liest projekt.auftragsbestaetigungsDaten um die Artikelpositionen zu analysieren
+          auftragsbestaetigungsDaten: JSON.stringify(daten),
         });
         console.log('✅ Projekt-Status auf "lieferschein" gesetzt, erscheint nun in Dispo');
         if (daten.lieferdatum) {
@@ -409,6 +412,8 @@ export const speichereAuftragsbestaetigung = async (
         await projektService.updateProjekt(projektId, {
           auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
+          // WICHTIG: AB-Daten JSON auch hier speichern (für Dispo-Planung!)
+          auftragsbestaetigungsDaten: JSON.stringify(daten),
         });
       } catch (updateError) {
         console.error('⚠️ Fehler beim Aktualisieren der Metadaten:', updateError);
@@ -499,6 +504,8 @@ export const aktualisiereAuftragsbestaetigung = async (
             }
             return sum;
           }, 0) || undefined,
+          // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
+          auftragsbestaetigungsDaten: JSON.stringify(daten),
         });
         console.log('✅ Projekt Lieferdaten bei AB-Aktualisierung synchronisiert');
       }
@@ -556,36 +563,47 @@ export const speichereLieferschein = async (
     const result = dokument as unknown as GespeichertesDokument;
     result.version = neueVersion;
 
-    // Lieferdaten im Projekt aktualisieren (falls vorhanden)
-    try {
-      const updateDaten: Partial<Projekt> = {
-        lieferscheinnummer: daten.lieferscheinnummer,
+    // Lieferdaten im Projekt aktualisieren (KRITISCH für Dispo-Planung!)
+    const updateDaten: Partial<Projekt> = {
+      lieferscheinnummer: daten.lieferscheinnummer,
+    };
+
+    // Lieferdaten nur überschreiben wenn im Lieferschein gesetzt
+    if (daten.lieferKW) {
+      updateDaten.lieferKW = daten.lieferKW;
+    }
+    if (daten.lieferKWJahr) {
+      updateDaten.lieferKWJahr = daten.lieferKWJahr;
+    }
+    if (daten.lieferdatumTyp) {
+      updateDaten.lieferdatumTyp = daten.lieferdatumTyp as LieferdatumTyp;
+    }
+    if (daten.bevorzugterTag) {
+      updateDaten.bevorzugterTag = daten.bevorzugterTag as Wochentag;
+    }
+    if (daten.belieferungsart) {
+      updateDaten.belieferungsart = daten.belieferungsart as Belieferungsart;
+    }
+    // DISPO-Ansprechpartner nur übernehmen wenn Name ODER Telefon gesetzt
+    if (daten.dispoAnsprechpartner?.name || daten.dispoAnsprechpartner?.telefon) {
+      updateDaten.dispoAnsprechpartner = {
+        name: daten.dispoAnsprechpartner?.name || '',
+        telefon: daten.dispoAnsprechpartner?.telefon || '',
       };
+    }
 
-      // Lieferdaten nur überschreiben wenn im Lieferschein gesetzt
-      if (daten.lieferKW) {
-        updateDaten.lieferKW = daten.lieferKW;
-      }
-      if (daten.lieferKWJahr) {
-        updateDaten.lieferKWJahr = daten.lieferKWJahr;
-      }
-      if (daten.lieferdatumTyp) {
-        updateDaten.lieferdatumTyp = daten.lieferdatumTyp as LieferdatumTyp;
-      }
-      if (daten.bevorzugterTag) {
-        updateDaten.bevorzugterTag = daten.bevorzugterTag as Wochentag;
-      }
-      if (daten.belieferungsart) {
-        updateDaten.belieferungsart = daten.belieferungsart as Belieferungsart;
-      }
-      if (daten.dispoAnsprechpartner?.name || daten.dispoAnsprechpartner?.telefon) {
-        updateDaten.dispoAnsprechpartner = daten.dispoAnsprechpartner;
-      }
-
+    try {
       await projektService.updateProjekt(projektId, updateDaten);
-      console.log('✅ Projekt mit Lieferschein-Daten aktualisiert');
+      console.log('✅ Projekt mit Lieferschein-Daten (inkl. Dispo) aktualisiert:', {
+        lieferKW: updateDaten.lieferKW,
+        bevorzugterTag: updateDaten.bevorzugterTag,
+        belieferungsart: updateDaten.belieferungsart,
+        dispoAnsprechpartner: updateDaten.dispoAnsprechpartner,
+      });
     } catch (error) {
-      console.warn('Konnte Projekt nicht mit Lieferschein-Daten aktualisieren:', error);
+      // WICHTIG: Fehler wird geworfen, damit UI-Komponente User informieren kann!
+      console.error('❌ Fehler beim Aktualisieren der Dispo-Daten im Projekt:', error);
+      throw new Error('Lieferschein wurde gespeichert, aber die Dispo-Daten konnten nicht ins Projekt übernommen werden. Bitte prüfen Sie die Dispo-Planung manuell.');
     }
 
     return result;
@@ -619,17 +637,18 @@ export const aktualisereLieferschein = async (
       ID.unique(),
       file
     );
-    
+
     // Lade projektId vom alten Dokument
     const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
-    
+    const projektId = altesDokument.projektId as string;
+
     // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
     const dokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
       ID.unique(),
       {
-        projektId: altesDokument.projektId,
+        projektId,
         dokumentTyp: 'lieferschein',
         dokumentNummer: daten.lieferscheinnummer,
         dateiId: uploadedFile.$id,
@@ -638,11 +657,46 @@ export const aktualisereLieferschein = async (
         daten: JSON.stringify(daten)
       }
     );
-    
+
     // Setze Version manuell für Rückgabe (für UI)
     const result = dokument as unknown as GespeichertesDokument;
     result.version = neueVersion;
-    
+
+    // DISPO-DATEN IM PROJEKT AKTUALISIEREN (bei Aktualisierung des Lieferscheins!)
+    const updateDaten: Partial<Projekt> = {
+      lieferscheinnummer: daten.lieferscheinnummer,
+    };
+
+    if (daten.lieferKW) {
+      updateDaten.lieferKW = daten.lieferKW;
+    }
+    if (daten.lieferKWJahr) {
+      updateDaten.lieferKWJahr = daten.lieferKWJahr;
+    }
+    if (daten.lieferdatumTyp) {
+      updateDaten.lieferdatumTyp = daten.lieferdatumTyp as LieferdatumTyp;
+    }
+    if (daten.bevorzugterTag) {
+      updateDaten.bevorzugterTag = daten.bevorzugterTag as Wochentag;
+    }
+    if (daten.belieferungsart) {
+      updateDaten.belieferungsart = daten.belieferungsart as Belieferungsart;
+    }
+    if (daten.dispoAnsprechpartner?.name || daten.dispoAnsprechpartner?.telefon) {
+      updateDaten.dispoAnsprechpartner = {
+        name: daten.dispoAnsprechpartner?.name || '',
+        telefon: daten.dispoAnsprechpartner?.telefon || '',
+      };
+    }
+
+    try {
+      await projektService.updateProjekt(projektId, updateDaten);
+      console.log('✅ Projekt mit aktualisierten Lieferschein-Daten (inkl. Dispo) synchronisiert');
+    } catch (syncError) {
+      console.error('❌ Fehler beim Synchronisieren der Dispo-Daten:', syncError);
+      throw new Error('Lieferschein wurde aktualisiert, aber die Dispo-Daten konnten nicht ins Projekt übernommen werden. Bitte prüfen Sie die Dispo-Planung manuell.');
+    }
+
     return result;
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Lieferscheins:', error);

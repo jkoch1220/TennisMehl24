@@ -92,6 +92,27 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
   },
 
   // ==========================================
+  // BIGBAG (Großsäcke auf Palette, per Spedition)
+  // Werden wie Palettenware per Spedition geliefert
+  // ==========================================
+  'TM-ZM-BIG-02': {
+    artikelnummer: 'TM-ZM-BIG-02',
+    bezeichnung: 'Tennismehl 0/2 mm BigBag (ca. 1000kg)',
+    einheit: 't',
+    werkspreis: null, // Preis aus Stammdaten laden
+    lieferart: 'gesackt', // Wird wie Sackware behandelt (Spedition)
+    koernung: '0-2',
+  },
+  'TM-ZM-BIG-03': {
+    artikelnummer: 'TM-ZM-BIG-03',
+    bezeichnung: 'Tennismehl 0/3 mm BigBag (ca. 1000kg)',
+    einheit: 't',
+    werkspreis: null, // Preis aus Stammdaten laden
+    lieferart: 'gesackt', // Wird wie Sackware behandelt (Spedition)
+    koernung: '0-3',
+  },
+
+  // ==========================================
   // PE-FOLIE (Pflicht bei losem Material!)
   // ==========================================
   'TM-PE': {
@@ -111,6 +132,16 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
     bezeichnung: 'Frachtkostenpauschale',
     einheit: 'Stk',
     werkspreis: null, // Preis wird dynamisch nach Tonnage berechnet!
+  },
+
+  // ==========================================
+  // EINWEGPALETTE (für Sackware/BigBag)
+  // ==========================================
+  'TM-PAL': {
+    artikelnummer: 'TM-PAL',
+    bezeichnung: 'Einwegpalette',
+    einheit: 'Stk',
+    werkspreis: null, // Preis aus Stammdaten laden
   },
 };
 
