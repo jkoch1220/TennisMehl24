@@ -20,6 +20,35 @@ import { SaisonKunde, SaisonKundeMitDaten } from '../types/saisonplanung';
 import { saisonplanungService } from './saisonplanungService';
 import { projektService } from './projektService';
 
+// ==================== PERFORMANCE CACHE ====================
+// Längerer Cache (30 Sekunden) für Platzbauerverwaltung, da Daten sich nicht oft ändern
+interface KundenCache {
+  data: SaisonKunde[];
+  timestamp: number;
+}
+
+let kundenCache: KundenCache | null = null;
+const KUNDEN_CACHE_TTL = 30000; // 30 Sekunden
+
+async function loadAlleKundenCached(): Promise<SaisonKunde[]> {
+  const now = Date.now();
+
+  // Cache prüfen
+  if (kundenCache && (now - kundenCache.timestamp) < KUNDEN_CACHE_TTL) {
+    return kundenCache.data;
+  }
+
+  // Neu laden
+  const kunden = await saisonplanungService.loadAlleKunden();
+  kundenCache = { data: kunden, timestamp: now };
+  return kunden;
+}
+
+// Cache invalidieren (nach Änderungen)
+function invalidateKundenCache(): void {
+  kundenCache = null;
+}
+
 // Helper: Parse Document mit data-Feld
 // Kombiniert direkte Dokument-Felder mit data-JSON für Abwärtskompatibilität
 function parseDocument<T>(doc: Models.Document, fallback: T): T {
@@ -98,7 +127,7 @@ class PlatzbauerverwaltungService {
    * Alle Platzbauer laden (SaisonKunden mit typ='platzbauer')
    */
   async loadAllePlatzbauer(): Promise<SaisonKunde[]> {
-    const alleKunden = await saisonplanungService.loadAlleKunden();
+    const alleKunden = await loadAlleKundenCached();
     return alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
   }
 
@@ -117,9 +146,9 @@ class PlatzbauerverwaltungService {
    * Alle Platzbauer mit zugeordneten Vereinen und Projekten laden
    */
   async loadAllePlatzbauermitVereinen(saisonjahr: number): Promise<PlatzbauermitVereinen[]> {
-    // Lade alle Kunden und Platzbauer-Projekte parallel
+    // Lade alle Kunden (gecached) und Platzbauer-Projekte parallel
     const [alleKunden, alleProjekte] = await Promise.all([
-      saisonplanungService.loadAlleKunden(),
+      loadAlleKundenCached(),
       this.loadPlatzbauerprojekte(saisonjahr),
     ]);
 
@@ -167,11 +196,18 @@ class PlatzbauerverwaltungService {
    * Vereine für einen Platzbauer laden (alle Bezugswege)
    */
   async loadVereineFuerPlatzbauer(platzbauerId: string): Promise<SaisonKundeMitDaten[]> {
-    const alleKunden = await saisonplanungService.loadAlleKunden();
+    const alleKunden = await loadAlleKundenCached();
     const vereine = alleKunden.filter(
       k => k.typ === 'verein' && k.aktiv && k.standardPlatzbauerId === platzbauerId
     );
     return vereine.map(v => ({ kunde: v } as SaisonKundeMitDaten));
+  }
+
+  /**
+   * Cache invalidieren (z.B. nach dem Anlegen eines neuen Vereins)
+   */
+  invalidateCache(): void {
+    invalidateKundenCache();
   }
 
   /**
@@ -183,7 +219,7 @@ class PlatzbauerverwaltungService {
     platzbauerId: string,
     bezugsweg?: 'direkt_instandsetzung' | 'ueber_platzbauer'
   ): Promise<SaisonKundeMitDaten[]> {
-    const alleKunden = await saisonplanungService.loadAlleKunden();
+    const alleKunden = await loadAlleKundenCached();
     const vereine = alleKunden.filter(k => {
       if (k.typ !== 'verein' || !k.aktiv || k.standardPlatzbauerId !== platzbauerId) {
         return false;

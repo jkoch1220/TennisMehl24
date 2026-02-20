@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, User, MapPin, Phone, Package, Loader2 } from 'lucide-react';
+import { X, Plus, User, MapPin, Phone, Package, Loader2, Truck } from 'lucide-react';
 import { saisonplanungService } from '../../services/saisonplanungService';
-import { Bezugsweg } from '../../types/saisonplanung';
+import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
+import { Bezugsweg, Belieferungsart } from '../../types/saisonplanung';
 
 interface VereinSchnellerfassungProps {
   platzbauerId: string;
@@ -19,7 +20,17 @@ interface FormData {
   ansprechpartnerTelefon: string;
   tonnen: string;
   bezugsweg: Bezugsweg;
+  belieferungsart: Belieferungsart | '';
 }
+
+// Belieferungsart-Optionen
+const BELIEFERUNGSART_OPTIONS: { value: Belieferungsart; label: string }[] = [
+  { value: 'mit_haenger', label: 'Mit Hänger belieferbar' },
+  { value: 'nur_motorwagen', label: 'Nur Motorwagen' },
+  { value: 'abholung_ab_werk', label: 'Abholung ab Werk' },
+  { value: 'palette_mit_ladekran', label: 'Palette mit Ladekran' },
+  { value: 'bigbag', label: 'BigBag' },
+];
 
 const VereinSchnellerfassung = ({
   platzbauerId,
@@ -36,6 +47,7 @@ const VereinSchnellerfassung = ({
     ansprechpartnerTelefon: '',
     tonnen: '',
     bezugsweg: 'ueber_platzbauer',
+    belieferungsart: 'mit_haenger', // Sinnvoller Default für Vereine
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +105,7 @@ const VereinSchnellerfassung = ({
         standardPlatzbauerId: platzbauerId,
         aktiv: true,
         tonnenLetztesJahr: formData.tonnen ? parseFloat(formData.tonnen) : undefined,
+        belieferungsart: formData.belieferungsart || undefined,
         // Dispo-Ansprechpartner direkt setzen wenn angegeben
         dispoAnsprechpartner: formData.ansprechpartnerName ? {
           name: formData.ansprechpartnerName.trim(),
@@ -112,6 +125,9 @@ const VereinSchnellerfassung = ({
           aktiv: true,
         });
       }
+
+      // Cache invalidieren damit die neue Liste geladen wird
+      platzbauerverwaltungService.invalidateCache();
 
       onSuccess();
       onClose();
@@ -254,6 +270,25 @@ const VereinSchnellerfassung = ({
                 <option value="direkt_instandsetzung">Direkt Instandsetzung</option>
               </select>
             </div>
+          </div>
+
+          {/* Belieferungsart */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <Truck className="w-4 h-4" />
+              Belieferungsart
+            </label>
+            <select
+              value={formData.belieferungsart}
+              onChange={(e) => handleChange('belieferungsart', e.target.value)}
+              className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:border-amber-500 focus:outline-none appearance-none cursor-pointer"
+            >
+              {BELIEFERUNGSART_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Error */}

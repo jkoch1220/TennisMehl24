@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Filter,
   Plus,
+  Phone,
+  User,
 } from 'lucide-react';
 import { SaisonKundeMitDaten, Bezugsweg } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
@@ -220,13 +222,30 @@ const PlatzbauerlVereine = ({
                   </td>
                   <td className="py-3 pr-4">
                     <div className="flex flex-col gap-1 text-sm">
-                      {kunde.email ? (
+                      {kunde.dispoAnsprechpartner?.name ? (
+                        <>
+                          <span className="text-gray-900 dark:text-white flex items-center gap-1.5">
+                            <User className="w-3 h-3 flex-shrink-0 text-gray-400" />
+                            {kunde.dispoAnsprechpartner.name}
+                          </span>
+                          {kunde.dispoAnsprechpartner.telefon && (
+                            <a
+                              href={`tel:${kunde.dispoAnsprechpartner.telefon}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-gray-600 dark:text-gray-300 flex items-center gap-1.5 hover:text-amber-600 dark:hover:text-amber-400"
+                            >
+                              <Phone className="w-3 h-3 flex-shrink-0" />
+                              {kunde.dispoAnsprechpartner.telefon}
+                            </a>
+                          )}
+                        </>
+                      ) : kunde.email ? (
                         <span className="text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate max-w-[180px]">
                           <Mail className="w-3 h-3 flex-shrink-0" />
                           {kunde.email}
                         </span>
                       ) : (
-                        <span className="text-gray-400">-</span>
+                        <span className="text-gray-400 italic text-xs">Kein Kontakt</span>
                       )}
                     </div>
                   </td>

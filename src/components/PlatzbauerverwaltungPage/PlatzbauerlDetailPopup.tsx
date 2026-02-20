@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X,
@@ -54,37 +54,44 @@ const PlatzbauerlDetailPopup = ({
   };
 
   // Daten laden
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [platzbauer, vereine, projekte] = await Promise.all([
-          platzbauerverwaltungService.loadPlatzbauer(platzbauerId),
-          platzbauerverwaltungService.loadVereineFuerPlatzbauer(platzbauerId),
-          platzbauerverwaltungService.loadProjekteFuerPlatzbauer(platzbauerId, saisonjahr),
-        ]);
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const [platzbauer, vereine, projekte] = await Promise.all([
+        platzbauerverwaltungService.loadPlatzbauer(platzbauerId),
+        platzbauerverwaltungService.loadVereineFuerPlatzbauer(platzbauerId),
+        platzbauerverwaltungService.loadProjekteFuerPlatzbauer(platzbauerId, saisonjahr),
+      ]);
 
-        if (platzbauer) {
-          setData({
-            platzbauer,
-            vereine,
-            projekte,
-            statistik: {
-              anzahlVereine: vereine.length,
-              gesamtMenge: projekte.reduce((sum, p) => sum + (p.gesamtMenge || 0), 0),
-              offeneProjekte: projekte.filter(p => !['bezahlt', 'verloren'].includes(p.status)).length,
-              abgeschlosseneProjekte: projekte.filter(p => p.status === 'bezahlt').length,
-            },
-          });
-        }
-      } catch (error) {
-        console.error('Fehler beim Laden der Platzbauer-Daten:', error);
-      } finally {
-        setLoading(false);
+      if (platzbauer) {
+        setData({
+          platzbauer,
+          vereine,
+          projekte,
+          statistik: {
+            anzahlVereine: vereine.length,
+            gesamtMenge: projekte.reduce((sum, p) => sum + (p.gesamtMenge || 0), 0),
+            offeneProjekte: projekte.filter(p => !['bezahlt', 'verloren'].includes(p.status)).length,
+            abgeschlosseneProjekte: projekte.filter(p => p.status === 'bezahlt').length,
+          },
+        });
       }
-    };
-    load();
+    } catch (error) {
+      console.error('Fehler beim Laden der Platzbauer-Daten:', error);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, [platzbauerId, saisonjahr]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Lokaler Refresh für Vereine (ohne Loading-Spinner)
+  const handleLocalRefresh = useCallback(async () => {
+    await loadData(false);
+    onRefresh(); // Auch die Hauptseite aktualisieren
+  }, [loadData, onRefresh]);
 
   // Nachtrag erstellen
   const handleCreateNachtrag = async () => {
@@ -200,7 +207,7 @@ const PlatzbauerlDetailPopup = ({
                 platzbauerId={platzbauerId}
                 platzbauerName={platzbauer.name}
                 saisonjahr={saisonjahr}
-                onRefresh={onRefresh}
+                onRefresh={handleLocalRefresh}
               />
             )}
             {activeTab === 'projekte' && (
