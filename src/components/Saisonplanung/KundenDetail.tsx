@@ -698,8 +698,22 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
             kundenname={kunde.kunde.name}
             kundeId={kunde.kunde.id}
             kundennummer={kunde.kunde.kundennummer}
+            // RECHNUNGSADRESSE (wird auf der Rechnung verwendet!)
             kundenstrasse={kunde.kunde.rechnungsadresse.strasse}
             kundenPlzOrt={formatAdresszeile(kunde.kunde.rechnungsadresse.plz, kunde.kunde.rechnungsadresse.ort, kunde.kunde.rechnungsadresse.land)}
+            // LIEFERADRESSE (falls abweichend von Rechnungsadresse)
+            lieferadresse={
+              // Nur übergeben wenn Lieferadresse sich von Rechnungsadresse unterscheidet
+              kunde.kunde.lieferadresse.strasse !== kunde.kunde.rechnungsadresse.strasse ||
+              kunde.kunde.lieferadresse.plz !== kunde.kunde.rechnungsadresse.plz
+                ? {
+                    strasse: kunde.kunde.lieferadresse.strasse,
+                    plz: kunde.kunde.lieferadresse.plz,
+                    ort: kunde.kunde.lieferadresse.ort,
+                    land: kunde.kunde.lieferadresse.land,
+                  }
+                : undefined
+            }
             angefragteMenge={kunde.aktuelleSaison?.angefragteMenge}
             preisProTonne={kunde.aktuelleSaison?.preisProTonne || (kunde.kunde.zuletztGezahlterPreis ? Math.round(kunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
             bezugsweg={kunde.aktuelleSaison?.bezugsweg || kunde.kunde.standardBezugsweg}

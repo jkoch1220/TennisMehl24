@@ -38,6 +38,8 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import { Tour } from '../../types/tour';
 import { tourenService } from '../../services/tourenService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
+// ZERO API COST - PLZ-basiertes Geocoding!
+import { getKoordinatenFuerPLZ } from '../../data/plzKoordinaten';
 
 // === CONSTANTS ===
 
@@ -135,9 +137,13 @@ interface GeocodeCache {
   [address: string]: { lat: number; lng: number; timestamp: number };
 }
 
-// === GEOCODING ===
+// === OPTIMIERTES GEOCODING (ZERO API COST!) ===
+// Strategie:
+// 1. Existierende Koordinaten vom Kunden (SOFORT)
+// 2. PLZ-Lookup aus lokaler Tabelle (SOFORT, KOSTENLOS!)
+// 3. Google API NUR als letzter Fallback (mit Cache)
 
-// Cache laden
+// Cache für Google API Fallback (wird selten gebraucht)
 const loadGeocodeCache = (): GeocodeCache => {
   try {
     const cached = localStorage.getItem(GEOCODE_CACHE_KEY);
@@ -147,11 +153,10 @@ const loadGeocodeCache = (): GeocodeCache => {
   }
 };
 
-// Cache speichern
 const saveGeocodeCache = (cache: GeocodeCache) => {
   try {
-    // Alte Einträge entfernen (älter als 30 Tage)
-    const maxAge = 30 * 24 * 60 * 60 * 1000;
+    // Alte Einträge entfernen (älter als 90 Tage - seltener gebraucht)
+    const maxAge = 90 * 24 * 60 * 60 * 1000;
     const now = Date.now();
     const cleaned: GeocodeCache = {};
     for (const [key, value] of Object.entries(cache)) {
@@ -159,24 +164,92 @@ const saveGeocodeCache = (cache: GeocodeCache) => {
         cleaned[key] = value;
       }
     }
-    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cleaned));
+    // Nur speichern wenn sich was geändert hat
+    if (Object.keys(cleaned).length > 0) {
+      localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cleaned));
+    }
   } catch {
-    // Ignore
+    // Ignore localStorage errors
   }
 };
 
-// Adresse geocoden mit Google Geocoding API
-const geocodeAddress = async (
+// PLZ aus verschiedenen Quellen extrahieren
+const extractPLZFromProjekt = (projekt: Projekt, kunde?: SaisonKunde): string | null => {
+  // Projekt Lieferadresse
+  if (projekt.lieferadresse?.plz) return projekt.lieferadresse.plz;
+  // Kunde Lieferadresse
+  if (kunde?.lieferadresse?.plz) return kunde.lieferadresse.plz;
+  // Kunde Rechnungsadresse
+  if (kunde?.rechnungsadresse?.plz) return kunde.rechnungsadresse.plz;
+  // Aus PLZ/Ort String extrahieren
+  const match = projekt.kundenPlzOrt?.match(/(\d{5})/);
+  return match ? match[1] : null;
+};
+
+// SCHNELLES PLZ-basiertes Geocoding (ZERO API COST!)
+const geocodeByPLZFast = (projekt: Projekt, kunde?: SaisonKunde): google.maps.LatLngLiteral | null => {
+  const plz = extractPLZFromProjekt(projekt, kunde);
+  if (!plz) return null;
+
+  const coords = getKoordinatenFuerPLZ(plz);
+  return coords ? { lat: coords.lat, lng: coords.lng } : null;
+};
+
+// Bestehende Koordinaten aus Kunde holen (höchste Priorität)
+const getExistingCoordinates = (
+  _projekt: Projekt,
+  kunde?: SaisonKunde
+): google.maps.LatLngLiteral | null => {
+  const sources = [
+    kunde?.lieferadresse?.koordinaten,
+    kunde?.rechnungsadresse?.koordinaten,
+    kunde?.koordinaten,
+    kunde?.adresse?.koordinaten,
+  ];
+
+  for (const coords of sources) {
+    if (coords && Array.isArray(coords) && coords.length >= 2) {
+      const [lon, lat] = coords;
+      // Prüfen ob in Deutschland
+      if (typeof lat === 'number' && typeof lon === 'number' &&
+          lat >= 47 && lat <= 56 && lon >= 5 && lon <= 16) {
+        return { lat, lng: lon };
+      }
+    }
+  }
+
+  return null;
+};
+
+// KOMBINIERTE Geocoding-Strategie (optimiert für Performance)
+const smartGeocode = (
+  projekt: Projekt,
+  kunde?: SaisonKunde
+): google.maps.LatLngLiteral | null => {
+  // Strategie 1: Existierende Koordinaten (SOFORT)
+  const existing = getExistingCoordinates(projekt, kunde);
+  if (existing) return existing;
+
+  // Strategie 2: PLZ-Lookup (SOFORT, ZERO COST!)
+  const plzCoords = geocodeByPLZFast(projekt, kunde);
+  if (plzCoords) return plzCoords;
+
+  // Strategie 3: Würde Google API brauchen - wird separat behandelt
+  return null;
+};
+
+// Google API Fallback (NUR wenn PLZ-Lookup fehlschlägt - sehr selten!)
+const geocodeAddressWithGoogleAPI = async (
   address: string,
   cache: GeocodeCache
 ): Promise<google.maps.LatLngLiteral | null> => {
-  // Im Cache?
+  // Zuerst im Cache schauen
   const cached = cache[address];
   if (cached) {
     return { lat: cached.lat, lng: cached.lng };
   }
 
-  // Geocoding API aufrufen
+  // Google API aufrufen (teuer, daher nur als Fallback)
   try {
     const geocoder = new google.maps.Geocoder();
     const result = await new Promise<google.maps.GeocoderResult[] | null>((resolve) => {
@@ -205,65 +278,26 @@ const geocodeAddress = async (
       }
     }
   } catch (error) {
-    console.warn('Geocoding Fehler für:', address, error);
+    console.warn('[DispoKarte] Google Geocoding Fehler für:', address, error);
   }
 
   return null;
 };
 
-// Adresse aus Projekt/Kunde extrahieren
-const getAddressString = (projekt: Projekt, kunde?: SaisonKunde): string | null => {
-  // Lieferadresse bevorzugen
+// Adresse für Google API Fallback erstellen
+const getAddressForGoogleFallback = (projekt: Projekt, kunde?: SaisonKunde): string | null => {
   if (projekt.lieferadresse?.strasse && projekt.lieferadresse?.plz && projekt.lieferadresse?.ort) {
     return `${projekt.lieferadresse.strasse}, ${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`;
   }
-
-  // Kunde Lieferadresse
   if (kunde?.lieferadresse?.strasse && kunde?.lieferadresse?.plz && kunde?.lieferadresse?.ort) {
     return `${kunde.lieferadresse.strasse}, ${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`;
   }
-
-  // Kunde Rechnungsadresse
-  if (kunde?.rechnungsadresse?.strasse && kunde?.rechnungsadresse?.plz && kunde?.rechnungsadresse?.ort) {
-    return `${kunde.rechnungsadresse.strasse}, ${kunde.rechnungsadresse.plz} ${kunde.rechnungsadresse.ort}`;
-  }
-
-  // Projekt PLZ/Ort
   if (projekt.kundenPlzOrt && projekt.kundenstrasse) {
     return `${projekt.kundenstrasse}, ${projekt.kundenPlzOrt}`;
   }
-
-  // Nur PLZ/Ort als Fallback
   if (projekt.kundenPlzOrt) {
     return projekt.kundenPlzOrt;
   }
-
-  return null;
-};
-
-// Bestehende Koordinaten aus Kunde holen
-const getExistingCoordinates = (
-  _projekt: Projekt,
-  kunde?: SaisonKunde
-): google.maps.LatLngLiteral | null => {
-  const sources = [
-    kunde?.lieferadresse?.koordinaten,
-    kunde?.rechnungsadresse?.koordinaten,
-    kunde?.koordinaten,
-    kunde?.adresse?.koordinaten,
-  ];
-
-  for (const coords of sources) {
-    if (coords && Array.isArray(coords) && coords.length >= 2) {
-      const [lon, lat] = coords;
-      // Prüfen ob in Deutschland
-      if (typeof lat === 'number' && typeof lon === 'number' &&
-          lat >= 47 && lat <= 56 && lon >= 5 && lon <= 16) {
-        return { lat, lng: lon };
-      }
-    }
-  }
-
   return null;
 };
 
@@ -358,74 +392,113 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const initialFitDoneRef = useRef(false);
 
-  // === GEOCODING EFFECT ===
+  // === OPTIMIERTES GEOCODING EFFECT (ZERO API COST!) ===
+  // Verarbeitet ALLE Projekte SOFORT mit lokaler PLZ-Lookup.
+  // Google API wird NUR als Fallback für <1% der Fälle gebraucht.
 
   useEffect(() => {
-    if (!isLoaded || geocodingInProgress) return;
+    if (!isLoaded) return;
 
-    const projekteOhneKoordinaten: { id: string; address: string }[] = [];
+    // PHASE 1: Sofortige lokale Verarbeitung (ZERO COST, <1ms pro Projekt)
+    const sofortGeocoded = new Map<string, google.maps.LatLngLiteral>();
+    const brauchenGoogleAPI: { id: string; address: string }[] = [];
 
     for (const projekt of projekte) {
       const id = (projekt as any).$id || projekt.id;
-      const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
-      // Bereits geocoded?
+      // Bereits verarbeitet?
       if (geocodedPositions.has(id)) continue;
 
-      // Hat bereits Koordinaten?
-      const existing = getExistingCoordinates(projekt, kunde);
-      if (existing) {
-        setGeocodedPositions(prev => new Map(prev).set(id, existing));
-        continue;
-      }
+      const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
-      // Adresse für Geocoding
-      const address = getAddressString(projekt, kunde);
-      if (address) {
-        projekteOhneKoordinaten.push({ id, address });
+      // SCHNELL: Lokales Geocoding (existierende Koordinaten ODER PLZ-Lookup)
+      const coords = smartGeocode(projekt, kunde);
+      if (coords) {
+        sofortGeocoded.set(id, coords);
+      } else {
+        // Fallback: Google API wird gebraucht (sehr selten!)
+        const address = getAddressForGoogleFallback(projekt, kunde);
+        if (address) {
+          brauchenGoogleAPI.push({ id, address });
+        }
       }
     }
 
-    // Batch-Geocoding (max 10 parallel)
-    if (projekteOhneKoordinaten.length > 0) {
+    // SOFORT alle lokal gefundenen Koordinaten setzen
+    if (sofortGeocoded.size > 0) {
+      setGeocodedPositions(prev => {
+        const next = new Map(prev);
+        sofortGeocoded.forEach((coords, id) => next.set(id, coords));
+        return next;
+      });
+    }
+
+    // PHASE 2: Google API Fallback (nur für Projekte OHNE PLZ - sehr selten!)
+    // Deduplizierung: Gleiche Adressen nur einmal anfragen
+    if (brauchenGoogleAPI.length > 0 && !geocodingInProgress) {
       setGeocodingInProgress(true);
 
-      const geocodeBatch = async () => {
-        const batch = projekteOhneKoordinaten.slice(0, 10);
-        const results = new Map<string, google.maps.LatLngLiteral>();
-
-        for (const { id, address } of batch) {
-          const coords = await geocodeAddress(address, geocodeCacheRef.current);
-          if (coords) {
-            results.set(id, coords);
+      const geocodeFallback = async () => {
+        // Deduplizieren nach Adresse
+        const uniqueAddresses = new Map<string, string[]>(); // address -> [ids]
+        for (const { id, address } of brauchenGoogleAPI) {
+          const normalizedAddr = address.toLowerCase().trim();
+          if (!uniqueAddresses.has(normalizedAddr)) {
+            uniqueAddresses.set(normalizedAddr, []);
           }
-          // Rate limiting
-          await new Promise(r => setTimeout(r, 100));
+          uniqueAddresses.get(normalizedAddr)!.push(id);
         }
 
-        setGeocodedPositions(prev => {
-          const next = new Map(prev);
-          results.forEach((coords, id) => next.set(id, coords));
-          return next;
-        });
+        console.log(`[DispoKarte] ${uniqueAddresses.size} einzigartige Adressen brauchen Google API (von ${brauchenGoogleAPI.length} Projekten)`);
+
+        const results = new Map<string, google.maps.LatLngLiteral>();
+
+        // Batch-Verarbeitung mit Rate-Limiting (max 5 parallel)
+        const addresses = [...uniqueAddresses.entries()];
+        for (let i = 0; i < addresses.length; i += 5) {
+          const batch = addresses.slice(i, i + 5);
+          await Promise.all(batch.map(async ([address, ids]) => {
+            const coords = await geocodeAddressWithGoogleAPI(address, geocodeCacheRef.current);
+            if (coords) {
+              ids.forEach(id => results.set(id, coords));
+            }
+          }));
+          // Kurze Pause zwischen Batches
+          if (i + 5 < addresses.length) {
+            await new Promise(r => setTimeout(r, 200));
+          }
+        }
+
+        if (results.size > 0) {
+          setGeocodedPositions(prev => {
+            const next = new Map(prev);
+            results.forEach((coords, id) => next.set(id, coords));
+            return next;
+          });
+        }
 
         setGeocodingInProgress(false);
       };
 
-      geocodeBatch();
+      geocodeFallback();
     }
-  }, [isLoaded, projekte, kundenMap, geocodedPositions, geocodingInProgress]);
+  }, [isLoaded, projekte, kundenMap]); // Entfernt: geocodedPositions, geocodingInProgress (verhindert Endlosschleife)
 
   // === DATA PROCESSING ===
 
+  // OPTIMIERT: Nutzt smartGeocode direkt für sofortige Anzeige,
+  // geocodedPositions wird nur für Google API Fallback-Ergebnisse gebraucht
   const projekteMitKoordinaten = useMemo(() => {
     const result: ProjektMitKoordinaten[] = [];
     for (const projekt of projekte) {
       const id = (projekt as any).$id || projekt.id;
       const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
-      // Position: Geocoded > Existing > null
-      let position = geocodedPositions.get(id) || getExistingCoordinates(projekt, kunde);
+      // SCHNELL: Zuerst Cache, dann lokales Geocoding, dann Google API Ergebnisse
+      let position = geocodedPositions.get(id);
+      if (!position) {
+        position = smartGeocode(projekt, kunde) || undefined;
+      }
 
       if (!position) continue;
 

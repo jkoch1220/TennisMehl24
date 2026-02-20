@@ -28,6 +28,7 @@ import {
   Mail,
   Hash,
   Map as MapIcon,
+  Droplets,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -38,6 +39,7 @@ import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
 import ProjektKartenansicht from './ProjektKartenansicht';
+import HydrocourtView from './HydrocourtView';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 
 // Hook für Mobile-Erkennung
@@ -67,7 +69,7 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
 // Verloren-Tab separat (wird versteckt angezeigt)
 const VERLOREN_TAB = { id: 'verloren' as ProjektStatus, label: 'Verloren', icon: XCircle, color: 'text-gray-500', darkColor: 'dark:text-gray-400', bgColor: 'bg-gray-100 border-gray-300', darkBgColor: 'dark:bg-gray-800/50 dark:border-gray-600' };
 
-type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte';
+type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -629,6 +631,17 @@ const ProjektVerwaltung = () => {
                 <MapIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Karte</span>
               </button>
+              <button
+                onClick={() => setViewMode('hydrocourt')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'hydrocourt'
+                    ? 'bg-cyan-500 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Droplets className="w-4 h-4" />
+                <span className="hidden sm:inline">Hydrocourt</span>
+              </button>
             </div>
 
             {/* Kompakte Ansicht Toggle (nur im Kanban) */}
@@ -767,6 +780,14 @@ const ProjektVerwaltung = () => {
             ...filterProjekte(projekteGruppiert.bezahlt),
             ...(showVerlorenSpalte ? filterProjekte(projekteGruppiert.verloren) : []),
           ]}
+          onProjektClick={handleProjektClick}
+        />
+      )}
+
+      {/* Hydrocourt-Ansicht */}
+      {viewMode === 'hydrocourt' && (
+        <HydrocourtView
+          projekteGruppiert={projekteGruppiert}
           onProjektClick={handleProjektClick}
         />
       )}

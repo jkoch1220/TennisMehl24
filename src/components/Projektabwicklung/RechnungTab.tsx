@@ -587,29 +587,51 @@ const RechnungTab = ({ projekt, kundeInfo }: RechnungTabProps) => {
   // === NEUE RECHNUNG NACH STORNO ===
   const starteNeueRechnung = async () => {
     if (!projekt?.$id) return;
-    
+
     try {
       // Neues Formular vorbereiten
       const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
-      
+
+      // WICHTIG: Aktuelle Projektdaten verwenden (falls korrigiert)
+      // Die Rechnungsadresse kommt aus projekt.kundenstrasse/kundenPlzOrt
+      // Die Lieferadresse kommt aus projekt.lieferadresse (falls abweichend)
+      const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
+      const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+      const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
+      const lieferadressePlzOrt = projekt?.lieferadresse
+        ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+        : undefined;
+
       setRechnungsDaten(prev => ({
         ...prev,
+        // KRITISCH: Aktuelle Projektdaten für Rechnungsadresse verwenden!
+        kundennummer: projekt?.kundennummer || prev.kundennummer,
+        kundenname: projekt?.kundenname || prev.kundenname,
+        kundenstrasse: projekt?.kundenstrasse || prev.kundenstrasse,
+        kundenPlzOrt: projekt?.kundenPlzOrt || prev.kundenPlzOrt,
+        ansprechpartner: projekt?.ansprechpartner || prev.ansprechpartner,
+        // Lieferadresse (falls abweichend)
+        lieferadresseAbweichend,
+        lieferadresseName,
+        lieferadresseStrasse,
+        lieferadressePlzOrt,
+        // Neue Rechnungsnummer und Datum
         rechnungsnummer: neueNummer,
         rechnungsdatum: new Date().toISOString().split('T')[0],
         leistungsdatum: new Date().toISOString().split('T')[0],
-        // Positionen und andere Daten bleiben (können übernommen werden)
+        // Positionen bleiben (können übernommen werden)
       }));
-      
+
       // Reset der States
       setGespeichertesDokument(null);
       setNeueRechnungMoeglich(false);
       setVerlaufLadeZaehler(prev => prev + 1);
-      
-      setStatusMeldung({ 
-        typ: 'erfolg', 
-        text: `Neue Rechnungsnummer ${neueNummer} generiert. Bitte überprüfen Sie die Daten und finalisieren Sie die neue Rechnung.` 
+
+      setStatusMeldung({
+        typ: 'erfolg',
+        text: `Neue Rechnungsnummer ${neueNummer} generiert. WICHTIG: Bitte überprüfen Sie die Rechnungsadresse und finalisieren Sie dann die neue Rechnung.`
       });
-      
+
     } catch (error) {
       console.error('Fehler beim Starten der neuen Rechnung:', error);
       setStatusMeldung({ typ: 'fehler', text: 'Fehler: ' + (error as Error).message });

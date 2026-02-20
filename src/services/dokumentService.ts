@@ -1362,21 +1362,34 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
 
-  // === DIN 5008: EMPFÄNGERADRESSE ===
+  // === DIN 5008: EMPFÄNGERADRESSE (LIEFERADRESSE!) ===
+  // WICHTIG: Bei Lieferscheinen ist die LIEFERADRESSE die Hauptadresse im Adressfeld!
   // Maximale Breite für Adressfeld: 80mm (bis zum Infoblock bei 130mm minus etwas Abstand)
   const adressfeldBreiteLS = 80;
   let yPos = 50;
+
+  // Bestimme die zu verwendende Adresse: Lieferadresse hat Vorrang!
+  const hauptadresseName = (daten.lieferadresseAbweichend && daten.lieferadresseName)
+    ? daten.lieferadresseName
+    : daten.kundenname;
+  const hauptadresseStrasse = (daten.lieferadresseAbweichend && daten.lieferadresseStrasse)
+    ? daten.lieferadresseStrasse
+    : daten.kundenstrasse;
+  const hauptadressePlzOrt = (daten.lieferadresseAbweichend && daten.lieferadressePlzOrt)
+    ? daten.lieferadressePlzOrt
+    : daten.kundenPlzOrt;
+
   doc.setFontSize(11);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  // Kundenname kann auch lang sein - umbrechen
-  yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreiteLS, 5);
+  // Name umbrechen wenn zu lang
+  yPos = addWrappedText(doc, hauptadresseName, 25, yPos, adressfeldBreiteLS, 5);
   doc.setFont('helvetica', 'normal');
   yPos += 1; // Kleiner Abstand nach Name
   // Straße umbrechen wenn zu lang
-  yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreiteLS, 5);
+  yPos = addWrappedText(doc, formatStrasseHausnummer(hauptadresseStrasse), 25, yPos, adressfeldBreiteLS, 5);
   // PLZ/Ort
-  doc.text(daten.kundenPlzOrt, 25, yPos);
+  doc.text(hauptadressePlzOrt, 25, yPos);
   yPos += 5;
 
   // Ansprechpartner (mit optionaler Telefonnummer)
@@ -1393,43 +1406,42 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.setTextColor(0, 0, 0);
   }
 
-  // === Lieferadresse (falls abweichend) - LINKS unter Kundenadresse ===
+  // === Rechnungsadresse (nur anzeigen wenn abweichend von Lieferadresse) ===
+  // Bei Lieferscheinen: Die Lieferadresse ist im Adressfeld,
+  // die Rechnungsadresse wird nur als Info darunter angezeigt wenn sie abweicht
   if (daten.lieferadresseAbweichend && daten.lieferadresseName) {
-    // Erste Hälfte des Abstands nach Kundenadresse/Ansprechpartner
+    // Erste Hälfte des Abstands
     yPos += 9;
 
-    // Dezente Trennlinie PERFEKT MITTIG zwischen Kundenadresse und Lieferadresse
-    // Kürzer und dezenter: von 30mm bis 75mm (statt 25-100mm)
-    doc.setDrawColor(220, 220, 220);  // Heller (dezenter)
-    doc.setLineWidth(0.15);  // Dünner (dezenter)
-    doc.line(30, yPos, 75, yPos);  // Kürzer und mittig positioniert
+    // Dezente Trennlinie
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.15);
+    doc.line(30, yPos, 75, yPos);
 
     // Zweite Hälfte des Abstands
     yPos += 9;
 
-    // Überschrift "Lieferadresse:"
+    // Überschrift "Rechnungsadresse:"
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont('helvetica', 'normal');
-    doc.text('Lieferadresse:', 25, yPos);
+    doc.text('Rechnungsadresse:', 25, yPos);
     yPos += 6;
 
-    // Lieferadresse-Daten
+    // Rechnungsadresse-Daten (die ursprünglichen Kundendaten)
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    // Name umbrechen wenn zu lang
-    yPos = addWrappedText(doc, daten.lieferadresseName, 25, yPos, adressfeldBreiteLS, 5);
+    yPos = addWrappedText(doc, daten.kundenname, 25, yPos, adressfeldBreiteLS, 5);
     doc.setFont('helvetica', 'normal');
     yPos += 1;
 
-    if (daten.lieferadresseStrasse) {
-      // Straße umbrechen wenn zu lang
-      yPos = addWrappedText(doc, formatStrasseHausnummer(daten.lieferadresseStrasse), 25, yPos, adressfeldBreiteLS, 5);
+    if (daten.kundenstrasse) {
+      yPos = addWrappedText(doc, formatStrasseHausnummer(daten.kundenstrasse), 25, yPos, adressfeldBreiteLS, 5);
     }
 
-    if (daten.lieferadressePlzOrt) {
-      doc.text(daten.lieferadressePlzOrt, 25, yPos);
+    if (daten.kundenPlzOrt) {
+      doc.text(daten.kundenPlzOrt, 25, yPos);
       yPos += 5;
     }
   }

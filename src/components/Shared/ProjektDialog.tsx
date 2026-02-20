@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { X, Layers, Building2, MapPin, Calendar, Package, Euro, User } from 'lucide-react';
+import { X, Layers, Building2, MapPin, Calendar, Package, Euro, User, Truck } from 'lucide-react';
 import { NeuesProjekt } from '../../types/projekt';
 
 interface ProjektDialogProps {
   kundenname: string;
   kundeId: string;
   kundennummer?: string;
+  // RECHNUNGSADRESSE (Pflichtfeld)
   kundenstrasse?: string;
   kundenPlzOrt: string;
+  // LIEFERADRESSE (optional, falls abweichend von Rechnungsadresse)
+  lieferadresse?: {
+    strasse: string;
+    plz: string;
+    ort: string;
+    land?: string;
+  };
   ansprechpartner?: string;
   angefragteMenge?: number;
   preisProTonne?: number;
@@ -23,6 +31,7 @@ const ProjektDialog = ({
   kundennummer,
   kundenstrasse,
   kundenPlzOrt,
+  lieferadresse,
   ansprechpartner,
   angefragteMenge,
   preisProTonne,
@@ -53,8 +62,11 @@ const ProjektDialog = ({
       kundeId: kundeId,
       kundennummer: kundennummer,
       kundenname: kundenname,
+      // RECHNUNGSADRESSE (verwendet für Rechnungen!)
       kundenstrasse: kundenstrasse || '',
       kundenPlzOrt: kundenPlzOrt,
+      // LIEFERADRESSE (falls abweichend von Rechnungsadresse)
+      lieferadresse: lieferadresse,
       ansprechpartner: ansprechpartner || undefined,
       saisonjahr: formData.saisonjahr,
       status: 'angebot',
@@ -110,12 +122,24 @@ const ProjektDialog = ({
               <div className="col-span-2">
                 <span className="text-blue-700 font-medium flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
-                  Adresse:
+                  Rechnungsadresse:
                 </span>
                 <span className="ml-2 text-blue-900">
                   {kundenstrasse && `${kundenstrasse}, `}{kundenPlzOrt}
                 </span>
               </div>
+              {lieferadresse && (
+                <div className="col-span-2">
+                  <span className="text-blue-700 font-medium flex items-center gap-1">
+                    <Truck className="w-4 h-4" />
+                    Lieferadresse:
+                  </span>
+                  <span className="ml-2 text-blue-900">
+                    {lieferadresse.strasse}, {lieferadresse.plz} {lieferadresse.ort}
+                    {lieferadresse.land && lieferadresse.land !== 'DE' && ` (${lieferadresse.land})`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

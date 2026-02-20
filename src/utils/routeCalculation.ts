@@ -1,24 +1,66 @@
 /**
  * Routenberechnung und Zeitberechnung für Eigenlieferung
  * Nutzt Google Routes API für präzise Routen mit Verkehrsdaten
+ *
+ * OPTIMIERT:
+ * - PLZ-Geocoding aus lokaler Tabelle (ZERO API COST!)
+ * - Persistentes Caching in localStorage
+ * - Längere Cache-Dauer für Routen
  */
 
 import { EigenlieferungStammdaten, RoutenBerechnung, FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../types';
+import { getKoordinatenFuerPLZ } from '../data/plzKoordinaten';
 
 // Startadresse (Standort des Unternehmens)
 export const START_ADRESSE = 'Wertheimer Str. 30, 97828 Marktheidenfeld';
 const START_PLZ = '97828'; // PLZ für Fallback
 
-// Manuelle Koordinaten für Marktheidenfeld (Fallback falls Geocodierung fehlschlägt)
-// Koordinaten für Marktheidenfeld: ~49.85°N, 9.60°E
+// Manuelle Koordinaten für Marktheidenfeld
 export const START_COORDS_MANUELL: [number, number] = [9.60, 49.85]; // [lon, lat]
 
 // API Keys
 const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 const OPENROUTESERVICE_API_KEY = import.meta.env.VITE_OPENROUTESERVICE_API_KEY || '';
 
-// Cache für Geocoding-Ergebnisse
+// === OPTIMIERTES CACHING ===
+const GEOCODE_CACHE_KEY = 'route_geocode_cache_v1';
+const ROUTE_CACHE_KEY = 'route_calculation_cache_v1';
+const ROUTE_CACHE_DAUER_MS = 60 * 60 * 1000; // 1 Stunde (Traffic-Daten ändern sich)
+const GEOCODE_CACHE_DAUER_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage (PLZ ändern sich selten)
+
+// In-Memory Cache für schnellen Zugriff
 const geocodeCache = new Map<string, [number, number]>();
+
+// Persistentes Geocode-Cache laden
+const loadPersistedGeocodeCache = () => {
+  try {
+    const cached = localStorage.getItem(GEOCODE_CACHE_KEY);
+    if (cached) {
+      const data = JSON.parse(cached);
+      const now = Date.now();
+      for (const [key, entry] of Object.entries(data)) {
+        const { coords, timestamp } = entry as { coords: [number, number]; timestamp: number };
+        if (now - timestamp < GEOCODE_CACHE_DAUER_MS) {
+          geocodeCache.set(key, coords);
+        }
+      }
+      console.log(`📦 ${geocodeCache.size} Geocoding-Ergebnisse aus Cache geladen`);
+    }
+  } catch { /* ignore */ }
+};
+
+const saveGeocodeToCache = (key: string, coords: [number, number]) => {
+  geocodeCache.set(key, coords);
+  try {
+    const existing = localStorage.getItem(GEOCODE_CACHE_KEY);
+    const data = existing ? JSON.parse(existing) : {};
+    data[key] = { coords, timestamp: Date.now() };
+    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(data));
+  } catch { /* ignore */ }
+};
+
+// Initialisiere Cache beim Import
+loadPersistedGeocodeCache();
 
 /**
  * Ergebnis einer Routenberechnung mit Traffic-Daten
@@ -103,7 +145,11 @@ const geocodePLZMitNominatim = async (plz: string): Promise<[number, number] | n
 };
 
 /**
- * Geocodiert eine PLZ - versucht Google zuerst, dann Nominatim als Fallback
+ * Geocodiert eine PLZ - OPTIMIERT mit lokaler PLZ-Tabelle
+ * Reihenfolge:
+ * 1. Lokale PLZ-Tabelle (ZERO API COST, SOFORT)
+ * 2. Google API (nur wenn lokale Tabelle fehlschlägt)
+ * 3. Nominatim (Fallback)
  */
 const geocodePLZ = async (plz: string): Promise<[number, number] | null> => {
   // Spezialfall: Start-PLZ hat manuelle Koordinaten
@@ -111,14 +157,36 @@ const geocodePLZ = async (plz: string): Promise<[number, number] | null> => {
     return START_COORDS_MANUELL;
   }
 
-  // Versuche Google zuerst (genauer)
-  if (GOOGLE_API_KEY) {
-    const googleResult = await geocodePLZMitGoogle(plz);
-    if (googleResult) return googleResult;
+  // OPTIMIERUNG 1: In-Memory Cache
+  const cacheKey = `plz-${plz}`;
+  if (geocodeCache.has(cacheKey)) {
+    return geocodeCache.get(cacheKey)!;
   }
 
-  // Fallback auf Nominatim
-  return await geocodePLZMitNominatim(plz);
+  // OPTIMIERUNG 2: Lokale PLZ-Tabelle (ZERO API COST!)
+  const lokaleKoords = getKoordinatenFuerPLZ(plz);
+  if (lokaleKoords) {
+    const coords: [number, number] = [lokaleKoords.lng, lokaleKoords.lat];
+    saveGeocodeToCache(cacheKey, coords);
+    console.log(`📍 PLZ ${plz} aus lokaler Tabelle: [${coords[0]}, ${coords[1]}]`);
+    return coords;
+  }
+
+  // Fallback 1: Google API (nur wenn lokal nicht gefunden)
+  if (GOOGLE_API_KEY) {
+    const googleResult = await geocodePLZMitGoogle(plz);
+    if (googleResult) {
+      saveGeocodeToCache(cacheKey, googleResult);
+      return googleResult;
+    }
+  }
+
+  // Fallback 2: Nominatim
+  const nominatimResult = await geocodePLZMitNominatim(plz);
+  if (nominatimResult) {
+    saveGeocodeToCache(cacheKey, nominatimResult);
+  }
+  return nominatimResult;
 };
 
 /**
@@ -319,23 +387,71 @@ const berechneLuftlinie = (
   return R * c;
 };
 
-// Cache für Routen-Ergebnisse (spart API-Calls)
-const routenCache = new Map<string, RouteResult>();
+// === OPTIMIERTES ROUTEN-CACHE (1 Stunde statt 5 Minuten) ===
+interface RoutenCacheEntry {
+  result: RouteResult;
+  timestamp: number;
+}
+const routenCache = new Map<string, RoutenCacheEntry>();
+
+// Persistenten Routen-Cache laden
+const loadPersistedRouteCache = () => {
+  try {
+    const cached = localStorage.getItem(ROUTE_CACHE_KEY);
+    if (cached) {
+      const data = JSON.parse(cached);
+      const now = Date.now();
+      let loaded = 0;
+      for (const [key, entry] of Object.entries(data)) {
+        const { result, timestamp } = entry as RoutenCacheEntry;
+        if (now - timestamp < ROUTE_CACHE_DAUER_MS) {
+          routenCache.set(key, { result, timestamp });
+          loaded++;
+        }
+      }
+      if (loaded > 0) {
+        console.log(`📦 ${loaded} Routen aus Cache geladen`);
+      }
+    }
+  } catch { /* ignore */ }
+};
+
+const saveRouteToCache = (key: string, result: RouteResult) => {
+  const entry = { result, timestamp: Date.now() };
+  routenCache.set(key, entry);
+  try {
+    const existing = localStorage.getItem(ROUTE_CACHE_KEY);
+    const data = existing ? JSON.parse(existing) : {};
+    // Nur die letzten 100 Routen behalten
+    const keys = Object.keys(data);
+    if (keys.length > 100) {
+      const oldestKey = keys.sort((a, b) => data[a].timestamp - data[b].timestamp)[0];
+      delete data[oldestKey];
+    }
+    data[key] = entry;
+    localStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(data));
+  } catch { /* ignore */ }
+};
+
+// Initialisiere Routen-Cache
+loadPersistedRouteCache();
 
 /**
  * Berechnet Route zwischen zwei PLZ
- * Priorisiert Google Routes API (mit Traffic), fällt auf OpenRouteService zurück
+ * OPTIMIERT: 1 Stunde Cache, persistentes Speichern
  */
 export const berechneRoute = async (
   startPLZ: string,
   zielPLZ: string
 ): Promise<RouteResult> => {
   const cacheKey = `${startPLZ}->${zielPLZ}`;
+  const now = Date.now();
 
-  // Check Cache (5 Minuten gültig für Traffic-Daten)
-  if (routenCache.has(cacheKey)) {
-    console.log(`📦 Route aus Cache: ${cacheKey}`);
-    return routenCache.get(cacheKey)!;
+  // Check Cache (1 Stunde gültig)
+  const cached = routenCache.get(cacheKey);
+  if (cached && now - cached.timestamp < ROUTE_CACHE_DAUER_MS) {
+    console.log(`⚡ Route aus Cache: ${cacheKey}`);
+    return cached.result;
   }
 
   console.log(`🔄 Berechne Route: ${startPLZ} → ${zielPLZ}`);
@@ -388,11 +504,8 @@ export const berechneRoute = async (
     };
   }
 
-  // Cache Ergebnis
-  routenCache.set(cacheKey, result);
-
-  // Cache-Bereinigung nach 5 Minuten (für frische Traffic-Daten)
-  setTimeout(() => routenCache.delete(cacheKey), 5 * 60 * 1000);
+  // OPTIMIERT: Persistentes Caching (1 Stunde gültig)
+  saveRouteToCache(cacheKey, result);
 
   return result;
 };

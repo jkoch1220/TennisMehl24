@@ -619,8 +619,22 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
           kundenname={projektKunde.kunde.name}
           kundeId={projektKunde.kunde.id}
           kundennummer={projektKunde.kunde.kundennummer}
+          // RECHNUNGSADRESSE (wird auf der Rechnung verwendet!)
           kundenstrasse={projektKunde.kunde.rechnungsadresse.strasse}
           kundenPlzOrt={formatAdresszeile(projektKunde.kunde.rechnungsadresse.plz, projektKunde.kunde.rechnungsadresse.ort, projektKunde.kunde.rechnungsadresse.land)}
+          // LIEFERADRESSE (falls abweichend von Rechnungsadresse)
+          lieferadresse={
+            // Nur übergeben wenn Lieferadresse sich von Rechnungsadresse unterscheidet
+            projektKunde.kunde.lieferadresse.strasse !== projektKunde.kunde.rechnungsadresse.strasse ||
+            projektKunde.kunde.lieferadresse.plz !== projektKunde.kunde.rechnungsadresse.plz
+              ? {
+                  strasse: projektKunde.kunde.lieferadresse.strasse,
+                  plz: projektKunde.kunde.lieferadresse.plz,
+                  ort: projektKunde.kunde.lieferadresse.ort,
+                  land: projektKunde.kunde.lieferadresse.land,
+                }
+              : undefined
+          }
           ansprechpartner={projektKunde.ansprechpartner?.find(ap => ap.aktiv)?.name}
           angefragteMenge={projektKunde.aktuelleSaison?.angefragteMenge}
           preisProTonne={projektKunde.aktuelleSaison?.preisProTonne || (projektKunde.kunde.zuletztGezahlterPreis ? Math.round(projektKunde.kunde.zuletztGezahlterPreis * 1.04 * 100) / 100 : undefined)}
