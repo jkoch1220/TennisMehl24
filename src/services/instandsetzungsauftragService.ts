@@ -301,9 +301,11 @@ class InstandsetzungsauftragService {
   }
 
   /**
-   * Lädt alle Vereine mit Bezugsweg 'direkt_instandsetzung' für einen Platzbauer
-   * INKL. Projekt-Daten, Ansprechpartner und Filter für gültige Auftrags-Status
+   * Lädt alle Vereine die dem Platzbauer zugeordnet sind, aber NICHT über ihn bestellen.
+   * Das sind alle Vereine mit Bezugsweg != 'ueber_platzbauer' (direkt, direkt_instandsetzung, undefined).
+   * Diese Vereine bestellen direkt bei TennisMehl, der Platzbauer macht nur die Instandsetzung.
    *
+   * INKL. Projekt-Daten, Ansprechpartner und Filter für gültige Auftrags-Status.
    * Nur Vereine mit Projekt-Status >= 'auftragsbestaetigung' können in
    * einen Instandsetzungsauftrag aufgenommen werden.
    */
@@ -315,12 +317,14 @@ class InstandsetzungsauftragService {
     // Lade ALLE Kunden mit VOLLSTÄNDIGEN Daten (inkl. Ansprechpartner)
     const { callListe } = await saisonplanungService.loadSaisonplanungDashboard({}, saisonjahr);
 
+    // Alle Vereine die dem Platzbauer zugeordnet sind, aber NICHT über ihn bestellen
+    // D.h. Bezugsweg ist NICHT "ueber_platzbauer" (kann direkt, direkt_instandsetzung, oder undefined sein)
     const vereine = callListe.filter(
       k =>
         k.kunde.typ === 'verein' &&
         k.kunde.aktiv &&
-        k.kunde.standardBezugsweg === 'direkt_instandsetzung' &&
-        k.kunde.standardPlatzbauerId === platzbauerId
+        k.kunde.standardPlatzbauerId === platzbauerId &&
+        k.kunde.standardBezugsweg !== 'ueber_platzbauer'
     );
 
     // Lade Projekte für alle Vereine
