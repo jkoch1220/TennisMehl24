@@ -153,7 +153,11 @@ class PlatzbauerverwaltungService {
     ]);
 
     const platzbauer = alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
-    const vereine = alleKunden.filter(k => k.typ === 'verein' && k.aktiv);
+    // NUR Vereine mit Bezugsweg "ueber_platzbauer" - diese bestellen über den Platzbauer
+    // Vereine mit "direkt_instandsetzung" gehören in den Instandsetzungs-Tab
+    const vereine = alleKunden.filter(
+      k => k.typ === 'verein' && k.aktiv && k.standardBezugsweg === 'ueber_platzbauer'
+    );
 
     // Gruppiere Vereine nach Platzbauer
     const vereineNachPlatzbauer = new Map<string, SaisonKunde[]>();
@@ -193,12 +197,17 @@ class PlatzbauerverwaltungService {
   }
 
   /**
-   * Vereine für einen Platzbauer laden (alle Bezugswege)
+   * Vereine für einen Platzbauer laden - NUR Bezugsweg "ueber_platzbauer"
+   * Diese Vereine bestellen über den Platzbauer (Sammelbestellung)
+   * Für "direkt_instandsetzung" Vereine -> loadDirektInstandsetzungVereine()
    */
   async loadVereineFuerPlatzbauer(platzbauerId: string): Promise<SaisonKundeMitDaten[]> {
     const alleKunden = await loadAlleKundenCached();
     const vereine = alleKunden.filter(
-      k => k.typ === 'verein' && k.aktiv && k.standardPlatzbauerId === platzbauerId
+      k => k.typ === 'verein' &&
+           k.aktiv &&
+           k.standardPlatzbauerId === platzbauerId &&
+           k.standardBezugsweg === 'ueber_platzbauer'
     );
     return vereine.map(v => ({ kunde: v } as SaisonKundeMitDaten));
   }
