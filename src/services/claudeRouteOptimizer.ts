@@ -1,4 +1,5 @@
 // Claude AI Route Optimizer für intelligente Tourenplanung
+// SECURITY: Nutzt Backend wenn aktiviert, um API-Key zu schützen
 
 import type {
   ClaudeOptimierungRequest,
@@ -7,6 +8,7 @@ import type {
   FahrzeugFuerOptimierung,
   TourAdresse,
 } from '../types/tour';
+import { useBackend, backendFetch } from '../config/backend';
 
 // System-Prompt für Claude - Logistik-Experte für Tennismehl-Lieferungen
 const SYSTEM_PROMPT = `Du bist der Dispo-Chef für TennisMehl24, ein Unternehmen das Ziegelmehl (Tennisplatzsand) an Tennisvereine in Deutschland liefert.
@@ -205,14 +207,9 @@ function getAktuelleKW(): number {
 export const claudeRouteOptimizer = {
   /**
    * Optimiert Touren mit Claude AI
+   * SECURITY: Nutzt Backend wenn aktiviert
    */
   async optimiereTouren(request: ClaudeOptimierungRequest): Promise<ClaudeOptimierungResponse> {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('VITE_ANTHROPIC_API_KEY ist nicht konfiguriert');
-    }
-
     // Filtere Abholungen raus - die kommen nicht in Touren
     const lieferProjekte = request.projekte.filter(p => p.belieferungsart !== 'abholung_ab_werk');
     const abholProjekte = request.projekte.filter(p => p.belieferungsart === 'abholung_ab_werk');
@@ -241,41 +238,66 @@ export const claudeRouteOptimizer = {
     console.log('🤖 Sende Anfrage an Claude API...');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          system: SYSTEM_PROMPT,
-          messages: [
-            { role: 'user', content: userPrompt },
-          ],
-        }),
-      });
+      let textResponse: string;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Claude API Fehler:', errorData);
-        throw new Error(`Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`);
+      // SECURITY: Backend wenn aktiviert
+      if (useBackend('claude')) {
+        console.log('🔒 Route-Optimierung über Backend (sicher)...');
+        const data = await backendFetch<{ content: Array<{ type: string; text?: string }> }>('/api/ai/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            system: SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userPrompt }],
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4096,
+          }),
+        });
+        const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
+        if (!textContent?.text) {
+          throw new Error('Keine Textantwort von Claude erhalten');
+        }
+        textResponse = textContent.text;
+      } else {
+        // LEGACY: Direkter API-Call
+        console.warn('⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!');
+        const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+        if (!apiKey) {
+          throw new Error('Claude API nicht konfiguriert. Bitte VITE_USE_BACKEND=true setzen.');
+        }
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4096,
+            system: SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userPrompt }],
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(`Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`);
+        }
+
+        const data = await response.json();
+        const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
+        if (!textContent?.text) {
+          throw new Error('Keine Textantwort von Claude erhalten');
+        }
+        textResponse = textContent.text;
       }
 
-      const data = await response.json();
       console.log('✅ Claude API Antwort erhalten');
 
-      // Extrahiere den Text aus der Antwort
-      const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
-      if (!textContent?.text) {
-        throw new Error('Keine Textantwort von Claude erhalten');
-      }
-
       // Parse die JSON-Antwort
-      const result = parseClaudeResponse(textContent.text);
+      const result = parseClaudeResponse(textResponse);
 
       // Füge Abholprojekte zu nichtFuerHeute hinzu
       if (abholProjekte.length > 0) {
@@ -293,10 +315,10 @@ export const claudeRouteOptimizer = {
   },
 
   /**
-   * Prüft ob Claude API verfügbar ist
+   * Prüft ob Claude API verfügbar ist (Backend ODER direkter API-Key)
    */
   isAvailable(): boolean {
-    return !!import.meta.env.VITE_ANTHROPIC_API_KEY;
+    return useBackend('claude') || !!import.meta.env.VITE_ANTHROPIC_API_KEY;
   },
 
   /**

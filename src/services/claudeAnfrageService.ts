@@ -5,7 +5,72 @@
  * 1. E-Mail-Inhalte besser zu verstehen und zu parsen
  * 2. Optimale Angebote zu generieren
  * 3. Personalisierte Antwort-E-Mails zu erstellen
+ *
+ * SECURITY: Wenn Backend aktiviert ist, werden API-Calls über das Backend geroutet.
+ * Der API-Key ist dann NICHT mehr im Browser sichtbar!
  */
+
+import { useBackend, backendFetch } from '../config/backend';
+
+// ============================================
+// BACKEND-AWARE API HELPER
+// ============================================
+
+interface ClaudeRequest {
+  model: string;
+  max_tokens: number;
+  system: string;
+  messages: Array<{ role: string; content: string }>;
+}
+
+interface ClaudeResponse {
+  content: Array<{ type: string; text?: string }>;
+}
+
+/**
+ * Ruft Claude API auf - entweder über Backend (sicher) oder direkt (legacy)
+ */
+async function callClaudeAPI(request: ClaudeRequest): Promise<ClaudeResponse> {
+  // SECURITY: Wenn Backend aktiviert, über Backend routen
+  if (useBackend('claude')) {
+    console.log('🔒 Claude API über Backend (sicher)...');
+    return backendFetch<ClaudeResponse>('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        system: request.system,
+        messages: request.messages,
+        model: request.model,
+        max_tokens: request.max_tokens,
+      }),
+    });
+  }
+
+  // LEGACY: Direkter API-Call (API-Key im Browser sichtbar!)
+  console.warn('⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!');
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('Claude API nicht konfiguriert. Bitte VITE_USE_BACKEND=true setzen oder VITE_ANTHROPIC_API_KEY konfigurieren.');
+  }
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`);
+  }
+
+  return response.json();
+}
 
 export interface AnfrageKontext {
   emailText: string;
@@ -313,17 +378,6 @@ export const claudeAnfrageService = {
    * Verwendet strikte Validierung und gibt Warnungen bei verdächtigen Werten
    */
   async parseFormularRobust(emailText: string): Promise<RobustExtrahierteDaten> {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      console.log('⚠️ Claude API nicht konfiguriert - verwende Regex-Parser');
-      // Fallback: Leere Daten mit Warnung zurückgeben
-      return {
-        konfidenz: 0,
-        warnungen: ['Claude API nicht verfügbar - bitte Regex-Parser prüfen'],
-      };
-    }
-
     const userPrompt = `Extrahiere alle Daten aus diesem Webformular-E-Mail:
 
 ---
@@ -335,32 +389,13 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
     try {
       console.log('🤖 Robustes Parsing mit Claude API...');
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          system: ROBUST_PARSING_PROMPT,
-          messages: [{ role: 'user', content: userPrompt }],
-        }),
+      const data = await callClaudeAPI({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system: ROBUST_PARSING_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Claude API Fehler:', errorData);
-        return {
-          konfidenz: 0,
-          warnungen: [`Claude API Fehler: ${response.status}`],
-        };
-      }
-
-      const data = await response.json();
       const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
 
       if (!textContent?.text) {
@@ -417,42 +452,18 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
    * Analysiert eine Kundenanfrage mit Claude AI
    */
   async analysiereAnfrage(kontext: AnfrageKontext): Promise<ClaudeAnfrageAnalyse> {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('VITE_ANTHROPIC_API_KEY ist nicht konfiguriert');
-    }
-
     const userPrompt = erstelleUserPrompt(kontext);
 
     console.log('🤖 Sende Anfrage-Analyse an Claude API...');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: userPrompt }],
-        }),
+      const data = await callClaudeAPI({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }],
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Claude API Fehler:', errorData);
-        throw new Error(
-          `Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`
-        );
-      }
-
-      const data = await response.json();
       console.log('✅ Claude API Analyse erhalten');
 
       // Extrahiere den Text aus der Antwort
@@ -470,10 +481,10 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
   },
 
   /**
-   * Prüft ob Claude API verfügbar ist
+   * Prüft ob Claude API verfügbar ist (Backend ODER direkter API-Key)
    */
   isAvailable(): boolean {
-    return !!import.meta.env.VITE_ANTHROPIC_API_KEY;
+    return useBackend('claude') || !!import.meta.env.VITE_ANTHROPIC_API_KEY;
   },
 
   /**
@@ -486,10 +497,8 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
     artikel: string,
     zusatzinfo?: string
   ): Promise<{ betreff: string; text: string }> {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      // Fallback: Standard-E-Mail
+    // Standard-E-Mail als Fallback
+    const fallbackEmail = () => {
       const anrede = ansprechpartner
         ? `Sehr geehrte/r ${ansprechpartner}`
         : 'Sehr geehrte Damen und Herren';
@@ -508,7 +517,7 @@ TENNISMEHL GmbH
 Tel: 09391 9870-0
 E-Mail: info@tennismehl.com`,
       };
-    }
+    };
 
     // Mit Claude API
     const prompt = `Erstelle eine kurze, professionelle Angebots-E-Mail:
@@ -521,26 +530,12 @@ ${zusatzinfo ? `- Zusatzinfo: ${zusatzinfo}` : ''}
 Antworte NUR mit JSON: {"betreff": "...", "text": "..."}`;
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+      const data = await callClaudeAPI({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: 'Du bist ein professioneller Vertriebsmitarbeiter. Antworte NUR mit JSON.',
+        messages: [{ role: 'user', content: prompt }],
       });
-
-      if (!response.ok) {
-        throw new Error('Claude API nicht erreichbar');
-      }
-
-      const data = await response.json();
       const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
 
       if (textContent?.text) {
@@ -555,26 +550,7 @@ Antworte NUR mit JSON: {"betreff": "...", "text": "..."}`;
       throw new Error('Keine gültige Antwort');
     } catch (error) {
       console.warn('Claude E-Mail-Generierung fehlgeschlagen, verwende Fallback:', error);
-
-      // Fallback
-      const anrede = ansprechpartner
-        ? `Sehr geehrte/r ${ansprechpartner}`
-        : 'Sehr geehrte Damen und Herren';
-
-      return {
-        betreff: `Ihr Angebot für Tennismehl - ${kundenname}`,
-        text: `${anrede},
-
-vielen Dank für Ihre Anfrage.
-
-Anbei erhalten Sie unser Angebot über ${menge} Tonnen ${artikel}. Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-
-TENNISMEHL GmbH
-Tel: 09391 9870-0
-E-Mail: info@tennismehl.com`,
-      };
+      return fallbackEmail();
     }
   },
 
@@ -597,13 +573,6 @@ E-Mail: info@tennismehl.com`,
       };
     }
 
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      // Fallback: Einfache Regel-basierte Analyse
-      return this.analysiereNachrichtLokal(nachricht);
-    }
-
     try {
       const prompt = `Analysiere diese Kundennachricht aus einer Tennismehl-Anfrage und extrahiere wichtige Informationen.
 
@@ -619,27 +588,12 @@ Antworte NUR mit diesem JSON-Format:
   "notizen": "Wichtige Infos für die interne Bearbeitung (z.B. 'Lieferung 2./3. Märzwoche gewünscht')"
 }`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 500,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+      const data = await callClaudeAPI({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        system: 'Du bist ein Assistent der Kundennachrichten analysiert. Antworte NUR mit JSON.',
+        messages: [{ role: 'user', content: prompt }],
       });
-
-      if (!response.ok) {
-        console.warn('Claude API nicht erreichbar, verwende lokale Analyse');
-        return this.analysiereNachrichtLokal(nachricht);
-      }
-
-      const data = await response.json();
       const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
 
       if (textContent?.text) {
