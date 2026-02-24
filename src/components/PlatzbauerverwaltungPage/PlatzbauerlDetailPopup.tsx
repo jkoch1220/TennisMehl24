@@ -93,6 +93,18 @@ const PlatzbauerlDetailPopup = ({
     onRefresh(); // Auch die Hauptseite aktualisieren
   }, [loadData, onRefresh]);
 
+  // Saisonprojekt erstellen
+  const handleCreateSaisonprojekt = async () => {
+    try {
+      const neuesProjekt = await platzbauerverwaltungService.createPlatzbauerprojekt(platzbauerId, saisonjahr);
+      onRefresh();
+      // Direkt zur Projektabwicklung navigieren
+      navigate(`/platzbauer-projektabwicklung/${neuesProjekt.id}`);
+    } catch (error) {
+      console.error('Fehler beim Erstellen des Saisonprojekts:', error);
+    }
+  };
+
   // Nachtrag erstellen
   const handleCreateNachtrag = async () => {
     if (!data?.projekte.length) return;
@@ -215,6 +227,7 @@ const PlatzbauerlDetailPopup = ({
                 projekte={projekte}
                 onSelectProjekt={handleSelectProjekt}
                 onCreateNachtrag={handleCreateNachtrag}
+                onCreateSaisonprojekt={handleCreateSaisonprojekt}
               />
             )}
             {activeTab === 'instandsetzung' && (
@@ -367,16 +380,21 @@ const ProjekteTab = ({
   projekte,
   onSelectProjekt,
   onCreateNachtrag,
+  onCreateSaisonprojekt,
 }: {
   projekte: PlatzbauerProjekt[];
   onSelectProjekt: (id: string) => void;
   onCreateNachtrag: () => void;
+  onCreateSaisonprojekt: () => void;
 }) => {
   // Sortiere: Saisonprojekte zuerst, dann Nachträge nach Nummer
   const sortierteProjekte = [...projekte].sort((a, b) => {
     if (a.typ !== b.typ) return a.typ === 'saisonprojekt' ? -1 : 1;
     return (a.nachtragNummer || 0) - (b.nachtragNummer || 0);
   });
+
+  // Prüfe ob bereits ein Saisonprojekt existiert
+  const hatSaisonprojekt = projekte.some(p => p.typ === 'saisonprojekt');
 
   const statusColors: Record<string, string> = {
     angebot: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -400,18 +418,31 @@ const ProjekteTab = ({
 
   return (
     <div className="space-y-4">
-      {/* Header mit Nachtrag-Button */}
+      {/* Header mit Buttons */}
       <div className="flex items-center justify-between">
         <h3 className="font-medium text-gray-900 dark:text-white">
           {projekte.length} Projekt{projekte.length !== 1 ? 'e' : ''} in dieser Saison
         </h3>
-        <button
-          onClick={onCreateNachtrag}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nachtrag erstellen
-        </button>
+        <div className="flex gap-2">
+          {!hatSaisonprojekt && (
+            <button
+              onClick={onCreateSaisonprojekt}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Saisonprojekt anlegen
+            </button>
+          )}
+          {hatSaisonprojekt && (
+            <button
+              onClick={onCreateNachtrag}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Nachtrag erstellen
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Projekte-Liste */}

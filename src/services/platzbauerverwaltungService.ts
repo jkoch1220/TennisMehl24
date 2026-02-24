@@ -664,8 +664,13 @@ class PlatzbauerverwaltungService {
           lieferscheinErstellt: !!vereinsprojekt.lieferscheinId,
           lieferscheinId: vereinsprojekt.lieferscheinId,
         });
-      } catch (error) {
-        console.error(`Fehler beim Laden des Vereinsprojekts ${zuordnung.vereinsProjektId}:`, error);
+      } catch (error: unknown) {
+        // 404-Fehler (Projekt wurde gelöscht) sind erwartet - nur loggen wenn es kein 404 ist
+        const is404 = error instanceof Error && error.message?.includes('could not be found');
+        if (!is404) {
+          console.warn(`Vereinsprojekt ${zuordnung.vereinsProjektId} nicht ladbar:`, error);
+        }
+        // Bei 404: Zuordnung existiert noch, aber Projekt wurde gelöscht - wird übersprungen
       }
     }
 

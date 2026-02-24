@@ -111,8 +111,12 @@ class ProjektService {
         }
       }
       return response as unknown as Projekt;
-    } catch (error) {
-      console.error('Fehler beim Laden des Projekts:', error);
+    } catch (error: unknown) {
+      // 404-Fehler sind erwartet (Projekt gelöscht) - nicht loggen
+      const is404 = error instanceof Error && error.message?.includes('could not be found');
+      if (!is404) {
+        console.error('Fehler beim Laden des Projekts:', error);
+      }
       throw error;
     }
   }
