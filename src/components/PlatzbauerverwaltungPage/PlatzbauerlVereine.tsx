@@ -567,7 +567,7 @@ const PlatzbauerlVereine = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           const projektId = (existingProjekt as any).$id || existingProjekt?.id;
-                          navigate(`/projekte?projekt=${projektId}`);
+                          navigate(`/projektabwicklung/${projektId}`);
                         }}
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
                         title="Zum Projekt wechseln"
