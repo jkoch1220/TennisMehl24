@@ -161,14 +161,17 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           const gespeicherteDaten = ladeDokumentDaten<RechnungsDaten>(dokument);
           if (gespeicherteDaten) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
-            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
-              ? gespeicherteDaten.lieferadresseAbweichend 
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend
+              ? gespeicherteDaten.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherteDaten.lieferadresseName 
-              ? gespeicherteDaten.lieferadresseName 
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
-              ? gespeicherteDaten.lieferadresseStrasse 
+            // Bei Platzbauer-Projekten: kunde.name ist der Verein (Lieferempfänger)
+            const lieferadresseName = gespeicherteDaten.lieferadresseName
+              ? gespeicherteDaten.lieferadresseName
+              : (projekt?.lieferadresse
+                ? (projekt?.istPlatzbauerprojekt && kunde?.name ? kunde.name : projekt.kundenname)
+                : undefined);
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse
+              ? gespeicherteDaten.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
             const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
               ? gespeicherteDaten.lieferadressePlzOrt
@@ -197,14 +200,17 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           const entwurf = await ladeEntwurf<RechnungsDaten>(projekt.$id, 'rechnungsDaten');
           if (entwurf) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
-            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend 
-              ? entwurf.lieferadresseAbweichend 
+            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend
+              ? entwurf.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = entwurf.lieferadresseName 
-              ? entwurf.lieferadresseName 
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = entwurf.lieferadresseStrasse 
-              ? entwurf.lieferadresseStrasse 
+            // Bei Platzbauer-Projekten: kunde.name ist der Verein (Lieferempfänger)
+            const lieferadresseName = entwurf.lieferadresseName
+              ? entwurf.lieferadresseName
+              : (projekt?.lieferadresse
+                ? (projekt?.istPlatzbauerprojekt && kunde?.name ? kunde.name : projekt.kundenname)
+                : undefined);
+            const lieferadresseStrasse = entwurf.lieferadresseStrasse
+              ? entwurf.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
             const lieferadressePlzOrt = entwurf.lieferadressePlzOrt
               ? entwurf.lieferadressePlzOrt
@@ -347,14 +353,13 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           }
         }
 
-        // KRITISCH: Lade RECHNUNGSADRESSE direkt vom Kunden (SaisonKunde)!
-        // Die Rechnungsadresse muss IMMER vom Kunden kommen - nicht aus dem Projekt!
+        // Initialisierung der Adressdaten
         let kundenname = projekt?.kundenname || kundeInfo?.kundenname || '';
         let kundenstrasse = projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
         let kundenPlzOrt = projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
         let kundennummer = projekt?.kundennummer || kundeInfo?.kundennummer;
         let lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
-        let lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        let lieferadresseName: string | undefined = undefined;
         let lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
         let lieferadressePlzOrt = projekt?.lieferadresse
           ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
@@ -365,33 +370,48 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
             if (kunde) {
-              // RECHNUNGSADRESSE vom Kunden übernehmen!
-              kundenname = kunde.name;
-              kundennummer = kunde.kundennummer;
-              kundenstrasse = kunde.rechnungsadresse.strasse;
-              kundenPlzOrt = formatAdresszeile(
-                kunde.rechnungsadresse.plz,
-                kunde.rechnungsadresse.ort,
-                kunde.rechnungsadresse.land
-              );
-
-              // LIEFERADRESSE vom Kunden (falls abweichend von Rechnungsadresse)
-              const lieferAdresseIstAnders =
-                kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
-                kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
-
-              if (lieferAdresseIstAnders) {
+              // PLATZBAUER-PROJEKTE: Spezielle Behandlung
+              // - Rechnungsadresse = Platzbauer (bleibt aus projekt.kundenname/strasse/PlzOrt)
+              // - Lieferadresse = Verein (kunde.name + projekt.lieferadresse)
+              if (projekt?.istPlatzbauerprojekt) {
+                // Rechnungsadresse bleibt vom Projekt (Platzbauer) - keine Änderung!
+                // Nur Lieferadresse vom Kunden laden (Verein)
                 lieferadresseAbweichend = true;
-                lieferadresseName = kunde.name;
-                lieferadresseStrasse = kunde.lieferadresse.strasse;
-                lieferadressePlzOrt = formatAdresszeile(
-                  kunde.lieferadresse.plz,
-                  kunde.lieferadresse.ort,
-                  kunde.lieferadresse.land
+                lieferadresseName = kunde.name; // Vereinsname
+                lieferadresseStrasse = projekt?.lieferadresse?.strasse || kunde.lieferadresse?.strasse;
+                lieferadressePlzOrt = projekt?.lieferadresse
+                  ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+                  : formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
+                console.log('✅ Platzbauer-Projekt: Rechnungsadresse bleibt vom Platzbauer, Lieferadresse vom Verein:', kunde.name);
+              } else {
+                // NORMALE PROJEKTE: Rechnungsadresse vom Kunden übernehmen!
+                kundenname = kunde.name;
+                kundennummer = kunde.kundennummer;
+                kundenstrasse = kunde.rechnungsadresse.strasse;
+                kundenPlzOrt = formatAdresszeile(
+                  kunde.rechnungsadresse.plz,
+                  kunde.rechnungsadresse.ort,
+                  kunde.rechnungsadresse.land
                 );
-              }
 
-              console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+                // LIEFERADRESSE vom Kunden (falls abweichend von Rechnungsadresse)
+                const lieferAdresseIstAnders =
+                  kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
+                  kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
+
+                if (lieferAdresseIstAnders) {
+                  lieferadresseAbweichend = true;
+                  lieferadresseName = kunde.name;
+                  lieferadresseStrasse = kunde.lieferadresse.strasse;
+                  lieferadressePlzOrt = formatAdresszeile(
+                    kunde.lieferadresse.plz,
+                    kunde.lieferadresse.ort,
+                    kunde.lieferadresse.land
+                  );
+                }
+
+                console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+              }
             }
           } catch (error) {
             console.warn('Kunde konnte nicht geladen werden, verwende Projektdaten:', error);
@@ -660,47 +680,61 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       // Neues Formular vorbereiten
       const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
 
-      // KRITISCH: Lade aktuelle Kundendaten direkt vom Kunden (SaisonKunde)!
-      // Die RECHNUNGSADRESSE muss IMMER vom Kunden kommen - nicht aus dem Projekt!
+      // Lade aktuelle Kundendaten vom SaisonKunden
       const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
 
       let kundenname = projekt?.kundenname || '';
       let kundenstrasse = projekt?.kundenstrasse || '';
       let kundenPlzOrt = projekt?.kundenPlzOrt || '';
       let lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
-      let lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+      let lieferadresseName: string | undefined = undefined;
       let lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
       let lieferadressePlzOrt = projekt?.lieferadresse
         ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
         : undefined;
 
       if (kunde) {
-        // RECHNUNGSADRESSE vom Kunden übernehmen!
-        kundenname = kunde.name;
-        kundenstrasse = kunde.rechnungsadresse.strasse;
-        kundenPlzOrt = formatAdresszeile(
-          kunde.rechnungsadresse.plz,
-          kunde.rechnungsadresse.ort,
-          kunde.rechnungsadresse.land
-        );
-
-        // LIEFERADRESSE vom Kunden (falls abweichend)
-        const lieferAdresseIstAnders =
-          kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
-          kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
-
-        if (lieferAdresseIstAnders) {
+        // PLATZBAUER-PROJEKTE: Spezielle Behandlung
+        // - Rechnungsadresse = Platzbauer (bleibt aus projekt.kundenname/strasse/PlzOrt)
+        // - Lieferadresse = Verein (kunde.name + projekt.lieferadresse)
+        if (projekt?.istPlatzbauerprojekt) {
+          // Rechnungsadresse bleibt vom Projekt (Platzbauer) - keine Änderung!
+          // Nur Lieferadresse vom Kunden laden (Verein)
           lieferadresseAbweichend = true;
-          lieferadresseName = kunde.name;
-          lieferadresseStrasse = kunde.lieferadresse.strasse;
-          lieferadressePlzOrt = formatAdresszeile(
-            kunde.lieferadresse.plz,
-            kunde.lieferadresse.ort,
-            kunde.lieferadresse.land
+          lieferadresseName = kunde.name; // Vereinsname
+          lieferadresseStrasse = projekt?.lieferadresse?.strasse || kunde.lieferadresse?.strasse;
+          lieferadressePlzOrt = projekt?.lieferadresse
+            ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+            : formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
+          console.log('✅ Platzbauer-Projekt: Rechnungsadresse bleibt vom Platzbauer, Lieferadresse vom Verein:', kunde.name);
+        } else {
+          // NORMALE PROJEKTE: Rechnungsadresse vom Kunden übernehmen!
+          kundenname = kunde.name;
+          kundenstrasse = kunde.rechnungsadresse.strasse;
+          kundenPlzOrt = formatAdresszeile(
+            kunde.rechnungsadresse.plz,
+            kunde.rechnungsadresse.ort,
+            kunde.rechnungsadresse.land
           );
-        }
 
-        console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+          // LIEFERADRESSE vom Kunden (falls abweichend)
+          const lieferAdresseIstAnders =
+            kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
+            kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
+
+          if (lieferAdresseIstAnders) {
+            lieferadresseAbweichend = true;
+            lieferadresseName = kunde.name;
+            lieferadresseStrasse = kunde.lieferadresse.strasse;
+            lieferadressePlzOrt = formatAdresszeile(
+              kunde.lieferadresse.plz,
+              kunde.lieferadresse.ort,
+              kunde.lieferadresse.land
+            );
+          }
+
+          console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+        }
       }
 
       setRechnungsDaten(prev => ({

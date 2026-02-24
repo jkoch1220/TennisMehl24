@@ -160,14 +160,17 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           const gespeicherteDaten = ladeDokumentDaten<LieferscheinDaten>(dokument);
           if (gespeicherteDaten) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Dokument gespeichert
-            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend 
-              ? gespeicherteDaten.lieferadresseAbweichend 
+            const lieferadresseAbweichend = gespeicherteDaten.lieferadresseAbweichend
+              ? gespeicherteDaten.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = gespeicherteDaten.lieferadresseName 
-              ? gespeicherteDaten.lieferadresseName 
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse 
-              ? gespeicherteDaten.lieferadresseStrasse 
+            // Bei Platzbauer-Projekten: kunde.name ist der Verein (Lieferempfänger)
+            const lieferadresseName = gespeicherteDaten.lieferadresseName
+              ? gespeicherteDaten.lieferadresseName
+              : (projekt?.lieferadresse
+                ? (projekt?.istPlatzbauerprojekt && kunde?.name ? kunde.name : projekt.kundenname)
+                : undefined);
+            const lieferadresseStrasse = gespeicherteDaten.lieferadresseStrasse
+              ? gespeicherteDaten.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
             const lieferadressePlzOrt = gespeicherteDaten.lieferadressePlzOrt
               ? gespeicherteDaten.lieferadressePlzOrt
@@ -198,14 +201,17 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           const entwurf = await ladeEntwurf<LieferscheinDaten>(projekt.$id, 'lieferscheinDaten');
           if (entwurf) {
             // Übernehme Lieferadresse aus Projekt, falls nicht bereits im Entwurf gespeichert
-            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend 
-              ? entwurf.lieferadresseAbweichend 
+            const lieferadresseAbweichend = entwurf.lieferadresseAbweichend
+              ? entwurf.lieferadresseAbweichend
               : (projekt?.lieferadresse ? true : false);
-            const lieferadresseName = entwurf.lieferadresseName 
-              ? entwurf.lieferadresseName 
-              : (projekt?.lieferadresse ? projekt.kundenname : undefined);
-            const lieferadresseStrasse = entwurf.lieferadresseStrasse 
-              ? entwurf.lieferadresseStrasse 
+            // Bei Platzbauer-Projekten: kunde.name ist der Verein (Lieferempfänger)
+            const lieferadresseName = entwurf.lieferadresseName
+              ? entwurf.lieferadresseName
+              : (projekt?.lieferadresse
+                ? (projekt?.istPlatzbauerprojekt && kunde?.name ? kunde.name : projekt.kundenname)
+                : undefined);
+            const lieferadresseStrasse = entwurf.lieferadresseStrasse
+              ? entwurf.lieferadresseStrasse
               : (projekt?.lieferadresse?.strasse || undefined);
             const lieferadressePlzOrt = entwurf.lieferadressePlzOrt
               ? entwurf.lieferadressePlzOrt
@@ -351,7 +357,11 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
         
         // Übernehme Lieferadresse aus Projekt, falls vorhanden
         const lieferadresseAbweichend = projekt?.lieferadresse ? true : false;
-        const lieferadresseName = projekt?.lieferadresse ? projekt.kundenname : undefined;
+        // Bei Platzbauer-Projekten: kunde.name ist der Verein (Lieferempfänger)
+        // Bei normalen Projekten: projekt.kundenname ist der Kunde
+        const lieferadresseName = projekt?.lieferadresse
+          ? (projekt?.istPlatzbauerprojekt && kunde?.name ? kunde.name : projekt.kundenname)
+          : undefined;
         const lieferadresseStrasse = projekt?.lieferadresse?.strasse || undefined;
         const lieferadressePlzOrt = projekt?.lieferadresse
           ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
