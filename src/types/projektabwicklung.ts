@@ -12,6 +12,7 @@ export interface Position {
   streichpreisGrund?: string; // Optional - Grund für den Rabatt (z.B. "Neukundenaktion", "Frühbucherpreis")
   gesamtpreis: number;
   istBedarfsposition?: boolean; // Optional - Bedarfspositionen werden separat im Angebot angezeigt und NICHT in die Gesamtsumme eingerechnet
+  istUniversalArtikel?: boolean; // Optional - Markiert Positionen aus dem Universal-Artikelkatalog (für Filterung im Universal-Tab)
 }
 
 export interface LieferscheinPosition {

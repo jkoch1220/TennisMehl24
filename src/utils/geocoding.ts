@@ -411,14 +411,26 @@ export async function geocodePLZ(plz: string): Promise<[number, number] | null> 
 }
 
 /**
- * Hilfsfunktion: Adresse aus Projekt/Kunde extrahieren
+ * Hilfsfunktion: Adresse aus Projekt und/oder Kunde extrahieren
+ *
+ * Priorität:
+ * 1. Lieferadresse vom Projekt (falls vorhanden)
+ * 2. Lieferadresse vom SaisonKunde (WICHTIG: Das ist die Hauptquelle!)
+ * 3. kundenstrasse + kundenPlzOrt vom Projekt (Fallback)
  */
-export function extrahiereAdresse(projekt: {
-  lieferadresse?: { strasse?: string; plz?: string; ort?: string };
-  kundenstrasse?: string;
-  kundenPlzOrt?: string;
-}): { strasse: string; plz: string; ort: string } | null {
-  // Priorität 1: Lieferadresse
+export function extrahiereAdresse(
+  projekt: {
+    lieferadresse?: { strasse?: string; plz?: string; ort?: string };
+    kundenstrasse?: string;
+    kundenPlzOrt?: string;
+  },
+  kunde?: {
+    lieferadresse?: { strasse?: string; plz?: string; ort?: string };
+    rechnungsadresse?: { strasse?: string; plz?: string; ort?: string };
+    adresse?: { strasse?: string; plz?: string; ort?: string };
+  }
+): { strasse: string; plz: string; ort: string } | null {
+  // Priorität 1: Lieferadresse vom Projekt
   if (projekt.lieferadresse?.strasse && projekt.lieferadresse?.plz && projekt.lieferadresse?.ort) {
     return {
       strasse: projekt.lieferadresse.strasse,
@@ -427,7 +439,34 @@ export function extrahiereAdresse(projekt: {
     };
   }
 
-  // Priorität 2: Kundenstrasse + kundenPlzOrt
+  // Priorität 2: Lieferadresse vom SaisonKunde (HAUPTQUELLE!)
+  if (kunde?.lieferadresse?.strasse && kunde?.lieferadresse?.plz && kunde?.lieferadresse?.ort) {
+    return {
+      strasse: kunde.lieferadresse.strasse,
+      plz: kunde.lieferadresse.plz,
+      ort: kunde.lieferadresse.ort,
+    };
+  }
+
+  // Priorität 3: Rechnungsadresse vom Kunden (als Fallback)
+  if (kunde?.rechnungsadresse?.strasse && kunde?.rechnungsadresse?.plz && kunde?.rechnungsadresse?.ort) {
+    return {
+      strasse: kunde.rechnungsadresse.strasse,
+      plz: kunde.rechnungsadresse.plz,
+      ort: kunde.rechnungsadresse.ort,
+    };
+  }
+
+  // Priorität 4: Altes adresse-Feld vom Kunden (Backwards-Compatibility)
+  if (kunde?.adresse?.strasse && kunde?.adresse?.plz && kunde?.adresse?.ort) {
+    return {
+      strasse: kunde.adresse.strasse,
+      plz: kunde.adresse.plz,
+      ort: kunde.adresse.ort,
+    };
+  }
+
+  // Priorität 5: kundenstrasse + kundenPlzOrt vom Projekt (Fallback)
   if (projekt.kundenstrasse && projekt.kundenPlzOrt) {
     const plzMatch = projekt.kundenPlzOrt.match(/(\d{5})/);
     const plz = plzMatch ? plzMatch[1] : '';

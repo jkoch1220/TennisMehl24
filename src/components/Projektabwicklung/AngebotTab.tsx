@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown, Tag, Info } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -854,8 +854,8 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     const selectedArtikel = universalArtikel.find(a => a.$id === artikelId);
     if (!selectedArtikel) return;
 
-    // Universal: Großhändlerpreis ist der Einkaufspreis (EK), Katalogpreis ist der Listenpreis
-    const verkaufspreis = selectedArtikel.katalogPreisBrutto;
+    // Universal: Netto-Katalogpreis als Verkaufspreis, Großhändlerpreis als Einkaufspreis (EK)
+    const verkaufspreis = selectedArtikel.katalogPreisNetto;
     const einkaufspreis = selectedArtikel.grosshaendlerPreisNetto;
 
     const neuePosition: Position = {
@@ -868,6 +868,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       einzelpreis: verkaufspreis,
       einkaufspreis: einkaufspreis, // Großhändlerpreis als EK für DB1
       gesamtpreis: verkaufspreis,
+      istUniversalArtikel: true, // Markierung für Universal-Tab Filterung
     };
 
     setAngebotsDaten(prev => ({
@@ -1230,6 +1231,60 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     };
   })();
 
+  // Universal-Artikel Berechnung (für Rabattstaffelung-Hinweis)
+  const universalBerechnung = (() => {
+    const universalPositionen = regulaerePositionen.filter(
+      pos => pos.istUniversalArtikel === true || pos.beschreibung?.startsWith('Universal:')
+    );
+
+    if (universalPositionen.length === 0) {
+      return null;
+    }
+
+    const gesamtNetto = universalPositionen.reduce(
+      (sum, pos) => sum + (pos.einzelpreis * pos.menge),
+      0
+    );
+
+    // Rabattstaffelung bestimmen
+    let rabattProzent = 0;
+    let rabattStufe = '';
+    if (gesamtNetto >= 3000) {
+      rabattProzent = 16;
+      rabattStufe = 'ueber3000';
+    } else if (gesamtNetto >= 2700) {
+      rabattProzent = 14;
+      rabattStufe = '2700bis3000';
+    } else if (gesamtNetto >= 2300) {
+      rabattProzent = 12;
+      rabattStufe = '2300bis2699';
+    } else if (gesamtNetto >= 1900) {
+      rabattProzent = 10;
+      rabattStufe = '1900bis2299';
+    }
+
+    // Nächste Rabattstufe berechnen
+    let naechsteStufe = null;
+    if (gesamtNetto < 1900) {
+      naechsteStufe = { schwelle: 1900, prozent: 10, fehlend: 1900 - gesamtNetto };
+    } else if (gesamtNetto < 2300) {
+      naechsteStufe = { schwelle: 2300, prozent: 12, fehlend: 2300 - gesamtNetto };
+    } else if (gesamtNetto < 2700) {
+      naechsteStufe = { schwelle: 2700, prozent: 14, fehlend: 2700 - gesamtNetto };
+    } else if (gesamtNetto < 3000) {
+      naechsteStufe = { schwelle: 3000, prozent: 16, fehlend: 3000 - gesamtNetto };
+    }
+
+    return {
+      anzahl: universalPositionen.length,
+      gesamtNetto,
+      rabattProzent,
+      rabattStufe,
+      naechsteStufe,
+      potenzielleErsparnis: gesamtNetto * (rabattProzent / 100),
+    };
+  })();
+
   // Lade-Indikator
   if (initialLaden || ladeStatus === 'laden') {
     return (
@@ -1383,7 +1438,95 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             )}
           </div>
         )}
-        
+
+        {/* Universal-Artikel Rabattstaffelung Hinweis */}
+        {universalBerechnung && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg">
+                <Tag className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    Universal-Artikel Rabattstaffelung
+                  </h3>
+                  <span className="px-2 py-0.5 text-xs font-medium bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded-full">
+                    {universalBerechnung.anzahl} Artikel
+                  </span>
+                </div>
+
+                <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
+                  Aktueller Nettowert: <strong>{universalBerechnung.gesamtNetto.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</strong>
+                  {universalBerechnung.rabattProzent > 0 && (
+                    <span className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 rounded-full text-xs font-semibold">
+                      {universalBerechnung.rabattProzent}% Nachlass möglich!
+                    </span>
+                  )}
+                </p>
+
+                {/* Rabattstaffelung Tabelle */}
+                <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-3 border border-amber-100 dark:border-amber-900">
+                  <p className="text-xs text-amber-600 dark:text-amber-500 mb-2 font-medium flex items-center gap-1">
+                    <Info className="h-3 w-3" />
+                    Bei Auftragserteilung gewähren wir folgende Rabatte:
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className={`p-2 rounded-lg border transition-all ${
+                      universalBerechnung.rabattStufe === '1900bis2299'
+                        ? 'bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700 ring-2 ring-green-500'
+                        : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600'
+                    }`}>
+                      <div className="font-semibold text-gray-900 dark:text-white">10%</div>
+                      <div className="text-gray-600 dark:text-gray-400">1.900 - 2.299 €</div>
+                    </div>
+                    <div className={`p-2 rounded-lg border transition-all ${
+                      universalBerechnung.rabattStufe === '2300bis2699'
+                        ? 'bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700 ring-2 ring-green-500'
+                        : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600'
+                    }`}>
+                      <div className="font-semibold text-gray-900 dark:text-white">12%</div>
+                      <div className="text-gray-600 dark:text-gray-400">2.300 - 2.699 €</div>
+                    </div>
+                    <div className={`p-2 rounded-lg border transition-all ${
+                      universalBerechnung.rabattStufe === '2700bis3000'
+                        ? 'bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700 ring-2 ring-green-500'
+                        : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600'
+                    }`}>
+                      <div className="font-semibold text-gray-900 dark:text-white">14%</div>
+                      <div className="text-gray-600 dark:text-gray-400">2.700 - 2.999 €</div>
+                    </div>
+                    <div className={`p-2 rounded-lg border transition-all ${
+                      universalBerechnung.rabattStufe === 'ueber3000'
+                        ? 'bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700 ring-2 ring-green-500'
+                        : 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600'
+                    }`}>
+                      <div className="font-semibold text-gray-900 dark:text-white">16%</div>
+                      <div className="text-gray-600 dark:text-gray-400">ab 3.000 €</div>
+                    </div>
+                  </div>
+
+                  {/* Hinweis zur nächsten Stufe */}
+                  {universalBerechnung.naechsteStufe && (
+                    <p className="mt-3 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                      <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                      Noch <strong>{universalBerechnung.naechsteStufe.fehlend.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</strong> bis zur nächsten Stufe ({universalBerechnung.naechsteStufe.prozent}% ab {universalBerechnung.naechsteStufe.schwelle.toLocaleString('de-DE')} €)
+                    </p>
+                  )}
+
+                  {/* Potenzielle Ersparnis */}
+                  {universalBerechnung.rabattProzent > 0 && (
+                    <p className="mt-2 text-xs text-green-700 dark:text-green-400 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Potenzielle Ersparnis: {universalBerechnung.potenzielleErsparnis.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Angebotsinformationen */}
         <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-4 sm:p-6">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-dark-text mb-3 sm:mb-4">Angebotsinformationen</h2>

@@ -809,6 +809,106 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     return false;
   }, []);
 
+  // ALLE Projekte neu geocoden (für Migration von alten PLZ-Koordinaten)
+  const [reGeocodingInProgress, setReGeocodingInProgress] = useState(false);
+
+  const reGeocodeAlleProjekte = useCallback(async () => {
+    if (reGeocodingInProgress) return;
+
+    // Finde alle Projekte mit vollständiger Adresse (inkl. Kunde!)
+    const mitAdresse = projekte.filter(p => {
+      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : undefined;
+      const adresse = extrahiereAdresse(p, kunde);
+      return adresse && adresse.strasse && adresse.plz;
+    });
+
+    if (mitAdresse.length === 0) {
+      alert('Keine Projekte mit Adresse gefunden!');
+      return;
+    }
+
+    const bestaetigt = window.confirm(
+      `ALLE ${mitAdresse.length} Projekte neu geocoden?\n\n` +
+      `Dies überschreibt alle bestehenden Koordinaten mit neuen Google-Geocoding-Ergebnissen.\n\n` +
+      `Fortfahren?`
+    );
+
+    if (!bestaetigt) return;
+
+    setReGeocodingInProgress(true);
+    setHintergrundGeocodingFortschritt({ done: 0, total: mitAdresse.length });
+
+    try {
+      // Bereite Batch vor (mit Lieferadresse vom Kunden!)
+      const adressen = mitAdresse
+        .map(p => {
+          const kunde = p.kundeId ? kundenMap.get(p.kundeId) : undefined;
+          const adresse = extrahiereAdresse(p, kunde);
+          if (!adresse) return null;
+          return {
+            id: (p as any).$id || p.id,
+            strasse: adresse.strasse,
+            plz: adresse.plz,
+            ort: adresse.ort,
+          };
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null);
+
+      console.log(`🔄 Re-Geocoding: Starte für ${adressen.length} Projekte...`);
+      const startTime = Date.now();
+
+      // Google Batch-Geocoding
+      const googleErgebnisse = await geocodeBatchMitGoogle(adressen);
+
+      const endTime = Date.now();
+      console.log(`✅ Re-Geocoding API fertig in ${((endTime - startTime) / 1000).toFixed(1)}s`);
+
+      // Speichere alle Ergebnisse
+      let erfolgreich = 0;
+      let probleme = 0;
+      const projektMap = new Map(mitAdresse.map(p => [(p as any).$id || p.id, p]));
+
+      for (const [projektId, result] of googleErgebnisse) {
+        const projekt = projektMap.get(projektId);
+        if (!projekt) continue;
+
+        try {
+          // Speichere in Appwrite (auch niedrige Confidence - besser als PLZ!)
+          const quelle = result.confidence === 'hoch' || result.confidence === 'mittel' ? 'exakt' : 'plz';
+          await projektService.updateProjektKoordinaten(projektId, result.koordinaten, quelle);
+
+          // Update lokalen State
+          setGeocodedPositions(prev => {
+            const next = new Map(prev);
+            next.set(projektId, { lat: result.koordinaten[1], lng: result.koordinaten[0] });
+            return next;
+          });
+
+          erfolgreich++;
+          console.log(`✅ ${projekt.kundenname}: ${result.formattedAddress} (${result.confidence})`);
+        } catch (saveError) {
+          console.warn(`Speicherfehler für ${projekt.kundenname}:`, saveError);
+          probleme++;
+        }
+
+        setHintergrundGeocodingFortschritt({
+          done: erfolgreich + probleme,
+          total: adressen.length
+        });
+      }
+
+      console.log(`📊 Re-Geocoding fertig: ${erfolgreich} erfolgreich, ${probleme} Fehler`);
+      alert(`Re-Geocoding abgeschlossen!\n\n${erfolgreich} Projekte aktualisiert\n${probleme} Fehler\n\nBitte Seite neu laden um die neuen Positionen zu sehen.`);
+
+    } catch (error) {
+      console.error('Re-Geocoding Fehler:', error);
+      alert('Fehler beim Re-Geocoding: ' + (error as Error).message);
+    } finally {
+      setReGeocodingInProgress(false);
+      setHintergrundGeocodingFortschritt(null);
+    }
+  }, [projekte, kundenMap, reGeocodingInProgress]);
+
   // Hintergrund-Geocoding für Projekte ohne exakte Koordinaten
   // Verwendet Google Geocoding API (schnell, parallel, genau)
   useEffect(() => {
@@ -831,11 +931,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       if (p.kundenstrasse) {
         mitKundenstrasse++;
       }
-      const adresse = extrahiereAdresse(p);
+      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : undefined;
+      const adresse = extrahiereAdresse(p, kunde);
       if (!adresse || !adresse.strasse) {
         ohneAdresse++;
         console.log(`⚠️ Keine vollständige Adresse für ${p.kundenname}:`, {
-          lieferadresse: p.lieferadresse,
+          projektLieferadresse: p.lieferadresse,
+          kundenLieferadresse: kunde?.lieferadresse,
           kundenstrasse: p.kundenstrasse,
           kundenPlzOrt: p.kundenPlzOrt
         });
@@ -852,8 +954,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     const zuGeocoden = projekte.filter(p => {
       // Bereits exakt? -> überspringen
       if (p.koordinatenQuelle === 'exakt' || p.koordinatenQuelle === 'manuell') return false;
-      // Hat keine Lieferadresse? -> überspringen
-      const adresse = extrahiereAdresse(p);
+      // Hat keine Lieferadresse? -> überspringen (Kunde berücksichtigen!)
+      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : undefined;
+      const adresse = extrahiereAdresse(p, kunde);
       if (!adresse || !adresse.strasse) return false;
       return true;
     });
@@ -868,10 +971,11 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       const neueProbleme: Projekt[] = [];
       const projektMap = new Map(zuGeocoden.map(p => [(p as any).$id || p.id, p]));
 
-      // Bereite Batch für Google Geocoding vor
+      // Bereite Batch für Google Geocoding vor (Kunde-Lieferadresse!)
       const adressen = zuGeocoden
         .map(p => {
-          const adresse = extrahiereAdresse(p);
+          const kunde = p.kundeId ? kundenMap.get(p.kundeId) : undefined;
+          const adresse = extrahiereAdresse(p, kunde);
           if (!adresse) return null;
           return {
             id: (p as any).$id || p.id,
@@ -958,7 +1062,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     // Kurze Verzögerung damit Google Maps API sicher geladen ist
     const timeoutId = setTimeout(geocodeImHintergrund, 1000);
     return () => clearTimeout(timeoutId);
-  }, [isLoaded, projekte]); // Reagiert auf Projekte-Änderungen
+  }, [isLoaded, projekte, kundenMap]); // Reagiert auf Projekte- und Kunden-Änderungen
 
   // === RENDER ===
 
@@ -1046,6 +1150,21 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
             {totalStats.problemAdressen} Adressen prüfen
           </button>
         )}
+
+        {/* Re-Geocoding Button (Admin-Funktion) */}
+        <button
+          onClick={reGeocodeAlleProjekte}
+          disabled={reGeocodingInProgress}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all bg-purple-100 text-purple-800 hover:bg-purple-200 disabled:opacity-50"
+          title="Alle Adressen neu mit Google geocoden"
+        >
+          {reGeocodingInProgress ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RotateCcw className="w-4 h-4" />
+          )}
+          Alle neu geocoden
+        </button>
 
         {/* Touren Steuerung */}
         <div className="flex items-center gap-2 border-l border-gray-200 dark:border-slate-700 pl-4">
