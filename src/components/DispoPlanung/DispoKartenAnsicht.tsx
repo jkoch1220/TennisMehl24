@@ -37,7 +37,10 @@ import { Projekt, DispoStatus, Belieferungsart } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Tour } from '../../types/tour';
 import { tourenService } from '../../services/tourenService';
+import { projektService } from '../../services/projektService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
+import { geocodeBatchMitGoogle, extrahiereAdresse } from '../../utils/geocoding';
+import { AdressKorrekturModal } from './AdressKorrekturModal';
 // ZERO API COST - PLZ-basiertes Geocoding!
 import { getKoordinatenFuerPLZ } from '../../data/plzKoordinaten';
 
@@ -131,6 +134,7 @@ interface Props {
   onProjektClick?: (projekt: Projekt) => void;
   onBuchen?: (projektId: string, tourId: string, tonnen: number) => Promise<void>;
   onNeueTour?: (name: string, lkwTyp: 'motorwagen' | 'mit_haenger', kapazitaet: number) => Promise<string>;
+  onProjektUpdate?: (projekt: Projekt) => void; // Callback wenn Projekt aktualisiert wurde
 }
 
 interface GeocodeCache {
@@ -343,7 +347,7 @@ const getMarkerSize = (tonnen: number): number => {
 
 // === COMPONENT ===
 
-const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onNeueTour }: Props) => {
+const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onNeueTour, onProjektUpdate }: Props) => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     language: 'de',
@@ -387,6 +391,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   const [geocodedPositions, setGeocodedPositions] = useState<Map<string, google.maps.LatLngLiteral>>(new Map());
   const [geocodingInProgress, setGeocodingInProgress] = useState(false);
   const geocodeCacheRef = useRef<GeocodeCache>(loadGeocodeCache());
+
+  // Adress-Korrektur Modal State
+  const [adressModalOpen, setAdressModalOpen] = useState(false);
+  const [adressModalProjekt, setAdressModalProjekt] = useState<Projekt | null>(null);
+  const [problemAdressen, setProblemAdressen] = useState<Projekt[]>([]);
+  const [showProblemAdressenPanel, setShowProblemAdressenPanel] = useState(false);
+  const [hintergrundGeocodingFortschritt, setHintergrundGeocodingFortschritt] = useState<{ done: number; total: number } | null>(null);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -552,12 +563,22 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   }, [gefilterteProjekte]);
 
   // Gesamt-Stats
-  const totalStats = useMemo(() => ({
-    count: gefilterteProjekte.length,
-    tonnen: gefilterteProjekte.reduce((s, p) => s + p.tonnen, 0),
-    ohneKoordinaten: projekte.length - projekteMitKoordinaten.length,
-    geocoding: geocodingInProgress,
-  }), [gefilterteProjekte, projekte.length, projekteMitKoordinaten.length, geocodingInProgress]);
+  const totalStats = useMemo(() => {
+    // Zähle ungenaue Positionen (PLZ-Fallback)
+    const ungenauePositionen = gefilterteProjekte.filter(p =>
+      p.projekt.koordinatenQuelle === 'plz' || (!p.projekt.koordinaten && !p.projekt.koordinatenQuelle)
+    ).length;
+
+    return {
+      count: gefilterteProjekte.length,
+      tonnen: gefilterteProjekte.reduce((s, p) => s + p.tonnen, 0),
+      ohneKoordinaten: projekte.length - projekteMitKoordinaten.length,
+      ungenauePositionen,
+      problemAdressen: problemAdressen.length,
+      geocoding: geocodingInProgress,
+      hintergrundGeocoding: hintergrundGeocodingFortschritt,
+    };
+  }, [gefilterteProjekte, projekte.length, projekteMitKoordinaten.length, geocodingInProgress, problemAdressen.length, hintergrundGeocodingFortschritt]);
 
   // Clustering bei niedrigem Zoom
   const clusters = useMemo<PLZCluster[]>(() => {
@@ -721,6 +742,177 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     return gefilterteProjekte.find((p) => ((p.projekt as any).$id || p.projekt.id) === selectedId) || null;
   }, [selectedId, gefilterteProjekte]);
 
+  // === ADRESS-KORREKTUR HANDLERS ===
+
+  // Öffnet das Modal für ein Projekt
+  const openAdressKorrekturModal = useCallback((projekt: Projekt) => {
+    setAdressModalProjekt(projekt);
+    setAdressModalOpen(true);
+  }, []);
+
+  // Speichert Koordinaten für ein Projekt
+  const handleSaveKoordinaten = useCallback(async (
+    projektId: string,
+    koordinaten: [number, number],
+    quelle: 'exakt' | 'plz' | 'manuell'
+  ) => {
+    try {
+      const aktualisiertesProjekt = await projektService.updateProjektKoordinaten(projektId, koordinaten, quelle);
+
+      // Aktualisiere die lokalen Positionen
+      setGeocodedPositions(prev => {
+        const next = new Map(prev);
+        next.set(projektId, { lat: koordinaten[1], lng: koordinaten[0] });
+        return next;
+      });
+
+      // Entferne aus Problem-Adressen
+      setProblemAdressen(prev => prev.filter(p => ((p as any).$id || p.id) !== projektId));
+
+      // Callback für Parent-Komponente
+      if (onProjektUpdate) {
+        onProjektUpdate(aktualisiertesProjekt);
+      }
+
+      console.log(`✅ Koordinaten für ${projektId} gespeichert:`, koordinaten, quelle);
+    } catch (error) {
+      console.error('Fehler beim Speichern der Koordinaten:', error);
+      throw error;
+    }
+  }, [onProjektUpdate]);
+
+  // Prüft ob ein Projekt eine ungenaue Position hat (PLZ-Fallback oder keine Koordinaten)
+  const hatUngenauePosition = useCallback((projekt: Projekt): boolean => {
+    // Hat exakte Koordinaten? -> nicht ungenau
+    if (projekt.koordinatenQuelle === 'exakt' || projekt.koordinatenQuelle === 'manuell') {
+      return false;
+    }
+    // Hat PLZ-Fallback? -> ungenau
+    if (projekt.koordinatenQuelle === 'plz') {
+      return true;
+    }
+    // Keine Koordinaten gespeichert? -> prüfe ob exakte Koordinaten existieren
+    if (!projekt.koordinaten) {
+      return true;
+    }
+    return false;
+  }, []);
+
+  // Hintergrund-Geocoding für Projekte ohne exakte Koordinaten
+  // Verwendet Google Geocoding API (schnell, parallel, genau)
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // Finde Projekte ohne Koordinaten oder mit PLZ-Fallback
+    const zuGeocoden = projekte.filter(p => {
+      // Bereits exakt? -> überspringen
+      if (p.koordinatenQuelle === 'exakt' || p.koordinatenQuelle === 'manuell') return false;
+      // Hat keine Lieferadresse? -> überspringen
+      const adresse = extrahiereAdresse(p);
+      if (!adresse || !adresse.strasse) return false;
+      return true;
+    });
+
+    if (zuGeocoden.length === 0) return;
+
+    // Starte Hintergrund-Geocoding mit Google API (SCHNELL!)
+    const geocodeImHintergrund = async () => {
+      setHintergrundGeocodingFortschritt({ done: 0, total: zuGeocoden.length });
+      const neueProbleme: Projekt[] = [];
+      const projektMap = new Map(zuGeocoden.map(p => [(p as any).$id || p.id, p]));
+
+      // Bereite Batch für Google Geocoding vor
+      const adressen = zuGeocoden
+        .map(p => {
+          const adresse = extrahiereAdresse(p);
+          if (!adresse) return null;
+          return {
+            id: (p as any).$id || p.id,
+            strasse: adresse.strasse,
+            plz: adresse.plz,
+            ort: adresse.ort,
+          };
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null);
+
+      console.log(`🚀 Starte Google Batch-Geocoding für ${adressen.length} Adressen...`);
+      const startTime = Date.now();
+
+      try {
+        // Google Batch-Geocoding (parallelisiert, ~10 gleichzeitig)
+        const googleErgebnisse = await geocodeBatchMitGoogle(adressen);
+
+        const endTime = Date.now();
+        console.log(`✅ Google Batch-Geocoding fertig in ${((endTime - startTime) / 1000).toFixed(1)}s`);
+
+        // Verarbeite Ergebnisse
+        let erfolgreich = 0;
+        let probleme = 0;
+
+        for (const [projektId, result] of googleErgebnisse) {
+          const projekt = projektMap.get(projektId);
+          if (!projekt) continue;
+
+          if (result.confidence === 'hoch' || result.confidence === 'mittel') {
+            // Gute Confidence -> automatisch speichern
+            try {
+              await projektService.updateProjektKoordinaten(projektId, result.koordinaten, 'exakt');
+
+              setGeocodedPositions(prev => {
+                const next = new Map(prev);
+                next.set(projektId, { lat: result.koordinaten[1], lng: result.koordinaten[0] });
+                return next;
+              });
+
+              erfolgreich++;
+              console.log(`✅ ${projekt.kundenname}: ${result.formattedAddress} (${result.confidence})`);
+            } catch (saveError) {
+              console.warn(`Speicherfehler für ${projekt.kundenname}:`, saveError);
+              neueProbleme.push(projekt);
+              probleme++;
+            }
+          } else {
+            // Niedrige Confidence -> Problem-Liste
+            neueProbleme.push(projekt);
+            probleme++;
+            console.log(`⚠️ ${projekt.kundenname}: Nur ${result.confidence} Confidence`);
+          }
+
+          setHintergrundGeocodingFortschritt({
+            done: erfolgreich + probleme,
+            total: adressen.length
+          });
+        }
+
+        // Projekte die Google nicht gefunden hat
+        for (const adresse of adressen) {
+          if (!googleErgebnisse.has(adresse.id)) {
+            const projekt = projektMap.get(adresse.id);
+            if (projekt) {
+              neueProbleme.push(projekt);
+              probleme++;
+              console.log(`❌ ${projekt.kundenname}: Keine Google-Ergebnisse`);
+            }
+          }
+        }
+
+        console.log(`📊 Geocoding-Zusammenfassung: ${erfolgreich} erfolgreich, ${probleme} Probleme`);
+
+      } catch (error) {
+        console.error('Google Batch-Geocoding Fehler:', error);
+        // Bei komplettem Fehler: Alle als Problem markieren
+        zuGeocoden.forEach(p => neueProbleme.push(p));
+      }
+
+      setProblemAdressen(prev => [...prev, ...neueProbleme]);
+      setHintergrundGeocodingFortschritt(null);
+    };
+
+    // Kurze Verzögerung damit Google Maps API sicher geladen ist
+    const timeoutId = setTimeout(geocodeImHintergrund, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [isLoaded]); // Absichtlich nur isLoaded als Dependency
+
   // === RENDER ===
 
   if (loadError) {
@@ -783,9 +975,30 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                   {totalStats.ohneKoordinaten} ohne Position
                 </span>
               )}
+              {totalStats.hintergrundGeocoding && (
+                <span className="text-blue-500 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Prüfe Adressen ({totalStats.hintergrundGeocoding.done}/{totalStats.hintergrundGeocoding.total})
+                </span>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Problem-Adressen Button */}
+        {totalStats.problemAdressen > 0 && (
+          <button
+            onClick={() => setShowProblemAdressenPanel(!showProblemAdressenPanel)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              showProblemAdressenPanel
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {totalStats.problemAdressen} Adressen prüfen
+          </button>
+        )}
 
         {/* Touren Steuerung */}
         <div className="flex items-center gap-2 border-l border-gray-200 dark:border-slate-700 pl-4">
@@ -1206,6 +1419,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
               const isHover = hoveredId === id;
               const istGeliefert = status === 'geliefert';
 
+              // Prüfe ob Position ungenau ist (PLZ-Fallback oder keine gespeicherten Koordinaten)
+              const istUngenau = hatUngenauePosition(item.projekt);
+
               // Marker-Farbe basierend auf Belieferungsart (simpel)
               const belieferungsart = item.projekt.belieferungsart;
               const markerFarbe = belieferungsart && BELIEFERUNGSART_FARBEN[belieferungsart]
@@ -1226,9 +1442,23 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                     onClick={(e) => { e.stopPropagation(); selectProjekt(item); }}
                   >
                     <div className={`relative transition-all duration-150 ${isActive || isHover ? 'z-50 -translate-y-2' : 'z-10'}`}>
+                      {/* Warnsymbol für ungenaue Position */}
+                      {istUngenau && (
+                        <div
+                          className="absolute -top-1 -right-1 z-10 w-4 h-4 bg-amber-400 rounded-full border border-white shadow flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAdressKorrekturModal(item.projekt);
+                          }}
+                          title="Position ungenau - Klicken zum Korrigieren"
+                        >
+                          <span className="text-[9px] font-bold text-amber-900">!</span>
+                        </div>
+                      )}
+
                       {/* Marker */}
                       <div
-                        className={`rounded-xl flex items-center justify-center border-2 border-white ${status === 'offen' && !isActive ? 'animate-pulse' : ''}`}
+                        className={`rounded-xl flex items-center justify-center border-2 ${istUngenau ? 'border-amber-400' : 'border-white'} ${status === 'offen' && !isActive ? 'animate-pulse' : ''}`}
                         style={{
                           width: size,
                           height: size,
@@ -1237,6 +1467,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                             ? `0 0 0 3px ${markerFarbe.hex}50, 0 8px 25px rgba(0,0,0,0.3)`
                             : isHover
                             ? `0 4px 15px rgba(0,0,0,0.25)`
+                            : istUngenau
+                            ? '0 2px 8px rgba(251, 191, 36, 0.4)'
                             : '0 2px 8px rgba(0,0,0,0.2)',
                           transform: isActive ? 'scale(1.2)' : isHover ? 'scale(1.1)' : 'scale(1)',
                           transition: 'all 150ms ease',
@@ -1285,7 +1517,12 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                               </span>
                               {istGeliefert && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500 text-white font-medium">
-                                  Geliefert ✓
+                                  Geliefert
+                                </span>
+                              )}
+                              {istUngenau && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900 font-medium">
+                                  Position ungenau
                                 </span>
                               )}
                               {item.tonnen > 0 && <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{item.tonnen}t</span>}
@@ -1751,10 +1988,83 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                 </div>
                 <span className="text-[10px] text-gray-600 dark:text-gray-400">Geliefert</span>
               </div>
+              {/* Warnsymbol für ungenaue Position */}
+              <div className="border-l border-gray-200 dark:border-slate-700 pl-3 flex items-center gap-1">
+                <div className="w-3.5 h-3.5 rounded-full bg-amber-400 flex items-center justify-center">
+                  <span className="text-[8px] font-bold text-amber-900">!</span>
+                </div>
+                <span className="text-[10px] text-gray-600 dark:text-gray-400">Position ungenau</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Problem-Adressen Panel (Overlay) */}
+      {showProblemAdressenPanel && problemAdressen.length > 0 && (
+        <div className="absolute top-16 right-4 z-30 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-200 dark:border-slate-700 w-96 max-h-[60vh] overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-amber-50 dark:bg-amber-900/30 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <span className="font-semibold text-amber-800 dark:text-amber-200">
+                {problemAdressen.length} Adressen prüfen
+              </span>
+            </div>
+            <button
+              onClick={() => setShowProblemAdressenPanel(false)}
+              className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-full transition-colors"
+            >
+              <X className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+            </button>
+          </div>
+
+          <div className="overflow-y-auto flex-1 divide-y divide-gray-100 dark:divide-slate-700">
+            {problemAdressen.map((projekt) => {
+              const projektId = (projekt as any).$id || projekt.id;
+              return (
+                <div
+                  key={projektId}
+                  className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
+                  onClick={() => openAdressKorrekturModal(projekt)}
+                >
+                  <div className="font-medium text-gray-900 dark:text-white text-sm">
+                    {projekt.kundenname}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {projekt.lieferadresse ? (
+                      <>
+                        {projekt.lieferadresse.strasse}, {projekt.lieferadresse.plz} {projekt.lieferadresse.ort}
+                      </>
+                    ) : (
+                      <>
+                        {projekt.kundenstrasse}, {projekt.kundenPlzOrt}
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                      Klicken zum Korrigieren
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Adress-Korrektur Modal */}
+      {adressModalProjekt && (
+        <AdressKorrekturModal
+          isOpen={adressModalOpen}
+          onClose={() => {
+            setAdressModalOpen(false);
+            setAdressModalProjekt(null);
+          }}
+          projekt={adressModalProjekt}
+          onSave={handleSaveKoordinaten}
+        />
+      )}
     </div>
   );
 };

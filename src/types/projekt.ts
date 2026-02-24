@@ -148,6 +148,16 @@ export interface Projekt {
   routeId?: string;
   positionInRoute?: number;
 
+  // === KOORDINATEN (für Kartenansicht) ===
+  // Geocodierte Koordinaten [longitude, latitude]
+  koordinaten?: [number, number];
+
+  // Quelle der Koordinaten: 'exakt' = genaue Adresse, 'plz' = PLZ-Zentrum, 'manuell' = vom Nutzer gesetzt
+  koordinatenQuelle?: 'exakt' | 'plz' | 'manuell';
+
+  // Flag: Adresse konnte nicht eindeutig geocodiert werden
+  adresseUnbekannt?: boolean;
+
   // Lieferdetails
   anzahlPaletten?: number;
   liefergewicht?: number; // in Tonnen

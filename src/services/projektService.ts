@@ -473,6 +473,38 @@ class ProjektService {
       throw error;
     }
   }
+
+  // Koordinaten eines Projekts aktualisieren (für Geocoding)
+  async updateProjektKoordinaten(
+    projektId: string,
+    koordinaten: [number, number],
+    quelle: 'exakt' | 'plz' | 'manuell'
+  ): Promise<Projekt> {
+    try {
+      return await this.updateProjekt(projektId, {
+        koordinaten,
+        koordinatenQuelle: quelle,
+        adresseUnbekannt: false,
+      });
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Koordinaten:', error);
+      throw error;
+    }
+  }
+
+  // Markiere Projekt als "Adresse unbekannt"
+  async markiereAdresseUnbekannt(projektId: string): Promise<Projekt> {
+    try {
+      return await this.updateProjekt(projektId, {
+        koordinaten: undefined,
+        koordinatenQuelle: undefined,
+        adresseUnbekannt: true,
+      });
+    } catch (error) {
+      console.error('Fehler beim Markieren der Adresse als unbekannt:', error);
+      throw error;
+    }
+  }
 }
 
 export const projektService = new ProjektService();
