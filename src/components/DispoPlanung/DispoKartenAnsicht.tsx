@@ -230,15 +230,26 @@ const smartGeocode = (
   projekt: Projekt,
   kunde?: SaisonKunde
 ): google.maps.LatLngLiteral | null => {
-  // Strategie 1: Existierende Koordinaten (SOFORT)
+  // PRIORITÄT 1: Gespeicherte Koordinaten vom PROJEKT (aus Appwrite)
+  // Dies sind die genauen Google-Geocoding-Ergebnisse!
+  if (projekt.koordinaten && Array.isArray(projekt.koordinaten) && projekt.koordinaten.length >= 2) {
+    const [lon, lat] = projekt.koordinaten;
+    // Validiere: In Deutschland?
+    if (typeof lat === 'number' && typeof lon === 'number' &&
+        lat >= 47 && lat <= 56 && lon >= 5 && lon <= 16) {
+      return { lat, lng: lon };
+    }
+  }
+
+  // Priorität 2: Existierende Koordinaten vom Kunden
   const existing = getExistingCoordinates(projekt, kunde);
   if (existing) return existing;
 
-  // Strategie 2: PLZ-Lookup (SOFORT, ZERO COST!)
+  // Priorität 3: PLZ-Lookup (Fallback, ungenau)
   const plzCoords = geocodeByPLZFast(projekt, kunde);
   if (plzCoords) return plzCoords;
 
-  // Strategie 3: Würde Google API brauchen - wird separat behandelt
+  // Keine Koordinaten gefunden
   return null;
 };
 
@@ -803,6 +814,40 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   useEffect(() => {
     if (!isLoaded) return;
 
+    // DEBUG: Analysiere alle Projekte
+    console.log('📊 Projekt-Analyse:');
+    let mitExaktenKoords = 0;
+    let mitLieferadresse = 0;
+    let mitKundenstrasse = 0;
+    let ohneAdresse = 0;
+
+    projekte.forEach(p => {
+      if (p.koordinatenQuelle === 'exakt' || p.koordinatenQuelle === 'manuell') {
+        mitExaktenKoords++;
+      }
+      if (p.lieferadresse?.strasse) {
+        mitLieferadresse++;
+      }
+      if (p.kundenstrasse) {
+        mitKundenstrasse++;
+      }
+      const adresse = extrahiereAdresse(p);
+      if (!adresse || !adresse.strasse) {
+        ohneAdresse++;
+        console.log(`⚠️ Keine vollständige Adresse für ${p.kundenname}:`, {
+          lieferadresse: p.lieferadresse,
+          kundenstrasse: p.kundenstrasse,
+          kundenPlzOrt: p.kundenPlzOrt
+        });
+      }
+    });
+
+    console.log(`📊 Zusammenfassung: ${projekte.length} Projekte total`);
+    console.log(`   - ${mitExaktenKoords} mit exakten Koordinaten`);
+    console.log(`   - ${mitLieferadresse} mit Lieferadresse.strasse`);
+    console.log(`   - ${mitKundenstrasse} mit kundenstrasse`);
+    console.log(`   - ${ohneAdresse} ohne vollständige Adresse (werden übersprungen)`);
+
     // Finde Projekte ohne Koordinaten oder mit PLZ-Fallback
     const zuGeocoden = projekte.filter(p => {
       // Bereits exakt? -> überspringen
@@ -812,6 +857,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       if (!adresse || !adresse.strasse) return false;
       return true;
     });
+
+    console.log(`🎯 ${zuGeocoden.length} Projekte zum Geocoden`);
 
     if (zuGeocoden.length === 0) return;
 
@@ -911,7 +958,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     // Kurze Verzögerung damit Google Maps API sicher geladen ist
     const timeoutId = setTimeout(geocodeImHintergrund, 1000);
     return () => clearTimeout(timeoutId);
-  }, [isLoaded]); // Absichtlich nur isLoaded als Dependency
+  }, [isLoaded, projekte]); // Reagiert auf Projekte-Änderungen
 
   // === RENDER ===
 
