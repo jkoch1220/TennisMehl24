@@ -29,6 +29,7 @@ import {
   Hash,
   Map as MapIcon,
   Droplets,
+  Users,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -143,6 +144,9 @@ const ProjektVerwaltung = () => {
   );
   const [kundenMap, setKundenMap] = useState<Map<string, SaisonKunde>>(new Map());
 
+  // Filter: Platzbauer-Projekte anzeigen
+  const [showPlatzbauerprojekte, setShowPlatzbauerprojekte] = useState(false);
+
   // Wrapper-Funktionen die auch in Session Storage speichern
   const setViewMode = useCallback((mode: ViewMode) => {
     setViewModeState(mode);
@@ -205,12 +209,21 @@ const ProjektVerwaltung = () => {
 
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    // Schritt 1: Platzbauer-Projekte ausfiltern
+    // Schritt 1: Platzbauer-Projekte filtern (je nach Toggle)
     let gefiltert = projekte.filter(p => {
-      if (p.istPlatzbauerprojekt) return false;
+      const istPlatzbauer = p.istPlatzbauerprojekt === true;
       const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
-      if (kunde?.typ === 'platzbauer') return false;
-      return true;
+      const kundeIstPlatzbauer = kunde?.typ === 'platzbauer';
+
+      if (showPlatzbauerprojekte) {
+        // Nur Platzbauer-Projekte anzeigen
+        return istPlatzbauer;
+      } else {
+        // Platzbauer-Projekte ausblenden (Standard)
+        if (istPlatzbauer) return false;
+        if (kundeIstPlatzbauer) return false;
+        return true;
+      }
     });
 
     // ============================================
@@ -251,7 +264,7 @@ const ProjektVerwaltung = () => {
     }
 
     return gefiltert;
-  }, [suche, nummerSuche, kundenMap]);
+  }, [suche, nummerSuche, kundenMap, showPlatzbauerprojekte]);
 
   // Alle Projekte mit Angebot für die Angebotsliste
   const angebotsProjekte = useMemo(() => {
@@ -574,6 +587,20 @@ const ProjektVerwaltung = () => {
                 </button>
               )}
             </div>
+
+            {/* Platzbauer-Filter Toggle */}
+            <button
+              onClick={() => setShowPlatzbauerprojekte(!showPlatzbauerprojekte)}
+              className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
+                showPlatzbauerprojekte
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+              }`}
+              title={showPlatzbauerprojekte ? 'Normale Projekte anzeigen' : 'Platzbauer-Projekte anzeigen'}
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Platzbauer</span>
+            </button>
 
             {/* Ansicht umschalten */}
             <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden">
