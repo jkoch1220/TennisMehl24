@@ -1594,6 +1594,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                 ? BELIEFERUNGSART_FARBEN[belieferungsart]
                 : BELIEFERUNGSART_FARBEN.default;
 
+              // Platzbauer-Projekt Flag
+              const istPlatzbauerprojekt = item.projekt.istPlatzbauerprojekt === true;
+
               return (
                 <OverlayViewF
                   key={id}
@@ -1608,6 +1611,16 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                     onClick={(e) => { e.stopPropagation(); selectProjekt(item); }}
                   >
                     <div className={`relative transition-all duration-150 ${isActive || isHover ? 'z-50 -translate-y-2' : 'z-10'}`}>
+                      {/* Platzbauer-Badge oben links */}
+                      {istPlatzbauerprojekt && (
+                        <div
+                          className="absolute -top-1 -left-1 z-10 w-4 h-4 bg-orange-400 rounded-full border border-white shadow flex items-center justify-center"
+                          title="Platzbauer-Projekt"
+                        >
+                          <Users className="w-2.5 h-2.5 text-orange-900" />
+                        </div>
+                      )}
+
                       {/* Warnsymbol für ungenaue Position */}
                       {istUngenau && (
                         <div
@@ -1624,7 +1637,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
                       {/* Marker */}
                       <div
-                        className={`rounded-xl flex items-center justify-center border-2 ${istUngenau ? 'border-amber-400' : 'border-white'} ${status === 'offen' && !isActive ? 'animate-pulse' : ''}`}
+                        className={`rounded-xl flex items-center justify-center border-2 ${
+                          istPlatzbauerprojekt
+                            ? 'border-orange-400'
+                            : istUngenau
+                            ? 'border-amber-400'
+                            : 'border-white'
+                        } ${status === 'offen' && !isActive ? 'animate-pulse' : ''}`}
                         style={{
                           width: size,
                           height: size,
@@ -1633,6 +1652,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                             ? `0 0 0 3px ${markerFarbe.hex}50, 0 8px 25px rgba(0,0,0,0.3)`
                             : isHover
                             ? `0 4px 15px rgba(0,0,0,0.25)`
+                            : istPlatzbauerprojekt
+                            ? '0 2px 8px rgba(251, 146, 60, 0.5)'
                             : istUngenau
                             ? '0 2px 8px rgba(251, 191, 36, 0.4)'
                             : '0 2px 8px rgba(0,0,0,0.2)',
@@ -1645,6 +1666,16 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
+                        ) : istPlatzbauerprojekt ? (
+                          // Platzbauer-Icon: Personen-Symbol + Tonnage
+                          <div className="flex flex-col items-center">
+                            <Users className="w-3 h-3 text-white" />
+                            {item.tonnen > 0 && (
+                              <span className="text-white font-bold text-[8px] leading-none select-none">
+                                {Math.round(item.tonnen)}t
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-white font-bold text-[11px] leading-none select-none drop-shadow-sm">
                             {item.tonnen > 0 ? `${Math.round(item.tonnen)}t` : '?'}
@@ -1684,6 +1715,11 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                               {istGeliefert && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-500 text-white font-medium">
                                   Geliefert
+                                </span>
+                              )}
+                              {istPlatzbauerprojekt && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-400 text-orange-900 font-medium">
+                                  Platzbauer
                                 </span>
                               )}
                               {istUngenau && (

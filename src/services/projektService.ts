@@ -5,6 +5,13 @@ import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 
+// Optionen für Projekt-Erstellung
+export interface CreateProjektOptions {
+  // Wenn true, wird KEINE automatische Zuordnung zu PlatzbauerProjekt gemacht
+  // Nützlich für Platzbauer-Vereine die direkt als einzelne Projekte angelegt werden
+  skipPlatzbauerProjektZuordnung?: boolean;
+}
+
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
 
@@ -216,7 +223,7 @@ class ProjektService {
   }
 
   // Neues Projekt erstellen
-  async createProjekt(projekt: NeuesProjekt): Promise<Projekt> {
+  async createProjekt(projekt: NeuesProjekt, options?: CreateProjektOptions): Promise<Projekt> {
     try {
       const dokumentId = projekt.id || ID.unique();
       const jetzt = new Date().toISOString();
@@ -305,7 +312,8 @@ class ProjektService {
 
       // ===== AUTOMATISCHE PLATZBAUER-ZUORDNUNG =====
       // Prüfe ob der Kunde über einen Platzbauer bezieht
-      if (projekt.kundeId && projekt.saisonjahr) {
+      // WICHTIG: Überspringen wenn skipPlatzbauerProjektZuordnung gesetzt ist!
+      if (projekt.kundeId && projekt.saisonjahr && !options?.skipPlatzbauerProjektZuordnung) {
         try {
           const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
           if (kunde && kunde.standardBezugsweg === 'ueber_platzbauer' && kunde.standardPlatzbauerId) {
