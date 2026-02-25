@@ -220,3 +220,93 @@ interface Position {
   istUniversalArtikel?: boolean; // Markiert Universal-Katalog-Artikel
 }
 ```
+
+---
+
+## Backend-Integration
+
+### Architektur-Übersicht
+Das Projekt verwendet eine **Feature-Flag basierte Backend-Integration**:
+- **Netlify Functions** als serverless Backend (aktuell in Produktion)
+- **Express Backend** geplant für VPS-Deployment (separates Repo)
+- **Appwrite** als BaaS für Datenbank (direkte Client-Calls)
+
+### Backend-Konfiguration
+**Datei:** `src/config/backend.ts`
+
+```typescript
+// Feature-Check
+useBackend(feature: 'claude' | 'diesel' | 'geocoding' | 'pdf' | 'calc' | 'route' | 'appwrite'): boolean
+
+// Backend-URL generieren
+getBackendUrl(path: string): string
+
+// Fetch-Wrapper mit Timeout und Error-Handling
+backendFetch<T>(path: string, options?: RequestInit): Promise<T>
+```
+
+### Umgebungsvariablen
+```bash
+# Backend aktivieren
+VITE_USE_BACKEND=true
+VITE_BACKEND_URL=http://localhost:3000  # Dev
+VITE_BACKEND_URL=https://api.tennismehl.de  # Prod
+VITE_BACKEND_TIMEOUT=30000
+
+# Feature-Flags (einzeln steuerbar)
+VITE_BACKEND_CLAUDE=true     # AI-Integration (IMMER Backend wegen API-Key!)
+VITE_BACKEND_GEOCODING=true  # Google Geocoding
+VITE_BACKEND_DIESEL=true     # Dieselpreis-Caching
+VITE_BACKEND_PDF=false       # PDF lokal (schneller)
+VITE_BACKEND_CALC=false      # Berechnungen lokal
+VITE_BACKEND_ROUTE=false     # Routing lokal
+VITE_BACKEND_APPWRITE=false  # Appwrite-Proxy
+```
+
+### Backend-Endpunkte
+
+| Endpunkt | Service | Beschreibung |
+|----------|---------|--------------|
+| `POST /api/ai/chat` | claudeAnfrageService.ts | Claude AI für Anfrage-Parsing |
+| `POST /api/ai/chat` | claudeRouteOptimizer.ts | Claude AI für Tourenplanung |
+| `GET /api/geo/google/geocode` | geocoding.ts | Einzelne Adresse geocodieren |
+| `POST /api/geo/google/batch` | geocoding.ts | Batch-Geocoding |
+| `POST /api/geo/nominatim/suggestions` | geocoding.ts | Ortsvorschläge |
+
+### Netlify Functions
+**Verzeichnis:** `netlify/functions/`
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| `email-api.ts` | E-Mail-Konten über IMAP verwalten |
+| `email-send.ts` | E-Mails versenden |
+| `email-sync.ts` | Kundenanfragen aus Postfach synchronisieren |
+| `kalender-ics.ts` | Kalender-Export als ICS |
+
+**Frontend-Aufruf:**
+```typescript
+fetch('/.netlify/functions/email-send', { method: 'POST', body: JSON.stringify(data) })
+```
+
+### Sicherheitskonzept
+- **Claude API-Key:** NUR im Backend, nie im Browser sichtbar
+- **Google Geocoding API-Key:** Im Backend versteckt
+- **Appwrite:** Direkt vom Client (mit Appwrite-eigener Auth)
+- **TankerKönig API:** Öffentliche API, direkt vom Client
+
+**Fallback-Warnung bei direktem Claude-Call:**
+```
+⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!
+```
+
+### Services mit Backend-Integration
+
+**Über Backend geroutet:**
+- `claudeAnfrageService.ts` - Anfrage-Analyse mit Claude
+- `claudeRouteOptimizer.ts` - Tourenplanung mit Claude
+- `geocoding.ts` - Google Geocoding
+
+**Direkt vom Frontend:**
+- `dieselPreisAPI.ts` - TankerKönig (öffentliche API)
+- `dokumentService.ts` - PDF-Generierung mit jsPDF
+- Alle Appwrite-Services - Direkte Client-Calls
