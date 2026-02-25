@@ -1545,7 +1545,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
 
   // PE Folien (Linie zum Ausfüllen)
   doc.text('PE Folien:', 25, signY);
-  doc.line(50, signY, 100, signY); // Linie zum Ausfüllen
+  doc.line(50, signY + 1.5, 100, signY + 1.5); // Linie etwas tiefer für bessere Optik
 
   signY += 10;
 
