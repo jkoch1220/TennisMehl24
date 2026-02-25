@@ -13,12 +13,15 @@ import {
   ChevronRight,
   RefreshCw,
   Wrench,
+  Pencil,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PlatzbauerProjekt } from '../../types/platzbauer';
-import { SaisonKunde } from '../../types/saisonplanung';
+import { SaisonKunde, SaisonKundeMitDaten } from '../../types/saisonplanung';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import PlatzbauerlVereine from './PlatzbauerlVereine';
 import InstandsetzungsTab from './InstandsetzungsTab';
+import KundenFormular from '../Saisonplanung/KundenFormular';
 
 interface PlatzbauerlDetailPopupProps {
   platzbauerId: string;
@@ -47,6 +50,11 @@ const PlatzbauerlDetailPopup = ({
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PlatzbauermitVereinen | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('stammdaten');
+
+  // Stammdaten-Bearbeitung
+  const [showKundenFormular, setShowKundenFormular] = useState(false);
+  const [kundeFormularDaten, setKundeFormularDaten] = useState<SaisonKundeMitDaten | null>(null);
+  const [formularLoading, setFormularLoading] = useState(false);
 
   // Navigiere zur Fullscreen-Projektabwicklung
   const handleSelectProjekt = (projektId: string) => {
@@ -105,6 +113,30 @@ const PlatzbauerlDetailPopup = ({
     }
   };
 
+  // Stammdaten bearbeiten
+  const handleEditStammdaten = async () => {
+    setFormularLoading(true);
+    try {
+      const kundeMitDaten = await saisonplanungService.loadKundeMitDaten(platzbauerId, saisonjahr);
+      if (kundeMitDaten) {
+        setKundeFormularDaten(kundeMitDaten);
+        setShowKundenFormular(true);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden der Kundendaten:', error);
+    } finally {
+      setFormularLoading(false);
+    }
+  };
+
+  // Stammdaten gespeichert
+  const handleStammdatenSaved = async () => {
+    setShowKundenFormular(false);
+    setKundeFormularDaten(null);
+    await loadData();
+    onRefresh();
+  };
+
   // Nachtrag erstellen
   const handleCreateNachtrag = async () => {
     if (!data?.projekte.length) return;
@@ -155,6 +187,18 @@ const PlatzbauerlDetailPopup = ({
 
   return (
     <>
+      {/* Kunden-Formular Modal (höherer z-index) */}
+      {showKundenFormular && kundeFormularDaten && (
+        <KundenFormular
+          kunde={kundeFormularDaten}
+          onSave={handleStammdatenSaved}
+          onCancel={() => {
+            setShowKundenFormular(false);
+            setKundeFormularDaten(null);
+          }}
+        />
+      )}
+
       <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
         <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl w-full max-w-5xl my-8">
           {/* Header */}
@@ -211,7 +255,12 @@ const PlatzbauerlDetailPopup = ({
           {/* Content */}
           <div className="p-6">
             {activeTab === 'stammdaten' && (
-              <StammdatenTab platzbauer={platzbauer} statistik={statistik} />
+              <StammdatenTab
+                platzbauer={platzbauer}
+                statistik={statistik}
+                onEdit={handleEditStammdaten}
+                editLoading={formularLoading}
+              />
             )}
             {activeTab === 'vereine' && (
               <PlatzbauerlVereine
@@ -249,15 +298,38 @@ const PlatzbauerlDetailPopup = ({
 const StammdatenTab = ({
   platzbauer,
   statistik,
+  onEdit,
+  editLoading,
 }: {
   platzbauer: SaisonKunde;
   statistik?: PlatzbauermitVereinen['statistik'];
+  onEdit: () => void;
+  editLoading: boolean;
 }) => {
   const adresse = platzbauer.lieferadresse || platzbauer.rechnungsadresse;
   const rechnungsadresse = platzbauer.rechnungsadresse;
 
   return (
     <div className="space-y-6">
+      {/* Header mit Bearbeiten-Button */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Platzbauer-Stammdaten
+        </h3>
+        <button
+          onClick={onEdit}
+          disabled={editLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded-lg transition-colors"
+        >
+          {editLoading ? (
+            <RefreshCw className="w-4 h-4 animate-spin" />
+          ) : (
+            <Pencil className="w-4 h-4" />
+          )}
+          Bearbeiten
+        </button>
+      </div>
+
       {/* Statistik-Karten */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
