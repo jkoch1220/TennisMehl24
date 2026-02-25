@@ -1392,19 +1392,7 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(hauptadressePlzOrt, 25, yPos);
   yPos += 5;
 
-  // Ansprechpartner (mit optionaler Telefonnummer) - nur wenn druckeAnsprechpartner nicht explizit false ist
-  if (daten.ansprechpartner && daten.druckeAnsprechpartner !== false) {
-    yPos += 1;
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    // Ansprechpartner mit Telefonnummer in einer Zeile
-    const ansprechpartnerText = daten.ansprechpartnerTelefon
-      ? `z. Hd. ${daten.ansprechpartner}, Tel. ${daten.ansprechpartnerTelefon}`
-      : `z. Hd. ${daten.ansprechpartner}`;
-    doc.text(ansprechpartnerText, 25, yPos);
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-  }
+  // Ansprechpartner wird jetzt unten bei "Abdeckung & PE Folien" als DISPO-Ansprechpartner gedruckt
 
   // === Rechnungsadresse (nur anzeigen wenn abweichend von Lieferadresse) ===
   // Bei Lieferscheinen: Die Lieferadresse ist im Adressfeld,
@@ -1527,53 +1515,49 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
-  // === Abdeckung & PE Folien ===
-  const hatAbdeckungInfo = daten.abgedecktDurchKunde || daten.abgedecktDurchLKW || daten.peFolien;
-  if (hatAbdeckungInfo) {
-    signY += 15;
-    signY = await ensureSpace(doc, signY, 25, stammdaten);
+  // === Abdeckung & PE Folien (immer drucken - wird vor Ort ausgefüllt) ===
+  signY += 15;
+  signY = await ensureSpace(doc, signY, 35, stammdaten);
 
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
 
-    // Abdeckung Checkboxen
-    if (daten.abgedecktDurchKunde || daten.abgedecktDurchLKW) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Abgedeckt durch:', 25, signY);
-      doc.setFont('helvetica', 'normal');
+  // Überschrift
+  doc.setFont('helvetica', 'bold');
+  doc.text('Abdeckung & PE Folien', 25, signY);
+  doc.setFont('helvetica', 'normal');
+  signY += 8;
 
-      let abdeckX = 70;
+  // Abdeckung Checkboxen (leer zum Ausfüllen vor Ort)
+  doc.text('Abgedeckt durch:', 25, signY);
+  let abdeckX = 60;
 
-      // Checkbox Kunde
-      doc.rect(abdeckX, signY - 3.5, 4, 4);
-      if (daten.abgedecktDurchKunde) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('X', abdeckX + 0.8, signY);
-        doc.setFont('helvetica', 'normal');
-      }
-      doc.text('Kunde', abdeckX + 6, signY);
+  // Checkbox Kunde (leer)
+  doc.rect(abdeckX, signY - 3.5, 4, 4);
+  doc.text('Kunde', abdeckX + 6, signY);
 
-      // Checkbox LKW
-      abdeckX += 30;
-      doc.rect(abdeckX, signY - 3.5, 4, 4);
-      if (daten.abgedecktDurchLKW) {
-        doc.setFont('helvetica', 'bold');
-        doc.text('X', abdeckX + 0.8, signY);
-        doc.setFont('helvetica', 'normal');
-      }
-      doc.text('LKW', abdeckX + 6, signY);
+  // Checkbox LKW (leer)
+  abdeckX += 30;
+  doc.rect(abdeckX, signY - 3.5, 4, 4);
+  doc.text('LKW', abdeckX + 6, signY);
 
-      signY += 8;
-    }
+  signY += 8;
 
-    // PE Folien
-    if (daten.peFolien) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('PE Folien:', 25, signY);
-      doc.setFont('helvetica', 'normal');
-      doc.text(daten.peFolien, 55, signY);
-      signY += 5;
-    }
+  // PE Folien (Linie zum Ausfüllen)
+  doc.text('PE Folien:', 25, signY);
+  doc.line(50, signY, 100, signY); // Linie zum Ausfüllen
+
+  signY += 10;
+
+  // DISPO-Ansprechpartner (Name + Telefon)
+  if (daten.dispoAnsprechpartner?.name) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Ansprechpartner:', 25, signY);
+    doc.setFont('helvetica', 'normal');
+    const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
+      ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
+      : daten.dispoAnsprechpartner.name;
+    doc.text(ansprechpartnerText, 60, signY);
   }
 
   // === Empfangsbestätigung (nur wenn aktiviert) ===
