@@ -1549,23 +1549,24 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
 
   signY += 10;
 
-  // DISPO-Ansprechpartner (Name + Telefon)
+  // DISPO-Ansprechpartner (Name + Telefon) - Hinweis zum Anrufen
   if (daten.dispoAnsprechpartner?.name) {
     doc.setFont('helvetica', 'bold');
-    doc.text('Ansprechpartner:', 25, signY);
+    doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
     doc.setFont('helvetica', 'normal');
+    signY += 5;
     const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
       ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
       : daten.dispoAnsprechpartner.name;
-    doc.text(ansprechpartnerText, 60, signY);
+    doc.text(ansprechpartnerText, 25, signY);
   }
 
   // === Empfangsbestätigung (nur wenn aktiviert) ===
   // Default: true (für Rückwärtskompatibilität: undefined = true)
   const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;
-  
+
   if (zeigeEmpfangsbestaetigung) {
-    signY += 20;
+    signY += 12;
     
     // Prüfe Platz für Empfangsbestätigung
     signY = await ensureSpace(doc, signY, 30, stammdaten);
