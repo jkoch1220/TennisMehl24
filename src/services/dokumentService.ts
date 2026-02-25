@@ -1392,8 +1392,8 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(hauptadressePlzOrt, 25, yPos);
   yPos += 5;
 
-  // Ansprechpartner (mit optionaler Telefonnummer)
-  if (daten.ansprechpartner) {
+  // Ansprechpartner (mit optionaler Telefonnummer) - nur wenn druckeAnsprechpartner nicht explizit false ist
+  if (daten.ansprechpartner && daten.druckeAnsprechpartner !== false) {
     yPos += 1;
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
@@ -1507,6 +1507,9 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       fontSize: 9,
       cellPadding: 3
     },
+    bodyStyles: {
+      fontStyle: 'bold' // Positionszeilen fett drucken
+    },
     columnStyles: {
       0: { cellWidth: 20, halign: 'left' },    // Art.Nr.
       1: { cellWidth: 90, valign: 'top' },     // Artikel (mit Beschreibung)
@@ -1523,7 +1526,56 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   });
   
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
-  
+
+  // === Abdeckung & PE Folien ===
+  const hatAbdeckungInfo = daten.abgedecktDurchKunde || daten.abgedecktDurchLKW || daten.peFolien;
+  if (hatAbdeckungInfo) {
+    signY += 15;
+    signY = await ensureSpace(doc, signY, 25, stammdaten);
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    // Abdeckung Checkboxen
+    if (daten.abgedecktDurchKunde || daten.abgedecktDurchLKW) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Abgedeckt durch:', 25, signY);
+      doc.setFont('helvetica', 'normal');
+
+      let abdeckX = 70;
+
+      // Checkbox Kunde
+      doc.rect(abdeckX, signY - 3.5, 4, 4);
+      if (daten.abgedecktDurchKunde) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('X', abdeckX + 0.8, signY);
+        doc.setFont('helvetica', 'normal');
+      }
+      doc.text('Kunde', abdeckX + 6, signY);
+
+      // Checkbox LKW
+      abdeckX += 30;
+      doc.rect(abdeckX, signY - 3.5, 4, 4);
+      if (daten.abgedecktDurchLKW) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('X', abdeckX + 0.8, signY);
+        doc.setFont('helvetica', 'normal');
+      }
+      doc.text('LKW', abdeckX + 6, signY);
+
+      signY += 8;
+    }
+
+    // PE Folien
+    if (daten.peFolien) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('PE Folien:', 25, signY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(daten.peFolien, 55, signY);
+      signY += 5;
+    }
+  }
+
   // === Empfangsbestätigung (nur wenn aktiviert) ===
   // Default: true (für Rückwärtskompatibilität: undefined = true)
   const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;

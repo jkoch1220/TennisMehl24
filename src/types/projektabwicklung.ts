@@ -210,6 +210,14 @@ export interface LieferscheinDaten extends BaseDokument {
 
   // Unterschriften für Empfangsbestätigung (default: true)
   unterschriftenFuerEmpfangsbestaetigung?: boolean;
+
+  // Ansprechpartner drucken (default: true)
+  druckeAnsprechpartner?: boolean;
+
+  // Abdeckung & PE Folien (für Unterschriftsbereich)
+  abgedecktDurchKunde?: boolean;
+  abgedecktDurchLKW?: boolean;
+  peFolien?: string;
 }
 
 // RECHNUNG

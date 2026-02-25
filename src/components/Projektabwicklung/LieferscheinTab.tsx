@@ -98,9 +98,12 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
     lieferdatum: new Date().toISOString().split('T')[0],
     
     positionen: [],
-    
+
     // Default: Unterschriften für Empfangsbestätigung aktiviert
     unterschriftenFuerEmpfangsbestaetigung: true,
+
+    // Default: Ansprechpartner drucken
+    druckeAnsprechpartner: true,
   });
   
   // Dokument-Status
@@ -403,13 +406,18 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           }
         }
 
+        // Ansprechpartner und Telefon ermitteln
+        const ansprechpartnerName = projekt?.ansprechpartner || kundeInfo?.ansprechpartner || dispoAnsprechpartner?.name || '';
+        const ansprechpartnerTelefon = dispoAnsprechpartner?.telefon || '';
+
         setLieferscheinDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
           kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
           kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
           kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
-          ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
+          ansprechpartner: prev.ansprechpartner || ansprechpartnerName,
+          ansprechpartnerTelefon: prev.ansprechpartnerTelefon || ansprechpartnerTelefon,
           dispoAnsprechpartner: prev.dispoAnsprechpartner?.name ? prev.dispoAnsprechpartner : dispoAnsprechpartner,
           lieferscheinnummer: lieferscheinnummer,
           lieferdatum: projekt?.lieferdatum?.split('T')[0] || heute.toISOString().split('T')[0],
@@ -863,8 +871,21 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                   <option value="Luca Ramos de la Rosa">Luca Ramos de la Rosa</option>
                 </select>
               </div>
+              {/* Ansprechpartner drucken Checkbox */}
+              <div className="col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={lieferscheinDaten.druckeAnsprechpartner !== false}
+                    onChange={(e) => handleInputChange('druckeAnsprechpartner', e.target.checked)}
+                    disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                    className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">Ansprechpartner auf Lieferschein drucken</span>
+                </label>
+              </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Ansprechpartner beim Kunden</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.ansprechpartner || ''}
@@ -875,7 +896,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tel. Ansprechpartner (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tel. Ansprechpartner</label>
                 <input
                   type="text"
                   value={lieferscheinDaten.ansprechpartnerTelefon || ''}
@@ -1378,10 +1399,48 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
               <span className="text-sm text-gray-600 dark:text-dark-textMuted">Unterschriften für Empfangsbestätigung verwenden</span>
             </label>
           </div>
-          <p className="text-sm text-gray-500 dark:text-dark-textMuted">
-            Wenn aktiviert, wird auf dem Lieferschein eine Empfangsbestätigung mit Unterschriftsfeld für den Empfänger angezeigt. 
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-4">
+            Wenn aktiviert, wird auf dem Lieferschein eine Empfangsbestätigung mit Unterschriftsfeld für den Empfänger angezeigt.
             Bei Shop-Artikeln kann dies deaktiviert werden.
           </p>
+
+          {/* Abdeckung und PE Folien */}
+          <div className="border-t border-gray-200 dark:border-slate-700 pt-4 mt-4">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">Abdeckung & PE Folien</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lieferscheinDaten.abgedecktDurchKunde || false}
+                  onChange={(e) => handleInputChange('abgedecktDurchKunde', e.target.checked)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
+                />
+                <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abgedeckt durch Kunde</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lieferscheinDaten.abgedecktDurchLKW || false}
+                  onChange={(e) => handleInputChange('abgedecktDurchLKW', e.target.checked)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
+                />
+                <span className="text-sm text-gray-600 dark:text-dark-textMuted">LKW</span>
+              </label>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-dark-textMuted mb-1">PE Folien</label>
+                <input
+                  type="text"
+                  value={lieferscheinDaten.peFolien || ''}
+                  onChange={(e) => handleInputChange('peFolien', e.target.value)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  placeholder="z.B. 2 Stück"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-green-500 dark:focus:ring-green-400 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-dark-surface disabled:text-gray-500 dark:disabled:text-dark-textMuted text-sm"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Bemerkung */}
