@@ -187,18 +187,6 @@ const PlatzbauerlDetailPopup = ({
 
   return (
     <>
-      {/* Kunden-Formular Modal (höherer z-index) */}
-      {showKundenFormular && kundeFormularDaten && (
-        <KundenFormular
-          kunde={kundeFormularDaten}
-          onSave={handleStammdatenSaved}
-          onCancel={() => {
-            setShowKundenFormular(false);
-            setKundeFormularDaten(null);
-          }}
-        />
-      )}
-
       <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
         <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-2xl w-full max-w-5xl my-8">
           {/* Header */}
@@ -290,6 +278,20 @@ const PlatzbauerlDetailPopup = ({
           </div>
         </div>
       </div>
+
+      {/* Kunden-Formular Modal (NACH dem Popup für korrekten z-index) */}
+      {showKundenFormular && kundeFormularDaten && (
+        <div className="fixed inset-0 z-[60]">
+          <KundenFormular
+            kunde={kundeFormularDaten}
+            onSave={handleStammdatenSaved}
+            onCancel={() => {
+              setShowKundenFormular(false);
+              setKundeFormularDaten(null);
+            }}
+          />
+        </div>
+      )}
     </>
   );
 };
