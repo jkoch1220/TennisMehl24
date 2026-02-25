@@ -150,8 +150,9 @@ const Home = () => {
         return;
       }
 
-      let hasInstandhaltungReminders = false;
-      let hasKalenderReminders = false;
+      // Popup deaktiviert - Variablen auskommentiert
+      // let hasInstandhaltungReminders = false;
+      // let hasKalenderReminders = false;
 
       // Instandhaltung prüfen (wenn aktiviert)
       if (reminderSettings.instandhaltungEnabled) {
@@ -163,7 +164,7 @@ const Home = () => {
             setOverdueInfos(ueberfaellige);
 
             if (ueberfaellige.length > 0) {
-              hasInstandhaltungReminders = true;
+              // hasInstandhaltungReminders = true;
               // Lade Checklist-Items für alle überfälligen Frequenzen
               const itemsMap: Record<InstandhaltungFrequenz, InstandhaltungChecklistItem[]> = {
                 taeglich: [],
@@ -208,19 +209,19 @@ const Home = () => {
             const zukuenftigeTermine = termine.filter(t => new Date(t.startDatum) >= jetzt);
 
             setUpcomingTermine(zukuenftigeTermine);
-            if (zukuenftigeTermine.length > 0) {
-              hasKalenderReminders = true;
-            }
+            // if (zukuenftigeTermine.length > 0) {
+            //   hasKalenderReminders = true;
+            // }
           } catch (error) {
             console.error('Fehler beim Laden der Kalendertermine:', error);
           }
         }
       }
 
-      // Popup anzeigen wenn es Erinnerungen gibt
-      if (hasInstandhaltungReminders || hasKalenderReminders) {
-        setShowReminderPopup(true);
-      }
+      // Popup deaktiviert - Erinnerungen werden nicht mehr als Popup angezeigt
+      // if (hasInstandhaltungReminders || hasKalenderReminders) {
+      //   setShowReminderPopup(true);
+      // }
     };
 
     checkReminders();
