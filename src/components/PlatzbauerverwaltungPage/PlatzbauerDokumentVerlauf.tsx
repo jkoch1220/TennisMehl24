@@ -214,12 +214,12 @@ const PlatzbauerDokumentVerlauf = ({
                     <Clock className="h-3 w-3" />
                     {formatDatum(eintrag.erstelltAm)}
                   </span>
-                  {eintrag.gesamtMenge !== undefined && (
+                  {eintrag.gesamtMenge != null && (
                     <span className="font-medium text-gray-600 dark:text-gray-300">
                       {eintrag.gesamtMenge.toFixed(1)} t
                     </span>
                   )}
-                  {eintrag.bruttobetrag !== undefined && (
+                  {eintrag.bruttobetrag != null && (
                     <span className="font-medium text-gray-700 dark:text-gray-200">
                       {formatBetrag(eintrag.bruttobetrag)}
                     </span>
