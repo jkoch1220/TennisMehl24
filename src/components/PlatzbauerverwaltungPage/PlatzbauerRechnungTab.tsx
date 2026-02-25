@@ -24,6 +24,8 @@ import {
   CheckCircle2,
   Trash2,
   Plus,
+  XCircle,
+  Mail,
 } from 'lucide-react';
 import { PlatzbauerProjekt, PlatzbauerPosition, PlatzbauerRechnungFormularDaten, PlatzbauerProformaRechnungFormularDaten, GespeichertesPlatzbauerDokument } from '../../types/platzbauer';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -34,8 +36,12 @@ import {
   ladeEntwurf,
   ladeAktuellesDokument,
   ladeDokumenteNachTyp,
+  speicherePlatzbauerStornoRechnung,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
+import DokumentAdresseFormular, { DokumentAdresse } from '../Projektabwicklung/DokumentAdresseFormular';
+import { formatAdresszeile } from '../../services/pdfHelpers';
+import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
 
 interface PlatzbauerRechnungTabProps {
   projekt: PlatzbauerProjekt;
@@ -55,6 +61,8 @@ interface RechnungEntwurf {
     proformaAbzugBetrag: number;
     proformaAbzugNummer: string;
   };
+  // Rechnungsadresse (editierbar)
+  rechnungsAdresse?: DokumentAdresse;
 }
 
 const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabProps) => {
@@ -70,6 +78,24 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
     proformaAbzugBetrag: 0,
     proformaAbzugNummer: '',
   });
+
+  // Rechnungsadresse (editierbar)
+  const [rechnungsAdresse, setRechnungsAdresse] = useState<DokumentAdresse>({
+    name: '',
+    strasse: '',
+    plzOrt: '',
+  });
+
+  // E-Mail Versand
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailEmpfaenger, setEmailEmpfaenger] = useState('');
+
+  // Storno
+  const [showStornoDialog, setShowStornoDialog] = useState(false);
+  const [stornoGrund, setStornoGrund] = useState('');
+  const [stornoInProgress, setStornoInProgress] = useState(false);
+  const [gespeicherteRechnung, setGespeicherteRechnung] = useState<GespeichertesPlatzbauerDokument | null>(null);
+  const [istStorniert, setIstStorniert] = useState(false);
 
   const [laden, setLaden] = useState(true);
   const [speichern, setSpeichern] = useState(false);
@@ -94,10 +120,40 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
 
       setLaden(true);
       try {
+        // Platzbauer-Adresse als Default setzen
+        if (platzbauer) {
+          const adr = platzbauer.rechnungsadresse || platzbauer.lieferadresse;
+          if (adr) {
+            setRechnungsAdresse({
+              name: platzbauer.name || '',
+              strasse: adr.strasse || '',
+              plzOrt: formatAdresszeile(adr.plz, adr.ort, adr.land),
+            });
+          }
+
+          // E-Mail-Empfänger als Default
+          if (platzbauer.email) {
+            setEmailEmpfaenger(platzbauer.email);
+          }
+        }
+
         // Prüfen ob bereits eine Rechnung existiert
         const bestehendeRechnung = await ladeAktuellesDokument(projekt.id, 'rechnung');
         if (bestehendeRechnung) {
           setHatRechnung(true);
+          setGespeicherteRechnung(bestehendeRechnung);
+
+          // Prüfen ob storniert
+          try {
+            const daten = typeof bestehendeRechnung.daten === 'string'
+              ? JSON.parse(bestehendeRechnung.daten)
+              : bestehendeRechnung.daten;
+            if (daten?.rechnungsStatus === 'storniert') {
+              setIstStorniert(true);
+            }
+          } catch {
+            // Ignorieren
+          }
         }
 
         // Proforma-Rechnungen laden
@@ -112,6 +168,10 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
           setPositionen(gespeicherterEntwurf.positionen);
           if (gespeicherterEntwurf.formData) {
             setFormData(prev => ({ ...prev, ...gespeicherterEntwurf.formData }));
+          }
+          // Rechnungsadresse aus Entwurf wiederherstellen
+          if (gespeicherterEntwurf.rechnungsAdresse) {
+            setRechnungsAdresse(gespeicherterEntwurf.rechnungsAdresse);
           }
           setSpeicherStatus('gespeichert');
         } else {
@@ -203,6 +263,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
       const entwurf: RechnungEntwurf = {
         positionen,
         formData,
+        rechnungsAdresse,
       };
       await speichereEntwurf(projekt.id, 'rechnung', entwurf);
       setSpeicherStatus('gespeichert');
@@ -211,7 +272,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.id, initialLaden, hatRechnung, positionen, formData]);
+  }, [projekt?.id, initialLaden, hatRechnung, positionen, formData, rechnungsAdresse]);
 
   // Debounced Auto-Save
   useEffect(() => {
@@ -230,7 +291,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [positionen, formData, speichereAutomatisch, initialLaden, hatRechnung]);
+  }, [positionen, formData, rechnungsAdresse, speichereAutomatisch, initialLaden, hatRechnung]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
@@ -290,14 +351,15 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
 
     setProformaSpeichern(true);
     try {
+      // Verwende die editierte Rechnungsadresse
       const formularDaten: PlatzbauerProformaRechnungFormularDaten = {
         proformarechnungsnummer: '',
         proformarechnungsdatum: formData.rechnungsdatum,
         leistungsdatum: formData.leistungsdatum,
         platzbauerId: platzbauer?.id || projekt.platzbauerId,
-        platzbauername: platzbauer?.name || '',
-        platzbauerstrasse: platzbauer?.rechnungsadresse?.strasse || '',
-        platzbauerPlzOrt: `${platzbauer?.rechnungsadresse?.plz || ''} ${platzbauer?.rechnungsadresse?.ort || ''}`.trim(),
+        platzbauername: rechnungsAdresse.name || platzbauer?.name || '',
+        platzbauerstrasse: rechnungsAdresse.strasse || platzbauer?.rechnungsadresse?.strasse || '',
+        platzbauerPlzOrt: rechnungsAdresse.plzOrt || `${platzbauer?.rechnungsadresse?.plz || ''} ${platzbauer?.rechnungsadresse?.ort || ''}`.trim(),
         platzbauerAnsprechpartner: platzbauer?.dispoAnsprechpartner?.name || '',
         positionen,
         zahlungsziel: formData.zahlungsziel,
@@ -338,14 +400,15 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
 
     setSpeichern(true);
     try {
+      // Verwende die editierte Rechnungsadresse
       const formularDaten: PlatzbauerRechnungFormularDaten = {
         rechnungsnummer: formData.rechnungsnummer,
         rechnungsdatum: formData.rechnungsdatum,
         leistungsdatum: formData.leistungsdatum,
         platzbauerId: platzbauer?.id || projekt.platzbauerId,
-        platzbauername: platzbauer?.name || '',
-        platzbauerstrasse: platzbauer?.rechnungsadresse?.strasse || '',
-        platzbauerPlzOrt: `${platzbauer?.rechnungsadresse?.plz || ''} ${platzbauer?.rechnungsadresse?.ort || ''}`.trim(),
+        platzbauername: rechnungsAdresse.name || platzbauer?.name || '',
+        platzbauerstrasse: rechnungsAdresse.strasse || platzbauer?.rechnungsadresse?.strasse || '',
+        platzbauerPlzOrt: rechnungsAdresse.plzOrt || `${platzbauer?.rechnungsadresse?.plz || ''} ${platzbauer?.rechnungsadresse?.ort || ''}`.trim(),
         platzbauerAnsprechpartner: platzbauer?.dispoAnsprechpartner?.name || '',
         positionen,
         zahlungsziel: formData.zahlungsziel,
@@ -358,7 +421,8 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
         ihreAnsprechpartner: '',
       };
 
-      await speicherePlatzbauerRechnung(projekt, formularDaten);
+      const neueRechnung = await speicherePlatzbauerRechnung(projekt, formularDaten);
+      setGespeicherteRechnung(neueRechnung);
       setHatRechnung(true);
       setVerlaufLadeZaehler(prev => prev + 1);
       alert('Rechnung wurde erfolgreich erstellt!');
@@ -367,6 +431,31 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
       alert('Fehler: ' + (error.message || 'Unbekannter Fehler'));
     } finally {
       setSpeichern(false);
+    }
+  };
+
+  // === STORNO ERSTELLEN ===
+  const handleStornoErstellen = async () => {
+    if (!stornoGrund.trim() || !gespeicherteRechnung) return;
+
+    setStornoInProgress(true);
+    try {
+      await speicherePlatzbauerStornoRechnung(
+        projekt,
+        gespeicherteRechnung,
+        stornoGrund.trim()
+      );
+
+      setShowStornoDialog(false);
+      setStornoGrund('');
+      setIstStorniert(true);
+      setVerlaufLadeZaehler(prev => prev + 1);
+      alert('Stornorechnung wurde erfolgreich erstellt!');
+    } catch (error: any) {
+      console.error('Fehler beim Stornieren:', error);
+      alert('Fehler: ' + (error.message || 'Stornierung fehlgeschlagen'));
+    } finally {
+      setStornoInProgress(false);
     }
   };
 
@@ -403,14 +492,64 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
   if (hatRechnung) {
     return (
       <div className="space-y-6">
-        <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-8 text-center border border-green-200 dark:border-green-800">
-          <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-green-800 dark:text-green-200 mb-2">
-            Rechnung erstellt
-          </h3>
-          <p className="text-green-600 dark:text-green-400">
-            Die finale Rechnung wurde erfolgreich erstellt und kann nicht mehr geändert werden.
-          </p>
+        {/* Status-Anzeige */}
+        <div className={`rounded-xl p-8 text-center border ${
+          istStorniert
+            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+        }`}>
+          {istStorniert ? (
+            <>
+              <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-red-800 dark:text-red-200 mb-2">
+                Rechnung storniert
+              </h3>
+              <p className="text-red-600 dark:text-red-400 mb-4">
+                Diese Rechnung wurde storniert. Sie können eine neue Rechnung erstellen.
+              </p>
+              <button
+                onClick={() => {
+                  setHatRechnung(false);
+                  setIstStorniert(false);
+                  setGespeicherteRechnung(null);
+                }}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium"
+              >
+                Neue Rechnung erstellen
+              </button>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-green-800 dark:text-green-200 mb-2">
+                Rechnung erstellt
+              </h3>
+              <p className="text-green-600 dark:text-green-400 mb-4">
+                Die finale Rechnung wurde erfolgreich erstellt.
+              </p>
+
+              {/* Aktions-Buttons */}
+              <div className="flex justify-center gap-3 flex-wrap">
+                {/* E-Mail versenden */}
+                <button
+                  onClick={() => setShowEmailDialog(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                >
+                  <Mail className="w-4 h-4" />
+                  Per E-Mail versenden
+                </button>
+
+                {/* Stornieren */}
+                <button
+                  onClick={() => setShowStornoDialog(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Rechnung stornieren
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Rechnungsverlauf */}
@@ -418,7 +557,16 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
           projektId={projekt.id}
           dokumentTyp="rechnung"
           titel="Rechnung"
-          maxAnzeige={1}
+          maxAnzeige={5}
+          ladeZaehler={verlaufLadeZaehler}
+        />
+
+        {/* Storno-Verlauf falls vorhanden */}
+        <PlatzbauerDokumentVerlauf
+          projektId={projekt.id}
+          dokumentTyp="stornorechnung"
+          titel="Stornorechnungen"
+          maxAnzeige={5}
           ladeZaehler={verlaufLadeZaehler}
         />
 
@@ -431,6 +579,131 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
             maxAnzeige={5}
             ladeZaehler={proformaVerlaufLadeZaehler}
           />
+        )}
+
+        {/* Storno-Dialog */}
+        {showStornoDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-lg w-full p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <XCircle className="w-6 h-6 text-red-500" />
+                Rechnung stornieren
+              </h3>
+
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 mb-4">
+                <p className="text-amber-800 dark:text-amber-200 text-sm">
+                  <strong>Hinweis:</strong> Eine Stornorechnung wird erstellt und die Originalrechnung als storniert markiert.
+                  Dieser Vorgang kann nicht rückgängig gemacht werden.
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Stornogrund (erforderlich)
+                </label>
+                <textarea
+                  value={stornoGrund}
+                  onChange={(e) => setStornoGrund(e.target.value)}
+                  rows={3}
+                  placeholder="z.B. Fehlerhafte Adresse, Preiskorrektur, Stornierung durch Kunden..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowStornoDialog(false);
+                    setStornoGrund('');
+                  }}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleStornoErstellen}
+                  disabled={!stornoGrund.trim() || stornoInProgress}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded-lg flex items-center gap-2"
+                >
+                  {stornoInProgress ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Erstelle Storno...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4" />
+                      Stornieren
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* E-Mail-Dialog */}
+        {showEmailDialog && gespeicherteRechnung && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-lg w-full p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Mail className="w-6 h-6 text-blue-500" />
+                Rechnung per E-Mail versenden
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Empfänger E-Mail
+                  </label>
+                  <input
+                    type="email"
+                    value={emailEmpfaenger}
+                    onChange={(e) => setEmailEmpfaenger(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                  <p className="text-blue-800 dark:text-blue-200 text-sm">
+                    <strong>Dokument:</strong> {gespeicherteRechnung.dokumentNummer}<br />
+                    <strong>Datei:</strong> {gespeicherteRechnung.dateiname}
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Das PDF wird heruntergeladen und Ihr E-Mail-Programm geöffnet.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowEmailDialog(false)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
+                >
+                  Abbrechen
+                </button>
+                <a
+                  href={`${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${gespeicherteRechnung.dateiId}/download?project=${PROJECT_ID}`}
+                  download={gespeicherteRechnung.dateiname}
+                  onClick={() => {
+                    // Nach kurzer Verzögerung mailto öffnen
+                    setTimeout(() => {
+                      const subject = encodeURIComponent(`Rechnung ${gespeicherteRechnung.dokumentNummer} - ${platzbauer?.name || 'Platzbauer'}`);
+                      const body = encodeURIComponent(`Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung ${gespeicherteRechnung.dokumentNummer}.\n\nMit freundlichen Grüßen\nTennisMehl GmbH`);
+                      window.location.href = `mailto:${emailEmpfaenger}?subject=${subject}&body=${body}`;
+                      setShowEmailDialog(false);
+                    }, 500);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  PDF herunterladen & Mail öffnen
+                </a>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -486,6 +759,19 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
           )}
         </div>
       </div>
+
+      {/* Rechnungsadresse (editierbar) */}
+      <DokumentAdresseFormular
+        adresse={rechnungsAdresse}
+        onChange={(adresse) => {
+          markiereGeaendert();
+          setRechnungsAdresse(adresse);
+        }}
+        kunde={platzbauer}
+        dokumentTyp="rechnung"
+        projektKundenname={platzbauer?.name}
+        disabled={false}
+      />
 
       {/* Proforma-Rechnung Bereich */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800">

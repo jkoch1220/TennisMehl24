@@ -59,6 +59,12 @@ const dokumentTypConfig: Record<PlatzbauerDokumentTyp, {
     border: 'border-amber-200 dark:border-amber-800',
     label: 'Proforma'
   },
+  stornorechnung: {
+    farbe: 'text-red-700 dark:text-red-400',
+    hintergrund: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-200 dark:border-red-800',
+    label: 'Storno'
+  },
 };
 
 const PlatzbauerDokumentVerlauf = ({

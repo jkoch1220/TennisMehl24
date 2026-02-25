@@ -89,6 +89,7 @@ const generiereDokumentNummer = (
     rechnung: 'PB-RE',
     lieferschein: 'PB-LS',
     proformarechnung: 'PB-PF',
+    stornorechnung: 'PB-ST',
   }[typ];
 
   return `${prefix}-${saisonjahr}-${String(laufendeNummer).padStart(3, '0')}`;
@@ -112,6 +113,7 @@ const zaehleBesteheneDokumente = async (
       rechnung: 'PB-RE',
       lieferschein: 'PB-LS',
       proformarechnung: 'PB-PF',
+      stornorechnung: 'PB-ST',
     }[typ];
 
     const response = await databases.listDocuments(
@@ -1034,6 +1036,163 @@ export const ladeEntwurf = async <T>(
   }
 };
 
+// ==================== STORNORECHNUNG ====================
+
+/**
+ * Erstellt eine Stornorechnung für eine bestehende Platzbauer-Rechnung
+ * WICHTIG: Stornorechnungen sind gesetzlich vorgeschrieben und dürfen NIEMALS geändert werden!
+ */
+export const speicherePlatzbauerStornoRechnung = async (
+  projekt: PlatzbauerProjekt,
+  originalRechnung: GespeichertesPlatzbauerDokument,
+  stornoGrund: string
+): Promise<GespeichertesPlatzbauerDokument> => {
+  try {
+    // Originaldaten laden
+    let originalDaten: any = {};
+    if (originalRechnung.daten) {
+      try {
+        originalDaten = typeof originalRechnung.daten === 'string'
+          ? JSON.parse(originalRechnung.daten)
+          : originalRechnung.daten;
+      } catch {
+        throw new Error('Originaldaten der Rechnung konnten nicht geladen werden.');
+      }
+    }
+
+    // Prüfen ob bereits storniert
+    if (originalDaten.rechnungsStatus === 'storniert') {
+      throw new Error('Diese Rechnung wurde bereits storniert.');
+    }
+
+    // Stornonummer generieren
+    const anzahl = await zaehleBesteheneDokumente('stornorechnung' as PlatzbauerDokumentTyp, projekt.saisonjahr);
+    const stornoNummer = `PB-ST-${projekt.saisonjahr}-${String(anzahl + 1).padStart(3, '0')}`;
+    const stornoDatum = new Date().toISOString().split('T')[0];
+
+    // Storno-Positionen (Beträge negativ!)
+    const stornoPositionen = (originalDaten.positionen || []).map((pos: PlatzbauerPosition) => ({
+      ...pos,
+      einzelpreis: -Math.abs(pos.einzelpreis),
+      gesamtpreis: -Math.abs(pos.gesamtpreis),
+    }));
+
+    // PDF-Daten vorbereiten
+    const pdfDaten: PlatzbauerRechnungsDaten = {
+      projekt,
+      rechnungsnummer: stornoNummer,
+      rechnungsdatum: stornoDatum,
+      leistungsdatum: originalDaten.leistungsdatum || stornoDatum,
+      platzbauerId: originalDaten.platzbauerId || projekt.platzbauerId,
+      platzbauername: originalDaten.platzbauername || '',
+      platzbauerstrasse: originalDaten.platzbauerstrasse || '',
+      platzbauerPlzOrt: originalDaten.platzbauerPlzOrt || '',
+      platzbauerAnsprechpartner: originalDaten.platzbauerAnsprechpartner || '',
+      positionen: stornoPositionen,
+      zahlungsziel: originalDaten.zahlungsziel || '',
+      skontoAktiviert: false,
+      skonto: { prozent: 0, tage: 0 },
+      bemerkung: `STORNORECHNUNG zu Rechnung ${originalRechnung.dokumentNummer}\n\nStornogrund: ${stornoGrund}`,
+      ihreAnsprechpartner: originalDaten.ihreAnsprechpartner || '',
+    };
+
+    // PDF generieren
+    const pdf = await generierePlatzbauerRechnungPDF(pdfDaten);
+
+    // Storno-Wasserzeichen hinzufügen
+    const totalPages = pdf.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(50);
+      pdf.setTextColor(255, 0, 0);
+      pdf.setFont('helvetica', 'bold');
+      // Diagonal über die Seite
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      pdf.text('STORNORECHNUNG', pageWidth / 2, pageHeight / 2, {
+        align: 'center',
+        angle: 45,
+      });
+      pdf.setTextColor(0, 0, 0);
+    }
+
+    const blob = pdfToBlob(pdf);
+    const dateiname = `Stornorechnung ${originalDaten.platzbauername || 'Platzbauer'} ${projekt.saisonjahr}.pdf`;
+
+    // In Storage hochladen
+    const file = new File([blob], dateiname, { type: 'application/pdf' });
+    const uploadedFile = await storage.createFile(
+      PLATZBAUER_DATEIEN_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+
+    // Summen berechnen (negativ!)
+    const nettobetrag = stornoPositionen.reduce((sum: number, p: PlatzbauerPosition) => sum + p.gesamtpreis, 0);
+    const bruttobetrag = nettobetrag * 1.19;
+
+    // Storno-Dokument erstellen
+    const stornoDokumentDaten = {
+      ...pdfDaten,
+      bruttobetrag,
+      nettobetrag,
+      istFinal: true,
+      rechnungsStatus: 'aktiv',
+      stornoVonRechnungId: originalRechnung.$id || originalRechnung.id,
+      originalRechnungsnummer: originalRechnung.dokumentNummer,
+      stornoGrund,
+    };
+
+    const stornoDokument = await databases.createDocument(
+      DATABASE_ID,
+      PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      {
+        platzbauerprojektId: projekt.id,
+        dokumentTyp: 'stornorechnung',
+        dokumentNummer: stornoNummer,
+        dateiId: uploadedFile.$id,
+        dateiname,
+        daten: JSON.stringify(stornoDokumentDaten),
+      }
+    );
+
+    // Original-Rechnung als storniert markieren
+    const aktualisierteDaten = {
+      ...originalDaten,
+      rechnungsStatus: 'storniert',
+      stornoRechnungId: stornoDokument.$id,
+      stornoGrund,
+    };
+
+    await databases.updateDocument(
+      DATABASE_ID,
+      PLATZBAUER_DOKUMENTE_COLLECTION_ID,
+      originalRechnung.$id || originalRechnung.id || '',
+      {
+        daten: JSON.stringify(aktualisierteDaten),
+      }
+    );
+
+    return {
+      $id: stornoDokument.$id,
+      id: stornoDokument.$id,
+      platzbauerprojektId: projekt.id,
+      dokumentTyp: 'stornorechnung' as PlatzbauerDokumentTyp,
+      dokumentNummer: stornoNummer,
+      dateiId: uploadedFile.$id,
+      dateiname,
+      istFinal: true,
+      daten: JSON.stringify(stornoDokumentDaten),
+      $createdAt: stornoDokument.$createdAt,
+      $updatedAt: stornoDokument.$updatedAt,
+    };
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Stornorechnung:', error);
+    throw error;
+  }
+};
+
 // ==================== STATUS-MANAGEMENT ====================
 
 /**
@@ -1065,6 +1224,7 @@ export const platzbauerprojektabwicklungDokumentService = {
   speicherePlatzbauerAuftragsbestaetigung,
   speicherePlatzbauerRechnung,
   speicherePlatzbauerProformaRechnung,
+  speicherePlatzbauerStornoRechnung,
   speicherePlatzbauerLieferschein,
 
   // Laden

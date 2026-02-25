@@ -275,7 +275,7 @@ export interface PBVKanbanDaten {
 // ==================== DOKUMENT TYPES ====================
 
 // Dokumenttyp für Platzbauer
-export type PlatzbauerDokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'rechnung' | 'proformarechnung';
+export type PlatzbauerDokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'rechnung' | 'proformarechnung' | 'stornorechnung';
 
 // Gespeichertes Platzbauer-Dokument (in Appwrite)
 export interface GespeichertesPlatzbauerDokument {
