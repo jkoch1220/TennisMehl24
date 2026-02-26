@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Mail,
   Search,
@@ -16,6 +16,9 @@ import {
   AlertCircle,
   FileText,
   ExternalLink,
+  MapPin,
+  Scale,
+  Check,
 } from 'lucide-react';
 import { SaisonKundeMitDaten, SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +27,261 @@ import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { NeuesProjekt, Projekt } from '../../types/projekt';
 import { TENNISMEHL_ARTIKEL } from '../../constants/artikelPreise';
+
+// Quick-Edit Typen
+type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | null;
+
+interface QuickEditState {
+  vereinId: string;
+  typ: QuickEditTyp;
+}
+
+// Quick-Edit Popup Komponente
+interface QuickEditPopupProps {
+  typ: QuickEditTyp;
+  vereinId: string;
+  kunde: SaisonKunde;
+  onSave: (vereinId: string, daten: Partial<SaisonKunde>) => Promise<void>;
+  onClose: () => void;
+  position: { top: number; left: number };
+}
+
+const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: QuickEditPopupProps) => {
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Formular-States je nach Typ
+  const [kontaktName, setKontaktName] = useState(kunde.dispoAnsprechpartner?.name || '');
+  const [kontaktTelefon, setKontaktTelefon] = useState(kunde.dispoAnsprechpartner?.telefon || '');
+  const [email, setEmail] = useState(kunde.email || '');
+  const [strasse, setStrasse] = useState(kunde.lieferadresse?.strasse || '');
+  const [plz, setPlz] = useState(kunde.lieferadresse?.plz || '');
+  const [ort, setOrt] = useState(kunde.lieferadresse?.ort || '');
+  const [menge, setMenge] = useState(kunde.tonnenLetztesJahr?.toString() || '');
+
+  // Klick außerhalb schließt Popup
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      let daten: Partial<SaisonKunde> = {};
+
+      switch (typ) {
+        case 'kontakt':
+          daten = {
+            dispoAnsprechpartner: {
+              name: kontaktName.trim(),
+              telefon: kontaktTelefon.trim(),
+            }
+          };
+          break;
+        case 'email':
+          daten = { email: email.trim() };
+          break;
+        case 'adresse':
+          daten = {
+            lieferadresse: {
+              strasse: strasse.trim(),
+              plz: plz.trim(),
+              ort: ort.trim(),
+            }
+          };
+          break;
+        case 'menge':
+          daten = { tonnenLetztesJahr: parseFloat(menge) || 0 };
+          break;
+      }
+
+      await onSave(vereinId, daten);
+      onClose();
+    } catch (error) {
+      console.error('Fehler beim Speichern:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  const renderContent = () => {
+    switch (typ) {
+      case 'kontakt':
+        return (
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+              <input
+                type="text"
+                value={kontaktName}
+                onChange={(e) => setKontaktName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="z.B. Herr Müller"
+                autoFocus
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Telefon</label>
+              <input
+                type="tel"
+                value={kontaktTelefon}
+                onChange={(e) => setKontaktTelefon(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="z.B. 0171 1234567"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+              />
+            </div>
+          </div>
+        );
+      case 'email':
+        return (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">E-Mail</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="verein@example.de"
+              autoFocus
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+            />
+          </div>
+        );
+      case 'adresse':
+        return (
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Straße</label>
+              <input
+                type="text"
+                value={strasse}
+                onChange={(e) => setStrasse(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Tennisweg 1"
+                autoFocus
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <div className="w-24">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">PLZ</label>
+                <input
+                  type="text"
+                  value={plz}
+                  onChange={(e) => setPlz(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="12345"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ort</label>
+                <input
+                  type="text"
+                  value={ort}
+                  onChange={(e) => setOrt(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Musterstadt"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case 'menge':
+        return (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Menge (Vorjahr)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={menge}
+                onChange={(e) => setMenge(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="0"
+                min="0"
+                step="0.1"
+                autoFocus
+                className="w-24 px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+              />
+              <span className="text-sm text-gray-500 dark:text-gray-400">Tonnen</span>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getTitel = () => {
+    switch (typ) {
+      case 'kontakt': return 'Kontakt hinzufügen';
+      case 'email': return 'E-Mail hinzufügen';
+      case 'adresse': return 'Adresse hinzufügen';
+      case 'menge': return 'Menge eintragen';
+      default: return '';
+    }
+  };
+
+  return (
+    <div
+      ref={popupRef}
+      className="fixed z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl p-3 min-w-[220px]"
+      style={{ top: position.top, left: position.left }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-semibold text-gray-900 dark:text-white">{getTitel()}</span>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {renderContent()}
+
+      <div className="flex justify-end gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-slate-700">
+        <button
+          onClick={onClose}
+          className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white font-medium rounded transition-colors"
+        >
+          {isSaving ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Check className="w-3 h-3" />
+          )}
+          Speichern
+        </button>
+      </div>
+    </div>
+  );
+};
 
 interface PlatzbauerlVereineProps {
   vereine: SaisonKundeMitDaten[];
@@ -59,6 +317,18 @@ const PlatzbauerlVereine = ({
   const [vereinProjekte, setVereinProjekte] = useState<Map<string, Projekt>>(new Map());
   const [isLoadingProjekte, setIsLoadingProjekte] = useState(false);
 
+  // Quick-Edit State
+  const [quickEdit, setQuickEdit] = useState<QuickEditState | null>(null);
+  const [quickEditPosition, setQuickEditPosition] = useState({ top: 0, left: 0 });
+
+  // Lokale Vereins-Daten für optimistische Updates
+  const [lokaleVereine, setLokaleVereine] = useState<SaisonKundeMitDaten[]>(vereine);
+
+  // Sync lokale Daten wenn Props sich ändern
+  useEffect(() => {
+    setLokaleVereine(vereine);
+  }, [vereine]);
+
   // Lade existierende Projekte für alle Vereine
   useEffect(() => {
     const ladeProjekte = async () => {
@@ -90,7 +360,7 @@ const PlatzbauerlVereine = ({
   }, [vereine, saisonjahr]);
 
   // Filter nur nach Suche (alle Vereine hier sind bereits "ueber_platzbauer")
-  const gefilterteVereine = vereine.filter(v => {
+  const gefilterteVereine = lokaleVereine.filter(v => {
     const kunde = v.kunde;
     if (!suche.trim()) return true;
     const sucheLower = suche.toLowerCase();
@@ -100,6 +370,50 @@ const PlatzbauerlVereine = ({
       kunde.lieferadresse?.plz?.includes(suche)
     );
   });
+
+  // Quick-Edit öffnen
+  const openQuickEdit = (e: React.MouseEvent, vereinId: string, typ: QuickEditTyp) => {
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setQuickEditPosition({
+      top: rect.bottom + 4,
+      left: Math.min(rect.left, window.innerWidth - 250), // Popup nicht über Bildschirmrand
+    });
+    setQuickEdit({ vereinId, typ });
+  };
+
+  // Quick-Edit speichern
+  const handleQuickEditSave = async (vereinId: string, daten: Partial<SaisonKunde>) => {
+    // Optimistisches Update der lokalen Daten
+    setLokaleVereine(prev => prev.map(v => {
+      if (v.kunde.id !== vereinId) return v;
+      return {
+        ...v,
+        kunde: {
+          ...v.kunde,
+          ...daten,
+          // Merge nested objects korrekt
+          dispoAnsprechpartner: daten.dispoAnsprechpartner
+            ? { ...v.kunde.dispoAnsprechpartner, ...daten.dispoAnsprechpartner }
+            : v.kunde.dispoAnsprechpartner,
+          lieferadresse: daten.lieferadresse
+            ? { ...v.kunde.lieferadresse, ...daten.lieferadresse }
+            : v.kunde.lieferadresse,
+        }
+      };
+    }));
+
+    // In Datenbank speichern
+    try {
+      await saisonplanungService.updateKunde(vereinId, daten);
+      console.log('✅ Vereinsdaten aktualisiert:', vereinId, daten);
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren:', error);
+      // Bei Fehler: Daten zurücksetzen durch Refresh
+      onRefresh?.();
+      throw error;
+    }
+  };
 
   // Toggle Auswahl eines Vereins
   const toggleSelection = (id: string) => {
@@ -162,7 +476,7 @@ const PlatzbauerlVereine = ({
     const artikel = TENNISMEHL_ARTIKEL['TM-ZM-02'];
 
     for (const vereinId of selectedIds) {
-      const vereinDaten = vereine.find(v => v.kunde.id === vereinId);
+      const vereinDaten = lokaleVereine.find(v => v.kunde.id === vereinId);
       if (!vereinDaten) {
         fehler.push(`Verein ${vereinId} nicht gefunden`);
         continue;
@@ -517,12 +831,19 @@ const PlatzbauerlVereine = ({
                     )}
                   </td>
                   <td className="py-3 pr-4">
-                    {adresse ? (
+                    {adresse?.plz && adresse?.ort ? (
                       <div className="text-sm text-gray-600 dark:text-gray-300">
                         <div>{adresse.plz} {adresse.ort}</div>
                       </div>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <button
+                        onClick={(e) => openQuickEdit(e, kunde.id, 'adresse')}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1.5 py-0.5 rounded transition-colors"
+                        title="Adresse hinzufügen"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <MapPin className="w-3 h-3" />
+                      </button>
                     )}
                   </td>
                   <td className="py-3 pr-4">
@@ -533,7 +854,7 @@ const PlatzbauerlVereine = ({
                             <User className="w-3 h-3 flex-shrink-0 text-gray-400" />
                             {kunde.dispoAnsprechpartner.name}
                           </span>
-                          {kunde.dispoAnsprechpartner.telefon && (
+                          {kunde.dispoAnsprechpartner.telefon ? (
                             <a
                               href={`tel:${kunde.dispoAnsprechpartner.telefon}`}
                               onClick={(e) => e.stopPropagation()}
@@ -542,22 +863,69 @@ const PlatzbauerlVereine = ({
                               <Phone className="w-3 h-3 flex-shrink-0" />
                               {kunde.dispoAnsprechpartner.telefon}
                             </a>
+                          ) : (
+                            <button
+                              onClick={(e) => openQuickEdit(e, kunde.id, 'kontakt')}
+                              className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1.5 py-0.5 rounded transition-colors"
+                              title="Telefon hinzufügen"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <Phone className="w-3 h-3" />
+                            </button>
                           )}
                         </>
                       ) : kunde.email ? (
-                        <span className="text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate max-w-[180px]">
-                          <Mail className="w-3 h-3 flex-shrink-0" />
-                          {kunde.email}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-gray-600 dark:text-gray-300 flex items-center gap-1 truncate max-w-[180px]">
+                            <Mail className="w-3 h-3 flex-shrink-0" />
+                            {kunde.email}
+                          </span>
+                          <button
+                            onClick={(e) => openQuickEdit(e, kunde.id, 'kontakt')}
+                            className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1.5 py-0.5 rounded transition-colors w-fit"
+                            title="Kontaktperson hinzufügen"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <User className="w-3 h-3" />
+                          </button>
+                        </div>
                       ) : (
-                        <span className="text-gray-400 italic text-xs">Kein Kontakt</span>
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            onClick={(e) => openQuickEdit(e, kunde.id, 'kontakt')}
+                            className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1.5 py-0.5 rounded transition-colors"
+                            title="Kontakt hinzufügen"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <User className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => openQuickEdit(e, kunde.id, 'email')}
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-1.5 py-0.5 rounded transition-colors"
+                            title="E-Mail hinzufügen"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <Mail className="w-3 h-3" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </td>
                   <td className="py-3 pr-4 text-right">
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {kunde.tonnenLetztesJahr ? `${kunde.tonnenLetztesJahr} t` : '-'}
-                    </span>
+                    {kunde.tonnenLetztesJahr ? (
+                      <span className="text-gray-900 dark:text-white font-medium">
+                        {kunde.tonnenLetztesJahr} t
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => openQuickEdit(e, kunde.id, 'menge')}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30 px-1.5 py-0.5 rounded transition-colors"
+                        title="Menge eintragen"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <Scale className="w-3 h-3" />
+                      </button>
+                    )}
                   </td>
                   <td className="py-3 pr-4 text-center">
                     {isLoadingProjekte ? (
@@ -603,6 +971,22 @@ const PlatzbauerlVereine = ({
         onSuccess={() => onRefresh?.()}
       />
     )}
+
+    {/* Quick-Edit Popup */}
+    {quickEdit && (() => {
+      const vereinDaten = lokaleVereine.find(v => v.kunde.id === quickEdit.vereinId);
+      if (!vereinDaten) return null;
+      return (
+        <QuickEditPopup
+          typ={quickEdit.typ}
+          vereinId={quickEdit.vereinId}
+          kunde={vereinDaten.kunde}
+          onSave={handleQuickEditSave}
+          onClose={() => setQuickEdit(null)}
+          position={quickEditPosition}
+        />
+      );
+    })()}
     </>
   );
 };
