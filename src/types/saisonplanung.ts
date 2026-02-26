@@ -197,6 +197,9 @@ export interface SaisonKunde {
     telefon: string;
   };
 
+  // Gewünschte Lieferwoche (Kalenderwoche)
+  wunschLieferwoche?: number;
+
   // === NUR FÜR PLATZBAUER (typ='platzbauer') ===
   // Saisonpreise für Instandsetzungs-Dienste pro Saison
   // Format: { [saisonjahr]: { [dienstName]: preisProPlatz } }

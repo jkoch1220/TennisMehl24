@@ -19,6 +19,7 @@ import {
   MapPin,
   Scale,
   Check,
+  Calendar,
 } from 'lucide-react';
 import { SaisonKundeMitDaten, SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
@@ -29,7 +30,7 @@ import { NeuesProjekt, Projekt } from '../../types/projekt';
 import { TENNISMEHL_ARTIKEL } from '../../constants/artikelPreise';
 
 // Quick-Edit Typen
-type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | null;
+type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | 'lieferwoche' | null;
 
 interface QuickEditState {
   vereinId: string;
@@ -58,6 +59,7 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
   const [plz, setPlz] = useState(kunde.lieferadresse?.plz || '');
   const [ort, setOrt] = useState(kunde.lieferadresse?.ort || '');
   const [menge, setMenge] = useState(kunde.tonnenLetztesJahr?.toString() || '');
+  const [lieferwoche, setLieferwoche] = useState(kunde.wunschLieferwoche?.toString() || '');
 
   // Klick außerhalb schließt Popup
   useEffect(() => {
@@ -98,6 +100,9 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
           break;
         case 'menge':
           daten = { tonnenLetztesJahr: parseFloat(menge) || 0 };
+          break;
+        case 'lieferwoche':
+          daten = { wunschLieferwoche: parseInt(lieferwoche) || undefined };
           break;
       }
 
@@ -226,6 +231,27 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
             </div>
           </div>
         );
+      case 'lieferwoche':
+        return (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gewünschte Lieferwoche</label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">KW</span>
+              <input
+                type="number"
+                value={lieferwoche}
+                onChange={(e) => setLieferwoche(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="z.B. 12"
+                min="1"
+                max="53"
+                autoFocus
+                className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Kalenderwoche 1-53</p>
+          </div>
+        );
       default:
         return null;
     }
@@ -237,6 +263,7 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
       case 'email': return 'E-Mail hinzufügen';
       case 'adresse': return 'Adresse hinzufügen';
       case 'menge': return 'Menge eintragen';
+      case 'lieferwoche': return 'Lieferwoche eintragen';
       default: return '';
     }
   };
@@ -773,6 +800,7 @@ const PlatzbauerlVereine = ({
               <th className="pb-3 pr-4">Ort</th>
               <th className="pb-3 pr-4">Kontakt</th>
               <th className="pb-3 pr-4 text-right">Menge (Vorjahr)</th>
+              <th className="pb-3 pr-4 text-center">Lieferwoche</th>
               <th className="pb-3 pr-4 text-center">Projekt</th>
               <th className="pb-3 w-10"></th>
             </tr>
@@ -924,6 +952,27 @@ const PlatzbauerlVereine = ({
                       >
                         <Plus className="w-3 h-3" />
                         <Scale className="w-3 h-3" />
+                      </button>
+                    )}
+                  </td>
+                  <td className="py-3 pr-4 text-center">
+                    {kunde.wunschLieferwoche ? (
+                      <button
+                        onClick={(e) => openQuickEdit(e, kunde.id, 'lieferwoche')}
+                        className="inline-flex items-center gap-1 text-sm text-gray-900 dark:text-white font-medium hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 px-1.5 py-0.5 rounded transition-colors"
+                        title="Lieferwoche ändern"
+                      >
+                        <Calendar className="w-3 h-3 text-green-500" />
+                        KW {kunde.wunschLieferwoche}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => openQuickEdit(e, kunde.id, 'lieferwoche')}
+                        className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 px-1.5 py-0.5 rounded transition-colors"
+                        title="Lieferwoche eintragen"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <Calendar className="w-3 h-3" />
                       </button>
                     )}
                   </td>
