@@ -20,6 +20,7 @@ import {
   Scale,
   Check,
   Calendar,
+  Download,
 } from 'lucide-react';
 import { SaisonKundeMitDaten, SaisonKunde } from '../../types/saisonplanung';
 import { useNavigate } from 'react-router-dom';
@@ -442,6 +443,62 @@ const PlatzbauerlVereine = ({
     }
   };
 
+  // CSV Export der Vereinsliste
+  const exportiereVereine = () => {
+    // Belieferungsart formatieren
+    const formatBelart = (art?: string): string => {
+      switch (art) {
+        case 'nur_motorwagen': return 'Motor';
+        case 'mit_haenger': return 'Hänger';
+        case 'abholung_ab_werk': return 'Abholung';
+        case 'palette_mit_ladekran': return 'Ladekran';
+        case 'bigbag': return 'BigBag';
+        default: return '';
+      }
+    };
+
+    // CSV Header
+    const header = ['Vereinsname', 'PLZ', 'Belieferungsart', 'KW', 'Menge (t)', 'Straße', 'Ansprechpartner'];
+
+    // CSV Zeilen
+    const zeilen = gefilterteVereine.map(({ kunde }) => {
+      const adresse = kunde.lieferadresse || kunde.rechnungsadresse;
+      return [
+        kunde.name || '',
+        adresse?.plz || '',
+        formatBelart(kunde.belieferungsart),
+        kunde.wunschLieferwoche ? `KW ${kunde.wunschLieferwoche}` : '',
+        kunde.tonnenLetztesJahr?.toString() || '',
+        adresse?.strasse || '',
+        kunde.dispoAnsprechpartner?.name || '',
+      ];
+    });
+
+    // CSV zusammenbauen (mit Escape für Kommas und Anführungszeichen)
+    const escapeCSV = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+
+    const csvContent = [
+      header.map(escapeCSV).join(';'),
+      ...zeilen.map(row => row.map(escapeCSV).join(';'))
+    ].join('\n');
+
+    // Download auslösen
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM für Excel
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Vereine_${platzbauerName}_${saisonjahr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Toggle Auswahl eines Vereins
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -718,6 +775,15 @@ const PlatzbauerlVereine = ({
               >
                 <Plus className="w-4 h-4" />
                 Verein anlegen
+              </button>
+              {/* Export Button */}
+              <button
+                onClick={exportiereVereine}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors whitespace-nowrap"
+                title="Vereinsliste als CSV exportieren"
+              >
+                <Download className="w-4 h-4" />
+                Export
               </button>
             </>
           ) : (
