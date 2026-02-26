@@ -82,11 +82,20 @@ const generiereLesDatname = (
   dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung' | 'Proformarechnung',
   kundenname: string,
   datum: string,
-  _version?: number
+  _version?: number,
+  lieferadresseName?: string // Optionaler Vereinsname bei Platzbauer-Projekten
 ): string => {
   const jahr = generiereLesbaresDatatum(datum);
-  const saubererName = sanitizeFilename(kundenname);
-  return `${dokumentTyp} ${saubererName} ${jahr}.pdf`;
+  const saubererKundenname = sanitizeFilename(kundenname);
+
+  // Wenn Lieferadresse abweicht (z.B. Verein bei Platzbauer-Projekt), beide Namen verwenden
+  if (lieferadresseName && lieferadresseName !== kundenname) {
+    const saubererLiefername = sanitizeFilename(lieferadresseName);
+    // Format: "Rechnung Vereinsname - Platzbauername 2024.pdf"
+    return `${dokumentTyp} ${saubererLiefername} - ${saubererKundenname} ${jahr}.pdf`;
+  }
+
+  return `${dokumentTyp} ${saubererKundenname} ${jahr}.pdf`;
 };
 
 // Helper: URLs generieren
@@ -195,7 +204,7 @@ export const speichereAngebot = async (
     // PDF generieren
     const pdf = await generiereAngebotPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion);
+    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -253,7 +262,7 @@ export const aktualisiereAngebot = async (
     // Neues PDF generieren
     const pdf = await generiereAngebotPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion);
+    const dateiname = generiereLesDatname('Angebot', daten.kundenname, daten.angebotsdatum, neueVersion, daten.lieferadresseName);
 
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -313,7 +322,7 @@ export const speichereAuftragsbestaetigung = async (
     // PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum);
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, undefined, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -447,7 +456,7 @@ export const aktualisiereAuftragsbestaetigung = async (
     // Neues PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum);
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, undefined, daten.lieferadresseName);
 
     // Neue Datei hochladen (alte bleibt erhalten!)
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -533,7 +542,7 @@ export const speichereLieferschein = async (
     // PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion);
+    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -628,7 +637,7 @@ export const aktualisereLieferschein = async (
     // Neues PDF generieren
     const pdf = await generiereLieferscheinPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion);
+    const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion, daten.lieferadresseName);
 
     // Neue Datei hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -720,7 +729,7 @@ export const speichereRechnung = async (
     // PDF generieren
     const pdf = await generiereRechnungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Rechnung', daten.kundenname, daten.rechnungsdatum);
+    const dateiname = generiereLesDatname('Rechnung', daten.kundenname, daten.rechnungsdatum, undefined, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -850,7 +859,7 @@ export const speichereProformaRechnung = async (
     // PDF generieren
     const pdf = await generiereProformaRechnungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Proformarechnung', daten.kundenname, daten.rechnungsdatum, neueVersion);
+    const dateiname = generiereLesDatname('Proformarechnung', daten.kundenname, daten.rechnungsdatum, neueVersion, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -944,7 +953,7 @@ export const speichereStornoRechnung = async (
     // Storno-PDF generieren (mit spezieller Kennzeichnung)
     const stornoPDF = await generiereStornoRechnungPDF(stornoDaten);
     const blob = pdfToBlob(stornoPDF);
-    const dateiname = generiereLesDatname('Stornorechnung', originalDaten.kundenname, stornoDaten.stornoDatum);
+    const dateiname = generiereLesDatname('Stornorechnung', originalDaten.kundenname, stornoDaten.stornoDatum, undefined, originalDaten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
