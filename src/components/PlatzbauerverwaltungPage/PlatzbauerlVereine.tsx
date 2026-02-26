@@ -29,6 +29,7 @@ import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { NeuesProjekt, Projekt } from '../../types/projekt';
 import { TENNISMEHL_ARTIKEL } from '../../constants/artikelPreise';
+import ExcelJS from 'exceljs';
 
 // Quick-Edit Typen
 type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | 'lieferwoche' | null;
@@ -443,8 +444,8 @@ const PlatzbauerlVereine = ({
     }
   };
 
-  // CSV Export der Vereinsliste
-  const exportiereVereine = () => {
+  // Excel Export der Vereinsliste
+  const exportiereVereine = async () => {
     // Belieferungsart formatieren
     const formatBelart = (art?: string): string => {
       switch (art) {
@@ -457,42 +458,130 @@ const PlatzbauerlVereine = ({
       }
     };
 
-    // CSV Header
-    const header = ['Vereinsname', 'PLZ', 'Belieferungsart', 'KW', 'Menge (t)', 'Straße', 'Ansprechpartner'];
+    // Workbook erstellen
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'TennisMehl24';
+    workbook.created = new Date();
 
-    // CSV Zeilen
-    const zeilen = gefilterteVereine.map(({ kunde }) => {
+    const worksheet = workbook.addWorksheet('Vereine', {
+      pageSetup: { orientation: 'landscape', fitToPage: true }
+    });
+
+    // Logo laden und einfügen
+    try {
+      const logoResponse = await fetch('/Briefkopf.png');
+      const logoBlob = await logoResponse.blob();
+      const logoBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(logoBlob);
+      });
+
+      const logoId = workbook.addImage({
+        base64: logoBase64.split(',')[1],
+        extension: 'png',
+      });
+
+      // Logo oben rechts (Spalte F-G, Zeile 1-3)
+      worksheet.addImage(logoId, {
+        tl: { col: 5, row: 0 },
+        ext: { width: 180, height: 50 }
+      });
+    } catch (e) {
+      console.warn('Logo konnte nicht geladen werden:', e);
+    }
+
+    // Titel (Zeile 1)
+    worksheet.mergeCells('A1:D1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = `Vereinsliste ${platzbauerName}`;
+    titleCell.font = { size: 16, bold: true, color: { argb: 'FF333333' } };
+    titleCell.alignment = { vertical: 'middle' };
+
+    // Untertitel (Zeile 2)
+    worksheet.mergeCells('A2:D2');
+    const subtitleCell = worksheet.getCell('A2');
+    subtitleCell.value = `Saison ${saisonjahr} • ${gefilterteVereine.length} Vereine • Erstellt am ${new Date().toLocaleDateString('de-DE')}`;
+    subtitleCell.font = { size: 10, color: { argb: 'FF666666' } };
+
+    // Leerzeile
+    worksheet.addRow([]);
+
+    // Header (Zeile 4)
+    const headerRow = worksheet.addRow(['Vereinsname', 'PLZ', 'Belieferung', 'KW', 'Menge (t)', 'Straße', 'Ansprechpartner']);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4A5568' } // Grau
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.height = 22;
+
+    // Daten
+    gefilterteVereine.forEach(({ kunde }, index) => {
       const adresse = kunde.lieferadresse || kunde.rechnungsadresse;
-      return [
+      const row = worksheet.addRow([
         kunde.name || '',
         adresse?.plz || '',
         formatBelart(kunde.belieferungsart),
         kunde.wunschLieferwoche ? `KW ${kunde.wunschLieferwoche}` : '',
-        kunde.tonnenLetztesJahr?.toString() || '',
+        kunde.tonnenLetztesJahr || '',
         adresse?.strasse || '',
         kunde.dispoAnsprechpartner?.name || '',
-      ];
+      ]);
+
+      // Zebra-Streifen
+      if (index % 2 === 1) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF7FAFC' }
+        };
+      }
+
+      row.alignment = { vertical: 'middle' };
+      row.height = 20;
     });
 
-    // CSV zusammenbauen (mit Escape für Kommas und Anführungszeichen)
-    const escapeCSV = (val: string) => {
-      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-        return `"${val.replace(/"/g, '""')}"`;
+    // Spaltenbreiten
+    worksheet.columns = [
+      { width: 35 }, // Vereinsname
+      { width: 10 }, // PLZ
+      { width: 12 }, // Belieferung
+      { width: 8 },  // KW
+      { width: 12 }, // Menge
+      { width: 30 }, // Straße
+      { width: 20 }, // Ansprechpartner
+    ];
+
+    // Rahmen für alle Datenzellen
+    const lastRow = worksheet.rowCount;
+    for (let r = 4; r <= lastRow; r++) {
+      for (let c = 1; c <= 7; c++) {
+        const cell = worksheet.getCell(r, c);
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        };
       }
-      return val;
-    };
+    }
 
-    const csvContent = [
-      header.map(escapeCSV).join(';'),
-      ...zeilen.map(row => row.map(escapeCSV).join(';'))
-    ].join('\n');
+    // Summenzeile
+    const sumRow = worksheet.addRow(['', '', '', '', gefilterteVereine.reduce((sum, v) => sum + (v.kunde.tonnenLetztesJahr || 0), 0), '', '']);
+    sumRow.font = { bold: true };
+    sumRow.getCell(1).value = 'Gesamt:';
+    sumRow.getCell(5).numFmt = '0.0 "t"';
 
-    // Download auslösen
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM für Excel
+    // Download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Vereine_${platzbauerName}_${saisonjahr}.csv`;
+    link.download = `Vereine_${platzbauerName}_${saisonjahr}.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
