@@ -19,6 +19,7 @@ import {
   Boxes,
   PackageCheck,
   ExternalLink,
+  Printer,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Tour, TourStop, TourFahrzeugTyp, TourKapazitaet, STANDARD_KAPAZITAETEN } from '../../types/tour';
@@ -26,6 +27,7 @@ import { Projekt } from '../../types/projekt';
 import { tourenService } from '../../services/tourenService';
 import { projektService } from '../../services/projektService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
+import AlleLieferscheineModal from './AlleLieferscheineModal';
 
 interface TourenManagementProps {
   projekte: Projekt[];
@@ -852,6 +854,10 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
   const [zuweisungProjekt, setZuweisungProjekt] = useState<Projekt | null>(null);
   const [showZuweisungDialog, setShowZuweisungDialog] = useState(false);
 
+  // Lieferscheine Modal
+  const [showLieferscheineModal, setShowLieferscheineModal] = useState(false);
+  const [lieferscheineTour, setLieferscheineTour] = useState<Tour | null>(null);
+
   // Touren laden
   const loadTouren = useCallback(async () => {
     setLoading(true);
@@ -1210,6 +1216,22 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            setLieferscheineTour(tour);
+                            setShowLieferscheineModal(true);
+                          }}
+                          disabled={tour.stops.length === 0}
+                          className={`p-2 rounded-lg ${
+                            tour.stops.length === 0
+                              ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                              : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30'
+                          }`}
+                          title={tour.stops.length === 0 ? 'Keine Stopps vorhanden' : 'Alle Lieferscheine drucken'}
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             handleTourLoeschen(tour.id);
                           }}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
@@ -1360,6 +1382,19 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
         }}
         onZuweisen={handleAuftragZuweisen}
       />
+
+      {/* Alle Lieferscheine Modal */}
+      {lieferscheineTour && (
+        <AlleLieferscheineModal
+          isOpen={showLieferscheineModal}
+          onClose={() => {
+            setShowLieferscheineModal(false);
+            setLieferscheineTour(null);
+          }}
+          tour={lieferscheineTour}
+          projekte={projekte}
+        />
+      )}
 
       {/* Saving Overlay */}
       {saving && (
