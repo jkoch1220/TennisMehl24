@@ -1604,20 +1604,6 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     signY += (bemerkungLines.length * 4);
   }
   
-  // === Grußformel ===
-  signY += 12;
-  
-  // Prüfe Platz für Grußformel
-  signY = await ensureSpace(doc, signY, 10, stammdaten);
-  
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.text('Mit freundlichen Grüßen', 25, signY);
-  signY += 5;
-  doc.setFont('helvetica', 'bold');
-  doc.text(stammdaten.firmenname, 25, signY);
-  doc.setFont('helvetica', 'normal');
-
   // Footer auf allen Seiten
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
