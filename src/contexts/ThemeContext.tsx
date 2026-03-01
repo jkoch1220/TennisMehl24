@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 
 interface ThemeContextType {
   isDark: boolean;
@@ -13,8 +13,8 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [isDark, setIsDark] = useState(() => {
-    // Initialize from sessionStorage or default to false
-    const savedTheme = sessionStorage.getItem('tennismehl_theme');
+    // Initialize from localStorage (persistent) or default to false
+    const savedTheme = localStorage.getItem('tennismehl_theme');
     return savedTheme === 'dark';
   });
 
@@ -25,22 +25,24 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     if (isDark) {
       root.classList.add('dark');
       // Don't override body styles - let Tailwind handle it
-      sessionStorage.setItem('tennismehl_theme', 'dark');
+      localStorage.setItem('tennismehl_theme', 'dark');
     } else {
       root.classList.remove('dark');
       // Don't override body styles - let Tailwind handle it
-      sessionStorage.setItem('tennismehl_theme', 'light');
+      localStorage.setItem('tennismehl_theme', 'light');
     }
   }, [isDark]);
 
-  const toggleTheme = () => {
+  // Memoisierte toggleTheme Funktion - verhindert unnötige Re-Renders
+  const toggleTheme = useCallback(() => {
     setIsDark(prev => !prev);
-  };
+  }, []);
 
-  const value: ThemeContextType = {
+  // Memoisierter Context Value - verhindert unnötige Re-Renders aller Consumer
+  const value = useMemo<ThemeContextType>(() => ({
     isDark,
     toggleTheme,
-  };
+  }), [isDark, toggleTheme]);
 
   return (
     <ThemeContext.Provider value={value}>

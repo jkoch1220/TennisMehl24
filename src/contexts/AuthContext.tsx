@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { User, login as loginService, logout as logoutService, checkSession, isAdmin } from '../services/authService';
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
@@ -75,8 +75,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  // Login
-  const login = async (username: string, password: string) => {
+  // Login - memoisiert um unnötige Re-Renders zu vermeiden
+  const login = useCallback(async (username: string, password: string) => {
     try {
       const loggedInUser = await loginService(username, password);
       setUser(loggedInUser);
@@ -92,10 +92,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       throw error;
     }
-  };
+  }, []);
 
-  // Logout
-  const logout = async () => {
+  // Logout - memoisiert
+  const logout = useCallback(async () => {
     try {
       await logoutService();
       setUser(null);
@@ -104,10 +104,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       throw error;
     }
-  };
+  }, []);
 
-  // User neu laden (z.B. nach Änderungen)
-  const refreshUser = async () => {
+  // User neu laden (z.B. nach Änderungen) - memoisiert
+  const refreshUser = useCallback(async () => {
     try {
       const currentUser = await checkSession();
       setUser(currentUser);
@@ -117,25 +117,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('❌ Fehler beim Aktualisieren des Users:', error);
     }
-  };
+  }, []);
 
   // Nur Permissions neu laden (z.B. nach Änderungen in Benutzerverwaltung)
-  const refreshPermissions = async () => {
+  const refreshPermissions = useCallback(async () => {
     if (user) {
       await loadPermissionsForUser(user);
     }
-  };
+  }, [user]);
 
-  const value: AuthContextType = {
+  // Berechne isAdmin einmal und memoisiere
+  const isAdminValue = useMemo(() => isAdmin(user), [user]);
+
+  // Memoisierter Context Value - verhindert unnötige Re-Renders aller Consumer
+  const value = useMemo<AuthContextType>(() => ({
     user,
     loading,
     permissionsLoading,
     login,
     logout,
-    isAdmin: isAdmin(user),
+    isAdmin: isAdminValue,
     refreshUser,
     refreshPermissions,
-  };
+  }), [user, loading, permissionsLoading, login, logout, isAdminValue, refreshUser, refreshPermissions]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
