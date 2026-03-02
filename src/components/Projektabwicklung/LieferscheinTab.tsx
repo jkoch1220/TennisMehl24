@@ -41,6 +41,7 @@ import EmailFormular from './EmailFormular';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 
 interface LieferscheinTabProps {
@@ -410,12 +411,45 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
         const ansprechpartnerName = projekt?.ansprechpartner || kundeInfo?.ansprechpartner || dispoAnsprechpartner?.name || '';
         const ansprechpartnerTelefon = dispoAnsprechpartner?.telefon || '';
 
+        // PLATZBAUER-PROJEKTE: Rechnungsadresse = Platzbauer, Lieferadresse = Verein
+        // Die "kundenname/strasse/PlzOrt" Felder werden im PDF als Rechnungsadresse verwendet
+        let rechnungsname = projekt?.kundenname || kundeInfo?.kundenname || '';
+        let rechnungsstrasse = projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
+        let rechnungsPlzOrt = projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
+        let rechnungsnummer = projekt?.kundennummer || kundeInfo?.kundennummer;
+
+        if (projekt?.istPlatzbauerprojekt && projekt?.zugeordnetesPlatzbauerprojektId) {
+          try {
+            // Lade Platzbauerprojekt um platzbauerId zu bekommen
+            const platzbauerprojekt = await platzbauerverwaltungService.getPlatzbauerprojekt(
+              projekt.zugeordnetesPlatzbauerprojektId
+            );
+            if (platzbauerprojekt?.platzbauerId) {
+              // Lade Platzbauer-Kundendaten für Rechnungsadresse
+              const platzbauer = await saisonplanungService.loadKunde(platzbauerprojekt.platzbauerId);
+              if (platzbauer) {
+                rechnungsname = platzbauer.name;
+                rechnungsstrasse = platzbauer.rechnungsadresse?.strasse || '';
+                rechnungsPlzOrt = formatAdresszeile(
+                  platzbauer.rechnungsadresse?.plz || '',
+                  platzbauer.rechnungsadresse?.ort || '',
+                  platzbauer.rechnungsadresse?.land
+                );
+                rechnungsnummer = platzbauer.kundennummer;
+                console.log('✅ Platzbauer-Projekt: Rechnungsadresse vom Platzbauer geladen:', platzbauer.name);
+              }
+            }
+          } catch (error) {
+            console.warn('Fehler beim Laden der Platzbauer-Daten:', error);
+          }
+        }
+
         setLieferscheinDaten(prev => ({
           ...prev,
-          kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
-          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
-          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
-          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          kundennummer: rechnungsnummer,
+          kundenname: rechnungsname,
+          kundenstrasse: rechnungsstrasse,
+          kundenPlzOrt: rechnungsPlzOrt,
           ansprechpartner: prev.ansprechpartner || ansprechpartnerName,
           ansprechpartnerTelefon: prev.ansprechpartnerTelefon || ansprechpartnerTelefon,
           dispoAnsprechpartner: prev.dispoAnsprechpartner?.name ? prev.dispoAnsprechpartner : dispoAnsprechpartner,
