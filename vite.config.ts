@@ -4,6 +4,17 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // Proxy für Netlify Functions in Development
+    // Vermeidet CORS-Probleme beim lokalen Entwickeln
+    proxy: {
+      '/.netlify/functions': {
+        target: 'https://tennismehl24-tools.netlify.app',
+        changeOrigin: true,
+        secure: true,
+      }
+    }
+  },
   build: {
     rollupOptions: {
       output: {

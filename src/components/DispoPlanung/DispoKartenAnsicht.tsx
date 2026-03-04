@@ -20,7 +20,6 @@ import {
   Loader2,
   AlertTriangle,
   Navigation,
-  Layers,
   Search,
   X,
   Maximize2,
@@ -118,6 +117,9 @@ interface ProjektMitKoordinaten {
   position: google.maps.LatLngLiteral;
   tonnen: number;
   kw?: number;
+  // NEU: Koordinaten-Quelle für visuelle Unterscheidung
+  koordinatenQuelle: 'exakt' | 'manuell' | 'plz' | 'unbekannt';
+  plz?: string; // Die PLZ des Projekts (für Offset-Berechnung)
 }
 
 interface PLZCluster {
@@ -190,15 +192,6 @@ const extractPLZFromProjekt = (projekt: Projekt, kunde?: SaisonKunde): string | 
   return match ? match[1] : null;
 };
 
-// SCHNELLES PLZ-basiertes Geocoding (ZERO API COST!)
-const geocodeByPLZFast = (projekt: Projekt, kunde?: SaisonKunde): google.maps.LatLngLiteral | null => {
-  const plz = extractPLZFromProjekt(projekt, kunde);
-  if (!plz) return null;
-
-  const coords = getKoordinatenFuerPLZ(plz);
-  return coords ? { lat: coords.lat, lng: coords.lng } : null;
-};
-
 // Bestehende Koordinaten aus Kunde holen (höchste Priorität)
 const getExistingCoordinates = (
   _projekt: Projekt,
@@ -226,30 +219,55 @@ const getExistingCoordinates = (
 };
 
 // KOMBINIERTE Geocoding-Strategie (optimiert für Performance)
+// Gibt jetzt auch die Quelle der Koordinaten zurück
+interface SmartGeocodeResult {
+  position: google.maps.LatLngLiteral;
+  quelle: 'exakt' | 'manuell' | 'plz';
+  plz?: string;
+}
+
 const smartGeocode = (
   projekt: Projekt,
   kunde?: SaisonKunde
-): google.maps.LatLngLiteral | null => {
-  // PRIORITÄT 1: Gespeicherte Koordinaten vom PROJEKT (aus Appwrite)
-  // Dies sind die genauen Google-Geocoding-Ergebnisse!
+): SmartGeocodeResult | null => {
+  const plzRaw = extractPLZFromProjekt(projekt, kunde);
+  const plz = plzRaw ?? undefined; // Convert null to undefined for TypeScript
+
+  // PRIORITÄT 1: Gespeicherte Koordinaten vom PROJEKT mit koordinatenQuelle 'exakt' oder 'manuell'
+  // NUR diese sind zuverlässig!
   if (projekt.koordinaten && Array.isArray(projekt.koordinaten) && projekt.koordinaten.length >= 2) {
     const [lon, lat] = projekt.koordinaten;
     // Validiere: In Deutschland?
     if (typeof lat === 'number' && typeof lon === 'number' &&
         lat >= 47 && lat <= 56 && lon >= 5 && lon <= 16) {
-      return { lat, lng: lon };
+      // Prüfe ob die Koordinaten exakt oder manuell sind
+      if (projekt.koordinatenQuelle === 'exakt' || projekt.koordinatenQuelle === 'manuell') {
+        return { position: { lat, lng: lon }, quelle: projekt.koordinatenQuelle, plz };
+      }
+      // Wenn koordinatenQuelle 'plz' ist, nutze trotzdem die gespeicherten Koordinaten
+      // aber markiere sie als PLZ-Fallback
+      if (projekt.koordinatenQuelle === 'plz') {
+        return { position: { lat, lng: lon }, quelle: 'plz', plz };
+      }
     }
   }
 
-  // Priorität 2: Existierende Koordinaten vom Kunden
+  // Priorität 2: Existierende Koordinaten vom Kunden (mit Adresse = wahrscheinlich exakt)
   const existing = getExistingCoordinates(projekt, kunde);
-  if (existing) return existing;
+  if (existing) {
+    return { position: existing, quelle: 'exakt', plz };
+  }
 
   // Priorität 3: PLZ-Lookup (Fallback, ungenau)
-  const plzCoords = geocodeByPLZFast(projekt, kunde);
-  if (plzCoords) return plzCoords;
+  // WICHTIG: Nutze die PLZ des PROJEKTS, nicht irgendeine Standard-Position!
+  if (plzRaw) {
+    const plzCoords = getKoordinatenFuerPLZ(plzRaw);
+    if (plzCoords) {
+      return { position: { lat: plzCoords.lat, lng: plzCoords.lng }, quelle: 'plz', plz };
+    }
+  }
 
-  // Keine Koordinaten gefunden
+  // Keine Koordinaten gefunden - NICHT auf WERK_POSITION fallen lassen!
   return null;
 };
 
@@ -382,7 +400,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // Tour State
   const [touren, setTouren] = useState<Tour[]>([]);
-  const [showTouren, setShowTouren] = useState(true);
+  const [showTouren, setShowTouren] = useState(false); // Standardmäßig ausgeblendet
   const [tourenDatum, setTourenDatum] = useState(new Date().toISOString().split('T')[0]);
   const [tourenFilterModus, setTourenFilterModus] = useState<'alle' | 'datum'>('alle');
   const [loadingTouren, setLoadingTouren] = useState(false);
@@ -409,6 +427,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   const [problemAdressen, setProblemAdressen] = useState<Projekt[]>([]);
   const [showProblemAdressenPanel, setShowProblemAdressenPanel] = useState(false);
   const [hintergrundGeocodingFortschritt, setHintergrundGeocodingFortschritt] = useState<{ done: number; total: number } | null>(null);
+  const [showOhneAdressePanel, setShowOhneAdressePanel] = useState(false);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -434,9 +453,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
       // SCHNELL: Lokales Geocoding (existierende Koordinaten ODER PLZ-Lookup)
-      const coords = smartGeocode(projekt, kunde);
-      if (coords) {
-        sofortGeocoded.set(id, coords);
+      const geocodeResult = smartGeocode(projekt, kunde);
+      if (geocodeResult) {
+        sofortGeocoded.set(id, geocodeResult.position);
       } else {
         // Fallback: Google API wird gebraucht (sehr selten!)
         const address = getAddressForGoogleFallback(projekt, kunde);
@@ -510,16 +529,40 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // OPTIMIERT: Nutzt smartGeocode direkt für sofortige Anzeige,
   // geocodedPositions wird nur für Google API Fallback-Ergebnisse gebraucht
+  // NEU: Berechnet PLZ-basierte Offsets für gestapelte Marker
   const projekteMitKoordinaten = useMemo(() => {
-    const result: ProjektMitKoordinaten[] = [];
+    const tempResult: Array<{
+      projekt: Projekt;
+      kunde?: SaisonKunde;
+      position: google.maps.LatLngLiteral;
+      tonnen: number;
+      kw?: number;
+      koordinatenQuelle: 'exakt' | 'manuell' | 'plz' | 'unbekannt';
+      plz?: string;
+    }> = [];
+
     for (const projekt of projekte) {
       const id = (projekt as any).$id || projekt.id;
       const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
-      // SCHNELL: Zuerst Cache, dann lokales Geocoding, dann Google API Ergebnisse
-      let position = geocodedPositions.get(id);
-      if (!position) {
-        position = smartGeocode(projekt, kunde) || undefined;
+      // SCHNELL: Zuerst Cache, dann lokales Geocoding
+      const cachedPosition = geocodedPositions.get(id);
+      let position: google.maps.LatLngLiteral | undefined;
+      let koordinatenQuelle: 'exakt' | 'manuell' | 'plz' | 'unbekannt' = 'unbekannt';
+      let plz: string | undefined;
+
+      if (cachedPosition) {
+        position = cachedPosition;
+        // Koordinatenquelle aus dem Projekt übernehmen
+        koordinatenQuelle = (projekt.koordinatenQuelle as 'exakt' | 'manuell' | 'plz') || 'exakt';
+        plz = extractPLZFromProjekt(projekt, kunde) || undefined;
+      } else {
+        const geocodeResult = smartGeocode(projekt, kunde);
+        if (geocodeResult) {
+          position = geocodeResult.position;
+          koordinatenQuelle = geocodeResult.quelle;
+          plz = geocodeResult.plz;
+        }
       }
 
       if (!position) continue;
@@ -527,15 +570,55 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       // Material-Aufschlüsselung für korrekte Tonnenzahl
       const material = parseMaterialAufschluesselung(projekt);
 
-      result.push({
+      tempResult.push({
         projekt,
         kunde,
         position,
         tonnen: material.gesamtTonnen,
         kw: projekt.lieferKW || (projekt.geplantesDatum ? getKW(projekt.geplantesDatum) : undefined),
+        koordinatenQuelle,
+        plz,
       });
     }
-    return result;
+
+    // PHASE 2: PLZ-basierte Offsets für gestapelte Marker berechnen
+    // Gruppiere Projekte mit PLZ-Fallback nach ihrer Position (gerundet auf 3 Dezimalstellen)
+    const positionGroups = new Map<string, number[]>(); // "lat,lng" -> [indices]
+
+    tempResult.forEach((item, index) => {
+      if (item.koordinatenQuelle === 'plz') {
+        // Runde auf 3 Dezimalstellen (~100m Genauigkeit) um Cluster zu finden
+        const key = `${item.position.lat.toFixed(3)},${item.position.lng.toFixed(3)}`;
+        if (!positionGroups.has(key)) {
+          positionGroups.set(key, []);
+        }
+        positionGroups.get(key)!.push(index);
+      }
+    });
+
+    // Wende Offsets auf gestapelte PLZ-Marker an
+    const PLZ_OFFSET_RADIUS = 0.002; // ~200m in Grad
+    positionGroups.forEach((indices) => {
+      if (indices.length <= 1) return; // Kein Offset nötig für einzelne Marker
+
+      indices.forEach((idx, i) => {
+        const item = tempResult[idx];
+        // Berechne Position im Kreis um das PLZ-Zentrum
+        const angle = (i * 360 / indices.length) * (Math.PI / 180);
+        const offsetLat = PLZ_OFFSET_RADIUS * Math.cos(angle);
+        const offsetLng = PLZ_OFFSET_RADIUS * Math.sin(angle);
+
+        tempResult[idx] = {
+          ...item,
+          position: {
+            lat: item.position.lat + offsetLat,
+            lng: item.position.lng + offsetLng,
+          },
+        };
+      });
+    });
+
+    return tempResult;
   }, [projekte, kundenMap, geocodedPositions]);
 
   const gefilterteProjekte = useMemo(() => {
@@ -575,21 +658,25 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // Gesamt-Stats
   const totalStats = useMemo(() => {
-    // Zähle ungenaue Positionen (PLZ-Fallback)
-    const ungenauePositionen = gefilterteProjekte.filter(p =>
-      p.projekt.koordinatenQuelle === 'plz' || (!p.projekt.koordinaten && !p.projekt.koordinatenQuelle)
-    ).length;
+    // Zähle PLZ-Fallback Positionen (aus dem Item, nicht vom Projekt-Feld!)
+    const plzFallbackAnzahl = gefilterteProjekte.filter(p => p.koordinatenQuelle === 'plz').length;
 
     return {
       count: gefilterteProjekte.length,
       tonnen: gefilterteProjekte.reduce((s, p) => s + p.tonnen, 0),
       ohneKoordinaten: projekte.length - projekteMitKoordinaten.length,
-      ungenauePositionen,
+      plzFallback: plzFallbackAnzahl,
       problemAdressen: problemAdressen.length,
       geocoding: geocodingInProgress,
       hintergrundGeocoding: hintergrundGeocodingFortschritt,
     };
   }, [gefilterteProjekte, projekte.length, projekteMitKoordinaten.length, geocodingInProgress, problemAdressen.length, hintergrundGeocodingFortschritt]);
+
+  // Projekte ohne Koordinaten (werden nicht auf Karte angezeigt)
+  const projekteOhneAdresse = useMemo(() => {
+    const projektIdsAufKarte = new Set(projekteMitKoordinaten.map(p => (p.projekt as any).$id || p.projekt.id));
+    return projekte.filter(p => !projektIdsAufKarte.has((p as any).$id || p.id));
+  }, [projekte, projekteMitKoordinaten]);
 
   // Clustering bei niedrigem Zoom
   const clusters = useMemo<PLZCluster[]>(() => {
@@ -686,7 +773,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // === EFFECTS ===
 
-  // Touren laden
+  // Touren laden (ohne abgeschlossene Touren)
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -698,7 +785,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
         } else {
           result = await tourenService.loadTouren({ datum: tourenDatum });
         }
-        if (!cancelled) setTouren(result);
+        // Abgeschlossene Touren nicht auf der Karte anzeigen
+        const aktiveTouren = result.filter(t => t.status !== 'abgeschlossen');
+        if (!cancelled) setTouren(aktiveTouren);
       } catch { if (!cancelled) setTouren([]); }
       finally { if (!cancelled) setLoadingTouren(false); }
     };
@@ -791,23 +880,6 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       throw error;
     }
   }, [onProjektUpdate]);
-
-  // Prüft ob ein Projekt eine ungenaue Position hat (PLZ-Fallback oder keine Koordinaten)
-  const hatUngenauePosition = useCallback((projekt: Projekt): boolean => {
-    // Hat exakte Koordinaten? -> nicht ungenau
-    if (projekt.koordinatenQuelle === 'exakt' || projekt.koordinatenQuelle === 'manuell') {
-      return false;
-    }
-    // Hat PLZ-Fallback? -> ungenau
-    if (projekt.koordinatenQuelle === 'plz') {
-      return true;
-    }
-    // Keine Koordinaten gespeichert? -> prüfe ob exakte Koordinaten existieren
-    if (!projekt.koordinaten) {
-      return true;
-    }
-    return false;
-  }, []);
 
   // ALLE Projekte neu geocoden (für Migration von alten PLZ-Koordinaten)
   const [reGeocodingInProgress, setReGeocodingInProgress] = useState(false);
@@ -1204,14 +1276,15 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
           <button
             onClick={() => setShowTouren(!showTouren)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
               showTouren
-                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 shadow-sm'
-                : 'text-gray-400 hover:text-gray-600'
+                ? 'bg-purple-500 text-white shadow-md'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:text-purple-600 dark:hover:text-purple-300'
             }`}
+            title={showTouren ? 'Touren ausblenden' : 'Touren einblenden'}
           >
-            <Layers className="w-3.5 h-3.5 inline mr-1" />
-            {touren.length > 0 ? `${touren.length} Touren` : 'Touren'}
+            <Route className="w-4 h-4" />
+            {showTouren ? 'Touren ausblenden' : `Touren anzeigen${touren.length > 0 ? ` (${touren.length})` : ''}`}
           </button>
         </div>
 
@@ -1585,8 +1658,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
               const isHover = hoveredId === id;
               const istGeliefert = status === 'geliefert';
 
-              // Prüfe ob Position ungenau ist (PLZ-Fallback oder keine gespeicherten Koordinaten)
-              const istUngenau = hatUngenauePosition(item.projekt);
+              // NEU: Prüfe Koordinaten-Quelle direkt aus dem Item
+              const istPLZFallback = item.koordinatenQuelle === 'plz';
 
               // Marker-Farbe basierend auf Belieferungsart (simpel)
               const belieferungsart = item.projekt.belieferungsart;
@@ -1621,17 +1694,17 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                         </div>
                       )}
 
-                      {/* Warnsymbol für ungenaue Position */}
-                      {istUngenau && (
+                      {/* PLZ-Fallback Badge mit Tilde (~) */}
+                      {istPLZFallback && (
                         <div
                           className="absolute -top-1 -right-1 z-10 w-4 h-4 bg-amber-400 rounded-full border border-white shadow flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
                           onClick={(e) => {
                             e.stopPropagation();
                             openAdressKorrekturModal(item.projekt);
                           }}
-                          title="Position ungenau - Klicken zum Korrigieren"
+                          title={`Position basiert auf PLZ-Zentrum${item.plz ? ` (${item.plz})` : ''} - Klicken zum Korrigieren`}
                         >
-                          <span className="text-[9px] font-bold text-amber-900">!</span>
+                          <span className="text-[10px] font-bold text-amber-900">~</span>
                         </div>
                       )}
 
@@ -1640,7 +1713,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                         className={`rounded-xl flex items-center justify-center border-2 ${
                           istPlatzbauerprojekt
                             ? 'border-orange-400'
-                            : istUngenau
+                            : istPLZFallback
                             ? 'border-amber-400'
                             : 'border-white'
                         } ${status === 'offen' && !isActive ? 'animate-pulse' : ''}`}
@@ -1648,13 +1721,14 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                           width: size,
                           height: size,
                           backgroundColor: istGeliefert ? '#22c55e' : markerFarbe.hex,
+                          opacity: istPLZFallback ? 0.7 : 1, // NEU: Reduzierte Opacity für PLZ-Fallback
                           boxShadow: isActive
                             ? `0 0 0 3px ${markerFarbe.hex}50, 0 8px 25px rgba(0,0,0,0.3)`
                             : isHover
                             ? `0 4px 15px rgba(0,0,0,0.25)`
                             : istPlatzbauerprojekt
                             ? '0 2px 8px rgba(251, 146, 60, 0.5)'
-                            : istUngenau
+                            : istPLZFallback
                             ? '0 2px 8px rgba(251, 191, 36, 0.4)'
                             : '0 2px 8px rgba(0,0,0,0.2)',
                           transform: isActive ? 'scale(1.2)' : isHover ? 'scale(1.1)' : 'scale(1)',
@@ -1722,9 +1796,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                                   Platzbauer
                                 </span>
                               )}
-                              {istUngenau && (
+                              {istPLZFallback && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900 font-medium">
-                                  Position ungenau
+                                  PLZ-Position
                                 </span>
                               )}
                               {item.tonnen > 0 && <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{item.tonnen}t</span>}
@@ -2163,6 +2237,55 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
               <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
                 {geocodingInProgress ? 'Adressen werden geocoded...' : 'Touren laden...'}
               </span>
+            </div>
+          )}
+
+          {/* Banner: Projekte ohne gültige Adresse */}
+          {projekteOhneAdresse.length > 0 && (
+            <button
+              onClick={() => setShowOhneAdressePanel(!showOhneAdressePanel)}
+              className={`absolute bottom-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg transition-all ${
+                showOhneAdressePanel
+                  ? 'bg-red-600 text-white'
+                  : 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-200'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-medium">{projekteOhneAdresse.length} ohne gültige Adresse</span>
+            </button>
+          )}
+
+          {/* Panel: Projekte ohne gültige Adresse */}
+          {showOhneAdressePanel && projekteOhneAdresse.length > 0 && (
+            <div className="absolute bottom-16 left-4 z-20 w-80 max-h-64 overflow-y-auto bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700">
+              <div className="sticky top-0 bg-white dark:bg-slate-800 px-3 py-2 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">Projekte ohne gültige Adresse</span>
+                <button
+                  onClick={() => setShowOhneAdressePanel(false)}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700"
+                >
+                  <X className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                {projekteOhneAdresse.map((projekt) => (
+                  <div
+                    key={(projekt as any).$id || projekt.id}
+                    className="px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
+                    onClick={() => {
+                      openAdressKorrekturModal(projekt);
+                      setShowOhneAdressePanel(false);
+                    }}
+                  >
+                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {projekt.kundenname}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {projekt.lieferadresse?.strasse || projekt.kundenstrasse || 'Keine Straße'} · {projekt.lieferadresse?.plz || ''} {projekt.lieferadresse?.ort || projekt.kundenPlzOrt || 'Kein Ort'}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

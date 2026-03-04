@@ -20,6 +20,8 @@ import {
   PackageCheck,
   ExternalLink,
   Printer,
+  CheckCircle2,
+  FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Tour, TourStop, TourFahrzeugTyp, TourKapazitaet, STANDARD_KAPAZITAETEN } from '../../types/tour';
@@ -835,6 +837,244 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
   );
 };
 
+// Datenstruktur für Stop-Auswahl im Ausgeliefert-Modal
+interface AusgeliefertStop {
+  projektId: string;
+  kundenname: string;
+  tonnen: number;
+  projektStatus: string;
+  ausgewaehlt: boolean;
+  bereitsAbgerechnet: boolean;
+  istVerloren: boolean;
+}
+
+// Dialog für Tour-Auslieferung
+interface TourAusgeliefertDialogProps {
+  open: boolean;
+  tour: Tour | null;
+  projekte: Projekt[];
+  onClose: () => void;
+  onAbschliessen: (tourId: string, ausgewaehlteStops: string[]) => void;
+}
+
+const TourAusgeliefertDialog = ({ open, tour, projekte, onClose, onAbschliessen }: TourAusgeliefertDialogProps) => {
+  const [stops, setStops] = useState<AusgeliefertStop[]>([]);
+
+  // Stops initialisieren wenn Modal öffnet
+  useEffect(() => {
+    if (tour && open) {
+      const initStops: AusgeliefertStop[] = tour.stops.map(stop => {
+        const projekt = projekte.find(p => ((p as any).$id || p.id) === stop.projektId);
+        const status = projekt?.status || 'unbekannt';
+        const bereitsAbgerechnet = status === 'rechnung' || status === 'bezahlt';
+        const istVerloren = status === 'verloren';
+
+        return {
+          projektId: stop.projektId,
+          kundenname: stop.kundenname,
+          tonnen: stop.tonnen,
+          projektStatus: status,
+          ausgewaehlt: !bereitsAbgerechnet && !istVerloren, // Per Default ausgewählt, außer bereits abgerechnet oder verloren
+          bereitsAbgerechnet,
+          istVerloren,
+        };
+      });
+      setStops(initStops);
+    }
+  }, [tour, projekte, open]);
+
+  if (!open || !tour) return null;
+
+  const toggleStop = (projektId: string) => {
+    setStops(prev => prev.map(s =>
+      s.projektId === projektId && !s.bereitsAbgerechnet && !s.istVerloren
+        ? { ...s, ausgewaehlt: !s.ausgewaehlt }
+        : s
+    ));
+  };
+
+  const ausgewaehlteAnzahl = stops.filter(s => s.ausgewaehlt).length;
+  const gesamtTonnen = stops.filter(s => s.ausgewaehlt).reduce((sum, s) => sum + s.tonnen, 0);
+
+  const handleAbschliessen = () => {
+    const ausgewaehlteIds = stops.filter(s => s.ausgewaehlt).map(s => s.projektId);
+    onAbschliessen(tour.id, ausgewaehlteIds);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'angebot':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">Angebot</span>;
+      case 'angebot_versendet':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400">AG versendet</span>;
+      case 'auftragsbestaetigung':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400">AB</span>;
+      case 'lieferschein':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400">LS</span>;
+      case 'rechnung':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">Rechnung</span>;
+      case 'bezahlt':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">Bezahlt</span>;
+      case 'verloren':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">Verloren</span>;
+      default:
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700">{status}</span>;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-600 to-green-500 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <CheckCircle2 className="w-6 h-6" />
+                Tour ausgeliefert
+              </h2>
+              <p className="text-emerald-100 text-sm mt-1">
+                {tour.name} {tour.datum && `• ${new Date(tour.datum).toLocaleDateString('de-DE')}`}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 text-white/80 hover:text-white rounded-lg hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-5 overflow-y-auto flex-1">
+          {/* Stops-Liste */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              Ausgelieferte Stopps auswählen
+            </label>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {stops.map((stop, index) => (
+                <button
+                  key={stop.projektId}
+                  type="button"
+                  onClick={() => toggleStop(stop.projektId)}
+                  disabled={stop.bereitsAbgerechnet || stop.istVerloren}
+                  className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                    stop.istVerloren
+                      ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed'
+                      : stop.bereitsAbgerechnet
+                        ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 cursor-default'
+                        : stop.ausgewaehlt
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                          : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Checkbox-Bereich */}
+                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${
+                      stop.istVerloren
+                        ? 'bg-slate-200 dark:bg-slate-700'
+                        : stop.bereitsAbgerechnet
+                          ? 'bg-green-500'
+                          : stop.ausgewaehlt
+                            ? 'bg-emerald-500'
+                            : 'border-2 border-gray-300 dark:border-slate-600'
+                    }`}>
+                      {(stop.ausgewaehlt || stop.bereitsAbgerechnet) && !stop.istVerloren && (
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      )}
+                      {stop.istVerloren && (
+                        <X className="w-3.5 h-3.5 text-slate-500" />
+                      )}
+                    </div>
+
+                    {/* Stop-Nummer */}
+                    <span className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-bold text-gray-600 dark:text-gray-400">
+                      {index + 1}
+                    </span>
+
+                    {/* Inhalt */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white truncate">
+                          {stop.kundenname}
+                        </span>
+                        {getStatusBadge(stop.projektStatus)}
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {stop.tonnen} Tonnen
+                        {stop.bereitsAbgerechnet && ' • Bereits abgerechnet'}
+                        {stop.istVerloren && ' • Projekt verloren'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Info-Box */}
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+            <h4 className="font-medium text-emerald-800 dark:text-emerald-200 flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4" />
+              Folgende Aktionen werden ausgeführt:
+            </h4>
+            <ul className="space-y-2 text-sm text-emerald-700 dark:text-emerald-300">
+              <li className="flex items-start gap-2">
+                <Truck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Tour-Status wird auf <strong>"abgeschlossen"</strong> gesetzt</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Package className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>DispoStatus der {ausgewaehlteAnzahl} ausgewählten Projekte wird auf <strong>"geliefert"</strong> gesetzt</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <FileText className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Projekt-Status wird auf <strong>"rechnung"</strong> gesetzt</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>Projekte erscheinen in der Projektverwaltung unter <strong>"Rechnung"</strong></span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Zusammenfassung */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800 rounded-xl">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="font-medium text-gray-900 dark:text-white">{ausgewaehlteAnzahl}</span> von {stops.length} Stopps ausgewählt
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Gesamt: <span className="font-medium text-gray-900 dark:text-white">{gesamtTonnen.toFixed(1)} t</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-slate-700 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={handleAbschliessen}
+            disabled={ausgewaehlteAnzahl === 0}
+            className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-green-500 text-white rounded-xl font-medium hover:from-emerald-700 hover:to-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            Tour abschließen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Haupt-Komponente
 const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenManagementProps) => {
   const navigate = useNavigate();
@@ -857,6 +1097,10 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
   // Lieferscheine Modal
   const [showLieferscheineModal, setShowLieferscheineModal] = useState(false);
   const [lieferscheineTour, setLieferscheineTour] = useState<Tour | null>(null);
+
+  // Ausgeliefert Modal
+  const [showAusgeliefertDialog, setShowAusgeliefertDialog] = useState(false);
+  const [ausgeliefertTour, setAusgeliefertTour] = useState<Tour | null>(null);
 
   // Touren laden
   const loadTouren = useCallback(async () => {
@@ -1082,6 +1326,64 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
     }
   };
 
+  // Tour als ausgeliefert markieren
+  const handleTourAusgeliefert = async (tourId: string, ausgewaehlteStops: string[]) => {
+    // Optimistic UI: Modal sofort schließen
+    setShowAusgeliefertDialog(false);
+    setAusgeliefertTour(null);
+
+    // Optimistic UI: Tour sofort als abgeschlossen markieren
+    setTouren(prev => prev.map(t =>
+      t.id === tourId ? { ...t, status: 'abgeschlossen' as const } : t
+    ));
+
+    try {
+      const tour = touren.find(t => t.id === tourId);
+      if (!tour) throw new Error('Tour nicht gefunden');
+
+      // Lieferdatum: Tour-Datum oder heutiges Datum
+      const lieferdatum = tour.datum || new Date().toISOString().split('T')[0];
+
+      // Alle Updates parallel ausführen
+      const promises: Promise<unknown>[] = [];
+
+      // 1. Tour-Status auf "abgeschlossen"
+      promises.push(tourenService.updateTourStatus(tourId, 'abgeschlossen'));
+
+      // 2. Projekte aktualisieren
+      for (const projektId of ausgewaehlteStops) {
+        promises.push(
+          projektService.updateProjekt(projektId, {
+            dispoStatus: 'geliefert',
+            status: 'rechnung',
+            lieferdatum, // Setze Lieferdatum falls nicht bereits gesetzt
+          })
+        );
+      }
+
+      // Parallel ausführen
+      const results = await Promise.allSettled(promises);
+
+      // Fehler prüfen
+      const fehler = results.filter(r => r.status === 'rejected');
+      if (fehler.length > 0) {
+        console.error('Einige Updates fehlgeschlagen:', fehler);
+        // Toast-Nachricht für User wäre hier ideal
+        alert(`${fehler.length} von ${results.length} Updates fehlgeschlagen. Bitte Seite neu laden.`);
+      }
+
+      // Touren und Projekte neu laden
+      await loadTouren();
+      onProjektUpdate();
+      onTourenChange?.();
+    } catch (error) {
+      console.error('Fehler beim Abschließen der Tour:', error);
+      alert('Fehler beim Abschließen der Tour. Bitte erneut versuchen.');
+      // Bei Fehler: Touren neu laden um konsistenten State zu haben
+      loadTouren();
+    }
+  };
+
   // Auftrag-Zuweisung öffnen (von außen aufrufbar)
   const openZuweisung = (projekt: Projekt) => {
     setZuweisungProjekt(projekt);
@@ -1202,13 +1504,33 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                             <AlertTriangle className="w-4 h-4 text-red-600" />
                           </span>
                         )}
+                        {/* Ausgeliefert Button / Badge */}
+                        {tour.status === 'abgeschlossen' ? (
+                          <span className="flex items-center gap-1 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Ausgeliefert
+                          </span>
+                        ) : (tour.status === 'freigegeben' || tour.status === 'in_durchfuehrung') && tour.stops.length > 0 ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAusgeliefertTour(tour);
+                              setShowAusgeliefertDialog(true);
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-emerald-600 to-green-500 text-white rounded-lg text-xs font-medium hover:from-emerald-700 hover:to-green-600 transition-colors"
+                            title="Tour als ausgeliefert markieren"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Ausgeliefert
+                          </button>
+                        ) : null}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setBearbeitenTour(tour);
                             setShowBearbeitenDialog(true);
                           }}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                           title="Tour bearbeiten"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -1220,7 +1542,7 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                             setShowLieferscheineModal(true);
                           }}
                           disabled={tour.stops.length === 0}
-                          className={`p-2 rounded-lg ${
+                          className={`p-2 rounded-lg transition-colors ${
                             tour.stops.length === 0
                               ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                               : 'text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30'
@@ -1234,7 +1556,7 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                             e.stopPropagation();
                             handleTourLoeschen(tour.id);
                           }}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                           title="Tour löschen"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1381,6 +1703,17 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
           setZuweisungProjekt(null);
         }}
         onZuweisen={handleAuftragZuweisen}
+      />
+
+      <TourAusgeliefertDialog
+        open={showAusgeliefertDialog}
+        tour={ausgeliefertTour}
+        projekte={projekte}
+        onClose={() => {
+          setShowAusgeliefertDialog(false);
+          setAusgeliefertTour(null);
+        }}
+        onAbschliessen={handleTourAusgeliefert}
       />
 
       {/* Alle Lieferscheine Modal */}

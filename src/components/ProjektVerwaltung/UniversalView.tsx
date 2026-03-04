@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Package,
   Download,
@@ -16,10 +16,21 @@ import {
   FileText,
   CheckCircle2,
   ShoppingCart,
+  Send,
+  Check,
+  X,
+  Users,
+  Loader2,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
-import { AuftragsbestaetigungsDaten, Position } from '../../types/projektabwicklung';
+import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPosition } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
+import { generiereLieferscheinPDF } from '../../services/dokumentService';
+import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate, generiereStandardSignatur } from '../../services/emailSendService';
+import { getStammdatenOderDefault } from '../../services/stammdatenService';
+import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import { databases, DATABASE_ID } from '../../config/appwrite';
+import { Query } from 'appwrite';
 
 // Universal-Bestellung Interface
 interface UniversalBestellung {
@@ -62,7 +73,33 @@ const getStatusConfig = (status: ProjektStatus) => {
 };
 
 // Gruppierungs-Typ
-type GroupBy = 'none' | 'lieferdatum' | 'status';
+type GroupBy = 'none' | 'lieferdatum' | 'status' | 'kunde';
+
+// Universal Sport Empfänger (fix)
+const UNIVERSAL_SPORT_EMAIL = 'karin.schnepper@universal-sport.de';
+const UNIVERSAL_SPORT_NAME = 'Frau Schnepper';
+const TENNISMEHL_ABSENDER = 'info@tennismehl.com';
+const TEST_EMAIL = 'jtatwcook@gmail.com';
+
+// Interface für Kunden-Gruppierung
+interface KundenGruppe {
+  projektId: string;
+  kundenname: string;
+  kundenPlzOrt: string;
+  abNummer: string;
+  bestellungen: UniversalBestellung[];
+  gesamtWert: number;
+  gesamtEK: number;
+  db1: number;
+}
+
+// Interface für Email-Status
+interface EmailStatus {
+  [projektId: string]: {
+    gesendetAm: string;
+    dokumentNummer: string;
+  };
+}
 
 // Helper: Prüft ob Position ein Universal-Artikel ist
 const istUniversalPosition = (position: Position): boolean => {
@@ -76,8 +113,26 @@ const istUniversalPosition = (position: Position): boolean => {
 const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps) => {
   const [bestellungen, setBestellungen] = useState<UniversalBestellung[]>([]);
   const [loading, setLoading] = useState(true);
-  const [groupBy, setGroupBy] = useState<GroupBy>('lieferdatum');
+  const [groupBy, setGroupBy] = useState<GroupBy>('kunde');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['alle']));
+
+  // Email-Status und Sende-Prozess
+  const [emailStatus, setEmailStatus] = useState<EmailStatus>({});
+  const [sendingProjektIds, setSendingProjektIds] = useState<Set<string>>(new Set());
+  const [justSentProjektIds, setJustSentProjektIds] = useState<Set<string>>(new Set());
+
+  // Bulk-Modal
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkResult, setBulkResult] = useState<{ success: number; failed: number } | null>(null);
+
+  // Test-Modus (sendet an jtatwcook@gmail.com statt Universal Sport)
+  const [testModus, setTestModus] = useState(false);
+
+  // Ref für Abbruch
+  const bulkAbortRef = useRef(false);
 
   // Alle bestellten Projekte (Status >= auftragsbestaetigung)
   const bestellteProjekte = useMemo(() => {
@@ -149,10 +204,111 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     ladeUniversalBestellungen();
   }, [ladeUniversalBestellungen]);
 
-  // Gruppierte Bestellungen
+  // Email-Status im Hintergrund laden (nicht blockierend)
+  const ladeEmailStatus = useCallback(async (projektIds: string[]) => {
+    if (projektIds.length === 0) return;
+
+    try {
+      // Lade alle Email-Protokolle für Universal-Lieferscheine
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        'email_protokoll',
+        [
+          Query.equal('dokumentTyp', 'lieferschein'),
+          Query.contains('empfaenger', 'schnepper'),
+          Query.orderDesc('gesendetAm'),
+          Query.limit(500),
+        ]
+      );
+
+      const statusMap: EmailStatus = {};
+
+      for (const doc of response.documents) {
+        const projektId = doc.projektId as string;
+        // Nur ersten (neuesten) Eintrag pro Projekt speichern
+        if (!statusMap[projektId]) {
+          statusMap[projektId] = {
+            gesendetAm: doc.gesendetAm as string,
+            dokumentNummer: doc.dokumentNummer as string,
+          };
+        }
+      }
+
+      setEmailStatus(statusMap);
+    } catch (error) {
+      console.error('Fehler beim Laden des Email-Status:', error);
+    }
+  }, []);
+
+  // Email-Status nach Laden der Bestellungen aktualisieren
+  useEffect(() => {
+    if (bestellungen.length > 0) {
+      const projektIds = [...new Set(bestellungen.map(b => b.projektId))];
+      ladeEmailStatus(projektIds);
+    }
+  }, [bestellungen, ladeEmailStatus]);
+
+  // Kunden-Gruppierung (für groupBy === 'kunde')
+  // Sortiert: Nicht gesendet zuerst, dann nach Kundenname
+  const kundenGruppen = useMemo((): KundenGruppe[] => {
+    const gruppenMap = new Map<string, KundenGruppe>();
+
+    bestellungen.forEach((bestellung) => {
+      const key = bestellung.projektId;
+
+      if (!gruppenMap.has(key)) {
+        gruppenMap.set(key, {
+          projektId: bestellung.projektId,
+          kundenname: bestellung.projekt.kundenname,
+          kundenPlzOrt: bestellung.projekt.kundenPlzOrt || '',
+          abNummer: bestellung.auftragsbestaetigungsnummer || '',
+          bestellungen: [],
+          gesamtWert: 0,
+          gesamtEK: 0,
+          db1: 0,
+        });
+      }
+
+      const gruppe = gruppenMap.get(key)!;
+      gruppe.bestellungen.push(bestellung);
+      const posWert = bestellung.position.gesamtpreis || 0;
+      const posEK = (bestellung.position.einkaufspreis || 0) * (bestellung.position.menge || 1);
+      gruppe.gesamtWert += posWert;
+      gruppe.gesamtEK += posEK;
+      gruppe.db1 += (posWert - posEK);
+    });
+
+    // Sortierung: Nicht gesendet zuerst, dann alphabetisch
+    return Array.from(gruppenMap.values()).sort((a, b) => {
+      const aGesendet = !!emailStatus[a.projektId];
+      const bGesendet = !!emailStatus[b.projektId];
+
+      // Nicht gesendet zuerst
+      if (!aGesendet && bGesendet) return -1;
+      if (aGesendet && !bGesendet) return 1;
+
+      // Dann alphabetisch
+      return a.kundenname.localeCompare(b.kundenname);
+    });
+  }, [bestellungen, emailStatus]);
+
+  // Statistiken für Header
+  const versandStats = useMemo(() => {
+    const gesamt = kundenGruppen.length;
+    const gesendet = kundenGruppen.filter(g => emailStatus[g.projektId]).length;
+    const offen = gesamt - gesendet;
+    return { gesamt, gesendet, offen };
+  }, [kundenGruppen, emailStatus]);
+
+  // Gruppierte Bestellungen (für andere Gruppierungen)
   const gruppierteDaten = useMemo(() => {
     if (groupBy === 'none') {
       return { 'Alle Bestellungen': bestellungen };
+    }
+
+    if (groupBy === 'kunde') {
+      // Wird separat gehandhabt
+      return {};
     }
 
     const gruppen: Record<string, UniversalBestellung[]> = {};
@@ -193,6 +349,207 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     const db1Prozent = gesamtWert > 0 ? (db1 / gesamtWert) * 100 : 0;
     return { gesamtWert, gesamtEK, db1, db1Prozent, anzahl: bestellungen.length };
   }, [bestellungen]);
+
+  // Erstelle LieferscheinDaten für eine Kundengruppe
+  const erstelleLieferscheinDaten = async (gruppe: KundenGruppe): Promise<{ daten: LieferscheinDaten; lieferscheinnummer: string }> => {
+    const stammdaten = await getStammdatenOderDefault();
+    const lieferscheinnummer = await generiereNaechsteDokumentnummer('lieferschein');
+    const heute = new Date().toISOString().split('T')[0];
+    const ersteProjekt = gruppe.bestellungen[0].projekt;
+
+    // Positionen konvertieren (OHNE Preise!)
+    const positionen: LieferscheinPosition[] = gruppe.bestellungen.map((b, idx) => ({
+      id: `pos-${idx}`,
+      artikelnummer: b.position.artikelnummer || '',
+      artikel: b.position.bezeichnung.replace(/^Universal:\s*/i, ''),
+      beschreibung: b.position.beschreibung?.replace(/^Universal:\s*/i, '') || '',
+      menge: b.position.menge,
+      einheit: b.position.einheit || 'Stk',
+    }));
+
+    const daten: LieferscheinDaten = {
+      // Firmendaten
+      firmenname: stammdaten.firmenname,
+      firmenstrasse: stammdaten.firmenstrasse || '',
+      firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
+      firmenTelefon: stammdaten.firmenTelefon || '',
+      firmenEmail: stammdaten.firmenEmail || 'info@tennismehl.com',
+      firmenWebsite: stammdaten.firmenWebsite || 'www.tennismehl24.de',
+
+      // Kundendaten (Lieferadresse = Vereinsadresse)
+      kundenname: gruppe.kundenname,
+      kundenstrasse: ersteProjekt.kundenstrasse || '',
+      kundenPlzOrt: gruppe.kundenPlzOrt,
+      kundennummer: ersteProjekt.kundennummer || '',
+      ansprechpartner: ersteProjekt.ansprechpartner || '',
+
+      // Lieferschein-spezifisch
+      lieferscheinnummer,
+      lieferdatum: heute,
+      bestellnummer: gruppe.abNummer,
+
+      // Positionen
+      positionen,
+    };
+
+    return { daten, lieferscheinnummer };
+  };
+
+  // Lieferschein PDF generieren und öffnen
+  const handleLieferscheinPDF = async (gruppe: KundenGruppe) => {
+    try {
+      const { daten } = await erstelleLieferscheinDaten(gruppe);
+      // einfach = true: Ohne Einleitung, ohne Abdeckung/PE Folien, ohne Empfangsbestätigung
+      const pdf = await generiereLieferscheinPDF(daten, undefined, true);
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Fehler beim Erstellen des Lieferscheins:', error);
+      alert('Fehler beim Erstellen des Lieferscheins. Bitte versuchen Sie es erneut.');
+    }
+  };
+
+  // Lieferschein an Universal Sport senden
+  const handleSendeAnUniversal = async (gruppe: KundenGruppe): Promise<boolean> => {
+    // Optimistic UI - Button sofort als "sendend" markieren
+    setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
+
+    try {
+      const { daten, lieferscheinnummer } = await erstelleLieferscheinDaten(gruppe);
+      // einfach = true: Ohne Einleitung, ohne Abdeckung/PE Folien, ohne Empfangsbestätigung
+      const pdf = await generiereLieferscheinPDF(daten, undefined, true);
+      const pdfBase64 = pdfZuBase64(pdf);
+
+      // Lieferwoche aus der ersten Bestellung holen
+      const ersteBestellung = gruppe.bestellungen[0];
+      const lieferKW = ersteBestellung.lieferKW;
+      const lieferKWJahr = ersteBestellung.lieferKWJahr;
+      const lieferKWText = lieferKW
+        ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
+        : '';
+
+      // Email-Body erstellen
+      const emailBody = `Hallo ${UNIVERSAL_SPORT_NAME},
+
+bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.
+${lieferKWText ? '\n' + lieferKWText : ''}
+Mit sportlichen Grüßen`;
+
+      const signatur = generiereStandardSignatur();
+      const htmlBody = wrapInEmailTemplate(emailBody, signatur);
+
+      // Dateiname - sauber formatiert
+      const datumFormatiert = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
+      const kundennameSauber = gruppe.kundenname.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').substring(0, 40).trim();
+      const pdfDateiname = `Lieferschein_${kundennameSauber}_${datumFormatiert}.pdf`;
+
+      // Email senden (Test-Modus: an Test-Email, sonst an Universal Sport)
+      const empfaenger = testModus ? TEST_EMAIL : UNIVERSAL_SPORT_EMAIL;
+      const result = await sendeEmailMitPdf({
+        empfaenger,
+        absender: TENNISMEHL_ABSENDER,
+        betreff: `${testModus ? '[TEST] ' : ''}Lieferschein ${lieferscheinnummer} - ${gruppe.kundenname}`,
+        htmlBody,
+        pdfBase64,
+        pdfDateiname,
+        projektId: gruppe.projektId,
+        dokumentTyp: 'lieferschein',
+        dokumentNummer: lieferscheinnummer,
+        testModus,
+      });
+
+      if (result.success) {
+        // Status aktualisieren
+        setEmailStatus(prev => ({
+          ...prev,
+          [gruppe.projektId]: {
+            gesendetAm: new Date().toISOString(),
+            dokumentNummer: lieferscheinnummer,
+          },
+        }));
+
+        // Kurz "Gesendet" anzeigen
+        setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
+        setTimeout(() => {
+          setJustSentProjektIds(prev => {
+            const next = new Set(prev);
+            next.delete(gruppe.projektId);
+            return next;
+          });
+        }, 3000);
+
+        return true;
+      } else {
+        throw new Error(result.error || 'Email konnte nicht gesendet werden');
+      }
+    } catch (error) {
+      console.error('Fehler beim Senden:', error);
+      alert(`Fehler beim Senden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+      return false;
+    } finally {
+      setSendingProjektIds(prev => {
+        const next = new Set(prev);
+        next.delete(gruppe.projektId);
+        return next;
+      });
+    }
+  };
+
+  // Bulk-Versand
+  const handleBulkSend = async () => {
+    const selectedGruppen = kundenGruppen.filter(g => bulkSelectedIds.has(g.projektId));
+    if (selectedGruppen.length === 0) return;
+
+    setBulkSending(true);
+    setBulkProgress({ current: 0, total: selectedGruppen.length });
+    setBulkResult(null);
+    bulkAbortRef.current = false;
+
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < selectedGruppen.length; i++) {
+      if (bulkAbortRef.current) break;
+
+      const gruppe = selectedGruppen[i];
+      setBulkProgress({ current: i + 1, total: selectedGruppen.length });
+
+      try {
+        await handleSendeAnUniversal(gruppe);
+        success++;
+      } catch {
+        failed++;
+      }
+
+      // 2 Sekunden Pause zwischen Emails (außer bei letzter)
+      if (i < selectedGruppen.length - 1 && !bulkAbortRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    setBulkSending(false);
+    setBulkResult({ success, failed });
+
+    // Modal nach 3 Sekunden schließen wenn erfolgreich
+    if (failed === 0) {
+      setTimeout(() => {
+        setShowBulkModal(false);
+        setBulkResult(null);
+      }, 3000);
+    }
+  };
+
+  // Bulk-Modal öffnen
+  const openBulkModal = () => {
+    // Alle nicht bereits gesendeten Kunden vorauswählen
+    const nichtGesendet = kundenGruppen
+      .filter(g => !emailStatus[g.projektId])
+      .map(g => g.projektId);
+    setBulkSelectedIds(new Set(nichtGesendet));
+    setBulkResult(null);
+    setShowBulkModal(true);
+  };
 
   // CSV Export
   const exportCSV = useCallback(() => {
@@ -308,20 +665,52 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-4 mt-6">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
-              <Package className="w-4 h-4" />
-              Positionen
+        <div className={`grid gap-4 mt-6 ${groupBy === 'kunde' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          {/* Versand-Status KPIs (nur bei Kunden-Gruppierung) */}
+          {groupBy === 'kunde' && (
+            <>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border-2 border-white/20">
+                <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
+                  <Users className="w-4 h-4" />
+                  Kunden gesamt
+                </div>
+                <div className="text-3xl font-bold">{versandStats.gesamt}</div>
+              </div>
+              <div className={`bg-white/10 backdrop-blur-sm rounded-xl p-4 ${versandStats.offen > 0 ? 'border-2 border-red-400 bg-red-500/20' : ''}`}>
+                <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
+                  <X className="w-4 h-4" />
+                  Offen
+                </div>
+                <div className={`text-3xl font-bold ${versandStats.offen > 0 ? 'text-red-200' : ''}`}>
+                  {versandStats.offen}
+                </div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border-2 border-green-400/50">
+                <div className="flex items-center gap-2 text-green-200 text-sm mb-1">
+                  <Check className="w-4 h-4" />
+                  Gesendet
+                </div>
+                <div className="text-3xl font-bold text-green-200">{versandStats.gesendet}</div>
+              </div>
+            </>
+          )}
+
+          {/* Standard KPIs */}
+          {groupBy !== 'kunde' && (
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+              <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
+                <Package className="w-4 h-4" />
+                Positionen
+              </div>
+              <div className="text-3xl font-bold">{summen.anzahl}</div>
             </div>
-            <div className="text-3xl font-bold">{summen.anzahl}</div>
-          </div>
+          )}
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
             <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
               <TrendingUp className="w-4 h-4" />
               Gesamtwert (VK)
             </div>
-            <div className="text-3xl font-bold">
+            <div className="text-2xl font-bold">
               {summen.gesamtWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
             </div>
           </div>
@@ -330,17 +719,8 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
               <Layers className="w-4 h-4" />
               DB1 (Marge)
             </div>
-            <div className="text-3xl font-bold">
+            <div className="text-2xl font-bold">
               {summen.db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
-            </div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
-              <TrendingUp className="w-4 h-4" />
-              DB1 %
-            </div>
-            <div className="text-3xl font-bold">
-              {summen.db1Prozent.toFixed(1)}%
             </div>
           </div>
         </div>
@@ -352,6 +732,17 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">Gruppieren:</span>
           <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setGroupBy('kunde')}
+              className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors ${
+                groupBy === 'kunde'
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Kunde
+            </button>
             <button
               onClick={() => setGroupBy('lieferdatum')}
               className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors ${
@@ -388,15 +779,58 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
           </div>
         </div>
 
-        {/* Export Button */}
-        <button
-          onClick={exportCSV}
-          disabled={bestellungen.length === 0}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium shadow-lg"
-        >
-          <Download className="w-5 h-5" />
-          CSV Export
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          {/* Test-Modus Toggle (nur bei Kunden-Gruppierung) */}
+          {groupBy === 'kunde' && (
+            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+              testModus
+                ? 'bg-yellow-100 dark:bg-yellow-900/50 border-2 border-yellow-400'
+                : 'bg-gray-100 dark:bg-slate-800 border border-gray-300 dark:border-slate-600'
+            }`}>
+              <input
+                type="checkbox"
+                checked={testModus}
+                onChange={(e) => setTestModus(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+              />
+              <span className={`text-sm font-medium ${testModus ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-600 dark:text-gray-400'}`}>
+                Test-Modus
+              </span>
+              {testModus && (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                  → {TEST_EMAIL}
+                </span>
+              )}
+            </label>
+          )}
+
+          {/* Bulk-Versand Button (nur bei Kunden-Gruppierung) */}
+          {groupBy === 'kunde' && kundenGruppen.length > 0 && (
+            <button
+              onClick={openBulkModal}
+              className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium shadow-lg ${
+                testModus ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              <Send className="w-5 h-5" />
+              {testModus ? 'Test: ' : ''}Alle Lieferscheine senden
+              <span className="px-1.5 py-0.5 bg-white/20 rounded text-xs">
+                {kundenGruppen.filter(g => !emailStatus[g.projektId]).length}
+              </span>
+            </button>
+          )}
+
+          {/* Export Button */}
+          <button
+            onClick={exportCSV}
+            disabled={bestellungen.length === 0}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium shadow-lg"
+          >
+            <Download className="w-5 h-5" />
+            CSV Export
+          </button>
+        </div>
       </div>
 
       {/* Bestellungen Liste */}
@@ -409,6 +843,239 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
           <p className="text-gray-500 dark:text-gray-400">
             Es gibt aktuell keine bestätigten Aufträge mit Universal-Artikeln.
           </p>
+        </div>
+      ) : groupBy === 'kunde' ? (
+        /* === KUNDEN-GRUPPIERUNG === */
+        <div className="space-y-3">
+          {kundenGruppen.map((gruppe) => {
+            const isExpanded = expandedGroups.has(gruppe.projektId) || expandedGroups.has('alle');
+            const status = emailStatus[gruppe.projektId];
+            const isSending = sendingProjektIds.has(gruppe.projektId);
+            const justSent = justSentProjektIds.has(gruppe.projektId);
+            const istGesendet = !!status;
+
+            return (
+              <div
+                key={gruppe.projektId}
+                className={`bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden transition-all ${
+                  istGesendet
+                    ? 'border-2 border-green-400 dark:border-green-600'
+                    : 'border-2 border-orange-400 dark:border-orange-600'
+                }`}
+              >
+                {/* Status-Indikator links */}
+                <div className="flex">
+                  <div className={`w-2 flex-shrink-0 ${istGesendet ? 'bg-green-500' : 'bg-orange-500'}`} />
+
+                  <div className="flex-1">
+                    {/* Gruppen-Header */}
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-slate-800 flex items-center justify-between">
+                      <button
+                        onClick={() => toggleGroup(gruppe.projektId)}
+                        className="flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-slate-750 rounded-lg px-2 py-1 -ml-2 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-gray-500" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                        )}
+                        <div className="flex items-center gap-3">
+                          {/* Status-Icon */}
+                          {istGesendet ? (
+                            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                              <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center">
+                              <Send className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                            </div>
+                          )}
+                          <div className="text-left">
+                            <span className="font-semibold text-gray-900 dark:text-white">{gruppe.kundenname}</span>
+                            {gruppe.kundenPlzOrt && (
+                              <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">
+                                {gruppe.kundenPlzOrt}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="font-mono text-sm text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">
+                          {gruppe.abNummer}
+                        </span>
+                        {/* Lieferwoche */}
+                        {gruppe.bestellungen[0]?.lieferKW && (
+                          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-sm rounded-full flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            KW {gruppe.bestellungen[0].lieferKW}
+                            {gruppe.bestellungen[0].lieferKWJahr && `/${gruppe.bestellungen[0].lieferKWJahr}`}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-sm rounded-full">
+                          {gruppe.bestellungen.length} Pos.
+                        </span>
+                      </button>
+
+                      <div className="flex items-center gap-3">
+                        {/* Summen */}
+                        <div className="text-sm text-gray-600 dark:text-gray-400 hidden lg:flex items-center gap-4">
+                          <span className="font-medium">
+                            {gruppe.gesamtWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                          </span>
+                        </div>
+
+                        {/* Email-Status Badge - sehr prominent */}
+                        {status ? (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-lg">
+                            <Check className="w-4 h-4" />
+                            <div className="text-sm">
+                              <div className="font-semibold">Gesendet</div>
+                              <div className="text-xs opacity-80">
+                                {new Date(status.gesendetAm).toLocaleDateString('de-DE')} • LS {status.dokumentNummer}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="px-3 py-1.5 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-sm rounded-lg font-medium">
+                            Offen
+                          </span>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLieferscheinPDF(gruppe);
+                            }}
+                            className="px-3 py-1.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5 text-sm"
+                            title="Lieferschein PDF öffnen"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span className="hidden md:inline">PDF</span>
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendeAnUniversal(gruppe);
+                            }}
+                            disabled={isSending}
+                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-sm font-medium ${
+                              justSent
+                                ? 'bg-green-600 text-white'
+                                : isSending
+                                ? 'bg-green-400 text-white cursor-wait'
+                                : istGesendet
+                                ? 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-400 hover:bg-green-600 hover:text-white'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
+                            }`}
+                            title={istGesendet ? 'Erneut senden' : `An ${UNIVERSAL_SPORT_NAME} senden`}
+                          >
+                            {isSending ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span className="hidden md:inline">Sende...</span>
+                              </>
+                            ) : justSent ? (
+                              <>
+                                <Check className="w-4 h-4" />
+                                <span className="hidden md:inline">Gesendet!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" />
+                                <span className="hidden md:inline">{istGesendet ? 'Nochmal' : 'Senden'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Positionen Tabelle */}
+                    {isExpanded && (
+                      <div className="overflow-x-auto border-t border-gray-200 dark:border-slate-700">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 dark:bg-slate-800 text-xs uppercase text-gray-600 dark:text-gray-400">
+                            <tr>
+                              <th className="px-4 py-2 text-left font-semibold">Art.-Nr.</th>
+                              <th className="px-4 py-2 text-left font-semibold">Artikel</th>
+                              <th className="px-4 py-2 text-right font-semibold">Menge</th>
+                              <th className="px-4 py-2 text-right font-semibold">VK</th>
+                              <th className="px-4 py-2 text-right font-semibold">EK</th>
+                              <th className="px-4 py-2 text-right font-semibold">DB1</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {gruppe.bestellungen.map((bestellung, idx) => {
+                              const vk = bestellung.position.einzelpreis || 0;
+                              const ek = bestellung.position.einkaufspreis || 0;
+                              const menge = bestellung.position.menge || 1;
+                              const db1 = (vk - ek) * menge;
+
+                              return (
+                                <tr
+                                  key={`${bestellung.projektId}-${idx}`}
+                                  onClick={() => onProjektClick(bestellung.projekt)}
+                                  className="hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                                >
+                                  <td className="px-4 py-2 font-mono text-sm text-gray-600 dark:text-gray-400">
+                                    {bestellung.position.artikelnummer || '-'}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="font-medium text-gray-900 dark:text-white">
+                                      {bestellung.position.bezeichnung.replace(/^Universal:\s*/i, '')}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    <span className="font-bold text-gray-900 dark:text-white">
+                                      {menge.toLocaleString('de-DE', { maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-gray-500 dark:text-gray-400 text-sm ml-1">
+                                      {bestellung.position.einheit || 'Stk'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white">
+                                    {vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">
+                                    {ek.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    <span className={`font-semibold ${db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                      {db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-gray-50 dark:bg-slate-800 font-semibold">
+                            <tr>
+                              <td colSpan={3} className="px-4 py-2 text-right text-gray-700 dark:text-gray-300">
+                                Summe:
+                              </td>
+                              <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
+                                {gruppe.gesamtWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                              </td>
+                              <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">
+                                {gruppe.gesamtEK.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <span className={`${gruppe.db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                  {gruppe.db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                                </span>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-4">
@@ -578,6 +1245,165 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* === BULK-VERSAND MODAL === */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Lieferscheine versenden
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  An {UNIVERSAL_SPORT_NAME} ({UNIVERSAL_SPORT_EMAIL})
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (bulkSending) {
+                    bulkAbortRef.current = true;
+                  } else {
+                    setShowBulkModal(false);
+                  }
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[50vh]">
+              {bulkResult ? (
+                /* Ergebnis-Anzeige */
+                <div className="text-center py-8">
+                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                    bulkResult.failed === 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
+                  }`}>
+                    {bulkResult.failed === 0 ? (
+                      <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <FileText className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    {bulkResult.failed === 0
+                      ? `${bulkResult.success} Lieferscheine erfolgreich gesendet`
+                      : `${bulkResult.success} gesendet, ${bulkResult.failed} fehlgeschlagen`}
+                  </h3>
+                </div>
+              ) : bulkSending ? (
+                /* Fortschrittsanzeige */
+                <div className="text-center py-8">
+                  <Loader2 className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
+                  <p className="text-lg font-medium text-gray-900 dark:text-white">
+                    {bulkProgress.current} von {bulkProgress.total} gesendet...
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    Bitte warten, Emails werden versendet.
+                  </p>
+                </div>
+              ) : (
+                /* Auswahl-Liste */
+                <div className="space-y-2">
+                  {/* Alle auswählen */}
+                  <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={bulkSelectedIds.size === kundenGruppen.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkSelectedIds(new Set(kundenGruppen.map(g => g.projektId)));
+                        } else {
+                          setBulkSelectedIds(new Set());
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Alle auswählen ({kundenGruppen.length})
+                    </span>
+                  </label>
+
+                  <div className="border-t border-gray-200 dark:border-slate-700 my-3"></div>
+
+                  {/* Kunden-Liste */}
+                  {kundenGruppen.map((gruppe) => {
+                    const status = emailStatus[gruppe.projektId];
+                    const isSelected = bulkSelectedIds.has(gruppe.projektId);
+
+                    return (
+                      <label
+                        key={gruppe.projektId}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+                            : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const next = new Set(bulkSelectedIds);
+                            if (e.target.checked) {
+                              next.add(gruppe.projektId);
+                            } else {
+                              next.delete(gruppe.projektId);
+                            }
+                            setBulkSelectedIds(next);
+                          }}
+                          className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white truncate">
+                              {gruppe.kundenname}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              ({gruppe.bestellungen.length} Pos.)
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {gruppe.abNummer}
+                          </div>
+                        </div>
+                        {status && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 text-xs rounded-full whitespace-nowrap">
+                            Bereits gesendet
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            {!bulkResult && !bulkSending && (
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
+                <button
+                  onClick={() => setShowBulkModal(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={handleBulkSend}
+                  disabled={bulkSelectedIds.size === 0}
+                  className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
+                >
+                  <Send className="w-5 h-5" />
+                  {bulkSelectedIds.size} Lieferschein{bulkSelectedIds.size !== 1 ? 'e' : ''} senden
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1298,7 +1298,8 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
 };
 
 // === LIEFERSCHEIN ===
-export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammdaten?: Stammdaten): Promise<jsPDF> => {
+// einfach: true = Ohne Einleitung, ohne Abdeckung/PE Folien, ohne Empfangsbestätigung (z.B. für Universal Sport)
+export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammdaten?: Stammdaten, einfach?: boolean): Promise<jsPDF> => {
   // Lade Stammdaten falls nicht übergeben
   if (!stammdaten) {
     stammdaten = await getStammdatenOderDefault();
@@ -1446,13 +1447,15 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   doc.text(`Lieferschein Nr. ${daten.lieferscheinnummer}`, 25, yPos);
   doc.setFont('helvetica', 'normal');
   
-  // === Anrede & Einleitungstext ===
-  yPos += 10;
-  doc.setFontSize(10);
-  doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
-  yPos += 8;
-  doc.text('wir liefern Ihnen wie folgt:', 25, yPos);
-  
+  // === Anrede & Einleitungstext (nur bei Standard-Lieferschein) ===
+  if (!einfach) {
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.text('Sehr geehrte Damen und Herren,', 25, yPos);
+    yPos += 8;
+    doc.text('wir liefern Ihnen wie folgt:', 25, yPos);
+  }
+
   // === Positionen Tabelle (OHNE PREISE!) ===
   yPos += 6;
   
@@ -1515,75 +1518,77 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
-  // === Abdeckung & PE Folien (immer drucken - wird vor Ort ausgefüllt) ===
-  signY += 15;
-  signY = await ensureSpace(doc, signY, 35, stammdaten);
+  // === Abdeckung & PE Folien (nur bei Standard-Lieferschein) ===
+  if (!einfach) {
+    signY += 15;
+    signY = await ensureSpace(doc, signY, 35, stammdaten);
 
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-
-  // Überschrift
-  doc.setFont('helvetica', 'bold');
-  doc.text('Abdeckung & PE Folien', 25, signY);
-  doc.setFont('helvetica', 'normal');
-  signY += 8;
-
-  // Abdeckung Checkboxen (leer zum Ausfüllen vor Ort)
-  doc.text('Abgedeckt durch:', 25, signY);
-  let abdeckX = 60;
-
-  // Checkbox Kunde (leer)
-  doc.rect(abdeckX, signY - 3.5, 4, 4);
-  doc.text('Kunde', abdeckX + 6, signY);
-
-  // Checkbox LKW (leer)
-  abdeckX += 30;
-  doc.rect(abdeckX, signY - 3.5, 4, 4);
-  doc.text('LKW', abdeckX + 6, signY);
-
-  signY += 8;
-
-  // PE Folien (Linie zum Ausfüllen)
-  doc.text('PE Folien:', 25, signY);
-  doc.line(50, signY + 1.5, 100, signY + 1.5); // Linie etwas tiefer für bessere Optik
-
-  signY += 10;
-
-  // DISPO-Ansprechpartner (Name + Telefon) - Hinweis zum Anrufen
-  if (daten.dispoAnsprechpartner?.name) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
-    doc.setFont('helvetica', 'normal');
-    signY += 5;
-    const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
-      ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
-      : daten.dispoAnsprechpartner.name;
-    doc.text(ansprechpartnerText, 25, signY);
-  }
-
-  // === Empfangsbestätigung (nur wenn aktiviert) ===
-  // Default: true (für Rückwärtskompatibilität: undefined = true)
-  const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;
-
-  if (zeigeEmpfangsbestaetigung) {
-    signY += 12;
-    
-    // Prüfe Platz für Empfangsbestätigung
-    signY = await ensureSpace(doc, signY, 30, stammdaten);
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
+
+    // Überschrift
     doc.setFont('helvetica', 'bold');
-    doc.text('Empfangsbestätigung:', 25, signY);
+    doc.text('Abdeckung & PE Folien', 25, signY);
     doc.setFont('helvetica', 'normal');
-    
+    signY += 8;
+
+    // Abdeckung Checkboxen (leer zum Ausfüllen vor Ort)
+    doc.text('Abgedeckt durch:', 25, signY);
+    let abdeckX = 60;
+
+    // Checkbox Kunde (leer)
+    doc.rect(abdeckX, signY - 3.5, 4, 4);
+    doc.text('Kunde', abdeckX + 6, signY);
+
+    // Checkbox LKW (leer)
+    abdeckX += 30;
+    doc.rect(abdeckX, signY - 3.5, 4, 4);
+    doc.text('LKW', abdeckX + 6, signY);
+
+    signY += 8;
+
+    // PE Folien (Linie zum Ausfüllen)
+    doc.text('PE Folien:', 25, signY);
+    doc.line(50, signY + 1.5, 100, signY + 1.5); // Linie etwas tiefer für bessere Optik
+
     signY += 10;
-    doc.setFontSize(9);
-    doc.text('Ware erhalten am:', 25, signY);
-    doc.line(60, signY, 100, signY); // Linie für Datum
-    
-    signY += 15;
-    doc.text('Unterschrift Empfänger:', 25, signY);
-    doc.line(65, signY, 125, signY); // Linie für Unterschrift
+
+    // DISPO-Ansprechpartner (Name + Telefon) - Hinweis zum Anrufen
+    if (daten.dispoAnsprechpartner?.name) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
+      doc.setFont('helvetica', 'normal');
+      signY += 5;
+      const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
+        ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
+        : daten.dispoAnsprechpartner.name;
+      doc.text(ansprechpartnerText, 25, signY);
+    }
+
+    // === Empfangsbestätigung (nur wenn aktiviert) ===
+    // Default: true (für Rückwärtskompatibilität: undefined = true)
+    const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;
+
+    if (zeigeEmpfangsbestaetigung) {
+      signY += 12;
+
+      // Prüfe Platz für Empfangsbestätigung
+      signY = await ensureSpace(doc, signY, 30, stammdaten);
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Empfangsbestätigung:', 25, signY);
+      doc.setFont('helvetica', 'normal');
+
+      signY += 10;
+      doc.setFontSize(9);
+      doc.text('Ware erhalten am:', 25, signY);
+      doc.line(60, signY, 100, signY); // Linie für Datum
+
+      signY += 15;
+      doc.text('Unterschrift Empfänger:', 25, signY);
+      doc.line(65, signY, 125, signY); // Linie für Unterschrift
+    }
   }
   
   // === Bemerkung ===

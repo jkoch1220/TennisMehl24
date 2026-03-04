@@ -122,10 +122,15 @@ const DispoPlanung = () => {
       const alleProjekte = await projektService.loadProjekte();
 
       // Filtere nur Dispo-relevante Projekte
-      const dispoProjekte = alleProjekte.filter(p =>
-        DISPO_RELEVANT_STATUS.includes(p.status) ||
-        (p.status === 'bezahlt' && p.dispoStatus !== 'geliefert')
-      );
+      // Ausgelieferte Projekte (dispoStatus === 'geliefert') werden NICHT mehr angezeigt
+      const dispoProjekte = alleProjekte.filter(p => {
+        // Bereits gelieferte Projekte ausschließen
+        if (p.dispoStatus === 'geliefert') return false;
+
+        // Dispo-relevante Status einschließen
+        return DISPO_RELEVANT_STATUS.includes(p.status) ||
+          (p.status === 'bezahlt');
+      });
 
       // Setze Standard-DispoStatus wenn nicht gesetzt
       const projekteInitialisiert = dispoProjekte.map(p => ({

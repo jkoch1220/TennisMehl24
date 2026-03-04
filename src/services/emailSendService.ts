@@ -20,11 +20,10 @@ import { Query } from 'appwrite';
 const EMAIL_PROTOKOLL_COLLECTION_ID = 'email_protokoll';
 
 // API Endpoint für E-Mail-Versand
+// In Development: Vite Proxy leitet an Produktion weiter (siehe vite.config.ts)
+// In Production: relative URL
 const getEmailApiUrl = (): string => {
-  // In Development: lokaler Server oder Netlify Function
-  if (import.meta.env.DEV) {
-    return 'http://localhost:8888/.netlify/functions/email-send';
-  }
+  // Immer relativer Pfad - Vite Proxy kümmert sich um Dev
   return '/.netlify/functions/email-send';
 };
 
@@ -33,9 +32,8 @@ const getEmailApiUrl = (): string => {
  */
 export const ladeEmailKonten = async (): Promise<EmailAccount[]> => {
   try {
-    const apiUrl = import.meta.env.DEV
-      ? 'http://localhost:8888/.netlify/functions/email-api?action=accounts'
-      : '/.netlify/functions/email-api?action=accounts';
+    // Vite Proxy leitet in Dev weiter, in Prod ist es relativ
+    const apiUrl = '/.netlify/functions/email-api?action=accounts';
 
     const response = await fetch(apiUrl);
 
