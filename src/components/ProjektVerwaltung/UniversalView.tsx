@@ -21,7 +21,10 @@ import {
   X,
   Users,
   Loader2,
+  Mail,
+  Eye,
 } from 'lucide-react';
+import TipTapEditor from '../Shared/TipTapEditor';
 import { Projekt, ProjektStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPosition } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
@@ -102,6 +105,20 @@ interface EmailStatus {
   };
 }
 
+// Interface für Email-Vorschau Modal
+interface EmailVorschauDaten {
+  gruppe: KundenGruppe;
+  empfaenger: string;
+  betreff: string;
+  emailText: string;
+  signatur: string;
+  lieferKW?: number;
+  lieferKWJahr?: number;
+  pdfBlob: Blob;
+  pdfDateiname: string;
+  lieferscheinnummer: string;
+}
+
 // Helper: Prüft ob Position ein Universal-Artikel ist
 const istUniversalPosition = (position: Position): boolean => {
   // Neues Flag (ab jetzt)
@@ -131,6 +148,11 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
 
   // Test-Modus (sendet an jtatwcook@gmail.com statt Universal Sport)
   const [testModus, setTestModus] = useState(false);
+
+  // Email-Vorschau Modal
+  const [showEmailVorschau, setShowEmailVorschau] = useState(false);
+  const [emailVorschauDaten, setEmailVorschauDaten] = useState<EmailVorschauDaten | null>(null);
+  const [emailVorschauSending, setEmailVorschauSending] = useState(false);
 
   // Ref für Abbruch
   const bulkAbortRef = useRef(false);
@@ -414,16 +436,14 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     }
   };
 
-  // Lieferschein an Universal Sport senden
-  const handleSendeAnUniversal = async (gruppe: KundenGruppe): Promise<boolean> => {
-    // Optimistic UI - Button sofort als "sendend" markieren
+  // Email-Vorschau Modal öffnen (statt direkt senden)
+  const oeffneEmailVorschau = async (gruppe: KundenGruppe) => {
     setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
 
     try {
       const { daten, lieferscheinnummer } = await erstelleLieferscheinDaten(gruppe);
-      // einfach = true: Ohne Einleitung, ohne Abdeckung/PE Folien, ohne Empfangsbestätigung
       const pdf = await generiereLieferscheinPDF(daten, undefined, true);
-      const pdfBase64 = pdfZuBase64(pdf);
+      const pdfBlob = pdf.output('blob');
 
       // Lieferwoche aus der ersten Bestellung holen
       const ersteBestellung = gruppe.bestellungen[0];
@@ -433,11 +453,140 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
         : '';
 
-      // Signatur aus Stammdaten laden (wie in AnfrageBearbeitungDialog)
+      // Signatur aus Stammdaten laden
       const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
       const signaturHtml = emailTemplate.signatur || '';
 
-      // Email-Body erstellen
+      // Email-Body erstellen (ohne Signatur, wird später angehängt)
+      const emailText = `Hallo ${UNIVERSAL_SPORT_NAME},
+
+bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.
+${lieferKWText ? '\n' + lieferKWText : ''}`;
+
+      // Dateiname
+      const datumFormatiert = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
+      const kundennameSauber = gruppe.kundenname.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').substring(0, 40).trim();
+      const pdfDateiname = `Lieferschein_${kundennameSauber}_${datumFormatiert}.pdf`;
+
+      // Empfänger basierend auf Testmodus
+      const empfaenger = testModus ? TEST_EMAIL : UNIVERSAL_SPORT_EMAIL;
+
+      // Modal-Daten setzen
+      setEmailVorschauDaten({
+        gruppe,
+        empfaenger,
+        betreff: `${testModus ? '[TEST] ' : ''}Bestellung - ${gruppe.kundenname}`,
+        emailText,
+        signatur: signaturHtml,
+        lieferKW,
+        lieferKWJahr,
+        pdfBlob,
+        pdfDateiname,
+        lieferscheinnummer,
+      });
+      setShowEmailVorschau(true);
+    } catch (error) {
+      console.error('Fehler beim Vorbereiten der Email:', error);
+      alert('Fehler beim Vorbereiten der Email. Bitte versuchen Sie es erneut.');
+    } finally {
+      setSendingProjektIds(prev => {
+        const next = new Set(prev);
+        next.delete(gruppe.projektId);
+        return next;
+      });
+    }
+  };
+
+  // Email aus Vorschau-Modal senden
+  const sendeAusVorschau = async () => {
+    if (!emailVorschauDaten) return;
+
+    setEmailVorschauSending(true);
+    const { gruppe, empfaenger, betreff, emailText, signatur, pdfBlob, pdfDateiname, lieferscheinnummer } = emailVorschauDaten;
+
+    try {
+      // PDF zu Base64
+      const arrayBuffer = await pdfBlob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+
+      // HTML-Body mit Signatur
+      const htmlBody = wrapInEmailTemplate(emailText, signatur);
+
+      const result = await sendeEmailMitPdf({
+        empfaenger,
+        absender: TENNISMEHL_ABSENDER,
+        betreff,
+        htmlBody,
+        pdfBase64: base64,
+        pdfDateiname,
+        projektId: gruppe.projektId,
+        dokumentTyp: 'lieferschein',
+        dokumentNummer: lieferscheinnummer,
+        testModus,
+        skipProtokoll: testModus,
+      });
+
+      if (result.success) {
+        if (!testModus) {
+          setEmailStatus(prev => ({
+            ...prev,
+            [gruppe.projektId]: {
+              gesendetAm: new Date().toISOString(),
+              dokumentNummer: lieferscheinnummer,
+            },
+          }));
+        }
+
+        setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
+        setTimeout(() => {
+          setJustSentProjektIds(prev => {
+            const next = new Set(prev);
+            next.delete(gruppe.projektId);
+            return next;
+          });
+        }, testModus ? 5000 : 3000);
+
+        setShowEmailVorschau(false);
+        setEmailVorschauDaten(null);
+      } else {
+        throw new Error(result.error || 'Email konnte nicht gesendet werden');
+      }
+    } catch (error) {
+      console.error('Fehler beim Senden:', error);
+      alert(`Fehler beim Senden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setEmailVorschauSending(false);
+    }
+  };
+
+  // PDF-Vorschau öffnen
+  const oeffnePdfVorschau = () => {
+    if (!emailVorschauDaten?.pdfBlob) return;
+    const url = URL.createObjectURL(emailVorschauDaten.pdfBlob);
+    window.open(url, '_blank');
+  };
+
+  // Lieferschein an Universal Sport senden (für Bulk-Versand)
+  const handleSendeAnUniversal = async (gruppe: KundenGruppe): Promise<boolean> => {
+    setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
+
+    try {
+      const { daten, lieferscheinnummer } = await erstelleLieferscheinDaten(gruppe);
+      const pdf = await generiereLieferscheinPDF(daten, undefined, true);
+      const pdfBase64 = pdfZuBase64(pdf);
+
+      const ersteBestellung = gruppe.bestellungen[0];
+      const lieferKW = ersteBestellung.lieferKW;
+      const lieferKWJahr = ersteBestellung.lieferKWJahr;
+      const lieferKWText = lieferKW
+        ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
+        : '';
+
+      const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
+      const signaturHtml = emailTemplate.signatur || '';
+
       const emailBody = `Hallo ${UNIVERSAL_SPORT_NAME},
 
 bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.
@@ -445,12 +594,10 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
 
       const htmlBody = wrapInEmailTemplate(emailBody, signaturHtml);
 
-      // Dateiname - sauber formatiert
       const datumFormatiert = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
       const kundennameSauber = gruppe.kundenname.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').substring(0, 40).trim();
       const pdfDateiname = `Lieferschein_${kundennameSauber}_${datumFormatiert}.pdf`;
 
-      // Email senden (Test-Modus: an Test-Email, sonst an Universal Sport)
       const empfaenger = testModus ? TEST_EMAIL : UNIVERSAL_SPORT_EMAIL;
       const result = await sendeEmailMitPdf({
         empfaenger,
@@ -463,15 +610,11 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
         dokumentTyp: 'lieferschein',
         dokumentNummer: lieferscheinnummer,
         testModus,
-        // WICHTIG: Im Testmodus NICHT protokollieren (verhindert Doppelversand-Erkennung)
         skipProtokoll: testModus,
       });
 
       if (result.success) {
-        // Im ECHT-Modus: Status dauerhaft speichern (wird aus email_protokoll geladen)
-        // Im TEST-Modus: Nur temporäre Demo-Anzeige (wird beim nächsten Laden zurückgesetzt)
         if (!testModus) {
-          // Echte Versendung - Status dauerhaft aktualisieren
           setEmailStatus(prev => ({
             ...prev,
             [gruppe.projektId]: {
@@ -481,7 +624,6 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
           }));
         }
 
-        // Kurz "Gesendet" Animation anzeigen (in beiden Modi)
         setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
         setTimeout(() => {
           setJustSentProjektIds(prev => {
@@ -969,7 +1111,7 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleSendeAnUniversal(gruppe);
+                              oeffneEmailVorschau(gruppe);
                             }}
                             disabled={isSending}
                             className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-sm font-medium ${
@@ -1415,6 +1557,162 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Email-Vorschau Modal */}
+      {showEmailVorschau && emailVorschauDaten && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between bg-gradient-to-r from-green-600 to-emerald-600 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <Mail className="w-6 h-6 text-white" />
+                <div>
+                  <h2 className="text-xl font-semibold text-white">E-Mail Vorschau</h2>
+                  <p className="text-green-100 text-sm">{emailVorschauDaten.gruppe.kundenname}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEmailVorschau(false);
+                  setEmailVorschauDaten(null);
+                }}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Testmodus Hinweis */}
+              {testModus && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-center gap-2">
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">⚠️ Testmodus aktiv</span>
+                  <span className="text-amber-700 dark:text-amber-300 text-sm">- wird an {TEST_EMAIL} gesendet</span>
+                </div>
+              )}
+
+              {/* Empfänger */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Empfänger
+                </label>
+                <div className="px-4 py-2.5 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-800 dark:text-gray-200">
+                  {emailVorschauDaten.empfaenger}
+                </div>
+              </div>
+
+              {/* Betreff */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Betreff
+                </label>
+                <input
+                  type="text"
+                  value={emailVorschauDaten.betreff}
+                  onChange={(e) => setEmailVorschauDaten(prev => prev ? { ...prev, betreff: e.target.value } : null)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Lieferwoche Info */}
+              {emailVorschauDaten.lieferKW && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-gray-600 dark:text-gray-400">Gewünschte Lieferung:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    KW {emailVorschauDaten.lieferKW}{emailVorschauDaten.lieferKWJahr ? `/${emailVorschauDaten.lieferKWJahr}` : ''}
+                  </span>
+                </div>
+              )}
+
+              {/* E-Mail Text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nachricht
+                </label>
+                <TipTapEditor
+                  content={emailVorschauDaten.emailText}
+                  onChange={(html) => setEmailVorschauDaten(prev => prev ? { ...prev, emailText: html } : null)}
+                  placeholder="E-Mail Text..."
+                  minHeight="150px"
+                />
+              </div>
+
+              {/* Signatur Vorschau */}
+              {emailVorschauDaten.signatur && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Signatur (wird automatisch angehängt)
+                  </label>
+                  <div
+                    className="px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                    dangerouslySetInnerHTML={{ __html: emailVorschauDaten.signatur }}
+                  />
+                </div>
+              )}
+
+              {/* Anhang */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Anhang
+                </label>
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                      <FileText className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{emailVorschauDaten.pdfDateiname}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {(emailVorschauDaten.pdfBlob.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={oeffnePdfVorschau}
+                    className="px-3 py-1.5 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors flex items-center gap-1.5 text-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Vorschau
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between bg-gray-50 dark:bg-slate-800 rounded-b-xl">
+              <button
+                onClick={() => {
+                  setShowEmailVorschau(false);
+                  setEmailVorschauDaten(null);
+                }}
+                disabled={emailVorschauSending}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={sendeAusVorschau}
+                disabled={emailVorschauSending}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
+              >
+                {emailVorschauSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Wird gesendet...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    E-Mail senden
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
