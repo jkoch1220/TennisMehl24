@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Package,
   Download,
@@ -29,7 +29,7 @@ import { Projekt, ProjektStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPosition } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
-import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from '../../services/emailSendService';
+import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -139,12 +139,9 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
   const [sendingProjektIds, setSendingProjektIds] = useState<Set<string>>(new Set());
   const [justSentProjektIds, setJustSentProjektIds] = useState<Set<string>>(new Set());
 
-  // Bulk-Modal
+  // Bulk-Modal (nur zur Auswahl, Versand erfolgt über Einzel-Modals)
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkSending, setBulkSending] = useState(false);
-  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
-  const [bulkResult, setBulkResult] = useState<{ success: number; failed: number } | null>(null);
 
   // Test-Modus (sendet an jtatwcook@gmail.com statt Universal Sport)
   const [testModus, setTestModus] = useState(false);
@@ -154,8 +151,10 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
   const [emailVorschauDaten, setEmailVorschauDaten] = useState<EmailVorschauDaten | null>(null);
   const [emailVorschauSending, setEmailVorschauSending] = useState(false);
 
-  // Ref für Abbruch
-  const bulkAbortRef = useRef(false);
+  // Bulk-Versand mit Modal für jeden Kunden
+  const [bulkQueue, setBulkQueue] = useState<KundenGruppe[]>([]);
+  const [bulkQueueIndex, setBulkQueueIndex] = useState(0);
+  const [bulkQueueResult, setBulkQueueResult] = useState<{ success: number; failed: number; skipped: number }>({ success: 0, failed: 0, skipped: 0 });
 
   // Alle bestellten Projekte (Status >= auftragsbestaetigung)
   const bestellteProjekte = useMemo(() => {
@@ -436,10 +435,8 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     }
   };
 
-  // Email-Vorschau Modal öffnen (statt direkt senden)
-  const oeffneEmailVorschau = async (gruppe: KundenGruppe) => {
-    setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
-
+  // Interne Funktion zum Öffnen des Email-Vorschau Modals
+  const oeffneEmailVorschauIntern = async (gruppe: KundenGruppe) => {
     try {
       const { daten, lieferscheinnummer } = await erstelleLieferscheinDaten(gruppe);
       const pdf = await generiereLieferscheinPDF(daten, undefined, true);
@@ -487,6 +484,17 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
       setShowEmailVorschau(true);
     } catch (error) {
       console.error('Fehler beim Vorbereiten der Email:', error);
+      throw error;
+    }
+  };
+
+  // Email-Vorschau Modal öffnen (für Einzelversand)
+  const oeffneEmailVorschau = async (gruppe: KundenGruppe) => {
+    setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
+
+    try {
+      await oeffneEmailVorschauIntern(gruppe);
+    } catch (error) {
       alert('Fehler beim Vorbereiten der Email. Bitte versuchen Sie es erneut.');
     } finally {
       setSendingProjektIds(prev => {
@@ -548,17 +556,75 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
           });
         }, testModus ? 5000 : 3000);
 
-        setShowEmailVorschau(false);
-        setEmailVorschauDaten(null);
+        // Bulk-Queue: Erfolg zählen und nächsten laden
+        if (bulkQueue.length > 0) {
+          setBulkQueueResult(prev => ({ ...prev, success: prev.success + 1 }));
+          ladeNaechstenAusBulkQueue();
+        } else {
+          setShowEmailVorschau(false);
+          setEmailVorschauDaten(null);
+        }
       } else {
         throw new Error(result.error || 'Email konnte nicht gesendet werden');
       }
     } catch (error) {
       console.error('Fehler beim Senden:', error);
       alert(`Fehler beim Senden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+      // Bei Fehler im Bulk-Modus: Fehler zählen, aber weitermachen
+      if (bulkQueue.length > 0) {
+        setBulkQueueResult(prev => ({ ...prev, failed: prev.failed + 1 }));
+        ladeNaechstenAusBulkQueue();
+      }
     } finally {
       setEmailVorschauSending(false);
     }
+  };
+
+  // Nächsten Kunden aus Bulk-Queue laden
+  const ladeNaechstenAusBulkQueue = async () => {
+    const nextIndex = bulkQueueIndex + 1;
+    if (nextIndex >= bulkQueue.length) {
+      // Alle fertig - Zusammenfassung zeigen
+      setShowEmailVorschau(false);
+      setEmailVorschauDaten(null);
+      setBulkQueue([]);
+      setBulkQueueIndex(0);
+      // Ergebnis-Alert
+      const result = bulkQueueResult;
+      setTimeout(() => {
+        alert(`Bulk-Versand abgeschlossen!\n\nErfolgreich: ${result.success + 1}\nFehlgeschlagen: ${result.failed}\nÜbersprungen: ${result.skipped}`);
+        setBulkQueueResult({ success: 0, failed: 0, skipped: 0 });
+      }, 100);
+      return;
+    }
+
+    setBulkQueueIndex(nextIndex);
+    const nextGruppe = bulkQueue[nextIndex];
+    await oeffneEmailVorschauIntern(nextGruppe);
+  };
+
+  // Kunden überspringen (im Bulk-Modus)
+  const ueberspringeImBulk = () => {
+    if (bulkQueue.length > 0) {
+      setBulkQueueResult(prev => ({ ...prev, skipped: prev.skipped + 1 }));
+      ladeNaechstenAusBulkQueue();
+    } else {
+      setShowEmailVorschau(false);
+      setEmailVorschauDaten(null);
+    }
+  };
+
+  // Bulk-Versand abbrechen
+  const abbrechenBulkVersand = () => {
+    const result = bulkQueueResult;
+    setShowEmailVorschau(false);
+    setEmailVorschauDaten(null);
+    setBulkQueue([]);
+    setBulkQueueIndex(0);
+    if (result.success > 0 || result.failed > 0 || result.skipped > 0) {
+      alert(`Bulk-Versand abgebrochen!\n\nErfolgreich: ${result.success}\nFehlgeschlagen: ${result.failed}\nÜbersprungen: ${result.skipped}`);
+    }
+    setBulkQueueResult({ success: 0, failed: 0, skipped: 0 });
   };
 
   // PDF-Vorschau öffnen
@@ -568,129 +634,26 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
     window.open(url, '_blank');
   };
 
-  // Lieferschein an Universal Sport senden (für Bulk-Versand)
-  const handleSendeAnUniversal = async (gruppe: KundenGruppe): Promise<boolean> => {
-    setSendingProjektIds(prev => new Set([...prev, gruppe.projektId]));
-
-    try {
-      const { daten, lieferscheinnummer } = await erstelleLieferscheinDaten(gruppe);
-      const pdf = await generiereLieferscheinPDF(daten, undefined, true);
-      const pdfBase64 = pdfZuBase64(pdf);
-
-      const ersteBestellung = gruppe.bestellungen[0];
-      const lieferKW = ersteBestellung.lieferKW;
-      const lieferKWJahr = ersteBestellung.lieferKWJahr;
-      const lieferKWText = lieferKW
-        ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
-        : '';
-
-      const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
-      const signaturHtml = emailTemplate.signatur || '';
-
-      const emailBody = `Hallo ${UNIVERSAL_SPORT_NAME},
-
-bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.
-${lieferKWText ? '\n' + lieferKWText : ''}`;
-
-      const htmlBody = wrapInEmailTemplate(emailBody, signaturHtml);
-
-      const datumFormatiert = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
-      const kundennameSauber = gruppe.kundenname.replace(/[^a-zA-Z0-9äöüÄÖÜß\s-]/g, '').substring(0, 40).trim();
-      const pdfDateiname = `Lieferschein_${kundennameSauber}_${datumFormatiert}.pdf`;
-
-      const empfaenger = testModus ? TEST_EMAIL : UNIVERSAL_SPORT_EMAIL;
-      const result = await sendeEmailMitPdf({
-        empfaenger,
-        absender: TENNISMEHL_ABSENDER,
-        betreff: `${testModus ? '[TEST] ' : ''}Bestellung - ${gruppe.kundenname}`,
-        htmlBody,
-        pdfBase64,
-        pdfDateiname,
-        projektId: gruppe.projektId,
-        dokumentTyp: 'lieferschein',
-        dokumentNummer: lieferscheinnummer,
-        testModus,
-        skipProtokoll: testModus,
-      });
-
-      if (result.success) {
-        if (!testModus) {
-          setEmailStatus(prev => ({
-            ...prev,
-            [gruppe.projektId]: {
-              gesendetAm: new Date().toISOString(),
-              dokumentNummer: lieferscheinnummer,
-            },
-          }));
-        }
-
-        setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
-        setTimeout(() => {
-          setJustSentProjektIds(prev => {
-            const next = new Set(prev);
-            next.delete(gruppe.projektId);
-            return next;
-          });
-        }, testModus ? 5000 : 3000); // Im Testmodus länger anzeigen
-
-        return true;
-      } else {
-        throw new Error(result.error || 'Email konnte nicht gesendet werden');
-      }
-    } catch (error) {
-      console.error('Fehler beim Senden:', error);
-      alert(`Fehler beim Senden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
-      return false;
-    } finally {
-      setSendingProjektIds(prev => {
-        const next = new Set(prev);
-        next.delete(gruppe.projektId);
-        return next;
-      });
-    }
-  };
-
-  // Bulk-Versand
+  // Bulk-Versand starten (mit Modal für jeden Kunden)
   const handleBulkSend = async () => {
     const selectedGruppen = kundenGruppen.filter(g => bulkSelectedIds.has(g.projektId));
     if (selectedGruppen.length === 0) return;
 
-    setBulkSending(true);
-    setBulkProgress({ current: 0, total: selectedGruppen.length });
-    setBulkResult(null);
-    bulkAbortRef.current = false;
+    // Bulk-Modal schließen
+    setShowBulkModal(false);
 
-    let success = 0;
-    let failed = 0;
+    // Queue initialisieren
+    setBulkQueue(selectedGruppen);
+    setBulkQueueIndex(0);
+    setBulkQueueResult({ success: 0, failed: 0, skipped: 0 });
 
-    for (let i = 0; i < selectedGruppen.length; i++) {
-      if (bulkAbortRef.current) break;
-
-      const gruppe = selectedGruppen[i];
-      setBulkProgress({ current: i + 1, total: selectedGruppen.length });
-
-      try {
-        await handleSendeAnUniversal(gruppe);
-        success++;
-      } catch {
-        failed++;
-      }
-
-      // 2 Sekunden Pause zwischen Emails (außer bei letzter)
-      if (i < selectedGruppen.length - 1 && !bulkAbortRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-
-    setBulkSending(false);
-    setBulkResult({ success, failed });
-
-    // Modal nach 3 Sekunden schließen wenn erfolgreich
-    if (failed === 0) {
-      setTimeout(() => {
-        setShowBulkModal(false);
-        setBulkResult(null);
-      }, 3000);
+    // Erstes Modal öffnen
+    try {
+      await oeffneEmailVorschauIntern(selectedGruppen[0]);
+    } catch (error) {
+      console.error('Fehler beim Starten des Bulk-Versands:', error);
+      alert('Fehler beim Starten des Bulk-Versands.');
+      setBulkQueue([]);
     }
   };
 
@@ -701,7 +664,6 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
       .filter(g => !emailStatus[g.projektId])
       .map(g => g.projektId);
     setBulkSelectedIds(new Set(nichtGesendet));
-    setBulkResult(null);
     setShowBulkModal(true);
   };
 
@@ -1417,52 +1379,19 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
                 </p>
               </div>
               <button
-                onClick={() => {
-                  if (bulkSending) {
-                    bulkAbortRef.current = true;
-                  } else {
-                    setShowBulkModal(false);
-                  }
-                }}
+                onClick={() => setShowBulkModal(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
-            {/* Modal Body */}
+            {/* Modal Body - Auswahl-Liste */}
             <div className="p-6 overflow-y-auto max-h-[50vh]">
-              {bulkResult ? (
-                /* Ergebnis-Anzeige */
-                <div className="text-center py-8">
-                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
-                    bulkResult.failed === 0 ? 'bg-green-100 dark:bg-green-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
-                  }`}>
-                    {bulkResult.failed === 0 ? (
-                      <Check className="w-8 h-8 text-green-600 dark:text-green-400" />
-                    ) : (
-                      <FileText className="w-8 h-8 text-amber-600 dark:text-amber-400" />
-                    )}
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    {bulkResult.failed === 0
-                      ? `${bulkResult.success} Lieferscheine erfolgreich gesendet`
-                      : `${bulkResult.success} gesendet, ${bulkResult.failed} fehlgeschlagen`}
-                  </h3>
-                </div>
-              ) : bulkSending ? (
-                /* Fortschrittsanzeige */
-                <div className="text-center py-8">
-                  <Loader2 className="w-12 h-12 text-green-600 animate-spin mx-auto mb-4" />
-                  <p className="text-lg font-medium text-gray-900 dark:text-white">
-                    {bulkProgress.current} von {bulkProgress.total} gesendet...
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    Bitte warten, Emails werden versendet.
-                  </p>
-                </div>
-              ) : (
-                /* Auswahl-Liste */
+              {/* Info-Hinweis */}
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                Für jeden ausgewählten Kunden öffnet sich ein Vorschau-Modal zur Überprüfung vor dem Senden.
+              </div>
                 <div className="space-y-2">
                   {/* Alle auswählen */}
                   <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-750 transition-colors">
@@ -1535,28 +1464,25 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
                     );
                   })}
                 </div>
-              )}
             </div>
 
             {/* Modal Footer */}
-            {!bulkResult && !bulkSending && (
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
-                <button
-                  onClick={() => setShowBulkModal(false)}
-                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  onClick={handleBulkSend}
-                  disabled={bulkSelectedIds.size === 0}
-                  className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
-                >
-                  <Send className="w-5 h-5" />
-                  {bulkSelectedIds.size} Lieferschein{bulkSelectedIds.size !== 1 ? 'e' : ''} senden
-                </button>
-              </div>
-            )}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleBulkSend}
+                disabled={bulkSelectedIds.size === 0}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
+              >
+                <Send className="w-5 h-5" />
+                {bulkSelectedIds.size} Kunden prüfen & senden
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1570,16 +1496,24 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
               <div className="flex items-center gap-3">
                 <Mail className="w-6 h-6 text-white" />
                 <div>
-                  <h2 className="text-xl font-semibold text-white">E-Mail Vorschau</h2>
+                  <h2 className="text-xl font-semibold text-white">
+                    E-Mail Vorschau
+                    {bulkQueue.length > 0 && (
+                      <span className="ml-2 text-green-200 font-normal">
+                        ({bulkQueueIndex + 1} von {bulkQueue.length})
+                      </span>
+                    )}
+                  </h2>
                   <p className="text-green-100 text-sm">{emailVorschauDaten.gruppe.kundenname}</p>
                 </div>
               </div>
               <button
-                onClick={() => {
+                onClick={bulkQueue.length > 0 ? abbrechenBulkVersand : () => {
                   setShowEmailVorschau(false);
                   setEmailVorschauDaten(null);
                 }}
                 className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                title={bulkQueue.length > 0 ? 'Bulk-Versand abbrechen' : 'Schließen'}
               >
                 <X className="w-5 h-5 text-white" />
               </button>
@@ -1685,16 +1619,27 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
 
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between bg-gray-50 dark:bg-slate-800 rounded-b-xl">
-              <button
-                onClick={() => {
-                  setShowEmailVorschau(false);
-                  setEmailVorschauDaten(null);
-                }}
-                disabled={emailVorschauSending}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-              >
-                Abbrechen
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={bulkQueue.length > 0 ? abbrechenBulkVersand : () => {
+                    setShowEmailVorschau(false);
+                    setEmailVorschauDaten(null);
+                  }}
+                  disabled={emailVorschauSending}
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {bulkQueue.length > 0 ? 'Abbrechen' : 'Schließen'}
+                </button>
+                {bulkQueue.length > 0 && (
+                  <button
+                    onClick={ueberspringeImBulk}
+                    disabled={emailVorschauSending}
+                    className="px-4 py-2 border border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50"
+                  >
+                    Überspringen
+                  </button>
+                )}
+              </div>
               <button
                 onClick={sendeAusVorschau}
                 disabled={emailVorschauSending}
@@ -1708,7 +1653,7 @@ ${lieferKWText ? '\n' + lieferKWText : ''}`;
                 ) : (
                   <>
                     <Send className="w-5 h-5" />
-                    E-Mail senden
+                    {bulkQueue.length > 0 ? 'Senden & Weiter' : 'E-Mail senden'}
                   </>
                 )}
               </button>
