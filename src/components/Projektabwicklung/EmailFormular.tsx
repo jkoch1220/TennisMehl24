@@ -103,16 +103,17 @@ const EmailFormular = ({
         if (emailDaten.html) {
           // Neues HTML-Format - direkt verwenden
           htmlText = emailDaten.html;
-          // Signatur anhängen wenn vorhanden
-          if (emailDaten.signatur) {
-            htmlText += '\n' + emailDaten.signatur;
-          }
         } else {
           // Altes Plain-Text Format - zu HTML konvertieren
           htmlText = emailDaten.text
             .split('\n')
             .map((line) => (line.trim() ? `<p>${line}</p>` : '<p><br></p>'))
             .join('');
+        }
+
+        // Signatur aus Stammdaten anhängen wenn vorhanden
+        if (emailDaten.signatur) {
+          htmlText += '\n' + emailDaten.signatur;
         }
         setHtmlContent(htmlText);
 

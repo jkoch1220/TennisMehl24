@@ -43,61 +43,48 @@ const ladeEmailTemplates = async (): Promise<Record<string, any>> => {
 };
 
 /**
+ * Standard-Signatur für Fallback
+ */
+const getStandardSignatur = (): string => `<p>Mit freundlichen Grüßen</p>
+<p><strong>Koch Dienste</strong></p>
+<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`;
+
+/**
  * Fallback-Templates falls Templates nicht aus Appwrite geladen werden können
  */
 const getFallbackTemplates = (): Record<string, any> => ({
   angebot: {
     betreff: 'Angebot {dokumentNummer} - {kundenname}',
-    emailContent: `Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unser angebot {dokumentNummer}{kundennummerText}.
-
-Wir freuen uns auf Ihre Rückmeldung.
-
-Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Koch Dienste`
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unser Angebot <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Wir freuen uns auf Ihre Rückmeldung.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
+    signatur: getStandardSignatur(),
   },
   auftragsbestaetigung: {
     betreff: 'Auftragsbestätigung {dokumentNummer} - {kundenname}',
-    emailContent: `Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unsere auftragsbestätigung {dokumentNummer}{kundennummerText}.
-
-Vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit die Bestellung.
-
-Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Koch Dienste`
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unsere Auftragsbestätigung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit die Bestellung.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
+    signatur: getStandardSignatur(),
   },
   lieferschein: {
     betreff: 'Lieferschein {dokumentNummer} - {kundenname}',
-    emailContent: `Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unseren lieferschein {dokumentNummer}{kundennummerText}.
-
-Bitte bestätigen Sie den Erhalt der Ware.
-
-Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Koch Dienste`
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unseren Lieferschein <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Bitte bestätigen Sie den Erhalt der Ware.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
+    signatur: getStandardSignatur(),
   },
   rechnung: {
     betreff: 'Rechnung {dokumentNummer} - {kundenname}',
-    emailContent: `Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unsere rechnung {dokumentNummer}{kundennummerText}.
-
-Bitte überweisen Sie den Rechnungsbetrag innerhalb der angegebenen Zahlungsfrist.
-
-Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Koch Dienste`
-  }
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unsere Rechnung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Bitte überweisen Sie den Rechnungsbetrag innerhalb der angegebenen Zahlungsfrist.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
+    signatur: getStandardSignatur(),
+  },
 });
 
 /**
