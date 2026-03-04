@@ -26,7 +26,8 @@ import { Projekt, ProjektStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPosition } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
-import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate, generiereStandardSignatur } from '../../services/emailSendService';
+import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from '../../services/emailSendService';
+import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import { databases, DATABASE_ID } from '../../config/appwrite';
@@ -432,15 +433,17 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
         : '';
 
+      // Signatur aus Stammdaten laden (wie in AnfrageBearbeitungDialog)
+      const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
+      const signaturHtml = emailTemplate.signatur || '';
+
       // Email-Body erstellen
       const emailBody = `Hallo ${UNIVERSAL_SPORT_NAME},
 
 bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.
-${lieferKWText ? '\n' + lieferKWText : ''}
-Mit sportlichen Grüßen`;
+${lieferKWText ? '\n' + lieferKWText : ''}`;
 
-      const signatur = generiereStandardSignatur();
-      const htmlBody = wrapInEmailTemplate(emailBody, signatur);
+      const htmlBody = wrapInEmailTemplate(emailBody, signaturHtml);
 
       // Dateiname - sauber formatiert
       const datumFormatiert = new Date().toLocaleDateString('de-DE').replace(/\./g, '-');
