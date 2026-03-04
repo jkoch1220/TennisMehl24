@@ -452,7 +452,7 @@ Mit sportlichen Grüßen`;
       const result = await sendeEmailMitPdf({
         empfaenger,
         absender: TENNISMEHL_ABSENDER,
-        betreff: `${testModus ? '[TEST] ' : ''}Lieferschein ${lieferscheinnummer} - ${gruppe.kundenname}`,
+        betreff: `${testModus ? '[TEST] ' : ''}Bestellung - ${gruppe.kundenname}`,
         htmlBody,
         pdfBase64,
         pdfDateiname,
