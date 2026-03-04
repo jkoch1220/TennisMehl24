@@ -205,17 +205,20 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
   }, [ladeUniversalBestellungen]);
 
   // Email-Status im Hintergrund laden (nicht blockierend)
+  // Lädt nur ECHTE Versendungen (nicht Testmodus) anhand des Empfängers
   const ladeEmailStatus = useCallback(async (projektIds: string[]) => {
     if (projektIds.length === 0) return;
 
     try {
       // Lade alle Email-Protokolle für Universal-Lieferscheine
+      // Nur echte Versendungen (an Universal Sport, nicht an Test-Email)
       const response = await databases.listDocuments(
         DATABASE_ID,
         'email_protokoll',
         [
           Query.equal('dokumentTyp', 'lieferschein'),
-          Query.contains('empfaenger', 'schnepper'),
+          Query.equal('status', 'gesendet'),
+          Query.contains('empfaenger', UNIVERSAL_SPORT_EMAIL.split('@')[0]), // Schnepper
           Query.orderDesc('gesendetAm'),
           Query.limit(500),
         ]
@@ -225,8 +228,8 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
 
       for (const doc of response.documents) {
         const projektId = doc.projektId as string;
-        // Nur ersten (neuesten) Eintrag pro Projekt speichern
-        if (!statusMap[projektId]) {
+        // Nur wenn projektId in unseren relevanten projektIds ist
+        if (projektIds.includes(projektId) && !statusMap[projektId]) {
           statusMap[projektId] = {
             gesendetAm: doc.gesendetAm as string,
             dokumentNummer: doc.dokumentNummer as string,
@@ -457,19 +460,25 @@ Mit sportlichen Grüßen`;
         dokumentTyp: 'lieferschein',
         dokumentNummer: lieferscheinnummer,
         testModus,
+        // WICHTIG: Im Testmodus NICHT protokollieren (verhindert Doppelversand-Erkennung)
+        skipProtokoll: testModus,
       });
 
       if (result.success) {
-        // Status aktualisieren
-        setEmailStatus(prev => ({
-          ...prev,
-          [gruppe.projektId]: {
-            gesendetAm: new Date().toISOString(),
-            dokumentNummer: lieferscheinnummer,
-          },
-        }));
+        // Im ECHT-Modus: Status dauerhaft speichern (wird aus email_protokoll geladen)
+        // Im TEST-Modus: Nur temporäre Demo-Anzeige (wird beim nächsten Laden zurückgesetzt)
+        if (!testModus) {
+          // Echte Versendung - Status dauerhaft aktualisieren
+          setEmailStatus(prev => ({
+            ...prev,
+            [gruppe.projektId]: {
+              gesendetAm: new Date().toISOString(),
+              dokumentNummer: lieferscheinnummer,
+            },
+          }));
+        }
 
-        // Kurz "Gesendet" anzeigen
+        // Kurz "Gesendet" Animation anzeigen (in beiden Modi)
         setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
         setTimeout(() => {
           setJustSentProjektIds(prev => {
@@ -477,7 +486,7 @@ Mit sportlichen Grüßen`;
             next.delete(gruppe.projektId);
             return next;
           });
-        }, 3000);
+        }, testModus ? 5000 : 3000); // Im Testmodus länger anzeigen
 
         return true;
       } else {

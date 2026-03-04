@@ -12,7 +12,6 @@ import {
   EmailAccount,
   EmailPlatzhalter,
   DokumentTyp,
-  TEST_EMAIL_ADDRESS,
 } from '../types/email';
 import { Query } from 'appwrite';
 
@@ -215,6 +214,9 @@ export const blobZuBase64 = (blob: Blob): Promise<string> => {
 
 /**
  * Sendet eine E-Mail mit PDF und protokolliert sie
+ *
+ * @param skipProtokoll - Wenn true, wird die E-Mail NICHT in Appwrite protokolliert.
+ *                        Verwenden für Testmodus, um Doppelversand-Erkennung nicht zu verfälschen.
  */
 export const sendeEmailMitPdf = async (params: {
   empfaenger: string;
@@ -228,6 +230,7 @@ export const sendeEmailMitPdf = async (params: {
   dokumentNummer: string;
   pdfVersion?: number;
   testModus?: boolean;
+  skipProtokoll?: boolean;
 }): Promise<EmailSendResponse> => {
   const {
     empfaenger,
@@ -241,6 +244,7 @@ export const sendeEmailMitPdf = async (params: {
     dokumentNummer,
     pdfVersion,
     testModus,
+    skipProtokoll,
   } = params;
 
   // E-Mail senden
@@ -254,25 +258,27 @@ export const sendeEmailMitPdf = async (params: {
     testMode: testModus,
   });
 
-  // Protokollieren (auch bei Fehler)
-  try {
-    await protokolliereEmail({
-      projektId,
-      dokumentTyp,
-      dokumentNummer,
-      empfaenger: testModus ? `${TEST_EMAIL_ADDRESS} (Original: ${empfaenger})` : empfaenger,
-      absender,
-      betreff,
-      htmlContent: htmlBody,
-      pdfDateiname,
-      pdfVersion,
-      status: sendResult.success ? 'gesendet' : 'fehler',
-      fehlerMeldung: sendResult.error,
-      messageId: sendResult.messageId,
-    });
-  } catch (protokollError) {
-    console.error('Fehler beim Protokollieren:', protokollError);
-    // Protokollierungsfehler soll den Versand-Status nicht überschreiben
+  // Protokollieren (außer wenn skipProtokoll=true, z.B. im Testmodus)
+  if (!skipProtokoll) {
+    try {
+      await protokolliereEmail({
+        projektId,
+        dokumentTyp,
+        dokumentNummer,
+        empfaenger,
+        absender,
+        betreff,
+        htmlContent: htmlBody,
+        pdfDateiname,
+        pdfVersion,
+        status: sendResult.success ? 'gesendet' : 'fehler',
+        fehlerMeldung: sendResult.error,
+        messageId: sendResult.messageId,
+      });
+    } catch (protokollError) {
+      console.error('Fehler beim Protokollieren:', protokollError);
+      // Protokollierungsfehler soll den Versand-Status nicht überschreiben
+    }
   }
 
   return sendResult;
