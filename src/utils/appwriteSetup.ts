@@ -68,7 +68,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '35'; // Shop Bestellungen Collection für Gambio Online-Shop
+const APPWRITE_SETUP_VERSION = '36'; // Shop Bestellungen - alle Felder für Gambio API
 
 type FieldConfig = {
   key: string;
