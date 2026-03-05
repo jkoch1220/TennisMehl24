@@ -535,11 +535,9 @@ const shopBestellungenFields: FieldConfig[] = [
   { key: 'kundeBeenachrichtigt', type: 'boolean', required: false },
   { key: 'notizen', type: 'string', size: 5000, required: false },
 
-  // Original-Email
-  { key: 'emailUid', type: 'integer', required: false },
-  { key: 'emailDatum', type: 'string', size: 50, required: true },
-  { key: 'emailHtml', type: 'string', size: 100000, required: false },
-  { key: 'emailText', type: 'string', size: 100000, required: false },
+  // Gambio API Integration
+  { key: 'gambioOrderId', type: 'integer', required: false },
+  { key: 'gambioStatusId', type: 'integer', required: false },
 
   // Meta
   { key: 'erstelltAm', type: 'string', size: 50, required: true },

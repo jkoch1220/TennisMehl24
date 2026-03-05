@@ -19,7 +19,6 @@ const statusOptionen: { value: ShopBestellungStatus | ''; label: string }[] = [
   { value: 'versendet', label: 'Versendet' },
   { value: 'abgeschlossen', label: 'Abgeschlossen' },
   { value: 'storniert', label: 'Storniert' },
-  { value: 'parse_fehler', label: 'Parse-Fehler' },
 ];
 
 const ShopFilterLeiste = ({ filter, onFilterChange, neueCount }: ShopFilterLeisteProps) => {

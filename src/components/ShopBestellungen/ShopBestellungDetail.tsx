@@ -11,14 +11,12 @@ import {
   CreditCard,
   Package,
   MessageSquare,
-  Mail,
   Play,
   Truck,
   CheckCircle,
   XCircle,
   Loader2,
   FolderPlus,
-  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -53,7 +51,6 @@ const ShopBestellungDetail = ({
   onVersand,
 }: ShopBestellungDetailProps) => {
   const navigate = useNavigate();
-  const [showEmailHtml, setShowEmailHtml] = useState(false);
   const [analysing, setAnalysing] = useState(false);
   const [creatingProjekt, setCreatingProjekt] = useState(false);
 
@@ -380,27 +377,6 @@ const ShopBestellungDetail = ({
                 </button>
               )}
             </div>
-          </div>
-
-          {/* Original-Email */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <button
-              onClick={() => setShowEmailHtml(!showEmailHtml)}
-              className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            >
-              <Mail className="w-4 h-4" />
-              {showEmailHtml ? 'Original-Email ausblenden' : 'Original-Email anzeigen'}
-              <ExternalLink className="w-3 h-3" />
-            </button>
-
-            {showEmailHtml && bestellung.emailHtml && (
-              <div className="mt-4 p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg max-h-96 overflow-y-auto">
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: bestellung.emailHtml }}
-                />
-              </div>
-            )}
           </div>
 
           {/* Notizen */}

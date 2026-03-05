@@ -56,10 +56,9 @@ export interface ShopBestellung {
   trackingNummer?: string;
   kundeBeenachrichtigt?: boolean;
   notizen?: string;
-  emailUid?: number;
-  emailDatum: string;
-  emailHtml?: string;
-  emailText?: string;
+  // Gambio API Integration
+  gambioOrderId?: number;
+  gambioStatusId?: number;
   erstelltAm: string;
   aktualisiertAm: string;
 }
@@ -69,8 +68,7 @@ export type ShopBestellungStatus =
   | 'in_bearbeitung'
   | 'versendet'
   | 'abgeschlossen'
-  | 'storniert'
-  | 'parse_fehler';
+  | 'storniert';
 
 export interface ShopBestellungFilter {
   status?: ShopBestellungStatus;
@@ -92,7 +90,6 @@ export interface ShopStats {
   versendet: number;
   abgeschlossen: number;
   storniert: number;
-  parse_fehler: number;
   gesamt: number;
   diesesMonat: number;
 }
@@ -157,7 +154,6 @@ export function getStatusInfo(status: ShopBestellungStatus): { label: string; co
     versendet: { label: 'Versendet', color: 'text-purple-700', bgColor: 'bg-purple-100' },
     abgeschlossen: { label: 'Abgeschlossen', color: 'text-green-700', bgColor: 'bg-green-100' },
     storniert: { label: 'Storniert', color: 'text-red-700', bgColor: 'bg-red-100' },
-    parse_fehler: { label: 'Parse-Fehler', color: 'text-gray-700', bgColor: 'bg-gray-100' },
   };
   return statusMap[status] || statusMap.neu;
 }
@@ -186,6 +182,7 @@ class ShopBestellungService {
 
     const response = await backendFetch<ShopSyncResult>(`${this.baseUrl}/sync`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
 
     return response;
