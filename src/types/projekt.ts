@@ -15,6 +15,9 @@ export const VERLOREN_GRUENDE: { value: VerlorenGrund; label: string }[] = [
 // Dispo-Status für Projekte (Lieferplanung)
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
+// Hydrocourt-Status für TM-HYC Bestellungen (Versand an Schwab)
+export type HydrocourtStatus = 'offen' | 'bestellt' | 'versendet' | 'abgeschlossen';
+
 // Lieferdatum-Typ (aus AB)
 // - 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis Datum
 // - 'kw' = In KW X (fix), 'spaetestens_kw' = Spätestens bis KW X (flexibel)
@@ -184,6 +187,14 @@ export interface Projekt {
   // === INSTANDSETZUNG ===
   // Gewünschter Termin für Frühjahrs-Instandsetzung (für "Direkt Platzbauer"-Kunden)
   instandsetzungTermin?: string; // ISO Date
+
+  // === HYDROCOURT STATUS ===
+  // Status für TM-HYC Bestellungen (Versand an Schwab)
+  hydrocourtStatus?: HydrocourtStatus;
+  hydrocourtBestelltAm?: string;      // ISO Datum wann an Schwab gesendet
+  hydrocourtTrackingNummer?: string;  // Sendungsverfolgung
+  hydrocourtVersendetAm?: string;     // Wann Schwab die Ware versendet hat
+  hydrocourtNotizen?: string;         // Freitext für interne Notizen
 
   // Timestamps
   erstelltAm: string;

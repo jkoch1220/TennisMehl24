@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
-import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus } from '../types/projekt';
+import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus } from '../types/projekt';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
@@ -514,6 +514,77 @@ class ProjektService {
       });
     } catch (error) {
       console.error('Fehler beim Markieren der Adresse als unbekannt:', error);
+      throw error;
+    }
+  }
+
+  // === HYDROCOURT STATUS MANAGEMENT ===
+
+  // Hydrocourt-Status aktualisieren
+  async updateHydrocourtStatus(
+    projektId: string,
+    status: HydrocourtStatus,
+    zusatzDaten?: {
+      bestelltAm?: string;
+      trackingNummer?: string;
+      versendetAm?: string;
+      notizen?: string;
+    }
+  ): Promise<Projekt> {
+    try {
+      const updates: Partial<Projekt> = {
+        hydrocourtStatus: status,
+      };
+
+      // Status-spezifische Timestamps setzen
+      if (status === 'bestellt' && !zusatzDaten?.bestelltAm) {
+        updates.hydrocourtBestelltAm = new Date().toISOString();
+      }
+      if (status === 'versendet' && !zusatzDaten?.versendetAm) {
+        updates.hydrocourtVersendetAm = new Date().toISOString();
+      }
+
+      // Zusätzliche Daten übernehmen
+      if (zusatzDaten?.bestelltAm) updates.hydrocourtBestelltAm = zusatzDaten.bestelltAm;
+      if (zusatzDaten?.trackingNummer) updates.hydrocourtTrackingNummer = zusatzDaten.trackingNummer;
+      if (zusatzDaten?.versendetAm) updates.hydrocourtVersendetAm = zusatzDaten.versendetAm;
+      if (zusatzDaten?.notizen !== undefined) updates.hydrocourtNotizen = zusatzDaten.notizen;
+
+      return await this.updateProjekt(projektId, updates);
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren des Hydrocourt-Status:', error);
+      throw error;
+    }
+  }
+
+  // Tracking-Nummer setzen und automatisch auf "versendet" wechseln
+  async setHydrocourtTracking(projektId: string, trackingNummer: string): Promise<Projekt> {
+    try {
+      return await this.updateProjekt(projektId, {
+        hydrocourtStatus: 'versendet',
+        hydrocourtTrackingNummer: trackingNummer,
+        hydrocourtVersendetAm: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Fehler beim Setzen der Hydrocourt-Tracking-Nummer:', error);
+      throw error;
+    }
+  }
+
+  // Mehrere Projekte auf "bestellt" setzen (Batch-Update für "An Schwab senden")
+  async setHydrocourtBestellt(projektIds: string[]): Promise<void> {
+    try {
+      const bestelltAm = new Date().toISOString();
+      await Promise.all(
+        projektIds.map(projektId =>
+          this.updateProjekt(projektId, {
+            hydrocourtStatus: 'bestellt',
+            hydrocourtBestelltAm: bestelltAm,
+          })
+        )
+      );
+    } catch (error) {
+      console.error('Fehler beim Batch-Update des Hydrocourt-Status:', error);
       throw error;
     }
   }
