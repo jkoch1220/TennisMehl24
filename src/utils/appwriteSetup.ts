@@ -68,7 +68,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '36'; // Shop Bestellungen - alle Felder für Gambio API
+const APPWRITE_SETUP_VERSION = '37'; // Shop Bestellungen - Status-Historie und Aktivitätslog
 
 type FieldConfig = {
   key: string;
@@ -538,6 +538,13 @@ const shopBestellungenFields: FieldConfig[] = [
   // Gambio API Integration
   { key: 'gambioOrderId', type: 'integer', required: false },
   { key: 'gambioStatusId', type: 'integer', required: false },
+
+  // Kunden-Kontakt
+  { key: 'kundenEmail', type: 'string', size: 320, required: false },
+
+  // Historie & Aktivitäten (JSON Arrays)
+  { key: 'statusHistorie', type: 'string', size: 50000, required: false },
+  { key: 'aktivitaetsLog', type: 'string', size: 50000, required: false },
 
   // Meta
   { key: 'erstelltAm', type: 'string', size: 50, required: true },

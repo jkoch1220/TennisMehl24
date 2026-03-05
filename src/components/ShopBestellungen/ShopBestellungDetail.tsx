@@ -17,6 +17,8 @@ import {
   XCircle,
   Loader2,
   FolderPlus,
+  RefreshCw,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -26,11 +28,14 @@ import {
   ShopPosition,
   parseAdresse,
   parsePositionen,
+  parseStatusHistorie,
+  parseAktivitaetsLog,
   formatBestelldatum,
   getStatusInfo,
   shopBestellungService,
 } from '../../services/shopBestellungService';
 import { UniversalArtikel } from '../../types/universaArtikel';
+import AktivitaetsTimeline from './AktivitaetsTimeline';
 
 interface ShopBestellungDetailProps {
   bestellung: ShopBestellung;
@@ -42,6 +47,7 @@ interface ShopBestellungDetailProps {
     benachrichtigen?: boolean
   ) => void;
   onVersand: (bestellung: ShopBestellung) => void;
+  onRefresh?: (bestellung: ShopBestellung) => void;
 }
 
 const ShopBestellungDetail = ({
@@ -49,10 +55,12 @@ const ShopBestellungDetail = ({
   onClose,
   onStatusUpdate,
   onVersand,
+  onRefresh,
 }: ShopBestellungDetailProps) => {
   const navigate = useNavigate();
   const [analysing, setAnalysing] = useState(false);
   const [creatingProjekt, setCreatingProjekt] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Artikel-Analyse
   const [universalPositionen, setUniversalPositionen] = useState<ShopPosition[]>([]);
@@ -63,6 +71,25 @@ const ShopBestellungDetail = ({
   const lieferadresse = parseAdresse(bestellung.lieferadresse);
   const rechnungsadresse = parseAdresse(bestellung.rechnungsadresse);
   const positionen = parsePositionen(bestellung.positionen);
+  const statusHistorie = parseStatusHistorie(bestellung.statusHistorie);
+  const aktivitaetsLog = parseAktivitaetsLog(bestellung.aktivitaetsLog);
+
+  // Refresh von Gambio
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const updated = await shopBestellungService.refreshFromGambio(bestellung.$id);
+      toast.success('Daten von Gambio aktualisiert');
+      if (onRefresh) {
+        onRefresh(updated);
+      }
+    } catch (error) {
+      toast.error('Aktualisierung fehlgeschlagen');
+      console.error(error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Analysiere Artikel beim Laden
   useEffect(() => {
@@ -119,12 +146,23 @@ const ShopBestellungDetail = ({
               {formatBestelldatum(bestellung.bestelldatum)}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              title="Von Gambio aktualisieren"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Aktualisiere...' : 'Aktualisieren'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
@@ -175,11 +213,23 @@ const ShopBestellungDetail = ({
 
           {/* Kontakt & Zahlung */}
           <div className="flex flex-wrap gap-4 text-sm">
+            {bestellung.kundenEmail && (
+              <a
+                href={`mailto:${bestellung.kundenEmail}`}
+                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                <Mail className="w-4 h-4" />
+                {bestellung.kundenEmail}
+              </a>
+            )}
             {bestellung.telefon && (
-              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <a
+                href={`tel:${bestellung.telefon}`}
+                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              >
                 <Phone className="w-4 h-4" />
                 {bestellung.telefon}
-              </div>
+              </a>
             )}
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <CreditCard className="w-4 h-4" />
@@ -390,6 +440,14 @@ const ShopBestellungDetail = ({
               </p>
             </div>
           )}
+
+          {/* Aktivitäts-Timeline */}
+          <AktivitaetsTimeline
+            statusHistorie={statusHistorie}
+            aktivitaetsLog={aktivitaetsLog}
+            kundenKommentar={bestellung.anmerkungen}
+            bestelldatum={bestellung.bestelldatum}
+          />
         </div>
       </div>
     </>

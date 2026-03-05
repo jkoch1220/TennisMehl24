@@ -59,8 +59,34 @@ export interface ShopBestellung {
   // Gambio API Integration
   gambioOrderId?: number;
   gambioStatusId?: number;
+  // Kunden-Kontakt & Historie
+  kundenEmail?: string;
+  statusHistorie?: string; // JSON Array
+  aktivitaetsLog?: string; // JSON Array
   erstelltAm: string;
   aktualisiertAm: string;
+}
+
+// Gambio Status-Historie Eintrag
+export interface GambioStatusHistorie {
+  id: number;
+  orderId: number;
+  statusId: number;
+  dateAdded: string;
+  comment: string;
+  customerNotified: boolean;
+}
+
+// Interner Aktivitäts-Log Eintrag
+export interface AktivitaetsEintrag {
+  id: string;
+  datum: string;
+  aktion: 'status_aenderung' | 'notiz_hinzugefuegt' | 'tracking_gesetzt' | 'kunde_benachrichtigt' | 'sync';
+  benutzer?: string;
+  details: string;
+  gambioKommentar?: string;
+  kundeInformiert?: boolean;
+  gambioSync?: boolean;
 }
 
 export type ShopBestellungStatus =
@@ -142,6 +168,30 @@ export function formatBestelldatum(datum: string): string {
     return new Date(datum).toLocaleDateString('de-DE');
   }
   return datum;
+}
+
+/**
+ * Parst JSON-Status-Historie aus Bestellung
+ */
+export function parseStatusHistorie(json?: string): GambioStatusHistorie[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Parst JSON-Aktivitätslog aus Bestellung
+ */
+export function parseAktivitaetsLog(json?: string): AktivitaetsEintrag[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -259,6 +309,24 @@ class ShopBestellungService {
         method: 'POST',
       }
     );
+  }
+
+  /**
+   * Aktualisiert eine einzelne Bestellung von Gambio
+   */
+  async refreshFromGambio(id: string): Promise<ShopBestellung> {
+    if (!this.isBackendAvailable()) {
+      throw new Error('Backend nicht verfügbar. Bitte VITE_USE_BACKEND=true setzen.');
+    }
+
+    const response = await backendFetch<{ success: boolean; order: ShopBestellung }>(
+      `${this.baseUrl}/orders/${id}/refresh`,
+      {
+        method: 'POST',
+      }
+    );
+
+    return response.order;
   }
 
   /**
