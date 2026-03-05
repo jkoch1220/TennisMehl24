@@ -395,8 +395,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
       const tage = Math.floor((heute.getTime() - ersterJanuar.getTime()) / 86400000);
       const aktuelleKW = Math.ceil((tage + ersterJanuar.getDay() + 1) / 7);
 
-      // Stammdaten für Signatur laden
-      const emailTemplate = await generiereStandardEmail('lieferschein', '', '');
+      // Stammdaten für Signatur laden (wie bei UniversalView - 'angebot' hat die richtige Signatur)
+      const emailTemplate = await generiereStandardEmail('angebot', '', '');
       const signatur = emailTemplate.signatur || '';
 
       // Email-Body erstellen (ohne Grußformel - kommt aus Signatur)
