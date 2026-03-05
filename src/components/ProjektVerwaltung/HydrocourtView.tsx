@@ -44,6 +44,18 @@ interface HydrocourtBestellung {
   auftragsbestaetigungsdatum?: string;
 }
 
+// Editierbare Daten für das Send-Modal
+interface EditierbareSendDaten {
+  projektId: string;
+  kundenname: string;
+  lieferKW: string; // Als String für Input
+  lieferdatum: string;
+  ansprechpartnerName: string;
+  ansprechpartnerTelefon: string;
+  menge: number;
+  einheit: string;
+}
+
 // Props
 interface HydrocourtViewProps {
   projekteGruppiert: {
@@ -141,6 +153,9 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
   // Test-Modus
   const [testModus, setTestModus] = useState(false);
+
+  // Editierbare Daten für Send-Modal
+  const [editierbareDaten, setEditierbareDaten] = useState<EditierbareSendDaten[]>([]);
 
   // Alle bestellten Projekte (Status >= auftragsbestaetigung)
   const bestellteProjekte = useMemo(() => {
@@ -268,7 +283,36 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
     });
   };
 
-  // CSV für Schwab generieren
+  // Modal öffnen und editierbare Daten initialisieren
+  const openSendModal = () => {
+    const zuSenden = selectedIds.size > 0
+      ? bestellungenNachStatus.offen.filter(b => selectedIds.has(b.projektId))
+      : bestellungenNachStatus.offen;
+
+    const initDaten: EditierbareSendDaten[] = zuSenden.map(b => ({
+      projektId: b.projektId,
+      kundenname: b.projekt.kundenname,
+      lieferKW: b.lieferKW ? `${b.lieferKW}` : '',
+      lieferdatum: b.lieferdatum || '',
+      // Immer dispoAnsprechpartner nehmen (wie vom User gewünscht)
+      ansprechpartnerName: b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
+      ansprechpartnerTelefon: b.projekt.dispoAnsprechpartner?.telefon || '',
+      menge: b.position.menge || 0,
+      einheit: b.position.einheit || 't',
+    }));
+
+    setEditierbareDaten(initDaten);
+    setShowSendModal(true);
+  };
+
+  // Editierbare Daten aktualisieren
+  const updateEditierbareDaten = (projektId: string, field: keyof EditierbareSendDaten, value: string | number) => {
+    setEditierbareDaten(prev =>
+      prev.map(d => d.projektId === projektId ? { ...d, [field]: value } : d)
+    );
+  };
+
+  // CSV für Schwab generieren (verwendet editierbare Daten)
   const generiereCSV = (bestellungenZuSenden: HydrocourtBestellung[]): string => {
     const headers = [
       'Bestellnummer',
@@ -288,19 +332,32 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
     const rows = bestellungenZuSenden.map(b => {
       const lieferadresse = b.projekt.lieferadresse;
+      // Editierbare Daten für diese Bestellung finden
+      const editiert = editierbareDaten.find(d => d.projektId === b.projektId);
+
+      // Liefer-KW formatieren
+      const lieferKWFormatted = editiert?.lieferKW
+        ? `KW ${editiert.lieferKW}`
+        : (b.lieferKW ? `KW ${b.lieferKW}${b.lieferKWJahr ? '/' + b.lieferKWJahr : ''}` : '');
+
+      // Lieferdatum formatieren
+      const lieferdatumFormatted = editiert?.lieferdatum
+        ? new Date(editiert.lieferdatum).toLocaleDateString('de-DE')
+        : (b.lieferdatum ? new Date(b.lieferdatum).toLocaleDateString('de-DE') : '');
+
       return [
         b.auftragsbestaetigungsnummer || '',
         b.projekt.kundenname || '',
         lieferadresse?.strasse || b.projekt.kundenstrasse || '',
         lieferadresse?.plz || b.projekt.kundenPlzOrt?.split(' ')[0] || '',
         lieferadresse?.ort || b.projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-        b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
-        b.projekt.dispoAnsprechpartner?.telefon || '',
+        editiert?.ansprechpartnerName || b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
+        editiert?.ansprechpartnerTelefon || b.projekt.dispoAnsprechpartner?.telefon || '',
         b.position.menge?.toString().replace('.', ',') || '',
         b.position.einheit || 't',
         'Hydrocourt TM-HYC',
-        b.lieferKW ? `KW ${b.lieferKW}${b.lieferKWJahr ? '/' + b.lieferKWJahr : ''}` : '',
-        b.lieferdatum ? new Date(b.lieferdatum).toLocaleDateString('de-DE') : '',
+        lieferKWFormatted,
+        lieferdatumFormatted,
         b.projekt.notizen || '',
       ];
     });
@@ -312,7 +369,9 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
   // An Schwab senden
   const handleSendToSchwab = async () => {
-    const zuSenden = bestellungenNachStatus.offen.filter(b => selectedIds.has(b.projektId));
+    // Bestellungen basierend auf editierbareDaten (die schon beim Modal öffnen gesetzt wurden)
+    const projektIds = editierbareDaten.map(d => d.projektId);
+    const zuSenden = bestellungenNachStatus.offen.filter(b => projektIds.includes(b.projektId));
     if (zuSenden.length === 0) return;
 
     setSendingState('sending');
@@ -1013,7 +1072,7 @@ Mit sportlichen Grüßen`;
 
           {/* An Schwab senden Button */}
           <button
-            onClick={() => setShowSendModal(true)}
+            onClick={openSendModal}
             disabled={stats.offen.anzahl === 0}
             className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium shadow-lg ${
               stats.offen.anzahl === 0
@@ -1278,46 +1337,92 @@ Mit sportlichen Grüßen`;
                     </div>
                   )}
 
-                  {/* Bestellungen Übersicht */}
+                  {/* Bestellungen mit editierbaren Feldern */}
                   <div className="mb-4">
                     <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Ausgewählte Bestellungen ({selectedIds.size > 0 ? selectedIds.size : stats.offen.anzahl})
+                      Bestellungen bearbeiten ({editierbareDaten.length})
                     </h4>
-                    <div className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-200 dark:divide-slate-700 max-h-60 overflow-y-auto">
-                      {bestellungenNachStatus.offen
-                        .filter(b => selectedIds.size === 0 || selectedIds.has(b.projektId))
-                        .map((bestellung, idx) => (
+                    <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                      {/* Tabellen-Header */}
+                      <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-gray-100 dark:bg-slate-800 text-xs font-medium text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-slate-700">
+                        <div className="col-span-3">Kunde</div>
+                        <div className="col-span-1 text-right">Menge</div>
+                        <div className="col-span-2">Liefer-KW</div>
+                        <div className="col-span-3">Ansprechpartner</div>
+                        <div className="col-span-3">Telefon</div>
+                      </div>
+
+                      {/* Editierbare Zeilen */}
+                      <div className="max-h-[40vh] overflow-y-auto divide-y divide-gray-200 dark:divide-slate-700">
+                        {editierbareDaten.map((daten) => (
                           <div
-                            key={`${bestellung.projektId}-${idx}`}
-                            className="px-4 py-2 flex items-center justify-between text-sm"
+                            key={daten.projektId}
+                            className="grid grid-cols-12 gap-2 px-3 py-2 items-center hover:bg-gray-50 dark:hover:bg-slate-800/50"
                           >
-                            <div className="flex-1 min-w-0">
-                              <span className="font-medium text-gray-900 dark:text-white truncate">
-                                {bestellung.projekt.kundenname}
-                              </span>
-                              <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                {bestellung.projekt.kundenPlzOrt}
+                            {/* Kundenname (nicht editierbar) */}
+                            <div className="col-span-3">
+                              <span className="font-medium text-gray-900 dark:text-white text-sm truncate block">
+                                {daten.kundenname}
                               </span>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-gray-600 dark:text-gray-400">
-                                {bestellung.position.menge?.toLocaleString('de-DE', { maximumFractionDigits: 2 })} {bestellung.position.einheit || 't'}
+
+                            {/* Menge (nicht editierbar) */}
+                            <div className="col-span-1 text-right">
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {daten.menge.toLocaleString('de-DE', { maximumFractionDigits: 2 })} {daten.einheit}
                               </span>
-                              {(!bestellung.projekt.dispoAnsprechpartner?.name && !bestellung.projekt.ansprechpartner) && (
-                                <span className="text-amber-600 dark:text-amber-400" title="Kein Ansprechpartner">
-                                  <AlertCircle className="w-4 h-4" />
-                                </span>
-                              )}
+                            </div>
+
+                            {/* Liefer-KW (editierbar) */}
+                            <div className="col-span-2">
+                              <input
+                                type="text"
+                                value={daten.lieferKW}
+                                onChange={(e) => updateEditierbareDaten(daten.projektId, 'lieferKW', e.target.value)}
+                                placeholder="z.B. 14"
+                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+                              />
+                            </div>
+
+                            {/* Ansprechpartner Name (editierbar) */}
+                            <div className="col-span-3">
+                              <input
+                                type="text"
+                                value={daten.ansprechpartnerName}
+                                onChange={(e) => updateEditierbareDaten(daten.projektId, 'ansprechpartnerName', e.target.value)}
+                                placeholder="Name"
+                                className={`w-full px-2 py-1 text-sm border rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 ${
+                                  !daten.ansprechpartnerName
+                                    ? 'border-amber-400 dark:border-amber-600'
+                                    : 'border-gray-300 dark:border-slate-600'
+                                }`}
+                              />
+                            </div>
+
+                            {/* Ansprechpartner Telefon (editierbar) */}
+                            <div className="col-span-3">
+                              <input
+                                type="text"
+                                value={daten.ansprechpartnerTelefon}
+                                onChange={(e) => updateEditierbareDaten(daten.projektId, 'ansprechpartnerTelefon', e.target.value)}
+                                placeholder="Telefon"
+                                className={`w-full px-2 py-1 text-sm border rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 ${
+                                  !daten.ansprechpartnerTelefon
+                                    ? 'border-amber-400 dark:border-amber-600'
+                                    : 'border-gray-300 dark:border-slate-600'
+                                }`}
+                              />
                             </div>
                           </div>
                         ))}
+                      </div>
                     </div>
                   </div>
 
                   {/* Info */}
                   <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-                    Eine CSV-Datei mit allen Bestellungen wird als Anhang gesendet.
-                    Nach dem Senden werden die Bestellungen automatisch auf "Bestellt" gesetzt.
+                    <p className="mb-1">Eine CSV-Datei mit allen Bestellungen wird als Anhang gesendet.</p>
+                    <p className="text-xs opacity-80">Felder mit orangem Rand sind leer - bitte vor dem Senden ausfüllen.</p>
                   </div>
                 </>
               )}
