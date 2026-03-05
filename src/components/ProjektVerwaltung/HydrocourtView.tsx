@@ -42,6 +42,11 @@ interface HydrocourtBestellung {
   lieferKWJahr?: number;
   auftragsbestaetigungsnummer?: string;
   auftragsbestaetigungsdatum?: string;
+  // Ansprechpartner aus AB-Daten (nicht aus Projekt!)
+  dispoAnsprechpartner?: {
+    name: string;
+    telefon: string;
+  };
 }
 
 // Editierbare Daten für das Send-Modal
@@ -202,6 +207,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
           lieferKWJahr: abDaten.lieferKWJahr || projekt.lieferKWJahr,
           auftragsbestaetigungsnummer: abDaten.auftragsbestaetigungsnummer || projekt.auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: abDaten.auftragsbestaetigungsdatum || projekt.auftragsbestaetigungsdatum,
+          // Ansprechpartner aus AB-Daten holen (dort wird er beim Erstellen der AB gespeichert)
+          dispoAnsprechpartner: abDaten.dispoAnsprechpartner,
         }));
       });
 
@@ -294,9 +301,9 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
       kundenname: b.projekt.kundenname,
       lieferKW: b.lieferKW ? `${b.lieferKW}` : '',
       lieferdatum: b.lieferdatum || '',
-      // Immer dispoAnsprechpartner nehmen (wie vom User gewünscht)
-      ansprechpartnerName: b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
-      ansprechpartnerTelefon: b.projekt.dispoAnsprechpartner?.telefon || '',
+      // Ansprechpartner aus AB-Daten (dort ist er korrekt gespeichert), Fallback auf Projekt
+      ansprechpartnerName: b.dispoAnsprechpartner?.name || b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
+      ansprechpartnerTelefon: b.dispoAnsprechpartner?.telefon || b.projekt.dispoAnsprechpartner?.telefon || '',
       menge: b.position.menge || 0,
       einheit: b.position.einheit || 't',
     }));
@@ -351,8 +358,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
         lieferadresse?.strasse || b.projekt.kundenstrasse || '',
         lieferadresse?.plz || b.projekt.kundenPlzOrt?.split(' ')[0] || '',
         lieferadresse?.ort || b.projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-        editiert?.ansprechpartnerName || b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
-        editiert?.ansprechpartnerTelefon || b.projekt.dispoAnsprechpartner?.telefon || '',
+        editiert?.ansprechpartnerName || b.dispoAnsprechpartner?.name || b.projekt.dispoAnsprechpartner?.name || b.projekt.ansprechpartner || '',
+        editiert?.ansprechpartnerTelefon || b.dispoAnsprechpartner?.telefon || b.projekt.dispoAnsprechpartner?.telefon || '',
         b.position.menge?.toString().replace('.', ',') || '',
         b.position.einheit || 't',
         'Hydrocourt TM-HYC',
