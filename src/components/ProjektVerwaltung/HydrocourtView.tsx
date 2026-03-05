@@ -29,6 +29,7 @@ import { Projekt, ProjektStatus, HydrocourtStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { projektService } from '../../services/projektService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
 
@@ -197,6 +198,19 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
           (pos) => pos.artikelnummer === 'TM-HYC'
         );
 
+        // Falls kein Ansprechpartner in AB, versuche aus Kundendaten zu laden
+        let kundenAnsprechpartner: { name: string; telefon: string } | undefined;
+        if (!abDaten.dispoAnsprechpartner && projekt.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde?.dispoAnsprechpartner) {
+              kundenAnsprechpartner = kunde.dispoAnsprechpartner;
+            }
+          } catch (err) {
+            // Ignorieren - Fallback ist optional
+          }
+        }
+
         // Erstelle Bestellungen für jede Hydrocourt-Position
         return hydrocourtPositionen.map((position) => ({
           projektId,
@@ -207,8 +221,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
           lieferKWJahr: abDaten.lieferKWJahr || projekt.lieferKWJahr,
           auftragsbestaetigungsnummer: abDaten.auftragsbestaetigungsnummer || projekt.auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: abDaten.auftragsbestaetigungsdatum || projekt.auftragsbestaetigungsdatum,
-          // Ansprechpartner aus AB-Daten holen (dort wird er beim Erstellen der AB gespeichert)
-          dispoAnsprechpartner: abDaten.dispoAnsprechpartner,
+          // Ansprechpartner: AB > Projekt > Kunde (Fallback-Kette)
+          dispoAnsprechpartner: abDaten.dispoAnsprechpartner || projekt.dispoAnsprechpartner || kundenAnsprechpartner,
         }));
       });
 
