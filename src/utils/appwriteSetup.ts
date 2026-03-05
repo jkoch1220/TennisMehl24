@@ -59,6 +59,8 @@ import {
   FAHRER_COLLECTION_ID,
   // Anfragen
   ANFRAGEN_COLLECTION_ID,
+  // Shop Bestellungen
+  SHOP_BESTELLUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -66,7 +68,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '34'; // Instandsetzungsaufträge Collection für "Direkt Platzbauer"-Kunden
+const APPWRITE_SETUP_VERSION = '35'; // Shop Bestellungen Collection für Gambio Online-Shop
 
 type FieldConfig = {
   key: string;
@@ -496,6 +498,54 @@ const anfragenFields: FieldConfig[] = [
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
 ];
 
+// Shop Bestellungen Collection - Gambio Online-Shop Bestellungen
+const shopBestellungenFields: FieldConfig[] = [
+  // Bestelldaten
+  { key: 'bestellnummer', type: 'string', size: 50, required: true },
+  { key: 'bestelldatum', type: 'string', size: 50, required: true },
+  { key: 'kundennummer', type: 'string', size: 50, required: false },
+
+  // Adressen (als JSON für Flexibilität)
+  { key: 'rechnungsadresse', type: 'string', size: 1000, required: true },
+  { key: 'lieferadresse', type: 'string', size: 1000, required: true },
+
+  // Kontakt
+  { key: 'telefon', type: 'string', size: 100, required: false },
+  { key: 'zahlungsmethode', type: 'string', size: 100, required: true },
+
+  // Positionen (JSON-Array)
+  { key: 'positionen', type: 'string', size: 50000, required: true },
+
+  // Summen
+  { key: 'warenwert', type: 'double', required: true },
+  { key: 'versandkosten', type: 'double', required: true },
+  { key: 'mwst', type: 'double', required: true },
+  { key: 'summeNetto', type: 'double', required: true },
+  { key: 'summeBrutto', type: 'double', required: true },
+
+  // Anmerkungen
+  { key: 'anmerkungen', type: 'string', size: 5000, required: false },
+
+  // Workflow
+  { key: 'status', type: 'string', size: 50, required: true },
+  { key: 'bearbeitetVon', type: 'string', size: 255, required: false },
+  { key: 'bearbeitetAm', type: 'string', size: 50, required: false },
+  { key: 'versendetAm', type: 'string', size: 50, required: false },
+  { key: 'trackingNummer', type: 'string', size: 255, required: false },
+  { key: 'kundeBeenachrichtigt', type: 'boolean', required: false },
+  { key: 'notizen', type: 'string', size: 5000, required: false },
+
+  // Original-Email
+  { key: 'emailUid', type: 'integer', required: false },
+  { key: 'emailDatum', type: 'string', size: 50, required: true },
+  { key: 'emailHtml', type: 'string', size: 100000, required: false },
+  { key: 'emailText', type: 'string', size: 100000, required: false },
+
+  // Meta
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -815,6 +865,13 @@ export async function setupAppwriteFields() {
         fields: anfragenFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Shop Bestellungen Collection für Gambio Online-Shop
+      {
+        id: SHOP_BESTELLUNGEN_COLLECTION_ID,
+        name: 'Shop Bestellungen',
+        fields: shopBestellungenFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -914,6 +971,11 @@ export async function setupAppwriteFields() {
 
     // Index für Stammdaten (typ-Feld für Mahnwesen-Vorlagen etc.)
     await ensureIndex(STAMMDATEN_COLLECTION_ID, 'typ_index', ['typ']);
+
+    // Indizes für Shop Bestellungen (Gambio Online-Shop)
+    await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'bestellnummer_index', ['bestellnummer'], 'unique');
+    await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'status_index', ['status']);
+    await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'bestelldatum_index', ['bestelldatum']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {

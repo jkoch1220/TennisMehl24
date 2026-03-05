@@ -9,6 +9,7 @@ import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import ThemeToggle from './ThemeToggle';
 import GlobalChatDropdown from './Shared/GlobalChatDropdown';
+import { useShopBestellungenRealtime } from '../hooks/useShopBestellungenRealtime';
 
 // Erinnerungs-Einstellungen Typ
 interface ReminderSettings {
@@ -59,6 +60,18 @@ const Layout = ({ children }: LayoutProps) => {
   const globalSearchInputRef = useRef<HTMLInputElement>(null);
   const globalSearchRef = useRef<HTMLDivElement>(null);
   const { user, logout: authLogout, isAdmin, permissionsLoading } = useAuth();
+
+  // Shop-Bestellungen Realtime Notifications
+  const { neueBestellungenCount, resetCounter: resetShopCounter } = useShopBestellungenRealtime({
+    showToasts: true,
+  });
+
+  // Reset Shop-Counter wenn User die Shop-Bestellungen Seite besucht
+  useEffect(() => {
+    if (location.pathname === '/shop-bestellungen') {
+      resetShopCounter();
+    }
+  }, [location.pathname, resetShopCounter]);
 
   // Erinnerungs-Einstellungen
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(() => loadReminderSettings());
@@ -277,12 +290,14 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   const navigation = [
-    { name: 'Startseite', href: '/', icon: Home },
+    { name: 'Startseite', href: '/', icon: Home, badge: 0 },
     ...visibleTools.map((tool) => ({
       name: tool.name,
       href: tool.href,
       icon: tool.icon,
       id: tool.id,
+      // Badge für Shop-Bestellungen
+      badge: tool.id === 'shop-bestellungen' ? neueBestellungenCount : 0,
     })),
   ];
 
@@ -308,13 +323,19 @@ const Layout = ({ children }: LayoutProps) => {
                     <Link
                       key={item.name}
                       to={item.href}
-                      className={`text-[12px] font-normal transition-opacity whitespace-nowrap ${
+                      className={`relative text-[12px] font-normal transition-opacity whitespace-nowrap ${
                         isActive
                           ? 'text-[#1d1d1f] dark:text-white'
                           : 'text-[#1d1d1f]/80 dark:text-white/80 hover:text-[#1d1d1f] dark:hover:text-white'
                       }`}
                     >
                       {item.name}
+                      {/* Badge für neue Bestellungen */}
+                      {item.badge > 0 && (
+                        <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full">
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -581,7 +602,15 @@ const Layout = ({ children }: LayoutProps) => {
                       isActive ? 'text-[#0071e3]' : 'text-[#1d1d1f] dark:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <div className="relative">
+                      <Icon className="w-5 h-5" />
+                      {/* Badge für neue Bestellungen */}
+                      {item.badge > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-bold text-white bg-red-500 rounded-full">
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[17px]">{item.name}</span>
                     {isActive && <div className="ml-auto w-2 h-2 rounded-full bg-[#0071e3]" />}
                   </Link>

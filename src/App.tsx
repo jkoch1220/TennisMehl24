@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
+import { Toaster } from 'sonner';
 
 // === LAZY LOADED KOMPONENTEN ===
 // Diese werden erst geladen wenn sie gebraucht werden (Code-Splitting)
@@ -57,6 +58,9 @@ const EmailDashboard = lazy(() => import('./components/EmailDashboard/EmailDashb
 const Instandhaltung = lazy(() => import('./components/Instandhaltung/Instandhaltung'));
 const Schichtplanung = lazy(() => import('./components/Schichtplanung/Schichtplanung'));
 const ProduktionsTracker = lazy(() => import('./components/ProduktionsTracker/ProduktionsTracker'));
+
+// Shop Bestellungen
+const ShopBestellungen = lazy(() => import('./components/ShopBestellungen/ShopBestellungen'));
 
 // Öffentliche Seiten
 const PublicProduktion = lazy(() => import('./components/PublicProduktion/PublicProduktion'));
@@ -248,6 +252,11 @@ function AuthenticatedContent() {
                       <ProduktionsTracker />
                     </ProtectedRoute>
                   } />
+                  <Route path="/shop-bestellungen" element={
+                    <ProtectedRoute toolId="shop-bestellungen">
+                      <ShopBestellungen />
+                    </ProtectedRoute>
+                  } />
 
                   {/* Legacy route redirect - auch geschützt */}
                   <Route path="/ziegelmehl" element={
@@ -299,6 +308,13 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <Toaster
+          position="top-right"
+          richColors
+          toastOptions={{
+            className: 'dark:bg-gray-800 dark:text-white dark:border-gray-700',
+          }}
+        />
         <OfflineBanner />
         <Router>
           <Suspense fallback={<PageLoader />}>

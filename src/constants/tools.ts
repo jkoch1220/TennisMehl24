@@ -26,6 +26,7 @@ import {
   Factory,
   HardHat,
   Banknote,
+  ShoppingCart,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -269,6 +270,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/produktion',
     icon: Factory,
     color: 'from-orange-500 to-amber-600',
+  },
+  {
+    id: 'shop-bestellungen',
+    name: 'Shop Bestellungen',
+    description: 'Gambio Online-Shop Bestellungen verwalten und bearbeiten',
+    href: '/shop-bestellungen',
+    icon: ShoppingCart,
+    color: 'from-orange-500 to-red-500',
   },
 ];
 

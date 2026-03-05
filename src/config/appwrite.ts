@@ -82,6 +82,9 @@ export const FAHRER_COLLECTION_ID = 'fahrer';
 // Ziegelmehl Abgabe Collection (from dachziegelrueckgabe.de website)
 export const ZIEGELMEHL_ABGABEN_COLLECTION_ID = 'ziegelmehl_abgaben';
 
+// Shop Bestellungen Collection (Gambio Online-Shop)
+export const SHOP_BESTELLUNGEN_COLLECTION_ID = 'shop_bestellungen';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -152,6 +155,8 @@ export const COLLECTIONS = {
   FAHRER: FAHRER_COLLECTION_ID,
   // Ziegelmehl Abgabe (dachziegelrueckgabe.de)
   ZIEGELMEHL_ABGABEN: ZIEGELMEHL_ABGABEN_COLLECTION_ID,
+  // Shop Bestellungen (Gambio Online-Shop)
+  SHOP_BESTELLUNGEN: SHOP_BESTELLUNGEN_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
