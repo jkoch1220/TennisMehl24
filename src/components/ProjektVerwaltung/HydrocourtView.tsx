@@ -392,14 +392,12 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
       const emailTemplate = await generiereStandardEmail('lieferschein', '', '');
       const signatur = emailTemplate.signatur || '';
 
-      // Email-Body erstellen
+      // Email-Body erstellen (ohne Grußformel - kommt aus Signatur)
       const emailText = `Hallo ${SCHWAB_NAME},
 
 anbei die aktuellen Hydrocourt-Bestellungen (${zuSenden.length} Positionen).
 
-Bitte um Bestätigung und Mitteilung der Tracking-Nummern nach Versand.
-
-Mit sportlichen Grüßen`;
+Bitte um Bestätigung und Mitteilung der Tracking-Nummern nach Versand.`;
 
       const htmlBody = wrapInEmailTemplate(emailText, signatur);
 
@@ -430,10 +428,34 @@ Mit sportlichen Grüßen`;
         throw new Error(result.error || 'Email konnte nicht gesendet werden');
       }
 
-      // Status aller Bestellungen auf "bestellt" setzen (OPTIMISTIC UI)
+      // Editierte Ansprechpartner-Daten ins Projekt speichern + Status auf "bestellt"
       if (!testModus) {
-        const projektIds = zuSenden.map(b => b.projektId);
-        await projektService.setHydrocourtBestellt(projektIds);
+        await Promise.all(
+          editierbareDaten.map(async (daten) => {
+            const updates: Partial<Projekt> = {
+              hydrocourtStatus: 'bestellt',
+              hydrocourtBestelltAm: new Date().toISOString(),
+            };
+
+            // Ansprechpartner speichern wenn editiert
+            if (daten.ansprechpartnerName || daten.ansprechpartnerTelefon) {
+              updates.dispoAnsprechpartner = {
+                name: daten.ansprechpartnerName,
+                telefon: daten.ansprechpartnerTelefon,
+              };
+            }
+
+            // Liefer-KW speichern wenn editiert
+            if (daten.lieferKW) {
+              const kwNum = parseInt(daten.lieferKW, 10);
+              if (!isNaN(kwNum)) {
+                updates.lieferKW = kwNum;
+              }
+            }
+
+            await projektService.updateProjekt(daten.projektId, updates);
+          })
+        );
       }
 
       setSendingState('success');
