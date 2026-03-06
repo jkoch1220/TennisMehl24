@@ -34,9 +34,26 @@ const DEFAULT_FEATURES = {
   appwriteProxy: false   // Direct Appwrite access for now
 };
 
+// Ermittle Backend-URL:
+// - In Production (HTTPS): Verwende relative URLs (Netlify Proxy)
+// - In Development: Verwende konfigurierte URL oder localhost
+const getBaseUrl = (): string => {
+  const configuredUrl = import.meta.env.VITE_BACKEND_URL;
+
+  // Wenn wir auf HTTPS laufen und die URL HTTP ist, nutze Netlify Proxy (relative URL)
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    if (!configuredUrl || configuredUrl.startsWith('http://')) {
+      // Nutze relative URL - Netlify Proxy leitet weiter
+      return '';
+    }
+  }
+
+  return configuredUrl || 'http://localhost:3000';
+};
+
 export const BACKEND_CONFIG: BackendConfig = {
   enabled: import.meta.env.VITE_USE_BACKEND === 'true',
-  baseUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  baseUrl: getBaseUrl(),
   timeout: parseInt(import.meta.env.VITE_BACKEND_TIMEOUT || '30000'),
   features: {
     claude: import.meta.env.VITE_BACKEND_CLAUDE !== 'false' && DEFAULT_FEATURES.claude,

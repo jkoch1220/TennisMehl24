@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -34,6 +34,10 @@ import {
 } from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 import { formatAdresszeile } from '../../services/pdfHelpers';
+import { Artikel } from '../../types/artikel';
+import { UniversalArtikel } from '../../types/universaArtikel';
+import { getAlleArtikel } from '../../services/artikelService';
+import { getAlleUniversalArtikel, sucheUniversalArtikel } from '../../services/universaArtikelService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
@@ -128,7 +132,19 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
-  
+
+  // Artikel-Auswahl States
+  const [artikel, setArtikel] = useState<Artikel[]>([]);
+  const [universalArtikel, setUniversalArtikel] = useState<UniversalArtikel[]>([]);
+  const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  const [artikelTab, setArtikelTab] = useState<'eigene' | 'universa'>('eigene');
+  const [artikelSuchtext, setArtikelSuchtext] = useState('');
+  const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
+  const [universalLaden, setUniversalLaden] = useState(false);
+  const [ausgewaehlterIndex, setAusgewaehlterIndex] = useState<number>(0);
+  const [artikelHinzugefuegt, setArtikelHinzugefuegt] = useState<string | null>(null);
+  const ausgewaehlteZeileRef = useRef<HTMLTableRowElement>(null);
+
   // Gespeichertes Dokument und Entwurf laden (wenn Projekt vorhanden)
   useEffect(() => {
     const ladeDokument = async () => {
@@ -299,7 +315,56 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     };
     generiereNummer();
   }, [gespeichertesDokument]);
-  
+
+  // Artikel laden
+  useEffect(() => {
+    const ladeArtikel = async () => {
+      try {
+        const artikelListe = await getAlleArtikel();
+        setArtikel(artikelListe);
+      } catch (error) {
+        console.error('Fehler beim Laden der Artikel:', error);
+      }
+    };
+    ladeArtikel();
+  }, []);
+
+  // Universal-Artikel laden wenn Tab gewechselt wird
+  useEffect(() => {
+    const ladeUniversalArtikel = async () => {
+      if (artikelTab !== 'universa' || !showArtikelAuswahl) return;
+      if (universalArtikel.length > 0 && !artikelSuchtext) return; // Schon geladen
+
+      setUniversalLaden(true);
+      try {
+        if (artikelSuchtext.trim()) {
+          const ergebnisse = await sucheUniversalArtikel(artikelSuchtext);
+          setUniversalArtikel(ergebnisse);
+        } else {
+          const result = await getAlleUniversalArtikel('bezeichnung', 100);
+          setUniversalArtikel(result.artikel);
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Universal-Artikel:', error);
+      } finally {
+        setUniversalLaden(false);
+      }
+    };
+    ladeUniversalArtikel();
+  }, [artikelTab, showArtikelAuswahl, artikelSuchtext]);
+
+  // Ausgewählten Index zurücksetzen bei Suchtext- oder Tab-Änderung
+  useEffect(() => {
+    setAusgewaehlterIndex(0);
+  }, [artikelSuchtext, artikelTab]);
+
+  // Ausgewählte Zeile in den sichtbaren Bereich scrollen
+  useEffect(() => {
+    if (ausgewaehlteZeileRef.current) {
+      ausgewaehlteZeileRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [ausgewaehlterIndex]);
+
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
     const ladeDaten = async () => {
@@ -471,11 +536,125 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       einzelpreis: 0,
       gesamtpreis: 0
     };
-    
+
     setRechnungsDaten(prev => ({
       ...prev,
       positionen: [...prev.positionen, neuePosition]
     }));
+  };
+
+  // Position aus Stammdaten-Artikel hinzufügen
+  const addPositionAusArtikel = (artikelId: string) => {
+    hatGeaendert.current = true;
+    const selectedArtikel = artikel.find(a => a.$id === artikelId);
+    if (!selectedArtikel) return;
+
+    const preis = selectedArtikel.einzelpreis ?? 0;
+
+    const neuePosition: Position = {
+      id: Date.now().toString(),
+      artikelnummer: selectedArtikel.artikelnummer,
+      bezeichnung: selectedArtikel.bezeichnung,
+      beschreibung: selectedArtikel.beschreibung || '',
+      menge: 1,
+      einheit: selectedArtikel.einheit,
+      einzelpreis: preis,
+      einkaufspreis: selectedArtikel.einkaufspreis,
+      streichpreis: selectedArtikel.streichpreis,
+      gesamtpreis: preis,
+    };
+
+    setRechnungsDaten(prev => ({
+      ...prev,
+      positionen: [...prev.positionen, neuePosition]
+    }));
+
+    // Feedback anzeigen
+    setArtikelHinzugefuegt(selectedArtikel.bezeichnung);
+    setTimeout(() => setArtikelHinzugefuegt(null), 2000);
+  };
+
+  // Position aus Universal-Artikel hinzufügen
+  const addPositionAusUniversalArtikel = (artikelId: string) => {
+    hatGeaendert.current = true;
+    const selectedArtikel = universalArtikel.find(a => a.$id === artikelId);
+    if (!selectedArtikel) return;
+
+    // Universal: Netto-Katalogpreis als Verkaufspreis, Großhändlerpreis als Einkaufspreis (EK)
+    const verkaufspreis = selectedArtikel.katalogPreisNetto;
+    const einkaufspreis = selectedArtikel.grosshaendlerPreisNetto;
+
+    const neuePosition: Position = {
+      id: Date.now().toString(),
+      artikelnummer: selectedArtikel.artikelnummer,
+      bezeichnung: selectedArtikel.bezeichnung,
+      beschreibung: `Universal: ${selectedArtikel.verpackungseinheit}`,
+      menge: 1,
+      einheit: selectedArtikel.verpackungseinheit,
+      einzelpreis: verkaufspreis,
+      einkaufspreis: einkaufspreis,
+      gesamtpreis: verkaufspreis,
+      istUniversalArtikel: true,
+    };
+
+    setRechnungsDaten(prev => ({
+      ...prev,
+      positionen: [...prev.positionen, neuePosition]
+    }));
+
+    // Feedback anzeigen
+    setArtikelHinzugefuegt(selectedArtikel.bezeichnung);
+    setTimeout(() => setArtikelHinzugefuegt(null), 2000);
+  };
+
+  // Gefilterte Artikel basierend auf Suchtext
+  const gefilterteArtikel = artikel
+    .filter(art => {
+      if (!artikelSuchtext) return true;
+      const suchtext = artikelSuchtext.toLowerCase();
+      return (
+        art.bezeichnung?.toLowerCase().includes(suchtext) ||
+        art.artikelnummer?.toLowerCase().includes(suchtext) ||
+        art.beschreibung?.toLowerCase().includes(suchtext)
+      );
+    })
+    .sort((a, b) => {
+      if (artikelSortierung === 'bezeichnung') {
+        return (a.bezeichnung || '').localeCompare(b.bezeichnung || '');
+      } else if (artikelSortierung === 'artikelnummer') {
+        return (a.artikelnummer || '').localeCompare(b.artikelnummer || '');
+      } else {
+        return (a.einzelpreis || 0) - (b.einzelpreis || 0);
+      }
+    });
+
+  // Keyboard-Handler für Artikel-Suche (Pfeiltasten + Enter)
+  const handleArtikelSucheKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const aktuelleListeLaenge = artikelTab === 'eigene' ? gefilterteArtikel.length : universalArtikel.length;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setAusgewaehlterIndex(prev => Math.min(prev + 1, aktuelleListeLaenge - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setAusgewaehlterIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (artikelTab === 'eigene' && gefilterteArtikel.length > 0) {
+        const ausgewaehlterArtikel = gefilterteArtikel[ausgewaehlterIndex];
+        if (ausgewaehlterArtikel?.$id) {
+          addPositionAusArtikel(ausgewaehlterArtikel.$id);
+        }
+      } else if (artikelTab === 'universa' && universalArtikel.length > 0) {
+        const ausgewaehlterArtikel = universalArtikel[ausgewaehlterIndex];
+        if (ausgewaehlterArtikel?.$id) {
+          addPositionAusUniversalArtikel(ausgewaehlterArtikel.$id);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      setShowArtikelAuswahl(false);
+      setArtikelSuchtext('');
+    }
   };
 
   const removePosition = (index: number) => {
@@ -1309,16 +1488,276 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
         {/* Rechnungspositionen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Rechnungspositionen</h2>
-            <button
-              onClick={addPosition}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Position hinzufügen
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowArtikelAuswahl(!showArtikelAuswahl)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Package className="h-4 w-4" />
+                Aus Artikel
+              </button>
+              <button
+                onClick={addPosition}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Leere Position
+              </button>
+            </div>
           </div>
+
+          {/* Artikel-Auswahl */}
+          {showArtikelAuswahl && (
+            <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/40 dark:to-pink-950/40 rounded-lg border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-dark-text">Artikel auswählen</h3>
+                <button
+                  onClick={() => {
+                    setShowArtikelAuswahl(false);
+                    setArtikelSuchtext('');
+                  }}
+                  className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text"
+                >
+                  Schließen
+                </button>
+              </div>
+
+              {/* Feedback Toast wenn Artikel hinzugefügt */}
+              {artikelHinzugefuegt && (
+                <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-700 rounded-lg text-green-800 dark:text-green-200 text-sm animate-pulse">
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                  <span className="font-medium">Hinzugefügt:</span>
+                  <span className="truncate">{artikelHinzugefuegt}</span>
+                </div>
+              )}
+
+              {/* Tabs für Artikel-Auswahl */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => { setArtikelTab('eigene'); setArtikelSuchtext(''); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    artikelTab === 'eigene'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-textMuted border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Package className="h-4 w-4" />
+                  Eigene Artikel
+                </button>
+                <button
+                  onClick={() => { setArtikelTab('universa'); setArtikelSuchtext(''); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    artikelTab === 'universa'
+                      ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-textMuted border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Universal Artikel
+                </button>
+              </div>
+
+              {/* Eigene Artikel Tab */}
+              {artikelTab === 'eigene' && (
+                <>
+                  {artikel.length === 0 ? (
+                    <p className="text-sm text-gray-600 dark:text-dark-textMuted">
+                      Keine Artikel vorhanden. Legen Sie zuerst Artikel in der Artikelverwaltung an.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Suchfeld und Sortierung */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-textMuted" />
+                          <input
+                            type="text"
+                            value={artikelSuchtext}
+                            onChange={(e) => setArtikelSuchtext(e.target.value)}
+                            onKeyDown={handleArtikelSucheKeyDown}
+                            placeholder="Artikel suchen (Bezeichnung, Art.-Nr., Beschreibung)..."
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
+                          />
+                        </div>
+                        <select
+                          value={artikelSortierung}
+                          onChange={(e) => setArtikelSortierung(e.target.value as 'bezeichnung' | 'artikelnummer' | 'einzelpreis')}
+                          className="px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
+                        >
+                          <option value="bezeichnung">Sortierung: Bezeichnung</option>
+                          <option value="artikelnummer">Sortierung: Art.-Nr.</option>
+                          <option value="einzelpreis">Sortierung: Preis</option>
+                        </select>
+                      </div>
+
+                      {/* Artikel-Tabelle */}
+                      <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
+                        {gefilterteArtikel.length === 0 ? (
+                          <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
+                            Keine Artikel gefunden
+                          </div>
+                        ) : (
+                          <table className="w-full">
+                            <thead className="bg-purple-100 dark:bg-purple-950/60 sticky top-0">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Art.-Nr.</th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Bezeichnung</th>
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-purple-300">Beschreibung</th>
+                                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-purple-300">Einheit</th>
+                                <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-purple-300">Preis</th>
+                                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-purple-300">Aktion</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+                              {gefilterteArtikel.map((art, index) => (
+                                <tr
+                                  key={art.$id}
+                                  ref={artikelTab === 'eigene' && index === ausgewaehlterIndex ? ausgewaehlteZeileRef : null}
+                                  className={`transition-colors cursor-pointer ${
+                                    index === ausgewaehlterIndex
+                                      ? 'bg-purple-200 dark:bg-purple-800'
+                                      : 'hover:bg-purple-50 dark:hover:bg-purple-950/30'
+                                  }`}
+                                  onClick={() => {
+                                    setAusgewaehlterIndex(index);
+                                    if (art.$id) addPositionAusArtikel(art.$id);
+                                  }}
+                                >
+                                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text">{art.bezeichnung}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted">
+                                    <div className="line-clamp-2 max-w-xs">{art.beschreibung || '-'}</div>
+                                  </td>
+                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text text-center">{art.einheit}</td>
+                                  <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
+                                    {art.einzelpreis !== undefined && art.einzelpreis !== null
+                                      ? `${art.einzelpreis.toFixed(2)} €`
+                                      : <span className="text-gray-400 dark:text-dark-textSubtle italic text-xs">auf Anfrage</span>
+                                    }
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addPositionAusArtikel(art.$id!);
+                                      }}
+                                      className="px-3 py-1 bg-purple-600 dark:bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 dark:hover:bg-purple-500 transition-colors"
+                                    >
+                                      Hinzufügen
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+
+                      {/* Info-Zeile */}
+                      <div className="text-xs text-gray-600 dark:text-dark-textMuted text-center">
+                        {gefilterteArtikel.length} von {artikel.length} Artikel{artikel.length !== 1 ? 'n' : ''} angezeigt
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Universal Artikel Tab */}
+              {artikelTab === 'universa' && (
+                <div className="space-y-3">
+                  {/* Suchfeld */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-textMuted" />
+                    <input
+                      type="text"
+                      value={artikelSuchtext}
+                      onChange={(e) => setArtikelSuchtext(e.target.value)}
+                      onKeyDown={handleArtikelSucheKeyDown}
+                      placeholder="Universal-Artikel suchen..."
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Universal-Artikel-Tabelle */}
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
+                    {universalLaden ? (
+                      <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Lade Universal-Artikel...
+                      </div>
+                    ) : universalArtikel.length === 0 ? (
+                      <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
+                        {artikelSuchtext ? 'Keine Artikel gefunden' : 'Keine Universal-Artikel vorhanden. Importieren Sie zuerst die Preisliste in den Stammdaten.'}
+                      </div>
+                    ) : (
+                      <table className="w-full">
+                        <thead className="bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-950/60 dark:to-red-950/60 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Art.-Nr.</th>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Bezeichnung</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">VE</th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">GH-Preis</th>
+                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">Katalog Brutto</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">Aktion</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+                          {universalArtikel.map((art, index) => (
+                            <tr
+                              key={art.$id}
+                              ref={artikelTab === 'universa' && index === ausgewaehlterIndex ? ausgewaehlteZeileRef : null}
+                              className={`transition-colors cursor-pointer ${
+                                index === ausgewaehlterIndex
+                                  ? 'bg-orange-200 dark:bg-orange-800'
+                                  : 'hover:bg-orange-50 dark:hover:bg-orange-950/30'
+                              }`}
+                              onClick={() => {
+                                setAusgewaehlterIndex(index);
+                                if (art.$id) addPositionAusUniversalArtikel(art.$id);
+                              }}
+                            >
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text">
+                                {art.bezeichnung}
+                                {art.aenderungen && art.aenderungen.trim() !== '' && (
+                                  <span className="ml-2 text-xs text-red-600 dark:text-red-400">(geändert)</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-center">{art.verpackungseinheit}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-right">
+                                {art.grosshaendlerPreisNetto.toFixed(2)} €
+                              </td>
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
+                                {art.katalogPreisBrutto.toFixed(2)} €
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addPositionAusUniversalArtikel(art.$id!);
+                                  }}
+                                  className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 text-white text-sm rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors"
+                                >
+                                  Hinzufügen
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Info-Zeile */}
+                  <div className="text-xs text-gray-600 dark:text-dark-textMuted text-center">
+                    {universalArtikel.length} Universal-Artikel angezeigt
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <DndContext
             sensors={sensors}

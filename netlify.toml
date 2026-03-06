@@ -15,6 +15,15 @@
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
 
+# Proxy für Backend-API (Shop, etc.)
+# Leitet /api/* Anfragen zum externen Backend weiter
+# WICHTIG: Backend-URL hier auf HTTPS setzen wenn möglich!
+[[redirects]]
+  from = "/api/*"
+  to = "http://76.13.5.157:3000/api/:splat"
+  status = 200
+  force = true
+
 # Redirect-Regel für Single-Page Application (SPA)
 # Alle Routen werden auf index.html umgeleitet, damit React Router funktioniert
 [[redirects]]

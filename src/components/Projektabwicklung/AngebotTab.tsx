@@ -111,8 +111,8 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     zahlungsziel: '14 Tage',
     lieferbedingungenAktiviert: true,
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
-    dieselpreiszuschlagAktiviert: false,
-    dieselpreiszuschlagText: '',
+    dieselpreiszuschlagAktiviert: true,
+    dieselpreiszuschlagText: 'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis des gelieferten Ziegelmehls um 0,45 € je Tonne.',
   });
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [universalArtikel, setUniversalArtikel] = useState<UniversalArtikel[]>([]);
