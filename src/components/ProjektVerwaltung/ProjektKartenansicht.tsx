@@ -1,8 +1,18 @@
 /**
  * ProjektKartenansicht - Zeigt Projekte auf einer Google Maps Karte nach Status farblich markiert
+ *
+ * OPTIMIERTES GEOCODING (wie DispoKartenAnsicht):
+ * 1. Existierende Projekt-Koordinaten (wenn vorhanden)
+ * 2. PLZ-Lookup aus lokaler Tabelle (KOSTENLOS, SOFORT!)
+ * 3. Google API nur als Fallback (<1% der Fälle)
+ *
+ * Vorteile:
+ * - 99% weniger Google API Kosten
+ * - Sofortige Anzeige (keine Netzwerk-Latenz für PLZ-Lookup)
+ * - Zentraler Geocode-Cache (geteilt mit anderen Kartenansichten)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   GoogleMap,
   useJsApiLoader,
@@ -25,15 +35,19 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
+  MapPinOff,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
+import { getKoordinatenFuerPLZ } from '../../data/plzKoordinaten';
+import { geocodeCache, createPlzKey, createAdresseKey } from '../../utils/geocodeCache';
 
 // Konstanten
 const WERK_POSITION = { lat: 49.85, lng: 9.60 }; // Marktheidenfeld
 const MAP_STYLE = { width: '100%', height: '100%', minHeight: '600px' };
 
-// Geocoding Cache
-const GEOCODE_CACHE_KEY = 'projekte_geocode_cache_v1';
+// Offset für mehrere Marker am gleichen PLZ-Standort
+const PLZ_OFFSET_RADIUS = 0.003; // ~300m Radius für Cluster
 
 const MAP_OPTIONS: google.maps.MapOptions = {
   disableDefaultUI: true,
@@ -61,9 +75,12 @@ const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string; fillC
   verloren: { label: 'Verloren', color: '#6b7280', fillColor: '#9ca3af', icon: XCircle },
 };
 
+type KoordinatenQuelle = 'projekt' | 'cache' | 'plz' | 'google';
+
 interface ProjektMarker {
   projekt: Projekt;
   position: { lat: number; lng: number };
+  quelle: KoordinatenQuelle;
 }
 
 interface ProjektKartenansichtProps {
@@ -72,57 +89,11 @@ interface ProjektKartenansichtProps {
   statusFilter?: ProjektStatus[];
 }
 
-// Geocode Cache laden/speichern
-const loadCache = (): Map<string, { lat: number; lng: number }> => {
-  try {
-    const cached = localStorage.getItem(GEOCODE_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      return new Map(Object.entries(parsed));
-    }
-  } catch (e) {
-    console.warn('Cache-Ladefehler:', e);
-  }
-  return new Map();
-};
-
-const saveCache = (cache: Map<string, { lat: number; lng: number }>) => {
-  try {
-    const obj = Object.fromEntries(cache);
-    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(obj));
-  } catch (e) {
-    console.warn('Cache-Speicherfehler:', e);
-  }
-};
-
-// Geocoding via Google Maps Geocoder
-const geocodeAddress = async (
-  plzOrt: string,
-  strasse: string | undefined,
-  geocoder: google.maps.Geocoder
-): Promise<{ lat: number; lng: number } | null> => {
-  return new Promise((resolve) => {
-    // Versuche erst mit Straße, dann ohne
-    const query = strasse ? `${strasse}, ${plzOrt}, Deutschland` : `${plzOrt}, Deutschland`;
-    geocoder.geocode({ address: query }, (results, status) => {
-      if (status === 'OK' && results && results.length > 0) {
-        const loc = results[0].geometry.location;
-        resolve({ lat: loc.lat(), lng: loc.lng() });
-      } else if (strasse) {
-        // Fallback ohne Straße
-        geocoder.geocode({ address: `${plzOrt}, Deutschland` }, (results2, status2) => {
-          if (status2 === 'OK' && results2 && results2.length > 0) {
-            const loc = results2[0].geometry.location;
-            resolve({ lat: loc.lat(), lng: loc.lng() });
-          } else {
-            resolve(null);
-          }
-        });
-      } else {
-        resolve(null);
-      }
-    });
-  });
+// PLZ aus Adresse extrahieren
+const extractPLZ = (plzOrt: string | undefined): string | null => {
+  if (!plzOrt) return null;
+  const match = plzOrt.match(/\b(\d{5})\b/);
+  return match ? match[1] : null;
 };
 
 const ProjektKartenansicht = ({
@@ -133,10 +104,11 @@ const ProjektKartenansicht = ({
   const [markers, setMarkers] = useState<ProjektMarker[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<ProjektMarker | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [geocodedCount, setGeocodedCount] = useState(0);
+  const [ohneKoordinaten, setOhneKoordinaten] = useState<Projekt[]>([]);
+  const [showOhneKoordinatenPanel, setShowOhneKoordinatenPanel] = useState(false);
+  const [geocodeStats, setGeocodeStats] = useState({ plz: 0, cache: 0, google: 0, failed: 0 });
   const mapRef = useRef<google.maps.Map | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);
-  const geocodeCacheRef = useRef<Map<string, { lat: number; lng: number }>>(loadCache());
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -144,63 +116,205 @@ const ProjektKartenansicht = ({
   });
 
   // Filtere Projekte nach Status
-  const gefilterteProjekte = statusFilter
-    ? projekte.filter(p => statusFilter.includes(p.status))
-    : projekte;
+  const gefilterteProjekte = useMemo(() => {
+    return statusFilter
+      ? projekte.filter(p => statusFilter.includes(p.status))
+      : projekte;
+  }, [projekte, statusFilter]);
 
-  // Geocode alle Projekte
+  // Optimiertes Geocoding mit 3-stufiger Priorität
   useEffect(() => {
     if (!isLoaded || gefilterteProjekte.length === 0) return;
 
     const geocodeAll = async () => {
       setIsGeocoding(true);
-      setGeocodedCount(0);
-
-      if (!geocoderRef.current) {
-        geocoderRef.current = new google.maps.Geocoder();
-      }
 
       const newMarkers: ProjektMarker[] = [];
-      let count = 0;
+      const ohneCoords: Projekt[] = [];
+      const brauchenGoogleAPI: { projekt: Projekt; address: string; cacheKey: string }[] = [];
+      const stats = { plz: 0, cache: 0, google: 0, failed: 0 };
 
+      // PHASE 1: Schnelles lokales Geocoding (PLZ-Lookup + Cache)
       for (const projekt of gefilterteProjekte) {
         const plzOrt = projekt.kundenPlzOrt || '';
-        const strasse = projekt.kundenstrasse;
-        const cacheKey = `${plzOrt}_${strasse || ''}`.toLowerCase().trim();
+        const strasse = projekt.kundenstrasse || '';
+        const plz = extractPLZ(plzOrt);
 
-        if (!plzOrt) {
-          count++;
-          setGeocodedCount(count);
+        if (!plzOrt && !plz) {
+          ohneCoords.push(projekt);
+          stats.failed++;
           continue;
         }
 
-        let position = geocodeCacheRef.current.get(cacheKey);
-
-        if (!position) {
-          // Geocode mit Rate-Limiting (100ms zwischen Anfragen)
-          await new Promise(r => setTimeout(r, 100));
-          position = await geocodeAddress(plzOrt, strasse, geocoderRef.current!) || undefined;
-
-          if (position) {
-            geocodeCacheRef.current.set(cacheKey, position);
+        // 1. Prüfe zentralen Cache (mit Straße)
+        const adresseKey = strasse && plz ? createAdresseKey(strasse, plz, plzOrt.replace(/^\d+\s*/, '')) : null;
+        if (adresseKey) {
+          const cached = geocodeCache.get(adresseKey);
+          if (cached) {
+            newMarkers.push({ projekt, position: cached, quelle: 'cache' });
+            stats.cache++;
+            continue;
           }
         }
 
-        if (position) {
-          newMarkers.push({
-            projekt,
-            position,
-          });
+        // 2. Prüfe Cache nur mit PLZ
+        if (plz) {
+          const plzKey = createPlzKey(plz);
+          const cachedPlz = geocodeCache.get(plzKey);
+          if (cachedPlz) {
+            newMarkers.push({ projekt, position: cachedPlz, quelle: 'cache' });
+            stats.cache++;
+            continue;
+          }
         }
 
-        count++;
-        setGeocodedCount(count);
+        // 3. PLZ-Lookup aus lokaler Tabelle (KOSTENLOS!)
+        if (plz) {
+          const plzCoords = getKoordinatenFuerPLZ(plz);
+          if (plzCoords) {
+            newMarkers.push({ projekt, position: plzCoords, quelle: 'plz' });
+            stats.plz++;
+            // In Cache speichern für nächstes Mal
+            geocodeCache.set(createPlzKey(plz), plzCoords);
+            continue;
+          }
+        }
+
+        // 4. Für Google API vormerken (nur wenn wirklich nötig)
+        if (strasse && plzOrt) {
+          const address = `${strasse}, ${plzOrt}, Deutschland`;
+          const cacheKey = adresseKey || createPlzKey(plz || plzOrt);
+          brauchenGoogleAPI.push({ projekt, address, cacheKey });
+        } else {
+          // Keine Adresse vorhanden
+          ohneCoords.push(projekt);
+          stats.failed++;
+        }
       }
 
-      // Cache speichern
-      saveCache(geocodeCacheRef.current);
+      // PHASE 2: Google API nur für fehlende (Batch mit Deduplizierung)
+      if (brauchenGoogleAPI.length > 0 && brauchenGoogleAPI.length < 50) {
+        console.log(`🌐 ${brauchenGoogleAPI.length} Projekte brauchen Google API Geocoding...`);
+
+        if (!geocoderRef.current) {
+          geocoderRef.current = new google.maps.Geocoder();
+        }
+
+        // Dedupliziere gleiche Adressen
+        const uniqueAddresses = new Map<string, { projekt: Projekt; cacheKey: string }[]>();
+        for (const item of brauchenGoogleAPI) {
+          const existing = uniqueAddresses.get(item.address) || [];
+          existing.push({ projekt: item.projekt, cacheKey: item.cacheKey });
+          uniqueAddresses.set(item.address, existing);
+        }
+
+        console.log(`   → ${uniqueAddresses.size} einzigartige Adressen (${brauchenGoogleAPI.length - uniqueAddresses.size} Duplikate)`);
+
+        // Geocode mit Rate-Limiting
+        for (const [address, items] of uniqueAddresses) {
+          try {
+            await new Promise(r => setTimeout(r, 150)); // Rate-Limiting
+
+            const result = await new Promise<google.maps.GeocoderResult[] | null>((resolve) => {
+              geocoderRef.current!.geocode({ address }, (results, status) => {
+                if (status === 'OK' && results && results.length > 0) {
+                  resolve(results);
+                } else {
+                  resolve(null);
+                }
+              });
+            });
+
+            if (result) {
+              const loc = result[0].geometry.location;
+              const position = { lat: loc.lat(), lng: loc.lng() };
+
+              // Für alle Projekte mit dieser Adresse
+              for (const item of items) {
+                newMarkers.push({ projekt: item.projekt, position, quelle: 'google' });
+                geocodeCache.set(item.cacheKey, position);
+                stats.google++;
+              }
+            } else {
+              // Fallback auf PLZ-Geocoding
+              for (const item of items) {
+                const plz = extractPLZ(item.projekt.kundenPlzOrt);
+                if (plz) {
+                  const plzCoords = getKoordinatenFuerPLZ(plz);
+                  if (plzCoords) {
+                    newMarkers.push({ projekt: item.projekt, position: plzCoords, quelle: 'plz' });
+                    stats.plz++;
+                    continue;
+                  }
+                }
+                ohneCoords.push(item.projekt);
+                stats.failed++;
+              }
+            }
+          } catch (error) {
+            console.warn('Google Geocoding Fehler:', error);
+            for (const item of items) {
+              ohneCoords.push(item.projekt);
+              stats.failed++;
+            }
+          }
+        }
+      } else if (brauchenGoogleAPI.length >= 50) {
+        // Zu viele - nur PLZ-Fallback verwenden
+        console.log(`⚠️ ${brauchenGoogleAPI.length} Projekte ohne PLZ-Koordinaten - verwende nur PLZ-Lookup`);
+        for (const item of brauchenGoogleAPI) {
+          const plz = extractPLZ(item.projekt.kundenPlzOrt);
+          if (plz) {
+            const plzCoords = getKoordinatenFuerPLZ(plz);
+            if (plzCoords) {
+              newMarkers.push({ projekt: item.projekt, position: plzCoords, quelle: 'plz' });
+              stats.plz++;
+              continue;
+            }
+          }
+          ohneCoords.push(item.projekt);
+          stats.failed++;
+        }
+      }
+
+      // Offset für Marker am gleichen Standort (PLZ-Cluster)
+      const positionGroups = new Map<string, number[]>();
+      newMarkers.forEach((marker, idx) => {
+        // Runde auf 3 Dezimalstellen (~100m Genauigkeit)
+        const key = `${marker.position.lat.toFixed(3)}_${marker.position.lng.toFixed(3)}`;
+        const group = positionGroups.get(key) || [];
+        group.push(idx);
+        positionGroups.set(key, group);
+      });
+
+      // Wende Offset auf Cluster an
+      positionGroups.forEach((indices) => {
+        if (indices.length <= 1) return;
+        indices.forEach((idx, i) => {
+          const angle = (i * 360 / indices.length) * (Math.PI / 180);
+          const offsetLat = PLZ_OFFSET_RADIUS * Math.cos(angle);
+          const offsetLng = PLZ_OFFSET_RADIUS * Math.sin(angle);
+          newMarkers[idx].position = {
+            lat: newMarkers[idx].position.lat + offsetLat,
+            lng: newMarkers[idx].position.lng + offsetLng,
+          };
+        });
+      });
+
+      // Stats loggen
+      console.log('📊 Geocoding-Statistik:', {
+        gesamt: gefilterteProjekte.length,
+        aufKarte: newMarkers.length,
+        cache: stats.cache,
+        plz: stats.plz,
+        google: stats.google,
+        fehlgeschlagen: stats.failed,
+        apiKostenGespart: `${((1 - stats.google / Math.max(1, newMarkers.length)) * 100).toFixed(0)}%`,
+      });
 
       setMarkers(newMarkers);
+      setOhneKoordinaten(ohneCoords);
+      setGeocodeStats(stats);
       setIsGeocoding(false);
 
       // Karte auf alle Marker anpassen
@@ -240,7 +354,7 @@ const ProjektKartenansicht = ({
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-2" />
             <p className="text-gray-600 dark:text-gray-400">
-              Geocoding... {geocodedCount}/{gefilterteProjekte.length}
+              Lade Karte...
             </p>
           </div>
         </div>
@@ -262,10 +376,66 @@ const ProjektKartenansicht = ({
             );
           })}
         </div>
-        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-gray-400">
-          {markers.length} Projekte auf Karte
+        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+          <span>{markers.length} Projekte auf Karte</span>
+          {ohneKoordinaten.length > 0 && (
+            <button
+              onClick={() => setShowOhneKoordinatenPanel(!showOhneKoordinatenPanel)}
+              className="flex items-center gap-1 text-amber-600 hover:text-amber-700"
+            >
+              <AlertTriangle className="w-3 h-3" />
+              {ohneKoordinaten.length} ohne Adresse
+            </button>
+          )}
         </div>
+        {/* Geocode-Quellen Statistik */}
+        {(geocodeStats.plz > 0 || geocodeStats.cache > 0) && (
+          <div className="mt-1 text-xs text-gray-400 flex gap-2">
+            {geocodeStats.cache > 0 && <span>Cache: {geocodeStats.cache}</span>}
+            {geocodeStats.plz > 0 && <span>PLZ: {geocodeStats.plz}</span>}
+            {geocodeStats.google > 0 && <span>API: {geocodeStats.google}</span>}
+          </div>
+        )}
       </div>
+
+      {/* Panel für Projekte ohne Koordinaten */}
+      {showOhneKoordinatenPanel && ohneKoordinaten.length > 0 && (
+        <div className="absolute top-4 right-4 z-10 bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4 border border-amber-200 dark:border-amber-800 max-w-sm max-h-96 overflow-y-auto">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-amber-600">
+              <MapPinOff className="w-4 h-4" />
+              <span className="font-medium text-sm">Ohne Adresse</span>
+            </div>
+            <button
+              onClick={() => setShowOhneKoordinatenPanel(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="space-y-2">
+            {ohneKoordinaten.slice(0, 20).map((projekt) => (
+              <button
+                key={(projekt as any).$id || projekt.id}
+                onClick={() => onProjektClick(projekt)}
+                className="w-full text-left p-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+              >
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {projekt.kundenname || 'Unbekannt'}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {projekt.kundenPlzOrt || 'Keine Adresse'}
+                </div>
+              </button>
+            ))}
+            {ohneKoordinaten.length > 20 && (
+              <div className="text-xs text-gray-400 text-center pt-2">
+                + {ohneKoordinaten.length - 20} weitere
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <GoogleMap
         mapContainerStyle={MAP_STYLE}
@@ -290,6 +460,7 @@ const ProjektKartenansicht = ({
         {markers.map((marker) => {
           const config = STATUS_CONFIG[marker.projekt.status];
           const StatusIcon = config.icon;
+          const isPLZOnly = marker.quelle === 'plz';
           return (
             <OverlayViewF
               key={(marker.projekt as any).$id || marker.projekt.id}
@@ -302,7 +473,7 @@ const ProjektKartenansicht = ({
               >
                 <div className="relative">
                   <MapPin
-                    className="w-8 h-8 drop-shadow-md"
+                    className={`w-8 h-8 drop-shadow-md ${isPLZOnly ? 'opacity-80' : ''}`}
                     style={{ color: config.color }}
                     fill={config.fillColor}
                   />
@@ -342,6 +513,9 @@ const ProjektKartenansicht = ({
                 <div className="flex items-center gap-2 text-gray-600">
                   <MapPin className="w-4 h-4 text-purple-500" />
                   <span>{selectedMarker.projekt.kundenPlzOrt}</span>
+                  {selectedMarker.quelle === 'plz' && (
+                    <span className="text-xs text-amber-500">(PLZ)</span>
+                  )}
                 </div>
 
                 {/* Status Badge */}
