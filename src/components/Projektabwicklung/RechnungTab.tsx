@@ -607,6 +607,45 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     setTimeout(() => setArtikelHinzugefuegt(null), 2000);
   };
 
+  // Standard-Artikel hinzufügen (TM-ZM-02, TM-PE, TM-FP)
+  const addStandardArtikel = () => {
+    hatGeaendert.current = true;
+    const standardArtikelnummern = ['TM-ZM-02', 'TM-PE', 'TM-FP'];
+    const neuePositionen: Position[] = [];
+
+    for (const artikelnummer of standardArtikelnummern) {
+      const selectedArtikel = artikel.find(a => a.artikelnummer === artikelnummer);
+      if (!selectedArtikel) {
+        console.warn(`Standard-Artikel ${artikelnummer} nicht in Stammdaten gefunden`);
+        continue;
+      }
+
+      const preis = selectedArtikel.einzelpreis ?? 0;
+
+      neuePositionen.push({
+        id: Date.now().toString() + '_' + artikelnummer,
+        artikelnummer: selectedArtikel.artikelnummer,
+        bezeichnung: selectedArtikel.bezeichnung,
+        beschreibung: selectedArtikel.beschreibung || '',
+        menge: 1,
+        einheit: selectedArtikel.einheit,
+        einzelpreis: preis,
+        einkaufspreis: selectedArtikel.einkaufspreis,
+        gesamtpreis: preis,
+      });
+    }
+
+    if (neuePositionen.length > 0) {
+      setRechnungsDaten(prev => ({
+        ...prev,
+        positionen: [...prev.positionen, ...neuePositionen]
+      }));
+
+      setArtikelHinzugefuegt(`${neuePositionen.length} Standard-Artikel`);
+      setTimeout(() => setArtikelHinzugefuegt(null), 2000);
+    }
+  };
+
   // Gefilterte Artikel basierend auf Suchtext
   const gefilterteArtikel = artikel
     .filter(art => {
@@ -1497,6 +1536,13 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               >
                 <Package className="h-4 w-4" />
                 Aus Artikel
+              </button>
+              <button
+                onClick={addStandardArtikel}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                Standard Artikel
               </button>
               <button
                 onClick={addPosition}
