@@ -166,36 +166,22 @@ const ProjektVerwaltung = () => {
   }, []);
 
   // Lade Daten inkl. Kundendaten für die Suche
+  // OPTIMIERT: Lade alle Kunden auf einmal statt einzeln!
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const gruppiert = await projektService.loadProjekteGruppiert(saisonjahr);
+      // Parallel: Projekte UND alle Kunden gleichzeitig laden
+      const [gruppiert, alleKunden] = await Promise.all([
+        projektService.loadProjekteGruppiert(saisonjahr),
+        saisonplanungService.loadAlleKunden(),
+      ]);
+
       setProjekteGruppiert(gruppiert);
 
-      // Sammle alle einzigartigen kundeIds
-      const alleProjekte = [
-        ...gruppiert.angebot,
-        ...gruppiert.angebot_versendet,
-        ...gruppiert.auftragsbestaetigung,
-        ...gruppiert.lieferschein,
-        ...gruppiert.rechnung,
-        ...gruppiert.bezahlt,
-        ...gruppiert.verloren,
-      ];
-      const kundeIds = [...new Set(alleProjekte.map(p => p.kundeId).filter(Boolean))];
-
-      // Lade alle Kunden parallel
-      const kundenPromises = kundeIds.map(id =>
-        saisonplanungService.loadKunde(id).catch(() => null)
-      );
-      const kunden = await Promise.all(kundenPromises);
-
-      // Erstelle Map für schnellen Zugriff
+      // Erstelle Map für schnellen Zugriff (aus ALLEN Kunden, nicht einzeln!)
       const neueKundenMap = new Map<string, SaisonKunde>();
-      kunden.forEach(kunde => {
-        if (kunde) {
-          neueKundenMap.set(kunde.id, kunde);
-        }
+      alleKunden.forEach(kunde => {
+        neueKundenMap.set(kunde.id, kunde);
       });
       setKundenMap(neueKundenMap);
     } catch (error) {
@@ -211,20 +197,15 @@ const ProjektVerwaltung = () => {
 
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    // Schritt 1: Platzbauer-Projekte filtern (je nach Toggle)
+    // Schritt 1: Platzbauer-Filter (je nach Toggle)
     let gefiltert = projekte.filter(p => {
-      const istPlatzbauer = p.istPlatzbauerprojekt === true;
-      const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
-      const kundeIstPlatzbauer = kunde?.typ === 'platzbauer';
-
-      if (showPlatzbauerprojekte) {
-        // Nur Platzbauer-Projekte anzeigen
-        return istPlatzbauer;
-      } else {
-        // Platzbauer-Projekte ausblenden (Standard)
-        if (istPlatzbauer) return false;
-        if (kundeIstPlatzbauer) return false;
+      if (!showPlatzbauerprojekte) {
+        // Alle Projekte anzeigen (Standard)
         return true;
+      } else {
+        // Nur Platzbauer-Projekte anzeigen (nach Klick auf Filter)
+        const istPlatzbauer = p.istPlatzbauerprojekt === true;
+        return istPlatzbauer;
       }
     });
 
@@ -598,7 +579,7 @@ const ProjektVerwaltung = () => {
                   ? 'bg-orange-500 text-white border-orange-500'
                   : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
-              title={showPlatzbauerprojekte ? 'Normale Projekte anzeigen' : 'Platzbauer-Projekte anzeigen'}
+              title={showPlatzbauerprojekte ? 'Alle Projekte anzeigen' : 'Nur Platzbauer-Projekte anzeigen'}
             >
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Platzbauer</span>
