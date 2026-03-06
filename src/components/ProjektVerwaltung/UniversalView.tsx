@@ -80,8 +80,8 @@ const getStatusConfig = (status: ProjektStatus) => {
 type GroupBy = 'none' | 'lieferdatum' | 'status' | 'kunde';
 
 // Universal Sport Empfänger (fix)
-const UNIVERSAL_SPORT_EMAIL = 'karin.schnepper@universal-sport.de';
-const UNIVERSAL_SPORT_NAME = 'Frau Schnepper';
+const UNIVERSAL_SPORT_EMAIL = 'info@universal-sport.de';
+const UNIVERSAL_SPORT_NAME = 'Universal Sport';
 const TENNISMEHL_ABSENDER = 'info@tennismehl.com';
 const TEST_EMAIL = 'jtatwcook@gmail.com';
 
@@ -240,7 +240,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         [
           Query.equal('dokumentTyp', 'lieferschein'),
           Query.equal('status', 'gesendet'),
-          Query.contains('empfaenger', UNIVERSAL_SPORT_EMAIL.split('@')[0]), // Schnepper
+          Query.contains('empfaenger', UNIVERSAL_SPORT_EMAIL), // Universal Sport
           Query.orderDesc('gesendetAm'),
           Query.limit(500),
         ]

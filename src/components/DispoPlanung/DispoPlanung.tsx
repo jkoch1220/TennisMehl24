@@ -81,6 +81,44 @@ type FilterStatus = 'alle' | DispoStatus;
 // Lieferart-Filter für Spedition vs. Eigentransport
 type FilterLieferart = 'alle' | 'eigenlager' | 'spedition' | 'gemischt' | 'beiladung';
 
+// Kalenderwoche berechnen (ISO 8601)
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+// Prüft ob ein Datum in einer bestimmten KW liegt
+function isDateInWeek(dateStr: string | undefined, targetKW: number): boolean {
+  if (!dateStr) return false;
+  const date = new Date(dateStr);
+  return getISOWeek(date) === targetKW;
+}
+
+// Aktuelle KW ermitteln
+function getCurrentWeek(): number {
+  return getISOWeek(new Date());
+}
+
+// KW-Optionen für Dropdown generieren (aktuelle KW +/- 8 Wochen)
+function getKWOptions(): { value: number; label: string; isCurrent: boolean }[] {
+  const currentKW = getCurrentWeek();
+  const options: { value: number; label: string; isCurrent: boolean }[] = [];
+  for (let offset = -4; offset <= 12; offset++) {
+    const kw = currentKW + offset;
+    if (kw > 0 && kw <= 53) {
+      options.push({
+        value: kw,
+        label: `KW ${kw}${offset === 0 ? ' (aktuell)' : ''}`,
+        isCurrent: offset === 0
+      });
+    }
+  }
+  return options;
+}
+
 // Tab-Typen
 type DispoTab = 'auftraege' | 'touren' | 'karte';
 
@@ -103,6 +141,7 @@ const DispoPlanung = () => {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('alle');
   const [filterDatum, setFilterDatum] = useState<string>('');
   const [filterLieferart, setFilterLieferart] = useState<FilterLieferart>('alle');
+  const [filterKW, setFilterKW] = useState<number | null>(null);
 
   // Ausgewähltes Projekt für Detail-Ansicht
   const [selectedProjekt, setSelectedProjekt] = useState<Projekt | null>(null);
@@ -140,16 +179,11 @@ const DispoPlanung = () => {
 
       setProjekte(projekteInitialisiert);
 
-      // Lade Kundendaten für alle Projekte
-      const kundeIds = [...new Set(projekteInitialisiert.map(p => p.kundeId).filter(Boolean))];
-      const kundenPromises = kundeIds.map(id =>
-        saisonplanungService.loadKunde(id).catch(() => null)
-      );
-      const kunden = await Promise.all(kundenPromises);
-
+      // OPTIMIERT: Lade ALLE Kunden auf einmal statt einzeln!
+      const alleKunden = await saisonplanungService.loadAlleKunden();
       const neueKundenMap = new Map<string, SaisonKunde>();
-      kunden.forEach(kunde => {
-        if (kunde) neueKundenMap.set(kunde.id, kunde);
+      alleKunden.forEach(kunde => {
+        neueKundenMap.set(kunde.id, kunde);
       });
       setKundenMap(neueKundenMap);
 
@@ -447,6 +481,9 @@ const DispoPlanung = () => {
     // Datum-Filter
     if (filterDatum && p.geplantesDatum !== filterDatum) return false;
 
+    // KW-Filter
+    if (filterKW !== null && !isDateInWeek(p.geplantesDatum, filterKW)) return false;
+
     // Lieferart-Filter (Spedition vs. Eigentransport)
     if (filterLieferart !== 'alle') {
       const material = parseMaterialAufschluesselung(p);
@@ -473,6 +510,20 @@ const DispoPlanung = () => {
     }
 
     return true;
+  }).sort((a, b) => {
+    // Sortierung: Diese Woche zuerst, dann nach Datum
+    const currentKW = getCurrentWeek();
+    const aInCurrentWeek = isDateInWeek(a.geplantesDatum, currentKW);
+    const bInCurrentWeek = isDateInWeek(b.geplantesDatum, currentKW);
+
+    // Diese Woche hat Priorität
+    if (aInCurrentWeek && !bInCurrentWeek) return -1;
+    if (!aInCurrentWeek && bInCurrentWeek) return 1;
+
+    // Danach nach Datum sortieren (frühestes zuerst, ohne Datum ans Ende)
+    const aDate = a.geplantesDatum ? new Date(a.geplantesDatum).getTime() : Infinity;
+    const bDate = b.geplantesDatum ? new Date(b.geplantesDatum).getTime() : Infinity;
+    return aDate - bDate;
   });
 
   // Dispo-Status aktualisieren
@@ -736,6 +787,30 @@ const DispoPlanung = () => {
             />
           </div>
 
+          {/* KW-Filter */}
+          <div className="flex items-center gap-2">
+            <select
+              value={filterKW ?? ''}
+              onChange={(e) => setFilterKW(e.target.value ? parseInt(e.target.value) : null)}
+              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Alle KW</option>
+              {getKWOptions().map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {filterKW !== null && (
+              <button
+                onClick={() => setFilterKW(null)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           {/* Datum-Filter */}
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-gray-400" />
@@ -756,13 +831,14 @@ const DispoPlanung = () => {
           </div>
 
           {/* Filter-Reset */}
-          {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle') && (
+          {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle' || filterKW !== null) && (
             <button
               onClick={() => {
                 setFilterStatus('alle');
                 setFilterDatum('');
                 setSuche('');
                 setFilterLieferart('alle');
+                setFilterKW(null);
               }}
               className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
             >
@@ -1168,6 +1244,12 @@ const AuftragsZeile = ({
             {projekt.kundennummer && (
               <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded-full text-gray-600 dark:text-gray-400">
                 {projekt.kundennummer}
+              </span>
+            )}
+            {/* Diese Woche Badge */}
+            {isDateInWeek(projekt.geplantesDatum, getCurrentWeek()) && (
+              <span className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/50 rounded-full text-red-700 dark:text-red-300 font-medium animate-pulse">
+                Diese Woche!
               </span>
             )}
             {/* Bemerkung aus Angebot - Inline bearbeitbar */}

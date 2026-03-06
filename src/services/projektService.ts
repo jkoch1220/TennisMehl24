@@ -12,8 +12,23 @@ export interface CreateProjektOptions {
   skipPlatzbauerProjektZuordnung?: boolean;
 }
 
+// Simple In-Memory Cache für schnelleres Laden
+interface ProjektCache {
+  projekte: Projekt[];
+  timestamp: number;
+  saisonjahr?: number;
+}
+
+const CACHE_TTL = 30000; // 30 Sekunden Cache
+let projektCache: ProjektCache | null = null;
+
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
+
+  // Cache invalidieren (nach Updates)
+  invalidateCache() {
+    projektCache = null;
+  }
 
   // Alle Projekte laden mit optionalen Filtern
   async loadProjekte(filter?: ProjektFilter): Promise<Projekt[]> {
@@ -53,7 +68,7 @@ class ProjektService {
     }
   }
 
-  // Projekte gruppiert nach Status laden
+  // Projekte gruppiert nach Status laden (mit Cache!)
   async loadProjekteGruppiert(saisonjahr?: number): Promise<{
     angebot: Projekt[];
     angebot_versendet: Projekt[];
@@ -64,6 +79,23 @@ class ProjektService {
     verloren: Projekt[];
   }> {
     try {
+      // Cache prüfen
+      const now = Date.now();
+      if (projektCache &&
+          projektCache.saisonjahr === saisonjahr &&
+          (now - projektCache.timestamp) < CACHE_TTL) {
+        const projekte = projektCache.projekte;
+        return {
+          angebot: projekte.filter((p) => p.status === 'angebot'),
+          angebot_versendet: projekte.filter((p) => p.status === 'angebot_versendet'),
+          auftragsbestaetigung: projekte.filter((p) => p.status === 'auftragsbestaetigung'),
+          lieferschein: projekte.filter((p) => p.status === 'lieferschein'),
+          rechnung: projekte.filter((p) => p.status === 'rechnung'),
+          bezahlt: projekte.filter((p) => p.status === 'bezahlt'),
+          verloren: projekte.filter((p) => p.status === 'verloren'),
+        };
+      }
+
       const queries: string[] = [Query.orderDesc('erstelltAm'), Query.limit(1000)];
 
       if (saisonjahr) {
@@ -83,6 +115,13 @@ class ProjektService {
         }
         return doc as unknown as Projekt;
       });
+
+      // Cache aktualisieren
+      projektCache = {
+        projekte,
+        timestamp: now,
+        saisonjahr,
+      };
 
       return {
         angebot: projekte.filter((p) => p.status === 'angebot'),
@@ -303,6 +342,9 @@ class ProjektService {
         dokument
       );
 
+      // Cache invalidieren nach Erstellung
+      this.invalidateCache();
+
       let erstelltesProjekt: Projekt;
       if (response.data && typeof response.data === 'string') {
         try {
@@ -416,6 +458,9 @@ class ProjektService {
         dokument
       );
 
+      // Cache invalidieren nach Update
+      this.invalidateCache();
+
       if (response.data && typeof response.data === 'string') {
         try {
           return { ...JSON.parse(response.data), $id: response.$id };
@@ -459,6 +504,9 @@ class ProjektService {
         dokument
       );
 
+      // Cache invalidieren nach Status-Update
+      this.invalidateCache();
+
       if (response.data && typeof response.data === 'string') {
         try {
           return { ...JSON.parse(response.data), $id: response.$id };
@@ -480,6 +528,8 @@ class ProjektService {
       const documentId = (projekt as any).$id || projekt.id;
       console.log('Lösche Projekt mit documentId:', documentId);
       await databases.deleteDocument(DATABASE_ID, this.collectionId, documentId);
+      // Cache invalidieren nach Löschen
+      this.invalidateCache();
     } catch (error) {
       console.error('Fehler beim Löschen des Projekts:', error);
       throw error;

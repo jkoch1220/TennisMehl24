@@ -235,6 +235,21 @@ export async function verarbeiteAnfrageVollstaendig(
     }
 
     // ============================================
+    // SCHRITT 3b: Angebotsnummer im Projekt speichern
+    // ============================================
+    const heute = new Date().toISOString().split('T')[0];
+
+    try {
+      await projektService.updateProjekt(projektId, {
+        angebotsnummer,
+        angebotsdatum: heute,
+      });
+    } catch (error) {
+      // Nicht kritisch - wir können trotzdem versenden, aber loggen
+      console.warn('Angebotsnummer konnte nicht im Projekt gespeichert werden:', error);
+    }
+
+    // ============================================
     // SCHRITT 4: AngebotsDaten zusammenstellen & PDF generieren
     // ============================================
     let pdfBase64: string;
