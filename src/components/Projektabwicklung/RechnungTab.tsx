@@ -39,6 +39,7 @@ import { UniversalArtikel } from '../../types/universaArtikel';
 import { getAlleArtikel } from '../../services/artikelService';
 import { getAlleUniversalArtikel, sucheUniversalArtikel } from '../../services/universaArtikelService';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
@@ -81,6 +82,33 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
   // Verwende Props-Kunde oder geladenen Kunden
   const kunde = kundeFromProps || geladenerKunde;
+
+  // Platzbauer laden (für Platzbauer-Projekte)
+  const [platzbauer, setPlatzbauer] = useState<SaisonKunde | null>(null);
+
+  useEffect(() => {
+    const ladePlatzbauer = async () => {
+      if (!projekt?.istPlatzbauerprojekt || !projekt?.zugeordnetesPlatzbauerprojektId) {
+        setPlatzbauer(null);
+        return;
+      }
+
+      try {
+        // Lade Platzbauerprojekt um platzbauerId zu bekommen
+        const platzbauerprojekt = await platzbauerverwaltungService.getPlatzbauerprojekt(
+          projekt.zugeordnetesPlatzbauerprojektId
+        );
+        if (platzbauerprojekt?.platzbauerId) {
+          // Lade Platzbauer-Kundendaten
+          const pb = await saisonplanungService.loadKunde(platzbauerprojekt.platzbauerId);
+          setPlatzbauer(pb);
+        }
+      } catch (error) {
+        console.warn('Fehler beim Laden der Platzbauer-Daten:', error);
+      }
+    };
+    ladePlatzbauer();
+  }, [projekt?.istPlatzbauerprojekt, projekt?.zugeordnetesPlatzbauerprojektId]);
 
   const [rechnungsDaten, setRechnungsDaten] = useState<RechnungsDaten>({
     firmenname: 'Koch Dienste',
@@ -1475,6 +1503,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           dokumentTyp="rechnung"
           projektKundenname={projekt?.kundenname}
           disabled={istFormularDisabled}
+          platzbauer={platzbauer}
         />
 
         {/* Lieferadresse */}

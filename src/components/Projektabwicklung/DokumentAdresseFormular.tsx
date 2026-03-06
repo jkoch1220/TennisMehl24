@@ -1,4 +1,4 @@
-import { RefreshCw, FileText, Truck, AlertCircle } from 'lucide-react';
+import { RefreshCw, FileText, Truck, AlertCircle, HardHat } from 'lucide-react';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 
@@ -21,6 +21,8 @@ interface DokumentAdresseFormularProps {
   projektKundenname?: string;
   // Optional: Deaktiviert (z.B. bei finaler Rechnung)
   disabled?: boolean;
+  // Optional: Platzbauer für Platzbauer-Projekte (Rechnungsadresse vom Platzbauer)
+  platzbauer?: SaisonKunde | null;
 }
 
 /**
@@ -39,6 +41,7 @@ const DokumentAdresseFormular = ({
   dokumentTyp,
   projektKundenname,
   disabled = false,
+  platzbauer,
 }: DokumentAdresseFormularProps) => {
 
   // Bestimme Titel und Farben basierend auf Dokumenttyp
@@ -139,6 +142,20 @@ const DokumentAdresseFormular = ({
     }
   };
 
+  // Platzbauer-Daten übernehmen (für Platzbauer-Projekte)
+  const handlePlatzbauerDatenUebernehmen = () => {
+    if (!platzbauer) return;
+
+    const rechnungsadresse = platzbauer.rechnungsadresse;
+    if (rechnungsadresse) {
+      onChange({
+        name: platzbauer.name || '',
+        strasse: rechnungsadresse.strasse || '',
+        plzOrt: formatAdresszeile(rechnungsadresse.plz, rechnungsadresse.ort, rechnungsadresse.land),
+      });
+    }
+  };
+
   // Prüfen ob aktuell Stammdaten verwendet werden
   const istStammdaten = () => {
     if (!kunde || !config.defaultSource) return false;
@@ -201,6 +218,19 @@ const DokumentAdresseFormular = ({
                 </>
               )}
             </button>
+
+            {/* Platzbauer-Daten übernehmen Button (nur bei Platzbauer-Projekten) */}
+            {platzbauer && (
+              <button
+                type="button"
+                onClick={handlePlatzbauerDatenUebernehmen}
+                className="flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors"
+                title={`Rechnungsadresse von ${platzbauer.name} übernehmen`}
+              >
+                <HardHat className="h-4 w-4" />
+                <span className="hidden sm:inline">Platzbauer</span>
+              </button>
+            )}
           </div>
         )}
       </div>
