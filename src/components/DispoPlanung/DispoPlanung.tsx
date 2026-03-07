@@ -64,8 +64,8 @@ import { KundenAktivitaet } from '../../types/kundenAktivitaet';
 import { useNavigate } from 'react-router-dom';
 import { ID } from 'appwrite';
 
-// Dispo-relevante Status
-const DISPO_RELEVANT_STATUS = ['auftragsbestaetigung', 'lieferschein', 'rechnung'];
+// Dispo-relevante Status (Rechnung & Bezahlt sind abgeschlossen und werden nicht mehr angezeigt)
+const DISPO_RELEVANT_STATUS = ['auftragsbestaetigung', 'lieferschein'];
 
 // Dispo-Status Labels und Farben
 const DISPO_STATUS_CONFIG: Record<DispoStatus, { label: string; color: string; bgColor: string }> = {
@@ -167,8 +167,8 @@ const DispoPlanung = () => {
         if (p.dispoStatus === 'geliefert') return false;
 
         // Dispo-relevante Status einschließen
-        return DISPO_RELEVANT_STATUS.includes(p.status) ||
-          (p.status === 'bezahlt');
+        // Projekte auf Rechnung oder Bezahlt sind abgeschlossen und werden nicht mehr angezeigt
+        return DISPO_RELEVANT_STATUS.includes(p.status);
       });
 
       // Setze Standard-DispoStatus wenn nicht gesetzt
