@@ -617,7 +617,7 @@ const DispoPlanung = () => {
           : material.transportTyp === 'spedition' ? 'Spedition'
           : material.transportTyp === 'gemischt' ? 'Gemischt' : '',
         'Ansprechpartner': projekt.dispoAnsprechpartner?.name || projekt.ansprechpartner || '',
-        'Telefon': projekt.dispoAnsprechpartner?.telefon || kunde?.kontakt?.telefon || '',
+        'Telefon': projekt.dispoAnsprechpartner?.telefon || kunde?.dispoAnsprechpartner?.telefon || '',
         'Dispo-Notizen': notizen,
       };
     });
