@@ -34,6 +34,7 @@ import {
   AlertTriangle,
   Boxes,
   ExternalLink,
+  FileSpreadsheet,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import DispoKartenAnsicht from './DispoKartenAnsicht';
@@ -50,6 +51,7 @@ import {
   getBelieungsartLabel,
   getBelieungsartFarbe,
 } from '../../utils/dispoMaterialParser';
+import * as XLSX from 'xlsx';
 import { Projekt, ProjektAnhang, DispoNotiz, DispoStatus } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Fahrzeug } from '../../types/dispo';
@@ -553,6 +555,110 @@ const DispoPlanung = () => {
     navigate(`/projektabwicklung/${projektId}`);
   };
 
+  // Excel-Export der gefilterten Aufträge
+  const exportDispoExcel = () => {
+    if (gefilterteProjekte.length === 0) {
+      alert('Keine Aufträge zum Exportieren vorhanden.');
+      return;
+    }
+
+    const excelData = gefilterteProjekte.map((projekt) => {
+      const material = parseMaterialAufschluesselung(projekt);
+      const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : null;
+      const dispoStatusLabel = DISPO_STATUS_CONFIG[projekt.dispoStatus || 'offen']?.label || 'Offen';
+
+      // Lieferadresse zusammenbauen
+      const lieferStrasse = projekt.lieferadresse?.strasse || projekt.kundenstrasse || '';
+      const lieferPlz = projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.match(/^(\d{5})/)?.[1] || '';
+      const lieferOrt = projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
+
+      // Kommuniziertes Datum formatieren
+      let kommDatum = '';
+      if (projekt.kommuniziertesDatum) {
+        kommDatum = new Date(projekt.kommuniziertesDatum).toLocaleDateString('de-DE');
+      } else if (projekt.lieferKW && projekt.lieferKWJahr) {
+        kommDatum = `KW ${projekt.lieferKW}/${projekt.lieferKWJahr}`;
+      }
+
+      // Geplantes Datum formatieren
+      const geplantesDatum = projekt.geplantesDatum
+        ? new Date(projekt.geplantesDatum).toLocaleDateString('de-DE')
+        : '';
+
+      // Belieferungsart
+      const belieferungsart = projekt.belieferungsart
+        ? getBelieungsartLabel(projekt.belieferungsart)
+        : '';
+
+      // Dispo-Notizen zusammenfassen
+      const notizen = (projekt.dispoNotizen || [])
+        .map(n => n.text)
+        .join(' | ');
+
+      return {
+        'AB-Nr.': projekt.auftragsbestaetigungsnummer || '',
+        'Kundenname': projekt.kundenname || '',
+        'Kundennummer': projekt.kundennummer || '',
+        'Straße': lieferStrasse,
+        'PLZ': lieferPlz,
+        'Ort': lieferOrt,
+        'Geplantes Datum': geplantesDatum,
+        'Komm. Datum': kommDatum,
+        'Dispo-Status': dispoStatusLabel,
+        'Belieferungsart': belieferungsart,
+        'Gewicht (t)': projekt.liefergewicht || material.gesamtTonnen || '',
+        '0-2 lose (t)': material.lose02 || '',
+        '0-3 lose (t)': material.lose03 || '',
+        '0-2 gesackt (t)': material.gesackt02 || '',
+        '0-3 gesackt (t)': material.gesackt03 || '',
+        'Palette (t)': material.gesamtPalette || '',
+        'BigBag (t)': material.gesamtBigBag || '',
+        'Transport': material.transportTyp === 'eigenlager' ? 'Eigenlager'
+          : material.transportTyp === 'spedition' ? 'Spedition'
+          : material.transportTyp === 'gemischt' ? 'Gemischt' : '',
+        'Ansprechpartner': projekt.dispoAnsprechpartner?.name || projekt.ansprechpartner || '',
+        'Telefon': projekt.dispoAnsprechpartner?.telefon || kunde?.kontakt?.telefon || '',
+        'Dispo-Notizen': notizen,
+      };
+    });
+
+    // Excel-Workbook erstellen
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelData);
+
+    // Spaltenbreiten anpassen
+    ws['!cols'] = [
+      { wch: 12 },  // AB-Nr.
+      { wch: 30 },  // Kundenname
+      { wch: 12 },  // Kundennummer
+      { wch: 25 },  // Straße
+      { wch: 8 },   // PLZ
+      { wch: 20 },  // Ort
+      { wch: 14 },  // Geplantes Datum
+      { wch: 14 },  // Komm. Datum
+      { wch: 12 },  // Dispo-Status
+      { wch: 18 },  // Belieferungsart
+      { wch: 10 },  // Gewicht
+      { wch: 10 },  // 0-2 lose
+      { wch: 10 },  // 0-3 lose
+      { wch: 12 },  // 0-2 gesackt
+      { wch: 12 },  // 0-3 gesackt
+      { wch: 10 },  // Palette
+      { wch: 10 },  // BigBag
+      { wch: 12 },  // Transport
+      { wch: 20 },  // Ansprechpartner
+      { wch: 15 },  // Telefon
+      { wch: 40 },  // Dispo-Notizen
+    ];
+
+    const kwLabel = filterKW !== null ? `KW${filterKW}` : 'Alle';
+    XLSX.utils.book_append_sheet(wb, ws, `Dispo ${kwLabel}`);
+
+    // Download
+    const heute = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Dispo_Planung_${kwLabel}_${heute}.xlsx`);
+  };
+
   // Inline-Update Handler für schnelle Bearbeitung in der Zeile
   const handleInlineUpdate = async (
     projektId: string,
@@ -928,6 +1034,15 @@ const DispoPlanung = () => {
                   <Package className="w-5 h-5 text-red-600" />
                   Aufträge ({gefilterteProjekte.length})
                 </h2>
+                <button
+                  onClick={exportDispoExcel}
+                  disabled={gefilterteProjekte.length === 0}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={filterKW !== null ? `Excel-Export KW ${filterKW}` : 'Excel-Export aller Aufträge'}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Excel-Export{filterKW !== null ? ` KW ${filterKW}` : ''}
+                </button>
               </div>
             </div>
 
