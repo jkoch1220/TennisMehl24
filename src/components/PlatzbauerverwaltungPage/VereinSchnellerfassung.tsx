@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, User, MapPin, Phone, Package, Loader2, Truck } from 'lucide-react';
+import { X, Plus, User, MapPin, Phone, Package, Loader2, Truck, Calendar } from 'lucide-react';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import { Belieferungsart } from '../../types/saisonplanung';
@@ -20,6 +20,7 @@ interface FormData {
   ansprechpartnerTelefon: string;
   tonnen: string;
   belieferungsart: Belieferungsart | '';
+  wunschLieferwoche: string;
 }
 
 // Belieferungsart-Optionen
@@ -46,6 +47,7 @@ const VereinSchnellerfassung = ({
     ansprechpartnerTelefon: '',
     tonnen: '',
     belieferungsart: 'mit_haenger', // Sinnvoller Default für Vereine
+    wunschLieferwoche: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +106,7 @@ const VereinSchnellerfassung = ({
         aktiv: true,
         tonnenLetztesJahr: formData.tonnen ? parseFloat(formData.tonnen) : undefined,
         belieferungsart: formData.belieferungsart || undefined,
+        wunschLieferwoche: formData.wunschLieferwoche ? parseInt(formData.wunschLieferwoche) : undefined,
         // Dispo-Ansprechpartner direkt setzen wenn angegeben
         dispoAnsprechpartner: formData.ansprechpartnerName ? {
           name: formData.ansprechpartnerName.trim(),
@@ -235,12 +238,12 @@ const VereinSchnellerfassung = ({
             </div>
           </div>
 
-          {/* Tonnen + Belieferungsart */}
+          {/* Tonnen + KW + Belieferungsart */}
           <div className="flex gap-4">
-            <div className="flex-1">
+            <div className="w-28">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 <Package className="w-4 h-4" />
-                Tonnen (ca.)
+                Tonnen
               </label>
               <div className="relative">
                 <input
@@ -254,6 +257,21 @@ const VereinSchnellerfassung = ({
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
               </div>
+            </div>
+            <div className="w-24">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <Calendar className="w-4 h-4" />
+                KW
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="53"
+                value={formData.wunschLieferwoche}
+                onChange={(e) => handleChange('wunschLieferwoche', e.target.value)}
+                placeholder="z.B. 12"
+                className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none"
+              />
             </div>
             <div className="flex-1">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
