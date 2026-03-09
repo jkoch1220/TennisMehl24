@@ -30,7 +30,8 @@ import {
   getFileDownloadUrl,
   speichereEntwurf,
   ladeEntwurf,
-  ladePositionenVonVorherigem
+  ladePositionenVonVorherigem,
+  ladeDatenVonStornoRechnung
 } from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
 import { formatAdresszeile } from '../../services/pdfHelpers';
@@ -926,6 +927,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       // Neues Formular vorbereiten
       const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
 
+      // WICHTIG: Lade Daten von der stornierten Rechnung (Positionen, Zahlungsbedingungen etc.)
+      const stornoDaten = await ladeDatenVonStornoRechnung(projekt.$id);
+
       // Lade aktuelle Kundendaten vom SaisonKunden
       const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
 
@@ -984,23 +988,34 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       }
 
       setRechnungsDaten(prev => ({
-        ...prev,
-        // RECHNUNGSADRESSE vom Kunden!
-        kundennummer: kunde?.kundennummer || projekt?.kundennummer || prev.kundennummer,
+        // WICHTIG: Erst alle Daten von der stornierten Rechnung übernehmen!
+        ...(stornoDaten || prev),
+        // RECHNUNGSADRESSE vom Kunden (aktuell)!
+        kundennummer: kunde?.kundennummer || projekt?.kundennummer || stornoDaten?.kundennummer || prev.kundennummer,
         kundenname,
         kundenstrasse,
         kundenPlzOrt,
-        ansprechpartner: projekt?.ansprechpartner || prev.ansprechpartner,
+        ansprechpartner: projekt?.ansprechpartner || stornoDaten?.ansprechpartner || prev.ansprechpartner,
         // Lieferadresse (falls abweichend)
         lieferadresseAbweichend,
         lieferadresseName,
         lieferadresseStrasse,
         lieferadressePlzOrt,
-        // Neue Rechnungsnummer und Datum
+        // NUR DIESE neu generieren - Rest bleibt von stornierter Rechnung!
         rechnungsnummer: neueNummer,
         rechnungsdatum: new Date().toISOString().split('T')[0],
-        leistungsdatum: new Date().toISOString().split('T')[0],
-        // Positionen bleiben (können übernommen werden)
+        leistungsdatum: stornoDaten?.leistungsdatum || new Date().toISOString().split('T')[0],
+        // Positionen von stornierter Rechnung übernehmen (KRITISCH!)
+        positionen: stornoDaten?.positionen || prev.positionen,
+        // Zahlungsbedingungen von stornierter Rechnung
+        zahlungsziel: stornoDaten?.zahlungsziel || prev.zahlungsziel,
+        skontoAktiviert: stornoDaten?.skontoAktiviert ?? prev.skontoAktiviert,
+        skonto: stornoDaten?.skonto || prev.skonto,
+        // Bemerkung (ohne alte Storno-Hinweise)
+        bemerkung: stornoDaten?.bemerkung?.replace(/^STORNORECHNUNG zu Rechnung.*?\n\n/s, '') || prev.bemerkung,
+        // Sonstige Daten
+        ohneMehrwertsteuer: stornoDaten?.ohneMehrwertsteuer ?? prev.ohneMehrwertsteuer,
+        mehrwertsteuersatz: stornoDaten?.mehrwertsteuersatz || prev.mehrwertsteuersatz,
       }));
 
       // Reset der States
@@ -1010,7 +1025,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
       setStatusMeldung({
         typ: 'erfolg',
-        text: `Neue Rechnungsnummer ${neueNummer} generiert. Rechnungsadresse wurde vom Kunden aktualisiert!`
+        text: stornoDaten
+          ? `Neue Rechnungsnummer ${neueNummer} generiert. Daten von stornierter Rechnung übernommen!`
+          : `Neue Rechnungsnummer ${neueNummer} generiert. Rechnungsadresse wurde vom Kunden aktualisiert!`
       });
 
     } catch (error) {

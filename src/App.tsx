@@ -1,4 +1,4 @@
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -8,63 +8,65 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'sonner';
+import lazyWithRetry from './utils/lazyWithRetry';
 
 // === LAZY LOADED KOMPONENTEN ===
-// Diese werden erst geladen wenn sie gebraucht werden (Code-Splitting)
+// Mit lazyWithRetry: Automatische Wiederholung bei Chunk-Fehlern (Code-Splitting)
 
 // Dashboard & Rechner
-const Dashboard = lazy(() => import('./components/Dashboard/Dashboard'));
-const SpeditionskostenRechner = lazy(() => import('./components/SpeditionskostenRechner'));
-const RabenRechner = lazy(() => import('./components/RabenRechner'));
-const FixkostenRechner = lazy(() => import('./components/FixkostenRechner'));
-const VariableKostenRechner = lazy(() => import('./components/VariableKostenRechner'));
+const Dashboard = lazyWithRetry(() => import('./components/Dashboard/Dashboard'));
+const SpeditionskostenRechner = lazyWithRetry(() => import('./components/SpeditionskostenRechner'));
+const RabenRechner = lazyWithRetry(() => import('./components/RabenRechner'));
+const FixkostenRechner = lazyWithRetry(() => import('./components/FixkostenRechner'));
+const VariableKostenRechner = lazyWithRetry(() => import('./components/VariableKostenRechner'));
 
 // Planung & Verwaltung (schwere Komponenten)
-const DispoPlanung = lazy(() => import('./components/DispoPlanung/DispoPlanung'));
-const Saisonplanung = lazy(() => import('./components/Saisonplanung/Saisonplanung'));
-const CallListePage = lazy(() => import('./pages/CallListePage'));
-const PlatzbauerverwaltungPage = lazy(() => import('./components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage'));
-const PlatzbauerProjektabwicklung = lazy(() => import('./components/PlatzbauerverwaltungPage/PlatzbauerProjektabwicklung'));
+const DispoPlanung = lazyWithRetry(() => import('./components/DispoPlanung/DispoPlanung'));
+const Saisonplanung = lazyWithRetry(() => import('./components/Saisonplanung/Saisonplanung'));
+const CallListePage = lazyWithRetry(() => import('./pages/CallListePage'));
+const PlatzbauerverwaltungPage = lazyWithRetry(() => import('./components/PlatzbauerverwaltungPage/PlatzbauerverwaltungPage'));
+const PlatzbauerProjektabwicklung = lazyWithRetry(() => import('./components/PlatzbauerverwaltungPage/PlatzbauerProjektabwicklung'));
 
 // Kreditoren & Debitoren
-const KreditorenVerwaltung = lazy(() => import('./components/KreditorenVerwaltung/KreditorenVerwaltung'));
-const DebitorenVerwaltung = lazy(() => import('./components/DebitorenVerwaltung/DebitorenVerwaltung'));
+const KreditorenVerwaltung = lazyWithRetry(() => import('./components/KreditorenVerwaltung/KreditorenVerwaltung'));
+const DebitorenVerwaltung = lazyWithRetry(() => import('./components/DebitorenVerwaltung/DebitorenVerwaltung'));
 
 // Karten (Leaflet - schwere Dependency)
-const KonkurrentenVerwaltung = lazy(() => import('./components/KonkurrentenKarte/KonkurrentenVerwaltung'));
-const KundenKarte = lazy(() => import('./pages/KundenKarte'));
+const KonkurrentenVerwaltung = lazyWithRetry(() => import('./components/KonkurrentenKarte/KonkurrentenVerwaltung'));
+const KundenKarte = lazyWithRetry(() => import('./pages/KundenKarte'));
 
 // Projekt-Module
-const Projektabwicklung = lazy(() => import('./components/Projektabwicklung/Projektabwicklung'));
-const ProjektVerwaltung = lazy(() => import('./components/ProjektVerwaltung/ProjektVerwaltung'));
+const Projektabwicklung = lazyWithRetry(() => import('./components/Projektabwicklung/Projektabwicklung'));
+const ProjektVerwaltung = lazyWithRetry(() => import('./components/ProjektVerwaltung/ProjektVerwaltung'));
 
 // Stammdaten & Anfragen
-const Stammdaten = lazy(() => import('./components/Stammdaten/Stammdaten'));
-const Anfragen = lazy(() => import('./components/Anfragen/Anfragen'));
+const Stammdaten = lazyWithRetry(() => import('./components/Stammdaten/Stammdaten'));
+const Anfragen = lazyWithRetry(() => import('./components/Anfragen/Anfragen'));
 
 // Weitere Tools
-const VorschlaegeNeu = lazy(() => import('./components/Tickets/VorschlaegeNeu'));
-const Todos = lazy(() => import('./components/Todos/Todos'));
-const Wiki = lazy(() => import('./components/Wiki/Wiki'));
-const Kalender = lazy(() => import('./components/Kalender/Kalender'));
-const ExcelImport = lazy(() => import('./components/ExcelImport/ExcelImport'));
-const Newsletter = lazy(() => import('./components/Newsletter/Newsletter'));
-const Qualitaetssicherung = lazy(() => import('./components/Qualitaetssicherung/Qualitaetssicherung'));
-const PrivatKreditorenAuswahl = lazy(() => import('./components/PrivatKreditoren/PrivatKreditorenAuswahl'));
-const Fahrkostenabrechnung = lazy(() => import('./components/Fahrkostenabrechnung/Fahrkostenabrechnung'));
-const LogistikpartnerVerwaltung = lazy(() => import('./components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung'));
-const EmailDashboard = lazy(() => import('./components/EmailDashboard/EmailDashboard'));
-const Instandhaltung = lazy(() => import('./components/Instandhaltung/Instandhaltung'));
-const Schichtplanung = lazy(() => import('./components/Schichtplanung/Schichtplanung'));
-const ProduktionsTracker = lazy(() => import('./components/ProduktionsTracker/ProduktionsTracker'));
+const VorschlaegeNeu = lazyWithRetry(() => import('./components/Tickets/VorschlaegeNeu'));
+const Todos = lazyWithRetry(() => import('./components/Todos/Todos'));
+const Wiki = lazyWithRetry(() => import('./components/Wiki/Wiki'));
+const Kalender = lazyWithRetry(() => import('./components/Kalender/Kalender'));
+const ExcelImport = lazyWithRetry(() => import('./components/ExcelImport/ExcelImport'));
+const Newsletter = lazyWithRetry(() => import('./components/Newsletter/Newsletter'));
+const Qualitaetssicherung = lazyWithRetry(() => import('./components/Qualitaetssicherung/Qualitaetssicherung'));
+const PrivatKreditorenAuswahl = lazyWithRetry(() => import('./components/PrivatKreditoren/PrivatKreditorenAuswahl'));
+const Fahrkostenabrechnung = lazyWithRetry(() => import('./components/Fahrkostenabrechnung/Fahrkostenabrechnung'));
+const LogistikpartnerVerwaltung = lazyWithRetry(() => import('./components/LogistikpartnerVerwaltung/LogistikpartnerVerwaltung'));
+const EmailDashboard = lazyWithRetry(() => import('./components/EmailDashboard/EmailDashboard'));
+const Instandhaltung = lazyWithRetry(() => import('./components/Instandhaltung/Instandhaltung'));
+const Schichtplanung = lazyWithRetry(() => import('./components/Schichtplanung/Schichtplanung'));
+const ProduktionsTracker = lazyWithRetry(() => import('./components/ProduktionsTracker/ProduktionsTracker'));
 
 // Shop Bestellungen
-const ShopBestellungen = lazy(() => import('./components/ShopBestellungen/ShopBestellungen'));
+const ShopBestellungen = lazyWithRetry(() => import('./components/ShopBestellungen/ShopBestellungen'));
 
 // Öffentliche Seiten
-const PublicProduktion = lazy(() => import('./components/PublicProduktion/PublicProduktion'));
-const Unsubscribe = lazy(() => import('./pages/Unsubscribe'));
+const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
+const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -304,34 +306,37 @@ function AppContent() {
 }
 
 // Main App mit Theme und Auth Provider
+// ErrorBoundary umschließt alles um Render-Fehler abzufangen
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Toaster
-          position="top-right"
-          richColors
-          toastOptions={{
-            className: 'dark:bg-gray-800 dark:text-white dark:border-gray-700',
-          }}
-        />
-        <OfflineBanner />
-        <Router>
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              {/* ÖFFENTLICHE Route für Newsletter-Abmeldung (ohne Login!) */}
-              <Route path="/abmelden/:token" element={<Unsubscribe />} />
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <Toaster
+            position="top-right"
+            richColors
+            toastOptions={{
+              className: 'dark:bg-gray-800 dark:text-white dark:border-gray-700',
+            }}
+          />
+          <OfflineBanner />
+          <Router>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* ÖFFENTLICHE Route für Newsletter-Abmeldung (ohne Login!) */}
+                <Route path="/abmelden/:token" element={<Unsubscribe />} />
 
-              {/* ÖFFENTLICHE Route für Produktions-Erfassung (mit einfachem Passwort) */}
-              <Route path="/produktion-erfassen" element={<PublicProduktion />} />
+                {/* ÖFFENTLICHE Route für Produktions-Erfassung (mit einfachem Passwort) */}
+                <Route path="/produktion-erfassen" element={<PublicProduktion />} />
 
-              {/* Alle anderen Routes benötigen Authentifizierung */}
-              <Route path="/*" element={<AppContent />} />
-            </Routes>
-          </Suspense>
-        </Router>
-      </AuthProvider>
-    </ThemeProvider>
+                {/* Alle anderen Routes benötigen Authentifizierung */}
+                <Route path="/*" element={<AppContent />} />
+              </Routes>
+            </Suspense>
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

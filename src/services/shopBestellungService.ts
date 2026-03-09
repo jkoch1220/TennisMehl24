@@ -5,7 +5,7 @@
  */
 
 import { BACKEND_CONFIG, backendFetch } from '../config/backend';
-import { databases, DATABASE_ID, UNIVERSA_ARTIKEL_COLLECTION_ID } from '../config/appwrite';
+import { databases, DATABASE_ID, UNIVERSA_ARTIKEL_COLLECTION_ID, COLLECTIONS } from '../config/appwrite';
 import { Query, ID } from 'appwrite';
 import { UniversalArtikel } from '../types/universaArtikel';
 import { Projekt, NeuesProjekt } from '../types/projekt';
@@ -412,6 +412,65 @@ class ShopBestellungService {
   }
 
   // ============================================
+  // PROJEKT-VERKNÜPFUNG
+  // ============================================
+
+  /**
+   * Prüft ob bereits Projekte für eine Shop-Bestellung existieren
+   * Sucht nach auftragsbestaetigungsnummer = SHOP-{bestellnummer}
+   */
+  async getExistierendeProjekte(bestellnummer: string): Promise<{ universal: Projekt | null; eigen: Projekt | null }> {
+    try {
+      // Suche nach Universal-Projekt (SHOP-{nr}-U) und Eigenem Projekt (SHOP-{nr}-E)
+      // Fallback: Alte Projekte ohne Suffix (SHOP-{nr})
+      const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
+        Query.or([
+          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}`),
+          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}-U`),
+          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}-E`),
+        ]),
+        Query.limit(10),
+      ]);
+
+      let universal: Projekt | null = null;
+      let eigen: Projekt | null = null;
+
+      for (const doc of response.documents) {
+        const projekt = doc as unknown as Projekt;
+        const abNr = projekt.auftragsbestaetigungsnummer || '';
+
+        if (abNr.endsWith('-U')) {
+          universal = projekt;
+        } else if (abNr.endsWith('-E')) {
+          eigen = projekt;
+        } else {
+          // Alte Projekte ohne Suffix: Prüfe anhand der Positionen
+          try {
+            const abDaten = JSON.parse(projekt.auftragsbestaetigungsDaten || '{}');
+            const positionen = abDaten.positionen || [];
+            const hatUniversal = positionen.some((p: Position) =>
+              p.istUniversalArtikel || p.beschreibung?.startsWith('Universal:')
+            );
+            if (hatUniversal) {
+              universal = projekt;
+            } else {
+              eigen = projekt;
+            }
+          } catch {
+            // Bei Parse-Fehler als eigen behandeln
+            eigen = projekt;
+          }
+        }
+      }
+
+      return { universal, eigen };
+    } catch (error) {
+      console.error('Fehler beim Suchen existierender Projekte:', error);
+      return { universal: null, eigen: null };
+    }
+  }
+
+  // ============================================
   // PROJEKT-ERSTELLUNG
   // ============================================
 
@@ -467,9 +526,14 @@ class ShopBestellungService {
       };
     });
 
+    // Suffix für Unterscheidung: -U für Universal, -E für Eigen
+    const typSuffix = typ === 'universal' ? '-U' : '-E';
+    const typLabel = typ === 'universal' ? 'Universal' : 'Eigen';
+    const abNummer = `SHOP-${bestellung.bestellnummer}${typSuffix}`;
+
     // Erstelle AB-Daten (partielle Daten, wird beim Öffnen der Projektabwicklung vervollständigt)
     const abDaten: Partial<AuftragsbestaetigungsDaten> = {
-      auftragsbestaetigungsnummer: `SHOP-${bestellung.bestellnummer}`,
+      auftragsbestaetigungsnummer: abNummer,
       auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
       positionen: projektPositionen,
       zahlungsziel: bestellung.zahlungsmethode,
@@ -481,8 +545,8 @@ class ShopBestellungService {
 
     // Erstelle Projekt
     const neuesProjekt: NeuesProjekt = {
-      projektName: `Shop #${bestellung.bestellnummer}`,
-      kundeId: `shop-${bestellung.bestellnummer}`, // Pseudo-ID für Shop-Kunden
+      projektName: `Shop #${bestellung.bestellnummer} (${typLabel})`,
+      kundeId: `shop-${bestellung.bestellnummer}-${typ}`, // Unique pro Typ
       kundennummer: bestellung.kundennummer || '',
       kundenname: lieferadresse.firma || lieferadresse.name,
       kundenstrasse: lieferadresse.strasse,
@@ -496,7 +560,7 @@ class ShopBestellungService {
       },
       saisonjahr: new Date().getFullYear(),
       status: 'auftragsbestaetigung', // Direkt auf AB, da Kunde bereits bestellt hat
-      auftragsbestaetigungsnummer: `SHOP-${bestellung.bestellnummer}`,
+      auftragsbestaetigungsnummer: abNummer,
       auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
       auftragsbestaetigungsDaten: JSON.stringify(abDaten),
       notizen: `Aus Shop-Bestellung #${bestellung.bestellnummer} erstellt.\n` +

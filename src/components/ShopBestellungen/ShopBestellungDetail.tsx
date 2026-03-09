@@ -19,6 +19,7 @@ import {
   FolderPlus,
   RefreshCw,
   Mail,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -35,6 +36,7 @@ import {
   shopBestellungService,
 } from '../../services/shopBestellungService';
 import { UniversalArtikel } from '../../types/universaArtikel';
+import { Projekt } from '../../types/projekt';
 import AktivitaetsTimeline from './AktivitaetsTimeline';
 
 interface ShopBestellungDetailProps {
@@ -67,6 +69,12 @@ const ShopBestellungDetail = ({
   const [eigenePositionen, setEigenePositionen] = useState<ShopPosition[]>([]);
   const [universalArtikelMap, setUniversalArtikelMap] = useState<Map<string, UniversalArtikel | null>>(new Map());
 
+  // Existierende Projekte (Duplikat-Schutz)
+  const [existierendeProjekte, setExistierendeProjekte] = useState<{ universal: Projekt | null; eigen: Projekt | null }>({
+    universal: null,
+    eigen: null,
+  });
+
   const statusInfo = getStatusInfo(bestellung.status);
   const lieferadresse = parseAdresse(bestellung.lieferadresse);
   const rechnungsadresse = parseAdresse(bestellung.rechnungsadresse);
@@ -91,15 +99,21 @@ const ShopBestellungDetail = ({
     }
   };
 
-  // Analysiere Artikel beim Laden
+  // Analysiere Artikel und prüfe existierende Projekte beim Laden
   useEffect(() => {
     const analysiere = async () => {
       setAnalysing(true);
       try {
-        const analyse = await shopBestellungService.analysiereBestellung(bestellung);
+        // Parallel: Artikel analysieren + existierende Projekte prüfen
+        const [analyse, projekte] = await Promise.all([
+          shopBestellungService.analysiereBestellung(bestellung),
+          shopBestellungService.getExistierendeProjekte(bestellung.bestellnummer),
+        ]);
+
         setUniversalPositionen(analyse.universalPositionen);
         setEigenePositionen(analyse.eigenePositionen);
         setUniversalArtikelMap(analyse.universalArtikelMap);
+        setExistierendeProjekte(projekte);
       } catch (error) {
         console.error('Analyse-Fehler:', error);
       } finally {
@@ -336,36 +350,56 @@ const ShopBestellungDetail = ({
               </div>
             ) : (
               <div className="flex flex-wrap gap-3">
-                {/* Universal-Artikel Button */}
+                {/* Universal-Artikel: Projekt existiert oder neu erstellen */}
                 {universalPositionen.length > 0 && (
-                  <button
-                    onClick={() => handleProjektErstellen('universal')}
-                    disabled={creatingProjekt}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {creatingProjekt ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Package className="w-4 h-4" />
-                    )}
-                    Universal-Projekt ({universalPositionen.length} Artikel)
-                  </button>
+                  existierendeProjekte.universal ? (
+                    <button
+                      onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.universal!.id || existierendeProjekte.universal!.$id}`)}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Universal-Projekt öffnen
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleProjektErstellen('universal')}
+                      disabled={creatingProjekt}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {creatingProjekt ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Package className="w-4 h-4" />
+                      )}
+                      Universal-Projekt erstellen ({universalPositionen.length})
+                    </button>
+                  )
                 )}
 
-                {/* Eigene Produkte Button */}
+                {/* Eigene Produkte: Projekt existiert oder neu erstellen */}
                 {eigenePositionen.length > 0 && (
-                  <button
-                    onClick={() => handleProjektErstellen('eigen')}
-                    disabled={creatingProjekt}
-                    className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {creatingProjekt ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Truck className="w-4 h-4" />
-                    )}
-                    Eigenes Projekt ({eigenePositionen.length} Artikel)
-                  </button>
+                  existierendeProjekte.eigen ? (
+                    <button
+                      onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.eigen!.id || existierendeProjekte.eigen!.$id}`)}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Eigenes Projekt öffnen
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleProjektErstellen('eigen')}
+                      disabled={creatingProjekt}
+                      className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {creatingProjekt ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Truck className="w-4 h-4" />
+                      )}
+                      Eigenes Projekt erstellen ({eigenePositionen.length})
+                    </button>
+                  )
                 )}
 
                 {universalPositionen.length === 0 && eigenePositionen.length === 0 && (

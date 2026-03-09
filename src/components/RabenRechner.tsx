@@ -33,7 +33,6 @@ const RabenRechner = () => {
   const [showDieselfloater, setShowDieselfloater] = useState(false);
   const [showAbholtarif, setShowAbholtarif] = useState(false);
   const [ausgewaehlteNebengebuehren, setAusgewaehlteNebengebuehren] = useState<Set<string>>(new Set());
-  const [gewichtModus, setGewichtModus] = useState<'paletten' | 'manuell'>('paletten');
 
   // Refs
   const dieselTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -102,16 +101,30 @@ const RabenRechner = () => {
   const dieselzuschlagProzent = useMemo(() => berechneRabenDieselzuschlag(dieselPreisCent), [dieselPreisCent]);
   const dieselDifferenz = useMemo(() => ((dieselPreisCent - RABEN_DIESEL_BASIS_CENT) / RABEN_DIESEL_BASIS_CENT * 100), [dieselPreisCent]);
 
-  // Handler
-  const handlePalettenChange = useCallback((val: number) => {
-    setPaletten(val);
-    if (gewichtModus === 'paletten') setGewichtKg(val * 1000);
-  }, [gewichtModus]);
+  // Paletten als abgeleiteter Wert (read-only)
+  const palettenBerechnet = useMemo(() => Math.ceil(gewichtKg / 1000), [gewichtKg]);
 
+  // Handler für Gewicht (Master) - KEIN Clamping während Eingabe
   const handleGewichtChange = useCallback((val: number) => {
+    // Erlaube jeden Wert während der Eingabe (auch < 100)
     setGewichtKg(val);
-    if (gewichtModus === 'paletten') setPaletten(Math.ceil(val / 1000));
-  }, [gewichtModus]);
+    setPaletten(Math.ceil(Math.max(val, 1) / 1000));
+  }, []);
+
+  // Clamping erst beim Verlassen des Feldes
+  const handleGewichtBlur = useCallback(() => {
+    setGewichtKg(prev => {
+      const clamped = Math.max(100, Math.min(24000, prev || 100));
+      setPaletten(Math.ceil(clamped / 1000));
+      return clamped;
+    });
+  }, []);
+
+  // Quick-Set für Gewicht
+  const setGewichtQuick = useCallback((kg: number) => {
+    setGewichtKg(kg);
+    setPaletten(Math.ceil(kg / 1000));
+  }, []);
 
   const handlePLZChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setZielPLZ(e.target.value.replace(/\D/g, '').slice(0, 5));
@@ -130,7 +143,6 @@ const RabenRechner = () => {
     setGewichtKg(1000);
     setZielPLZ('');
     setAusgewaehlteNebengebuehren(new Set());
-    setGewichtModus('paletten');
   }, []);
 
   // ============================================================================
@@ -193,101 +205,86 @@ const RabenRechner = () => {
               )}
             </div>
 
-            {/* Paletten & Gewicht */}
+            {/* Sendungsgewicht - Vereinfachtes Design */}
             <div className="bg-white dark:bg-slate-800/80 rounded-2xl p-5 shadow-sm border border-slate-200/80 dark:border-slate-700/60 backdrop-blur-xl">
-              {/* Modus Toggle */}
-              <div className="flex items-center gap-2 mb-4">
-                <button
-                  onClick={() => { setGewichtModus('paletten'); setGewichtKg(paletten * 1000); }}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                    gewichtModus === 'paletten'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  <Package className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                  Nach Paletten
-                </button>
-                <button
-                  onClick={() => setGewichtModus('manuell')}
-                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-                    gewichtModus === 'manuell'
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  <Truck className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                  Manuelles Gewicht
-                </button>
+              {/* Header */}
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">
+                <Package className="w-4 h-4 text-blue-600" />
+                Sendungsgewicht
+              </label>
+
+              {/* Haupteingabe: Gewicht in kg (Master) */}
+              <div className="relative">
+                <input
+                  type="number"
+                  value={gewichtKg || ''}
+                  onChange={(e) => handleGewichtChange(parseInt(e.target.value) || 0)}
+                  onBlur={handleGewichtBlur}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  step={10}
+                  min={100}
+                  max={24000}
+                  placeholder="0"
+                  className="w-full px-6 py-4 text-3xl font-bold text-center bg-slate-50 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:focus:ring-blue-500/20 outline-none transition-all dark:text-white placeholder:text-slate-300"
+                />
+                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-xl font-medium text-slate-400 pointer-events-none">
+                  kg
+                </span>
               </div>
 
-              {gewichtModus === 'paletten' ? (
-                <>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
-                    Anzahl Paletten
-                  </label>
-                  {/* Palette Stepper */}
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <button
-                        key={n}
-                        onClick={() => handlePalettenChange(n)}
-                        className={`flex-1 py-3 rounded-xl text-lg font-bold transition-all ${
-                          paletten === n
-                            ? 'bg-gradient-to-b from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:scale-102'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    = {gewichtKg.toLocaleString('de-DE')} kg ({(gewichtKg / 1000).toFixed(1)} t) &middot; je 1.000 kg/Palette
-                  </p>
-
-                  {/* Ab 6 Paletten: Manuell */}
+              {/* Quick-Set Buttons */}
+              <div className="flex items-center gap-2 mt-4">
+                {[
+                  { kg: 500, label: '500kg' },
+                  { kg: 1000, label: '1t' },
+                  { kg: 1500, label: '1,5t' },
+                  { kg: 2000, label: '2t' },
+                  { kg: 2500, label: '2,5t' },
+                ].map(({ kg, label }) => (
                   <button
-                    onClick={() => { setGewichtModus('manuell'); setPaletten(6); setGewichtKg(6000); }}
-                    className="mt-3 w-full py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    key={kg}
+                    onClick={() => setGewichtQuick(kg)}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                      gewichtKg === kg
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    }`}
                   >
-                    Mehr als 5 Paletten? Wechsel zum manuellen Modus (6t-24t)
+                    {label}
                   </button>
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        Paletten
-                      </label>
-                      <NumberInput
-                        value={paletten}
-                        onChange={(v) => { setPaletten(Math.max(1, Math.round(v))); }}
-                        className="w-full px-4 py-3 text-lg font-medium bg-slate-50 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 outline-none transition-all dark:text-white"
-                        step={1}
-                        min={1}
-                        max={24}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        Gewicht (kg)
-                      </label>
-                      <NumberInput
-                        value={gewichtKg}
-                        onChange={handleGewichtChange}
-                        className="w-full px-4 py-3 text-lg font-medium bg-slate-50 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 outline-none transition-all dark:text-white"
-                        step={100}
-                        min={100}
-                        max={24000}
-                      />
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {(gewichtKg / 1000).toFixed(1)} Tonnen &middot; Tarif: {gewichtKg <= 5000 ? 'bis 5t (Zonen)' : 'ab 5t (PLZ-basiert)'}
-                  </p>
-                </>
+                ))}
+              </div>
+
+              {/* Berechnete Werte (read-only) */}
+              <div className="mt-4 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-4">
+                  {/* Paletten (abgeleitet) */}
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-lg font-medium">
+                    <Package className="w-4 h-4" />
+                    = {palettenBerechnet} {palettenBerechnet === 1 ? 'Palette' : 'Paletten'}
+                  </span>
+
+                  {/* Tonnage */}
+                  <span className="tabular-nums font-medium">
+                    {(gewichtKg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} t
+                  </span>
+                </div>
+
+                {/* Tarif-Indikator */}
+                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                  gewichtKg <= 5000
+                    ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                    : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                }`}>
+                  {gewichtKg <= 5000 ? 'Zonen-Tarif' : 'PLZ-Tarif (ab 5t)'}
+                </span>
+              </div>
+
+              {/* Hinweis für große Sendungen */}
+              {gewichtKg > 5000 && (
+                <p className="mt-3 text-xs text-blue-600 dark:text-blue-400">
+                  Ab 5 Tonnen gilt der PLZ-basierte Tarif mit Staffelpreisen.
+                </p>
               )}
             </div>
 

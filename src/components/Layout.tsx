@@ -10,6 +10,7 @@ import UserManagement from './Settings/UserManagement';
 import ThemeToggle from './ThemeToggle';
 import GlobalChatDropdown from './Shared/GlobalChatDropdown';
 import { useShopBestellungenRealtime } from '../hooks/useShopBestellungenRealtime';
+import GlobalSearch from './GlobalSearch';
 
 // Erinnerungs-Einstellungen Typ
 interface ReminderSettings {
@@ -356,88 +357,11 @@ const Layout = ({ children }: LayoutProps) => {
                   <Search className="w-[18px] h-[18px]" />
                 </button>
 
-                {/* Search Modal */}
-                {globalSearchOpen && (
-                  <>
-                    <div className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40" onClick={() => { setGlobalSearchOpen(false); setGlobalSearchQuery(''); }} />
-                    <div className="fixed left-1/2 top-[20%] -translate-x-1/2 w-full max-w-[680px] bg-white dark:bg-[#2d2d2f] rounded-2xl shadow-2xl z-50 overflow-hidden">
-                      <div className="flex items-center gap-3 px-5 border-b border-black/5 dark:border-white/10">
-                        <Search className="w-5 h-5 text-[#86868b]" />
-                        <input
-                          ref={globalSearchInputRef}
-                          type="text"
-                          value={globalSearchQuery}
-                          onChange={(e) => setGlobalSearchQuery(e.target.value)}
-                          onKeyDown={handleGlobalSearchKeyDown}
-                          placeholder="Suchen"
-                          className="flex-1 py-4 text-[17px] bg-transparent text-[#1d1d1f] dark:text-white placeholder-[#86868b] focus:outline-none"
-                          autoFocus
-                        />
-                        {globalSearchQuery && (
-                          <button onClick={() => setGlobalSearchQuery('')} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full">
-                            <X className="w-4 h-4 text-[#86868b]" />
-                          </button>
-                        )}
-                        <kbd className="text-[11px] text-[#86868b] bg-[#f5f5f7] dark:bg-[#3d3d3f] px-2 py-1 rounded">esc</kbd>
-                      </div>
-
-                      {globalSearchQuery.trim() && (
-                        <div className="max-h-[400px] overflow-y-auto">
-                          {allSearchResults.length > 0 ? (
-                            <div className="py-2">
-                              {allSearchResults.map((item, index) => {
-                                const Icon = item.icon;
-                                const isActive = location.pathname === item.href;
-                                const isSelected = index === globalSearchIndex;
-                                return (
-                                  <Link
-                                    key={item.id}
-                                    ref={isSelected ? globalSearchResultRef : null}
-                                    to={item.href}
-                                    onClick={() => { setGlobalSearchOpen(false); setGlobalSearchQuery(''); }}
-                                    onMouseEnter={() => setGlobalSearchIndex(index)}
-                                    className={`flex items-center gap-4 px-5 py-3 transition-colors ${
-                                      isSelected ? 'bg-[#0071e3] text-white' : 'hover:bg-black/5 dark:hover:bg-white/5'
-                                    }`}
-                                  >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                      isSelected ? 'bg-white/20' : 'bg-[#f5f5f7] dark:bg-[#3d3d3f]'
-                                    }`}>
-                                      <Icon className="w-4 h-4" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className={`text-[15px] font-medium ${isSelected ? '' : 'text-[#1d1d1f] dark:text-white'}`}>
-                                        {item.name}
-                                      </div>
-                                      {(item as any).description && (
-                                        <div className={`text-[13px] truncate ${isSelected ? 'text-white/70' : 'text-[#86868b]'}`}>
-                                          {(item as any).description}
-                                        </div>
-                                      )}
-                                    </div>
-                                    {isActive && !isSelected && (
-                                      <div className="w-2 h-2 rounded-full bg-[#0071e3]" />
-                                    )}
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="py-12 text-center">
-                              <p className="text-[15px] text-[#86868b]">Keine Ergebnisse für „{globalSearchQuery}"</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {!globalSearchQuery.trim() && (
-                        <div className="py-8 text-center">
-                          <p className="text-[13px] text-[#86868b]">Tippe, um Tools zu suchen</p>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                {/* Globale Suche Modal (Spotlight-Style) */}
+                <GlobalSearch
+                  isOpen={globalSearchOpen}
+                  onClose={() => setGlobalSearchOpen(false)}
+                />
               </div>
 
               {/* Global Chat */}

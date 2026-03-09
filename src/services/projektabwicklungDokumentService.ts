@@ -1008,6 +1008,51 @@ export const speichereStornoRechnung = async (
   }
 };
 
+/**
+ * Lädt die Daten der zuletzt stornierten Rechnung für eine neue Rechnung.
+ * Alle Daten werden zurückgegeben (Positionen, Adressen, Zahlungsbedingungen),
+ * damit eine neue Rechnung als Klon erstellt werden kann.
+ *
+ * @param projektId - Die Projekt-ID
+ * @returns Die Rechnungsdaten der stornierten Rechnung oder null
+ */
+export const ladeDatenVonStornoRechnung = async (
+  projektId: string
+): Promise<RechnungsDaten | null> => {
+  try {
+    // Lade alle Rechnungen des Projekts, sortiert nach Erstelldatum absteigend
+    const dokumente = await databases.listDocuments(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      [
+        Query.equal('projektId', projektId),
+        Query.equal('dokumentTyp', 'rechnung'),
+        Query.equal('rechnungsStatus', 'storniert'),
+        Query.orderDesc('$createdAt'),
+        Query.limit(1)
+      ]
+    );
+
+    if (dokumente.documents.length === 0) {
+      return null;
+    }
+
+    const stornierteRechnung = dokumente.documents[0] as unknown as GespeichertesDokument;
+    const daten = ladeDokumentDaten<RechnungsDaten>(stornierteRechnung);
+
+    if (!daten) {
+      return null;
+    }
+
+    // Positionen mit positiven Werten zurückgeben (Storno-Rechnung hat negative)
+    // Die ORIGINAL-Rechnung (die storniert wurde) hat bereits positive Werte
+    return daten;
+  } catch (error) {
+    console.error('Fehler beim Laden der stornierten Rechnungsdaten:', error);
+    return null;
+  }
+};
+
 // Storno-Rechnung PDF generieren
 const generiereStornoRechnungPDF = async (daten: StornoRechnungsDaten): Promise<jsPDF> => {
   // Wir verwenden das normale Rechnungs-PDF, aber mit Storno-Kennzeichnung
@@ -1416,7 +1461,7 @@ function konvertierePositionen(
       }));
     }
     
-    // Quelle ist bereits Position, einfach kopieren
+    // Quelle ist bereits Position, ALLE Felder kopieren
     return (quellPositionen as Position[]).map((pos: Position) => ({
       id: pos.id,
       artikelnummer: pos.artikelnummer,
@@ -1425,8 +1470,12 @@ function konvertierePositionen(
       menge: pos.menge,
       einheit: pos.einheit,
       einzelpreis: pos.einzelpreis,
+      einkaufspreis: pos.einkaufspreis,           // Für DB1-Berechnung
       streichpreis: pos.streichpreis,
+      streichpreisGrund: pos.streichpreisGrund,   // Rabatt-Grund
       gesamtpreis: pos.gesamtpreis,
+      istBedarfsposition: pos.istBedarfsposition, // Bedarfspositionen-Flag
+      istUniversalArtikel: pos.istUniversalArtikel, // Universal-Artikel Flag
     }));
   }
 }

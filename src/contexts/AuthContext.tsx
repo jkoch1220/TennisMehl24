@@ -3,6 +3,30 @@ import { User, login as loginService, logout as logoutService, checkSession, isA
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
 
+// Auth-Initialisierung Timeout (5 Sekunden)
+const AUTH_INIT_TIMEOUT = 5000;
+
+/**
+ * Wrapper für Promises mit Timeout.
+ * Wenn das Promise nicht innerhalb des Timeouts resolved, wird mit Timeout-Fehler rejected.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string = 'Operation timed out'
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise])
+    .finally(() => clearTimeout(timeoutId));
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -45,11 +69,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Session beim Start prüfen
+  // Session beim Start prüfen (mit Timeout um Hängen zu verhindern)
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const currentUser = await checkSession();
+        // Session-Check mit 5 Sekunden Timeout
+        const currentUser = await withTimeout(
+          checkSession(),
+          AUTH_INIT_TIMEOUT,
+          'Session-Check Timeout'
+        );
         setUser(currentUser);
         // User im Cache speichern für Benutzerverwaltung
         if (currentUser) {
@@ -59,13 +88,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             email: currentUser.email,
             labels: currentUser.labels,
           });
-          // Permissions laden
-          await loadPermissionsForUser(currentUser);
+          // Permissions laden (auch mit Timeout, aber Fehler erlauben)
+          try {
+            await withTimeout(
+              loadPermissionsForUser(currentUser),
+              AUTH_INIT_TIMEOUT,
+              'Permissions-Load Timeout'
+            );
+          } catch (permError) {
+            // Bei Permission-Timeout: User ist eingeloggt, Permissions werden später geladen
+            console.warn('⚠️ Permissions konnten nicht geladen werden:', permError);
+            setPermissionsLoading(false);
+          }
         } else {
           setPermissionsLoading(false);
         }
       } catch (error) {
-        console.error('❌ Fehler beim Prüfen der Session:', error);
+        // Timeout oder andere Fehler: Als nicht eingeloggt behandeln
+        if ((error as Error)?.message?.includes('Timeout')) {
+          console.warn('⚠️ Auth-Initialisierung Timeout - behandle als nicht eingeloggt');
+        } else {
+          console.error('❌ Fehler beim Prüfen der Session:', error);
+        }
+        setUser(null);
         setPermissionsLoading(false);
       } finally {
         setLoading(false);
