@@ -87,12 +87,13 @@ const getStatusConfig = (status: ProjektStatus) => {
 type GroupBy = 'none' | 'lieferdatum' | 'status' | 'kunde' | 'kanban';
 
 // Kanban-Status für Universal-Workflow
-type UniversalKanbanStatus = 'offen' | 'versendet' | 'an_kunden' | 'bezahlt';
+type UniversalKanbanStatus = 'offen' | 'versendet' | 'an_kunden' | 'rechnungsstellung' | 'bezahlt';
 
 const KANBAN_COLUMNS: { status: UniversalKanbanStatus; label: string; color: string; bgColor: string }[] = [
   { status: 'offen', label: 'Offen', color: 'text-orange-700 dark:text-orange-300', bgColor: 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700' },
   { status: 'versendet', label: 'An Universal gesendet', color: 'text-blue-700 dark:text-blue-300', bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700' },
-  { status: 'an_kunden', label: 'An Kunden verschickt', color: 'text-purple-700 dark:text-purple-300', bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700' },
+  { status: 'an_kunden', label: 'An Kunden verschickt', color: 'text-amber-700 dark:text-amber-300', bgColor: 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700' },
+  { status: 'rechnungsstellung', label: 'Rechnungsstellung', color: 'text-purple-700 dark:text-purple-300', bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700' },
   { status: 'bezahlt', label: 'Bezahlt', color: 'text-green-700 dark:text-green-300', bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' },
 ];
 
@@ -140,13 +141,19 @@ interface EmailVorschauDaten {
 // NUR basierend auf Projekt-Status - ermöglicht manuelles Verschieben
 const getKanbanStatus = (
   projektStatus: string,
-  _hatEmailStatus: boolean // Nicht mehr verwendet, nur für Signatur-Kompatibilität
+  universalKanbanStatus?: string // Expliziter Kanban-Status für Universal-Workflow
 ): UniversalKanbanStatus => {
+  // Wenn expliziter Universal-Kanban-Status gesetzt ist, diesen verwenden
+  if (universalKanbanStatus && ['offen', 'versendet', 'an_kunden', 'rechnungsstellung', 'bezahlt'].includes(universalKanbanStatus)) {
+    return universalKanbanStatus as UniversalKanbanStatus;
+  }
+
+  // Fallback auf Projekt-Status Mapping
   switch (projektStatus) {
     case 'bezahlt':
       return 'bezahlt';
     case 'rechnung':
-      return 'an_kunden';
+      return 'rechnungsstellung';
     case 'lieferschein':
       return 'versendet';
     default:
@@ -201,7 +208,8 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     switch (kanbanStatus) {
       case 'offen': return 'auftragsbestaetigung';
       case 'versendet': return 'lieferschein';
-      case 'an_kunden': return 'rechnung';
+      case 'an_kunden': return 'lieferschein'; // Gleicher Status, wird über universalKanbanStatus unterschieden
+      case 'rechnungsstellung': return 'rechnung';
       case 'bezahlt': return 'bezahlt';
     }
   };
@@ -281,15 +289,23 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     const neuerProjektStatus = kanbanToProjectStatus(neuerKanbanStatus);
 
     try {
-      await projektService.updateProjekt(projektId, { status: neuerProjektStatus });
-      console.log(`✓ Projekt ${projektId} manuell auf "${neuerProjektStatus}" gesetzt`);
+      // Speichere BEIDE: Projekt-Status UND expliziten Universal-Kanban-Status
+      await projektService.updateProjekt(projektId, {
+        status: neuerProjektStatus,
+        universalKanbanStatus: neuerKanbanStatus, // Expliziter Kanban-Status für 5-Spalten-Workflow
+      } as any);
+      console.log(`✓ Projekt ${projektId} auf "${neuerKanbanStatus}" (${neuerProjektStatus}) gesetzt`);
 
-      // UI sofort aktualisieren: Projekt-Status in den lokalen Bestellungen ändern
+      // UI sofort aktualisieren
       setBestellungen(prev => prev.map(b => {
         if (b.projektId === projektId) {
           return {
             ...b,
-            projekt: { ...b.projekt, status: neuerProjektStatus as any }
+            projekt: {
+              ...b.projekt,
+              status: neuerProjektStatus as any,
+              universalKanbanStatus: neuerKanbanStatus,
+            }
           };
         }
         return b;
@@ -486,9 +502,10 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
 
     // Verteile Kunden-Gruppen auf Kanban-Spalten
     kundenGruppen.forEach(gruppe => {
-      const projektStatus = gruppe.bestellungen[0]?.projekt.status || 'auftragsbestaetigung';
-      const hatEmail = !!emailStatus[gruppe.projektId];
-      const kanbanStatus = getKanbanStatus(projektStatus, hatEmail);
+      const projekt = gruppe.bestellungen[0]?.projekt;
+      const projektStatus = projekt?.status || 'auftragsbestaetigung';
+      const universalKanbanStatus = (projekt as any)?.universalKanbanStatus;
+      const kanbanStatus = getKanbanStatus(projektStatus, universalKanbanStatus);
 
       gruppen.get(kanbanStatus)?.push(gruppe);
     });
@@ -502,6 +519,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
       offen: 0,
       versendet: 0,
       an_kunden: 0,
+      rechnungsstellung: 0,
       bezahlt: 0,
     };
     kanbanGruppen.forEach((gruppen, status) => {
@@ -1229,7 +1247,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         </div>
       ) : groupBy === 'kanban' ? (
         /* === KANBAN-ANSICHT === */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {KANBAN_COLUMNS.map((column) => {
             const gruppenInSpalte = kanbanGruppen.get(column.status) || [];
 
@@ -1284,8 +1302,16 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                             onClick={() => onProjektClick(gruppe.bestellungen[0].projekt)}
                             className="cursor-pointer"
                           >
-                            <div className="font-semibold text-gray-900 dark:text-white text-sm truncate">
-                              {gruppe.kundenname}
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-gray-900 dark:text-white text-sm truncate">
+                                {gruppe.kundenname}
+                              </span>
+                              {gruppe.abNummer.startsWith('SHOP-') && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded">
+                                  <ShoppingCart className="w-2.5 h-2.5" />
+                                  Shop
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                               {gruppe.abNummer} • {gruppe.bestellungen.length} Pos.
@@ -1409,8 +1435,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // TODO: Tracking-Nr. Email an Kunden senden
-                                  onProjektClick(gruppe.bestellungen[0].projekt);
+                                  // Tracking an Kunde senden → verschiebt zu "An Kunden"
+                                  updateProjektStatusManuell(gruppe.projektId, 'an_kunden');
                                 }}
                                 className="flex-1 px-2 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
                               >
@@ -1420,28 +1446,29 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                             )}
 
                             {column.status === 'an_kunden' && (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onProjektClick(gruppe.bestellungen[0].projekt);
-                                  }}
-                                  className="flex-1 px-2 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
-                                >
-                                  <Receipt className="w-3 h-3" />
-                                  Rechnung
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMarkiereAlsBezahlt(gruppe.projektId, gruppe.kundenname);
-                                  }}
-                                  className="flex-1 px-2 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
-                                >
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Bezahlt
-                                </button>
-                              </>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onProjektClick(gruppe.bestellungen[0].projekt);
+                                }}
+                                className="flex-1 px-2 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
+                              >
+                                <Receipt className="w-3 h-3" />
+                                Rechnung erstellen
+                              </button>
+                            )}
+
+                            {column.status === 'rechnungsstellung' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkiereAlsBezahlt(gruppe.projektId, gruppe.kundenname);
+                                }}
+                                className="flex-1 px-2 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                Als bezahlt markieren
+                              </button>
                             )}
 
                             {column.status === 'bezahlt' && (
