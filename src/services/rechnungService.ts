@@ -20,23 +20,45 @@ import {
 // Gemeinsame Berechnungsfunktion
 // Parameter: positionen, ohneMehrwertsteuer (für Reverse Charge), mehrwertsteuersatz (optional, Standard: 19%)
 // HINWEIS: Alle Preise (einzelpreis, gesamtpreis) werden als NETTO behandelt!
-// Universal-Artikel werden bereits beim Import mit Netto-Preisen gespeichert.
+// Positionen mit ohneMwSt=true werden direkt als Brutto übernommen (keine MwSt hinzufügen).
 export const berechneDokumentSummen = (
   positionen: Position[],
   ohneMehrwertsteuer: boolean = false,
   mehrwertsteuersatz?: number
 ): DokumentBerechnung => {
-  const nettobetrag = positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   // Bei Reverse Charge: 0%, sonst benutzerdefinierter Satz oder Standard 19%
   const umsatzsteuersatz = ohneMehrwertsteuer ? 0 : (mehrwertsteuersatz ?? 19);
-  const umsatzsteuer = nettobetrag * (umsatzsteuersatz / 100);
-  const bruttobetrag = nettobetrag + umsatzsteuer;
+
+  // Trenne Positionen: mit MwSt vs. ohne MwSt
+  let nettoMitMwSt = 0;   // Netto-Positionen auf die MwSt kommt
+  let bruttoOhneMwSt = 0; // Brutto-Positionen (bereits inkl. MwSt, z.B. Versandkosten)
+
+  positionen.forEach(pos => {
+    if (pos.ohneMwSt) {
+      // Position ist bereits Brutto - keine MwSt hinzufügen
+      bruttoOhneMwSt += pos.gesamtpreis;
+    } else {
+      // Normale Netto-Position
+      nettoMitMwSt += pos.gesamtpreis;
+    }
+  });
+
+  // MwSt nur auf Netto-Positionen berechnen
+  const umsatzsteuer = nettoMitMwSt * (umsatzsteuersatz / 100);
+
+  // Nettobetrag = Summe aller Netto-Positionen + Netto-Anteil der Brutto-Positionen
+  // Für Anzeige: Netto der normalen Positionen + (Brutto-Positionen / 1.19 als "enthaltene MwSt")
+  const nettoAnteilBrutto = umsatzsteuersatz > 0 ? bruttoOhneMwSt / (1 + umsatzsteuersatz / 100) : bruttoOhneMwSt;
+  const mwstInBrutto = bruttoOhneMwSt - nettoAnteilBrutto;
+
+  const nettobetrag = nettoMitMwSt + nettoAnteilBrutto;
+  const bruttobetrag = nettoMitMwSt + umsatzsteuer + bruttoOhneMwSt;
 
   return {
-    nettobetrag,
-    umsatzsteuer,
+    nettobetrag: Math.round(nettobetrag * 100) / 100,
+    umsatzsteuer: Math.round((umsatzsteuer + mwstInBrutto) * 100) / 100,
     umsatzsteuersatz,
-    bruttobetrag
+    bruttobetrag: Math.round(bruttobetrag * 100) / 100
   };
 };
 

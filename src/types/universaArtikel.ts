@@ -9,6 +9,7 @@ export interface UniversalArtikel {
   seiteKatalog?: number;
   aenderungen?: string;
   importDatum?: string;
+  ohneMwSt?: boolean; // Artikel ist bereits Brutto (keine MwSt hinzufügen, z.B. Versandkosten)
 }
 
 export interface UniversalArtikelInput {
@@ -20,6 +21,7 @@ export interface UniversalArtikelInput {
   katalogPreisBrutto: number;
   seiteKatalog?: number;
   aenderungen?: string;
+  ohneMwSt?: boolean; // Artikel ist bereits Brutto (keine MwSt hinzufügen)
 }
 
 export interface ExcelImportResult {

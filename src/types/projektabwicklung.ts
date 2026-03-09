@@ -13,6 +13,7 @@ export interface Position {
   gesamtpreis: number;
   istBedarfsposition?: boolean; // Optional - Bedarfspositionen werden separat im Angebot angezeigt und NICHT in die Gesamtsumme eingerechnet
   istUniversalArtikel?: boolean; // Optional - Markiert Positionen aus dem Universal-Artikelkatalog (für Filterung im Universal-Tab)
+  ohneMwSt?: boolean; // Optional - Position ist bereits Brutto (keine MwSt hinzufügen, z.B. Versandkosten von Universal)
 }
 
 export interface LieferscheinPosition {

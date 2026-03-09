@@ -624,6 +624,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       einkaufspreis: einkaufspreis,
       gesamtpreis: verkaufspreis,
       istUniversalArtikel: true,
+      ohneMwSt: selectedArtikel.ohneMwSt || false, // Übernehme Stammdaten-Einstellung
     };
 
     setRechnungsDaten(prev => ({
@@ -1966,11 +1967,25 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                       </button>
                     </div>
 
-                    <div className="mt-2 text-right">
-                      <span className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtpreis: </span>
-                      <span className="text-lg font-semibold text-gray-900 dark:text-dark-text">
-                        {position.gesamtpreis.toFixed(2)} €
-                      </span>
+                    <div className="mt-2 flex items-center justify-between">
+                      {/* Checkbox: ohne MwSt (bereits Brutto) */}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={position.ohneMwSt || false}
+                          onChange={(e) => handlePositionChange(index, 'ohneMwSt', e.target.checked)}
+                          className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">
+                          ohne MwSt (bereits Brutto)
+                        </span>
+                      </label>
+                      <div className="text-right">
+                        <span className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtpreis: </span>
+                        <span className="text-lg font-semibold text-gray-900 dark:text-dark-text">
+                          {position.gesamtpreis.toFixed(2)} €
+                        </span>
+                      </div>
                     </div>
                   </SortablePosition>
                 ))}

@@ -6,6 +6,7 @@ import {
   sucheUniversalArtikel,
   loescheAlleUniversalArtikel,
   importiereExcel,
+  aktualisiereUniversalArtikel,
 } from '../../services/universaArtikelService';
 
 type SortField = 'artikelnummer' | 'bezeichnung' | 'katalogPreisBrutto';
@@ -70,6 +71,20 @@ const UniversalArtikelTab = () => {
   const handleSortieren = (field: SortField) => {
     setSortField(field);
     setPage(0);
+  };
+
+  // Toggle ohneMwSt für einzelnen Artikel
+  const handleToggleOhneMwSt = async (artikelId: string, aktuellerWert: boolean) => {
+    try {
+      await aktualisiereUniversalArtikel(artikelId, { ohneMwSt: !aktuellerWert });
+      // Lokalen State aktualisieren
+      setArtikel(prev => prev.map(art =>
+        art.$id === artikelId ? { ...art, ohneMwSt: !aktuellerWert } : art
+      ));
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren:', error);
+      alert('Fehler beim Speichern der Einstellung');
+    }
   };
 
   // Progress-Callback für Import
@@ -412,6 +427,9 @@ const UniversalArtikelTab = () => {
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         Seite
                       </th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
+                        ohne MwSt
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
@@ -448,6 +466,15 @@ const UniversalArtikelTab = () => {
                           <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                             {art.seiteKatalog || '-'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                          <input
+                            type="checkbox"
+                            checked={art.ohneMwSt || false}
+                            onChange={() => handleToggleOhneMwSt(art.$id!, art.ohneMwSt || false)}
+                            className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 dark:border-slate-600 rounded cursor-pointer"
+                            title="Artikel ist bereits Brutto (keine MwSt hinzufügen)"
+                          />
                         </td>
                       </tr>
                     ))}
