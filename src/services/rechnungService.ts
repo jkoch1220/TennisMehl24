@@ -19,43 +19,18 @@ import {
 
 // Gemeinsame Berechnungsfunktion
 // Parameter: positionen, ohneMehrwertsteuer (für Reverse Charge), mehrwertsteuersatz (optional, Standard: 19%)
-// WICHTIG: Universal-Artikel haben BRUTTO-Preise! Diese werden speziell behandelt.
+// HINWEIS: Alle Preise (einzelpreis, gesamtpreis) werden als NETTO behandelt!
+// Universal-Artikel werden bereits beim Import mit Netto-Preisen gespeichert.
 export const berechneDokumentSummen = (
   positionen: Position[],
   ohneMehrwertsteuer: boolean = false,
   mehrwertsteuersatz?: number
 ): DokumentBerechnung => {
+  const nettobetrag = positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   // Bei Reverse Charge: 0%, sonst benutzerdefinierter Satz oder Standard 19%
   const umsatzsteuersatz = ohneMehrwertsteuer ? 0 : (mehrwertsteuersatz ?? 19);
-  const steuerfaktor = 1 + (umsatzsteuersatz / 100); // z.B. 1.19 bei 19%
-
-  let nettobetrag = 0;
-  let bruttobetrag = 0;
-
-  positionen.forEach(pos => {
-    // Prüfe ob Position ein Universal-Artikel ist (Preise sind BRUTTO!)
-    const istUniversal = pos.istUniversalArtikel === true ||
-      (pos.beschreibung && pos.beschreibung.startsWith('Universal:'));
-
-    if (istUniversal && umsatzsteuersatz > 0) {
-      // Universal-Artikel: gesamtpreis ist BRUTTO, Netto rausrechnen
-      const posBrutto = pos.gesamtpreis;
-      const posNetto = posBrutto / steuerfaktor;
-      nettobetrag += posNetto;
-      bruttobetrag += posBrutto;
-    } else {
-      // Normale Artikel: gesamtpreis ist NETTO, Brutto berechnen
-      const posNetto = pos.gesamtpreis;
-      const posBrutto = posNetto * steuerfaktor;
-      nettobetrag += posNetto;
-      bruttobetrag += posBrutto;
-    }
-  });
-
-  // Runden auf 2 Dezimalstellen
-  nettobetrag = Math.round(nettobetrag * 100) / 100;
-  bruttobetrag = Math.round(bruttobetrag * 100) / 100;
-  const umsatzsteuer = Math.round((bruttobetrag - nettobetrag) * 100) / 100;
+  const umsatzsteuer = nettobetrag * (umsatzsteuersatz / 100);
+  const bruttobetrag = nettobetrag + umsatzsteuer;
 
   return {
     nettobetrag,

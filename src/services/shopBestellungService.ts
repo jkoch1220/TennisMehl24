@@ -512,6 +512,19 @@ class ShopBestellungService {
     const projektPositionen: Position[] = zuVerwendendePositionen.map(pos => {
       const universalArtikel = universalArtikelMap?.get(pos.artikelnummer);
 
+      // WICHTIG: Shop-Preise sind BRUTTO!
+      // Für Universal-Artikel: Verwende katalogPreisNetto aus Stammdaten
+      // Für eigene Artikel: Konvertiere Brutto zu Netto (/ 1.19)
+      let einzelpreis = pos.einzelpreis;
+      if (typ === 'universal' && universalArtikel) {
+        // Verwende den hinterlegten Netto-Katalogpreis
+        einzelpreis = universalArtikel.katalogPreisNetto;
+      } else if (typ === 'universal') {
+        // Fallback: Brutto zu Netto umrechnen
+        einzelpreis = pos.einzelpreis / 1.19;
+      }
+      // Eigene Artikel bleiben Brutto (werden normal behandelt)
+
       return {
         id: ID.unique(),
         artikelnummer: pos.artikelnummer,
@@ -519,9 +532,9 @@ class ShopBestellungService {
         beschreibung: typ === 'universal' ? `Universal: ${pos.artikel}` : pos.artikel,
         menge: pos.anzahl,
         einheit: 'Stk',
-        einzelpreis: pos.einzelpreis,
+        einzelpreis: Math.round(einzelpreis * 100) / 100,
         einkaufspreis: universalArtikel?.grosshaendlerPreisNetto,
-        gesamtpreis: pos.gesamtpreis,
+        gesamtpreis: Math.round(einzelpreis * pos.anzahl * 100) / 100,
         istUniversalArtikel: typ === 'universal',
       };
     });
