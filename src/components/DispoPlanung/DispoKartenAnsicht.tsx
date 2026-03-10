@@ -133,7 +133,7 @@ interface PLZCluster {
 interface Props {
   projekte: Projekt[];
   kundenMap: Map<string, SaisonKunde>;
-  onProjektClick?: (projekt: Projekt) => void;
+  onProjektClick?: (projekt: Projekt, newTab?: boolean) => void;
   onBuchen?: (projektId: string, tourId: string, tonnen: number) => Promise<void>;
   onNeueTour?: (name: string, lkwTyp: 'motorwagen' | 'mit_haenger', kapazitaet: number) => Promise<string>;
   onProjektUpdate?: (projekt: Projekt) => void; // Callback wenn Projekt aktualisiert wurde
@@ -1986,13 +1986,22 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
                   <div className="flex gap-2 mt-3">
                     {onProjektClick && (
-                      <button
-                        onClick={() => onProjektClick(selectedItem.projekt)}
-                        className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Details
-                      </button>
+                      <>
+                        <button
+                          onClick={() => onProjektClick(selectedItem.projekt, false)}
+                          className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Details
+                        </button>
+                        <button
+                          onClick={() => onProjektClick(selectedItem.projekt, true)}
+                          className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-200 transition-all flex items-center justify-center gap-1.5"
+                          title="In neuem Tab öffnen"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                     {onBuchen && selectedItem.projekt.dispoStatus !== 'geliefert' && (
                       <button

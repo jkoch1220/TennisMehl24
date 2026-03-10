@@ -83,6 +83,9 @@ type FilterStatus = 'alle' | DispoStatus;
 // Lieferart-Filter für Spedition vs. Eigentransport
 type FilterLieferart = 'alle' | 'eigenlager' | 'spedition' | 'gemischt' | 'beiladung';
 
+// Warenart-Filter für Schüttgut vs. Palettenware
+type FilterWare = 'alle' | 'schuettgut' | 'palettenware';
+
 // Kalenderwoche berechnen (ISO 8601)
 function getISOWeek(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -124,6 +127,57 @@ function getKWOptions(): { value: number; label: string; isCurrent: boolean }[] 
 // Tab-Typen
 type DispoTab = 'auftraege' | 'touren' | 'karte';
 
+// Interface für extrahierte Lieferdaten
+interface LieferdatenInfo {
+  lieferKW?: number;
+  lieferKWJahr?: number;
+  lieferdatumTyp?: string;
+  lieferdatum?: string;
+  bevorzugterTag?: string;
+}
+
+// Helper-Funktion: Extrahiert Lieferdaten aus Projekt oder AB-Daten
+function extractLieferdaten(projekt: Projekt): LieferdatenInfo {
+  // Priorität 1: Direkt am Projekt gesetzte Felder
+  if (projekt.lieferKW) {
+    return {
+      lieferKW: projekt.lieferKW,
+      lieferKWJahr: projekt.lieferKWJahr,
+      lieferdatumTyp: projekt.lieferdatumTyp,
+      lieferdatum: projekt.geplantesDatum,
+      bevorzugterTag: projekt.bevorzugterTag,
+    };
+  }
+
+  // Priorität 2: Aus auftragsbestaetigungsDaten JSON lesen
+  if (projekt.auftragsbestaetigungsDaten) {
+    try {
+      const abDaten = typeof projekt.auftragsbestaetigungsDaten === 'string'
+        ? JSON.parse(projekt.auftragsbestaetigungsDaten)
+        : projekt.auftragsbestaetigungsDaten;
+
+      if (abDaten.lieferKW) {
+        return {
+          lieferKW: abDaten.lieferKW,
+          lieferKWJahr: abDaten.lieferKWJahr,
+          lieferdatumTyp: abDaten.lieferdatumTyp,
+          lieferdatum: abDaten.lieferdatum,
+          bevorzugterTag: abDaten.bevorzugterTag,
+        };
+      }
+    } catch (e) {
+      console.warn('Fehler beim Parsen der AB-Daten für Lieferdaten:', e);
+    }
+  }
+
+  // Fallback: Keine KW-Daten gefunden
+  return {
+    lieferdatumTyp: projekt.lieferdatumTyp,
+    lieferdatum: projekt.geplantesDatum,
+    bevorzugterTag: projekt.bevorzugterTag,
+  };
+}
+
 const DispoPlanung = () => {
   const navigate = useNavigate();
 
@@ -143,6 +197,7 @@ const DispoPlanung = () => {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('alle');
   const [filterDatum, setFilterDatum] = useState<string>('');
   const [filterLieferart, setFilterLieferart] = useState<FilterLieferart>('alle');
+  const [filterWare, setFilterWare] = useState<FilterWare>('alle');
   const [filterKW, setFilterKW] = useState<number | null>(null);
 
   // Ausgewähltes Projekt für Detail-Ansicht
@@ -495,6 +550,13 @@ const DispoPlanung = () => {
       if (filterLieferart === 'beiladung' && !material.hatBeiladung) return false;
     }
 
+    // Warenart-Filter (Schüttgut vs. Palettenware)
+    if (filterWare !== 'alle') {
+      const material = parseMaterialAufschluesselung(p);
+      if (filterWare === 'schuettgut' && material.gesamtLose <= 0) return false;
+      if (filterWare === 'palettenware' && !material.hatSpeditionsware) return false;
+    }
+
     // Suche
     if (suche) {
       const s = suche.toLowerCase();
@@ -550,9 +612,14 @@ const DispoPlanung = () => {
   };
 
   // Zur Projektabwicklung navigieren
-  const goToProjektabwicklung = (projekt: Projekt) => {
+  const goToProjektabwicklung = (projekt: Projekt, newTab = false) => {
     const projektId = (projekt as any).$id || projekt.id;
-    navigate(`/projektabwicklung/${projektId}`);
+    const url = `/projektabwicklung/${projektId}`;
+    if (newTab) {
+      window.open(url, '_blank');
+    } else {
+      navigate(url);
+    }
   };
 
   // Excel-Export der gefilterten Aufträge
@@ -572,12 +639,17 @@ const DispoPlanung = () => {
       const lieferPlz = projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.match(/^(\d{5})/)?.[1] || '';
       const lieferOrt = projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
 
+      // Lieferdaten aus Projekt oder AB-Daten extrahieren
+      const lieferdaten = extractLieferdaten(projekt);
+
       // Kommuniziertes Datum formatieren
       let kommDatum = '';
       if (projekt.kommuniziertesDatum) {
         kommDatum = new Date(projekt.kommuniziertesDatum).toLocaleDateString('de-DE');
-      } else if (projekt.lieferKW && projekt.lieferKWJahr) {
-        kommDatum = `KW ${projekt.lieferKW}/${projekt.lieferKWJahr}`;
+      } else if (lieferdaten.lieferKW && lieferdaten.lieferKWJahr) {
+        kommDatum = `KW ${lieferdaten.lieferKW}/${lieferdaten.lieferKWJahr}`;
+      } else if (lieferdaten.lieferKW) {
+        kommDatum = `KW ${lieferdaten.lieferKW}`;
       }
 
       // Geplantes Datum formatieren
@@ -595,6 +667,11 @@ const DispoPlanung = () => {
         .map(n => n.text)
         .join(' | ');
 
+      // KW formatieren
+      const lieferKWText = lieferdaten.lieferKW
+        ? `${lieferdaten.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}KW ${lieferdaten.lieferKW}${lieferdaten.lieferKWJahr ? '/' + lieferdaten.lieferKWJahr : ''}`
+        : '';
+
       return {
         'AB-Nr.': projekt.auftragsbestaetigungsnummer || '',
         'Kundenname': projekt.kundenname || '',
@@ -602,6 +679,7 @@ const DispoPlanung = () => {
         'Straße': lieferStrasse,
         'PLZ': lieferPlz,
         'Ort': lieferOrt,
+        'Liefer-KW': lieferKWText,
         'Geplantes Datum': geplantesDatum,
         'Komm. Datum': kommDatum,
         'Dispo-Status': dispoStatusLabel,
@@ -634,6 +712,7 @@ const DispoPlanung = () => {
       { wch: 25 },  // Straße
       { wch: 8 },   // PLZ
       { wch: 20 },  // Ort
+      { wch: 14 },  // Liefer-KW
       { wch: 14 },  // Geplantes Datum
       { wch: 14 },  // Komm. Datum
       { wch: 12 },  // Dispo-Status
@@ -713,6 +792,9 @@ const DispoPlanung = () => {
     spedition: projekteMitMaterial.filter(pm => pm.material.transportTyp === 'spedition').length,
     gemischt: projekteMitMaterial.filter(pm => pm.material.transportTyp === 'gemischt').length,
     beiladung: projekteMitMaterial.filter(pm => pm.material.hatBeiladung).length,
+    // Warenart-Stats
+    schuettgut: projekteMitMaterial.filter(pm => pm.material.gesamtLose > 0).length,
+    palettenware: projekteMitMaterial.filter(pm => pm.material.hatSpeditionsware).length,
   };
 
   if (loading) {
@@ -793,14 +875,241 @@ const DispoPlanung = () => {
         </div>
       </div>
 
+      {/* Filter-Sektion (für Aufträge und Karte, nicht für Touren) */}
+      {activeTab !== 'touren' && (
+        <>
+          {/* Statistik-Karten */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <StatCard
+              label="Offen"
+              value={stats.offen}
+              icon={<Package className="w-5 h-5" />}
+              color="blue"
+              onClick={() => setFilterStatus('offen')}
+              active={filterStatus === 'offen'}
+            />
+            <StatCard
+              label="Geplant"
+              value={stats.geplant}
+              icon={<Calendar className="w-5 h-5" />}
+              color="purple"
+              onClick={() => setFilterStatus('geplant')}
+              active={filterStatus === 'geplant'}
+            />
+            <StatCard
+              label="Unterwegs"
+              value={stats.unterwegs}
+              icon={<Navigation className="w-5 h-5" />}
+              color="yellow"
+              onClick={() => setFilterStatus('unterwegs')}
+              active={filterStatus === 'unterwegs'}
+            />
+            <StatCard
+              label="Geliefert"
+              value={stats.geliefert}
+              icon={<CheckCircle2 className="w-5 h-5" />}
+              color="green"
+              onClick={() => setFilterStatus('geliefert')}
+              active={filterStatus === 'geliefert'}
+            />
+            <StatCard
+              label="Alle"
+              value={stats.gesamt}
+              icon={<Truck className="w-5 h-5" />}
+              color="gray"
+              onClick={() => setFilterStatus('alle')}
+              active={filterStatus === 'alle'}
+            />
+          </div>
+
+          {/* Filter & Suche */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-4 mb-6">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Suche */}
+              <div className="relative flex-1 min-w-[250px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Kunde, PLZ, Ort, Nummer..."
+                  value={suche}
+                  onChange={(e) => setSuche(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                />
+              </div>
+
+              {/* KW-Filter */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={filterKW ?? ''}
+                  onChange={(e) => setFilterKW(e.target.value ? parseInt(e.target.value) : null)}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                >
+                  <option value="">Alle KW</option>
+                  {getKWOptions().map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {filterKW !== null && (
+                  <button
+                    onClick={() => setFilterKW(null)}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Datum-Filter */}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <input
+                  type="date"
+                  value={filterDatum}
+                  onChange={(e) => setFilterDatum(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                />
+                {filterDatum && (
+                  <button
+                    onClick={() => setFilterDatum('')}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter-Reset */}
+              {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle' || filterWare !== 'alle' || filterKW !== null) && (
+                <button
+                  onClick={() => {
+                    setFilterStatus('alle');
+                    setFilterDatum('');
+                    setSuche('');
+                    setFilterLieferart('alle');
+                    setFilterWare('alle');
+                    setFilterKW(null);
+                  }}
+                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                >
+                  Filter zurücksetzen
+                </button>
+              )}
+            </div>
+
+            {/* Lieferart-Filter (Spedition vs. Eigentransport) */}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
+              <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Lieferart:</span>
+              <button
+                onClick={() => setFilterLieferart('alle')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterLieferart === 'alle'
+                    ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 font-medium'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                Alle
+              </button>
+              <button
+                onClick={() => setFilterLieferart('eigenlager')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterLieferart === 'eigenlager'
+                    ? 'bg-blue-600 text-white font-medium'
+                    : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Eigentransport ({stats.eigenlager})
+              </button>
+              <button
+                onClick={() => setFilterLieferart('spedition')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterLieferart === 'spedition'
+                    ? 'bg-orange-600 text-white font-medium'
+                    : 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/50'
+                }`}
+              >
+                <Boxes className="w-4 h-4" />
+                Spedition ({stats.spedition})
+              </button>
+              <button
+                onClick={() => setFilterLieferart('gemischt')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterLieferart === 'gemischt'
+                    ? 'bg-amber-600 text-white font-medium'
+                    : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
+                }`}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                Gemischt ({stats.gemischt})
+              </button>
+              <button
+                onClick={() => setFilterLieferart('beiladung')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterLieferart === 'beiladung'
+                    ? 'bg-yellow-500 text-white font-medium'
+                    : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50'
+                }`}
+              >
+                <PackageCheck className="w-4 h-4" />
+                Mit Beiladung ({stats.beiladung})
+              </button>
+            </div>
+
+            {/* Warenart-Filter (Schüttgut vs. Palettenware) */}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
+              <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Warenart:</span>
+              <button
+                onClick={() => setFilterWare('alle')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterWare === 'alle'
+                    ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 font-medium'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                Alle
+              </button>
+              <button
+                onClick={() => setFilterWare('schuettgut')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterWare === 'schuettgut'
+                    ? 'bg-emerald-600 text-white font-medium'
+                    : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Schüttgut ({stats.schuettgut})
+              </button>
+              <button
+                onClick={() => setFilterWare('palettenware')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterWare === 'palettenware'
+                    ? 'bg-violet-600 text-white font-medium'
+                    : 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                }`}
+              >
+                <Boxes className="w-4 h-4" />
+                Palettenware ({stats.palettenware})
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Tab Content */}
       {activeTab === 'karte' ? (
         <DispoKartenAnsicht
-          projekte={projekte}
+          projekte={gefilterteProjekte}
           kundenMap={kundenMap}
-          onProjektClick={(projekt) => {
+          onProjektClick={(projekt, newTab) => {
             const projektId = (projekt as any).$id || projekt.id;
-            navigate(`/projektabwicklung/${projektId}`);
+            const url = `/projektabwicklung/${projektId}`;
+            if (newTab) {
+              window.open(url, '_blank');
+            } else {
+              navigate(url);
+            }
           }}
           onBuchen={async (projektId, tourId, tonnen) => {
             // Verwendet handleSchnellUmbuchen mit leerem vonTourId für neue Buchung
@@ -833,187 +1142,7 @@ const DispoPlanung = () => {
           onNavigateToProjekt={(projektId) => navigate(`/projektabwicklung/${projektId}`)}
         />
       ) : (
-        <>
-          {/* Statistik-Karten */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <StatCard
-          label="Offen"
-          value={stats.offen}
-          icon={<Package className="w-5 h-5" />}
-          color="blue"
-          onClick={() => setFilterStatus('offen')}
-          active={filterStatus === 'offen'}
-        />
-        <StatCard
-          label="Geplant"
-          value={stats.geplant}
-          icon={<Calendar className="w-5 h-5" />}
-          color="purple"
-          onClick={() => setFilterStatus('geplant')}
-          active={filterStatus === 'geplant'}
-        />
-        <StatCard
-          label="Unterwegs"
-          value={stats.unterwegs}
-          icon={<Navigation className="w-5 h-5" />}
-          color="yellow"
-          onClick={() => setFilterStatus('unterwegs')}
-          active={filterStatus === 'unterwegs'}
-        />
-        <StatCard
-          label="Geliefert"
-          value={stats.geliefert}
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          color="green"
-          onClick={() => setFilterStatus('geliefert')}
-          active={filterStatus === 'geliefert'}
-        />
-        <StatCard
-          label="Alle"
-          value={stats.gesamt}
-          icon={<Truck className="w-5 h-5" />}
-          color="gray"
-          onClick={() => setFilterStatus('alle')}
-          active={filterStatus === 'alle'}
-        />
-      </div>
-
-      {/* Filter & Suche */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700 p-4 mb-6">
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Suche */}
-          <div className="relative flex-1 min-w-[250px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Kunde, PLZ, Ort, Nummer..."
-              value={suche}
-              onChange={(e) => setSuche(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          {/* KW-Filter */}
-          <div className="flex items-center gap-2">
-            <select
-              value={filterKW ?? ''}
-              onChange={(e) => setFilterKW(e.target.value ? parseInt(e.target.value) : null)}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-            >
-              <option value="">Alle KW</option>
-              {getKWOptions().map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {filterKW !== null && (
-              <button
-                onClick={() => setFilterKW(null)}
-                className="p-1 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Datum-Filter */}
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              value={filterDatum}
-              onChange={(e) => setFilterDatum(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-            />
-            {filterDatum && (
-              <button
-                onClick={() => setFilterDatum('')}
-                className="p-1 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Filter-Reset */}
-          {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle' || filterKW !== null) && (
-            <button
-              onClick={() => {
-                setFilterStatus('alle');
-                setFilterDatum('');
-                setSuche('');
-                setFilterLieferart('alle');
-                setFilterKW(null);
-              }}
-              className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-            >
-              Filter zurücksetzen
-            </button>
-          )}
-        </div>
-
-        {/* Lieferart-Filter (Spedition vs. Eigentransport) */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
-          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Lieferart:</span>
-          <button
-            onClick={() => setFilterLieferart('alle')}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
-              filterLieferart === 'alle'
-                ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 font-medium'
-                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-            }`}
-          >
-            Alle
-          </button>
-          <button
-            onClick={() => setFilterLieferart('eigenlager')}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
-              filterLieferart === 'eigenlager'
-                ? 'bg-blue-600 text-white font-medium'
-                : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            Eigentransport ({stats.eigenlager})
-          </button>
-          <button
-            onClick={() => setFilterLieferart('spedition')}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
-              filterLieferart === 'spedition'
-                ? 'bg-orange-600 text-white font-medium'
-                : 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/50'
-            }`}
-          >
-            <Boxes className="w-4 h-4" />
-            Spedition ({stats.spedition})
-          </button>
-          <button
-            onClick={() => setFilterLieferart('gemischt')}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
-              filterLieferart === 'gemischt'
-                ? 'bg-amber-600 text-white font-medium'
-                : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
-            }`}
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Gemischt ({stats.gemischt})
-          </button>
-          <button
-            onClick={() => setFilterLieferart('beiladung')}
-            className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
-              filterLieferart === 'beiladung'
-                ? 'bg-yellow-500 text-white font-medium'
-                : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50'
-            }`}
-          >
-            <PackageCheck className="w-4 h-4" />
-            Mit Beiladung ({stats.beiladung})
-          </button>
-        </div>
-      </div>
-
-      {/* 2-Spalten Layout: Touren links, Aufträge rechts */}
+        /* Aufträge-Tab: 2-Spalten Layout mit Touren links, Aufträge rechts */
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Touren-Sidebar (links) */}
         <div className="lg:col-span-1">
@@ -1066,7 +1195,7 @@ const DispoPlanung = () => {
                       touren={touren}
                       onStatusChange={(status) => updateDispoStatus(projekt, status)}
                       onOpenDetail={() => openProjektDetail(projekt)}
-                      onGoToProjektabwicklung={() => goToProjektabwicklung(projekt)}
+                      onGoToProjektabwicklung={(newTab) => goToProjektabwicklung(projekt, newTab)}
                       onInlineUpdate={handleInlineUpdate}
                       onBuchen={() => openBuchungDialog(projekt, 'neu')}
                       onSchnellUmbuchen={(vonTourId, zuTourId, tonnen) => handleSchnellUmbuchen(projektId, vonTourId, zuTourId, tonnen)}
@@ -1080,7 +1209,6 @@ const DispoPlanung = () => {
           </div>
         </div>
       </div>
-        </>
       )}
 
       {/* Saving Overlay */}
@@ -1184,7 +1312,7 @@ interface AuftragsZeileProps {
   touren: Tour[];
   onStatusChange: (status: DispoStatus) => void;
   onOpenDetail: () => void;
-  onGoToProjektabwicklung: () => void;
+  onGoToProjektabwicklung: (newTab?: boolean) => void;
   onInlineUpdate: (projektId: string, updates: Partial<Projekt>, kundeUpdates?: Partial<SaisonKunde>) => void;
   onBuchen: () => void;
   onSchnellUmbuchen: (vonTourId: string, zuTourId: string, tonnen: number) => Promise<void>;
@@ -1242,6 +1370,9 @@ const AuftragsZeile = ({
   const material = parseMaterialAufschluesselung(projekt);
   const belieferungsartLabel = getBelieungsartLabel(projekt.belieferungsart);
   const belieferungsartFarbe = getBelieungsartFarbe(projekt.belieferungsart);
+
+  // Lieferdaten aus Projekt oder AB-Daten extrahieren (für KW-Anzeige)
+  const lieferdaten = extractLieferdaten(projekt);
 
   // ASP-Telefon (Projekt überschreibt Kunde)
   const aspName = projekt.dispoAnsprechpartner?.name || kunde?.dispoAnsprechpartner?.name || '';
@@ -1349,12 +1480,24 @@ const AuftragsZeile = ({
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0" />
             <button
-              onClick={onGoToProjektabwicklung}
+              onClick={() => onGoToProjektabwicklung(false)}
+              onAuxClick={(e) => {
+                if (e.button === 1) { // Mittelklick
+                  e.preventDefault();
+                  onGoToProjektabwicklung(true);
+                }
+              }}
               className="font-semibold text-gray-900 dark:text-white truncate hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 group"
-              title="Projekt öffnen"
+              title="Projekt öffnen (Mittelklick = neuer Tab)"
             >
               {projekt.kundenname}
-              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+            <button
+              onClick={() => onGoToProjektabwicklung(true)}
+              className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-all"
+              title="In neuem Tab öffnen"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
             </button>
             {projekt.kundennummer && (
               <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded-full text-gray-600 dark:text-gray-400">
@@ -1613,14 +1756,17 @@ const AuftragsZeile = ({
               )}
             </button>
           )}
-          {/* KW-Info falls vorhanden */}
-          {projekt.lieferKW && (
-            <div className={`text-xs ${
-              projekt.lieferdatumTyp === 'kw'
+          {/* KW-Info falls vorhanden (aus Projekt oder AB-Daten) */}
+          {lieferdaten.lieferKW && (
+            <div className={`text-xs font-medium ${
+              lieferdaten.lieferdatumTyp === 'kw'
                 ? 'text-green-600 dark:text-green-400'
                 : 'text-blue-600 dark:text-blue-400'
             }`}>
-              {projekt.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}KW {projekt.lieferKW}
+              {lieferdaten.lieferdatumTyp === 'kw' ? 'in ' : 'bis '}KW {lieferdaten.lieferKW}
+              {lieferdaten.lieferKWJahr && lieferdaten.lieferKWJahr !== new Date().getFullYear() && (
+                <span className="text-gray-400">/{lieferdaten.lieferKWJahr}</span>
+              )}
             </div>
           )}
         </div>
@@ -1738,11 +1884,18 @@ const AuftragsZeile = ({
             <Eye className="w-5 h-5" />
           </button>
           <button
-            onClick={onGoToProjektabwicklung}
+            onClick={() => onGoToProjektabwicklung(false)}
             className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
             title="Zur Projektabwicklung"
           >
             <FileText className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => onGoToProjektabwicklung(true)}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+            title="In neuem Tab öffnen"
+          >
+            <ExternalLink className="w-5 h-5" />
           </button>
         </div>
       </div>
