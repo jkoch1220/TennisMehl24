@@ -1555,18 +1555,22 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
     doc.line(50, signY + 1.5, 100, signY + 1.5); // Linie etwas tiefer für bessere Optik
 
     signY += 10;
+  }
 
-    // DISPO-Ansprechpartner (Name + Telefon) - Hinweis zum Anrufen
-    if (daten.dispoAnsprechpartner?.name) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
-      doc.setFont('helvetica', 'normal');
-      signY += 5;
-      const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
-        ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
-        : daten.dispoAnsprechpartner.name;
-      doc.text(ansprechpartnerText, 25, signY);
-    }
+  // === DISPO-Ansprechpartner (IMMER anzeigen bei Standard-Lieferschein) ===
+  if (!einfach && daten.dispoAnsprechpartner?.name) {
+    signY += 5;
+    signY = await ensureSpace(doc, signY, 15, stammdaten);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
+    doc.setFont('helvetica', 'normal');
+    signY += 5;
+    const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
+      ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
+      : daten.dispoAnsprechpartner.name;
+    doc.text(ansprechpartnerText, 25, signY);
   }
 
   // === Empfangsbestätigung (nur bei Standard-Lieferschein und wenn aktiviert) ===
