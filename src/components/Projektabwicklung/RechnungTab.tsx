@@ -1522,6 +1522,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           projektKundenname={projekt?.kundenname}
           disabled={istFormularDisabled}
           platzbauer={platzbauer}
+          projekt={projekt}
         />
 
         {/* Lieferadresse */}

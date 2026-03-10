@@ -1653,6 +1653,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           kunde={kunde}
           dokumentTyp="angebot"
           projektKundenname={projekt?.kundenname}
+          projekt={projekt}
         />
 
         {/* DISPO-Ansprechpartner - prominenter Bereich */}

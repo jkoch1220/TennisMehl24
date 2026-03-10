@@ -1150,6 +1150,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           dokumentTyp="auftragsbestaetigung"
           projektKundenname={projekt?.kundenname}
           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+          projekt={projekt}
         />
 
         {/* Lieferadresse */}

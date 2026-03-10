@@ -932,6 +932,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           dokumentTyp="lieferschein"
           projektKundenname={projekt?.kundenname}
           disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+          projekt={projekt}
         />
 
         {/* Lieferadresse */}

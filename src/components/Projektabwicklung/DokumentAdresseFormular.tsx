@@ -1,5 +1,6 @@
-import { RefreshCw, FileText, Truck, AlertCircle, HardHat } from 'lucide-react';
+import { RefreshCw, FileText, Truck, AlertCircle, HardHat, MapPin } from 'lucide-react';
 import { SaisonKunde } from '../../types/saisonplanung';
+import { Projekt } from '../../types/projekt';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 
 export interface DokumentAdresse {
@@ -23,6 +24,8 @@ interface DokumentAdresseFormularProps {
   disabled?: boolean;
   // Optional: Platzbauer für Platzbauer-Projekte (Rechnungsadresse vom Platzbauer)
   platzbauer?: SaisonKunde | null;
+  // Optional: Projekt für Lieferadresse-Übernahme
+  projekt?: Projekt | null;
 }
 
 /**
@@ -42,6 +45,7 @@ const DokumentAdresseFormular = ({
   projektKundenname,
   disabled = false,
   platzbauer,
+  projekt,
 }: DokumentAdresseFormularProps) => {
 
   // Bestimme Titel und Farben basierend auf Dokumenttyp
@@ -156,6 +160,18 @@ const DokumentAdresseFormular = ({
     }
   };
 
+  // Projekt-Lieferadresse übernehmen
+  const handleProjektLieferadresse = () => {
+    if (!projekt?.lieferadresse) return;
+
+    const lieferadr = projekt.lieferadresse;
+    onChange({
+      name: projekt.kundenname || projektKundenname || '',
+      strasse: lieferadr.strasse || '',
+      plzOrt: formatAdresszeile(lieferadr.plz, lieferadr.ort, lieferadr.land),
+    });
+  };
+
   // Prüfen ob aktuell Stammdaten verwendet werden
   const istStammdaten = () => {
     if (!kunde || !config.defaultSource) return false;
@@ -229,6 +245,19 @@ const DokumentAdresseFormular = ({
               >
                 <HardHat className="h-4 w-4" />
                 <span className="hidden sm:inline">Platzbauer</span>
+              </button>
+            )}
+
+            {/* Projekt-Lieferadresse übernehmen Button (nur wenn Projekt mit Lieferadresse) */}
+            {projekt?.lieferadresse && (
+              <button
+                type="button"
+                onClick={handleProjektLieferadresse}
+                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                title="Lieferadresse vom Projekt übernehmen"
+              >
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">Lieferadresse</span>
               </button>
             )}
           </div>
