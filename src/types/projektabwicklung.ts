@@ -216,6 +216,7 @@ export interface LieferscheinDaten extends BaseDokument {
   druckeAnsprechpartner?: boolean;
 
   // Abdeckung & PE Folien (für Unterschriftsbereich)
+  zeigeAbdeckungBereich?: boolean; // Default: true - Bereich im PDF anzeigen
   abgedecktDurchKunde?: boolean;
   abgedecktDurchLKW?: boolean;
   peFolien?: string;

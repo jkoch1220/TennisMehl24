@@ -105,6 +105,9 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
 
     // Default: Ansprechpartner drucken
     druckeAnsprechpartner: true,
+
+    // Default: Abdeckung & PE Folien Bereich anzeigen
+    zeigeAbdeckungBereich: true,
   });
   
   // Dokument-Status
@@ -1402,8 +1405,20 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             Wenn aktiviert, wird auf dem Lieferschein eine Empfangsbestätigung mit Unterschriftsfeld für den Empfänger angezeigt.
             Bei Shop-Artikeln kann dies deaktiviert werden.
           </p>
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={lieferscheinDaten.zeigeAbdeckungBereich !== false}
+                onChange={(e) => handleInputChange('zeigeAbdeckungBereich', e.target.checked)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-green-600 border-gray-300 dark:border-slate-700 rounded focus:ring-green-500 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600 dark:text-dark-textMuted">Abdeckung & PE Folien Bereich drucken</span>
+            </label>
+          </div>
           <p className="text-sm text-gray-500 dark:text-dark-textMuted mt-2 italic">
-            Hinweis: Abdeckung, PE Folien und DISPO-Ansprechpartner werden automatisch auf dem Lieferschein gedruckt.
+            Wenn aktiviert, werden Abdeckung, PE Folien und DISPO-Ansprechpartner auf dem Lieferschein gedruckt.
           </p>
         </div>
 

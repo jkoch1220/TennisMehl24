@@ -1518,8 +1518,11 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   
   let signY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
-  // === Abdeckung & PE Folien (nur bei Standard-Lieferschein) ===
-  if (!einfach) {
+  // === Abdeckung & PE Folien (nur bei Standard-Lieferschein und wenn aktiviert) ===
+  // Default: true (für Rückwärtskompatibilität: undefined = true)
+  const zeigeAbdeckungBereich = daten.zeigeAbdeckungBereich !== false;
+
+  if (!einfach && zeigeAbdeckungBereich) {
     signY += 15;
     signY = await ensureSpace(doc, signY, 35, stammdaten);
 
@@ -1564,7 +1567,10 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
         : daten.dispoAnsprechpartner.name;
       doc.text(ansprechpartnerText, 25, signY);
     }
+  }
 
+  // === Empfangsbestätigung (nur bei Standard-Lieferschein und wenn aktiviert) ===
+  if (!einfach) {
     // === Empfangsbestätigung (nur wenn aktiviert) ===
     // Default: true (für Rückwärtskompatibilität: undefined = true)
     const zeigeEmpfangsbestaetigung = daten.unterschriftenFuerEmpfangsbestaetigung !== false;
