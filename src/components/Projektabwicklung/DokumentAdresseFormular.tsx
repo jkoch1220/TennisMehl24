@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { RefreshCw, FileText, Truck, AlertCircle, HardHat, MapPin } from 'lucide-react';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Projekt } from '../../types/projekt';
 import { formatAdresszeile } from '../../services/pdfHelpers';
+import { saisonplanungService } from '../../services/saisonplanungService';
 
 export interface DokumentAdresse {
   name: string;
@@ -47,6 +49,27 @@ const DokumentAdresseFormular = ({
   platzbauer,
   projekt,
 }: DokumentAdresseFormularProps) => {
+
+  // Lade Platzbauer aus projekt.platzbauerId (für Bezugsweg=Platzbauer Projekte)
+  const [geladenerPlatzbauer, setGeladenerPlatzbauer] = useState<SaisonKunde | null>(null);
+
+  useEffect(() => {
+    const ladePlatzbauer = async () => {
+      // Nur laden wenn kein platzbauer-prop übergeben wurde und projekt.platzbauerId existiert
+      if (!platzbauer && projekt?.platzbauerId) {
+        try {
+          const pb = await saisonplanungService.loadKunde(projekt.platzbauerId);
+          setGeladenerPlatzbauer(pb);
+        } catch (error) {
+          console.warn('Platzbauer konnte nicht geladen werden:', error);
+        }
+      }
+    };
+    ladePlatzbauer();
+  }, [platzbauer, projekt?.platzbauerId]);
+
+  // Verwende prop-Platzbauer oder geladenen Platzbauer
+  const aktiverPlatzbauer = platzbauer || geladenerPlatzbauer;
 
   // Bestimme Titel und Farben basierend auf Dokumenttyp
   const getConfig = () => {
@@ -148,12 +171,12 @@ const DokumentAdresseFormular = ({
 
   // Platzbauer-Daten übernehmen (für Platzbauer-Projekte)
   const handlePlatzbauerDatenUebernehmen = () => {
-    if (!platzbauer) return;
+    if (!aktiverPlatzbauer) return;
 
-    const rechnungsadresse = platzbauer.rechnungsadresse;
+    const rechnungsadresse = aktiverPlatzbauer.rechnungsadresse;
     if (rechnungsadresse) {
       onChange({
-        name: platzbauer.name || '',
+        name: aktiverPlatzbauer.name || '',
         strasse: rechnungsadresse.strasse || '',
         plzOrt: formatAdresszeile(rechnungsadresse.plz, rechnungsadresse.ort, rechnungsadresse.land),
       });
@@ -235,13 +258,13 @@ const DokumentAdresseFormular = ({
               )}
             </button>
 
-            {/* Platzbauer-Daten übernehmen Button (nur bei Platzbauer-Projekten) */}
-            {platzbauer && (
+            {/* Platzbauer-Daten übernehmen Button (bei Platzbauer-Projekten oder bezugsweg=platzbauer) */}
+            {aktiverPlatzbauer && (
               <button
                 type="button"
                 onClick={handlePlatzbauerDatenUebernehmen}
                 className="flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors"
-                title={`Rechnungsadresse von ${platzbauer.name} übernehmen`}
+                title={`Rechnungsadresse von ${aktiverPlatzbauer.name} übernehmen`}
               >
                 <HardHat className="h-4 w-4" />
                 <span className="hidden sm:inline">Platzbauer</span>
