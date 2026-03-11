@@ -541,22 +541,36 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             console.warn('Kunde konnte nicht geladen werden:', error);
           }
         }
-        // Platzbauer-Name laden falls ID vorhanden
+        // Platzbauer laden falls ID vorhanden
+        let platzbaurerRechnungsName: string | undefined = undefined;
+        let platzbaurerRechnungsStrasse: string | undefined = undefined;
+        let platzbaurerRechnungsPlzOrt: string | undefined = undefined;
+
         if (platzbauerId) {
           try {
             const pb = await saisonplanungService.loadKunde(platzbauerId);
             if (pb) {
               platzbauername = pb.name;
               console.log('✅ Platzbauer-Name geladen:', platzbauername);
+
+              // Bei Bezugsweg "platzbauer": Rechnungsadresse vom Platzbauer verwenden!
+              if (projekt?.bezugsweg === 'platzbauer' && pb.rechnungsadresse) {
+                platzbaurerRechnungsName = pb.name;
+                platzbaurerRechnungsStrasse = pb.rechnungsadresse.strasse;
+                platzbaurerRechnungsPlzOrt = formatAdresszeile(pb.rechnungsadresse.plz, pb.rechnungsadresse.ort, pb.rechnungsadresse.land);
+                console.log('✅ PLATZBAUER-PROJEKT: Rechnungsadresse vom Platzbauer verwenden:', platzbaurerRechnungsName, platzbaurerRechnungsStrasse, platzbaurerRechnungsPlzOrt);
+              }
             }
           } catch (error) {
             console.warn('Platzbauer-Name konnte nicht geladen werden:', error);
           }
         }
 
-        // WICHTIG: Kunden-Adressen haben VORRANG vor Projekt-Adressen!
-        const finaleRechnungsStrasse = kundenRechnungsStrasse || projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
-        const finaleRechnungsPlzOrt = kundenRechnungsPlzOrt || projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
+        // WICHTIG: Bei Platzbauer-Bezugsweg kommt Rechnungsadresse vom PLATZBAUER!
+        // Sonst: Kunden-Adressen haben VORRANG vor Projekt-Adressen
+        const finaleRechnungsName = platzbaurerRechnungsName || projekt?.kundenname || kundeInfo?.kundenname || '';
+        const finaleRechnungsStrasse = platzbaurerRechnungsStrasse || kundenRechnungsStrasse || projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
+        const finaleRechnungsPlzOrt = platzbaurerRechnungsPlzOrt || kundenRechnungsPlzOrt || projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
 
         // Lieferadresse: Kunden-Lieferadresse > Projekt-Lieferadresse > keine
         const finaleLieferadresseAbweichend = kundenLieferadresseAbweichend || lieferadresseAbweichend;
@@ -566,7 +580,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         setAngebotsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
-          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
+          kundenname: finaleRechnungsName,
           kundenstrasse: finaleRechnungsStrasse,
           kundenPlzOrt: finaleRechnungsPlzOrt,
           ansprechpartner: kundenAnsprechpartner,

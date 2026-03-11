@@ -360,6 +360,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         let lieferzeitBis: string | undefined = undefined;
         let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
 
+        // Platzbauer-Rechnungsadresse (falls bezugsweg = platzbauer)
+        let platzbaurerRechnungsName: string | undefined = undefined;
+        let platzbaurerRechnungsStrasse: string | undefined = undefined;
+        let platzbaurerRechnungsPlzOrt: string | undefined = undefined;
+
         if (projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
@@ -383,12 +388,32 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           }
         }
 
+        // Bei Platzbauer-Bezugsweg: Rechnungsadresse vom Platzbauer laden!
+        if (projekt?.bezugsweg === 'platzbauer' && projekt?.platzbauerId) {
+          try {
+            const pb = await saisonplanungService.loadKunde(projekt.platzbauerId);
+            if (pb && pb.rechnungsadresse) {
+              platzbaurerRechnungsName = pb.name;
+              platzbaurerRechnungsStrasse = pb.rechnungsadresse.strasse;
+              platzbaurerRechnungsPlzOrt = formatAdresszeile(pb.rechnungsadresse.plz, pb.rechnungsadresse.ort, pb.rechnungsadresse.land);
+              console.log('✅ PLATZBAUER-PROJEKT: Rechnungsadresse vom Platzbauer:', platzbaurerRechnungsName, platzbaurerRechnungsStrasse, platzbaurerRechnungsPlzOrt);
+            }
+          } catch (error) {
+            console.warn('Platzbauer konnte nicht geladen werden:', error);
+          }
+        }
+
+        // Finale Adressen: Bei Platzbauer-Bezugsweg = Platzbauer-Adresse, sonst Projekt/Kunden-Adresse
+        const finaleRechnungsName = platzbaurerRechnungsName || projekt?.kundenname || kundeInfo?.kundenname || '';
+        const finaleRechnungsStrasse = platzbaurerRechnungsStrasse || projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '';
+        const finaleRechnungsPlzOrt = platzbaurerRechnungsPlzOrt || projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
+
         setAuftragsbestaetigungsDaten(prev => ({
           ...prev,
           kundennummer: projekt?.kundennummer || kundeInfo?.kundennummer,
-          kundenname: projekt?.kundenname || kundeInfo?.kundenname || '',
-          kundenstrasse: projekt?.kundenstrasse || kundeInfo?.kundenstrasse || '',
-          kundenPlzOrt: projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '',
+          kundenname: finaleRechnungsName,
+          kundenstrasse: finaleRechnungsStrasse,
+          kundenPlzOrt: finaleRechnungsPlzOrt,
           ansprechpartner: projekt?.ansprechpartner || kundeInfo?.ansprechpartner,
           auftragsbestaetigungsnummer: auftragsbestaetigungsnummer,
           auftragsbestaetigungsdatum: projekt?.auftragsbestaetigungsdatum?.split('T')[0] || heute.toISOString().split('T')[0],

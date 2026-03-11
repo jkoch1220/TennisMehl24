@@ -460,55 +460,80 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           : undefined;
 
         // Lade aktuelle Kundendaten vom SaisonKunden
-        if (projekt?.kundeId) {
+        const kunde = projekt?.kundeId ? await saisonplanungService.loadKunde(projekt.kundeId).catch(() => null) : null;
+
+        // BEZUGSWEG PLATZBAUER: Rechnungsadresse vom Platzbauer laden!
+        if (projekt?.bezugsweg === 'platzbauer' && projekt?.platzbauerId) {
           try {
-            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-            if (kunde) {
-              // PLATZBAUER-PROJEKTE: Spezielle Behandlung
-              // - Rechnungsadresse = Platzbauer (bleibt aus projekt.kundenname/strasse/PlzOrt)
-              // - Lieferadresse = Verein (kunde.name + projekt.lieferadresse)
-              if (projekt?.istPlatzbauerprojekt) {
-                // Rechnungsadresse bleibt vom Projekt (Platzbauer) - keine Änderung!
-                // Nur Lieferadresse vom Kunden laden (Verein)
+            const pb = await saisonplanungService.loadKunde(projekt.platzbauerId);
+            if (pb && pb.rechnungsadresse) {
+              kundenname = pb.name;
+              kundennummer = pb.kundennummer;
+              kundenstrasse = pb.rechnungsadresse.strasse || '';
+              kundenPlzOrt = formatAdresszeile(
+                pb.rechnungsadresse.plz || '',
+                pb.rechnungsadresse.ort || '',
+                pb.rechnungsadresse.land
+              );
+              console.log('✅ Bezugsweg Platzbauer: Rechnungsadresse vom Platzbauer geladen:', pb.name);
+
+              // Lieferadresse = Verein (Kunde)
+              if (kunde) {
                 lieferadresseAbweichend = true;
-                lieferadresseName = kunde.name; // Vereinsname
-                lieferadresseStrasse = projekt?.lieferadresse?.strasse || kunde.lieferadresse?.strasse;
-                lieferadressePlzOrt = projekt?.lieferadresse
-                  ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
-                  : formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
-                console.log('✅ Platzbauer-Projekt: Rechnungsadresse bleibt vom Platzbauer, Lieferadresse vom Verein:', kunde.name);
-              } else {
-                // NORMALE PROJEKTE: Rechnungsadresse vom Kunden übernehmen!
-                kundenname = kunde.name;
-                kundennummer = kunde.kundennummer;
-                kundenstrasse = kunde.rechnungsadresse.strasse;
-                kundenPlzOrt = formatAdresszeile(
-                  kunde.rechnungsadresse.plz,
-                  kunde.rechnungsadresse.ort,
-                  kunde.rechnungsadresse.land
-                );
-
-                // LIEFERADRESSE vom Kunden (falls abweichend von Rechnungsadresse)
-                const lieferAdresseIstAnders =
-                  kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
-                  kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
-
-                if (lieferAdresseIstAnders) {
-                  lieferadresseAbweichend = true;
-                  lieferadresseName = kunde.name;
-                  lieferadresseStrasse = kunde.lieferadresse.strasse;
-                  lieferadressePlzOrt = formatAdresszeile(
-                    kunde.lieferadresse.plz,
-                    kunde.lieferadresse.ort,
-                    kunde.lieferadresse.land
-                  );
-                }
-
-                console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
+                lieferadresseName = kunde.name;
+                lieferadresseStrasse = kunde.lieferadresse?.strasse || projekt?.lieferadresse?.strasse;
+                lieferadressePlzOrt = kunde.lieferadresse
+                  ? formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land)
+                  : (projekt?.lieferadresse
+                    ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+                    : undefined);
               }
             }
           } catch (error) {
-            console.warn('Kunde konnte nicht geladen werden, verwende Projektdaten:', error);
+            console.warn('Fehler beim Laden der Platzbauer-Daten (Bezugsweg):', error);
+          }
+        } else if (kunde) {
+          // PLATZBAUER-PROJEKTE (via Platzbauerverwaltung): Spezielle Behandlung
+          // - Rechnungsadresse = Platzbauer (bleibt aus projekt.kundenname/strasse/PlzOrt)
+          // - Lieferadresse = Verein (kunde.name + projekt.lieferadresse)
+          if (projekt?.istPlatzbauerprojekt) {
+            // Rechnungsadresse bleibt vom Projekt (Platzbauer) - keine Änderung!
+            // Nur Lieferadresse vom Kunden laden (Verein)
+            lieferadresseAbweichend = true;
+            lieferadresseName = kunde.name; // Vereinsname
+            lieferadresseStrasse = projekt?.lieferadresse?.strasse || kunde.lieferadresse?.strasse;
+            lieferadressePlzOrt = projekt?.lieferadresse
+              ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+              : formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
+            console.log('✅ Platzbauer-Projekt: Rechnungsadresse bleibt vom Platzbauer, Lieferadresse vom Verein:', kunde.name);
+          } else {
+            // NORMALE PROJEKTE: Rechnungsadresse vom Kunden übernehmen!
+            kundenname = kunde.name;
+            kundennummer = kunde.kundennummer;
+            kundenstrasse = kunde.rechnungsadresse.strasse;
+            kundenPlzOrt = formatAdresszeile(
+              kunde.rechnungsadresse.plz,
+              kunde.rechnungsadresse.ort,
+              kunde.rechnungsadresse.land
+            );
+
+            // LIEFERADRESSE vom Kunden (falls abweichend von Rechnungsadresse)
+            const lieferAdresseIstAnders =
+              kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||
+              kunde.lieferadresse.plz !== kunde.rechnungsadresse.plz;
+
+            if (lieferAdresseIstAnders) {
+              lieferadresseAbweichend = true;
+              lieferadresseName = kunde.name;
+              lieferadresseStrasse = kunde.lieferadresse.strasse;
+              lieferadressePlzOrt = formatAdresszeile(
+                kunde.lieferadresse.plz,
+                kunde.lieferadresse.ort,
+                kunde.lieferadresse.land
+              );
+            }
+
+            console.log('✅ Rechnungsadresse vom Kunden geladen:', kundenstrasse, kundenPlzOrt);
           }
         }
 
@@ -944,8 +969,37 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
         ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
         : undefined;
 
-      if (kunde) {
-        // PLATZBAUER-PROJEKTE: Spezielle Behandlung
+      // BEZUGSWEG PLATZBAUER: Rechnungsadresse vom Platzbauer laden!
+      if (projekt?.bezugsweg === 'platzbauer' && projekt?.platzbauerId) {
+        try {
+          const pb = await saisonplanungService.loadKunde(projekt.platzbauerId);
+          if (pb && pb.rechnungsadresse) {
+            kundenname = pb.name;
+            kundenstrasse = pb.rechnungsadresse.strasse || '';
+            kundenPlzOrt = formatAdresszeile(
+              pb.rechnungsadresse.plz || '',
+              pb.rechnungsadresse.ort || '',
+              pb.rechnungsadresse.land
+            );
+            console.log('✅ Bezugsweg Platzbauer: Rechnungsadresse vom Platzbauer geladen:', pb.name);
+
+            // Lieferadresse = Verein (Kunde)
+            if (kunde) {
+              lieferadresseAbweichend = true;
+              lieferadresseName = kunde.name;
+              lieferadresseStrasse = kunde.lieferadresse?.strasse || projekt?.lieferadresse?.strasse;
+              lieferadressePlzOrt = kunde.lieferadresse
+                ? formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land)
+                : (projekt?.lieferadresse
+                  ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
+                  : undefined);
+            }
+          }
+        } catch (error) {
+          console.warn('Fehler beim Laden der Platzbauer-Daten (Bezugsweg):', error);
+        }
+      } else if (kunde) {
+        // PLATZBAUER-PROJEKTE (via Platzbauerverwaltung): Spezielle Behandlung
         // - Rechnungsadresse = Platzbauer (bleibt aus projekt.kundenname/strasse/PlzOrt)
         // - Lieferadresse = Verein (kunde.name + projekt.lieferadresse)
         if (projekt?.istPlatzbauerprojekt) {

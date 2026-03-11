@@ -421,6 +421,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
         let rechnungsPlzOrt = projekt?.kundenPlzOrt || kundeInfo?.kundenPlzOrt || '';
         let rechnungsnummer = projekt?.kundennummer || kundeInfo?.kundennummer;
 
+        // Fall 1: Platzbauerprojekte (über Platzbauerverwaltung)
         if (projekt?.istPlatzbauerprojekt && projekt?.zugeordnetesPlatzbauerprojektId) {
           try {
             // Lade Platzbauerprojekt um platzbauerId zu bekommen
@@ -444,6 +445,25 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             }
           } catch (error) {
             console.warn('Fehler beim Laden der Platzbauer-Daten:', error);
+          }
+        }
+        // Fall 2: Bezugsweg = Platzbauer (direktes Platzbauer-Projekt)
+        else if (projekt?.bezugsweg === 'platzbauer' && projekt?.platzbauerId) {
+          try {
+            const platzbauer = await saisonplanungService.loadKunde(projekt.platzbauerId);
+            if (platzbauer && platzbauer.rechnungsadresse) {
+              rechnungsname = platzbauer.name;
+              rechnungsstrasse = platzbauer.rechnungsadresse.strasse || '';
+              rechnungsPlzOrt = formatAdresszeile(
+                platzbauer.rechnungsadresse.plz || '',
+                platzbauer.rechnungsadresse.ort || '',
+                platzbauer.rechnungsadresse.land
+              );
+              rechnungsnummer = platzbauer.kundennummer;
+              console.log('✅ Bezugsweg Platzbauer: Rechnungsadresse vom Platzbauer geladen:', platzbauer.name);
+            }
+          } catch (error) {
+            console.warn('Fehler beim Laden der Platzbauer-Daten (Bezugsweg):', error);
           }
         }
 
