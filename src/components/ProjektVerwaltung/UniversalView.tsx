@@ -886,8 +886,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         return;
       }
 
-      // Signatur aus Stammdaten laden
-      const emailTemplate = await generiereStandardEmail('lieferschein', gruppe.abNummer, gruppe.kundenname);
+      // Signatur aus Stammdaten laden (verwende 'angebot' Template wie bei Universal-Lieferschein)
+      const emailTemplate = await generiereStandardEmail('angebot', gruppe.abNummer, gruppe.kundenname);
       const signaturHtml = emailTemplate.signatur || '';
 
       // Empfänger basierend auf Testmodus
@@ -934,7 +934,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
       // Platzhalter ersetzen
       const finalEmailText = emailText
         .replace('[TRACKING_NUMMER]', trackingNummer)
-        .replace('[TRACKING_LINK]', trackingLink || `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${trackingNummer}`);
+        .replace('[TRACKING_LINK]', trackingLink || `https://gls-group.com/DE/de/paketverfolgung?match=${trackingNummer}`);
 
       // HTML-Body mit Signatur
       const htmlBody = wrapInEmailTemplate(finalEmailText, signatur);
@@ -2405,7 +2405,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               {/* Tracking-Link (optional) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Tracking-Link <span className="text-gray-400">(optional - DHL wird automatisch generiert)</span>
+                  Tracking-Link <span className="text-gray-400">(optional - GLS wird automatisch generiert)</span>
                 </label>
                 <input
                   type="text"
