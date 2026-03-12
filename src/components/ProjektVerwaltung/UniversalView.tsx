@@ -35,7 +35,7 @@ import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPo
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { projektService } from '../../services/projektService';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
-import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
+import { sendeEmailMitPdf, sendeEmail, wrapInEmailTemplate } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -137,6 +137,17 @@ interface EmailVorschauDaten {
   lieferscheinnummer: string;
 }
 
+// Interface für Tracking-Email Modal
+interface TrackingEmailVorschauDaten {
+  gruppe: KundenGruppe;
+  empfaenger: string;
+  betreff: string;
+  emailText: string;
+  signatur: string;
+  trackingNummer: string;
+  trackingLink?: string;
+}
+
 // Bestimmt den Kanban-Status einer Gruppe
 // NUR basierend auf Projekt-Status - ermöglicht manuelles Verschieben
 const getKanbanStatus = (
@@ -197,6 +208,11 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
   const [showEmailVorschau, setShowEmailVorschau] = useState(false);
   const [emailVorschauDaten, setEmailVorschauDaten] = useState<EmailVorschauDaten | null>(null);
   const [emailVorschauSending, setEmailVorschauSending] = useState(false);
+
+  // Tracking-Email Modal
+  const [showTrackingEmail, setShowTrackingEmail] = useState(false);
+  const [trackingEmailDaten, setTrackingEmailDaten] = useState<TrackingEmailVorschauDaten | null>(null);
+  const [trackingEmailSending, setTrackingEmailSending] = useState(false);
 
   // Bulk-Versand mit Modal für jeden Kunden
   const [bulkQueue, setBulkQueue] = useState<KundenGruppe[]>([]);
@@ -858,6 +874,136 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
     window.open(url, '_blank');
   };
 
+  // Tracking-Email Modal öffnen
+  const oeffneTrackingEmailModal = async (gruppe: KundenGruppe) => {
+    try {
+      // Kunden-Email aus Projekt holen
+      const projekt = gruppe.bestellungen[0]?.projekt;
+      const kundenEmail = projekt?.kundenEmail;
+
+      if (!kundenEmail && !testModus) {
+        alert(`Keine E-Mail-Adresse für "${gruppe.kundenname}" hinterlegt.\n\nBitte hinterlegen Sie eine E-Mail-Adresse im Projekt oder aktivieren Sie den Test-Modus.`);
+        return;
+      }
+
+      // Signatur aus Stammdaten laden
+      const emailTemplate = await generiereStandardEmail('lieferschein', gruppe.abNummer, gruppe.kundenname);
+      const signaturHtml = emailTemplate.signatur || '';
+
+      // Empfänger basierend auf Testmodus
+      const empfaenger = testModus ? TEST_EMAIL : kundenEmail!;
+
+      // Email-Body erstellen
+      const emailText = `<p>Guten Tag,</p>
+<p>Ihre Bestellung (${gruppe.abNummer}) wurde versandt.</p>
+<p><strong>Tracking-Nummer:</strong> [TRACKING_NUMMER]</p>
+<p>Sie können den Sendungsstatus unter folgendem Link verfolgen:</p>
+<p>[TRACKING_LINK]</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`;
+
+      // Modal-Daten setzen
+      setTrackingEmailDaten({
+        gruppe,
+        empfaenger,
+        betreff: `${testModus ? '[TEST] ' : ''}Ihre Bestellung ${gruppe.abNummer} - Versandbestätigung`,
+        emailText,
+        signatur: signaturHtml,
+        trackingNummer: '',
+        trackingLink: '',
+      });
+      setShowTrackingEmail(true);
+    } catch (error) {
+      console.error('Fehler beim Vorbereiten der Tracking-Email:', error);
+      alert('Fehler beim Vorbereiten der Tracking-Email. Bitte versuchen Sie es erneut.');
+    }
+  };
+
+  // Tracking-Email senden
+  const sendeTrackingEmail = async () => {
+    if (!trackingEmailDaten) return;
+
+    if (!trackingEmailDaten.trackingNummer.trim()) {
+      alert('Bitte geben Sie eine Tracking-Nummer ein.');
+      return;
+    }
+
+    setTrackingEmailSending(true);
+    const { gruppe, empfaenger, betreff, emailText, signatur, trackingNummer, trackingLink } = trackingEmailDaten;
+
+    try {
+      // Platzhalter ersetzen
+      const finalEmailText = emailText
+        .replace('[TRACKING_NUMMER]', trackingNummer)
+        .replace('[TRACKING_LINK]', trackingLink || `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${trackingNummer}`);
+
+      // HTML-Body mit Signatur
+      const htmlBody = wrapInEmailTemplate(finalEmailText, signatur);
+
+      // Email senden (ohne PDF-Anhang)
+      const result = await sendeEmail({
+        to: empfaenger,
+        from: TENNISMEHL_ABSENDER,
+        subject: betreff,
+        htmlBody,
+        testMode: testModus,
+      });
+
+      if (result.success) {
+        // Status auf "an_kunden" setzen
+        if (!testModus) {
+          try {
+            await projektService.updateProjekt(gruppe.projektId, {
+              status: 'lieferschein',
+              universalKanbanStatus: 'an_kunden',
+              trackingNummer: trackingNummer,
+            } as any);
+            console.log(`✓ Projekt ${gruppe.projektId} auf Status "an_kunden" aktualisiert`);
+
+            // Lokalen State aktualisieren
+            setBestellungen(prev => prev.map(b => {
+              if (b.projektId === gruppe.projektId) {
+                return {
+                  ...b,
+                  projekt: {
+                    ...b.projekt,
+                    status: 'lieferschein' as any,
+                    universalKanbanStatus: 'an_kunden',
+                  }
+                };
+              }
+              return b;
+            }));
+          } catch (statusError) {
+            console.error('Fehler beim Aktualisieren des Projekt-Status:', statusError);
+          }
+        }
+
+        setJustSentProjektIds(prev => new Set([...prev, gruppe.projektId]));
+        setTimeout(() => {
+          setJustSentProjektIds(prev => {
+            const next = new Set(prev);
+            next.delete(gruppe.projektId);
+            return next;
+          });
+        }, testModus ? 5000 : 3000);
+
+        setShowTrackingEmail(false);
+        setTrackingEmailDaten(null);
+
+        alert(testModus
+          ? `✓ Test-Email gesendet an ${TEST_EMAIL}`
+          : `✓ Tracking-Email erfolgreich an ${empfaenger} gesendet!`);
+      } else {
+        throw new Error(result.error || 'Email konnte nicht gesendet werden');
+      }
+    } catch (error) {
+      console.error('Fehler beim Senden der Tracking-Email:', error);
+      alert(`Fehler beim Senden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setTrackingEmailSending(false);
+    }
+  };
+
   // Bulk-Versand starten (mit Modal für jeden Kunden)
   const handleBulkSend = async () => {
     const selectedGruppen = kundenGruppen.filter(g => bulkSelectedIds.has(g.projektId));
@@ -1182,29 +1328,27 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          {/* Test-Modus Toggle (nur bei Kunden-Gruppierung) */}
-          {groupBy === 'kunde' && (
-            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-              testModus
-                ? 'bg-yellow-100 dark:bg-yellow-900/50 border-2 border-yellow-400'
-                : 'bg-gray-100 dark:bg-slate-800 border border-gray-300 dark:border-slate-600'
-            }`}>
-              <input
-                type="checkbox"
-                checked={testModus}
-                onChange={(e) => setTestModus(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
-              />
-              <span className={`text-sm font-medium ${testModus ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-600 dark:text-gray-400'}`}>
-                Test-Modus
+          {/* Test-Modus Toggle (immer sichtbar) */}
+          <label className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+            testModus
+              ? 'bg-yellow-100 dark:bg-yellow-900/50 border-2 border-yellow-400'
+              : 'bg-gray-100 dark:bg-slate-800 border border-gray-300 dark:border-slate-600'
+          }`}>
+            <input
+              type="checkbox"
+              checked={testModus}
+              onChange={(e) => setTestModus(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+            />
+            <span className={`text-sm font-medium ${testModus ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-600 dark:text-gray-400'}`}>
+              Test-Modus
+            </span>
+            {testModus && (
+              <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                → {TEST_EMAIL}
               </span>
-              {testModus && (
-                <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                  → {TEST_EMAIL}
-                </span>
-              )}
-            </label>
-          )}
+            )}
+          </label>
 
           {/* Bulk-Versand Button (nur bei Kunden-Gruppierung) */}
           {groupBy === 'kunde' && kundenGruppen.length > 0 && (
@@ -1435,13 +1579,17 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Tracking an Kunde senden → verschiebt zu "An Kunden"
-                                  updateProjektStatusManuell(gruppe.projektId, 'an_kunden');
+                                  // Tracking-Email Modal öffnen
+                                  oeffneTrackingEmailModal(gruppe);
                                 }}
-                                className="flex-1 px-2 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded flex items-center justify-center gap-1 transition-colors"
+                                className={`flex-1 px-2 py-1.5 text-xs rounded flex items-center justify-center gap-1 transition-colors ${
+                                  testModus
+                                    ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                                    : 'bg-amber-500 hover:bg-amber-600 text-white'
+                                }`}
                               >
-                                <Truck className="w-3 h-3" />
-                                Tracking an Kunde
+                                <Mail className="w-3 h-3" />
+                                {testModus ? 'Test: ' : ''}Tracking senden
                               </button>
                             )}
 
@@ -2181,6 +2329,166 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                   <>
                     <Send className="w-5 h-5" />
                     {bulkQueue.length > 0 ? 'Senden & Weiter' : 'E-Mail senden'}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tracking-Email Modal */}
+      {showTrackingEmail && trackingEmailDaten && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className={`px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between rounded-t-xl ${
+              testModus
+                ? 'bg-gradient-to-r from-yellow-500 to-amber-500'
+                : 'bg-gradient-to-r from-amber-500 to-orange-500'
+            }`}>
+              <div className="flex items-center gap-3">
+                <Truck className="w-6 h-6 text-white" />
+                <div>
+                  <h2 className="text-xl font-semibold text-white">
+                    {testModus ? '[TEST] ' : ''}Tracking an Kunden senden
+                  </h2>
+                  <p className="text-white/80 text-sm">{trackingEmailDaten.gruppe.kundenname}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTrackingEmail(false);
+                  setTrackingEmailDaten(null);
+                }}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Testmodus Hinweis */}
+              {testModus && (
+                <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-center gap-2">
+                  <span className="text-amber-600 dark:text-amber-400 font-medium">⚠️ Testmodus aktiv</span>
+                  <span className="text-amber-700 dark:text-amber-300 text-sm">- wird an {TEST_EMAIL} gesendet</span>
+                </div>
+              )}
+
+              {/* Empfänger */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Empfänger
+                </label>
+                <div className="px-4 py-2.5 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-800 dark:text-gray-200">
+                  {trackingEmailDaten.empfaenger}
+                </div>
+              </div>
+
+              {/* Tracking-Nummer (WICHTIG!) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tracking-Nummer <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={trackingEmailDaten.trackingNummer}
+                  onChange={(e) => setTrackingEmailDaten(prev => prev ? { ...prev, trackingNummer: e.target.value } : null)}
+                  placeholder="z.B. 00340434161095123456"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent text-lg font-mono"
+                  autoFocus
+                />
+              </div>
+
+              {/* Tracking-Link (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tracking-Link <span className="text-gray-400">(optional - DHL wird automatisch generiert)</span>
+                </label>
+                <input
+                  type="text"
+                  value={trackingEmailDaten.trackingLink || ''}
+                  onChange={(e) => setTrackingEmailDaten(prev => prev ? { ...prev, trackingLink: e.target.value } : null)}
+                  placeholder="https://..."
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Betreff */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Betreff
+                </label>
+                <input
+                  type="text"
+                  value={trackingEmailDaten.betreff}
+                  onChange={(e) => setTrackingEmailDaten(prev => prev ? { ...prev, betreff: e.target.value } : null)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* E-Mail Text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nachricht
+                </label>
+                <TipTapEditor
+                  content={trackingEmailDaten.emailText}
+                  onChange={(html) => setTrackingEmailDaten(prev => prev ? { ...prev, emailText: html } : null)}
+                  placeholder="E-Mail Text..."
+                  minHeight="150px"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Platzhalter: [TRACKING_NUMMER] und [TRACKING_LINK] werden automatisch ersetzt
+                </p>
+              </div>
+
+              {/* Signatur Vorschau */}
+              {trackingEmailDaten.signatur && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Signatur (wird automatisch angehängt)
+                  </label>
+                  <div
+                    className="px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                    dangerouslySetInnerHTML={{ __html: trackingEmailDaten.signatur }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between bg-gray-50 dark:bg-slate-800 rounded-b-xl">
+              <button
+                onClick={() => {
+                  setShowTrackingEmail(false);
+                  setTrackingEmailDaten(null);
+                }}
+                disabled={trackingEmailSending}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={sendeTrackingEmail}
+                disabled={trackingEmailSending || !trackingEmailDaten.trackingNummer.trim()}
+                className={`px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium disabled:opacity-50 ${
+                  testModus
+                    ? 'bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400'
+                    : 'bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400'
+                }`}
+              >
+                {trackingEmailSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Wird gesendet...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    {testModus ? 'Test-Email senden' : 'Tracking-Email senden'}
                   </>
                 )}
               </button>
