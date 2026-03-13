@@ -34,7 +34,17 @@ const IMAP_HOST = process.env.EMAIL_IMAP_HOST || 'web3.ipp-webspace.net';
 const IMAP_PORT = parseInt(process.env.EMAIL_IMAP_PORT || '993');
 
 // Mögliche Namen für den "Gesendet"-Ordner (je nach Mailserver-Konfiguration)
-const SENT_FOLDER_NAMES = ['Sent', 'INBOX.Sent', 'Gesendet', 'Sent Items', 'Sent Messages'];
+// web3.ipp-webspace.net verwendet oft "INBOX.Sent" oder "Sent"
+const SENT_FOLDER_NAMES = [
+  'INBOX.Sent',      // Häufig bei Plesk/cPanel
+  'Sent',            // Standard IMAP
+  'INBOX.Gesendet',  // Deutsch
+  'Gesendet',        // Deutsch
+  'Sent Items',      // Outlook
+  'Sent Messages',   // Apple Mail
+  'Gesendete Objekte', // Deutsch Outlook
+  'SENT',            // Uppercase
+];
 
 /**
  * Kopiert eine E-Mail in den "Gesendet"-Ordner via IMAP
@@ -75,19 +85,23 @@ async function copyToSentFolder(
     });
 
     imap.once('ready', () => {
+      console.log(`IMAP connected for ${account.email}, looking for Sent folder...`);
+
       // Versuche verschiedene Ordnernamen für "Gesendet"
       const tryFolders = [...SENT_FOLDER_NAMES];
+      const triedFolders: string[] = [];
 
       const tryNextFolder = () => {
         if (tryFolders.length === 0) {
-          console.warn('No Sent folder found, trying to create INBOX.Sent');
+          console.warn(`No Sent folder found for ${account.email}. Tried: ${triedFolders.join(', ')}`);
           // Versuche INBOX.Sent zu erstellen
           imap.addBox('INBOX.Sent', (addErr) => {
             if (addErr) {
               console.error('Could not create Sent folder:', addErr.message);
               cleanup();
-              resolve({ success: false, error: 'No Sent folder found and could not create one' });
+              resolve({ success: false, error: `No Sent folder found (tried: ${triedFolders.join(', ')})` });
             } else {
+              console.log('Created INBOX.Sent folder');
               appendToFolder('INBOX.Sent');
             }
           });
@@ -95,11 +109,14 @@ async function copyToSentFolder(
         }
 
         const folderName = tryFolders.shift()!;
+        triedFolders.push(folderName);
+
         imap.openBox(folderName, false, (err) => {
           if (err) {
             // Ordner existiert nicht, nächsten versuchen
             tryNextFolder();
           } else {
+            console.log(`Found Sent folder: ${folderName}`);
             appendToFolder(folderName);
           }
         });
