@@ -1,9 +1,11 @@
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
-import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus } from '../types/projekt';
+import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
+import { generiereNaechsteDokumentnummer } from './nummerierungService';
+import { AuftragsbestaetigungsDaten, Position } from '../types/projektabwicklung';
 
 // Optionen für Projekt-Erstellung
 export interface CreateProjektOptions {
@@ -637,6 +639,264 @@ class ProjektService {
       console.error('Fehler beim Batch-Update des Hydrocourt-Status:', error);
       throw error;
     }
+  }
+
+  // === PROJEKT SPLITTING ===
+
+  /**
+   * Teilt ein Projekt in ein Haupt- und ein Teilprojekt auf.
+   * Die gefilterten Positionen (Universal oder Hydrocourt) werden in ein neues Projekt verschoben.
+   *
+   * @param quellProjektId - ID des Projekts, das aufgeteilt werden soll
+   * @param positionsFilter - 'universal' oder 'hydrocourt' - welche Positionen ausgelagert werden
+   * @returns Das neue Teilprojekt und das aktualisierte Quellprojekt
+   */
+  async splitProjekt(
+    quellProjektId: string,
+    positionsFilter: TeilprojektTyp
+  ): Promise<{ neuesProjekt: Projekt; aktualisiertesQuellProjekt: Projekt }> {
+    try {
+      console.log(`🔀 Starte Projekt-Split: ${quellProjektId} → ${positionsFilter}`);
+
+      // 1. Quellprojekt laden
+      const quellProjekt = await this.getProjekt(quellProjektId);
+
+      // Prüfe ob AB vorhanden
+      if (!quellProjekt.auftragsbestaetigungsDaten) {
+        throw new Error('Projekt hat keine Auftragsbestätigung. Split ist nur nach AB-Erstellung möglich.');
+      }
+
+      // Parse AB-Daten
+      let abDaten: AuftragsbestaetigungsDaten;
+      try {
+        abDaten = JSON.parse(quellProjekt.auftragsbestaetigungsDaten);
+      } catch {
+        throw new Error('Auftragsbestätigungsdaten konnten nicht gelesen werden.');
+      }
+
+      if (!abDaten.positionen || abDaten.positionen.length === 0) {
+        throw new Error('Auftragsbestätigung enthält keine Positionen.');
+      }
+
+      // 2. Positionen aufteilen
+      const auszulagern: Position[] = [];
+      const verbleibend: Position[] = [];
+
+      for (const position of abDaten.positionen) {
+        const istUniversal = position.istUniversalArtikel === true ||
+                              position.beschreibung?.startsWith('Universal:');
+        const istHydrocourt = position.artikelnummer === 'TM-HYC';
+
+        if (positionsFilter === 'universal' && istUniversal) {
+          auszulagern.push(position);
+        } else if (positionsFilter === 'hydrocourt' && istHydrocourt) {
+          auszulagern.push(position);
+        } else {
+          verbleibend.push(position);
+        }
+      }
+
+      if (auszulagern.length === 0) {
+        throw new Error(`Keine ${positionsFilter === 'universal' ? 'Universal' : 'Hydrocourt'}-Positionen zum Auslagern gefunden.`);
+      }
+
+      if (verbleibend.length === 0) {
+        throw new Error('Es würden keine Positionen im Originalprojekt verbleiben. Split nicht möglich.');
+      }
+
+      console.log(`📦 Positionen: ${auszulagern.length} auslagern, ${verbleibend.length} verbleiben`);
+
+      // 3. Neue AB-Nummer generieren
+      const neueAbNummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
+      const jetzt = new Date().toISOString();
+      const heute = jetzt.split('T')[0];
+
+      // 4. Neues Teilprojekt erstellen
+      const teilprojektName = positionsFilter === 'universal'
+        ? `${quellProjekt.kundenname} - Universal`
+        : `${quellProjekt.kundenname} - Hydrocourt`;
+
+      // AB-Daten für Teilprojekt (mit ausgelagerten Positionen)
+      const teilprojektAbDaten: AuftragsbestaetigungsDaten = {
+        ...abDaten,
+        auftragsbestaetigungsnummer: neueAbNummer,
+        auftragsbestaetigungsdatum: heute,
+        positionen: auszulagern,
+      };
+
+      const neuesProjektDaten: NeuesProjekt = {
+        projektName: teilprojektName,
+        kundeId: quellProjekt.kundeId,
+        kundennummer: quellProjekt.kundennummer,
+        kundenname: quellProjekt.kundenname,
+        kundenstrasse: quellProjekt.kundenstrasse,
+        kundenPlzOrt: quellProjekt.kundenPlzOrt,
+        kundenEmail: quellProjekt.kundenEmail,
+        kundenTelefon: quellProjekt.kundenTelefon,
+        rechnungsEmail: quellProjekt.rechnungsEmail,
+        ansprechpartner: quellProjekt.ansprechpartner,
+        lieferadresse: quellProjekt.lieferadresse,
+        saisonjahr: quellProjekt.saisonjahr,
+        status: 'auftragsbestaetigung',
+
+        // AB-Daten
+        auftragsbestaetigungsnummer: neueAbNummer,
+        auftragsbestaetigungsdatum: heute,
+        auftragsbestaetigungsDaten: JSON.stringify(teilprojektAbDaten),
+
+        // Lieferdetails übernehmen
+        lieferKW: quellProjekt.lieferKW,
+        lieferKWJahr: quellProjekt.lieferKWJahr,
+        bevorzugterTag: quellProjekt.bevorzugterTag,
+        belieferungsart: quellProjekt.belieferungsart,
+        lieferzeitfenster: quellProjekt.lieferzeitfenster,
+        lieferdatumTyp: quellProjekt.lieferdatumTyp,
+        geplantesDatum: quellProjekt.geplantesDatum,
+        dispoAnsprechpartner: quellProjekt.dispoAnsprechpartner,
+
+        // Teilprojekt-Markierungen
+        quellProjektId: quellProjektId,
+        istTeilprojekt: true,
+        teilprojektTyp: positionsFilter,
+        teilprojektErstelltAm: jetzt,
+
+        // Kein Dispo-Status für Universal/Hydrocourt (wird nicht über Dispo geliefert)
+        dispoStatus: undefined,
+      };
+
+      // Projekt ohne Platzbauer-Zuordnung erstellen (da es ein Teilprojekt ist)
+      const neuesProjekt = await this.createProjekt(neuesProjektDaten, {
+        skipPlatzbauerProjektZuordnung: true,
+      });
+      console.log(`✅ Teilprojekt erstellt: ${neuesProjekt.id} (${neueAbNummer})`);
+
+      // 5. Quellprojekt aktualisieren (verbleibende Positionen)
+      const aktualisierteeAbDaten: AuftragsbestaetigungsDaten = {
+        ...abDaten,
+        positionen: verbleibend,
+      };
+
+      // Bestehendes teilprojektIds Array erweitern oder erstellen
+      const teilprojektIds = quellProjekt.teilprojektIds
+        ? [...quellProjekt.teilprojektIds, neuesProjekt.id]
+        : [neuesProjekt.id];
+
+      const aktualisiertesQuellProjekt = await this.updateProjekt(quellProjektId, {
+        auftragsbestaetigungsDaten: JSON.stringify(aktualisierteeAbDaten),
+        teilprojektIds: teilprojektIds,
+        // Liefergewicht neu berechnen (nur eigene Produkte)
+        liefergewicht: verbleibend.reduce((sum, p) => {
+          const einheit = p.einheit?.toLowerCase() || '';
+          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
+            return sum + (p.menge || 0);
+          }
+          return sum;
+        }, 0) || undefined,
+      });
+      console.log(`✅ Quellprojekt aktualisiert: ${verbleibend.length} Positionen verbleiben`);
+
+      return {
+        neuesProjekt,
+        aktualisiertesQuellProjekt,
+      };
+    } catch (error) {
+      console.error('❌ Fehler beim Projekt-Split:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prüft ob ein Projekt gemischte Artikelgruppen enthält und ob ein Split möglich ist.
+   * @returns Informationen über die Artikelgruppen im Projekt
+   */
+  analysierePositionen(projekt: Projekt): {
+    hatGemischteGruppen: boolean;
+    eigeneProdukte: Position[];
+    universalArtikel: Position[];
+    hydrocourtArtikel: Position[];
+    splitMoeglich: boolean;
+    splitBlockiert?: string;
+  } {
+    const result = {
+      hatGemischteGruppen: false,
+      eigeneProdukte: [] as Position[],
+      universalArtikel: [] as Position[],
+      hydrocourtArtikel: [] as Position[],
+      splitMoeglich: false,
+      splitBlockiert: undefined as string | undefined,
+    };
+
+    // Prüfe ob bereits ein Teilprojekt (dann kein weiterer Split möglich)
+    if (projekt.istTeilprojekt) {
+      result.splitBlockiert = 'Teilprojekte können nicht weiter aufgeteilt werden.';
+      return result;
+    }
+
+    // Prüfe ob Status zu weit fortgeschritten
+    const statusOrdnung: Record<ProjektStatus, number> = {
+      angebot: 0,
+      angebot_versendet: 1,
+      auftragsbestaetigung: 2,
+      lieferschein: 3,
+      rechnung: 4,
+      bezahlt: 5,
+      verloren: -1,
+    };
+
+    if (statusOrdnung[projekt.status] < 2) {
+      result.splitBlockiert = 'Split ist erst nach Auftragsbestätigung möglich.';
+      return result;
+    }
+
+    // Parse AB-Daten
+    if (!projekt.auftragsbestaetigungsDaten) {
+      result.splitBlockiert = 'Keine Auftragsbestätigungsdaten vorhanden.';
+      return result;
+    }
+
+    let abDaten: AuftragsbestaetigungsDaten;
+    try {
+      abDaten = JSON.parse(projekt.auftragsbestaetigungsDaten);
+    } catch {
+      result.splitBlockiert = 'Auftragsbestätigungsdaten können nicht gelesen werden.';
+      return result;
+    }
+
+    if (!abDaten.positionen || abDaten.positionen.length === 0) {
+      result.splitBlockiert = 'Keine Positionen in der Auftragsbestätigung.';
+      return result;
+    }
+
+    // Positionen kategorisieren
+    for (const position of abDaten.positionen) {
+      const istUniversal = position.istUniversalArtikel === true ||
+                            position.beschreibung?.startsWith('Universal:');
+      const istHydrocourt = position.artikelnummer === 'TM-HYC';
+
+      if (istUniversal) {
+        result.universalArtikel.push(position);
+      } else if (istHydrocourt) {
+        result.hydrocourtArtikel.push(position);
+      } else {
+        result.eigeneProdukte.push(position);
+      }
+    }
+
+    // Prüfe ob gemischte Gruppen vorhanden
+    const gruppenMitInhalt = [
+      result.eigeneProdukte.length > 0,
+      result.universalArtikel.length > 0,
+      result.hydrocourtArtikel.length > 0,
+    ].filter(Boolean).length;
+
+    result.hatGemischteGruppen = gruppenMitInhalt >= 2;
+
+    // Split nur möglich wenn mindestens 2 Gruppen UND nach dem Split noch was übrig bleibt
+    result.splitMoeglich = result.hatGemischteGruppen &&
+      (result.eigeneProdukte.length > 0 ||
+       (result.universalArtikel.length > 0 && result.hydrocourtArtikel.length > 0));
+
+    return result;
   }
 }
 

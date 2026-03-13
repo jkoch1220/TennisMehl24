@@ -18,6 +18,9 @@ export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'gelie
 // Hydrocourt-Status für TM-HYC Bestellungen (Versand an Schwab)
 export type HydrocourtStatus = 'offen' | 'bestellt' | 'versendet' | 'abgeschlossen';
 
+// Teilprojekt-Typ (nach Split)
+export type TeilprojektTyp = 'universal' | 'hydrocourt';
+
 // Lieferdatum-Typ (aus AB)
 // - 'fix' = Fixes Datum, 'spaetestens' = Spätestens bis Datum
 // - 'kw' = In KW X (fix), 'spaetestens_kw' = Spätestens bis KW X (flexibel)
@@ -197,6 +200,16 @@ export interface Projekt {
   hydrocourtTrackingNummer?: string;  // Sendungsverfolgung
   hydrocourtVersendetAm?: string;     // Wann Schwab die Ware versendet hat
   hydrocourtNotizen?: string;         // Freitext für interne Notizen
+
+  // === TEILPROJEKT-FELDER (nach Split) ===
+  // Wenn dieses Projekt durch Split erstellt wurde
+  quellProjektId?: string;            // ID des Original-Projekts aus dem gesplittet wurde
+  istTeilprojekt?: boolean;           // true = dieses Projekt wurde durch Split erstellt
+  teilprojektTyp?: TeilprojektTyp;    // 'universal' | 'hydrocourt'
+  teilprojektErstelltAm?: string;     // Wann der Split durchgeführt wurde
+
+  // Wenn aus diesem Projekt Teilprojekte erstellt wurden
+  teilprojektIds?: string[];          // IDs der ausgelagerten Teilprojekte
 
   // Timestamps
   erstelltAm: string;

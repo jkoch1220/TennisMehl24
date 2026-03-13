@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink } from 'lucide-react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink, Link2 } from 'lucide-react';
 import { DokumentTyp } from '../../types/projektabwicklung';
-import { ProjektStatus } from '../../types/projekt';
+import { ProjektStatus, TeilprojektTyp } from '../../types/projekt';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -14,6 +14,8 @@ import RechnungTab from './RechnungTab';
 import KundenDetailPopup from '../Shared/KundenDetailPopup';
 import KundenAdressenEditor from './KundenAdressenEditor';
 import ProjektChat from './ProjektChat';
+import ProjektSplitBanner from './ProjektSplitBanner';
+import ProjektSplitModal from './ProjektSplitModal';
 
 // Status-Konfiguration für das Kanban-Board
 const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string }> = {
@@ -36,6 +38,7 @@ const Projektabwicklung = () => {
   const [loading, setLoading] = useState(true);
   const [showKundenPopup, setShowKundenPopup] = useState(false);
   const [showAdressenEditor, setShowAdressenEditor] = useState(false);
+  const [splitModalTyp, setSplitModalTyp] = useState<TeilprojektTyp | null>(null);
 
   // Kunde laden (separate Funktion für Reload)
   const loadKunde = async (kundeId: string) => {
@@ -105,6 +108,16 @@ const Projektabwicklung = () => {
     if (projekt?.kundeId) {
       loadKunde(projekt.kundeId);
     }
+  };
+
+  // Handler für Projekt-Split
+  const handleSplitSuccess = (neuesProjekt: Projekt, aktualisiertesQuellProjekt: Projekt) => {
+    // Aktualisiere das aktuelle Projekt
+    setProjekt(aktualisiertesQuellProjekt);
+    // Schließe das Modal
+    setSplitModalTyp(null);
+    // Navigiere zum neuen Teilprojekt
+    navigate(`/projektabwicklung/${neuesProjekt.$id || neuesProjekt.id}`);
   };
 
   // Loading state
@@ -230,6 +243,87 @@ const Projektabwicklung = () => {
         </div>
       )}
 
+      {/* TEILPROJEKT-BANNER - Wenn dies ein Teilprojekt ist */}
+      {projekt.istTeilprojekt && projekt.quellProjektId && (
+        <div className={`mb-6 rounded-xl p-4 border-2 ${
+          projekt.teilprojektTyp === 'universal'
+            ? 'bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 border-orange-300 dark:border-orange-700'
+            : 'bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-900/30 dark:to-blue-900/30 border-cyan-300 dark:border-cyan-700'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                projekt.teilprojektTyp === 'universal'
+                  ? 'bg-orange-200 dark:bg-orange-800'
+                  : 'bg-cyan-200 dark:bg-cyan-800'
+              }`}>
+                <Link2 className={`w-5 h-5 ${
+                  projekt.teilprojektTyp === 'universal'
+                    ? 'text-orange-700 dark:text-orange-300'
+                    : 'text-cyan-700 dark:text-cyan-300'
+                }`} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase ${
+                    projekt.teilprojektTyp === 'universal'
+                      ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200'
+                      : 'bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200'
+                  }`}>
+                    {projekt.teilprojektTyp === 'universal' ? 'Universal-Teilprojekt' : 'Hydrocourt-Teilprojekt'}
+                  </span>
+                </div>
+                <p className={`text-sm mt-1 ${
+                  projekt.teilprojektTyp === 'universal'
+                    ? 'text-orange-700 dark:text-orange-400'
+                    : 'text-cyan-700 dark:text-cyan-400'
+                }`}>
+                  Ausgelagert aus Originalprojekt am {projekt.teilprojektErstelltAm ? new Date(projekt.teilprojektErstelltAm).toLocaleDateString('de-DE') : ''}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/projektabwicklung/${projekt.quellProjektId}`)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                projekt.teilprojektTyp === 'universal'
+                  ? 'bg-orange-200 hover:bg-orange-300 dark:bg-orange-800 dark:hover:bg-orange-700 text-orange-900 dark:text-orange-100'
+                  : 'bg-cyan-200 hover:bg-cyan-300 dark:bg-cyan-800 dark:hover:bg-cyan-700 text-cyan-900 dark:text-cyan-100'
+              }`}
+            >
+              <ExternalLink className="w-4 h-4" />
+              Zum Originalprojekt
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TEILPROJEKTE-BADGES - Wenn dieses Projekt Teilprojekte hat */}
+      {projekt.teilprojektIds && projekt.teilprojektIds.length > 0 && (
+        <div className="mb-6 bg-gray-50 dark:bg-slate-800 rounded-xl p-4 border border-gray-200 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <Link2 className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Teilprojekte:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {projekt.teilprojektIds.map((tpId) => (
+                <button
+                  key={tpId}
+                  onClick={() => navigate(`/projektabwicklung/${tpId}`)}
+                  className="px-3 py-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Teilprojekt öffnen →
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SPLIT-BANNER - Für gemischte Projekte */}
+      <ProjektSplitBanner
+        projekt={projekt}
+        onSplitClick={(typ) => setSplitModalTyp(typ)}
+      />
+
       {/* Adressen-Section - Immer sichtbar wenn Kunde vorhanden */}
       {projekt.kundeId && kunde && (
         <div className="mb-6">
@@ -345,6 +439,16 @@ const Projektabwicklung = () => {
         <KundenDetailPopup
           kundeId={projekt.kundeId}
           onClose={() => setShowKundenPopup(false)}
+        />
+      )}
+
+      {/* Split-Modal */}
+      {splitModalTyp && (
+        <ProjektSplitModal
+          projekt={projekt}
+          splitTyp={splitModalTyp}
+          onClose={() => setSplitModalTyp(null)}
+          onSuccess={handleSplitSuccess}
         />
       )}
         </div>

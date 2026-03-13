@@ -31,6 +31,8 @@ import {
   Droplets,
   Users,
   Download,
+  Tag,
+  Link2,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -1036,6 +1038,33 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
                 {projekt.kundennummer}
               </span>
             )}
+            {/* Teilprojekt-Badge (kompakt) */}
+            {projekt.istTeilprojekt && (
+              <span
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
+                  projekt.teilprojektTyp === 'universal'
+                    ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300'
+                    : 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300'
+                }`}
+                title={`${projekt.teilprojektTyp === 'universal' ? 'Universal' : 'Hydrocourt'}-Teilprojekt`}
+              >
+                {projekt.teilprojektTyp === 'universal' ? (
+                  <Tag className="w-3 h-3" />
+                ) : (
+                  <Droplets className="w-3 h-3" />
+                )}
+              </span>
+            )}
+            {/* Hat Teilprojekte Badge */}
+            {projekt.teilprojektIds && projekt.teilprojektIds.length > 0 && (
+              <span
+                className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-200 dark:bg-slate-600 rounded text-xs text-gray-600 dark:text-gray-300"
+                title={`${projekt.teilprojektIds.length} Teilprojekt(e)`}
+              >
+                <Link2 className="w-3 h-3" />
+                {projekt.teilprojektIds.length}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -1077,6 +1106,36 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
           {projekt.kundennummer && (
             <span className="inline-block mt-1 ml-[22px] px-2 py-0.5 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-800">
               Nr. {projekt.kundennummer}
+            </span>
+          )}
+
+          {/* Teilprojekt-Badge */}
+          {projekt.istTeilprojekt && (
+            <span
+              className={`inline-flex items-center gap-1 mt-1 ml-[22px] px-2 py-0.5 rounded-full text-xs font-medium border ${
+                projekt.teilprojektTyp === 'universal'
+                  ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
+                  : 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800'
+              }`}
+              title={`${projekt.teilprojektTyp === 'universal' ? 'Universal' : 'Hydrocourt'}-Teilprojekt`}
+            >
+              {projekt.teilprojektTyp === 'universal' ? (
+                <Tag className="w-3 h-3" />
+              ) : (
+                <Droplets className="w-3 h-3" />
+              )}
+              {projekt.teilprojektTyp === 'universal' ? 'Universal' : 'Hydrocourt'}
+            </span>
+          )}
+
+          {/* Hat Teilprojekte Badge */}
+          {projekt.teilprojektIds && projekt.teilprojektIds.length > 0 && (
+            <span
+              className="inline-flex items-center gap-1 mt-1 ml-[22px] px-2 py-0.5 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full text-xs border border-gray-200 dark:border-slate-600"
+              title={`${projekt.teilprojektIds.length} ausgelagerte Teilprojekt(e)`}
+            >
+              <Link2 className="w-3 h-3" />
+              {projekt.teilprojektIds.length} Teilprojekt{projekt.teilprojektIds.length !== 1 ? 'e' : ''}
             </span>
           )}
         </div>
