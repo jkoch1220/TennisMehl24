@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { dashboardService } from '../../services/dashboardService';
 import type { LagerBestand, DashboardStats } from '../../types/dashboard';
+import OilBulletinChart from './OilBulletinChart';
 
 interface KennzahlKarteProps {
   titel: string;
@@ -821,6 +822,11 @@ const Dashboard = () => {
               Aktualisiert: {new Date(stats.lagerBestand.letztesUpdate).toLocaleString('de-DE')}
             </div>
           )}
+
+          {/* Oil Bulletin Dieselpreis Chart */}
+          <div className="mt-6 sm:mt-10">
+            <OilBulletinChart />
+          </div>
         </>
       )}
     </div>
