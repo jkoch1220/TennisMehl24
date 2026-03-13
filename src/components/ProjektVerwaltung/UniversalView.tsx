@@ -892,17 +892,12 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         }
       }
 
-      if (!kundenEmail && !testModus) {
-        alert(`Keine E-Mail-Adresse für "${gruppe.kundenname}" hinterlegt.\n\nBitte hinterlegen Sie eine E-Mail-Adresse im Kunden-Stammdaten oder aktivieren Sie den Test-Modus.`);
-        return;
-      }
-
       // Signatur aus Stammdaten laden (verwende 'angebot' Template wie bei Universal-Lieferschein)
       const emailTemplate = await generiereStandardEmail('angebot', gruppe.abNummer, gruppe.kundenname);
       const signaturHtml = emailTemplate.signatur || '';
 
-      // Empfänger basierend auf Testmodus
-      const empfaenger = testModus ? TEST_EMAIL : kundenEmail!;
+      // Empfänger basierend auf Testmodus (leer lassen wenn keine Email, User kann eintragen)
+      const empfaenger = testModus ? TEST_EMAIL : (kundenEmail || '');
 
       // Email-Body erstellen
       const emailText = `<p>Guten Tag,</p>
@@ -932,6 +927,11 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
   // Tracking-Email senden
   const sendeTrackingEmail = async () => {
     if (!trackingEmailDaten) return;
+
+    if (!trackingEmailDaten.empfaenger.trim()) {
+      alert('Bitte geben Sie eine Empfänger-E-Mail-Adresse ein.');
+      return;
+    }
 
     if (!trackingEmailDaten.trackingNummer.trim()) {
       alert('Bitte geben Sie eine Tracking-Nummer ein.');
@@ -2391,11 +2391,21 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               {/* Empfänger */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Empfänger
+                  Empfänger <span className="text-red-500">*</span>
                 </label>
-                <div className="px-4 py-2.5 bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-800 dark:text-gray-200">
-                  {trackingEmailDaten.empfaenger}
-                </div>
+                <input
+                  type="email"
+                  value={trackingEmailDaten.empfaenger}
+                  onChange={(e) => setTrackingEmailDaten(prev => prev ? { ...prev, empfaenger: e.target.value } : null)}
+                  placeholder="kunde@example.com"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  disabled={testModus}
+                />
+                {!trackingEmailDaten.empfaenger && !testModus && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Keine E-Mail hinterlegt - bitte manuell eingeben
+                  </p>
+                )}
               </div>
 
               {/* Tracking-Nummer (WICHTIG!) */}
@@ -2484,7 +2494,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               </button>
               <button
                 onClick={sendeTrackingEmail}
-                disabled={trackingEmailSending || !trackingEmailDaten.trackingNummer.trim()}
+                disabled={trackingEmailSending || !trackingEmailDaten.trackingNummer.trim() || !trackingEmailDaten.empfaenger.trim()}
                 className={`px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium disabled:opacity-50 ${
                   testModus
                     ? 'bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400'
