@@ -573,6 +573,7 @@ class ShopBestellungService {
       kundenstrasse: lieferadresse.strasse,
       kundenPlzOrt: `${lieferadresse.plz} ${lieferadresse.ort}`,
       kundenEmail: bestellung.kundenEmail || '', // Kunden-Email aus Shop-Bestellung
+      kundenTelefon: bestellung.telefon || '', // Telefon aus Shop-Bestellung
       lieferadresse: {
         strasse: lieferadresse.strasse,
         plz: lieferadresse.plz,

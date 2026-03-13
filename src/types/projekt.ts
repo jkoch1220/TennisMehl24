@@ -67,6 +67,8 @@ export interface Projekt {
   kundenstrasse: string;
   kundenPlzOrt: string;
   kundenEmail?: string;
+  /** Telefonnummer des Kunden (z.B. aus Shop-Bestellung) */
+  kundenTelefon?: string;
   /** Abweichende E-Mail für Rechnungen (z.B. an Geschäftsführer/Buchhaltung) */
   rechnungsEmail?: string;
   ansprechpartner?: string;

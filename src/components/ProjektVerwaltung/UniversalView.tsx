@@ -136,6 +136,9 @@ interface EmailVorschauDaten {
   pdfBlob: Blob;
   pdfDateiname: string;
   lieferscheinnummer: string;
+  // Kundendaten für Universal (aus Shop-Bestellung)
+  kundenEmail?: string;
+  kundenTelefon?: string;
 }
 
 // Interface für Tracking-Email Modal
@@ -670,11 +673,17 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         ? `Bitte Lieferung in KW ${lieferKW}${lieferKWJahr ? '/' + lieferKWJahr : ''}.`
         : '';
 
+      // Kundendaten aus Projekt extrahieren (z.B. aus Shop-Bestellung)
+      const projekt = ersteBestellung.projekt;
+      const kundenEmail = projekt.kundenEmail || '';
+      const kundenTelefon = projekt.kundenTelefon || projekt.dispoAnsprechpartner?.telefon || '';
+
       // Signatur aus Stammdaten laden
       const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
       const signaturHtml = emailTemplate.signatur || '';
 
       // Email-Body erstellen (ohne Signatur, wird später angehängt)
+      // Kundenkontaktdaten werden separat verwaltet und dynamisch eingefügt
       const emailText = `<p>Hallo zusammen,</p>
 <p>bitte Versand der Ware unter Beilage des anhängenden Lieferscheins.</p>
 ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
@@ -699,6 +708,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         pdfBlob,
         pdfDateiname,
         lieferscheinnummer,
+        kundenEmail,
+        kundenTelefon,
       });
       setShowEmailVorschau(true);
     } catch (error) {
@@ -729,7 +740,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
     if (!emailVorschauDaten) return;
 
     setEmailVorschauSending(true);
-    const { gruppe, empfaenger, betreff, emailText, signatur, pdfBlob, pdfDateiname, lieferscheinnummer } = emailVorschauDaten;
+    const { gruppe, empfaenger, betreff, emailText, signatur, pdfBlob, pdfDateiname, lieferscheinnummer, kundenEmail, kundenTelefon } = emailVorschauDaten;
 
     try {
       // PDF zu Base64
@@ -738,8 +749,18 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
+      // Kundenkontaktdaten in E-Mail einfügen (falls vorhanden)
+      let emailTextMitKontakt = emailText;
+      if (kundenTelefon || kundenEmail) {
+        const kontaktZeilen: string[] = [];
+        if (kundenTelefon) kontaktZeilen.push(`Telefon: ${kundenTelefon}`);
+        if (kundenEmail) kontaktZeilen.push(`E-Mail: ${kundenEmail}`);
+        const kontaktBlock = `<p><strong>Endkundenkontakt:</strong><br/>${kontaktZeilen.join('<br/>')}</p>`;
+        emailTextMitKontakt = emailText + kontaktBlock;
+      }
+
       // HTML-Body mit Signatur
-      const htmlBody = wrapInEmailTemplate(emailText, signatur);
+      const htmlBody = wrapInEmailTemplate(emailTextMitKontakt, signatur);
 
       const result = await sendeEmailMitPdf({
         empfaenger,
@@ -2248,6 +2269,45 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                   </span>
                 </div>
               )}
+
+              {/* Kundenkontaktdaten für Universal */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Kundenkontakt für Universal (wird in E-Mail aufgeführt)
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Telefon
+                    </label>
+                    <input
+                      type="text"
+                      value={emailVorschauDaten.kundenTelefon || ''}
+                      onChange={(e) => setEmailVorschauDaten(prev => prev ? { ...prev, kundenTelefon: e.target.value } : null)}
+                      placeholder="z.B. 0170 1234567"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      E-Mail
+                    </label>
+                    <input
+                      type="email"
+                      value={emailVorschauDaten.kundenEmail || ''}
+                      onChange={(e) => setEmailVorschauDaten(prev => prev ? { ...prev, kundenEmail: e.target.value } : null)}
+                      placeholder="z.B. kunde@email.de"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+                {(emailVorschauDaten.kundenTelefon || emailVorschauDaten.kundenEmail) && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                    ✓ Kontaktdaten werden automatisch in die E-Mail eingefügt
+                  </p>
+                )}
+              </div>
 
               {/* E-Mail Text */}
               <div>
