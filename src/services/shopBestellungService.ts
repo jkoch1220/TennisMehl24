@@ -65,6 +65,9 @@ export interface ShopBestellung {
   aktivitaetsLog?: string; // JSON Array
   erstelltAm: string;
   aktualisiertAm: string;
+  // Zahlungsstatus (NEU)
+  bezahlt?: boolean;
+  zahlungsart?: 'paypal' | 'rechnungskauf' | 'vorkasse' | 'sonstige';
 }
 
 // Gambio Status-Historie Eintrag
@@ -556,6 +559,11 @@ class ShopBestellungService {
       bemerkung: bestellung.anmerkungen || '',
     };
 
+    // Notizen mit Zahlungsstatus
+    const zahlungsInfo = bestellung.bezahlt
+      ? `Bezahlt via ${bestellung.zahlungsmethode}`
+      : `${bestellung.zahlungsart === 'rechnungskauf' ? 'Rechnungskauf' : bestellung.zahlungsmethode} (noch offen)`;
+
     // Erstelle Projekt
     const neuesProjekt: NeuesProjekt = {
       projektName: `Shop #${bestellung.bestellnummer} (${typLabel})`,
@@ -564,7 +572,7 @@ class ShopBestellungService {
       kundenname: lieferadresse.firma || lieferadresse.name,
       kundenstrasse: lieferadresse.strasse,
       kundenPlzOrt: `${lieferadresse.plz} ${lieferadresse.ort}`,
-      kundenEmail: '', // Aus Shop nicht direkt verfügbar
+      kundenEmail: bestellung.kundenEmail || '', // Kunden-Email aus Shop-Bestellung
       lieferadresse: {
         strasse: lieferadresse.strasse,
         plz: lieferadresse.plz,
@@ -578,7 +586,8 @@ class ShopBestellungService {
       auftragsbestaetigungsDaten: JSON.stringify(abDaten),
       notizen: `Aus Shop-Bestellung #${bestellung.bestellnummer} erstellt.\n` +
                `Bestelldatum: ${formatBestelldatum(bestellung.bestelldatum)}\n` +
-               `Zahlungsmethode: ${bestellung.zahlungsmethode}\n` +
+               `Zahlungsmethode: ${zahlungsInfo}\n` +
+               (bestellung.telefon ? `Telefon: ${bestellung.telefon}\n` : '') +
                (bestellung.anmerkungen ? `Kundenanmerkung: ${bestellung.anmerkungen}` : ''),
     };
 

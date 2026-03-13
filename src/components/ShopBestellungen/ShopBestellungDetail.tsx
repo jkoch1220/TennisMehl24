@@ -20,6 +20,8 @@ import {
   RefreshCw,
   Mail,
   ExternalLink,
+  Banknote,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -249,6 +251,26 @@ const ShopBestellungDetail = ({
               <CreditCard className="w-4 h-4" />
               {bestellung.zahlungsmethode}
             </div>
+            {/* Zahlungsstatus */}
+            {bestellung.bezahlt !== undefined && (
+              <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium ${
+                bestellung.bezahlt
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+              }`}>
+                {bestellung.bezahlt ? (
+                  <>
+                    <Banknote className="w-3.5 h-3.5" />
+                    Bezahlt
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {bestellung.zahlungsart === 'rechnungskauf' ? 'Rechnungskauf' : 'Offen'}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Positionen */}
