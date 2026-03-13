@@ -40,6 +40,7 @@ import { generiereStandardEmail } from '../../utils/emailHelpers';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import { debitorService } from '../../services/debitorService';
+import { saisonplanungService } from '../../services/saisonplanungService';
 import { databases, DATABASE_ID } from '../../config/appwrite';
 import { Query } from 'appwrite';
 
@@ -877,12 +878,22 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
   // Tracking-Email Modal öffnen
   const oeffneTrackingEmailModal = async (gruppe: KundenGruppe) => {
     try {
-      // Kunden-Email aus Projekt holen
+      // Kunden-Email aus Projekt oder SaisonKunde holen
       const projekt = gruppe.bestellungen[0]?.projekt;
-      const kundenEmail = projekt?.kundenEmail;
+      let kundenEmail = projekt?.kundenEmail;
+
+      // Fallback: Email vom SaisonKunde laden
+      if (!kundenEmail && projekt?.kundeId) {
+        try {
+          const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+          kundenEmail = kunde?.email || undefined;
+        } catch (err) {
+          console.warn('Kunde konnte nicht geladen werden:', err);
+        }
+      }
 
       if (!kundenEmail && !testModus) {
-        alert(`Keine E-Mail-Adresse für "${gruppe.kundenname}" hinterlegt.\n\nBitte hinterlegen Sie eine E-Mail-Adresse im Projekt oder aktivieren Sie den Test-Modus.`);
+        alert(`Keine E-Mail-Adresse für "${gruppe.kundenname}" hinterlegt.\n\nBitte hinterlegen Sie eine E-Mail-Adresse im Kunden-Stammdaten oder aktivieren Sie den Test-Modus.`);
         return;
       }
 
