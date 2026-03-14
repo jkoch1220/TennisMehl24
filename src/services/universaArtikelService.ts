@@ -4,7 +4,8 @@ import {
   UniversalArtikel,
   UniversalArtikelInput,
   ExcelImportResult,
-  ImportProgressCallback
+  ImportProgressCallback,
+  VersandartTyp
 } from '../types/universaArtikel';
 import * as XLSX from 'xlsx';
 
@@ -274,7 +275,7 @@ export function clearArtikelCache(): void {
 }
 
 // Alle Artikel für Suche laden (mit Cache)
-async function getAlleArtikelFuerSuche(): Promise<UniversalArtikel[]> {
+export async function getAlleArtikelFuerSuche(): Promise<UniversalArtikel[]> {
   const now = Date.now();
 
   // Cache noch gültig?
@@ -497,6 +498,260 @@ export async function sucheUniversalArtikelSchnell(suchtext: string): Promise<Un
   return ergebnisse.slice(0, 10);
 }
 
+// ============================================================================
+// VERSANDCODE-PARSER (für Universal Sport Versandlogik)
+// ============================================================================
+
+/**
+ * Parst einen Universal Sport Versandcode und ermittelt die Versandart.
+ *
+ * Format der Versandcodes:
+ * - Einzeln: "31", "21", "41"
+ * - Kombiniert: "31+33", "2x31+1x33"
+ * - Spezial: "F.a.A." (Fracht auf Anfrage), "Post"
+ *
+ * Erste Ziffer bestimmt Versandart/Zone:
+ * - 1x = Post/Sonderversand
+ * - 2x = Spedition (große/schwere Artikel)
+ * - 3x = GLS Deutschland
+ * - 4x = GLS Österreich
+ * - 5x = GLS Benelux
+ */
+export function parseVersandcode(code: string | undefined | null): {
+  versandart: VersandartTyp;
+  einzelcodes: string[];
+  anzahlPakete: number;
+} {
+  if (!code || code.trim() === '') {
+    return { versandart: 'unbekannt', einzelcodes: [], anzahlPakete: 0 };
+  }
+
+  const normalized = code.trim().toLowerCase();
+
+  // Fracht auf Anfrage
+  if (normalized.includes('f. a. a.') || normalized.includes('f.a.a.') || normalized.includes('fracht auf anfrage')) {
+    return { versandart: 'anfrage', einzelcodes: [], anzahlPakete: 0 };
+  }
+
+  // Post
+  if (normalized === 'post') {
+    return { versandart: 'post', einzelcodes: ['post'], anzahlPakete: 1 };
+  }
+
+  // Parse kombinierte Codes mit Multiplikatoren: "2x31+1x33", "31+33"
+  // Matches: "2x31", "31", etc.
+  const codePattern = /(?:(\d+)x)?(\d+)/g;
+  const matches = [...code.matchAll(codePattern)];
+
+  if (matches.length === 0) {
+    return { versandart: 'unbekannt', einzelcodes: [], anzahlPakete: 0 };
+  }
+
+  const einzelcodes: string[] = [];
+  let anzahlPakete = 0;
+
+  for (const match of matches) {
+    const multiplier = match[1] ? parseInt(match[1]) : 1;
+    const codeNumber = match[2];
+
+    // Nur gültige Codes (2-stellig beginnend mit 1-5)
+    if (codeNumber && /^[1-5]\d$/.test(codeNumber)) {
+      einzelcodes.push(codeNumber);
+      anzahlPakete += multiplier;
+    }
+  }
+
+  if (einzelcodes.length === 0) {
+    return { versandart: 'unbekannt', einzelcodes: [], anzahlPakete: 0 };
+  }
+
+  // Erste Ziffer des ersten Codes bestimmt Versandart
+  const ersteZiffer = einzelcodes[0].charAt(0);
+
+  let versandart: VersandartTyp;
+  switch (ersteZiffer) {
+    case '1': versandart = 'post'; break;
+    case '2': versandart = 'spedition'; break;
+    case '3':
+    case '4':
+    case '5': versandart = 'gls'; break;
+    default: versandart = 'unbekannt';
+  }
+
+  return { versandart, einzelcodes, anzahlPakete };
+}
+
+/**
+ * Ermittelt ob ein Artikel Sperrgut ist basierend auf Versandcode oder Gewicht.
+ * Sperrgut-Codes haben typischerweise die zweite Ziffer >= 3
+ */
+export function istSperrgutArtikel(
+  versandcodeDE: string | undefined | null,
+  gewichtKg: number | undefined | null
+): boolean {
+  // Gewicht > 31.5kg ist immer Sperrgut (GLS Limit)
+  if (gewichtKg && gewichtKg > 31.5) {
+    return true;
+  }
+
+  const { einzelcodes, versandart } = parseVersandcode(versandcodeDE);
+
+  // Spedition ist immer Sperrgut
+  if (versandart === 'spedition') {
+    return true;
+  }
+
+  // GLS: Zweite Ziffer >= 3 ist Sperrgut
+  for (const code of einzelcodes) {
+    const zweiteZiffer = parseInt(code.charAt(1));
+    if (zweiteZiffer >= 3) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============================================================================
+// EXCEL PARSER: ARTIKELLISTE 2026 (Versand- und Zolldaten, KEINE Preise)
+// ============================================================================
+
+/**
+ * Parst die Universal Sport Artikelliste 2026 Excel-Datei.
+ * Diese Liste enthält Versand-, Zoll- und Maßdaten, aber KEINE Preise.
+ *
+ * Erwartete Spalten (A-P):
+ * A: Artikelnummer
+ * B: Bezeichnung
+ * C: Einheit (= verpackungseinheit)
+ * D: ZTN (Zolltarifnummer)
+ * E: UL (Ursprungsland ISO)
+ * F: UR (Ursprungsregion)
+ * G: Gewicht (kg)
+ * H: Länge (cm)
+ * I: Breite (cm)
+ * J: Höhe (cm)
+ * K: EAN
+ * L: Seite Katalog
+ * M: Versand DE
+ * N: Versand AT
+ * O: Versand Benelux
+ * P: Notizen
+ */
+export function parseArtikellisteExcel(arrayBuffer: ArrayBuffer): {
+  artikel: Partial<UniversalArtikelInput>[];
+  fehler: string[];
+} {
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+  const artikel: Partial<UniversalArtikelInput>[] = [];
+  const fehler: string[] = [];
+
+  // Header-Zeile finden (enthält "Artikelnummer" oder "Art.-Nr")
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(20, data.length); i++) {
+    const row = data[i];
+    if (row && row[0]) {
+      // Normalisiere: entferne Leerzeichen, Bindestriche, Zeilenumbrüche
+      const firstCell = String(row[0]).toLowerCase().replace(/[\s\-\n\r]/g, '');
+      // Unterstützt: "artikelnummer", "Artikel- nummer", "Art.-Nr.", "Artikel-nummer"
+      if (firstCell.includes('artikelnummer') || firstCell.includes('art.nr') || firstCell.includes('artnr')) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    fehler.push('Header-Zeile mit "Artikelnummer" nicht gefunden');
+    return { artikel, fehler };
+  }
+
+  // Datenzeilen ab der Zeile nach dem Header
+  const dataRows = data.slice(headerRowIndex + 1);
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const row = dataRows[i];
+
+    // Leere Zeilen überspringen
+    if (!row || !row[0] || String(row[0]).trim() === '') {
+      continue;
+    }
+
+    const artikelnummer = String(row[0] || '').trim();
+    const bezeichnung = String(row[1] || '').trim();
+    const verpackungseinheit = String(row[2] || '').trim();
+    const zolltarifnummer = String(row[3] || '').trim() || undefined;
+    const ursprungsland = String(row[4] || '').trim().toUpperCase() || undefined;
+    const ursprungsregion = String(row[5] || '').trim() || undefined;
+
+    // Gewicht und Maße parsen (können leer sein)
+    const gewichtKg = row[6] ? parseFloat(String(row[6]).replace(',', '.')) : undefined;
+    const laengeCm = row[7] ? parseFloat(String(row[7]).replace(',', '.')) : undefined;
+    const breiteCm = row[8] ? parseFloat(String(row[8]).replace(',', '.')) : undefined;
+    const hoeheCm = row[9] ? parseFloat(String(row[9]).replace(',', '.')) : undefined;
+
+    const ean = String(row[10] || '').trim() || undefined;
+    const seiteKatalog = row[11] ? parseInt(String(row[11])) : undefined;
+
+    // Versandcodes
+    const versandcodeDE = String(row[12] || '').trim() || undefined;
+    const versandcodeAT = String(row[13] || '').trim() || undefined;
+    const versandcodeBenelux = String(row[14] || '').trim() || undefined;
+
+    // Notizen könnten in Spalte P sein (index 15)
+    const notizen = row[15] ? String(row[15]).trim() : undefined;
+
+    // Validierung
+    if (!artikelnummer) {
+      if (fehler.length < 10) {
+        fehler.push(`Zeile ${i + headerRowIndex + 2}: Artikelnummer fehlt`);
+      }
+      continue;
+    }
+
+    // Versandart aus DE-Code ableiten
+    const { versandart: versandartDE } = parseVersandcode(versandcodeDE);
+
+    // Sperrgut ermitteln
+    const istSperrgut = istSperrgutArtikel(versandcodeDE, gewichtKg);
+
+    artikel.push({
+      artikelnummer,
+      bezeichnung: bezeichnung || artikelnummer, // Fallback auf Artikelnummer
+      verpackungseinheit: verpackungseinheit || 'Stück',
+      zolltarifnummer,
+      ursprungsland,
+      ursprungsregion,
+      gewichtKg: isNaN(gewichtKg!) ? undefined : gewichtKg,
+      laengeCm: isNaN(laengeCm!) ? undefined : laengeCm,
+      breiteCm: isNaN(breiteCm!) ? undefined : breiteCm,
+      hoeheCm: isNaN(hoeheCm!) ? undefined : hoeheCm,
+      ean,
+      seiteKatalog: isNaN(seiteKatalog!) ? undefined : seiteKatalog,
+      versandcodeDE,
+      versandcodeAT,
+      versandcodeBenelux,
+      versandartDE,
+      istSperrgut,
+      // Preise werden NICHT aus dieser Liste importiert
+      grosshaendlerPreisNetto: 0,
+      katalogPreisNetto: 0,
+      katalogPreisBrutto: 0,
+      aenderungen: notizen,
+    });
+  }
+
+  return { artikel, fehler };
+}
+
+// ============================================================================
+// EXCEL PARSER: PREISLISTE (bestehende Logik)
+// ============================================================================
+
 // Excel-Datei parsen und Artikel-Daten extrahieren (ohne Import)
 function parseExcelToArtikel(arrayBuffer: ArrayBuffer): { artikel: UniversalArtikelInput[]; fehler: string[] } {
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -676,6 +931,207 @@ export async function importiereExcel(
     return result;
   }
 }
+
+// ============================================================================
+// ARTIKELLISTE IMPORT (Merge mit bestehenden Artikeln)
+// ============================================================================
+
+/**
+ * Importiert die Artikelliste 2026 (Versand-/Zoll-Daten).
+ * Diese Funktion MERGED mit bestehenden Artikeln - Preise bleiben erhalten!
+ *
+ * Strategie:
+ * - Bestehende Artikel werden AKTUALISIERT (Versand/Zoll-Daten ergänzt)
+ * - Neue Artikel werden ERSTELLT (ohne Preise, müssen später via Preisliste kommen)
+ * - Preise werden NIE überschrieben
+ */
+export async function importiereArtikellisteExcel(
+  file: File,
+  onProgress?: ImportProgressCallback
+): Promise<ExcelImportResult> {
+  const result: ExcelImportResult = {
+    erfolg: 0,
+    fehler: 0,
+    aktualisiert: 0,
+    fehlermeldungen: [],
+  };
+
+  try {
+    // Phase 1: Excel parsen
+    onProgress?.({
+      phase: 'parsing',
+      current: 0,
+      total: 100,
+      message: 'Lese Artikelliste Excel...'
+    });
+
+    const arrayBuffer = await file.arrayBuffer();
+    const { artikel: artikelListe, fehler: parseFehler } = parseArtikellisteExcel(arrayBuffer);
+
+    if (parseFehler.length > 0 && artikelListe.length === 0) {
+      result.fehlermeldungen = parseFehler;
+      return result;
+    }
+
+    result.fehlermeldungen.push(...parseFehler);
+    result.fehler = parseFehler.length;
+
+    onProgress?.({
+      phase: 'parsing',
+      current: 100,
+      total: 100,
+      message: `${artikelListe.length} Artikel in Artikelliste gefunden`
+    });
+
+    // Phase 2: Bestehende Artikel aus Cache laden
+    onProgress?.({
+      phase: 'importing',
+      current: 0,
+      total: artikelListe.length,
+      message: 'Lade bestehende Artikel zum Abgleich...'
+    });
+
+    // Cache neu laden für aktuellen Stand
+    clearArtikelCache();
+    const bestehendeArtikel = await getAlleArtikelFuerSuche();
+
+    // Index für schnellen Lookup
+    const artikelIndex = new Map<string, UniversalArtikel>();
+    for (const art of bestehendeArtikel) {
+      artikelIndex.set(art.artikelnummer, art);
+    }
+
+    // Phase 3: Artikel verarbeiten
+    const totalArtikel = artikelListe.length;
+    let verarbeitet = 0;
+
+    for (let i = 0; i < artikelListe.length; i += BATCH_SIZE_CREATE) {
+      const batch = artikelListe.slice(i, i + BATCH_SIZE_CREATE);
+
+      const batchPromises = batch.map(async (artikelDaten) => {
+        const bestehend = artikelIndex.get(artikelDaten.artikelnummer!);
+
+        if (bestehend && bestehend.$id) {
+          // UPDATE: Nur Versand/Zoll-Felder aktualisieren, Preise NICHT überschreiben
+          try {
+            await retryWithBackoff(() =>
+              databases.updateDocument(
+                DATABASE_ID,
+                UNIVERSA_ARTIKEL_COLLECTION_ID,
+                bestehend.$id!,
+                {
+                  // Bezeichnung und Einheit aktualisieren falls vorhanden
+                  ...(artikelDaten.bezeichnung && { bezeichnung: artikelDaten.bezeichnung }),
+                  ...(artikelDaten.verpackungseinheit && { verpackungseinheit: artikelDaten.verpackungseinheit }),
+                  // Neue Felder aus Artikelliste
+                  zolltarifnummer: artikelDaten.zolltarifnummer ?? null,
+                  ursprungsland: artikelDaten.ursprungsland ?? null,
+                  ursprungsregion: artikelDaten.ursprungsregion ?? null,
+                  gewichtKg: artikelDaten.gewichtKg ?? null,
+                  laengeCm: artikelDaten.laengeCm ?? null,
+                  breiteCm: artikelDaten.breiteCm ?? null,
+                  hoeheCm: artikelDaten.hoeheCm ?? null,
+                  ean: artikelDaten.ean ?? null,
+                  seiteKatalog: artikelDaten.seiteKatalog ?? bestehend.seiteKatalog ?? null,
+                  versandcodeDE: artikelDaten.versandcodeDE ?? null,
+                  versandcodeAT: artikelDaten.versandcodeAT ?? null,
+                  versandcodeBenelux: artikelDaten.versandcodeBenelux ?? null,
+                  versandartDE: artikelDaten.versandartDE ?? null,
+                  istSperrgut: artikelDaten.istSperrgut ?? null,
+                  // PREISE NICHT ÜBERSCHREIBEN!
+                }
+              )
+            );
+            return 'updated';
+          } catch (err) {
+            console.error(`Fehler beim Update von ${artikelDaten.artikelnummer}:`, err);
+            return 'error';
+          }
+        } else {
+          // CREATE: Neuer Artikel (ohne Preise - müssen via Preisliste kommen)
+          try {
+            await retryWithBackoff(() =>
+              databases.createDocument(
+                DATABASE_ID,
+                UNIVERSA_ARTIKEL_COLLECTION_ID,
+                ID.unique(),
+                {
+                  artikelnummer: artikelDaten.artikelnummer,
+                  bezeichnung: artikelDaten.bezeichnung || artikelDaten.artikelnummer,
+                  verpackungseinheit: artikelDaten.verpackungseinheit || 'Stück',
+                  // Preise auf 0 - müssen separat importiert werden
+                  grosshaendlerPreisNetto: 0,
+                  katalogPreisNetto: 0,
+                  katalogPreisBrutto: 0,
+                  // Neue Felder
+                  zolltarifnummer: artikelDaten.zolltarifnummer ?? null,
+                  ursprungsland: artikelDaten.ursprungsland ?? null,
+                  ursprungsregion: artikelDaten.ursprungsregion ?? null,
+                  gewichtKg: artikelDaten.gewichtKg ?? null,
+                  laengeCm: artikelDaten.laengeCm ?? null,
+                  breiteCm: artikelDaten.breiteCm ?? null,
+                  hoeheCm: artikelDaten.hoeheCm ?? null,
+                  ean: artikelDaten.ean ?? null,
+                  seiteKatalog: artikelDaten.seiteKatalog ?? null,
+                  versandcodeDE: artikelDaten.versandcodeDE ?? null,
+                  versandcodeAT: artikelDaten.versandcodeAT ?? null,
+                  versandcodeBenelux: artikelDaten.versandcodeBenelux ?? null,
+                  versandartDE: artikelDaten.versandartDE ?? null,
+                  istSperrgut: artikelDaten.istSperrgut ?? null,
+                  importDatum: new Date().toISOString(),
+                }
+              )
+            );
+            return 'created';
+          } catch (err) {
+            console.error(`Fehler beim Erstellen von ${artikelDaten.artikelnummer}:`, err);
+            return 'error';
+          }
+        }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+
+      for (const res of batchResults) {
+        if (res === 'created') result.erfolg++;
+        else if (res === 'updated') result.aktualisiert!++;
+        else result.fehler++;
+        verarbeitet++;
+      }
+
+      onProgress?.({
+        phase: 'importing',
+        current: verarbeitet,
+        total: totalArtikel,
+        message: `Verarbeite Artikel... ${verarbeitet}/${totalArtikel} (${result.aktualisiert} aktualisiert, ${result.erfolg} neu)`
+      });
+
+      // Pause zwischen Batches
+      if (i + BATCH_SIZE_CREATE < artikelListe.length) {
+        await delay(BATCH_DELAY);
+      }
+    }
+
+    // Cache leeren
+    clearArtikelCache();
+
+    onProgress?.({
+      phase: 'done',
+      current: totalArtikel,
+      total: totalArtikel,
+      message: `Import abgeschlossen: ${result.aktualisiert} aktualisiert, ${result.erfolg} neu erstellt, ${result.fehler} Fehler`
+    });
+
+    return result;
+  } catch (error: any) {
+    result.fehlermeldungen.push(`Fehler beim Import: ${error?.message || 'Unbekannter Fehler'}`);
+    return result;
+  }
+}
+
+// ============================================================================
+// HILFSFUNKTIONEN
+// ============================================================================
 
 // Anzahl der Universal-Artikel abrufen
 export async function getUniversalArtikelAnzahl(): Promise<number> {

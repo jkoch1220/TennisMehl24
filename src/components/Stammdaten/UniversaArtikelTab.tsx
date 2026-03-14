@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, Trash2, Search, ArrowUpDown, AlertCircle, CheckCircle2, FileSpreadsheet, Package, Loader2 } from 'lucide-react';
+import { Upload, Trash2, Search, ArrowUpDown, AlertCircle, CheckCircle2, FileSpreadsheet, Package, Loader2, Truck, ChevronDown } from 'lucide-react';
 import { UniversalArtikel, ImportProgress } from '../../types/universaArtikel';
 import {
   getAlleUniversalArtikel,
   sucheUniversalArtikel,
   loescheAlleUniversalArtikel,
   importiereExcel,
+  importiereArtikellisteExcel,
   aktualisiereUniversalArtikel,
 } from '../../services/universaArtikelService';
 
@@ -26,6 +27,10 @@ const UniversalArtikelTab = () => {
   const [importDetails, setImportDetails] = useState<string[]>([]);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const artikellisteInputRef = useRef<HTMLInputElement>(null);
+
+  // Import-Dropdown State
+  const [showImportDropdown, setShowImportDropdown] = useState(false);
 
   // Artikel laden
   const ladeArtikel = useCallback(async () => {
@@ -93,10 +98,11 @@ const UniversalArtikelTab = () => {
     setImportMessage(progress.message);
   }, []);
 
-  // Excel-Upload
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Excel-Upload (Preisliste - ersetzt alle Artikel)
+  const handlePreislisteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setShowImportDropdown(false);
 
     // Dateiendung prüfen
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
@@ -106,7 +112,7 @@ const UniversalArtikelTab = () => {
     }
 
     setImportStatus('uploading');
-    setImportMessage('Starte Import...');
+    setImportMessage('Starte Preislisten-Import...');
     setImportDetails([]);
     setImportProgress(null);
 
@@ -140,6 +146,67 @@ const UniversalArtikelTab = () => {
     // File-Input zurücksetzen
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  // Artikelliste-Upload (Versand/Zoll-Daten - merged mit bestehenden)
+  const handleArtikellisteUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setShowImportDropdown(false);
+
+    // Dateiendung prüfen
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setImportStatus('error');
+      setImportMessage('Bitte eine Excel-Datei (.xlsx oder .xls) auswählen');
+      return;
+    }
+
+    setImportStatus('uploading');
+    setImportMessage('Starte Artikellisten-Import (Versand/Zoll)...');
+    setImportDetails([]);
+    setImportProgress(null);
+
+    try {
+      const result = await importiereArtikellisteExcel(file, handleImportProgress);
+
+      const neuErstellt = result.erfolg;
+      const aktualisiert = result.aktualisiert || 0;
+
+      if (neuErstellt > 0 || aktualisiert > 0) {
+        setImportStatus('success');
+        const messages: string[] = [];
+        if (aktualisiert > 0) messages.push(`${aktualisiert} Artikel aktualisiert`);
+        if (neuErstellt > 0) messages.push(`${neuErstellt} neue Artikel erstellt`);
+        setImportMessage(messages.join(', '));
+
+        if (result.fehler > 0) {
+          setImportDetails([
+            `${result.fehler} Artikel konnten nicht verarbeitet werden`,
+            ...result.fehlermeldungen,
+          ]);
+        }
+        // Liste neu laden
+        setPage(0);
+        ladeArtikel();
+      } else if (result.fehler > 0) {
+        setImportStatus('error');
+        setImportMessage('Import fehlgeschlagen');
+        setImportDetails(result.fehlermeldungen);
+      } else {
+        setImportStatus('success');
+        setImportMessage('Keine Änderungen - alle Artikel sind bereits aktuell');
+      }
+    } catch (error: any) {
+      setImportStatus('error');
+      setImportMessage('Fehler beim Import: ' + (error?.message || 'Unbekannter Fehler'));
+    }
+
+    setImportProgress(null);
+
+    // File-Input zurücksetzen
+    if (artikellisteInputRef.current) {
+      artikellisteInputRef.current.value = '';
     }
   };
 
@@ -218,21 +285,77 @@ const UniversalArtikelTab = () => {
               />
             </div>
 
-            {/* Excel-Upload Button */}
-            <label className={`flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg transition-colors whitespace-nowrap ${
-              importStatus === 'uploading' ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-red-700 cursor-pointer'
-            }`}>
-              <Upload className="h-4 w-4" />
-              Excel importieren
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileUpload}
-                className="hidden"
+            {/* Excel-Import Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowImportDropdown(!showImportDropdown)}
                 disabled={importStatus === 'uploading'}
-              />
-            </label>
+                className={`flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg transition-colors whitespace-nowrap ${
+                  importStatus === 'uploading' ? 'opacity-50 cursor-not-allowed' : 'hover:from-orange-600 hover:to-red-700'
+                }`}
+              >
+                <Upload className="h-4 w-4" />
+                Excel importieren
+                <ChevronDown className={`h-4 w-4 transition-transform ${showImportDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showImportDropdown && (
+                <>
+                  {/* Backdrop zum Schließen */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowImportDropdown(false)}
+                  />
+
+                  {/* Dropdown-Menü */}
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-200 dark:border-slate-700 z-20 overflow-hidden">
+                    {/* Preisliste Import */}
+                    <label className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer border-b border-gray-200 dark:border-slate-700 transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex-shrink-0">
+                          <FileSpreadsheet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">Preisliste importieren</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Großhändler-/Katalogpreise aus der Universal Preisliste. <span className="text-red-500 font-medium">Ersetzt alle Artikel!</span>
+                          </div>
+                        </div>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handlePreislisteUpload}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {/* Artikelliste Import (Versand/Zoll) */}
+                    <label className="block p-4 hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex-shrink-0">
+                          <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">Artikelliste importieren</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Versand-, Zoll- und Maßdaten ergänzen. <span className="text-green-600 font-medium">Preise bleiben erhalten!</span>
+                          </div>
+                        </div>
+                      </div>
+                      <input
+                        ref={artikellisteInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleArtikellisteUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Alle löschen Button */}
             {total > 0 && importStatus !== 'uploading' && (
@@ -363,7 +486,7 @@ const UniversalArtikelTab = () => {
             <input
               type="file"
               accept=".xlsx,.xls"
-              onChange={handleFileUpload}
+              onChange={handlePreislisteUpload}
               className="hidden"
             />
           </label>
@@ -428,6 +551,9 @@ const UniversalArtikelTab = () => {
                         Seite
                       </th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
+                        Versand DE
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         ohne MwSt
                       </th>
                     </tr>
@@ -466,6 +592,29 @@ const UniversalArtikelTab = () => {
                           <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                             {art.seiteKatalog || '-'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                          {art.versandcodeDE ? (
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                art.versandartDE === 'gls'
+                                  ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                                  : art.versandartDE === 'spedition'
+                                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                  : art.versandartDE === 'anfrage'
+                                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                                  : 'bg-gray-100 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300'
+                              }`}
+                              title={`Versandcode: ${art.versandcodeDE}${art.gewichtKg ? ` | Gewicht: ${art.gewichtKg} kg` : ''}${art.istSperrgut ? ' | Sperrgut' : ''}`}
+                            >
+                              {art.versandartDE === 'gls' && <Truck className="h-3 w-3" />}
+                              {art.versandartDE === 'spedition' && <Package className="h-3 w-3" />}
+                              {art.versandartDE === 'anfrage' && <AlertCircle className="h-3 w-3" />}
+                              {art.versandcodeDE}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-600">-</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-center">
                           <input
@@ -512,11 +661,20 @@ const UniversalArtikelTab = () => {
       )}
 
       {/* Info-Box */}
-      <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+      <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg p-4 space-y-3">
         <p className="text-sm text-orange-800 dark:text-orange-300">
-          <strong>Hinweis:</strong> Der Import ersetzt alle vorhandenen Universal-Artikel mit den Daten aus der Excel-Datei.
-          Die Preisliste von Universal Sport kann direkt hochgeladen werden - das System erkennt automatisch das Format
-          und importiert auch große Dateien mit 700+ Artikeln zuverlässig.
+          <strong>Zwei Import-Modi verfügbar:</strong>
+        </p>
+        <ul className="text-sm text-orange-800 dark:text-orange-300 space-y-2 ml-4">
+          <li>
+            <strong>📊 Preisliste:</strong> Großhändler-/Katalogpreise importieren. <span className="text-red-600 dark:text-red-400">Achtung: Ersetzt alle Artikel!</span>
+          </li>
+          <li>
+            <strong>🚚 Artikelliste:</strong> Versand-, Zoll- und Maßdaten ergänzen. Preise bleiben erhalten - ideal für die "Artikelliste 2026" von Universal.
+          </li>
+        </ul>
+        <p className="text-xs text-orange-600 dark:text-orange-400">
+          Versandcodes: 3x = GLS DE, 4x = GLS AT, 5x = GLS Benelux, 2x = Spedition, F.a.A. = Fracht auf Anfrage
         </p>
       </div>
     </div>
