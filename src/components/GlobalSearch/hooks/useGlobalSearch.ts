@@ -99,59 +99,98 @@ async function searchProjekte(query: string): Promise<SearchResult[]> {
   }
 }
 
-// Kunden/Vereine suchen (Appwrite)
-async function searchKunden(query: string): Promise<SearchResult[]> {
+// Kunden/Vereine Cache für schnelle Suche
+let kundenCache: Array<{ id: string; name: string; plz: string; ort: string; kundennummer: string; typ: string }> | null = null;
+let kundenCacheTime = 0;
+const KUNDEN_CACHE_DURATION = 5 * 60 * 1000; // 5 Minuten
+
+async function loadKundenCache(): Promise<typeof kundenCache> {
+  const now = Date.now();
+  if (kundenCache && (now - kundenCacheTime) < KUNDEN_CACHE_DURATION) {
+    return kundenCache;
+  }
+
   try {
-    // Da 'data' ein JSON-Feld ist, müssen wir alle laden und filtern
     const response = await databases.listDocuments(
       DATABASE_ID,
       SAISON_KUNDEN_COLLECTION_ID,
-      [
-        Query.limit(50), // Mehr laden, dann filtern
-      ]
+      [Query.limit(5000)] // Alle Kunden laden
     );
+
+    kundenCache = response.documents
+      .filter(doc => doc.data)
+      .map(doc => {
+        try {
+          const kunde = JSON.parse(doc.data);
+          return {
+            id: doc.$id,
+            name: kunde.name || '',
+            plz: kunde.lieferadresse?.plz || kunde.rechnungsadresse?.plz || '',
+            ort: kunde.lieferadresse?.ort || kunde.rechnungsadresse?.ort || '',
+            kundennummer: kunde.kundennummer || '',
+            typ: kunde.typ || '',
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((k): k is NonNullable<typeof k> => k !== null);
+
+    kundenCacheTime = now;
+    return kundenCache;
+  } catch (error) {
+    console.warn('Fehler beim Laden des Kunden-Cache:', error);
+    return [];
+  }
+}
+
+// Kunden/Vereine suchen (mit Cache)
+async function searchKunden(query: string): Promise<SearchResult[]> {
+  try {
+    const kunden = await loadKundenCache();
+    if (!kunden) return [];
 
     const q = query.toLowerCase();
     const results: SearchResult[] = [];
 
-    for (const doc of response.documents) {
-      if (!doc.data) continue;
+    for (const kunde of kunden) {
+      // Nur Vereine und Händler anzeigen (keine Platzbauer)
+      if (kunde.typ === 'platzbauer') continue;
 
-      try {
-        const kunde = JSON.parse(doc.data);
+      const searchable = [
+        kunde.name,
+        kunde.ort,
+        kunde.plz,
+        kunde.kundennummer,
+      ].filter(Boolean).join(' ').toLowerCase();
 
-        // Nur Vereine und Händler anzeigen (keine Platzbauer)
-        if (kunde.typ === 'platzbauer') continue;
+      if (searchable.includes(q)) {
+        // Score berechnen für bessere Sortierung
+        let score = 0;
+        if (kunde.name.toLowerCase().startsWith(q)) score = 3;
+        else if (kunde.name.toLowerCase().includes(q)) score = 2;
+        else if (kunde.ort.toLowerCase().includes(q)) score = 1;
+        else score = 0.5;
 
-        const searchable = [
-          kunde.name,
-          kunde.lieferadresse?.ort,
-          kunde.lieferadresse?.plz,
-          kunde.rechnungsadresse?.ort,
-          kunde.kundennummer,
-        ].filter(Boolean).join(' ').toLowerCase();
-
-        if (searchable.includes(q)) {
-          results.push({
-            id: doc.$id,
-            category: 'kunden' as SearchCategory,
-            title: kunde.name || 'Unbekannt',
-            subtitle: kunde.lieferadresse
-              ? `${kunde.lieferadresse.plz || ''} ${kunde.lieferadresse.ort || ''}`.trim()
-              : undefined,
-            description: kunde.kundennummer || '',
-            icon: Users,
-            href: `/saisonplanung?kundeId=${doc.$id}`,
-          });
-        }
-
-        if (results.length >= MAX_RESULTS_PER_CATEGORY) break;
-      } catch {
-        // JSON Parse Fehler ignorieren
+        results.push({
+          id: kunde.id,
+          category: 'kunden' as SearchCategory,
+          title: kunde.name || 'Unbekannt',
+          subtitle: `${kunde.plz} ${kunde.ort}`.trim() || undefined,
+          description: kunde.kundennummer || '',
+          icon: Users,
+          href: `/saisonplanung?kundeId=${kunde.id}`,
+          score,
+        });
       }
+
+      if (results.length >= 20) break; // Mehr laden, dann sortieren
     }
 
-    return results;
+    // Nach Score sortieren und begrenzen
+    return results
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, MAX_RESULTS_PER_CATEGORY);
   } catch (error) {
     console.warn('Fehler bei Kunden-Suche:', error);
     return [];
