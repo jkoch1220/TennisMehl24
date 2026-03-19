@@ -85,6 +85,11 @@ export const ZIEGELMEHL_ABGABEN_COLLECTION_ID = 'ziegelmehl_abgaben';
 // Shop Bestellungen Collection (Gambio Online-Shop)
 export const SHOP_BESTELLUNGEN_COLLECTION_ID = 'shop_bestellungen';
 
+// Shop E-Commerce Collections (Next.js Shop)
+export const SHOP_PRODUKTE_COLLECTION_ID = 'shop_produkte';
+export const SHOP_KATEGORIEN_COLLECTION_ID = 'shop_kategorien';
+export const SHOP_RATGEBER_COLLECTION_ID = 'shop_ratgeber';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -157,6 +162,10 @@ export const COLLECTIONS = {
   ZIEGELMEHL_ABGABEN: ZIEGELMEHL_ABGABEN_COLLECTION_ID,
   // Shop Bestellungen (Gambio Online-Shop)
   SHOP_BESTELLUNGEN: SHOP_BESTELLUNGEN_COLLECTION_ID,
+  // Shop E-Commerce (Next.js Shop)
+  SHOP_PRODUKTE: SHOP_PRODUKTE_COLLECTION_ID,
+  SHOP_KATEGORIEN: SHOP_KATEGORIEN_COLLECTION_ID,
+  SHOP_RATGEBER: SHOP_RATGEBER_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
@@ -167,6 +176,7 @@ export const BESTELLABWICKLUNG_DATEIEN_BUCKET_ID = 'bestellabwicklung_dateien';
 export const PROJEKT_ANHAENGE_BUCKET_ID = 'projekt-anhaenge'; // Für Dispo: PDFs, Mails, Karten etc.
 export const KONKURRENTEN_DATEIEN_BUCKET_ID = 'konkurrenten-dateien'; // Für Konkurrenten: Bilder, Dokumente
 export const PLATZBAUER_DATEIEN_BUCKET_ID = 'platzbauer-dateien'; // Für Platzbauer: Angebote, ABs, Rechnungen, Lieferscheine
+export const SHOP_PRODUKTBILDER_BUCKET_ID = 'shop-produktbilder'; // Für Shop: Produktbilder
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';

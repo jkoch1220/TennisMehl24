@@ -61,6 +61,11 @@ import {
   ANFRAGEN_COLLECTION_ID,
   // Shop Bestellungen
   SHOP_BESTELLUNGEN_COLLECTION_ID,
+  // Shop E-Commerce (Next.js Shop)
+  SHOP_PRODUKTE_COLLECTION_ID,
+  SHOP_KATEGORIEN_COLLECTION_ID,
+  SHOP_RATGEBER_COLLECTION_ID,
+  SHOP_PRODUKTBILDER_BUCKET_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -68,7 +73,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '37'; // Shop Bestellungen - Status-Historie und Aktivitätslog
+const APPWRITE_SETUP_VERSION = '38'; // Shop E-Commerce Collections (shop_produkte, shop_kategorien, shop_ratgeber)
 
 type FieldConfig = {
   key: string;
@@ -551,6 +556,156 @@ const shopBestellungenFields: FieldConfig[] = [
   { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
 ];
 
+// Shop Produkte Collection - Next.js E-Commerce Shop Produkte
+const shopProdukteFields: FieldConfig[] = [
+  // Identifiers
+  { key: 'slug', type: 'string', size: 255, required: true },
+  { key: 'artikelnummer', type: 'string', size: 100, required: true },
+  { key: 'gambioProductId', type: 'integer', required: false },
+  { key: 'ean', type: 'string', size: 20, required: false },
+
+  // Localized content
+  { key: 'nameDE', type: 'string', size: 500, required: true },
+  { key: 'nameEN', type: 'string', size: 500, required: false },
+  { key: 'kurzBeschreibungDE', type: 'string', size: 1000, required: false },
+  { key: 'kurzBeschreibungEN', type: 'string', size: 1000, required: false },
+  { key: 'beschreibungDE', type: 'string', size: 50000, required: false },
+  { key: 'beschreibungEN', type: 'string', size: 50000, required: false },
+
+  // Category & Classification
+  { key: 'kategorieId', type: 'string', size: 100, required: true },
+  { key: 'kategorieSlug', type: 'string', size: 255, required: true },
+  { key: 'tags', type: 'string', size: 2000, required: false }, // JSON array
+  { key: 'marke', type: 'string', size: 255, required: false },
+
+  // Pricing
+  { key: 'preisNetto', type: 'double', required: true },
+  { key: 'preisBrutto', type: 'double', required: true },
+  { key: 'streichpreis', type: 'double', required: false },
+  { key: 'mwstSatz', type: 'integer', required: true }, // 19 or 7
+  { key: 'preisEinheit', type: 'string', size: 50, required: true }, // "Stk", "t", "m²"
+  { key: 'staffelpreise', type: 'string', size: 5000, required: false }, // JSON array
+
+  // Inventory
+  { key: 'bestand', type: 'integer', required: false },
+  { key: 'lieferzeit', type: 'string', size: 255, required: false },
+  { key: 'istVerfuegbar', type: 'boolean', required: true },
+  { key: 'verfuegbarAb', type: 'string', size: 50, required: false },
+
+  // Physical properties
+  { key: 'gewichtKg', type: 'double', required: false },
+  { key: 'laengeCm', type: 'double', required: false },
+  { key: 'breiteCm', type: 'double', required: false },
+  { key: 'hoeheCm', type: 'double', required: false },
+  { key: 'verpackungseinheit', type: 'string', size: 255, required: false },
+
+  // Media
+  { key: 'bildHaupt', type: 'string', size: 100, required: false }, // Appwrite File ID
+  { key: 'bildGalerie', type: 'string', size: 2000, required: false }, // JSON array of File IDs
+  { key: 'videoUrl', type: 'string', size: 500, required: false },
+  { key: 'pdfDatenblatt', type: 'string', size: 100, required: false },
+
+  // SEO
+  { key: 'metaTitleDE', type: 'string', size: 255, required: false },
+  { key: 'metaTitleEN', type: 'string', size: 255, required: false },
+  { key: 'metaDescriptionDE', type: 'string', size: 500, required: false },
+  { key: 'metaDescriptionEN', type: 'string', size: 500, required: false },
+  { key: 'canonicalUrl', type: 'string', size: 500, required: false },
+
+  // Display
+  { key: 'istAktiv', type: 'boolean', required: true },
+  { key: 'istFeatured', type: 'boolean', required: false },
+  { key: 'sortierung', type: 'integer', required: false },
+
+  // Related products
+  { key: 'verwandteProdukte', type: 'string', size: 2000, required: false }, // JSON array of IDs
+  { key: 'zubehoer', type: 'string', size: 2000, required: false }, // JSON array of IDs
+
+  // Meta
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
+];
+
+// Shop Kategorien Collection - Next.js E-Commerce Shop Kategorien
+const shopKategorienFields: FieldConfig[] = [
+  // Identifiers
+  { key: 'slug', type: 'string', size: 255, required: true },
+
+  // Hierarchy
+  { key: 'parentId', type: 'string', size: 100, required: false },
+  { key: 'ebene', type: 'integer', required: true }, // 0 = root, 1 = child
+  { key: 'pfad', type: 'string', size: 500, required: false }, // "/tennismehl/bigbag"
+
+  // Localized content
+  { key: 'nameDE', type: 'string', size: 255, required: true },
+  { key: 'nameEN', type: 'string', size: 255, required: false },
+  { key: 'beschreibungDE', type: 'string', size: 5000, required: false },
+  { key: 'beschreibungEN', type: 'string', size: 5000, required: false },
+
+  // Media
+  { key: 'bild', type: 'string', size: 100, required: false }, // Appwrite File ID
+  { key: 'bannerBild', type: 'string', size: 100, required: false },
+  { key: 'icon', type: 'string', size: 100, required: false }, // Lucide icon name or SVG
+
+  // SEO
+  { key: 'metaTitleDE', type: 'string', size: 255, required: false },
+  { key: 'metaTitleEN', type: 'string', size: 255, required: false },
+  { key: 'metaDescriptionDE', type: 'string', size: 500, required: false },
+  { key: 'metaDescriptionEN', type: 'string', size: 500, required: false },
+
+  // Display
+  { key: 'istAktiv', type: 'boolean', required: true },
+  { key: 'sortierung', type: 'integer', required: false },
+  { key: 'produktAnzahl', type: 'integer', required: false }, // Denormalized count
+
+  // Meta
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
+];
+
+// Shop Ratgeber Collection - Content Hub für SEO
+const shopRatgeberFields: FieldConfig[] = [
+  // Identifiers
+  { key: 'slug', type: 'string', size: 255, required: true },
+  { key: 'typ', type: 'string', size: 50, required: true }, // 'ratgeber' | 'anleitung' | 'faq' | 'news'
+
+  // Localized content
+  { key: 'titelDE', type: 'string', size: 500, required: true },
+  { key: 'titelEN', type: 'string', size: 500, required: false },
+  { key: 'excerptDE', type: 'string', size: 500, required: false },
+  { key: 'excerptEN', type: 'string', size: 500, required: false },
+  { key: 'inhaltDE', type: 'string', size: 100000, required: false }, // HTML/Markdown content
+  { key: 'inhaltEN', type: 'string', size: 100000, required: false },
+
+  // Categorization
+  { key: 'kategorien', type: 'string', size: 2000, required: false }, // JSON array of category slugs
+  { key: 'produkte', type: 'string', size: 2000, required: false }, // JSON array of product slugs
+  { key: 'tags', type: 'string', size: 2000, required: false }, // JSON array
+
+  // Media
+  { key: 'beitragsbild', type: 'string', size: 100, required: false }, // Appwrite File ID
+  { key: 'galerie', type: 'string', size: 2000, required: false }, // JSON array of File IDs
+
+  // SEO
+  { key: 'metaTitleDE', type: 'string', size: 255, required: false },
+  { key: 'metaTitleEN', type: 'string', size: 255, required: false },
+  { key: 'metaDescriptionDE', type: 'string', size: 500, required: false },
+  { key: 'metaDescriptionEN', type: 'string', size: 500, required: false },
+
+  // Author & Publishing
+  { key: 'autor', type: 'string', size: 255, required: false },
+  { key: 'veroeffentlichtAm', type: 'string', size: 50, required: false },
+  { key: 'istVeroeffentlicht', type: 'boolean', required: true },
+
+  // Display
+  { key: 'sortierung', type: 'integer', required: false },
+  { key: 'lesezeit', type: 'integer', required: false }, // Minutes
+
+  // Meta
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -877,6 +1032,25 @@ export async function setupAppwriteFields() {
         fields: shopBestellungenFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Shop E-Commerce Collections (Next.js Shop)
+      {
+        id: SHOP_PRODUKTE_COLLECTION_ID,
+        name: 'Shop Produkte',
+        fields: shopProdukteFields,
+        permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      {
+        id: SHOP_KATEGORIEN_COLLECTION_ID,
+        name: 'Shop Kategorien',
+        fields: shopKategorienFields,
+        permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      {
+        id: SHOP_RATGEBER_COLLECTION_ID,
+        name: 'Shop Ratgeber',
+        fields: shopRatgeberFields,
+        permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -892,6 +1066,9 @@ export async function setupAppwriteFields() {
 
     // Platzbauer-Dateien Bucket erstellen
     await ensureBucket(PLATZBAUER_DATEIEN_BUCKET_ID, 'Platzbauer Dateien');
+
+    // Shop-Produktbilder Bucket erstellen
+    await ensureBucket(SHOP_PRODUKTBILDER_BUCKET_ID, 'Shop Produktbilder');
 
     // Warte kurz, damit Felder erstellt sind bevor Indizes angelegt werden
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -981,6 +1158,24 @@ export async function setupAppwriteFields() {
     await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'bestellnummer_index', ['bestellnummer'], 'unique');
     await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'status_index', ['status']);
     await ensureIndex(SHOP_BESTELLUNGEN_COLLECTION_ID, 'bestelldatum_index', ['bestelldatum']);
+
+    // Indizes für Shop Produkte (Next.js E-Commerce)
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'slug_index', ['slug'], 'unique');
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'artikelnummer_index', ['artikelnummer'], 'unique');
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'kategorieId_index', ['kategorieId']);
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'kategorieSlug_index', ['kategorieSlug']);
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'istAktiv_index', ['istAktiv']);
+    await ensureIndex(SHOP_PRODUKTE_COLLECTION_ID, 'istFeatured_index', ['istFeatured']);
+
+    // Indizes für Shop Kategorien
+    await ensureIndex(SHOP_KATEGORIEN_COLLECTION_ID, 'slug_index', ['slug'], 'unique');
+    await ensureIndex(SHOP_KATEGORIEN_COLLECTION_ID, 'parentId_index', ['parentId']);
+    await ensureIndex(SHOP_KATEGORIEN_COLLECTION_ID, 'istAktiv_index', ['istAktiv']);
+
+    // Indizes für Shop Ratgeber
+    await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'slug_index', ['slug'], 'unique');
+    await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'typ_index', ['typ']);
+    await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'istVeroeffentlicht_index', ['istVeroeffentlicht']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
