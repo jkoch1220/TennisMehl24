@@ -1271,6 +1271,24 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY += (bemerkungLines.length * 4);
   }
 
+  // === Dieselpreiszuschlag ===
+  if (daten.dieselpreiszuschlagAktiviert && daten.dieselpreiszuschlagText) {
+    summenY += 6;
+
+    const dieselLines = doc.splitTextToSize(daten.dieselpreiszuschlagText, 160);
+    const dieselHeight = getTextHeight(dieselLines) + 4;
+
+    // Prüfe Platz für Dieselpreiszuschlag
+    summenY = await ensureSpace(doc, summenY, dieselHeight, stammdaten);
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Dieselpreiszuschlag:', 25, summenY);
+    summenY += 4;
+    doc.text(dieselLines, 25, summenY);
+    summenY += (dieselLines.length * 4);
+  }
+
   // === Grußformel ===
   summenY += 8;
 
