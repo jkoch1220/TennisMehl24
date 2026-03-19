@@ -82,6 +82,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   // Verwende Props-Kunde oder geladenen Kunden
   const kunde = kundeFromProps || geladenerKunde;
 
+  const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
+    'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
+    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
+    'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
+
   const [auftragsbestaetigungsDaten, setAuftragsbestaetigungsDaten] = useState<AuftragsbestaetigungsDaten>({
     firmenname: 'Koch Dienste',
     firmenstrasse: 'Musterstraße 1',
@@ -93,14 +98,16 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     kundenname: '',
     kundenstrasse: '',
     kundenPlzOrt: '',
-    
+
     auftragsbestaetigungsnummer: '',
     auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
-    
+
     positionen: [],
     zahlungsziel: '14 Tage',
     lieferbedingungenAktiviert: true,
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
+    dieselpreiszuschlagAktiviert: true,
+    dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
   });
   
   const [artikel, setArtikel] = useState<Artikel[]>([]);
@@ -1542,6 +1549,51 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               />
             )}
           </div>
+        </div>
+
+        {/* Dieselpreiszuschlag */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-start gap-3 mb-3">
+            <input
+              id="dieselpreiszuschlag-ab"
+              type="checkbox"
+              checked={auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert || false}
+              onChange={(e) =>
+                handleInputChange('dieselpreiszuschlagAktiviert', e.target.checked)
+              }
+              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+              className="mt-1 w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
+            />
+            <div className="flex-1">
+              <label
+                htmlFor="dieselpreiszuschlag-ab"
+                className="block text-sm font-medium text-gray-900 dark:text-dark-text"
+              >
+                Dieselpreiszuschlag in AB ausweisen
+              </label>
+              <p className="mt-1 text-xs text-gray-600 dark:text-dark-textMuted">
+                Wenn aktiviert, wird in der Auftragsbestätigung ein Hinweis zum Dieselpreiszuschlag mit
+                folgendem Text aufgenommen. Der Text kann bei Bedarf angepasst werden.
+              </p>
+            </div>
+          </div>
+
+          {auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Text zum Dieselpreiszuschlag
+              </label>
+              <textarea
+                value={auftragsbestaetigungsDaten.dieselpreiszuschlagText || ''}
+                onChange={(e) =>
+                  handleInputChange('dieselpreiszuschlagText', e.target.value)
+                }
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 text-sm"
+              />
+            </div>
+          )}
         </div>
 
         {/* Zahlungsbedingungen */}
