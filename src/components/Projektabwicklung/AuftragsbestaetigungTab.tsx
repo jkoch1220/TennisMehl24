@@ -196,6 +196,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               lieferadresseName: lieferadresseName,
               lieferadresseStrasse: lieferadresseStrasse,
               lieferadressePlzOrt: lieferadressePlzOrt,
+              // Dieselpreiszuschlag defaults für alte Dokumente
+              dieselpreiszuschlagAktiviert: gespeicherteDaten.dieselpreiszuschlagAktiviert ?? true,
+              dieselpreiszuschlagText: gespeicherteDaten.dieselpreiszuschlagText || DEFAULT_DIESELPREISZUSCHLAG_TEXT,
             });
           }
           setAutoSaveStatus('gespeichert');
@@ -230,11 +233,14 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               lieferadresseName: lieferadresseName,
               lieferadresseStrasse: lieferadresseStrasse,
               lieferadressePlzOrt: lieferadressePlzOrt,
+              // Dieselpreiszuschlag defaults für alte Entwürfe
+              dieselpreiszuschlagAktiviert: entwurf.dieselpreiszuschlagAktiviert ?? true,
+              dieselpreiszuschlagText: entwurf.dieselpreiszuschlagText || DEFAULT_DIESELPREISZUSCHLAG_TEXT,
             });
             setAutoSaveStatus('gespeichert');
           }
         }
-        
+
         setLadeStatus('bereit');
         initialLaden.current = false;
       } catch (error) {
@@ -279,6 +285,20 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
       }
     };
   }, [auftragsbestaetigungsDaten, speichereAutomatisch, gespeichertesDokument]);
+
+  // Dieselpreiszuschlag: Wenn aktiviert und noch kein Text gesetzt, automatisch Standardtext hinterlegen
+  useEffect(() => {
+    if (
+      auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert &&
+      (!auftragsbestaetigungsDaten.dieselpreiszuschlagText ||
+        auftragsbestaetigungsDaten.dieselpreiszuschlagText.trim().length === 0)
+    ) {
+      setAuftragsbestaetigungsDaten(prev => ({
+        ...prev,
+        dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+      }));
+    }
+  }, [auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert, auftragsbestaetigungsDaten.dieselpreiszuschlagText]);
 
   // Auftragsbestätigungsnummer generieren (nur wenn noch keine vorhanden ist)
   useEffect(() => {
