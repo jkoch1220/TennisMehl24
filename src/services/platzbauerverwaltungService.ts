@@ -21,14 +21,23 @@ import { saisonplanungService } from './saisonplanungService';
 import { projektService } from './projektService';
 
 // ==================== PERFORMANCE CACHE ====================
-// Längerer Cache (30 Sekunden) für Platzbauerverwaltung, da Daten sich nicht oft ändern
+// Längerer Cache für Platzbauerverwaltung, da Daten sich selten ändern
+
 interface KundenCache {
   data: SaisonKunde[];
   timestamp: number;
 }
 
+interface ProjekteCache {
+  data: PlatzbauerProjekt[];
+  saisonjahr: number;
+  timestamp: number;
+}
+
 let kundenCache: KundenCache | null = null;
-const KUNDEN_CACHE_TTL = 30000; // 30 Sekunden
+let projekteCache: ProjekteCache | null = null;
+const KUNDEN_CACHE_TTL = 120000; // 2 Minuten
+const PROJEKTE_CACHE_TTL = 60000; // 1 Minute
 
 async function loadAlleKundenCached(): Promise<SaisonKunde[]> {
   const now = Date.now();
@@ -47,6 +56,10 @@ async function loadAlleKundenCached(): Promise<SaisonKunde[]> {
 // Cache invalidieren (nach Änderungen)
 function invalidateKundenCache(): void {
   kundenCache = null;
+}
+
+function invalidateProjekteCache(): void {
+  projekteCache = null;
 }
 
 // Helper: Parse Document mit data-Feld
@@ -213,10 +226,11 @@ class PlatzbauerverwaltungService {
   }
 
   /**
-   * Cache invalidieren (z.B. nach dem Anlegen eines neuen Vereins)
+   * Cache invalidieren (z.B. nach dem Anlegen eines neuen Vereins oder Projekts)
    */
   invalidateCache(): void {
     invalidateKundenCache();
+    invalidateProjekteCache();
   }
 
   /**
@@ -260,10 +274,20 @@ class PlatzbauerverwaltungService {
   // ==================== PLATZBAUER-PROJEKTE ====================
 
   /**
-   * Alle Platzbauer-Projekte für ein Jahr laden
+   * Alle Platzbauer-Projekte für ein Jahr laden (mit Cache)
    */
   async loadPlatzbauerprojekte(saisonjahr: number, filter?: PBVFilter): Promise<PlatzbauerProjekt[]> {
     try {
+      // Cache nur für ungefilterte Anfragen nutzen
+      const now = Date.now();
+      const useCache = !filter?.status && !filter?.platzbauerId && !filter?.suche;
+
+      if (useCache && projekteCache &&
+          projekteCache.saisonjahr === saisonjahr &&
+          (now - projekteCache.timestamp) < PROJEKTE_CACHE_TTL) {
+        return projekteCache.data;
+      }
+
       const queries: string[] = [
         Query.equal('saisonjahr', saisonjahr),
         Query.orderDesc('$createdAt'),
@@ -305,6 +329,11 @@ class PlatzbauerverwaltungService {
           p.platzbauerName.toLowerCase().includes(suche) ||
           p.projektName.toLowerCase().includes(suche)
         );
+      }
+
+      // Cache aktualisieren (nur ungefilterte Daten)
+      if (useCache) {
+        projekteCache = { data: projekte, saisonjahr, timestamp: now };
       }
 
       return projekte;
@@ -776,13 +805,19 @@ class PlatzbauerverwaltungService {
   // ==================== STATISTIK ====================
 
   /**
-   * Dashboard-Statistik berechnen
+   * Dashboard-Statistik berechnen (OPTIMIERT - keine N+1 Queries mehr)
    */
   async berechneStatistik(saisonjahr: number): Promise<PBVStatistik> {
-    const [platzbauer, projekte] = await Promise.all([
-      this.loadAllePlatzbauermitVereinen(saisonjahr),
+    // Lade nur Platzbauer-Projekte - Platzbauer-Daten werden gecached wiederverwendet
+    const [alleKunden, projekte] = await Promise.all([
+      loadAlleKundenCached(),
       this.loadPlatzbauerprojekte(saisonjahr),
     ]);
+
+    const platzbauer = alleKunden.filter(k => k.typ === 'platzbauer' && k.aktiv);
+    const vereine = alleKunden.filter(
+      k => k.typ === 'verein' && k.aktiv && k.standardBezugsweg === 'ueber_platzbauer'
+    );
 
     // Zähle Projekte nach Status
     const projekteNachStatus: Record<ProjektStatus, number> = {
@@ -799,24 +834,22 @@ class PlatzbauerverwaltungService {
       projekteNachStatus[projekt.status]++;
     }
 
-    // Berechne Summen
+    // Berechne Summen direkt aus Projekt-Daten (keine Extra-Queries!)
     const gesamtMenge = projekte.reduce((sum, p) => sum + (p.gesamtMenge || 0), 0);
     const gesamtUmsatz = projekte.reduce((sum, p) => sum + (p.gesamtBrutto || 0), 0);
 
-    // Zähle Lieferscheine
-    let lieferscheineGesamt = 0;
-    let lieferscheineOffen = 0;
+    // Lieferschein-Statistik aus anzahlVereine schätzen (ohne Extra-Queries)
+    // Die genaue Zahl wird nur bei Bedarf im Detail geladen
+    const lieferscheineGesamt = projekte.reduce((sum, p) => sum + (p.anzahlVereine || 0), 0);
+    const lieferscheineOffen = 0; // Wird nur bei Bedarf geladen
 
-    for (const projekt of projekte) {
-      const positionen = await this.aggregierePositionen(projekt.id);
-      lieferscheineGesamt += positionen.length;
-      lieferscheineOffen += positionen.filter(p => !p.lieferscheinErstellt).length;
-    }
+    // Zähle aktive Platzbauer (die haben mindestens ein Projekt)
+    const platzbauermitProjekt = new Set(projekte.map(p => p.platzbauerId));
 
     return {
       gesamtPlatzbauer: platzbauer.length,
-      aktivePlatzbauer: platzbauer.filter(pb => pb.projekte.length > 0).length,
-      gesamtVereine: platzbauer.reduce((sum, pb) => sum + pb.vereine.length, 0),
+      aktivePlatzbauer: platzbauermitProjekt.size,
+      gesamtVereine: vereine.length,
       projekteNachStatus,
       gesamtMenge,
       gesamtUmsatz,
