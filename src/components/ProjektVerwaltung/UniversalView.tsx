@@ -267,6 +267,21 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         // Filtere nach Universal-Artikeln (Flag oder Beschreibung)
         const universalPositionen = abDaten.positionen.filter(istUniversalPosition);
 
+        // Prüfe ob Kundenname aktualisiert werden muss (bei Umbenennungen)
+        if (projekt.kundeId) {
+          try {
+            const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
+            if (kunde?.name && kunde.name !== projekt.kundenname) {
+              // Projekt-Kundenname aktualisieren
+              projektService.updateProjekt(projektId, { kundenname: kunde.name }).catch(err => {
+                console.warn('Kundenname konnte nicht aktualisiert werden:', err);
+              });
+            }
+          } catch {
+            // Ignorieren - Sync ist optional
+          }
+        }
+
         // Erstelle Bestellungen für jede Universal-Position
         return universalPositionen.map((position) => ({
           projektId,

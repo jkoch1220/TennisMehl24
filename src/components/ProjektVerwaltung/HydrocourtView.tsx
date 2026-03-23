@@ -211,6 +211,13 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
               // AKTUELLER Kundenname aus SaisonKunde (nicht der veraltete aus Projekt!)
               aktuellerKundenname = kunde.name;
 
+              // Projekt-Kundenname aktualisieren wenn er sich geändert hat
+              if (aktuellerKundenname && aktuellerKundenname !== projekt.kundenname) {
+                projektService.updateProjekt(projektId, { kundenname: aktuellerKundenname }).catch(err => {
+                  console.warn('Kundenname konnte nicht aktualisiert werden:', err);
+                });
+              }
+
               // Ansprechpartner als Fallback
               if (!abDaten.dispoAnsprechpartner && kunde.dispoAnsprechpartner) {
                 kundenAnsprechpartner = kunde.dispoAnsprechpartner;
