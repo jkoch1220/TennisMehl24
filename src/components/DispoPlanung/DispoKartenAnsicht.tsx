@@ -397,6 +397,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   // Filter
   const [filterKW, setFilterKW] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<DispoStatus | null>(null);
+  const [filterVereine, setFilterVereine] = useState<Set<string>>(new Set());
+  const [showVereineFilter, setShowVereineFilter] = useState(false);
+  const [vereineFilterSearch, setVereineFilterSearch] = useState('');
 
   // Tour State
   const [touren, setTouren] = useState<Tour[]>([]);
@@ -625,6 +628,11 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     return projekteMitKoordinaten.filter((p) => {
       if (filterKW !== null && p.kw !== filterKW) return false;
       if (filterStatus !== null && (p.projekt.dispoStatus || 'offen') !== filterStatus) return false;
+      // Vereine-Filter: Wenn Vereine ausgewählt sind, nur diese anzeigen
+      if (filterVereine.size > 0) {
+        const projektId = (p.projekt as any).$id || p.projekt.id;
+        if (!filterVereine.has(projektId)) return false;
+      }
       if (sidebarSearch) {
         const s = sidebarSearch.toLowerCase();
         const text = `${p.projekt.kundenname} ${p.projekt.kundenPlzOrt} ${p.projekt.kundennummer || ''} ${p.kunde?.lieferadresse?.ort || ''}`.toLowerCase();
@@ -632,7 +640,32 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       }
       return true;
     });
-  }, [projekteMitKoordinaten, filterKW, filterStatus, sidebarSearch]);
+  }, [projekteMitKoordinaten, filterKW, filterStatus, filterVereine, sidebarSearch]);
+
+  // Alle Vereine für Multi-Select Filter (sortiert nach Name, mit Suche)
+  const alleVereineFuerFilter = useMemo(() => {
+    const vereine = projekteMitKoordinaten.map(p => ({
+      id: (p.projekt as any).$id || p.projekt.id,
+      name: p.projekt.kundenname,
+      ort: p.kunde?.lieferadresse?.ort || p.projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
+      tonnen: p.tonnen,
+      kw: p.kw,
+    }));
+
+    // Nach Name sortieren
+    vereine.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
+    // Suchfilter anwenden
+    if (vereineFilterSearch) {
+      const s = vereineFilterSearch.toLowerCase();
+      return vereine.filter(v =>
+        v.name.toLowerCase().includes(s) ||
+        v.ort.toLowerCase().includes(s)
+      );
+    }
+
+    return vereine;
+  }, [projekteMitKoordinaten, vereineFilterSearch]);
 
   // KW-Statistiken
   const kwStats = useMemo(() => {
@@ -1374,9 +1407,9 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                     </button>
                   );
                 })}
-                {(filterKW !== null || filterStatus !== null) && (
+                {(filterKW !== null || filterStatus !== null || filterVereine.size > 0) && (
                   <button
-                    onClick={() => { setFilterKW(null); setFilterStatus(null); setSidebarSearch(''); }}
+                    onClick={() => { setFilterKW(null); setFilterStatus(null); setFilterVereine(new Set()); setSidebarSearch(''); }}
                     className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
                   >
                     <X className="w-3 h-3" />
@@ -1402,6 +1435,101 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Vereine Multi-Select Filter */}
+            <div className="border-b border-gray-100 dark:border-slate-800">
+              <button
+                onClick={() => setShowVereineFilter(!showVereineFilter)}
+                className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Vereine auswählen
+                  </span>
+                  {filterVereine.size > 0 && (
+                    <span className="px-1.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full">
+                      {filterVereine.size}
+                    </span>
+                  )}
+                </div>
+                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showVereineFilter ? 'rotate-90' : ''}`} />
+              </button>
+
+              {showVereineFilter && (
+                <div className="px-3 pb-2">
+                  {/* Such-Input für Vereine */}
+                  <div className="relative mb-2">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Verein suchen..."
+                      value={vereineFilterSearch}
+                      onChange={(e) => setVereineFilterSearch(e.target.value)}
+                      className="w-full pl-7 pr-7 py-1 border border-gray-200 dark:border-slate-700 rounded text-xs bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-red-500"
+                    />
+                    {vereineFilterSearch && (
+                      <button onClick={() => setVereineFilterSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Alle auswählen / Auswahl aufheben */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => {
+                        const allIds = alleVereineFuerFilter.map(v => v.id);
+                        setFilterVereine(new Set(allIds));
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                    >
+                      Alle ({alleVereineFuerFilter.length})
+                    </button>
+                    <span className="text-gray-300 dark:text-gray-600">|</span>
+                    <button
+                      onClick={() => setFilterVereine(new Set())}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                    >
+                      Keine
+                    </button>
+                  </div>
+
+                  {/* Vereinsliste mit Checkboxen */}
+                  <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
+                    {alleVereineFuerFilter.map(v => (
+                      <label
+                        key={v.id}
+                        className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={filterVereine.has(v.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(filterVereine);
+                            if (e.target.checked) {
+                              newSet.add(v.id);
+                            } else {
+                              newSet.delete(v.id);
+                            }
+                            setFilterVereine(newSet);
+                          }}
+                          className="w-3.5 h-3.5 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {v.name}
+                          </div>
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                            {v.ort} · {v.tonnen.toFixed(0)}t {v.kw ? `· KW${v.kw}` : ''}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Project List - SCROLLABLE, füllt restlichen Platz */}
