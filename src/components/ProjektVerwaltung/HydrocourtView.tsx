@@ -48,6 +48,8 @@ interface HydrocourtBestellung {
     name: string;
     telefon: string;
   };
+  // AKTUELLER Kundenname (aus SaisonKunde, nicht aus Projekt!)
+  aktuellerKundenname?: string;
 }
 
 // Editierbare Daten für das Send-Modal
@@ -198,13 +200,21 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
           (pos) => pos.artikelnummer === 'TM-HYC'
         );
 
-        // Falls kein Ansprechpartner in AB, versuche aus Kundendaten zu laden
+        // Kundendaten laden: Aktueller Name + Ansprechpartner (falls nicht in AB)
         let kundenAnsprechpartner: { name: string; telefon: string } | undefined;
-        if (!abDaten.dispoAnsprechpartner && projekt.kundeId) {
+        let aktuellerKundenname: string | undefined;
+
+        if (projekt.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
-            if (kunde?.dispoAnsprechpartner) {
-              kundenAnsprechpartner = kunde.dispoAnsprechpartner;
+            if (kunde) {
+              // AKTUELLER Kundenname aus SaisonKunde (nicht der veraltete aus Projekt!)
+              aktuellerKundenname = kunde.name;
+
+              // Ansprechpartner als Fallback
+              if (!abDaten.dispoAnsprechpartner && kunde.dispoAnsprechpartner) {
+                kundenAnsprechpartner = kunde.dispoAnsprechpartner;
+              }
             }
           } catch (err) {
             // Ignorieren - Fallback ist optional
@@ -223,6 +233,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
           auftragsbestaetigungsdatum: abDaten.auftragsbestaetigungsdatum || projekt.auftragsbestaetigungsdatum,
           // Ansprechpartner: AB > Projekt > Kunde (Fallback-Kette)
           dispoAnsprechpartner: abDaten.dispoAnsprechpartner || projekt.dispoAnsprechpartner || kundenAnsprechpartner,
+          // AKTUELLER Kundenname (aus SaisonKunde, Fallback auf Projekt)
+          aktuellerKundenname: aktuellerKundenname || projekt.kundenname,
         }));
       });
 
@@ -312,7 +324,7 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
     const initDaten: EditierbareSendDaten[] = zuSenden.map(b => ({
       projektId: b.projektId,
-      kundenname: b.projekt.kundenname,
+      kundenname: b.aktuellerKundenname || b.projekt.kundenname,
       lieferKW: b.lieferKW ? `${b.lieferKW}` : '',
       lieferdatum: b.lieferdatum || '',
       // Ansprechpartner aus AB-Daten (dort ist er korrekt gespeichert), Fallback auf Projekt
@@ -368,7 +380,7 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
       return [
         b.auftragsbestaetigungsnummer || '',
-        b.projekt.kundenname || '',
+        b.aktuellerKundenname || b.projekt.kundenname || '',
         lieferadresse?.strasse || b.projekt.kundenstrasse || '',
         lieferadresse?.plz || b.projekt.kundenPlzOrt?.split(' ')[0] || '',
         lieferadresse?.ort || b.projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
@@ -633,7 +645,7 @@ Mit sportlichen Grüßen`;
       b.auftragsbestaetigungsdatum
         ? new Date(b.auftragsbestaetigungsdatum).toLocaleDateString('de-DE')
         : '',
-      b.projekt.kundenname || '',
+      b.aktuellerKundenname || b.projekt.kundenname || '',
       b.projekt.kundenPlzOrt || '',
       b.position.artikelnummer || 'TM-HYC',
       b.position.bezeichnung || '',
@@ -702,7 +714,7 @@ Mit sportlichen Grüßen`;
               onClick={() => onProjektClick(bestellung.projekt)}
               className="font-semibold text-gray-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 text-left truncate block w-full"
             >
-              {bestellung.projekt.kundenname}
+              {bestellung.aktuellerKundenname || bestellung.projekt.kundenname}
             </button>
             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
               <MapPin className="w-3 h-3" />
@@ -1244,7 +1256,7 @@ Mit sportlichen Grüßen`;
                                 <div className="flex items-center gap-2">
                                   <Building2 className="w-4 h-4 text-purple-500 flex-shrink-0" />
                                   <span className="font-semibold text-gray-900 dark:text-white">
-                                    {bestellung.projekt.kundenname}
+                                    {bestellung.aktuellerKundenname || bestellung.projekt.kundenname}
                                   </span>
                                 </div>
                               </td>
