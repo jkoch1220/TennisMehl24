@@ -16,7 +16,8 @@ export const VERLOREN_GRUENDE: { value: VerlorenGrund; label: string }[] = [
 export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'geliefert';
 
 // Hydrocourt-Status für TM-HYC Bestellungen (Versand an Schwab)
-export type HydrocourtStatus = 'offen' | 'bestellt' | 'versendet' | 'abgeschlossen';
+// Erweiterter Workflow mit Rechnungsstellung
+export type HydrocourtStatus = 'offen' | 'bestellt' | 'versendet' | 'rechnungsstellung' | 'bezahlt';
 
 // Universal-Kanban-Status für Universal-Artikel Workflow
 export type UniversalKanbanStatus = 'offen' | 'versendet' | 'an_kunden' | 'rechnungsstellung' | 'bezahlt';

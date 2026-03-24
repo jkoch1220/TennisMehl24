@@ -26,12 +26,17 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, HydrocourtStatus } from '../../types/projekt';
-import { AuftragsbestaetigungsDaten, Position } from '../../types/projektabwicklung';
+import { AuftragsbestaetigungsDaten, Position, RechnungsDaten } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
+import { generiereRechnungPDF } from '../../services/rechnungService';
+import { getStammdatenOderDefault } from '../../services/stammdatenService';
+import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
+import TipTapEditor from '../Shared/TipTapEditor';
+import { Receipt, GripVertical, MoveHorizontal } from 'lucide-react';
 
 // Hydrocourt-Bestellung Interface
 interface HydrocourtBestellung {
@@ -92,7 +97,7 @@ const getStatusConfig = (status: ProjektStatus) => {
   return configs[status];
 };
 
-// Hydrocourt Status Konfiguration
+// Hydrocourt Status Konfiguration (5 Spalten wie Universal)
 const HYDROCOURT_STATUS_CONFIG: Record<HydrocourtStatus, {
   label: string;
   color: string;
@@ -108,27 +113,37 @@ const HYDROCOURT_STATUS_CONFIG: Record<HydrocourtStatus, {
     icon: Clock,
   },
   bestellt: {
-    label: 'Bestellt',
+    label: 'Bei Schwab bestellt',
     color: 'text-amber-700 dark:text-amber-300',
     bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     borderColor: 'border-amber-300 dark:border-amber-700',
     icon: Package,
   },
   versendet: {
-    label: 'Versendet',
+    label: 'An Kunde versendet',
     color: 'text-sky-700 dark:text-sky-300',
     bgColor: 'bg-sky-50 dark:bg-sky-900/20',
     borderColor: 'border-sky-300 dark:border-sky-700',
     icon: Truck,
   },
-  abgeschlossen: {
-    label: 'Abgeschlossen',
+  rechnungsstellung: {
+    label: 'Rechnungsstellung',
+    color: 'text-purple-700 dark:text-purple-300',
+    bgColor: 'bg-purple-50 dark:bg-purple-900/20',
+    borderColor: 'border-purple-300 dark:border-purple-700',
+    icon: FileText,
+  },
+  bezahlt: {
+    label: 'Bezahlt',
     color: 'text-emerald-700 dark:text-emerald-300',
     bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     borderColor: 'border-emerald-300 dark:border-emerald-700',
     icon: CheckCircle2,
   },
 };
+
+// Reihenfolge der Kanban-Spalten
+const HYDROCOURT_COLUMNS: HydrocourtStatus[] = ['offen', 'bestellt', 'versendet', 'rechnungsstellung', 'bezahlt'];
 
 // Schwab Kontaktdaten
 const SCHWAB_EMAIL = 'schwab-th@t-online.de';
@@ -164,6 +179,17 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
   // Editierbare Daten für Send-Modal
   const [editierbareDaten, setEditierbareDaten] = useState<EditierbareSendDaten[]>([]);
+
+  // Drag & Drop State
+  const [draggedProjektId, setDraggedProjektId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<HydrocourtStatus | null>(null);
+
+  // Rechnungs-Modal State
+  const [showRechnungModal, setShowRechnungModal] = useState(false);
+  const [rechnungBestellung, setRechnungBestellung] = useState<HydrocourtBestellung | null>(null);
+  const [rechnungSending, setRechnungSending] = useState(false);
+  const [rechnungEmailText, setRechnungEmailText] = useState('');
+  const [rechnungSignatur, setRechnungSignatur] = useState('');
 
   // Alle bestellten Projekte (Status >= auftragsbestaetigung)
   const bestellteProjekte = useMemo(() => {
@@ -275,13 +301,22 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
       offen: [],
       bestellt: [],
       versendet: [],
-      abgeschlossen: [],
+      rechnungsstellung: [],
+      bezahlt: [],
     };
 
     bestellungen.forEach((bestellung) => {
       // Hydrocourt-Status aus Projekt lesen (Default: 'offen')
-      const status = bestellung.projekt.hydrocourtStatus || 'offen';
-      gruppen[status].push(bestellung);
+      let status = bestellung.projekt.hydrocourtStatus || 'offen';
+      // Migration: 'abgeschlossen' → 'bezahlt'
+      if (status === 'abgeschlossen' as any) {
+        status = 'bezahlt';
+      }
+      if (gruppen[status]) {
+        gruppen[status].push(bestellung);
+      } else {
+        gruppen.offen.push(bestellung);
+      }
     });
 
     return gruppen;
@@ -289,19 +324,17 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
 
   // KPI-Statistiken
   const stats = useMemo(() => {
-    const mengenProStatus = {
-      offen: bestellungenNachStatus.offen.reduce((sum, b) => sum + (b.position.menge || 0), 0),
-      bestellt: bestellungenNachStatus.bestellt.reduce((sum, b) => sum + (b.position.menge || 0), 0),
-      versendet: bestellungenNachStatus.versendet.reduce((sum, b) => sum + (b.position.menge || 0), 0),
-      abgeschlossen: bestellungenNachStatus.abgeschlossen.reduce((sum, b) => sum + (b.position.menge || 0), 0),
-    };
+    const result: Record<HydrocourtStatus, { anzahl: number; menge: number }> = {} as any;
 
-    return {
-      offen: { anzahl: bestellungenNachStatus.offen.length, menge: mengenProStatus.offen },
-      bestellt: { anzahl: bestellungenNachStatus.bestellt.length, menge: mengenProStatus.bestellt },
-      versendet: { anzahl: bestellungenNachStatus.versendet.length, menge: mengenProStatus.versendet },
-      abgeschlossen: { anzahl: bestellungenNachStatus.abgeschlossen.length, menge: mengenProStatus.abgeschlossen },
-    };
+    for (const status of HYDROCOURT_COLUMNS) {
+      const bestellungenInStatus = bestellungenNachStatus[status] || [];
+      result[status] = {
+        anzahl: bestellungenInStatus.length,
+        menge: bestellungenInStatus.reduce((sum, b) => sum + (b.position.menge || 0), 0),
+      };
+    }
+
+    return result;
   }, [bestellungenNachStatus]);
 
   // Alle offenen auswählen
@@ -589,6 +622,242 @@ Mit sportlichen Grüßen`;
     }
   };
 
+  // === DRAG & DROP HANDLERS ===
+  const handleDragStart = useCallback((e: React.DragEvent, projektId: string) => {
+    setDraggedProjektId(projektId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', projektId);
+    const target = e.target as HTMLElement;
+    setTimeout(() => {
+      target.style.opacity = '0.5';
+    }, 0);
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    setDraggedProjektId(null);
+    setDragOverColumn(null);
+    const target = e.target as HTMLElement;
+    target.style.opacity = '1';
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent, columnStatus: HydrocourtStatus) => {
+    e.preventDefault();
+    setDragOverColumn(columnStatus);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const relatedTarget = e.relatedTarget as HTMLElement;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (!currentTarget.contains(relatedTarget)) {
+      setDragOverColumn(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, targetStatus: HydrocourtStatus) => {
+    e.preventDefault();
+    const projektId = e.dataTransfer.getData('text/plain');
+
+    if (!projektId || !draggedProjektId) return;
+
+    // Finde das Projekt
+    const bestellung = bestellungen.find(b => b.projektId === projektId);
+    if (!bestellung) return;
+
+    const aktuellerStatus = bestellung.projekt.hydrocourtStatus || 'offen';
+    if (aktuellerStatus === targetStatus) {
+      setDraggedProjektId(null);
+      setDragOverColumn(null);
+      return;
+    }
+
+    try {
+      await projektService.updateHydrocourtStatus(projektId, targetStatus);
+
+      // Lokalen State sofort aktualisieren
+      setBestellungen(prev => prev.map(b => {
+        if (b.projektId === projektId) {
+          return {
+            ...b,
+            projekt: {
+              ...b.projekt,
+              hydrocourtStatus: targetStatus,
+            }
+          };
+        }
+        return b;
+      }));
+    } catch (error) {
+      console.error('Fehler beim Verschieben:', error);
+      alert('Fehler beim Verschieben des Projekts');
+    } finally {
+      setDraggedProjektId(null);
+      setDragOverColumn(null);
+    }
+  }, [draggedProjektId, bestellungen]);
+
+  // === RECHNUNGS-FUNKTIONEN ===
+  const openRechnungModal = async (bestellung: HydrocourtBestellung) => {
+    setRechnungBestellung(bestellung);
+
+    // Standard-Email-Text laden
+    const emailTemplate = await generiereStandardEmail('rechnung', '', bestellung.aktuellerKundenname || bestellung.projekt.kundenname || '');
+    setRechnungEmailText(emailTemplate.text || `Sehr geehrte Damen und Herren,
+
+anbei erhalten Sie die Rechnung für Ihre Hydrocourt-Bestellung.
+
+Vielen Dank für Ihren Auftrag!`);
+    setRechnungSignatur(emailTemplate.signatur || '');
+
+    setShowRechnungModal(true);
+  };
+
+  const handleSendRechnung = async () => {
+    if (!rechnungBestellung) return;
+
+    const kundenEmail = rechnungBestellung.projekt.kundenEmail;
+    if (!kundenEmail) {
+      alert('Keine Kunden-E-Mail-Adresse vorhanden');
+      return;
+    }
+
+    setRechnungSending(true);
+
+    try {
+      const stammdaten = await getStammdatenOderDefault();
+      const rechnungsnummer = await generiereNaechsteDokumentnummer('rechnung');
+      const heute = new Date().toISOString().split('T')[0];
+
+      // Lieferadresse zusammenbauen
+      const lieferadressePlzOrt = rechnungBestellung.projekt.lieferadresse
+        ? `${rechnungBestellung.projekt.lieferadresse.plz} ${rechnungBestellung.projekt.lieferadresse.ort}`
+        : rechnungBestellung.projekt.kundenPlzOrt || '';
+
+      // Rechnungsdaten erstellen (mit korrekter RechnungsDaten-Struktur)
+      const rechnungsDaten: RechnungsDaten = {
+        // Firmendaten
+        firmenname: stammdaten.firmenname,
+        firmenstrasse: stammdaten.firmenstrasse,
+        firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
+        firmenTelefon: stammdaten.firmenTelefon,
+        firmenEmail: stammdaten.firmenEmail,
+        firmenWebsite: stammdaten.firmenWebsite,
+
+        // Kundendaten
+        kundennummer: rechnungBestellung.projekt.kundennummer || '',
+        kundenname: rechnungBestellung.aktuellerKundenname || rechnungBestellung.projekt.kundenname || '',
+        kundenstrasse: rechnungBestellung.projekt.kundenstrasse || '',
+        kundenPlzOrt: rechnungBestellung.projekt.kundenPlzOrt || '',
+
+        // Lieferadresse (falls abweichend)
+        lieferadresseAbweichend: !!rechnungBestellung.projekt.lieferadresse,
+        lieferadresseName: rechnungBestellung.aktuellerKundenname || rechnungBestellung.projekt.kundenname || '',
+        lieferadresseStrasse: rechnungBestellung.projekt.lieferadresse?.strasse || rechnungBestellung.projekt.kundenstrasse || '',
+        lieferadressePlzOrt,
+
+        // Bankdaten
+        bankname: stammdaten.bankname,
+        iban: stammdaten.iban,
+        bic: stammdaten.bic,
+
+        // Steuerdaten
+        steuernummer: stammdaten.steuernummer,
+        ustIdNr: stammdaten.ustIdNr,
+
+        // Rechnungsinformationen
+        rechnungsnummer,
+        rechnungsdatum: heute,
+        leistungsdatum: rechnungBestellung.lieferdatum || heute,
+
+        // Positionen
+        positionen: [{
+          id: crypto.randomUUID(),
+          artikelnummer: rechnungBestellung.position.artikelnummer || 'TM-HYC',
+          bezeichnung: rechnungBestellung.position.bezeichnung || 'Hydrocourt',
+          beschreibung: rechnungBestellung.position.beschreibung || '',
+          menge: rechnungBestellung.position.menge || 1,
+          einheit: rechnungBestellung.position.einheit || 't',
+          einzelpreis: rechnungBestellung.position.einzelpreis || 0,
+          gesamtpreis: rechnungBestellung.position.gesamtpreis || 0,
+        }],
+
+        // Zahlungsbedingungen
+        zahlungsziel: '14 Tage',
+      };
+
+      // PDF generieren
+      const pdf = await generiereRechnungPDF(rechnungsDaten, stammdaten);
+      const pdfBlob = pdf.output('blob');
+      const arrayBuffer = await pdfBlob.arrayBuffer();
+      const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+
+      // HTML-Body erstellen
+      const htmlBody = wrapInEmailTemplate(rechnungEmailText, rechnungSignatur);
+
+      // Email senden
+      const empfaenger = testModus ? TEST_EMAIL : kundenEmail;
+      const result = await sendeEmailMitPdf({
+        empfaenger,
+        absender: TENNISMEHL_ABSENDER,
+        betreff: `${testModus ? '[TEST] ' : ''}Rechnung ${rechnungsnummer} - Hydrocourt`,
+        htmlBody,
+        pdfBase64: base64,
+        pdfDateiname: `Rechnung_${rechnungsnummer}.pdf`,
+        projektId: rechnungBestellung.projektId,
+        dokumentTyp: 'rechnung',
+        dokumentNummer: rechnungsnummer,
+        testModus,
+        skipProtokoll: testModus,
+      });
+
+      if (result.success) {
+        if (!testModus) {
+          // Projekt-Status und Hydrocourt-Status aktualisieren
+          // Der Debitor wird automatisch erstellt wenn das Projekt Status "rechnung" hat
+          await projektService.updateProjekt(rechnungBestellung.projektId, {
+            status: 'rechnung',
+            rechnungsnummer,
+            rechnungsdatum: heute,
+            hydrocourtStatus: 'rechnungsstellung',
+          });
+
+          // Lokalen State aktualisieren
+          setBestellungen(prev => prev.map(b => {
+            if (b.projektId === rechnungBestellung.projektId) {
+              return {
+                ...b,
+                projekt: {
+                  ...b.projekt,
+                  status: 'rechnung',
+                  rechnungsnummer,
+                  hydrocourtStatus: 'rechnungsstellung',
+                }
+              };
+            }
+            return b;
+          }));
+        }
+
+        setShowRechnungModal(false);
+        setRechnungBestellung(null);
+        alert(testModus
+          ? `Test-Rechnung an ${TEST_EMAIL} gesendet`
+          : `Rechnung ${rechnungsnummer} erfolgreich an ${kundenEmail} gesendet!`);
+      } else {
+        throw new Error(result.error || 'Email konnte nicht gesendet werden');
+      }
+    } catch (error) {
+      console.error('Fehler beim Senden der Rechnung:', error);
+      alert(`Fehler: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+    } finally {
+      setRechnungSending(false);
+    }
+  };
+
   // Gruppierte Bestellungen (für Listen-Ansicht)
   const gruppierteDaten = useMemo(() => {
     if (groupBy === 'none') {
@@ -699,15 +968,20 @@ Mit sportlichen Grüßen`;
     const status = bestellung.projekt.hydrocourtStatus || 'offen';
     const isSelected = selectedIds.has(bestellung.projektId);
     const isEditingTracking = editingTrackingId === bestellung.projektId;
+    const isDragging = draggedProjektId === bestellung.projektId;
 
     return (
       <div
-        className={`bg-white dark:bg-slate-800 rounded-lg border-2 p-3 transition-all hover:shadow-md ${
-          isSelected ? 'border-cyan-500 ring-2 ring-cyan-200 dark:ring-cyan-800' : 'border-gray-200 dark:border-slate-700'
-        }`}
+        draggable
+        onDragStart={(e) => handleDragStart(e, bestellung.projektId)}
+        onDragEnd={handleDragEnd}
+        className={`bg-white dark:bg-slate-800 rounded-lg border-2 p-3 transition-all hover:shadow-md cursor-grab active:cursor-grabbing ${
+          isDragging ? 'opacity-50 scale-95' : ''
+        } ${isSelected ? 'border-cyan-500 ring-2 ring-cyan-200 dark:ring-cyan-800' : 'border-gray-200 dark:border-slate-700'}`}
       >
-        {/* Header mit Checkbox und Kundenname */}
+        {/* Header mit Drag-Handle, Checkbox und Kundenname */}
         <div className="flex items-start gap-2 mb-2">
+          <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1 cursor-grab" />
           {showCheckbox && (
             <input
               type="checkbox"
@@ -842,33 +1116,69 @@ Mit sportlichen Grüßen`;
             )}
 
             {/* Aktions-Buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               {bestellung.projekt.kundenEmail && bestellung.projekt.hydrocourtTrackingNummer && (
                 <button
                   onClick={() => handleSendTrackingToCustomer(bestellung)}
-                  className="flex-1 px-2 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-xs font-medium hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex items-center justify-center gap-1"
+                  className="w-full px-2 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded text-xs font-medium hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex items-center justify-center gap-1"
                 >
                   <Mail className="w-3 h-3" />
-                  Kunde informieren
+                  Tracking an Kunde senden
                 </button>
               )}
+              {/* Rechnung senden Button */}
               <button
-                onClick={() => handleStatusChange(bestellung.projektId, 'abgeschlossen')}
-                className="flex-1 px-2 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded text-xs font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors flex items-center justify-center gap-1"
+                onClick={() => openRechnungModal(bestellung)}
+                className="w-full px-2 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors flex items-center justify-center gap-1"
               >
-                <CheckCircle2 className="w-3 h-3" />
-                Abschließen
+                <Receipt className="w-3 h-3" />
+                Rechnung senden
               </button>
             </div>
           </div>
         )}
 
-        {status === 'abgeschlossen' && (
-          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-700 opacity-60">
+        {status === 'rechnungsstellung' && (
+          <div className="mt-3 pt-2 border-t border-gray-200 dark:border-slate-700 space-y-2">
+            {/* Rechnungsnummer anzeigen */}
+            {bestellung.projekt.rechnungsnummer && (
+              <div className="text-xs bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded flex items-center gap-1">
+                <Receipt className="w-3 h-3" />
+                Rechnung: {bestellung.projekt.rechnungsnummer}
+              </div>
+            )}
+            {bestellung.projekt.rechnungsdatum && (
+              <div className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                <FileText className="w-3 h-3" />
+                Gesendet am {new Date(bestellung.projekt.rechnungsdatum).toLocaleDateString('de-DE')}
+              </div>
+            )}
+            {/* Preis anzeigen */}
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">
+              {((bestellung.position.gesamtpreis || 0) * 1.19).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+            </div>
+            {/* Als bezahlt markieren */}
+            <button
+              onClick={() => handleStatusChange(bestellung.projektId, 'bezahlt')}
+              className="w-full px-2 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded text-xs font-medium hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors flex items-center justify-center gap-1"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              Als bezahlt markieren
+            </button>
+          </div>
+        )}
+
+        {status === 'bezahlt' && (
+          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-slate-700">
             <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
-              Abgeschlossen
+              Bezahlt
             </div>
+            {bestellung.projekt.rechnungsnummer && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Rechnung: {bestellung.projekt.rechnungsnummer}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -880,21 +1190,28 @@ Mit sportlichen Grüßen`;
     const config = HYDROCOURT_STATUS_CONFIG[status];
     const StatusIcon = config.icon;
     const gesamtMenge = spaltenBestellungen.reduce((sum, b) => sum + (b.position.menge || 0), 0);
+    const isDragOver = dragOverColumn === status;
 
     return (
-      <div className={`flex-1 min-w-[280px] max-w-[320px] rounded-xl border-2 ${config.borderColor} ${config.bgColor} flex flex-col`}>
+      <div
+        onDragOver={handleDragOver}
+        onDragEnter={(e) => handleDragEnter(e, status)}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(e, status)}
+        className={`flex-1 min-w-[220px] max-w-[280px] rounded-xl border-2 ${config.borderColor} ${config.bgColor} flex flex-col transition-all ${
+          isDragOver ? 'ring-2 ring-cyan-400 border-cyan-400 scale-[1.02]' : ''
+        }`}
+      >
         {/* Spalten-Header */}
-        <div className={`px-4 py-3 border-b ${config.borderColor}`}>
+        <div className={`px-3 py-2 border-b ${config.borderColor}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <StatusIcon className={`w-5 h-5 ${config.color}`} />
-              <span className={`font-semibold ${config.color}`}>{config.label}</span>
+              <StatusIcon className={`w-4 h-4 ${config.color}`} />
+              <span className={`font-semibold text-sm ${config.color}`}>{config.label}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${config.bgColor} ${config.color} border ${config.borderColor}`}>
-                {spaltenBestellungen.length}
-              </span>
-            </div>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${config.bgColor} ${config.color} border ${config.borderColor}`}>
+              {spaltenBestellungen.length}
+            </span>
           </div>
           {gesamtMenge > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -924,15 +1241,23 @@ Mit sportlichen Grüßen`;
           </div>
         )}
 
+        {/* Drop-Zone Indikator */}
+        {isDragOver && (
+          <div className="mx-3 mt-2 px-3 py-2 border-2 border-dashed border-cyan-400 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 text-center">
+            <MoveHorizontal className="w-5 h-5 mx-auto text-cyan-500" />
+            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">Hier ablegen</p>
+          </div>
+        )}
+
         {/* Karten */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          {spaltenBestellungen.length === 0 ? (
-            <div className="text-center text-gray-400 dark:text-gray-500 py-8">
-              <Droplets className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Keine Bestellungen</p>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {spaltenBestellungen.length === 0 && !isDragOver ? (
+            <div className="text-center text-gray-400 dark:text-gray-500 py-6">
+              <Droplets className="w-6 h-6 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">Keine Bestellungen</p>
             </div>
           ) : (
-            spaltenBestellungen.slice(0, status === 'abgeschlossen' ? 20 : undefined).map((bestellung, idx) => (
+            spaltenBestellungen.slice(0, status === 'bezahlt' ? 20 : undefined).map((bestellung, idx) => (
               <WorkflowCard
                 key={`${bestellung.projektId}-${idx}`}
                 bestellung={bestellung}
@@ -940,7 +1265,7 @@ Mit sportlichen Grüßen`;
               />
             ))
           )}
-          {status === 'abgeschlossen' && spaltenBestellungen.length > 20 && (
+          {status === 'bezahlt' && spaltenBestellungen.length > 20 && (
             <button className="w-full py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
               +{spaltenBestellungen.length - 20} weitere...
             </button>
@@ -987,55 +1312,67 @@ Mit sportlichen Grüßen`;
           </button>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-4 mt-6">
+        {/* KPI Cards - 5 Spalten */}
+        <div className="grid grid-cols-5 gap-3 mt-6">
           {/* Offen */}
-          <div className={`rounded-xl p-4 ${stats.offen.anzahl > 0 ? 'bg-rose-500/30 border-2 border-rose-400' : 'bg-white/10'}`}>
-            <div className="flex items-center gap-2 text-cyan-100 text-sm mb-1">
-              <Clock className="w-4 h-4" />
+          <div className={`rounded-xl p-3 ${stats.offen?.anzahl > 0 ? 'bg-rose-500/30 border-2 border-rose-400' : 'bg-white/10'}`}>
+            <div className="flex items-center gap-1.5 text-cyan-100 text-xs mb-1">
+              <Clock className="w-3.5 h-3.5" />
               Offen
             </div>
-            <div className={`text-3xl font-bold ${stats.offen.anzahl > 0 ? 'text-rose-200' : ''}`}>
-              {stats.offen.anzahl}
+            <div className={`text-2xl font-bold ${stats.offen?.anzahl > 0 ? 'text-rose-200' : ''}`}>
+              {stats.offen?.anzahl || 0}
             </div>
-            <div className="text-sm text-cyan-200 mt-1">
-              {stats.offen.menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
+            <div className="text-xs text-cyan-200 mt-0.5">
+              {(stats.offen?.menge || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
             </div>
           </div>
 
           {/* Bestellt */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-amber-400/30">
-            <div className="flex items-center gap-2 text-amber-200 text-sm mb-1">
-              <Package className="w-4 h-4" />
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-amber-400/30">
+            <div className="flex items-center gap-1.5 text-amber-200 text-xs mb-1">
+              <Package className="w-3.5 h-3.5" />
               Bestellt
             </div>
-            <div className="text-3xl font-bold text-amber-200">{stats.bestellt.anzahl}</div>
-            <div className="text-sm text-cyan-200 mt-1">
-              {stats.bestellt.menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
+            <div className="text-2xl font-bold text-amber-200">{stats.bestellt?.anzahl || 0}</div>
+            <div className="text-xs text-cyan-200 mt-0.5">
+              {(stats.bestellt?.menge || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
             </div>
           </div>
 
           {/* Versendet */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-sky-400/30">
-            <div className="flex items-center gap-2 text-sky-200 text-sm mb-1">
-              <Truck className="w-4 h-4" />
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-sky-400/30">
+            <div className="flex items-center gap-1.5 text-sky-200 text-xs mb-1">
+              <Truck className="w-3.5 h-3.5" />
               Versendet
             </div>
-            <div className="text-3xl font-bold text-sky-200">{stats.versendet.anzahl}</div>
-            <div className="text-sm text-cyan-200 mt-1">
-              {stats.versendet.menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
+            <div className="text-2xl font-bold text-sky-200">{stats.versendet?.anzahl || 0}</div>
+            <div className="text-xs text-cyan-200 mt-0.5">
+              {(stats.versendet?.menge || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
             </div>
           </div>
 
-          {/* Abgeschlossen */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-emerald-400/30">
-            <div className="flex items-center gap-2 text-emerald-200 text-sm mb-1">
-              <CheckCircle2 className="w-4 h-4" />
-              Abgeschlossen
+          {/* Rechnungsstellung */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-purple-400/30">
+            <div className="flex items-center gap-1.5 text-purple-200 text-xs mb-1">
+              <Receipt className="w-3.5 h-3.5" />
+              Rechnung
             </div>
-            <div className="text-3xl font-bold text-emerald-200">{stats.abgeschlossen.anzahl}</div>
-            <div className="text-sm text-cyan-200 mt-1">
-              {stats.abgeschlossen.menge.toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
+            <div className="text-2xl font-bold text-purple-200">{stats.rechnungsstellung?.anzahl || 0}</div>
+            <div className="text-xs text-cyan-200 mt-0.5">
+              {(stats.rechnungsstellung?.menge || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
+            </div>
+          </div>
+
+          {/* Bezahlt */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-emerald-400/30">
+            <div className="flex items-center gap-1.5 text-emerald-200 text-xs mb-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Bezahlt
+            </div>
+            <div className="text-2xl font-bold text-emerald-200">{stats.bezahlt?.anzahl || 0}</div>
+            <div className="text-xs text-cyan-200 mt-0.5">
+              {(stats.bezahlt?.menge || 0).toLocaleString('de-DE', { maximumFractionDigits: 1 })} t
             </div>
           </div>
         </div>
@@ -1179,10 +1516,13 @@ Mit sportlichen Grüßen`;
       ) : viewMode === 'workflow' ? (
         /* === WORKFLOW-ANSICHT === */
         <div className="flex gap-4 overflow-x-auto pb-4">
-          <WorkflowColumn status="offen" bestellungen={bestellungenNachStatus.offen} />
-          <WorkflowColumn status="bestellt" bestellungen={bestellungenNachStatus.bestellt} />
-          <WorkflowColumn status="versendet" bestellungen={bestellungenNachStatus.versendet} />
-          <WorkflowColumn status="abgeschlossen" bestellungen={bestellungenNachStatus.abgeschlossen} />
+          {HYDROCOURT_COLUMNS.map(status => (
+            <WorkflowColumn
+              key={status}
+              status={status}
+              bestellungen={bestellungenNachStatus[status] || []}
+            />
+          ))}
         </div>
       ) : (
         /* === LISTEN-ANSICHT === */
@@ -1525,6 +1865,150 @@ Mit sportlichen Grüßen`;
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* === RECHNUNGS-MODAL === */}
+      {showRechnungModal && rechnungBestellung && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                  <Receipt className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Rechnung senden
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {rechnungBestellung.aktuellerKundenname || rechnungBestellung.projekt.kundenname}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowRechnungModal(false);
+                  setRechnungBestellung(null);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Bestelldetails */}
+              <div className="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-4">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Bestelldetails</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Artikel:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {rechnungBestellung.position.bezeichnung}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Menge:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {rechnungBestellung.position.menge.toLocaleString('de-DE', { maximumFractionDigits: 2 })} {rechnungBestellung.position.einheit}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Nettobetrag:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {rechnungBestellung.position.gesamtpreis.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">AB-Nr:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      {rechnungBestellung.auftragsbestaetigungsnummer}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Empfänger */}
+              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-blue-700 dark:text-blue-300">
+                    Empfänger: <strong>{testModus ? TEST_EMAIL : rechnungBestellung.projekt.kundenEmail || 'Keine E-Mail'}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Testmodus Warnung */}
+              {testModus && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-amber-700 dark:text-amber-300 text-sm font-medium">
+                    Testmodus aktiv - Email wird an {TEST_EMAIL} gesendet
+                  </span>
+                </div>
+              )}
+
+              {/* E-Mail-Text Editor */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  E-Mail Text
+                </label>
+                <div className="border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden">
+                  <TipTapEditor
+                    content={rechnungEmailText}
+                    onChange={setRechnungEmailText}
+                    className="min-h-[200px]"
+                  />
+                </div>
+              </div>
+
+              {/* Signatur */}
+              {rechnungSignatur && (
+                <div className="bg-gray-50 dark:bg-slate-900/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Signatur:</p>
+                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                    {rechnungSignatur}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setShowRechnungModal(false);
+                  setRechnungBestellung(null);
+                }}
+                disabled={rechnungSending}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSendRechnung}
+                disabled={rechnungSending || !rechnungBestellung.projekt.kundenEmail}
+                className={`px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium disabled:opacity-50 ${
+                  testModus ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {rechnungSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Wird gesendet...
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="w-5 h-5" />
+                    {testModus ? 'Test senden' : 'Rechnung senden'}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
