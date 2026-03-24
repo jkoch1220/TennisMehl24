@@ -18,6 +18,9 @@ export type DispoStatus = 'offen' | 'geplant' | 'beladen' | 'unterwegs' | 'gelie
 // Hydrocourt-Status für TM-HYC Bestellungen (Versand an Schwab)
 export type HydrocourtStatus = 'offen' | 'bestellt' | 'versendet' | 'abgeschlossen';
 
+// Universal-Kanban-Status für Universal-Artikel Workflow
+export type UniversalKanbanStatus = 'offen' | 'versendet' | 'an_kunden' | 'rechnungsstellung' | 'bezahlt';
+
 // Teilprojekt-Typ (nach Split)
 export type TeilprojektTyp = 'universal' | 'hydrocourt';
 
@@ -200,6 +203,12 @@ export interface Projekt {
   hydrocourtTrackingNummer?: string;  // Sendungsverfolgung
   hydrocourtVersendetAm?: string;     // Wann Schwab die Ware versendet hat
   hydrocourtNotizen?: string;         // Freitext für interne Notizen
+
+  // === UNIVERSAL-ARTIKEL STATUS ===
+  // Separater Kanban-Status für Universal-Artikel (unabhängig von Ziegelmehl-Workflow!)
+  universalKanbanStatus?: UniversalKanbanStatus;
+  universalBestelltAm?: string;       // ISO Datum wann an Universal gesendet
+  trackingNummer?: string;            // Sendungsverfolgung (GLS etc.)
 
   // === TEILPROJEKT-FELDER (nach Split) ===
   // Wenn dieses Projekt durch Split erstellt wurde

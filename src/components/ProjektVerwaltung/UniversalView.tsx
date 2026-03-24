@@ -30,7 +30,7 @@ import {
   MoveHorizontal,
 } from 'lucide-react';
 import TipTapEditor from '../Shared/TipTapEditor';
-import { Projekt, ProjektStatus } from '../../types/projekt';
+import { Projekt, ProjektStatus, UniversalKanbanStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position, LieferscheinDaten, LieferscheinPosition } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { projektService } from '../../services/projektService';
@@ -86,9 +86,6 @@ const getStatusConfig = (status: ProjektStatus) => {
 
 // Gruppierungs-Typ
 type GroupBy = 'none' | 'lieferdatum' | 'status' | 'kunde' | 'kanban';
-
-// Kanban-Status für Universal-Workflow
-type UniversalKanbanStatus = 'offen' | 'versendet' | 'an_kunden' | 'rechnungsstellung' | 'bezahlt';
 
 const KANBAN_COLUMNS: { status: UniversalKanbanStatus; label: string; color: string; bgColor: string }[] = [
   { status: 'offen', label: 'Offen', color: 'text-orange-700 dark:text-orange-300', bgColor: 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700' },
@@ -153,7 +150,8 @@ interface TrackingEmailVorschauDaten {
 }
 
 // Bestimmt den Kanban-Status einer Gruppe
-// NUR basierend auf Projekt-Status - ermöglicht manuelles Verschieben
+// WICHTIG: universalKanbanStatus hat Priorität - damit der Universal-Workflow
+// unabhängig vom Ziegelmehl-Workflow funktioniert!
 const getKanbanStatus = (
   projektStatus: string,
   universalKanbanStatus?: string // Expliziter Kanban-Status für Universal-Workflow
@@ -163,16 +161,16 @@ const getKanbanStatus = (
     return universalKanbanStatus as UniversalKanbanStatus;
   }
 
-  // Fallback auf Projekt-Status Mapping
+  // Fallback auf Projekt-Status - ABER nur für finale Stati!
+  // Sonst landen Projekte falsch in "versendet" nur weil Ziegelmehl geliefert wurde
   switch (projektStatus) {
     case 'bezahlt':
       return 'bezahlt';
     case 'rechnung':
       return 'rechnungsstellung';
-    case 'lieferschein':
-      return 'versendet';
     default:
-      // auftragsbestaetigung oder andere = offen
+      // ALLE anderen Stati (inkl. lieferschein!) = offen
+      // Erst wenn explizit universalKanbanStatus gesetzt wird, wandert es weiter
       return 'offen';
   }
 };
@@ -328,7 +326,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
       await projektService.updateProjekt(projektId, {
         status: neuerProjektStatus,
         universalKanbanStatus: neuerKanbanStatus, // Expliziter Kanban-Status für 5-Spalten-Workflow
-      } as any);
+      });
       console.log(`✓ Projekt ${projektId} auf "${neuerKanbanStatus}" (${neuerProjektStatus}) gesetzt`);
 
       // UI sofort aktualisieren
@@ -338,7 +336,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
             ...b,
             projekt: {
               ...b.projekt,
-              status: neuerProjektStatus as any,
+              status: neuerProjektStatus,
               universalKanbanStatus: neuerKanbanStatus,
             }
           };
@@ -418,7 +416,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
         if (b.projektId === projektId) {
           return {
             ...b,
-            projekt: { ...b.projekt, status: 'bezahlt' as any }
+            projekt: { ...b.projekt, status: 'bezahlt' }
           };
         }
         return b;
@@ -539,7 +537,7 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     kundenGruppen.forEach(gruppe => {
       const projekt = gruppe.bestellungen[0]?.projekt;
       const projektStatus = projekt?.status || 'auftragsbestaetigung';
-      const universalKanbanStatus = (projekt as any)?.universalKanbanStatus;
+      const universalKanbanStatus = projekt?.universalKanbanStatus;
       const kanbanStatus = getKanbanStatus(projektStatus, universalKanbanStatus);
 
       gruppen.get(kanbanStatus)?.push(gruppe);
@@ -802,19 +800,24 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
             },
           }));
 
-          // WICHTIG: Projekt-Status auf "lieferschein" setzen
+          // WICHTIG: Projekt-Status + Universal-Kanban-Status setzen
           try {
             await projektService.updateProjekt(gruppe.projektId, {
               status: 'lieferschein',
+              universalKanbanStatus: 'versendet', // Explizit auf "versendet" setzen!
             });
-            console.log(`✓ Projekt ${gruppe.projektId} auf Status "lieferschein" aktualisiert`);
+            console.log(`✓ Projekt ${gruppe.projektId} auf Status "versendet" (Universal) aktualisiert`);
 
             // WICHTIG: Auch lokalen State aktualisieren für sofortige UI-Reaktion
             setBestellungen(prev => prev.map(b => {
               if (b.projektId === gruppe.projektId) {
                 return {
                   ...b,
-                  projekt: { ...b.projekt, status: 'lieferschein' as any }
+                  projekt: {
+                    ...b.projekt,
+                    status: 'lieferschein',
+                    universalKanbanStatus: 'versendet',
+                  }
                 };
               }
               return b;
@@ -1003,7 +1006,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               status: 'lieferschein',
               universalKanbanStatus: 'an_kunden',
               trackingNummer: trackingNummer,
-            } as any);
+            });
             console.log(`✓ Projekt ${gruppe.projektId} auf Status "an_kunden" aktualisiert`);
 
             // Lokalen State aktualisieren
@@ -1013,7 +1016,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                   ...b,
                   projekt: {
                     ...b.projekt,
-                    status: 'lieferschein' as any,
+                    status: 'lieferschein',
                     universalKanbanStatus: 'an_kunden',
                   }
                 };
