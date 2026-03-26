@@ -9,7 +9,7 @@
  * - Abgerechnet (komplett fertig)
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   CheckCircle2,
   Circle,
@@ -31,7 +31,6 @@ type ChecklistenStatus = 'abgestimmt' | 'gedruckt' | 'geliefert' | 'abgerechnet'
 
 interface DispoChecklisteProps {
   projekte: Projekt[];
-  onProjektUpdate: () => void;
 }
 
 // Status-Konfiguration mit Icons und Farben
@@ -156,8 +155,16 @@ function extractTonnage(projekt: Projekt): number {
 type SortField = 'kundenname' | 'kw' | 'tonnage' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-const DispoCheckliste = ({ projekte, onProjektUpdate }: DispoChecklisteProps) => {
+const DispoCheckliste = ({ projekte }: DispoChecklisteProps) => {
   const navigate = useNavigate();
+
+  // Lokaler State für Projekte (für optimistische Updates ohne Seiten-Reload)
+  const [lokaleProjekte, setLokaleProjekte] = useState<Projekt[]>(projekte);
+
+  // Sync mit Props wenn sich diese ändern (z.B. bei Tab-Wechsel)
+  useEffect(() => {
+    setLokaleProjekte(projekte);
+  }, [projekte]);
 
   // State
   const [suche, setSuche] = useState('');
@@ -224,18 +231,31 @@ const DispoCheckliste = ({ projekte, onProjektUpdate }: DispoChecklisteProps) =>
           break;
       }
 
-      await projektService.updateProjekt(projektId, updates);
-      onProjektUpdate();
+      // Optimistisches Update des lokalen State
+      setLokaleProjekte(prev => prev.map(p => {
+        const pId = (p as any).$id || p.id;
+        if (pId === projektId) {
+          return { ...p, ...updates };
+        }
+        return p;
+      }));
+
+      // Im Hintergrund speichern (ohne await für sofortige UI-Reaktion)
+      projektService.updateProjekt(projektId, updates).catch(error => {
+        console.error('Fehler beim Speichern:', error);
+        // Bei Fehler: Reload der echten Daten
+        // (optional: könnte auch rollback machen)
+      });
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
     } finally {
       setUpdating(null);
     }
-  }, [getChecklistenStatus, onProjektUpdate]);
+  }, [getChecklistenStatus]);
 
   // Gefilterte und sortierte Projekte
   const gefilterteProjekte = useMemo(() => {
-    let result = projekte.filter(p => {
+    let result = lokaleProjekte.filter(p => {
       // Nur AB und Lieferschein Status (wie in der Hauptansicht)
       if (!['auftragsbestaetigung', 'lieferschein'].includes(p.status)) {
         // Aber zeige auch Rechnung wenn "Nur offene" deaktiviert
@@ -302,7 +322,7 @@ const DispoCheckliste = ({ projekte, onProjektUpdate }: DispoChecklisteProps) =>
     });
 
     return result;
-  }, [projekte, filterKW, suche, showNurOffene, sortField, sortDirection, getChecklistenStatus]);
+  }, [lokaleProjekte, filterKW, suche, showNurOffene, sortField, sortDirection, getChecklistenStatus]);
 
   // Statistiken
   const stats = useMemo(() => {

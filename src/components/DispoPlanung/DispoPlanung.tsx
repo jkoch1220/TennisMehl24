@@ -1111,10 +1111,7 @@ const DispoPlanung = () => {
 
       {/* Tab Content */}
       {activeTab === 'checkliste' ? (
-        <DispoCheckliste
-          projekte={projekte}
-          onProjektUpdate={loadData}
-        />
+        <DispoCheckliste projekte={projekte} />
       ) : activeTab === 'karte' ? (
         <DispoKartenAnsicht
           projekte={gefilterteProjekte}
