@@ -4,6 +4,8 @@
  * Modal zur Vorschau und Bearbeitung aller Lieferscheine einer Tour.
  * Ermöglicht das Bearbeiten von Positionen, Mengen und anderen Details
  * vor dem kombinierten PDF-Druck.
+ *
+ * Inkl. Warning-System für Sonderpositionen (0/3 Material, Sackware, BigBag, etc.)
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -24,6 +26,8 @@ import {
   Phone,
   Calendar,
   AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
 import { Tour } from '../../types/tour';
@@ -32,6 +36,14 @@ import { LieferscheinDaten, LieferscheinPosition, Position } from '../../types/p
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { projektService } from '../../services/projektService';
+import {
+  erkenneSonderPositionen,
+  PositionWarning,
+  LieferscheinWarnings,
+  hatKritischeWarnings,
+  hatWarnings,
+  zaehleWarnings,
+} from '../../utils/lieferscheinWarnings';
 
 // Typen für bearbeitbare Lieferschein-Daten
 interface LieferscheinVorschauDaten {
@@ -76,6 +88,11 @@ const AlleLieferscheineModal = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // === WARNING SYSTEM STATE ===
+  const [warnings, setWarnings] = useState<Map<string, PositionWarning[]>>(new Map());
+  const [sonderpositionenBestaetigt, setSonderpositionenBestaetigt] = useState(false);
+  const [showBestaetigungsDialog, setShowBestaetigungsDialog] = useState(false);
 
   // Initialisiere Lieferschein-Daten aus Tour-Stops
   const initialisiereLieferscheine = useCallback(async () => {
@@ -132,6 +149,7 @@ const AlleLieferscheineModal = ({
                 beschreibung: pos.beschreibung,
                 menge: pos.menge,
                 einheit: pos.einheit,
+                istUniversalArtikel: (pos as any).istUniversalArtikel,
               }));
             }
           } catch {
@@ -183,8 +201,61 @@ const AlleLieferscheineModal = ({
   useEffect(() => {
     if (isOpen) {
       initialisiereLieferscheine();
+      // Reset Bestätigung beim Öffnen
+      setSonderpositionenBestaetigt(false);
     }
   }, [isOpen, initialisiereLieferscheine]);
+
+  // === WARNING DETECTION ===
+  // Berechne Warnings für alle Lieferscheine bei Änderungen
+  useEffect(() => {
+    const neueWarnings = new Map<string, PositionWarning[]>();
+
+    lieferscheine.forEach((ls, key) => {
+      const posWarnings = erkenneSonderPositionen(ls.positionen);
+      if (posWarnings.length > 0) {
+        neueWarnings.set(key, posWarnings);
+      }
+    });
+
+    setWarnings(neueWarnings);
+
+    // Reset Bestätigung wenn Positionen geändert wurden
+    setSonderpositionenBestaetigt(false);
+  }, [lieferscheine]);
+
+  // === AGGREGIERTE WARNING STATS ===
+  const warningStats = useMemo(() => {
+    let gesamtKritisch = 0;
+    let gesamtWichtig = 0;
+    const betroffeneLieferscheine: LieferscheinWarnings[] = [];
+
+    warnings.forEach((posWarnings, key) => {
+      const ls = lieferscheine.get(key);
+      if (!ls) return;
+
+      const { kritisch, wichtig } = zaehleWarnings(posWarnings);
+      gesamtKritisch += kritisch;
+      gesamtWichtig += wichtig;
+
+      betroffeneLieferscheine.push({
+        lieferscheinKey: key,
+        stopIndex: ls.stopIndex,
+        kundenname: ls.kundenname,
+        warnings: posWarnings,
+        hatKritisch: kritisch > 0,
+        hatWichtig: wichtig > 0,
+      });
+    });
+
+    return {
+      gesamtKritisch,
+      gesamtWichtig,
+      gesamt: gesamtKritisch + gesamtWichtig,
+      betroffeneLieferscheine,
+      hatKritische: gesamtKritisch > 0,
+    };
+  }, [warnings, lieferscheine]);
 
   // Anzahl der ausgewählten Lieferscheine
   const anzahlAusgewaehlt = useMemo(() => {
@@ -316,6 +387,18 @@ const AlleLieferscheineModal = ({
     druckeAnsprechpartner: true,
   });
 
+  // === DRUCK HANDLER ===
+  const handleDruckClick = () => {
+    // Bei kritischen Warnings: Bestätigungsdialog zeigen
+    if (warningStats.hatKritische && !sonderpositionenBestaetigt) {
+      setShowBestaetigungsDialog(true);
+      return;
+    }
+
+    // Sonst direkt drucken
+    druckeLieferscheine();
+  };
+
   // PDF generieren und öffnen
   const druckeLieferscheine = async () => {
     const ausgewaehlteLieferscheine = Array.from(lieferscheine.values())
@@ -329,6 +412,7 @@ const AlleLieferscheineModal = ({
 
     setIsPrinting(true);
     setError(null);
+    setShowBestaetigungsDialog(false);
 
     try {
       // Lade Stammdaten einmal
@@ -438,6 +522,58 @@ const AlleLieferscheineModal = ({
             </div>
           </div>
 
+          {/* === GLOBALER WARNING HEADER === */}
+          {warningStats.gesamt > 0 && (
+            <div className={`px-6 py-3 border-b flex-shrink-0 ${
+              warningStats.hatKritische
+                ? 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'
+                : 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800'
+            }`}>
+              <div className="flex items-start gap-3">
+                {/* Pulsierender Punkt bei kritischen Warnings */}
+                <div className="relative flex-shrink-0 mt-0.5">
+                  {warningStats.hatKritische ? (
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  )}
+                  {warningStats.hatKritische && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold text-sm ${
+                    warningStats.hatKritische
+                      ? 'text-red-800 dark:text-red-200'
+                      : 'text-amber-800 dark:text-amber-200'
+                  }`}>
+                    ⚠️ {warningStats.betroffeneLieferscheine.length} Lieferschein{warningStats.betroffeneLieferscheine.length !== 1 ? 'e' : ''} mit Sonderpositionen
+                  </p>
+
+                  {/* Betroffene Stopps */}
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {warningStats.betroffeneLieferscheine.map(lsw => (
+                      <span
+                        key={lsw.lieferscheinKey}
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
+                          lsw.hatKritisch
+                            ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                            : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                        }`}
+                      >
+                        <span className="w-4 h-4 flex items-center justify-center bg-white/50 dark:bg-black/20 rounded-full text-[10px] font-bold">
+                          {lsw.stopIndex + 1}
+                        </span>
+                        {lsw.kundenname.length > 20 ? lsw.kundenname.substring(0, 20) + '...' : lsw.kundenname}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Content - scrollbar */}
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
             {isLoading ? (
@@ -462,6 +598,7 @@ const AlleLieferscheineModal = ({
                 <LieferscheinKarte
                   key={key}
                   lieferschein={ls}
+                  warnings={warnings.get(key) || []}
                   onToggleAuswahl={() => toggleAuswahl(key)}
                   onToggleExpanded={() => toggleExpanded(key)}
                   onUpdateFeld={(feld, wert) => updateFeld(key, feld, wert)}
@@ -478,18 +615,30 @@ const AlleLieferscheineModal = ({
             <div className="flex flex-col sm:flex-row gap-3">
               {/* Drucken Button */}
               <button
-                onClick={druckeLieferscheine}
+                onClick={handleDruckClick}
                 disabled={isPrinting || anzahlAusgewaehlt === 0}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  warningStats.hatKritische && !sonderpositionenBestaetigt
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : warningStats.gesamt > 0
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
               >
                 {isPrinting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
+                ) : warningStats.hatKritische && !sonderpositionenBestaetigt ? (
+                  <AlertTriangle className="h-5 w-5" />
                 ) : (
                   <Printer className="h-5 w-5" />
                 )}
-                {isPrinting
-                  ? 'Generiere PDFs...'
-                  : `${anzahlAusgewaehlt} Lieferschein${anzahlAusgewaehlt !== 1 ? 'e' : ''} drucken`}
+                <span>
+                  {isPrinting
+                    ? 'Generiere PDFs...'
+                    : warningStats.hatKritische && !sonderpositionenBestaetigt
+                      ? `⚠️ Sonderpositionen beachten!`
+                      : `${anzahlAusgewaehlt} Lieferschein${anzahlAusgewaehlt !== 1 ? 'e' : ''} drucken`}
+                </span>
               </button>
 
               {/* Abbrechen */}
@@ -505,6 +654,127 @@ const AlleLieferscheineModal = ({
           </div>
         </div>
       </div>
+
+      {/* === BESTÄTIGUNGS-DIALOG === */}
+      {showBestaetigungsDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* Dialog Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowBestaetigungsDialog(false)}
+          />
+
+          {/* Dialog */}
+          <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Dialog Header */}
+            <div className="bg-red-50 dark:bg-red-950/50 border-b border-red-200 dark:border-red-800 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-red-800 dark:text-red-200">
+                    Sonderpositionen bestätigen
+                  </h3>
+                  <p className="text-sm text-red-600 dark:text-red-300">
+                    Bitte alle Hinweise zur Kenntnis nehmen
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Dialog Content */}
+            <div className="p-6 max-h-[50vh] overflow-y-auto">
+              <div className="space-y-4">
+                {warningStats.betroffeneLieferscheine
+                  .filter(lsw => lsw.hatKritisch)
+                  .map(lsw => (
+                    <div
+                      key={lsw.lieferscheinKey}
+                      className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-4"
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="w-6 h-6 flex items-center justify-center bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 rounded-full text-sm font-bold">
+                          {lsw.stopIndex + 1}
+                        </span>
+                        <span className="font-semibold text-red-800 dark:text-red-200">
+                          {lsw.kundenname}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {lsw.warnings
+                          .filter(w => w.severity === 'critical')
+                          .map((warning, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-2 text-sm"
+                            >
+                              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-medium text-red-700 dark:text-red-300">
+                                  {warning.artikelnummer}
+                                </span>
+                                <span className="text-red-600 dark:text-red-400 mx-1">•</span>
+                                <span className="text-red-600 dark:text-red-400">
+                                  {warning.menge} {warning.einheit}
+                                </span>
+                                <p className="text-red-800 dark:text-red-200 mt-0.5">
+                                  {warning.message}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Dialog Footer */}
+            <div className="border-t border-gray-200 dark:border-slate-700 p-4 bg-gray-50 dark:bg-slate-800/50">
+              {/* Checkbox */}
+              <label className="flex items-start gap-3 cursor-pointer mb-4 p-3 bg-white dark:bg-slate-700 rounded-lg border border-gray-200 dark:border-slate-600 hover:border-orange-300 dark:hover:border-orange-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={sonderpositionenBestaetigt}
+                  onChange={(e) => setSonderpositionenBestaetigt(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 rounded border-gray-300 dark:border-slate-500 text-orange-500 focus:ring-orange-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Ich habe alle Sonderpositionen zur Kenntnis genommen und stelle sicher, dass die entsprechenden Materialien korrekt verladen werden.
+                </span>
+              </label>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBestaetigungsDialog(false)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 font-medium rounded-lg transition-colors"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={druckeLieferscheine}
+                  disabled={!sonderpositionenBestaetigt}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-semibold rounded-lg transition-all ${
+                    sonderpositionenBestaetigt
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                      : 'bg-gray-200 dark:bg-slate-600 text-gray-400 dark:text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  {sonderpositionenBestaetigt ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <Printer className="h-5 w-5" />
+                  )}
+                  Lieferscheine drucken
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -512,6 +782,7 @@ const AlleLieferscheineModal = ({
 // Einzelne Lieferschein-Karte
 interface LieferscheinKarteProps {
   lieferschein: LieferscheinVorschauDaten;
+  warnings: PositionWarning[];
   onToggleAuswahl: () => void;
   onToggleExpanded: () => void;
   onUpdateFeld: (feld: keyof LieferscheinVorschauDaten, wert: any) => void;
@@ -522,6 +793,7 @@ interface LieferscheinKarteProps {
 
 const LieferscheinKarte = ({
   lieferschein,
+  warnings,
   onToggleAuswahl,
   onToggleExpanded,
   onUpdateFeld,
@@ -531,11 +803,27 @@ const LieferscheinKarte = ({
 }: LieferscheinKarteProps) => {
   const ls = lieferschein;
 
+  // Gruppiere Warnings nach Position
+  const warningsByPositionId = useMemo(() => {
+    const map = new Map<string, PositionWarning>();
+    for (const w of warnings) {
+      map.set(w.positionId, w);
+    }
+    return map;
+  }, [warnings]);
+
+  const hatKritisch = hatKritischeWarnings(warnings);
+  const hatWarnungen = hatWarnings(warnings);
+
   return (
     <div
       className={`border rounded-xl overflow-hidden transition-all ${
         ls.ausgewaehlt
-          ? 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10'
+          ? hatKritisch
+            ? 'border-red-300 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10'
+            : hatWarnungen
+              ? 'border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-900/10'
+              : 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/10'
           : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 opacity-60'
       }`}
     >
@@ -559,10 +847,23 @@ const LieferscheinKarte = ({
           )}
         </button>
 
-        {/* Stop-Nummer */}
-        <span className="w-7 h-7 flex items-center justify-center bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded-full text-sm font-bold">
-          {ls.stopIndex + 1}
-        </span>
+        {/* Stop-Nummer mit Warning-Indicator */}
+        <div className="relative">
+          <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold ${
+            hatKritisch
+              ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+              : hatWarnungen
+                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                : 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300'
+          }`}>
+            {ls.stopIndex + 1}
+          </span>
+          {hatWarnungen && (
+            <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${
+              hatKritisch ? 'bg-red-500' : 'bg-amber-500'
+            } ${hatKritisch ? 'animate-pulse' : ''}`} />
+          )}
+        </div>
 
         {/* Kundenname & Adresse */}
         <div className="flex-1 min-w-0">
@@ -573,6 +874,22 @@ const LieferscheinKarte = ({
             {ls.strasse}, {ls.plzOrt}
           </p>
         </div>
+
+        {/* Warning Badge im Header */}
+        {hatWarnungen && (
+          <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+            hatKritisch
+              ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+              : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+          }`}>
+            {hatKritisch ? (
+              <AlertTriangle className="w-3 h-3" />
+            ) : (
+              <AlertCircle className="w-3 h-3" />
+            )}
+            {warnings.length}
+          </span>
+        )}
 
         {/* Tonnen & Paletten */}
         <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
@@ -599,6 +916,54 @@ const LieferscheinKarte = ({
       {/* Expandierter Bereich */}
       {ls.expanded && (
         <div className="border-t border-gray-200 dark:border-slate-700 p-4 space-y-4 bg-white dark:bg-slate-800">
+
+          {/* === WARNING BANNER PRO KARTE === */}
+          {warnings.length > 0 && (
+            <div className="space-y-2">
+              {warnings.map((warning, idx) => (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-3 p-3 rounded-lg ${
+                    warning.severity === 'critical'
+                      ? 'bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800'
+                      : 'bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800'
+                  }`}
+                >
+                  {warning.severity === 'critical' ? (
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                        warning.severity === 'critical'
+                          ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                          : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                      }`}>
+                        {warning.artikelnummer}
+                      </span>
+                      <span className={`text-sm ${
+                        warning.severity === 'critical'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-amber-600 dark:text-amber-400'
+                      }`}>
+                        {warning.menge} {warning.einheit}
+                      </span>
+                    </div>
+                    <p className={`text-sm font-medium mt-1 ${
+                      warning.severity === 'critical'
+                        ? 'text-red-800 dark:text-red-200'
+                        : 'text-amber-800 dark:text-amber-200'
+                    }`}>
+                      {warning.message}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Lieferschein-Infos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Lieferscheinnummer */}
@@ -737,64 +1102,91 @@ const LieferscheinKarte = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
-                  {ls.positionen.map((pos, idx) => (
-                    <tr key={pos.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30">
-                      <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400">
-                        {idx + 1}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          value={pos.artikelnummer || ''}
-                          onChange={(e) => onUpdatePosition(idx, 'artikelnummer', e.target.value)}
-                          className="w-20 px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                          placeholder="-"
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          value={pos.artikel}
-                          onChange={(e) => onUpdatePosition(idx, 'artikel', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                          placeholder="Artikelbezeichnung"
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          type="number"
-                          step="0.5"
-                          value={pos.menge}
-                          onChange={(e) => onUpdatePosition(idx, 'menge', parseFloat(e.target.value) || 0)}
-                          className="w-full px-2 py-1 text-xs text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <select
-                          value={pos.einheit}
-                          onChange={(e) => onUpdatePosition(idx, 'einheit', e.target.value)}
-                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                        >
-                          <option value="t">t</option>
-                          <option value="kg">kg</option>
-                          <option value="Stk">Stk</option>
-                          <option value="Pal">Pal</option>
-                          <option value="m²">m²</option>
-                          <option value="m">m</option>
-                        </select>
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {ls.positionen.length > 1 && (
-                          <button
-                            onClick={() => onRemovePosition(idx)}
-                            className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                  {ls.positionen.map((pos, idx) => {
+                    const posWarning = warningsByPositionId.get(pos.id);
+                    return (
+                      <tr
+                        key={pos.id}
+                        className={`hover:bg-gray-50 dark:hover:bg-slate-700/30 ${
+                          posWarning
+                            ? posWarning.severity === 'critical'
+                              ? 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20'
+                              : 'border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20'
+                            : ''
+                        }`}
+                      >
+                        <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400">
+                          {idx + 1}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-1">
+                            {posWarning && (
+                              posWarning.severity === 'critical' ? (
+                                <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                              ) : (
+                                <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                              )
+                            )}
+                            <input
+                              type="text"
+                              value={pos.artikelnummer || ''}
+                              onChange={(e) => onUpdatePosition(idx, 'artikelnummer', e.target.value)}
+                              className={`w-20 px-2 py-1 text-xs border rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white ${
+                                posWarning
+                                  ? posWarning.severity === 'critical'
+                                    ? 'border-red-300 dark:border-red-700'
+                                    : 'border-amber-300 dark:border-amber-700'
+                                  : 'border-gray-300 dark:border-slate-600'
+                              }`}
+                              placeholder="-"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={pos.artikel}
+                            onChange={(e) => onUpdatePosition(idx, 'artikel', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                            placeholder="Artikelbezeichnung"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={pos.menge}
+                            onChange={(e) => onUpdatePosition(idx, 'menge', parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1 text-xs text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select
+                            value={pos.einheit}
+                            onChange={(e) => onUpdatePosition(idx, 'einheit', e.target.value)}
+                            className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            <option value="t">t</option>
+                            <option value="kg">kg</option>
+                            <option value="Stk">Stk</option>
+                            <option value="Pal">Pal</option>
+                            <option value="m²">m²</option>
+                            <option value="m">m</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {ls.positionen.length > 1 && (
+                            <button
+                              onClick={() => onRemovePosition(idx)}
+                              className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
