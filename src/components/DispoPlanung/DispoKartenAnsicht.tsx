@@ -31,6 +31,7 @@ import {
   Target,
   Users,
   Plus,
+  CheckCircle2,
 } from 'lucide-react';
 import { Projekt, DispoStatus, Belieferungsart } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -383,6 +384,14 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     region: 'DE',
   });
 
+  // Lokaler State für Projekte (für optimistische Updates ohne Seiten-Reload)
+  const [lokaleProjekte, setLokaleProjekte] = useState<Projekt[]>(projekte);
+
+  // Sync mit Props wenn sich diese ändern
+  useEffect(() => {
+    setLokaleProjekte(projekte);
+  }, [projekte]);
+
   // Core State
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [zoom, setZoom] = useState(8);
@@ -544,7 +553,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
       plz?: string;
     }> = [];
 
-    for (const projekt of projekte) {
+    for (const projekt of lokaleProjekte) {
       const id = (projekt as any).$id || projekt.id;
       const kunde = projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined;
 
@@ -622,7 +631,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     });
 
     return tempResult;
-  }, [projekte, kundenMap, geocodedPositions]);
+  }, [lokaleProjekte, kundenMap, geocodedPositions]);
 
   const gefilterteProjekte = useMemo(() => {
     return projekteMitKoordinaten.filter((p) => {
@@ -697,19 +706,19 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     return {
       count: gefilterteProjekte.length,
       tonnen: gefilterteProjekte.reduce((s, p) => s + p.tonnen, 0),
-      ohneKoordinaten: projekte.length - projekteMitKoordinaten.length,
+      ohneKoordinaten: lokaleProjekte.length - projekteMitKoordinaten.length,
       plzFallback: plzFallbackAnzahl,
       problemAdressen: problemAdressen.length,
       geocoding: geocodingInProgress,
       hintergrundGeocoding: hintergrundGeocodingFortschritt,
     };
-  }, [gefilterteProjekte, projekte.length, projekteMitKoordinaten.length, geocodingInProgress, problemAdressen.length, hintergrundGeocodingFortschritt]);
+  }, [gefilterteProjekte, lokaleProjekte.length, projekteMitKoordinaten.length, geocodingInProgress, problemAdressen.length, hintergrundGeocodingFortschritt]);
 
   // Projekte ohne Koordinaten (werden nicht auf Karte angezeigt)
   const projekteOhneAdresse = useMemo(() => {
     const projektIdsAufKarte = new Set(projekteMitKoordinaten.map(p => (p.projekt as any).$id || p.projekt.id));
-    return projekte.filter(p => !projektIdsAufKarte.has((p as any).$id || p.id));
-  }, [projekte, projekteMitKoordinaten]);
+    return lokaleProjekte.filter(p => !projektIdsAufKarte.has((p as any).$id || p.id));
+  }, [lokaleProjekte, projekteMitKoordinaten]);
 
   // Clustering bei niedrigem Zoom
   const clusters = useMemo<PLZCluster[]>(() => {
@@ -911,6 +920,48 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
     } catch (error) {
       console.error('Fehler beim Speichern der Koordinaten:', error);
       throw error;
+    }
+  }, [onProjektUpdate]);
+
+  // Projekt als geliefert markieren (One-Click)
+  const [markingGeliefert, setMarkingGeliefert] = useState<string | null>(null);
+
+  const handleMarkGeliefert = useCallback(async (projekt: Projekt) => {
+    const projektId = (projekt as any).$id || projekt.id;
+    setMarkingGeliefert(projektId);
+
+    try {
+      const updates: Partial<Projekt> = {
+        dispoStatus: 'geliefert',
+      };
+      // Wenn noch AB, auch Projekt-Status auf Lieferschein setzen
+      if (projekt.status === 'auftragsbestaetigung') {
+        updates.status = 'lieferschein';
+      }
+
+      // Optimistisches Update - sofort aus der Liste entfernen
+      setLokaleProjekte(prev => prev.map(p => {
+        const pId = (p as any).$id || p.id;
+        if (pId === projektId) {
+          return { ...p, ...updates };
+        }
+        return p;
+      }));
+
+      // InfoWindow schließen
+      setSelectedId(null);
+
+      // Im Hintergrund speichern
+      projektService.updateProjekt(projektId, updates).catch(error => {
+        console.error('Fehler beim Speichern:', error);
+      });
+
+      // Callback für Parent (optional)
+      if (onProjektUpdate) {
+        onProjektUpdate({ ...projekt, ...updates });
+      }
+    } finally {
+      setMarkingGeliefert(null);
     }
   }, [onProjektUpdate]);
 
@@ -2141,6 +2192,18 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                       >
                         <Truck className="w-4 h-4" />
                         Auf Tour buchen
+                      </button>
+                    )}
+                    {/* Geliefert-Button - immer sichtbar wenn nicht schon geliefert */}
+                    {selectedItem.projekt.dispoStatus !== 'geliefert' && (
+                      <button
+                        onClick={() => handleMarkGeliefert(selectedItem.projekt)}
+                        disabled={markingGeliefert === ((selectedItem.projekt as any).$id || selectedItem.projekt.id)}
+                        className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        title="Als geliefert markieren"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Geliefert ✓
                       </button>
                     )}
                   </div>
