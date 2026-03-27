@@ -766,6 +766,7 @@ export const speichereRechnung = async (
 
       await projektService.updateProjekt(projektId, {
         status: 'rechnung',
+        dispoStatus: 'geliefert', // Automatisch als geliefert markieren wenn Rechnung erstellt
         rechnungsnummer: daten.rechnungsnummer,
         rechnungsdatum: daten.rechnungsdatum,
         rechnungsDaten: JSON.stringify({
@@ -781,7 +782,7 @@ export const speichereRechnung = async (
           }))
         }),
       });
-      console.log(`✅ Projekt-Status auf "rechnung" gesetzt, erscheint nun in Debitorenverwaltung`);
+      console.log(`✅ Projekt-Status auf "rechnung" + dispoStatus auf "geliefert" gesetzt`);
 
       // === DEBITOR-METADATEN ERSTELLEN/AKTUALISIEREN ===
       // Zahlungsziel aus der Rechnung in den Debitor-Metadaten speichern
