@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info } from 'lucide-react';
 import {
   DndContext,
@@ -500,26 +500,50 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     });
   }, []);
 
-  // === DIESELPREISZUSCHLAG: Berechnung aktualisieren wenn sich Preis oder Positionen ändern ===
-  useEffect(() => {
+  // === DIESELPREISZUSCHLAG: Berechnung aktualisieren (NUR Anzeige, ohne Position zu ändern) ===
+  // Berechne bei jeder Positionsänderung, aber OHNE die Positionen zu modifizieren (verhindert Infinite Loop)
+  const dieselZuschlagBerechnet = useMemo(() => {
     if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
-      setDieselZuschlagErgebnis(null);
-      return;
+      return null;
     }
-
-    // Berechnung durchführen
-    const ergebnis = berechneGesamtZuschlag(
+    return berechneGesamtZuschlag(
       rechnungsDaten.positionen,
       dieselPreis,
       rechnungsDaten.leistungsdatum
     );
-    setDieselZuschlagErgebnis(ergebnis);
+  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument]);
+
+  // Ergebnis für UI-Anzeige setzen
+  useEffect(() => {
+    setDieselZuschlagErgebnis(dieselZuschlagBerechnet);
+  }, [dieselZuschlagBerechnet]);
+
+  // === DIESELPREISZUSCHLAG: Position NUR bei Dieselpreis/Leistungsdatum-Änderung einfügen ===
+  // Separater useEffect, der NICHT auf Positionsänderungen reagiert (verhindert Infinite Loop)
+  const letzterDieselPreisRef = useRef<number | null>(null);
+  const letztesLeistungsdatumRef = useRef<string>('');
+
+  useEffect(() => {
+    // Nur ausführen wenn sich Dieselpreis oder Leistungsdatum tatsächlich geändert haben
+    if (
+      dieselPreis === letzterDieselPreisRef.current &&
+      rechnungsDaten.leistungsdatum === letztesLeistungsdatumRef.current
+    ) {
+      return;
+    }
+
+    letzterDieselPreisRef.current = dieselPreis;
+    letztesLeistungsdatumRef.current = rechnungsDaten.leistungsdatum || '';
+
+    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
+      return;
+    }
 
     // Position automatisch einfügen/aktualisieren (wenn nicht manuell entfernt)
-    if (!dieselZuschlagManuellEntfernt.current) {
-      aktualisiereZuschlagPosition(ergebnis);
+    if (!dieselZuschlagManuellEntfernt.current && dieselZuschlagBerechnet) {
+      aktualisiereZuschlagPosition(dieselZuschlagBerechnet);
     }
-  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument, aktualisiereZuschlagPosition]);
+  }, [dieselPreis, rechnungsDaten.leistungsdatum, gespeichertesDokument, dieselZuschlagBerechnet, aktualisiereZuschlagPosition]);
 
   // === DIESELPREISZUSCHLAG: Manuellen Preis setzen ===
   const setzeManuellenDieselPreis = () => {
