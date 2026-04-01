@@ -16,28 +16,33 @@ export interface DieselpreisEintrag {
   minimum?: number;        // Niedrigster Preis
   maximum?: number;        // Höchster Preis
   anzahlTankstellen?: number;
-  quelle: 'tankerkoenig' | 'manuell' | 'import';
+  quelle: 'tankerkoenig' | 'manuell' | 'import' | 'adac_monatlich' | 'csv_import';
   region?: string;         // z.B. "deutschland" oder "97" für PLZ-Region
   $createdAt?: string;
   $updatedAt?: string;
 }
 
 // Cache für schnellen Zugriff (verhindert wiederholte DB-Abfragen)
+// WICHTIG: Cache wird pro Datum gespeichert, aber DEAKTIVIERT für Debugging
 const preisCache = new Map<string, DieselpreisEintrag>();
 let cacheLadezeit: number = 0;
-const CACHE_GUELTIG_MS = 5 * 60 * 1000; // 5 Minuten
+const CACHE_GUELTIG_MS = 0; // DEAKTIVIERT für Debugging (normalerweise: 5 * 60 * 1000)
 
 /**
  * Lädt den Dieselpreis für ein bestimmtes Datum aus der Datenbank
  */
 export async function holeDieselpreisAusDB(datum: string): Promise<DieselpreisEintrag | null> {
-  // Cache prüfen
+  // Cache prüfen (per Datum)
   const cached = preisCache.get(datum);
   if (cached && Date.now() - cacheLadezeit < CACHE_GUELTIG_MS) {
+    console.log(`🔄 Cache-Treffer für ${datum}: ${cached.preis} €/L`);
     return cached;
   }
 
   try {
+    console.log(`🔍 DB-Abfrage für Diesel am ${datum}...`);
+    console.log(`   Database: ${DATABASE_ID}, Collection: ${COLLECTIONS.DIESELPREISE}`);
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.DIESELPREISE,
@@ -47,16 +52,20 @@ export async function holeDieselpreisAusDB(datum: string): Promise<DieselpreisEi
       ]
     );
 
+    console.log(`   Gefunden: ${response.documents.length} Einträge`);
+
     if (response.documents.length > 0) {
       const eintrag = response.documents[0] as unknown as DieselpreisEintrag;
+      console.log(`✅ DB-Treffer: ${eintrag.preis} €/L für ${datum} (Quelle: ${eintrag.quelle})`);
       preisCache.set(datum, eintrag);
       cacheLadezeit = Date.now();
       return eintrag;
     }
 
+    console.log(`❌ Kein Eintrag in DB für ${datum}`);
     return null;
   } catch (error) {
-    console.warn('Fehler beim Laden des Dieselpreises aus DB:', error);
+    console.error('❌ Fehler beim Laden des Dieselpreises aus DB:', error);
     return null;
   }
 }
@@ -144,12 +153,18 @@ export async function holeDieselpreiseZeitraum(
  * (falls kein exakter Treffer, sucht den nächsten Tag davor)
  */
 export async function findeNaechstenDieselpreis(datum: string): Promise<DieselpreisEintrag | null> {
+  console.log(`🔎 findeNaechstenDieselpreis für ${datum}...`);
+
   // Erst exakten Treffer versuchen
   const exakt = await holeDieselpreisAusDB(datum);
-  if (exakt) return exakt;
+  if (exakt) {
+    console.log(`✅ Exakter Treffer für ${datum}: ${exakt.preis} €/L`);
+    return exakt;
+  }
 
   try {
     // Suche den nächsten Preis VOR dem Datum
+    console.log(`🔍 Suche nächsten Preis VOR ${datum}...`);
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.DIESELPREISE,
@@ -160,14 +175,43 @@ export async function findeNaechstenDieselpreis(datum: string): Promise<Dieselpr
       ]
     );
 
+    console.log(`   Gefunden: ${response.documents.length} Einträge`);
+
     if (response.documents.length > 0) {
-      return response.documents[0] as unknown as DieselpreisEintrag;
+      const eintrag = response.documents[0] as unknown as DieselpreisEintrag;
+      console.log(`✅ Nächster verfügbarer Preis: ${eintrag.preis} €/L vom ${eintrag.datum}`);
+      return eintrag;
     }
 
+    console.log(`❌ Kein Preis gefunden vor ${datum}`);
     return null;
   } catch (error) {
-    console.warn('Fehler beim Suchen des nächsten Dieselpreises:', error);
+    console.error('❌ Fehler beim Suchen des nächsten Dieselpreises:', error);
     return null;
+  }
+}
+
+/**
+ * Debug: Zeigt alle Diesel-Einträge in der DB
+ */
+export async function debugZeigeAllePreise(): Promise<void> {
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.DIESELPREISE,
+      [
+        Query.orderDesc('datum'),
+        Query.limit(100)
+      ]
+    );
+    console.log(`📊 Diesel-DB: ${response.total} Einträge total`);
+    console.log('Erste 10 Einträge:');
+    response.documents.slice(0, 10).forEach(doc => {
+      const d = doc as unknown as DieselpreisEintrag;
+      console.log(`   ${d.datum}: ${d.preis} €/L (${d.quelle})`);
+    });
+  } catch (error) {
+    console.error('Debug-Fehler:', error);
   }
 }
 

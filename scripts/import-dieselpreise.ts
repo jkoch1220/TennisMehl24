@@ -69,31 +69,40 @@ function initClient() {
 }
 
 /**
- * Speichert einen Dieselpreis in Appwrite
+ * Speichert einen Dieselpreis in Appwrite mit Retry-Logik
  */
 async function speicherePreis(
   datum: string,
   preis: number,
   quelle: string,
-  region: string = 'deutschland'
+  region: string = 'deutschland',
+  retries: number = 3
 ): Promise<boolean> {
-  try {
-    await databases.createDocument(
-      DATABASE_ID,
-      COLLECTION_ID,
-      ID.unique(),
-      { datum, preis, quelle, region }
-    );
-    return true;
-  } catch (error: unknown) {
-    const err = error as { code?: number; message?: string };
-    if (err.code === 409) {
-      // Duplikat - überspringen
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_ID,
+        ID.unique(),
+        { datum, preis, quelle, region }
+      );
+      return true;
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
+      if (err.code === 409) {
+        // Duplikat - überspringen
+        return false;
+      }
+      if (attempt < retries) {
+        // Warte und versuche erneut
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+      console.error(`Fehler bei ${datum}:`, err.message);
       return false;
     }
-    console.error(`Fehler bei ${datum}:`, err.message);
-    return false;
   }
+  return false;
 }
 
 /**
@@ -121,17 +130,15 @@ async function importiereMonatlich() {
       const gespeichert = await speicherePreis(datum, preis, 'adac_monatlich');
       if (gespeichert) {
         erfolg++;
-        if (erfolg % 100 === 0) {
+        if (erfolg % 50 === 0) {
           console.log(`  ${erfolg} Einträge gespeichert...`);
         }
       } else {
         uebersprungen++;
       }
 
-      // Rate limiting
-      if (erfolg % 20 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      // Rate limiting - 200ms Pause nach jedem Request
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   }
 
