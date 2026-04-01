@@ -43,7 +43,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
-import { holeDieselPreis, getAktuellerDurchschnittspreis } from '../../utils/dieselPreisAPI';
+import { holeDieselPreisFuerDatum, getAktuellerDurchschnittspreis, DieselPreisErgebnis } from '../../utils/dieselPreisAPI';
 import {
   berechneGesamtZuschlag,
   erstelleDieselZuschlagPosition,
@@ -436,25 +436,30 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     }
 
     dieselDebounceTimer.current = setTimeout(async () => {
-      const datumStatus = getDieselPreisStatus(leistungsdatum);
-
-      // Bei historischen Daten (>2 Tage): Warnung anzeigen, aber trotzdem aktuellen Preis laden als Ausgangspunkt
-      if (datumStatus === 'historisch') {
-        setDieselPreisStatus('historisch');
-      } else if (datumStatus === 'zukunft') {
-        setDieselPreisStatus('zukunft');
-      } else {
-        setDieselPreisStatus('geladen');
-      }
-
       try {
         setDieselPreisLaden(true);
-        // PLZ des Werks für Dieselpreis-Abfrage (Marktheidenfeld)
-        const preis = await holeDieselPreis('97828');
-        setDieselPreis(preis);
+
+        // NEUE LOGIK: Preis für das spezifische Leistungsdatum aus DB oder API holen
+        const ergebnis: DieselPreisErgebnis = await holeDieselPreisFuerDatum(leistungsdatum, '97828');
+
+        setDieselPreis(ergebnis.preis);
+
+        // Status basierend auf Quelle setzen
+        if (ergebnis.quelle === 'datenbank') {
+          setDieselPreisStatus(ergebnis.istHistorisch ? 'historisch' : 'geladen');
+          if (ergebnis.hinweis) {
+            console.log(`📅 ${ergebnis.hinweis}`);
+          }
+        } else if (ergebnis.quelle === 'api') {
+          const datumStatus = getDieselPreisStatus(leistungsdatum);
+          setDieselPreisStatus(datumStatus === 'zukunft' ? 'zukunft' : 'geladen');
+        } else {
+          setDieselPreisStatus('fallback');
+        }
+
+        console.log(`✅ Dieselpreis für ${leistungsdatum}: ${ergebnis.preis.toFixed(3)} €/L (Quelle: ${ergebnis.quelle})`);
       } catch (error) {
         console.warn('Fehler beim Laden des Dieselpreises:', error);
-        // Fallback auf Durchschnittspreis
         setDieselPreis(getAktuellerDurchschnittspreis());
         setDieselPreisStatus('fallback');
       } finally {

@@ -90,6 +90,9 @@ export const SHOP_PRODUKTE_COLLECTION_ID = 'shop_produkte';
 export const SHOP_KATEGORIEN_COLLECTION_ID = 'shop_kategorien';
 export const SHOP_RATGEBER_COLLECTION_ID = 'shop_ratgeber';
 
+// Dieselpreis-Historie Collection
+export const DIESELPREISE_COLLECTION_ID = 'dieselpreise';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -166,6 +169,8 @@ export const COLLECTIONS = {
   SHOP_PRODUKTE: SHOP_PRODUKTE_COLLECTION_ID,
   SHOP_KATEGORIEN: SHOP_KATEGORIEN_COLLECTION_ID,
   SHOP_RATGEBER: SHOP_RATGEBER_COLLECTION_ID,
+  // Dieselpreis-Historie
+  DIESELPREISE: DIESELPREISE_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
