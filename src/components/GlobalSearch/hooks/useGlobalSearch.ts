@@ -12,6 +12,7 @@ const MAX_RESULTS_PER_CATEGORY = 5;
 
 // Collection IDs
 const SAISON_KUNDEN_COLLECTION_ID = 'saison_kunden';
+const SAISON_ANSPRECHPARTNER_COLLECTION_ID = 'saison_ansprechpartner';
 const ANFRAGEN_COLLECTION_ID = 'anfragen';
 
 // Score-Berechnung für Tools
@@ -100,7 +101,15 @@ async function searchProjekte(query: string): Promise<SearchResult[]> {
 }
 
 // Kunden/Vereine Cache für schnelle Suche
-let kundenCache: Array<{ id: string; name: string; plz: string; ort: string; kundennummer: string; typ: string }> | null = null;
+let kundenCache: Array<{
+  id: string;
+  name: string;
+  plz: string;
+  ort: string;
+  kundennummer: string;
+  typ: string;
+  ansprechpartner: string[]; // Namen der Ansprechpartner
+}> | null = null;
 let kundenCacheTime = 0;
 const KUNDEN_CACHE_DURATION = 5 * 60 * 1000; // 5 Minuten
 
@@ -111,13 +120,34 @@ async function loadKundenCache(): Promise<typeof kundenCache> {
   }
 
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      SAISON_KUNDEN_COLLECTION_ID,
-      [Query.limit(5000)] // Alle Kunden laden
-    );
+    // Lade Kunden und Ansprechpartner parallel
+    const [kundenResponse, ansprechpartnerResponse] = await Promise.all([
+      databases.listDocuments(
+        DATABASE_ID,
+        SAISON_KUNDEN_COLLECTION_ID,
+        [Query.limit(5000)]
+      ),
+      databases.listDocuments(
+        DATABASE_ID,
+        SAISON_ANSPRECHPARTNER_COLLECTION_ID,
+        [Query.limit(10000)]
+      ),
+    ]);
 
-    kundenCache = response.documents
+    // Ansprechpartner nach kundeId gruppieren
+    const ansprechpartnerMap = new Map<string, string[]>();
+    for (const doc of ansprechpartnerResponse.documents) {
+      const kundeId = doc.kundeId as string;
+      const name = doc.name as string;
+      if (kundeId && name) {
+        if (!ansprechpartnerMap.has(kundeId)) {
+          ansprechpartnerMap.set(kundeId, []);
+        }
+        ansprechpartnerMap.get(kundeId)!.push(name);
+      }
+    }
+
+    kundenCache = kundenResponse.documents
       .filter(doc => doc.data)
       .map(doc => {
         try {
@@ -129,6 +159,7 @@ async function loadKundenCache(): Promise<typeof kundenCache> {
             ort: kunde.lieferadresse?.ort || kunde.rechnungsadresse?.ort || '',
             kundennummer: kunde.kundennummer || '',
             typ: kunde.typ || '',
+            ansprechpartner: ansprechpartnerMap.get(doc.$id) || [],
           };
         } catch {
           return null;
@@ -157,29 +188,43 @@ async function searchKunden(query: string): Promise<SearchResult[]> {
       // Nur Vereine und Händler anzeigen (keine Platzbauer)
       if (kunde.typ === 'platzbauer') continue;
 
+      // Suchbare Felder inkl. Ansprechpartner
       const searchable = [
         kunde.name,
         kunde.ort,
         kunde.plz,
         kunde.kundennummer,
+        ...kunde.ansprechpartner, // Ansprechpartner-Namen durchsuchen
       ].filter(Boolean).join(' ').toLowerCase();
 
       if (searchable.includes(q)) {
         // Score berechnen für bessere Sortierung
         let score = 0;
+        const matchedAnsprechpartner = kunde.ansprechpartner.find(
+          ap => ap.toLowerCase().includes(q)
+        );
+
         if (kunde.name.toLowerCase().startsWith(q)) score = 3;
         else if (kunde.name.toLowerCase().includes(q)) score = 2;
+        else if (kunde.plz.startsWith(q)) score = 1.8; // PLZ-Treffer hoch gewichten
+        else if (matchedAnsprechpartner) score = 1.5; // Ansprechpartner-Treffer
         else if (kunde.ort.toLowerCase().includes(q)) score = 1;
         else score = 0.5;
+
+        // Subtitle mit Ansprechpartner-Info wenn dieser gesucht wurde
+        let subtitle = `${kunde.plz} ${kunde.ort}`.trim() || undefined;
+        if (matchedAnsprechpartner) {
+          subtitle = `${subtitle} • ${matchedAnsprechpartner}`;
+        }
 
         results.push({
           id: kunde.id,
           category: 'kunden' as SearchCategory,
           title: kunde.name || 'Unbekannt',
-          subtitle: `${kunde.plz} ${kunde.ort}`.trim() || undefined,
+          subtitle,
           description: kunde.kundennummer || '',
           icon: Users,
-          href: `/saisonplanung?kundeId=${kunde.id}`,
+          href: `/saisonplanung?kunde=${kunde.id}`, // Bug-Fix: kundeId → kunde
           score,
         });
       }

@@ -14,7 +14,9 @@ import {
   getTextHeight,
   getLiefersaisonText,
   formatStrasseHausnummer,
-  addWrappedText
+  addWrappedText,
+  addHighlighterEffect,
+  addHandwrittenNote
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
@@ -1322,11 +1324,35 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   if (!stammdaten) {
     stammdaten = await getStammdatenOderDefault();
   }
-  
+
   const doc = new jsPDF();
-  
+
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
+
+  // === HANDSCHRIFTLICHE NOTIZ: Motor/Hänger (oben rechts, wie vom Disponenten notiert) ===
+  if (daten.belieferungsart && !einfach) {
+    // Labels für die handschriftliche Notiz
+    const belieferungsNotizen: Record<string, string> = {
+      'nur_motorwagen': 'Motor',
+      'mit_haenger': 'Hänger',
+      'abholung_ab_werk': 'Abholung',
+      'palette_mit_ladekran': 'Kran',
+      'bigbag': 'BigBag'
+    };
+
+    const notizText = belieferungsNotizen[daten.belieferungsart];
+    if (notizText) {
+      // Position: oben rechts, unter dem Logo aber über dem Infoblock
+      // Leicht schräg und mit Kreis umrandet für Aufmerksamkeit
+      addHandwrittenNote(doc, notizText, 165, 42, {
+        fontSize: 18,
+        color: [25, 55, 95], // Dunkelblau (Kugelschreiber)
+        circled: true,
+        style: 'casual'
+      });
+    }
+  }
   
   // === DIN 5008: INFORMATIONSBLOCK - Rechts oben ===
   let infoYPos = 55;
@@ -1576,19 +1602,45 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   }
 
   // === DISPO-Ansprechpartner (IMMER anzeigen bei Standard-Lieferschein) ===
+  // Mit Textmarker-Effekt hervorgehoben (wie mit echtem Marker markiert)
   if (!einfach && daten.dispoAnsprechpartner?.name) {
     signY += 5;
-    signY = await ensureSpace(doc, signY, 15, stammdaten);
+    signY = await ensureSpace(doc, signY, 20, stammdaten);
+
+    // Überschrift
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.text('Ansprechpartner bitte 30 min vorher anrufen:', 25, signY);
     doc.setFont('helvetica', 'normal');
-    signY += 5;
+    signY += 6;
+
+    // Ansprechpartner-Text mit Name und Telefon
     const ansprechpartnerText = daten.dispoAnsprechpartner.telefon
       ? `${daten.dispoAnsprechpartner.name}, Tel. ${daten.dispoAnsprechpartner.telefon}`
       : daten.dispoAnsprechpartner.name;
+
+    // Textmarker-Effekt (gelb/orange) hinter dem Text
+    doc.setFontSize(11);
+    const textWidth = doc.getTextWidth(ansprechpartnerText);
+    const textHeight = 11 * 0.352778 * 1.5; // Schriftgröße in mm + Padding
+
+    // Gelber Textmarker-Effekt (wie mit Stabilo markiert)
+    addHighlighterEffect(
+      doc,
+      24, // x - etwas links vom Text für natürlichen Look
+      signY,
+      textWidth + 4, // Breite + Padding
+      textHeight,
+      [255, 235, 59], // Gelb
+      0.45 // Halbtransparent
+    );
+
+    // Text darüber zeichnen (fett für bessere Lesbarkeit)
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
     doc.text(ansprechpartnerText, 25, signY);
+    doc.setFont('helvetica', 'normal');
   }
 
   // === Empfangsbestätigung (nur bei Standard-Lieferschein und wenn aktiviert) ===

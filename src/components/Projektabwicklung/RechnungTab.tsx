@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -43,6 +43,19 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
+import { holeDieselPreis, getAktuellerDurchschnittspreis } from '../../utils/dieselPreisAPI';
+import {
+  berechneGesamtZuschlag,
+  erstelleDieselZuschlagPosition,
+  getDieselPreisStatus,
+  istDieselZuschlagPosition,
+  istZuschlagsfaehig,
+  formatDieselPreis,
+  formatZuschlagProTonne,
+  formatGesamtZuschlag,
+  DieselZuschlagErgebnis,
+  DieselPreisStatus,
+} from '../../utils/dieselZuschlag';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
@@ -173,6 +186,17 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const [ausgewaehlterIndex, setAusgewaehlterIndex] = useState<number>(0);
   const [artikelHinzugefuegt, setArtikelHinzugefuegt] = useState<string | null>(null);
   const ausgewaehlteZeileRef = useRef<HTMLTableRowElement>(null);
+
+  // === DIESELPREISZUSCHLAG STATE ===
+  const [dieselPreis, setDieselPreis] = useState<number | null>(null);
+  const [dieselPreisStatus, setDieselPreisStatus] = useState<DieselPreisStatus>('geladen');
+  const [dieselPreisLaden, setDieselPreisLaden] = useState(false);
+  const [dieselZuschlagErgebnis, setDieselZuschlagErgebnis] = useState<DieselZuschlagErgebnis | null>(null);
+  const [dieselPreisManuell, setDieselPreisManuell] = useState(false);
+  const [dieselPreisEditieren, setDieselPreisEditieren] = useState(false);
+  const [dieselPreisEingabe, setDieselPreisEingabe] = useState('');
+  const dieselZuschlagManuellEntfernt = useRef(false);
+  const dieselDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Gespeichertes Dokument und Entwurf laden (wenn Projekt vorhanden)
   useEffect(() => {
@@ -393,6 +417,134 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       ausgewaehlteZeileRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [ausgewaehlterIndex]);
+
+  // === DIESELPREISZUSCHLAG: Preis abrufen wenn Leistungsdatum sich ändert ===
+  useEffect(() => {
+    // Nicht bei finaler Rechnung oder wenn manueller Preis gesetzt
+    if (gespeichertesDokument || dieselPreisManuell) return;
+
+    // Debounce bei Leistungsdatum-Änderung
+    if (dieselDebounceTimer.current) {
+      clearTimeout(dieselDebounceTimer.current);
+    }
+
+    const leistungsdatum = rechnungsDaten.leistungsdatum;
+    if (!leistungsdatum) {
+      setDieselPreis(null);
+      setDieselZuschlagErgebnis(null);
+      return;
+    }
+
+    dieselDebounceTimer.current = setTimeout(async () => {
+      const datumStatus = getDieselPreisStatus(leistungsdatum);
+
+      // Bei historischen Daten (>2 Tage): Warnung anzeigen, aber trotzdem aktuellen Preis laden als Ausgangspunkt
+      if (datumStatus === 'historisch') {
+        setDieselPreisStatus('historisch');
+      } else if (datumStatus === 'zukunft') {
+        setDieselPreisStatus('zukunft');
+      } else {
+        setDieselPreisStatus('geladen');
+      }
+
+      try {
+        setDieselPreisLaden(true);
+        // PLZ des Werks für Dieselpreis-Abfrage (Marktheidenfeld)
+        const preis = await holeDieselPreis('97828');
+        setDieselPreis(preis);
+      } catch (error) {
+        console.warn('Fehler beim Laden des Dieselpreises:', error);
+        // Fallback auf Durchschnittspreis
+        setDieselPreis(getAktuellerDurchschnittspreis());
+        setDieselPreisStatus('fallback');
+      } finally {
+        setDieselPreisLaden(false);
+      }
+    }, 500); // 500ms Debounce
+
+    return () => {
+      if (dieselDebounceTimer.current) {
+        clearTimeout(dieselDebounceTimer.current);
+      }
+    };
+  }, [rechnungsDaten.leistungsdatum, gespeichertesDokument, dieselPreisManuell]);
+
+  // === DIESELPREISZUSCHLAG: Berechnung aktualisieren wenn sich Preis oder Positionen ändern ===
+  useEffect(() => {
+    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
+      setDieselZuschlagErgebnis(null);
+      return;
+    }
+
+    // Prüfen ob bereits eine TM-DZ Position existiert (z.B. von Storno übernommen)
+    const hatBereitsDieselPosition = rechnungsDaten.positionen.some(istDieselZuschlagPosition);
+
+    // Berechnung durchführen
+    const ergebnis = berechneGesamtZuschlag(
+      rechnungsDaten.positionen,
+      dieselPreis,
+      rechnungsDaten.leistungsdatum
+    );
+    setDieselZuschlagErgebnis(ergebnis);
+
+    // Position automatisch einfügen/aktualisieren (wenn nicht manuell entfernt)
+    // WICHTIG: Nicht automatisch einfügen wenn bereits eine Position existiert (z.B. von Storno)
+    // In diesem Fall nur aktualisieren wenn der User die Berechnung manuell triggert
+    if (!dieselZuschlagManuellEntfernt.current && !hatBereitsDieselPosition) {
+      aktualisiereZuschlagPosition(ergebnis);
+    } else if (hatBereitsDieselPosition && !dieselZuschlagManuellEntfernt.current) {
+      // Bestehende Position aktualisieren (gleiche Berechnung)
+      aktualisiereZuschlagPosition(ergebnis);
+    }
+  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument]);
+
+  // === DIESELPREISZUSCHLAG: Position einfügen/aktualisieren ===
+  const aktualisiereZuschlagPosition = useCallback((ergebnis: DieselZuschlagErgebnis) => {
+    setRechnungsDaten(prev => {
+      // Filtere bestehende TM-DZ Position heraus
+      const positionenOhneZuschlag = prev.positionen.filter(p => !istDieselZuschlagPosition(p));
+
+      // Wenn kein Zuschlag: nur entfernen
+      if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
+        if (positionenOhneZuschlag.length !== prev.positionen.length) {
+          return { ...prev, positionen: positionenOhneZuschlag };
+        }
+        return prev;
+      }
+
+      // Position erstellen
+      const zuschlagPosition = erstelleDieselZuschlagPosition(ergebnis);
+
+      // Position VOR TM-FP (Frachtkostenpauschale) einfügen, sonst ans Ende
+      const fpIndex = positionenOhneZuschlag.findIndex(p => p.artikelnummer === 'TM-FP');
+      const neuePositionen = [...positionenOhneZuschlag];
+
+      if (fpIndex !== -1) {
+        neuePositionen.splice(fpIndex, 0, zuschlagPosition);
+      } else {
+        neuePositionen.push(zuschlagPosition);
+      }
+
+      return { ...prev, positionen: neuePositionen };
+    });
+  }, []);
+
+  // === DIESELPREISZUSCHLAG: Manuellen Preis setzen ===
+  const setzeManuellenDieselPreis = () => {
+    const eingabe = parseFloat(dieselPreisEingabe.replace(',', '.'));
+    if (!isNaN(eingabe) && eingabe > 0) {
+      setDieselPreis(eingabe);
+      setDieselPreisManuell(true);
+      setDieselPreisStatus('manuell');
+      setDieselPreisEditieren(false);
+      dieselZuschlagManuellEntfernt.current = false; // Reset wenn manuell eingegeben
+    }
+  };
+
+  // === DIESELPREISZUSCHLAG: Prüfen ob zuschlagsfähige Positionen vorhanden ===
+  const hatZuschlagsfaehigePositionen = rechnungsDaten.positionen
+    .filter(p => !istDieselZuschlagPosition(p))
+    .some(istZuschlagsfaehig);
 
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
@@ -753,6 +905,14 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
   const removePosition = (index: number) => {
     hatGeaendert.current = true;
+
+    // Prüfen ob die zu löschende Position die Diesel-Zuschlagsposition ist
+    const zuLoeschendePosition = rechnungsDaten.positionen[index];
+    if (istDieselZuschlagPosition(zuLoeschendePosition)) {
+      // Merken dass User die Position manuell entfernt hat
+      dieselZuschlagManuellEntfernt.current = true;
+    }
+
     setRechnungsDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
@@ -1500,6 +1660,84 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 onChange={(e) => handleInputChange('leistungsdatum', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               />
+              {/* Dieselpreis-Hinweis unter dem Leistungsdatum */}
+              <div className="mt-1.5 flex items-center gap-2">
+                {dieselPreisLaden ? (
+                  <span className="text-xs text-gray-500 dark:text-dark-textMuted flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Lade Dieselpreis...
+                  </span>
+                ) : dieselPreis !== null ? (
+                  <div className="flex items-center gap-2">
+                    <Fuel className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                    <span className="text-xs text-gray-600 dark:text-dark-textMuted">
+                      Diesel: <span className="font-medium">{formatDieselPreis(dieselPreis)}</span>
+                    </span>
+                    {dieselPreisManuell && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">(manuell)</span>
+                    )}
+                    {dieselPreisStatus === 'historisch' && !dieselPreisManuell && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">(aktueller Preis)</span>
+                    )}
+                    {dieselPreisStatus === 'zukunft' && !dieselPreisManuell && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">(Schätzung)</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDieselPreisEingabe(dieselPreis.toFixed(3));
+                        setDieselPreisEditieren(true);
+                      }}
+                      className="p-0.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      title="Dieselpreis manuell ändern"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : rechnungsDaten.leistungsdatum ? (
+                  <span className="text-xs text-gray-500 dark:text-dark-textMuted">
+                    Dieselpreis wird für dieses Datum abgerufen
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400 dark:text-dark-textSubtle">
+                    Leistungsdatum für Dieselpreiszuschlag eingeben
+                  </span>
+                )}
+              </div>
+              {/* Manueller Dieselpreis-Editor */}
+              {dieselPreisEditieren && (
+                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={dieselPreisEingabe}
+                      onChange={(e) => setDieselPreisEingabe(e.target.value)}
+                      placeholder="z.B. 1,789"
+                      className="flex-1 px-2 py-1 text-sm border border-blue-300 dark:border-blue-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setzeManuellenDieselPreis();
+                        if (e.key === 'Escape') setDieselPreisEditieren(false);
+                      }}
+                      autoFocus
+                    />
+                    <span className="text-xs text-gray-500 dark:text-dark-textMuted">€/L</span>
+                    <button
+                      type="button"
+                      onClick={setzeManuellenDieselPreis}
+                      className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                    >
+                      OK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDieselPreisEditieren(false)}
+                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1907,6 +2145,134 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             </div>
           )}
 
+          {/* === DIESELPREISZUSCHLAG BANNER === */}
+          {hatZuschlagsfaehigePositionen && !gespeichertesDokument && (
+            <>
+              {/* Banner: Zuschlag aktiv */}
+              {dieselZuschlagErgebnis?.hatZuschlag && !dieselZuschlagManuellEntfernt.current && (
+                <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Fuel className="h-5 w-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                          Dieselpreiszuschlag aktiv
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dieselZuschlagManuellEntfernt.current = true;
+                            setRechnungsDaten(prev => ({
+                              ...prev,
+                              positionen: prev.positionen.filter(p => !istDieselZuschlagPosition(p))
+                            }));
+                          }}
+                          className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                          title="Dieselpreiszuschlag deaktivieren"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                        <span className="font-medium">{formatDieselPreis(dieselZuschlagErgebnis.tagesDieselPreis)}</span>
+                        {' '}(Basis: {formatDieselPreis(dieselZuschlagErgebnis.basisPreis)})
+                        {' → '}<span className="font-medium">{formatZuschlagProTonne(dieselZuschlagErgebnis.zuschlagProTonne)}</span>
+                        {' auf '}<span className="font-medium">{dieselZuschlagErgebnis.gesamtTonnen.toFixed(2)} t</span>
+                        {' = '}<span className="font-bold">{formatGesamtZuschlag(dieselZuschlagErgebnis.gesamtZuschlag)} netto</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Banner: Kein Zuschlag fällig */}
+              {dieselZuschlagErgebnis && !dieselZuschlagErgebnis.hatZuschlag && dieselPreis !== null && (
+                <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-500 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                        Kein Dieselpreiszuschlag fällig
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
+                        Dieselpreis {formatDieselPreis(dieselZuschlagErgebnis.tagesDieselPreis)} liegt unter Basis {formatDieselPreis(dieselZuschlagErgebnis.basisPreis)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Banner: Zuschlag wurde manuell entfernt */}
+              {dieselZuschlagManuellEntfernt.current && dieselZuschlagErgebnis?.hatZuschlag && (
+                <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                          Dieselpreiszuschlag deaktiviert
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dieselZuschlagManuellEntfernt.current = false;
+                            if (dieselZuschlagErgebnis) {
+                              aktualisiereZuschlagPosition(dieselZuschlagErgebnis);
+                            }
+                          }}
+                          className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline"
+                        >
+                          Wieder aktivieren
+                        </button>
+                      </div>
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                        Der Zuschlag von {formatGesamtZuschlag(dieselZuschlagErgebnis.gesamtZuschlag)} wird nicht berechnet.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Banner: Historisches Datum - Warnung */}
+              {dieselPreisStatus === 'historisch' && !dieselPreisManuell && dieselPreis !== null && (
+                <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                        Historisches Leistungsdatum
+                      </p>
+                      <p className="text-sm text-amber-700 dark:text-amber-400 mt-0.5">
+                        Für dieses Datum ist kein historischer Dieselpreis verfügbar. Es wird der aktuelle Preis ({formatDieselPreis(dieselPreis)}) verwendet.
+                        {' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDieselPreisEingabe(dieselPreis.toFixed(3));
+                            setDieselPreisEditieren(true);
+                          }}
+                          className="underline hover:text-amber-900 dark:hover:text-amber-200"
+                        >
+                          Preis manuell eingeben
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Banner: Kein Leistungsdatum */}
+              {!rechnungsDaten.leistungsdatum && (
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-lg">
+                  <p className="text-sm text-gray-600 dark:text-dark-textMuted flex items-center gap-2">
+                    <Fuel className="h-4 w-4" />
+                    Bitte Leistungsdatum eingeben für automatischen Dieselpreiszuschlag
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1917,24 +2283,46 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               strategy={verticalListSortingStrategy}
             >
               <div className="space-y-4">
-                {rechnungsDaten.positionen.map((position, index) => (
+                {rechnungsDaten.positionen.map((position, index) => {
+                  const istDieselPosition = istDieselZuschlagPosition(position);
+                  return (
                   <SortablePosition
                     key={position.id}
                     id={position.id}
-                    disabled={!!gespeichertesDokument}
-                    accentColor="red"
+                    disabled={!!gespeichertesDokument || istDieselPosition}
+                    accentColor={istDieselPosition ? 'blue' : 'red'}
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="flex-1 space-y-3">
+                    {/* Spezielle Hervorhebung für Diesel-Position */}
+                    <div className={`flex items-start gap-4 ${istDieselPosition ? 'relative' : ''}`}>
+                      {istDieselPosition && (
+                        <div className="absolute -left-3 top-0 bottom-0 w-1 bg-blue-400 dark:bg-blue-500 rounded-full" />
+                      )}
+                      <div className={`flex-1 space-y-3 ${istDieselPosition ? 'bg-blue-50/50 dark:bg-blue-950/20 -m-3 p-3 rounded-lg' : ''}`}>
+                        {/* Diesel-Position Header */}
+                        {istDieselPosition && (
+                          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-blue-200 dark:border-blue-800">
+                            <Fuel className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Automatisch berechnet</span>
+                            <span className="text-xs text-blue-500 dark:text-blue-400">(Felder nicht editierbar)</span>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Artikel-Nr.</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                              {istDieselPosition && <Fuel className="h-3.5 w-3.5 inline mr-1 text-blue-500" />}
+                              Artikel-Nr.
+                            </label>
                             <input
                               type="text"
                               value={position.artikelnummer || ''}
                               onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
                               placeholder="TM-001"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              readOnly={istDieselPosition}
+                              className={`w-full px-3 py-2 border rounded-lg placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:border-transparent ${
+                                istDieselPosition
+                                  ? 'border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 cursor-not-allowed'
+                                  : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-red-500 dark:focus:ring-red-400'
+                              }`}
                             />
                           </div>
                           <div className="md:col-span-2">
@@ -1944,16 +2332,30 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                               value={position.bezeichnung}
                               onChange={(e) => handlePositionChange(index, 'bezeichnung', e.target.value)}
                               placeholder="z.B. Tennismehl / Ziegelmehl"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              readOnly={istDieselPosition}
+                              className={`w-full px-3 py-2 border rounded-lg placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:border-transparent ${
+                                istDieselPosition
+                                  ? 'border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 cursor-not-allowed'
+                                  : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-red-500 dark:focus:ring-red-400'
+                              }`}
                             />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
-                            <NumericInput
-                              value={position.menge}
-                              onChange={(val) => handlePositionChange(index, 'menge', val)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-                            />
+                            {istDieselPosition ? (
+                              <input
+                                type="text"
+                                value={position.menge.toFixed(2)}
+                                readOnly
+                                className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 cursor-not-allowed"
+                              />
+                            ) : (
+                              <NumericInput
+                                value={position.menge}
+                                onChange={(val) => handlePositionChange(index, 'menge', val)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              />
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einheit</label>
@@ -1961,44 +2363,61 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                               type="text"
                               value={position.einheit}
                               onChange={(e) => handlePositionChange(index, 'einheit', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              readOnly={istDieselPosition}
+                              className={`w-full px-3 py-2 border rounded-lg placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:border-transparent ${
+                                istDieselPosition
+                                  ? 'border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 cursor-not-allowed'
+                                  : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-red-500 dark:focus:ring-red-400'
+                              }`}
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Streichpreis (€)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={position.streichpreis ?? ''}
-                              onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
-                              placeholder="Optional"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-                            />
-                            {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
-                            {position.streichpreis && position.streichpreis > 0 && (
-                              <select
-                                value={position.streichpreisGrund || ''}
-                                onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
-                                className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-amber-50"
-                              >
-                                <option value="">Grund wählen...</option>
-                                <option value="Neukundenaktion">Neukundenaktion</option>
-                                <option value="Frühbucherpreis">Frühbucherpreis</option>
-                                <option value="Treuerabatt">Treuerabatt</option>
-                                <option value="Last Minute Preis">Last Minute Preis</option>
-                                <option value="Sonderaktion">Sonderaktion</option>
-                                <option value="Mengenrabatt">Mengenrabatt</option>
-                              </select>
-                            )}
-                          </div>
+                          {/* Streichpreis - nicht für Diesel-Position */}
+                          {!istDieselPosition && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Streichpreis (€)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={position.streichpreis ?? ''}
+                                onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                placeholder="Optional"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              />
+                              {/* Streichpreis-Grund Dropdown - nur wenn Streichpreis gesetzt */}
+                              {position.streichpreis && position.streichpreis > 0 && (
+                                <select
+                                  value={position.streichpreisGrund || ''}
+                                  onChange={(e) => handlePositionChange(index, 'streichpreisGrund', e.target.value || undefined)}
+                                  className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-amber-50"
+                                >
+                                  <option value="">Grund wählen...</option>
+                                  <option value="Neukundenaktion">Neukundenaktion</option>
+                                  <option value="Frühbucherpreis">Frühbucherpreis</option>
+                                  <option value="Treuerabatt">Treuerabatt</option>
+                                  <option value="Last Minute Preis">Last Minute Preis</option>
+                                  <option value="Sonderaktion">Sonderaktion</option>
+                                  <option value="Mengenrabatt">Mengenrabatt</option>
+                                </select>
+                              )}
+                            </div>
+                          )}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einzelpreis (€)</label>
-                            <NumericInput
-                              value={position.einzelpreis}
-                              onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
-                              step="0.01"
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
-                            />
+                            {istDieselPosition ? (
+                              <input
+                                type="text"
+                                value={position.einzelpreis.toFixed(3)}
+                                readOnly
+                                className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 cursor-not-allowed"
+                              />
+                            ) : (
+                              <NumericInput
+                                value={position.einzelpreis}
+                                onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
+                                step="0.01"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                              />
+                            )}
                           </div>
                         </div>
                         <div>
@@ -2007,43 +2426,59 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                             value={position.beschreibung || ''}
                             onChange={(e) => handlePositionChange(index, 'beschreibung', e.target.value)}
                             placeholder="Detaillierte Beschreibung der Position..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                            rows={istDieselPosition ? 1 : 2}
+                            readOnly={istDieselPosition}
+                            className={`w-full px-3 py-2 border rounded-lg placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:border-transparent ${
+                              istDieselPosition
+                                ? 'border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs cursor-not-allowed'
+                                : 'border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-red-500 dark:focus:ring-red-400'
+                            }`}
                           />
                         </div>
                       </div>
 
                       <button
                         onClick={() => removePosition(index)}
-                        className="mt-7 p-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                        title="Position löschen"
+                        className={`mt-7 p-2.5 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                          istDieselPosition
+                            ? 'text-blue-500 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950/50'
+                            : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-900/50'
+                        }`}
+                        title={istDieselPosition ? 'Dieselzuschlag entfernen' : 'Position löschen'}
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
 
                     <div className="mt-2 flex items-center justify-between">
-                      {/* Checkbox: ohne MwSt (bereits Brutto) */}
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={position.ohneMwSt || false}
-                          onChange={(e) => handlePositionChange(index, 'ohneMwSt', e.target.checked)}
-                          className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
-                        />
-                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">
-                          ohne MwSt (bereits Brutto)
+                      {/* Checkbox: ohne MwSt (bereits Brutto) - nicht für Diesel-Position */}
+                      {!istDieselPosition ? (
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={position.ohneMwSt || false}
+                            onChange={(e) => handlePositionChange(index, 'ohneMwSt', e.target.checked)}
+                            className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
+                          />
+                          <span className="text-xs text-gray-500 dark:text-dark-textMuted">
+                            ohne MwSt (bereits Brutto)
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="text-xs text-blue-500 dark:text-blue-400">
+                          Berechnet aus {dieselZuschlagErgebnis?.stufen || 0} Zuschlagsstufe(n)
                         </span>
-                      </label>
+                      )}
                       <div className="text-right">
                         <span className="text-sm text-gray-600 dark:text-dark-textMuted">Gesamtpreis: </span>
-                        <span className="text-lg font-semibold text-gray-900 dark:text-dark-text">
+                        <span className={`text-lg font-semibold ${istDieselPosition ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-dark-text'}`}>
                           {position.gesamtpreis.toFixed(2)} €
                         </span>
                       </div>
                     </div>
                   </SortablePosition>
-                ))}
+                  );
+                })}
               </div>
             </SortableContext>
           </DndContext>

@@ -525,3 +525,274 @@ export const getLiefersaisonText = (stammdaten?: Stammdaten | null): string => {
 
   return `Liefersaison voraussichtlich ${startDatum} - ${endDatum}${jahr} (${startKW}. - ${endKW}. KW ${jahr}).`;
 };
+
+// === TEXTMARKER-EFFEKT (wie mit echtem Marker markiert) ===
+
+/**
+ * Zeichnet einen Textmarker-Effekt hinter Text
+ * Sieht aus wie eine handgezogene Markierung mit leichten Unregelmäßigkeiten
+ * @param doc - Das jsPDF-Dokument
+ * @param x - X-Position (linker Rand)
+ * @param y - Y-Position (Baseline des Textes)
+ * @param width - Breite der Markierung
+ * @param height - Höhe der Markierung (typisch: Schriftgröße + 2mm)
+ * @param color - Farbe als RGB-Array (default: Gelb)
+ * @param opacity - Deckkraft 0-1 (default: 0.4 für natürlichen Look)
+ */
+export const addHighlighterEffect = (
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  height: number = 5,
+  color: [number, number, number] = [255, 235, 59], // Gelb
+  opacity: number = 0.4
+): void => {
+  // Speichere aktuellen Zustand
+  const currentFillColor = (doc as any).getFillColor?.() || null;
+
+  // Setze halbtransparente Füllfarbe
+  doc.setFillColor(color[0], color[1], color[2]);
+  doc.setGState(new (doc as any).GState({ opacity: opacity }));
+
+  // Zeichne mehrere leicht versetzte Rechtecke für natürlichen Marker-Look
+  // Hauptrechteck (leicht nach oben versetzt, da y die Baseline ist)
+  const yOffset = height * 0.7; // Markierung oberhalb der Baseline
+
+  // Leichte Wellenform für natürliches Aussehen
+  const segments = 5;
+  const segmentWidth = width / segments;
+
+  for (let i = 0; i < segments; i++) {
+    // Kleine zufällige Variation in der Höhe (±0.3mm)
+    const heightVar = (Math.sin(i * 1.7 + x) * 0.3);
+    const yVar = (Math.cos(i * 2.1 + y) * 0.2);
+
+    doc.rect(
+      x + i * segmentWidth,
+      y - yOffset + yVar,
+      segmentWidth + 0.5, // Leichte Überlappung
+      height + heightVar,
+      'F'
+    );
+  }
+
+  // Opacity zurücksetzen
+  doc.setGState(new (doc as any).GState({ opacity: 1 }));
+
+  // Füllfarbe zurücksetzen falls möglich
+  if (currentFillColor) {
+    doc.setFillColor(currentFillColor);
+  }
+};
+
+/**
+ * Zeichnet Text mit Textmarker-Effekt dahinter
+ * @param doc - Das jsPDF-Dokument
+ * @param text - Der zu markierende Text
+ * @param x - X-Position
+ * @param y - Y-Position (Baseline)
+ * @param fontSize - Schriftgröße in pt
+ * @param highlightColor - Marker-Farbe (default: Gelb)
+ */
+export const addHighlightedText = (
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number = 10,
+  highlightColor: [number, number, number] = [255, 235, 59]
+): void => {
+  // Textbreite berechnen
+  doc.setFontSize(fontSize);
+  const textWidth = doc.getTextWidth(text);
+  const textHeight = fontSize * 0.352778 * 1.4; // pt to mm + Padding
+
+  // Marker-Effekt zeichnen
+  addHighlighterEffect(doc, x - 1, y, textWidth + 2, textHeight, highlightColor, 0.45);
+
+  // Text darüber zeichnen
+  doc.text(text, x, y);
+};
+
+// === HANDSCHRIFT-EFFEKT (wie handgeschrieben) ===
+
+// Pseudo-Zufallsgenerator für konsistente "Zufälligkeit" basierend auf Seed
+const seededRandom = (seed: number): number => {
+  const x = Math.sin(seed * 9999) * 10000;
+  return x - Math.floor(x);
+};
+
+/**
+ * Zeichnet Text im Handschrift-Stil
+ * Verwendet leichte Variationen in Position, Rotation und Größe für natürliches Aussehen
+ * @param doc - Das jsPDF-Dokument
+ * @param text - Der zu schreibende Text
+ * @param x - X-Position
+ * @param y - Y-Position
+ * @param fontSize - Basis-Schriftgröße
+ * @param color - Textfarbe als RGB-Array (default: Dunkelblau wie Kugelschreiber)
+ * @param style - 'casual' für entspannte Handschrift, 'neat' für saubere Handschrift
+ */
+export const addHandwrittenText = (
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number = 14,
+  color: [number, number, number] = [25, 55, 95], // Dunkelblau (Kugelschreiber)
+  style: 'casual' | 'neat' = 'casual'
+): void => {
+  // Speichere aktuellen Zustand
+  const currentFont = doc.getFont();
+  const currentFontSize = doc.getFontSize();
+  const currentTextColor = doc.getTextColor();
+
+  // Setze Handschrift-Stil
+  doc.setTextColor(color[0], color[1], color[2]);
+
+  // Variationsstärke basierend auf Stil
+  const variation = style === 'casual' ? 1.0 : 0.4;
+
+  // Seed basierend auf Text für konsistente Variation
+  let seed = 0;
+  for (let i = 0; i < text.length; i++) {
+    seed += text.charCodeAt(i);
+  }
+
+  // Zeichne jeden Buchstaben einzeln mit leichten Variationen
+  let currentX = x;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const charSeed = seed + i * 7;
+
+    // Leichte Variationen für natürliches Aussehen
+    const sizeVar = 1 + (seededRandom(charSeed) - 0.5) * 0.08 * variation;
+    const yVar = (seededRandom(charSeed + 1) - 0.5) * 0.8 * variation;
+    const xVar = (seededRandom(charSeed + 2) - 0.5) * 0.3 * variation;
+
+    // Schriftgröße für diesen Buchstaben
+    const charSize = fontSize * sizeVar;
+    doc.setFontSize(charSize);
+
+    // Position mit Variation
+    const charX = currentX + xVar;
+    const charY = y + yVar;
+
+    // Text zeichnen
+    // Hinweis: jsPDF unterstützt keine direkte Text-Rotation, daher erzeugen
+    // die Positions- und Größenvariationen den handgeschriebenen Look
+    doc.text(char, charX, charY);
+
+    // Berechne Breite für nächsten Buchstaben
+    // Etwas variable Buchstabenabstände für Handschrift-Look
+    const charWidth = doc.getTextWidth(char);
+    const spacingVar = 1 + (seededRandom(charSeed + 4) - 0.5) * 0.15 * variation;
+    currentX += charWidth * spacingVar;
+  }
+
+  // Zustand wiederherstellen
+  doc.setFont(currentFont.fontName, currentFont.fontStyle);
+  doc.setFontSize(currentFontSize);
+  doc.setTextColor(currentTextColor);
+};
+
+/**
+ * Zeichnet eine handschriftliche Notiz mit optionalem Unterstrich
+ * Für Notizen wie "Motor" oder "Hänger" auf Lieferscheinen
+ * @param doc - Das jsPDF-Dokument
+ * @param text - Der Notiztext
+ * @param x - X-Position
+ * @param y - Y-Position
+ * @param options - Optionen für Stil und Aussehen
+ */
+export const addHandwrittenNote = (
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  options: {
+    fontSize?: number;
+    color?: [number, number, number];
+    underline?: boolean;
+    circled?: boolean;
+    style?: 'casual' | 'neat';
+  } = {}
+): void => {
+  const {
+    fontSize = 16,
+    color = [25, 55, 95], // Dunkelblau (Kugelschreiber)
+    underline = false,
+    circled = false,
+    style = 'casual'
+  } = options;
+
+  // Handschriftlichen Text zeichnen
+  addHandwrittenText(doc, text, x, y, fontSize, color, style);
+
+  // Textbreite für Unterstrich/Kreis berechnen
+  doc.setFontSize(fontSize);
+  const textWidth = doc.getTextWidth(text);
+  const textHeight = fontSize * 0.352778;
+
+  // Seed für konsistente Variation
+  let seed = 0;
+  for (let i = 0; i < text.length; i++) {
+    seed += text.charCodeAt(i);
+  }
+
+  doc.setDrawColor(color[0], color[1], color[2]);
+  doc.setLineWidth(0.4);
+
+  if (underline) {
+    // Handgezeichneter Unterstrich (leicht wellig)
+    const underlineY = y + 1.5;
+    const segments = 8;
+    const segmentWidth = textWidth / segments;
+
+    doc.setLineCap('round');
+
+    let lastX = x - 1;
+    let lastY = underlineY + (seededRandom(seed) - 0.5) * 0.5;
+
+    for (let i = 1; i <= segments; i++) {
+      const nextX = x + i * segmentWidth + 1;
+      const nextY = underlineY + (seededRandom(seed + i) - 0.5) * 0.6;
+
+      // Leicht gebogene Linie
+      doc.line(lastX, lastY, nextX, nextY);
+
+      lastX = nextX;
+      lastY = nextY;
+    }
+  }
+
+  if (circled) {
+    // Handgezeichneter Kreis/Oval um den Text
+    const centerX = x + textWidth / 2;
+    const centerY = y - textHeight / 3;
+    const radiusX = textWidth / 2 + 3;
+    const radiusY = textHeight / 2 + 2;
+
+    // Unregelmäßige Ellipse für handgezeichneten Look
+    const points = 24;
+    doc.setLineCap('round');
+
+    for (let i = 0; i < points; i++) {
+      const angle1 = (i / points) * 2 * Math.PI;
+      const angle2 = ((i + 1) / points) * 2 * Math.PI;
+
+      // Leichte Variation im Radius
+      const r1Var = 1 + (seededRandom(seed + i * 3) - 0.5) * 0.1;
+      const r2Var = 1 + (seededRandom(seed + (i + 1) * 3) - 0.5) * 0.1;
+
+      const x1 = centerX + Math.cos(angle1) * radiusX * r1Var;
+      const y1 = centerY + Math.sin(angle1) * radiusY * r1Var;
+      const x2 = centerX + Math.cos(angle2) * radiusX * r2Var;
+      const y2 = centerY + Math.sin(angle2) * radiusY * r2Var;
+
+      doc.line(x1, y1, x2, y2);
+    }
+  }
+};
