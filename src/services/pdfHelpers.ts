@@ -648,11 +648,12 @@ export const addHandwrittenText = (
   const currentFontSize = doc.getFontSize();
   const currentTextColor = doc.getTextColor();
 
-  // Setze Handschrift-Stil
+  // Setze Handschrift-Stil - Kursiv für natürlicheren Look
+  doc.setFont('times', 'bolditalic'); // Times Italic sieht handschriftlicher aus
   doc.setTextColor(color[0], color[1], color[2]);
 
   // Variationsstärke basierend auf Stil
-  const variation = style === 'casual' ? 1.0 : 0.4;
+  const variation = style === 'casual' ? 1.2 : 0.5;
 
   // Seed basierend auf Text für konsistente Variation
   let seed = 0;
@@ -660,17 +661,17 @@ export const addHandwrittenText = (
     seed += text.charCodeAt(i);
   }
 
-  // Zeichne jeden Buchstaben einzeln mit leichten Variationen
+  // Zeichne jeden Buchstaben einzeln mit natürlichen Variationen
   let currentX = x;
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const charSeed = seed + i * 7;
 
-    // Leichte Variationen für natürliches Aussehen
-    const sizeVar = 1 + (seededRandom(charSeed) - 0.5) * 0.08 * variation;
-    const yVar = (seededRandom(charSeed + 1) - 0.5) * 0.8 * variation;
-    const xVar = (seededRandom(charSeed + 2) - 0.5) * 0.3 * variation;
+    // Natürlichere Variationen für Handschrift-Look
+    const sizeVar = 1 + (seededRandom(charSeed) - 0.5) * 0.12 * variation;
+    const yVar = (seededRandom(charSeed + 1) - 0.5) * 1.2 * variation; // Mehr vertikale Variation
+    const xVar = (seededRandom(charSeed + 2) - 0.5) * 0.4 * variation;
 
     // Schriftgröße für diesen Buchstaben
     const charSize = fontSize * sizeVar;
@@ -681,14 +682,12 @@ export const addHandwrittenText = (
     const charY = y + yVar;
 
     // Text zeichnen
-    // Hinweis: jsPDF unterstützt keine direkte Text-Rotation, daher erzeugen
-    // die Positions- und Größenvariationen den handgeschriebenen Look
     doc.text(char, charX, charY);
 
     // Berechne Breite für nächsten Buchstaben
-    // Etwas variable Buchstabenabstände für Handschrift-Look
+    // Variable Buchstabenabstände für natürlichen Handschrift-Look
     const charWidth = doc.getTextWidth(char);
-    const spacingVar = 1 + (seededRandom(charSeed + 4) - 0.5) * 0.15 * variation;
+    const spacingVar = 1 + (seededRandom(charSeed + 4) - 0.5) * 0.2 * variation;
     currentX += charWidth * spacingVar;
   }
 
@@ -769,23 +768,26 @@ export const addHandwrittenNote = (
   }
 
   if (circled) {
-    // Handgezeichneter Kreis/Oval um den Text
+    // Handgezeichneter Kreis/Oval um den Text - größer und natürlicher
     const centerX = x + textWidth / 2;
     const centerY = y - textHeight / 3;
-    const radiusX = textWidth / 2 + 3;
-    const radiusY = textHeight / 2 + 2;
+    const radiusX = textWidth / 2 + 5; // Mehr Platz
+    const radiusY = textHeight / 2 + 4; // Mehr Platz
+
+    // Dickere Linie für handgezeichneten Look
+    doc.setLineWidth(0.6);
+    doc.setLineCap('round');
 
     // Unregelmäßige Ellipse für handgezeichneten Look
-    const points = 24;
-    doc.setLineCap('round');
+    const points = 20; // Weniger Punkte = unregelmäßiger
 
     for (let i = 0; i < points; i++) {
       const angle1 = (i / points) * 2 * Math.PI;
       const angle2 = ((i + 1) / points) * 2 * Math.PI;
 
-      // Leichte Variation im Radius
-      const r1Var = 1 + (seededRandom(seed + i * 3) - 0.5) * 0.1;
-      const r2Var = 1 + (seededRandom(seed + (i + 1) * 3) - 0.5) * 0.1;
+      // Mehr Variation im Radius für natürlicheren Look
+      const r1Var = 1 + (seededRandom(seed + i * 3) - 0.5) * 0.18;
+      const r2Var = 1 + (seededRandom(seed + (i + 1) * 3) - 0.5) * 0.18;
 
       const x1 = centerX + Math.cos(angle1) * radiusX * r1Var;
       const y1 = centerY + Math.sin(angle1) * radiusY * r1Var;
@@ -794,5 +796,8 @@ export const addHandwrittenNote = (
 
       doc.line(x1, y1, x2, y2);
     }
+
+    // Linie wieder zurücksetzen
+    doc.setLineWidth(0.4);
   }
 };

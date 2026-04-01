@@ -1330,24 +1330,37 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
 
-  // === HANDSCHRIFTLICHE NOTIZ: Motor/Hänger (oben rechts, wie vom Disponenten notiert) ===
-  if (daten.belieferungsart && !einfach) {
-    // Labels für die handschriftliche Notiz
-    const belieferungsNotizen: Record<string, string> = {
-      'nur_motorwagen': 'Motor',
-      'mit_haenger': 'Hänger',
-      'abholung_ab_werk': 'Abholung',
-      'palette_mit_ladekran': 'Kran',
-      'bigbag': 'BigBag'
-    };
+  // === HANDSCHRIFTLICHE NOTIZ: Motor/Hänger/Zug (oben rechts, wie vom Disponenten notiert) ===
+  if (!einfach) {
+    // Priorität: ladeort (neu) > belieferungsart (legacy)
+    let notizText: string | undefined;
 
-    const notizText = belieferungsNotizen[daten.belieferungsart];
+    if (daten.ladeort) {
+      // Neues Ladeort-Feld
+      const ladeortLabels: Record<string, string> = {
+        'motor': 'Motor',
+        'haenger': 'Hänger',
+        'zug': 'Zug'
+      };
+      notizText = ladeortLabels[daten.ladeort];
+    } else if (daten.belieferungsart) {
+      // Fallback auf Belieferungsart
+      const belieferungsNotizen: Record<string, string> = {
+        'nur_motorwagen': 'Motor',
+        'mit_haenger': 'Hänger',
+        'abholung_ab_werk': 'Abholung',
+        'palette_mit_ladekran': 'Kran',
+        'bigbag': 'BigBag'
+      };
+      notizText = belieferungsNotizen[daten.belieferungsart];
+    }
+
     if (notizText) {
       // Position: oben rechts, unter dem Logo aber über dem Infoblock
-      // Leicht schräg und mit Kreis umrandet für Aufmerksamkeit
-      addHandwrittenNote(doc, notizText, 165, 42, {
-        fontSize: 18,
-        color: [25, 55, 95], // Dunkelblau (Kugelschreiber)
+      // Größer und prominenter mit Kreis umrandet
+      addHandwrittenNote(doc, notizText, 160, 40, {
+        fontSize: 24, // Größer!
+        color: [20, 50, 100], // Dunkelblau (Kugelschreiber)
         circled: true,
         style: 'casual'
       });

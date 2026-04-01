@@ -1105,6 +1105,55 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                 <option value="bigbag">BigBag</option>
               </select>
             </div>
+
+            {/* Ladeort - für handschriftliche Notiz auf Lieferschein */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1 flex items-center gap-1">
+                <Package className="h-4 w-4" />
+                Geladen auf (wird auf Lieferschein gedruckt)
+              </label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('ladeort', lieferscheinDaten.ladeort === 'motor' ? undefined : 'motor')}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className={`flex-1 px-3 py-2 rounded-l-lg border font-medium transition-colors ${
+                    lieferscheinDaten.ladeort === 'motor'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Motor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('ladeort', lieferscheinDaten.ladeort === 'haenger' ? undefined : 'haenger')}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className={`flex-1 px-3 py-2 border-t border-b font-medium transition-colors ${
+                    lieferscheinDaten.ladeort === 'haenger'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Hänger
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('ladeort', lieferscheinDaten.ladeort === 'zug' ? undefined : 'zug')}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className={`flex-1 px-3 py-2 rounded-r-lg border font-medium transition-colors ${
+                    lieferscheinDaten.ladeort === 'zug'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Zug
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Wird als handschriftliche Notiz oben rechts auf dem Lieferschein gedruckt
+              </p>
+            </div>
           </div>
 
           {/* DISPO-Ansprechpartner */}

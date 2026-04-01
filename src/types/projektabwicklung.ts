@@ -133,6 +133,9 @@ export type Belieferungsart =
   | 'palette_mit_ladekran'
   | 'bigbag';
 
+// Ladeort - wo wird die Ware physisch geladen (für Lieferschein-Notiz)
+export type Ladeort = 'motor' | 'haenger' | 'zug';
+
 // AUFTRAGSBESTÄTIGUNG (ähnlich wie Angebot, aber als Bestätigung eines erteilten Auftrags)
 export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Auftragsbestätigungsinformationen
@@ -200,6 +203,7 @@ export interface LieferscheinDaten extends BaseDokument {
   lieferKWJahr?: number; // Jahr der Kalenderwoche
   bevorzugterTag?: Wochentag; // Bevorzugter Wochentag für die Lieferung
   belieferungsart?: Belieferungsart; // Motorwagen, Hänger, etc.
+  ladeort?: Ladeort; // Motor, Hänger oder Zug - für handschriftliche Notiz auf Lieferschein
 
   // DISPO-Ansprechpartner (z.B. Platzwart vor Ort für die Anlieferung)
   dispoAnsprechpartner?: {
