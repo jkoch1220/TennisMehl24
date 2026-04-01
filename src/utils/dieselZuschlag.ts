@@ -216,8 +216,9 @@ export function berechneGesamtZuschlag(
 export function erstelleDieselZuschlagPosition(
   ergebnis: DieselZuschlagErgebnis
 ): Position {
+  // Beschreibung mit Berechnungsdetails
   const beschreibung = ergebnis.hatZuschlag
-    ? `Basis: ${ergebnis.basisPreis.toFixed(3)} €/L | Aktuell: ${ergebnis.tagesDieselPreis.toFixed(3)} €/L | ${ergebnis.stufen} Stufe(n) à 0,45 €/t`
+    ? `${ergebnis.gesamtTonnen.toFixed(2)} t × ${ergebnis.zuschlagProTonne.toFixed(2)} €/t (Basis: ${ergebnis.basisPreis.toFixed(3)} €/L, Aktuell: ${ergebnis.tagesDieselPreis.toFixed(3)} €/L, ${ergebnis.stufen} Stufe(n))`
     : `Kein Zuschlag - Dieselpreis (${ergebnis.tagesDieselPreis.toFixed(3)} €/L) unter Basis (${ergebnis.basisPreis.toFixed(3)} €/L)`;
 
   return {
@@ -225,9 +226,9 @@ export function erstelleDieselZuschlagPosition(
     artikelnummer: DIESEL_ZUSCHLAG_ARTIKELNUMMER,
     bezeichnung: 'Dieselpreiszuschlag',
     beschreibung,
-    menge: ergebnis.gesamtTonnen,
-    einheit: 't',
-    einzelpreis: ergebnis.zuschlagProTonne,
+    menge: 1,
+    einheit: 'psch',
+    einzelpreis: ergebnis.gesamtZuschlag, // Gesamtbetrag als Pauschale
     gesamtpreis: ergebnis.gesamtZuschlag,
     istBedarfsposition: false,
     ohneMwSt: false,
