@@ -469,42 +469,13 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     };
   }, [rechnungsDaten.leistungsdatum, gespeichertesDokument, dieselPreisManuell]);
 
-  // === DIESELPREISZUSCHLAG: Berechnung aktualisieren wenn sich Preis oder Positionen ändern ===
-  useEffect(() => {
-    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
-      setDieselZuschlagErgebnis(null);
-      return;
-    }
-
-    // Prüfen ob bereits eine TM-DZ Position existiert (z.B. von Storno übernommen)
-    const hatBereitsDieselPosition = rechnungsDaten.positionen.some(istDieselZuschlagPosition);
-
-    // Berechnung durchführen
-    const ergebnis = berechneGesamtZuschlag(
-      rechnungsDaten.positionen,
-      dieselPreis,
-      rechnungsDaten.leistungsdatum
-    );
-    setDieselZuschlagErgebnis(ergebnis);
-
-    // Position automatisch einfügen/aktualisieren (wenn nicht manuell entfernt)
-    // WICHTIG: Nicht automatisch einfügen wenn bereits eine Position existiert (z.B. von Storno)
-    // In diesem Fall nur aktualisieren wenn der User die Berechnung manuell triggert
-    if (!dieselZuschlagManuellEntfernt.current && !hatBereitsDieselPosition) {
-      aktualisiereZuschlagPosition(ergebnis);
-    } else if (hatBereitsDieselPosition && !dieselZuschlagManuellEntfernt.current) {
-      // Bestehende Position aktualisieren (gleiche Berechnung)
-      aktualisiereZuschlagPosition(ergebnis);
-    }
-  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument]);
-
-  // === DIESELPREISZUSCHLAG: Position einfügen/aktualisieren ===
+  // === DIESELPREISZUSCHLAG: Position einfügen/aktualisieren (MUSS VOR useEffect definiert werden!) ===
   const aktualisiereZuschlagPosition = useCallback((ergebnis: DieselZuschlagErgebnis) => {
     setRechnungsDaten(prev => {
       // Filtere bestehende TM-DZ Position heraus
       const positionenOhneZuschlag = prev.positionen.filter(p => !istDieselZuschlagPosition(p));
 
-      // Wenn kein Zuschlag: nur entfernen
+      // Wenn kein Zuschlag oder keine zuschlagsfähigen Tonnen: nur entfernen
       if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
         if (positionenOhneZuschlag.length !== prev.positionen.length) {
           return { ...prev, positionen: positionenOhneZuschlag };
@@ -528,6 +499,27 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       return { ...prev, positionen: neuePositionen };
     });
   }, []);
+
+  // === DIESELPREISZUSCHLAG: Berechnung aktualisieren wenn sich Preis oder Positionen ändern ===
+  useEffect(() => {
+    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
+      setDieselZuschlagErgebnis(null);
+      return;
+    }
+
+    // Berechnung durchführen
+    const ergebnis = berechneGesamtZuschlag(
+      rechnungsDaten.positionen,
+      dieselPreis,
+      rechnungsDaten.leistungsdatum
+    );
+    setDieselZuschlagErgebnis(ergebnis);
+
+    // Position automatisch einfügen/aktualisieren (wenn nicht manuell entfernt)
+    if (!dieselZuschlagManuellEntfernt.current) {
+      aktualisiereZuschlagPosition(ergebnis);
+    }
+  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument, aktualisiereZuschlagPosition]);
 
   // === DIESELPREISZUSCHLAG: Manuellen Preis setzen ===
   const setzeManuellenDieselPreis = () => {

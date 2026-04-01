@@ -1,13 +1,15 @@
 /**
  * API-Integration für Dieselpreise
  * Unterstützt mehrere Datenquellen:
- * 1. Tankerkoenig API (falls API-Key vorhanden) - automatisch aktuelle Preise
- * 2. Aktueller deutscher Durchschnittspreis (manuell konfigurierbar) - Fallback
+ * 1. Backend API (wenn VITE_USE_BACKEND=true) - empfohlen, mit Redis-Cache
+ * 2. Tankerkoenig API direkt (falls Backend nicht verfügbar)
+ * 3. Aktueller deutscher Durchschnittspreis (manuell konfigurierbar) - Fallback
  *
  * OPTIMIERT: Tages-Cache für Dieselpreise (Preise ändern sich nicht stündlich)
  */
 
 import { getKoordinatenFuerPLZ } from '../data/plzKoordinaten';
+import { useBackend, backendFetch } from '../config/backend';
 
 const TANKERKOENIG_API_KEY = import.meta.env.VITE_TANKERKOENIG_API_KEY || '';
 const TANKERKOENIG_API_BASE_URL = 'https://creativecommons.tankerkoenig.de/json';
@@ -17,6 +19,17 @@ const AKTUELLER_DURCHSCHNITTSPREIS_DIESEL =
   import.meta.env.VITE_DIESEL_DURCHSCHNITTSPREIS
     ? parseFloat(import.meta.env.VITE_DIESEL_DURCHSCHNITTSPREIS)
     : 1.55; // €/Liter (Standardwert)
+
+// Backend API Response Interface
+interface BackendDieselResponse {
+  success: boolean;
+  durchschnitt: number;
+  minimum?: number;
+  maximum?: number;
+  stations?: number;
+  timestamp?: string;
+  error?: string;
+}
 
 // === OPTIMIERUNG: TAGES-CACHE FÜR DIESELPREISE ===
 // Dieselpreise ändern sich nicht jede Minute - einmal pro Tag reicht
@@ -88,20 +101,47 @@ const geocodePLZFuerDieselPreis = (plz: string): [number, number] | null => {
 };
 
 /**
- * Holt den aktuellen Dieselpreis von Tankerkönig-API basierend auf PLZ
- * OPTIMIERT: Nutzt Tages-Cache und lokales PLZ-Geocoding
+ * Holt den aktuellen Dieselpreis - primär über Backend, Fallback auf direkte API
+ * OPTIMIERT: Backend hat Redis-Cache, Frontend hat localStorage-Cache
  */
 export const holeDieselPreis = async (plz: string): Promise<number> => {
-  // OPTIMIERUNG 1: Prüfe Cache zuerst (24h gültig)
+  // OPTIMIERUNG 1: Prüfe lokalen Cache zuerst (24h gültig)
   const cachedPreis = getDieselFromCache(plz);
   if (cachedPreis !== null) {
     return cachedPreis;
   }
 
-  // Option 1: Tankerkoenig API (falls API-Key vorhanden)
+  // Option 1: Backend API (empfohlen - hat Redis-Cache und versteckten API-Key)
+  if (useBackend('diesel')) {
+    try {
+      console.log(`🔍 Hole Dieselpreis vom Backend für PLZ ${plz}...`);
+
+      const response = await backendFetch<BackendDieselResponse>(
+        `/api/geo/diesel-preis/preis?plz=${plz}&radius=15`
+      );
+
+      if (response.success && response.durchschnitt > 0) {
+        const preis = response.durchschnitt;
+        console.log(`✅ Backend: Dieselpreis ${preis.toFixed(3)} €/L (${response.stations || 0} Tankstellen)`);
+
+        // Lokalen Cache aktualisieren
+        saveDieselCache(plz.substring(0, 2), preis, plz);
+
+        return preis;
+      } else {
+        console.warn(`⚠️ Backend: ${response.error || 'Kein Preis erhalten'}`);
+        // Fallback auf direkten API-Call
+      }
+    } catch (error) {
+      console.warn('⚠️ Backend nicht erreichbar, versuche direkten API-Call:', error);
+      // Fallback auf direkten API-Call
+    }
+  }
+
+  // Option 2: Direkter Tankerkoenig API Call (falls Backend nicht verfügbar)
   if (TANKERKOENIG_API_KEY) {
     try {
-      // OPTIMIERUNG 2: Lokales Geocoding (ZERO API COST!)
+      // Lokales Geocoding (ZERO API COST!)
       const koordinaten = geocodePLZFuerDieselPreis(plz);
 
       if (!koordinaten) {
@@ -115,7 +155,7 @@ export const holeDieselPreis = async (plz: string): Promise<number> => {
       const radius = 15; // 15 km Radius (erhöht für ländliche Gebiete)
       const apiUrl = `${TANKERKOENIG_API_BASE_URL}/list.php?lat=${lat}&lng=${lon}&rad=${radius}&type=diesel&sort=price&apikey=${TANKERKOENIG_API_KEY}`;
 
-      console.log(`🔍 Hole Dieselpreise von Tankerkönig-API für PLZ ${plz}...`);
+      console.log(`🔍 Hole Dieselpreise direkt von Tankerkönig-API für PLZ ${plz}...`);
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -145,9 +185,9 @@ export const holeDieselPreis = async (plz: string): Promise<number> => {
       if (dieselPreise.length > 0) {
         const durchschnittspreis = dieselPreise.reduce((sum, preis) => sum + preis, 0) / dieselPreise.length;
 
-        console.log(`✅ Tankerkönig: ${dieselPreise.length} Tankstellen, Durchschnitt: ${durchschnittspreis.toFixed(3)} €/L`);
+        console.log(`✅ Tankerkönig direkt: ${dieselPreise.length} Tankstellen, Durchschnitt: ${durchschnittspreis.toFixed(3)} €/L`);
 
-        // OPTIMIERUNG 3: Speichere im Cache (24h)
+        // Speichere im lokalen Cache (24h)
         saveDieselCache(plz.substring(0, 2), durchschnittspreis, plz);
 
         return durchschnittspreis;
@@ -162,7 +202,7 @@ export const holeDieselPreis = async (plz: string): Promise<number> => {
   }
 
   // Fallback auf Durchschnittspreis
-  console.info(`ℹ️ Kein API-Key, verwende Durchschnittspreis: ${AKTUELLER_DURCHSCHNITTSPREIS_DIESEL} €/L`);
+  console.info(`ℹ️ Keine API verfügbar, verwende Durchschnittspreis: ${AKTUELLER_DURCHSCHNITTSPREIS_DIESEL} €/L`);
   return AKTUELLER_DURCHSCHNITTSPREIS_DIESEL;
 };
 
