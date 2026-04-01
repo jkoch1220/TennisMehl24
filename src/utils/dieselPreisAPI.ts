@@ -173,12 +173,14 @@ export const holeDieselPreis = async (plz: string): Promise<number> => {
       }
 
       // Extrahiere Dieselpreise von geöffneten Tankstellen
+      // WICHTIG: Tankerkönig gibt den Preis als "price" zurück (nicht "diesel"!),
+      // wenn type=diesel in der URL angegeben wird
       const stations = data.stations || [];
       const dieselPreise: number[] = [];
 
       for (const station of stations) {
-        if (station.isOpen && station.diesel && typeof station.diesel === 'number' && station.diesel > 0) {
-          dieselPreise.push(station.diesel);
+        if (station.isOpen && station.price && typeof station.price === 'number' && station.price > 0) {
+          dieselPreise.push(station.price);
         }
       }
 
