@@ -303,18 +303,39 @@ const ProjektVerwaltung = () => {
     setDraggedProjekt(null);
   };
 
-  // Status Update
+  // Status Update - Optimistisch (sofort im UI, dann DB)
   const updateStatus = async (projekt: Projekt, neuerStatus: ProjektStatus) => {
-    setSaving(true);
+    const alterStatus = projekt.status;
+
+    // Sofort im UI verschieben (optimistisches Update)
+    setProjekteGruppiert(prev => {
+      const updated = { ...prev };
+      // Aus alter Spalte entfernen
+      updated[alterStatus] = updated[alterStatus].filter(p =>
+        ((p as any).$id || p.id) !== ((projekt as any).$id || projekt.id)
+      );
+      // In neue Spalte einfügen
+      const projektMitNeuemStatus = { ...projekt, status: neuerStatus };
+      updated[neuerStatus] = [...updated[neuerStatus], projektMitNeuemStatus];
+      return updated;
+    });
+
+    // Dann in DB speichern
     try {
       const documentId = (projekt as any).$id || projekt.id;
       await projektService.updateProjektStatus(documentId, neuerStatus);
-      await loadData();
     } catch (error) {
       console.error('Fehler beim Status-Update:', error);
+      // Bei Fehler: Zurück verschieben
+      setProjekteGruppiert(prev => {
+        const reverted = { ...prev };
+        reverted[neuerStatus] = reverted[neuerStatus].filter(p =>
+          ((p as any).$id || p.id) !== ((projekt as any).$id || projekt.id)
+        );
+        reverted[alterStatus] = [...reverted[alterStatus], projekt];
+        return reverted;
+      });
       alert('Fehler beim Speichern. Bitte erneut versuchen.');
-    } finally {
-      setSaving(false);
     }
   };
 

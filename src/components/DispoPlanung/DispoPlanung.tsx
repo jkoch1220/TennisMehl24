@@ -24,6 +24,7 @@ import {
   Navigation,
   Phone,
   User,
+  Users,
   Edit3,
   Check,
   Route,
@@ -200,6 +201,7 @@ const DispoPlanung = () => {
   const [filterLieferart, setFilterLieferart] = useState<FilterLieferart>('alle');
   const [filterWare, setFilterWare] = useState<FilterWare>('alle');
   const [filterKW, setFilterKW] = useState<number | null>(null);
+  const [filterNurPlatzbauer, setFilterNurPlatzbauer] = useState(false);
 
   // Ausgewähltes Projekt für Detail-Ansicht
   const [selectedProjekt, setSelectedProjekt] = useState<Projekt | null>(null);
@@ -557,6 +559,9 @@ const DispoPlanung = () => {
       if (filterWare === 'schuettgut' && material.gesamtLose <= 0) return false;
       if (filterWare === 'palettenware' && !material.hatSpeditionsware) return false;
     }
+
+    // Platzbauer-Filter
+    if (filterNurPlatzbauer && !p.platzbauerId) return false;
 
     // Suche
     if (suche) {
@@ -993,7 +998,7 @@ const DispoPlanung = () => {
               </div>
 
               {/* Filter-Reset */}
-              {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle' || filterWare !== 'alle' || filterKW !== null) && (
+              {(filterStatus !== 'alle' || filterDatum || suche || filterLieferart !== 'alle' || filterWare !== 'alle' || filterKW !== null || filterNurPlatzbauer) && (
                 <button
                   onClick={() => {
                     setFilterStatus('alle');
@@ -1002,6 +1007,7 @@ const DispoPlanung = () => {
                     setFilterLieferart('alle');
                     setFilterWare('alle');
                     setFilterKW(null);
+                    setFilterNurPlatzbauer(false);
                   }}
                   className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                 >
@@ -1104,6 +1110,20 @@ const DispoPlanung = () => {
                 <Boxes className="w-4 h-4" />
                 Palettenware ({stats.palettenware})
               </button>
+
+              {/* Platzbauer-Filter */}
+              <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+              <button
+                onClick={() => setFilterNurPlatzbauer(!filterNurPlatzbauer)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1.5 ${
+                  filterNurPlatzbauer
+                    ? 'bg-violet-600 text-white font-medium'
+                    : 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Nur Platzbauer ({projekte.filter(p => p.platzbauerId).length})
+              </button>
             </div>
           </div>
         </>
@@ -1200,11 +1220,16 @@ const DispoPlanung = () => {
                 gefilterteProjekte.map((projekt) => {
                   const projektId = (projekt as any).$id || projekt.id;
                   const auftragMitBuchungen = erstelleAuftragMitBuchungen(projekt, touren);
+                  // Platzbauer-Name ermitteln (wenn vorhanden)
+                  const platzbauerName = projekt.platzbauerId
+                    ? kundenMap.get(projekt.platzbauerId)?.name
+                    : undefined;
                   return (
                     <AuftragsZeile
                       key={projektId}
                       projekt={projekt}
                       kunde={projekt.kundeId ? kundenMap.get(projekt.kundeId) : undefined}
+                      platzbauerName={platzbauerName}
                       auftragMitBuchungen={auftragMitBuchungen}
                       touren={touren}
                       onStatusChange={(status) => updateDispoStatus(projekt, status)}
@@ -1322,6 +1347,7 @@ const StatCard = ({ label, value, icon, color, onClick, active }: StatCardProps)
 interface AuftragsZeileProps {
   projekt: Projekt;
   kunde?: SaisonKunde;
+  platzbauerName?: string;
   auftragMitBuchungen: AuftragMitBuchungen;
   touren: Tour[];
   onStatusChange: (status: DispoStatus) => void;
@@ -1337,6 +1363,7 @@ interface AuftragsZeileProps {
 const AuftragsZeile = ({
   projekt,
   kunde,
+  platzbauerName,
   auftragMitBuchungen,
   touren,
   onStatusChange,
@@ -1516,6 +1543,13 @@ const AuftragsZeile = ({
             {projekt.kundennummer && (
               <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-slate-700 rounded-full text-gray-600 dark:text-gray-400">
                 {projekt.kundennummer}
+              </span>
+            )}
+            {/* Platzbauer Badge */}
+            {platzbauerName && (
+              <span className="text-xs px-2 py-0.5 bg-violet-100 dark:bg-violet-900/50 rounded-full text-violet-700 dark:text-violet-300 font-medium flex items-center gap-1" title={`Platzbauer: ${platzbauerName}`}>
+                <Users className="w-3 h-3" />
+                {platzbauerName.length > 20 ? platzbauerName.substring(0, 18) + '...' : platzbauerName}
               </span>
             )}
             {/* Diese Woche Badge */}
