@@ -1531,7 +1531,8 @@ const AuftragsZeile = ({
               className="font-semibold text-gray-900 dark:text-white truncate hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 group"
               title="Projekt öffnen (Mittelklick = neuer Tab)"
             >
-              {projekt.kundenname}
+              {/* Bei Platzbauer-Projekten: Zeige echten Kunden (Verein), nicht Platzbauer */}
+              {platzbauerName && kunde?.name ? kunde.name : projekt.kundenname}
             </button>
             <button
               onClick={() => onGoToProjektabwicklung(true)}
@@ -1607,7 +1608,14 @@ const AuftragsZeile = ({
           <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3" />
-              {projekt.kundenPlzOrt || kunde?.adresse?.plz + ' ' + kunde?.adresse?.ort}
+              {/* Lieferadresse bevorzugen (besonders wichtig für Platzbauer-Projekte) */}
+              {projekt.lieferadresse
+                ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`
+                : (kunde?.lieferadresse
+                    ? `${kunde.lieferadresse.plz} ${kunde.lieferadresse.ort}`
+                    : (projekt.kundenPlzOrt || `${kunde?.adresse?.plz || ''} ${kunde?.adresse?.ort || ''}`)
+                  )
+              }
             </span>
           </div>
 
