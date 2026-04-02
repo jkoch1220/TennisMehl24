@@ -219,8 +219,8 @@ const getExistingCoordinates = (
   return null;
 };
 
-// KOMBINIERTE Geocoding-Strategie (optimiert für Performance)
-// Gibt jetzt auch die Quelle der Koordinaten zurück
+// KOMBINIERTE Geocoding-Strategie
+// GEÄNDERT: Google API hat jetzt Priorität über PLZ-Lookup!
 interface SmartGeocodeResult {
   position: google.maps.LatLngLiteral;
   quelle: 'exakt' | 'manuell' | 'plz';
@@ -232,43 +232,28 @@ const smartGeocode = (
   kunde?: SaisonKunde
 ): SmartGeocodeResult | null => {
   const plzRaw = extractPLZFromProjekt(projekt, kunde);
-  const plz = plzRaw ?? undefined; // Convert null to undefined for TypeScript
+  const plz = plzRaw ?? undefined;
 
   // PRIORITÄT 1: Gespeicherte Koordinaten vom PROJEKT mit koordinatenQuelle 'exakt' oder 'manuell'
-  // NUR diese sind zuverlässig!
+  // NUR diese sind zuverlässig - sofort zurückgeben!
   if (projekt.koordinaten && Array.isArray(projekt.koordinaten) && projekt.koordinaten.length >= 2) {
     const [lon, lat] = projekt.koordinaten;
-    // Validiere: In Deutschland?
     if (typeof lat === 'number' && typeof lon === 'number' &&
         lat >= 47 && lat <= 56 && lon >= 5 && lon <= 16) {
-      // Prüfe ob die Koordinaten exakt oder manuell sind
       if (projekt.koordinatenQuelle === 'exakt' || projekt.koordinatenQuelle === 'manuell') {
         return { position: { lat, lng: lon }, quelle: projekt.koordinatenQuelle, plz };
-      }
-      // Wenn koordinatenQuelle 'plz' ist, nutze trotzdem die gespeicherten Koordinaten
-      // aber markiere sie als PLZ-Fallback
-      if (projekt.koordinatenQuelle === 'plz') {
-        return { position: { lat, lng: lon }, quelle: 'plz', plz };
       }
     }
   }
 
-  // Priorität 2: Existierende Koordinaten vom Kunden (mit Adresse = wahrscheinlich exakt)
+  // Priorität 2: Existierende exakte Koordinaten vom Kunden
   const existing = getExistingCoordinates(projekt, kunde);
   if (existing) {
     return { position: existing, quelle: 'exakt', plz };
   }
 
-  // Priorität 3: PLZ-Lookup (Fallback, ungenau)
-  // WICHTIG: Nutze die PLZ des PROJEKTS, nicht irgendeine Standard-Position!
-  if (plzRaw) {
-    const plzCoords = getKoordinatenFuerPLZ(plzRaw);
-    if (plzCoords) {
-      return { position: { lat: plzCoords.lat, lng: plzCoords.lng }, quelle: 'plz', plz };
-    }
-  }
-
-  // Keine Koordinaten gefunden - NICHT auf WERK_POSITION fallen lassen!
+  // KEINE PLZ-Lookup hier! → Triggert Google API Geocoding
+  // PLZ wird nur noch als LETZTER Fallback verwendet (wenn Google API fehlschlägt)
   return null;
 };
 
@@ -507,13 +492,29 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
         const results = new Map<string, google.maps.LatLngLiteral>();
 
         // Batch-Verarbeitung mit Rate-Limiting (max 5 parallel)
+        // GOOGLE API FIRST - PLZ nur als letzter Fallback!
         const addresses = [...uniqueAddresses.entries()];
         for (let i = 0; i < addresses.length; i += 5) {
           const batch = addresses.slice(i, i + 5);
           await Promise.all(batch.map(async ([address, ids]) => {
-            const coords = await geocodeAddressWithGoogleAPI(address, geocodeCacheRef.current);
+            // 1. Versuche Google API
+            let coords = await geocodeAddressWithGoogleAPI(address, geocodeCacheRef.current);
+
+            // 2. PLZ-Fallback NUR wenn Google API fehlschlägt
+            if (!coords) {
+              // Extrahiere PLZ aus Adresse (z.B. "Straße, 12345 Ort")
+              const plzMatch = address.match(/\b(\d{5})\b/);
+              if (plzMatch) {
+                const plzCoords = getKoordinatenFuerPLZ(plzMatch[1]);
+                if (plzCoords) {
+                  coords = { lat: plzCoords.lat, lng: plzCoords.lng };
+                  console.warn(`[DispoKarte] Google API fehlgeschlagen für "${address}", nutze PLZ ${plzMatch[1]} als Fallback`);
+                }
+              }
+            }
+
             if (coords) {
-              ids.forEach(id => results.set(id, coords));
+              ids.forEach(id => results.set(id, coords!));
             }
           }));
           // Kurze Pause zwischen Batches
@@ -565,8 +566,8 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
       if (cachedPosition) {
         position = cachedPosition;
-        // Koordinatenquelle aus dem Projekt übernehmen
-        koordinatenQuelle = (projekt.koordinatenQuelle as 'exakt' | 'manuell' | 'plz') || 'exakt';
+        // Koordinatenquelle aus dem Projekt übernehmen (von Google API = exakt)
+        koordinatenQuelle = 'exakt';
         plz = extractPLZFromProjekt(projekt, kunde) || undefined;
       } else {
         const geocodeResult = smartGeocode(projekt, kunde);
@@ -574,6 +575,17 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
           position = geocodeResult.position;
           koordinatenQuelle = geocodeResult.quelle;
           plz = geocodeResult.plz;
+        } else {
+          // LETZTER FALLBACK: PLZ-Lookup (wenn Google API noch nicht durch ist)
+          const plzRaw = extractPLZFromProjekt(projekt, kunde);
+          if (plzRaw) {
+            const plzCoords = getKoordinatenFuerPLZ(plzRaw);
+            if (plzCoords) {
+              position = { lat: plzCoords.lat, lng: plzCoords.lng };
+              koordinatenQuelle = 'plz';
+              plz = plzRaw;
+            }
+          }
         }
       }
 
