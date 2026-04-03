@@ -537,37 +537,37 @@ const ProjektVerwaltung = () => {
   // DESKTOP ANSICHT - Originales Kanban-Board
   // ==========================================
   return (
-    <div className="p-6 max-w-[1900px] mx-auto">
+    <div className="p-3 md:p-6 max-w-[1900px] mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="mb-4 md:mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 md:gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg dark:shadow-dark-lg">
-              <Layers className="h-8 w-8 text-white" />
+            <div className="p-2 md:p-3 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg dark:shadow-dark-lg">
+              <Layers className="h-6 w-6 md:h-8 md:w-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Projekt-Verwaltung</h1>
-              <p className="text-gray-600 dark:text-dark-textMuted mt-1">
+              <h1 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-dark-text">Projekt-Verwaltung</h1>
+              <p className="text-sm md:text-base text-gray-600 dark:text-dark-textMuted mt-0.5 md:mt-1">
                 {gesamt} aktive Projekte {gesamtVerloren > 0 && `• ${gesamtVerloren} verloren`} • Saison {saisonjahr}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap w-full md:w-auto">
             {/* Suche nach Vereinsname/PLZ */}
-            <div className="relative">
+            <div className="relative flex-1 md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
               <input
                 type="text"
                 placeholder="Verein, PLZ, Stadt..."
                 value={suche}
                 onChange={(e) => setSuche(e.target.value)}
-                className="pl-10 pr-4 py-2 w-56 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
+                className="pl-10 pr-4 py-2 w-full md:w-56 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent"
               />
               {suche && (
                 <button
                   onClick={() => setSuche('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -575,19 +575,19 @@ const ProjektVerwaltung = () => {
             </div>
 
             {/* Suche nach Dokument-Nummern */}
-            <div className="relative">
+            <div className="relative w-32 md:w-auto">
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
               <input
                 type="text"
                 placeholder="Nr. (z.B. 0335)"
                 value={nummerSuche}
                 onChange={(e) => setNummerSuche(e.target.value)}
-                className="pl-10 pr-4 py-2 w-40 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
+                className="pl-10 pr-4 py-2 w-full md:w-40 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
               />
               {nummerSuche && (
                 <button
                   onClick={() => setNummerSuche('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -609,7 +609,7 @@ const ProjektVerwaltung = () => {
             </button>
 
             {/* Ansicht umschalten */}
-            <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden">
+            <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-x-auto max-w-full">
               <button
                 onClick={() => setViewMode('anfragen')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
@@ -750,7 +750,7 @@ const ProjektVerwaltung = () => {
 
       {/* Kanban Board */}
       {viewMode === 'kanban' && (
-        <div className={`grid gap-3 ${showVerlorenSpalte ? 'grid-cols-7' : 'grid-cols-6'}`}>
+        <div className={`grid gap-3 ${showVerlorenSpalte ? 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-7' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'}`}>
           {TABS.map((tab) => {
             const projekte = filterProjekte(getProjekte(tab.id));
             const count = getCount(tab.id);
@@ -945,7 +945,7 @@ const KanbanSpalte = ({
   return (
     <div
       className={`flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-lg dark:shadow-xl border-2 transition-all ${
-        collapsed ? 'min-h-[100px]' : 'min-h-[600px]'
+        collapsed ? 'min-h-[100px]' : 'min-h-[300px] xl:min-h-[600px]'
       } ${
         dragOverTab === tab.id
           ? 'border-purple-500 ring-4 ring-purple-200 dark:ring-purple-800/50'
@@ -1414,8 +1414,8 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
     <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl dark:shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-slate-700">
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Projekt bearbeiten</h2>
+        <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 p-4 sm:p-6 flex items-center justify-between">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-dark-text">Projekt bearbeiten</h2>
           <button
             onClick={onCancel}
             className="p-2 text-gray-400 dark:text-dark-textMuted hover:text-gray-600 dark:hover:text-dark-text hover:bg-gray-100 dark:hover:bg-dark-elevated rounded-lg transition-colors"
@@ -1425,7 +1425,7 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4">
           {/* Projektname */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
