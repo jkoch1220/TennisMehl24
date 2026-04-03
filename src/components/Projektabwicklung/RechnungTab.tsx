@@ -1915,46 +1915,51 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               {/* Dieselzuschlag hinzufügen - nur wenn keine TM-DZ Position vorhanden */}
               {!gespeichertesDokument && !rechnungsDaten.positionen.some(p => istDieselZuschlagPosition(p)) && (
                 <button
-                  onClick={() => {
-                    dieselZuschlagManuellEntfernt.current = false;
-                    hatGeaendert.current = true;
+                  onClick={async () => {
+                    // Kein Leistungsdatum → kann keinen Preis ermitteln
+                    if (!rechnungsDaten.leistungsdatum) {
+                      alert('Bitte zuerst ein Leistungsdatum eingeben, damit der Dieselpreis ermittelt werden kann.');
+                      return;
+                    }
 
-                    // Wenn automatischer Zuschlag berechnet wurde, diesen verwenden
+                    dieselZuschlagManuellEntfernt.current = false;
+
+                    // Wenn Zuschlag bereits berechnet → direkt einfügen
                     if (dieselZuschlagErgebnis && dieselZuschlagErgebnis.hatZuschlag && dieselZuschlagErgebnis.gesamtTonnen > 0) {
                       aktualisiereZuschlagPosition(dieselZuschlagErgebnis);
                       return;
                     }
 
-                    // Sonst: Manuell editierbare Diesel-Position direkt einfügen
-                    const dieselPosition: Position = {
-                      id: `pos-diesel-${Date.now()}`,
-                      artikelnummer: 'TM-DZ',
-                      bezeichnung: 'Dieselpreiszuschlag',
-                      beschreibung: 'Manuell hinzugefügt',
-                      menge: 1,
-                      einheit: 'psch',
-                      einzelpreis: 0,
-                      gesamtpreis: 0,
-                      istBedarfsposition: false,
-                      ohneMwSt: false,
-                    };
+                    // Dieselpreis frisch holen und berechnen
+                    try {
+                      setDieselPreisLaden(true);
+                      const preisErgebnis = await holeDieselPreisFuerDatum(rechnungsDaten.leistungsdatum, '97828');
+                      setDieselPreis(preisErgebnis.preis);
+                      setDieselPreisStatus(preisErgebnis.quelle === 'fallback' ? 'fallback' : 'geladen');
 
-                    setRechnungsDaten(prev => {
-                      // Vor TM-FP einfügen, sonst ans Ende
-                      const fpIndex = prev.positionen.findIndex(p => p.artikelnummer === 'TM-FP');
-                      const neuePositionen = [...prev.positionen];
-                      if (fpIndex !== -1) {
-                        neuePositionen.splice(fpIndex, 0, dieselPosition);
+                      const ergebnis = berechneGesamtZuschlag(
+                        rechnungsDaten.positionen,
+                        preisErgebnis.preis,
+                        rechnungsDaten.leistungsdatum
+                      );
+
+                      if (ergebnis.hatZuschlag && ergebnis.gesamtTonnen > 0) {
+                        aktualisiereZuschlagPosition(ergebnis);
                       } else {
-                        neuePositionen.push(dieselPosition);
+                        alert('Kein Dieselzuschlag fällig: Dieselpreis liegt unter dem Basispreis oder es sind keine zuschlagsfähigen Positionen (TM-ZM-02/03 in Tonnen) vorhanden.');
                       }
-                      return { ...prev, positionen: neuePositionen };
-                    });
+                    } catch (error) {
+                      console.error('Fehler beim Laden des Dieselpreises:', error);
+                      alert('Dieselpreis konnte nicht geladen werden.');
+                    } finally {
+                      setDieselPreisLaden(false);
+                    }
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={dieselPreisLaden}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   title="Dieselpreiszuschlag als Position hinzufügen"
                 >
-                  <Fuel className="h-4 w-4" />
+                  {dieselPreisLaden ? <Loader2 className="h-4 w-4 animate-spin" /> : <Fuel className="h-4 w-4" />}
                   Dieselzuschlag
                 </button>
               )}
@@ -2351,7 +2356,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             >
               <div className="space-y-4">
                 {rechnungsDaten.positionen.map((position, index) => {
-                  const istDieselPosition = istDieselZuschlagPosition(position) && position.id === 'diesel-zuschlag';
+                  const istDieselPosition = istDieselZuschlagPosition(position);
                   return (
                   <SortablePosition
                     key={position.id}
