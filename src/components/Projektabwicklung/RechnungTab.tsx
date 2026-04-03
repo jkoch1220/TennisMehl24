@@ -1917,27 +1917,39 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <button
                   onClick={() => {
                     dieselZuschlagManuellEntfernt.current = false;
-                    if (dieselZuschlagErgebnis && dieselZuschlagErgebnis.hatZuschlag) {
-                      // Berechneter Zuschlag vorhanden - direkt einfügen
+                    hatGeaendert.current = true;
+
+                    // Wenn automatischer Zuschlag berechnet wurde, diesen verwenden
+                    if (dieselZuschlagErgebnis && dieselZuschlagErgebnis.hatZuschlag && dieselZuschlagErgebnis.gesamtTonnen > 0) {
                       aktualisiereZuschlagPosition(dieselZuschlagErgebnis);
-                    } else if (dieselPreis && rechnungsDaten.leistungsdatum) {
-                      // Preis vorhanden aber kein Zuschlag berechnet - neu berechnen und einfügen
-                      const ergebnis = berechneGesamtZuschlag(
-                        rechnungsDaten.positionen,
-                        dieselPreis,
-                        rechnungsDaten.leistungsdatum
-                      );
-                      if (ergebnis.hatZuschlag) {
-                        aktualisiereZuschlagPosition(ergebnis);
-                      }
-                    } else if (!rechnungsDaten.leistungsdatum) {
-                      // Kein Leistungsdatum - Hinweis
-                      alert('Bitte zuerst ein Leistungsdatum eingeben, damit der Dieselpreis ermittelt werden kann.');
-                    } else {
-                      // Kein Dieselpreis verfügbar - manuell eingeben
-                      setDieselPreisEingabe('');
-                      setDieselPreisEditieren(true);
+                      return;
                     }
+
+                    // Sonst: Manuell editierbare Diesel-Position direkt einfügen
+                    const dieselPosition: Position = {
+                      id: `pos-diesel-${Date.now()}`,
+                      artikelnummer: 'TM-DZ',
+                      bezeichnung: 'Dieselpreiszuschlag',
+                      beschreibung: 'Manuell hinzugefügt',
+                      menge: 1,
+                      einheit: 'psch',
+                      einzelpreis: 0,
+                      gesamtpreis: 0,
+                      istBedarfsposition: false,
+                      ohneMwSt: false,
+                    };
+
+                    setRechnungsDaten(prev => {
+                      // Vor TM-FP einfügen, sonst ans Ende
+                      const fpIndex = prev.positionen.findIndex(p => p.artikelnummer === 'TM-FP');
+                      const neuePositionen = [...prev.positionen];
+                      if (fpIndex !== -1) {
+                        neuePositionen.splice(fpIndex, 0, dieselPosition);
+                      } else {
+                        neuePositionen.push(dieselPosition);
+                      }
+                      return { ...prev, positionen: neuePositionen };
+                    });
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   title="Dieselpreiszuschlag als Position hinzufügen"
@@ -2339,7 +2351,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             >
               <div className="space-y-4">
                 {rechnungsDaten.positionen.map((position, index) => {
-                  const istDieselPosition = istDieselZuschlagPosition(position);
+                  const istDieselPosition = istDieselZuschlagPosition(position) && position.id === 'diesel-zuschlag';
                   return (
                   <SortablePosition
                     key={position.id}
