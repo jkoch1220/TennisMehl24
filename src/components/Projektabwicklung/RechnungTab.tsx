@@ -1912,6 +1912,40 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <Plus className="h-4 w-4" />
                 Leere Position
               </button>
+              {/* Dieselzuschlag hinzufügen - nur wenn keine TM-DZ Position vorhanden */}
+              {!gespeichertesDokument && !rechnungsDaten.positionen.some(p => istDieselZuschlagPosition(p)) && (
+                <button
+                  onClick={() => {
+                    dieselZuschlagManuellEntfernt.current = false;
+                    if (dieselZuschlagErgebnis && dieselZuschlagErgebnis.hatZuschlag) {
+                      // Berechneter Zuschlag vorhanden - direkt einfügen
+                      aktualisiereZuschlagPosition(dieselZuschlagErgebnis);
+                    } else if (dieselPreis && rechnungsDaten.leistungsdatum) {
+                      // Preis vorhanden aber kein Zuschlag berechnet - neu berechnen und einfügen
+                      const ergebnis = berechneGesamtZuschlag(
+                        rechnungsDaten.positionen,
+                        dieselPreis,
+                        rechnungsDaten.leistungsdatum
+                      );
+                      if (ergebnis.hatZuschlag) {
+                        aktualisiereZuschlagPosition(ergebnis);
+                      }
+                    } else if (!rechnungsDaten.leistungsdatum) {
+                      // Kein Leistungsdatum - Hinweis
+                      alert('Bitte zuerst ein Leistungsdatum eingeben, damit der Dieselpreis ermittelt werden kann.');
+                    } else {
+                      // Kein Dieselpreis verfügbar - manuell eingeben
+                      setDieselPreisEingabe('');
+                      setDieselPreisEditieren(true);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  title="Dieselpreiszuschlag als Position hinzufügen"
+                >
+                  <Fuel className="h-4 w-4" />
+                  Dieselzuschlag
+                </button>
+              )}
             </div>
           </div>
 
