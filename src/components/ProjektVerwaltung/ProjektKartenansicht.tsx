@@ -44,7 +44,7 @@ import { geocodeCache, createAdresseKey } from '../../utils/geocodeCache';
 
 // Konstanten
 const WERK_POSITION = { lat: 49.85, lng: 9.60 }; // Marktheidenfeld
-const MAP_STYLE = { width: '100%', height: '100%', minHeight: '600px' };
+const MAP_STYLE = { width: '100%', height: '100%', minHeight: 'min(600px, calc(100vh - 200px))' };
 
 // Offset für mehrere Marker am gleichen PLZ-Standort
 const PLZ_OFFSET_RADIUS = 0.003; // ~300m Radius für Cluster

@@ -926,7 +926,7 @@ const AnfrageBearbeitungDialog = ({
 
       {/* Dialog */}
       <div
-        className={`relative w-full h-[95vh] max-w-[98vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+        className={`relative w-full h-[95dvh] sm:h-[95vh] max-w-[98vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
           isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
         }`}
       >
@@ -938,7 +938,7 @@ const AnfrageBearbeitungDialog = ({
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white truncate max-w-[40vw]">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-white truncate max-w-[60vw] sm:max-w-[40vw]">
                   {editedData?.kundenname || 'Anfrage bearbeiten'}
                 </h2>
                 <p className="text-purple-200 text-sm flex items-center gap-2">
@@ -1114,9 +1114,9 @@ const AnfrageBearbeitungDialog = ({
 
           {/* Tab: Bearbeitung */}
           {activeTab === 'bearbeitung' && editedData && (
-            <div className="h-full flex flex-col lg:flex-row">
+            <div className="h-full flex flex-col md:flex-row">
               {/* Linke Seite: Formular */}
-              <div className="flex-1 lg:w-2/3 overflow-y-auto p-4 sm:p-6 space-y-6">
+              <div className="flex-1 md:w-2/3 overflow-y-auto p-4 sm:p-6 space-y-6">
                 {/* Gefundene existierende Kunden - Automatische Erkennung */}
                 {gefundeneKunden.length > 0 && !selectedKundeId && (
                   <div className="bg-blue-50 dark:bg-blue-950/30 rounded-2xl p-4 border-2 border-blue-300 dark:border-blue-700">
@@ -1874,7 +1874,7 @@ const AnfrageBearbeitungDialog = ({
               </div>
 
               {/* Rechte Seite: Original E-Mail */}
-              <div className="lg:w-1/3 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 overflow-y-auto">
+              <div className="md:w-1/3 border-t md:border-t-0 md:border-l border-gray-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 overflow-y-auto">
                 <div className="p-4 sm:p-6">
                   <h3 className="font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4 sticky top-0 bg-slate-50 dark:bg-slate-800/30 pb-2 z-10">
                     <Inbox className="w-5 h-5 text-gray-600" />

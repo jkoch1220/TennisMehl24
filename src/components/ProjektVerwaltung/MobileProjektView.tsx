@@ -327,7 +327,7 @@ const MobileProjektView = ({
             {suche && (
               <button
                 onClick={() => setSuche('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 bg-gray-300 dark:bg-slate-600 rounded-full active:scale-90"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-gray-300 dark:bg-slate-600 rounded-full active:scale-90"
               >
                 <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
               </button>

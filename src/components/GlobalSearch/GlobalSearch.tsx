@@ -110,7 +110,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
       />
 
       {/* Modal */}
-      <div className="fixed left-1/2 top-[15%] -translate-x-1/2 w-full max-w-[640px] bg-white dark:bg-[#2d2d2f] rounded-2xl shadow-2xl z-50 overflow-hidden border border-gray-200/50 dark:border-white/10 mx-4">
+      <div className="fixed left-1/2 top-[5%] sm:top-[15%] -translate-x-1/2 w-[calc(100%-2rem)] max-w-[640px] bg-white dark:bg-[#2d2d2f] rounded-2xl shadow-2xl z-50 overflow-hidden border border-gray-200/50 dark:border-white/10">
         {/* Search Input */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-200/80 dark:border-white/10">
           <Search className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
@@ -133,7 +133,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -146,7 +146,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
         {/* Results */}
         <div
           ref={resultsRef}
-          className="max-h-[400px] overflow-y-auto overscroll-contain"
+          className="max-h-[50vh] sm:max-h-[400px] overflow-y-auto overscroll-contain"
         >
           {/* Ergebnisse nach Kategorie */}
           {CATEGORY_ORDER.map((category) => {
@@ -175,7 +175,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
                       data-search-item
                       onClick={() => handleSelect(result)}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      className={`w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 text-left transition-colors ${
                         isSelected
                           ? 'bg-blue-50 dark:bg-blue-900/30'
                           : 'hover:bg-gray-50 dark:hover:bg-white/5'
@@ -258,7 +258,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
                 <button
                   key={q}
                   onClick={() => loadHistoryQuery(q)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                 >
                   <Clock className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                   <span className="text-gray-700 dark:text-gray-300">{q}</span>
@@ -279,7 +279,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
 
         {/* Footer */}
         <div className="px-4 py-2.5 border-t border-gray-200/80 dark:border-white/10 flex items-center justify-between text-[11px] text-gray-400 dark:text-gray-500">
-          <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3">
             <span className="flex items-center gap-1">
               <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">↑</kbd>
               <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">↓</kbd>
@@ -290,7 +290,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
               öffnen
             </span>
           </div>
-          <span>
+          <span className="sm:ml-0 ml-auto">
             {allResults.length} Ergebnis{allResults.length !== 1 ? 'se' : ''}
           </span>
         </div>
