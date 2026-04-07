@@ -53,6 +53,34 @@ const MAP_STYLE = { width: '100%', height: '100%', minHeight: '500px' };
 // Geocoding Cache (localStorage)
 const GEOCODE_CACHE_KEY = 'dispo_geocode_cache_v2';
 
+// Vereine-Auswahl Cache (localStorage) - damit die Auswahl nach Reload erhalten bleibt
+const VEREINE_FILTER_KEY = 'dispo_vereine_filter_v1';
+
+// Helper: Lade gespeicherte Vereine-Auswahl
+const loadVereineFilter = (): Set<string> => {
+  try {
+    const stored = localStorage.getItem(VEREINE_FILTER_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return new Set(parsed);
+      }
+    }
+  } catch (e) {
+    console.warn('[DispoKarte] Fehler beim Laden der Vereine-Auswahl:', e);
+  }
+  return new Set();
+};
+
+// Helper: Speichere Vereine-Auswahl
+const saveVereineFilter = (vereine: Set<string>): void => {
+  try {
+    localStorage.setItem(VEREINE_FILTER_KEY, JSON.stringify([...vereine]));
+  } catch (e) {
+    console.warn('[DispoKarte] Fehler beim Speichern der Vereine-Auswahl:', e);
+  }
+};
+
 // Map Options als Konstante außerhalb der Komponente, um Rerenders zu vermeiden
 const MAP_OPTIONS: google.maps.MapOptions = {
   disableDefaultUI: true,
@@ -391,9 +419,19 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   // Filter
   const [filterKW, setFilterKW] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<DispoStatus | null>(null);
-  const [filterVereine, setFilterVereine] = useState<Set<string>>(new Set());
+  // Vereine-Filter: Aus localStorage laden für Persistenz nach Reload
+  const [filterVereine, setFilterVereineState] = useState<Set<string>>(() => loadVereineFilter());
   const [showVereineFilter, setShowVereineFilter] = useState(false);
   const [vereineFilterSearch, setVereineFilterSearch] = useState('');
+
+  // Wrapper für setFilterVereine der auch in localStorage speichert
+  const setFilterVereine = useCallback((newValue: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+    setFilterVereineState(prev => {
+      const next = typeof newValue === 'function' ? newValue(prev) : newValue;
+      saveVereineFilter(next);
+      return next;
+    });
+  }, []);
 
   // Tour State
   const [touren, setTouren] = useState<Tour[]>([]);
@@ -665,13 +703,36 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // Alle Vereine für Multi-Select Filter (sortiert nach Name, mit Suche)
   const alleVereineFuerFilter = useMemo(() => {
-    const vereine = projekteMitKoordinaten.map(p => ({
-      id: (p.projekt as any).$id || p.projekt.id,
-      name: p.projekt.kundenname,
-      ort: p.kunde?.lieferadresse?.ort || p.projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-      tonnen: p.tonnen,
-      kw: p.kw,
-    }));
+    const vereine = projekteMitKoordinaten.map(p => {
+      // Bei Platzbauer-Projekten: Vereinsname aus projektName extrahieren
+      // projektName ist z.B. "DJK Steinheim e.V. 2026" - wir entfernen das Jahr am Ende
+      const istPlatzbauer = p.projekt.istPlatzbauerprojekt || p.projekt.bezugsweg === 'ueber_platzbauer';
+      let anzeigeName = p.projekt.kundenname;
+
+      if (istPlatzbauer && p.projekt.projektName) {
+        // Entferne Jahr am Ende (z.B. " 2026" oder " 2025")
+        anzeigeName = p.projekt.projektName.replace(/\s+\d{4}$/, '');
+      }
+
+      // Ort: Bei Platzbauer-Projekten aus Lieferadresse holen
+      let ort = '';
+      if (p.projekt.lieferadresse?.ort) {
+        ort = p.projekt.lieferadresse.ort;
+      } else if (p.kunde?.lieferadresse?.ort) {
+        ort = p.kunde.lieferadresse.ort;
+      } else if (p.projekt.kundenPlzOrt) {
+        ort = p.projekt.kundenPlzOrt.split(' ').slice(1).join(' ');
+      }
+
+      return {
+        id: (p.projekt as any).$id || p.projekt.id,
+        name: anzeigeName,
+        ort,
+        tonnen: p.tonnen,
+        kw: p.kw,
+        istPlatzbauer,
+      };
+    });
 
     // Nach Name sortieren
     vereine.sort((a, b) => a.name.localeCompare(b.name, 'de'));
@@ -1581,8 +1642,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
                           className="w-3.5 h-3.5 text-red-600 border-gray-300 rounded focus:ring-red-500"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
+                          <div className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate flex items-center gap-1">
                             {v.name}
+                            {v.istPlatzbauer && (
+                              <span className="px-1 py-0.5 text-[8px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded">
+                                PB
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
                             {v.ort} · {v.tonnen.toFixed(0)}t {v.kw ? `· KW${v.kw}` : ''}
