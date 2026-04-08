@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar, Smartphone } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Projektabwicklung/ArtikelVerwaltungTab';
 import UniversalArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 import SaisonEinstellungenTab from './SaisonEinstellungenTab';
+import KontaktSyncTab from './KontaktSyncTab';
 
-type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison';
+type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison' | 'kontaktSync';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -54,6 +55,13 @@ const Stammdaten = () => {
       icon: Calendar,
       color: 'from-orange-600 to-amber-600',
       description: 'Saison-Einstellungen'
+    },
+    {
+      id: 'kontaktSync' as TabId,
+      label: 'Kontakt-Sync',
+      icon: Smartphone,
+      color: 'from-teal-500 to-cyan-600',
+      description: 'Kontakte aufs Handy sync'
     },
   ];
 
@@ -109,6 +117,7 @@ const Stammdaten = () => {
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
         {activeTab === 'saison' && <SaisonEinstellungenTab />}
+        {activeTab === 'kontaktSync' && <KontaktSyncTab />}
       </div>
 
       {/* Info-Box über Stammdaten */}
