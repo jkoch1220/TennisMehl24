@@ -65,22 +65,29 @@ const Projektabwicklung = () => {
         const loadedProjekt = await projektService.getProjekt(projektId);
         setProjekt(loadedProjekt);
 
-        // Kundendaten vollständig laden, falls kundeId vorhanden
+        // Kundendaten und Platzbauer PARALLEL laden (Performance-Optimierung)
+        const parallelLoads: Promise<void>[] = [];
+
         if (loadedProjekt.kundeId) {
-          await loadKunde(loadedProjekt.kundeId);
+          parallelLoads.push(
+            loadKunde(loadedProjekt.kundeId).catch(err =>
+              console.warn('Konnte Kundendaten nicht laden:', err)
+            )
+          );
         }
 
-        // Platzbauer laden, falls Projekt einem Platzbauer zugeordnet ist
         if (loadedProjekt.platzbauerId) {
-          try {
-            const loadedPlatzbauer = await saisonplanungService.loadKunde(loadedProjekt.platzbauerId);
-            if (loadedPlatzbauer) {
-              setPlatzbauer(loadedPlatzbauer);
-            }
-          } catch (error) {
-            console.warn('Konnte Platzbauer nicht laden:', error);
-          }
+          parallelLoads.push(
+            saisonplanungService.loadKunde(loadedProjekt.platzbauerId)
+              .then(loadedPlatzbauer => {
+                if (loadedPlatzbauer) setPlatzbauer(loadedPlatzbauer);
+              })
+              .catch(err => console.warn('Konnte Platzbauer nicht laden:', err))
+          );
         }
+
+        // Warte auf alle parallelen Loads
+        await Promise.all(parallelLoads);
 
         // Tab basierend auf Projekt-Status setzen
         if (loadedProjekt.status === 'angebot' || loadedProjekt.status === 'angebot_versendet') {

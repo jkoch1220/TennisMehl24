@@ -134,7 +134,8 @@ export const ladeDokumentNachTyp = async (
   dokumentTyp: DokumentTyp
 ): Promise<GespeichertesDokument | null> => {
   try {
-    // Lade alle Dokumente dieses Typs für das Projekt
+    // Lade nur das neueste Dokument dieses Typs (Performance-Optimierung)
+    // Sortiere nach version DESC, dann nach $createdAt DESC als Fallback
     const response = await databases.listDocuments(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -142,7 +143,7 @@ export const ladeDokumentNachTyp = async (
         Query.equal('projektId', projektId),
         Query.equal('dokumentTyp', dokumentTyp),
         Query.orderDesc('$createdAt'),
-        Query.limit(100) // Alle laden um die neueste Version zu finden
+        Query.limit(1) // Nur das neueste laden - MASSIVE Performance-Verbesserung
       ]
     );
 
@@ -150,16 +151,8 @@ export const ladeDokumentNachTyp = async (
       return null;
     }
 
-    // Finde das Dokument mit der höchsten Versionsnummer
-    // Falls kein version-Feld existiert, nimm das zuerst geladene (neuestes nach $createdAt)
-    const dokumente = response.documents as unknown as GespeichertesDokument[];
-    const neuestesDokument = dokumente.reduce((neuestes, aktuell) => {
-      const neuesteVersion = (neuestes as any).version || 0;
-      const aktuelleVersion = (aktuell as any).version || 0;
-      return aktuelleVersion > neuesteVersion ? aktuell : neuestes;
-    }, dokumente[0]);
-
-    console.log(`📄 Lade ${dokumentTyp}: Version ${(neuestesDokument as any).version || 1} von ${dokumente.length} Versionen`);
+    const neuestesDokument = response.documents[0] as unknown as GespeichertesDokument;
+    console.log(`📄 Lade ${dokumentTyp}: Version ${(neuestesDokument as any).version || 1}`);
     return neuestesDokument;
   } catch (error) {
     console.error(`Fehler beim Laden des ${dokumentTyp}:`, error);

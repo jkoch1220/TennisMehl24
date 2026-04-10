@@ -20,18 +20,23 @@ const ProjektChat = ({ projektId, projektName }: ProjektChatProps) => {
   const [mentionFilter, setMentionFilter] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const [users, setUsers] = useState<CachedUser[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true); // Startet minimiert für bessere Performance
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Nachrichten laden
+  // Nachrichten laden - NUR wenn Chat geöffnet wird (Lazy Loading)
   useEffect(() => {
+    // Nur laden wenn Chat offen ist und noch nicht geladen wurde
+    if (isCollapsed || hasLoadedOnce) return;
+
     const loadNachrichten = async () => {
       try {
         setLoading(true);
         const loaded = await chatNachrichtenService.list(projektId);
         setNachrichten(loaded);
+        setHasLoadedOnce(true);
       } catch (error) {
         console.error('Fehler beim Laden der Chat-Nachrichten:', error);
       } finally {
@@ -40,7 +45,7 @@ const ProjektChat = ({ projektId, projektName }: ProjektChatProps) => {
     };
 
     loadNachrichten();
-  }, [projektId]);
+  }, [projektId, isCollapsed, hasLoadedOnce]);
 
   // Users für Mentions laden
   useEffect(() => {
