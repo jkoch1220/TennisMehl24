@@ -1536,6 +1536,20 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                     </p>
                   )}
                 </div>
+
+                {/* Checkbox: Auf Angebot-PDF drucken */}
+                <label className="mt-3 flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={angebotsDaten.rabattstaffelungAnzeigen || false}
+                    onChange={(e) => handleInputChange('rabattstaffelungAnzeigen', e.target.checked)}
+                    disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                    className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500 disabled:opacity-50"
+                  />
+                  <span className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                    Rabattstaffelung auf Angebot-PDF drucken
+                  </span>
+                </label>
               </div>
             </div>
           </div>

@@ -96,6 +96,9 @@ export interface AngebotsDaten extends BaseDokument {
   // Liefersaison
   liefersaisonAnzeigen?: boolean;
 
+  // Universal-Artikel Rabattstaffelung auf PDF drucken
+  rabattstaffelungAnzeigen?: boolean;
+
   // Endpreis ausblenden (für Angebote mit variablen Mengen)
   endpreisAusblenden?: boolean;
   endpreisAlternativText?: string; // z.B. "gemäß Menge" oder leer lassen

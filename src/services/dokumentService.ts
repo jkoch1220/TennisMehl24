@@ -564,7 +564,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   const universalPositionen = regulaerePositionen.filter(
     pos => pos.istUniversalArtikel === true || pos.beschreibung?.startsWith('Universal:')
   );
-  if (universalPositionen.length > 0) {
+  if (daten.rabattstaffelungAnzeigen && universalPositionen.length > 0) {
     const universalNetto = universalPositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
 
     let rabattProzent = 0;
