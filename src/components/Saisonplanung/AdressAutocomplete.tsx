@@ -78,9 +78,8 @@ const AdressAutocomplete = ({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const suggestionsRef = useRef<any[]>([]);
   const debounceRef = useRef<number | undefined>(undefined);
 
   // Google Maps laden
@@ -93,10 +92,6 @@ const AdressAutocomplete = ({
     loadGoogleMapsScript()
       .then(() => {
         setGoogleLoaded(true);
-        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-        // PlacesService braucht ein DOM-Element
-        const dummyDiv = document.createElement('div');
-        placesServiceRef.current = new google.maps.places.PlacesService(dummyDiv);
         // Session Token für Billing-Optimierung
         sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
       })
@@ -148,51 +143,60 @@ const AdressAutocomplete = ({
     searchInputRef.current?.focus();
   };
 
-  // Google Places Autocomplete Suche
-  const searchPlaces = useCallback((input: string) => {
-    if (!autocompleteServiceRef.current || !input || input.length < 2) {
+  // Google Places Autocomplete Suche (neue API: AutocompleteSuggestion)
+  const searchPlaces = useCallback(async (input: string) => {
+    if (!input || input.length < 2) {
       setVorschlaege([]);
       setShowDropdown(false);
+      return;
+    }
+
+    const AutocompleteSuggestion: any = (google.maps.places as any).AutocompleteSuggestion;
+    if (!AutocompleteSuggestion?.fetchAutocompleteSuggestions) {
+      setError('Places API (neu) nicht verfügbar. API-Key-Berechtigung prüfen.');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const request: google.maps.places.AutocompletionRequest = {
-      input,
-      componentRestrictions: { country: getGoogleCountryCode(werte.land) },
-      types: ['address'],
-      sessionToken: sessionTokenRef.current!,
-    };
+    try {
+      const countryCode = getGoogleCountryCode(werte.land);
+      const request: any = {
+        input,
+        includedRegionCodes: countryCode ? [countryCode.toLowerCase()] : undefined,
+        includedPrimaryTypes: ['street_address', 'route', 'premise', 'subpremise'],
+        language: 'de',
+        sessionToken: sessionTokenRef.current!,
+      };
 
-    autocompleteServiceRef.current.getPlacePredictions(request, (predictions, status) => {
-      setLoading(false);
+      const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
 
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
-        if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-          setVorschlaege([]);
-          setShowDropdown(false);
-        } else {
-          console.warn('Places API Fehler:', status);
-        }
-        return;
-      }
+      suggestionsRef.current = suggestions || [];
 
-      const mapped: Vorschlag[] = predictions.map((prediction) => ({
-        label: prediction.description,
-        placeId: prediction.place_id,
-        strasse: '',
-        plz: '',
-        ort: '',
-        bundesland: '',
-      }));
+      const mapped: Vorschlag[] = (suggestions || [])
+        .filter((s: any) => s.placePrediction)
+        .map((s: any, idx: number) => ({
+          label: s.placePrediction.text?.toString() || '',
+          placeId: s.placePrediction.placeId || String(idx),
+          strasse: '',
+          plz: '',
+          ort: '',
+          bundesland: '',
+        }));
 
       setVorschlaege(mapped);
       setShowDropdown(mapped.length > 0);
       setHighlight(mapped.length > 0 ? 0 : null);
-    });
-  }, []);
+    } catch (err) {
+      console.warn('Places API Fehler:', err);
+      setError('Adresssuche derzeit nicht verfügbar.');
+      setVorschlaege([]);
+      setShowDropdown(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [werte.land]);
 
   // Debounced Suche
   useEffect(() => {
@@ -219,69 +223,58 @@ const AdressAutocomplete = ({
     };
   }, [query, googleLoaded, searchPlaces]);
 
-  // Place Details abrufen und Adresse extrahieren
-  const getPlaceDetails = (placeId: string): Promise<Adresse> => {
-    return new Promise((resolve, reject) => {
-      if (!placesServiceRef.current) {
-        reject(new Error('PlacesService nicht verfügbar'));
-        return;
+  // Place Details abrufen und Adresse extrahieren (neue API: Place)
+  const getPlaceDetails = async (placeId: string): Promise<Adresse> => {
+    const suggestion = suggestionsRef.current.find(
+      (s: any) => s.placePrediction?.placeId === placeId
+    );
+
+    let place: any;
+    if (suggestion?.placePrediction?.toPlace) {
+      place = suggestion.placePrediction.toPlace();
+    } else {
+      const PlaceCtor: any = (google.maps.places as any).Place;
+      if (!PlaceCtor) {
+        throw new Error('Places API (neu) nicht verfügbar');
       }
+      place = new PlaceCtor({ id: placeId, requestedLanguage: 'de' });
+    }
 
-      const request: google.maps.places.PlaceDetailsRequest = {
-        placeId,
-        fields: ['address_components', 'formatted_address'],
-        sessionToken: sessionTokenRef.current!,
-      };
+    await place.fetchFields({ fields: ['addressComponents', 'formattedAddress'] });
 
-      placesServiceRef.current.getDetails(request, (place, status) => {
-        // Neues Session Token nach getDetails (für Billing-Optimierung)
-        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    // Neues Session Token nach Details-Abruf (für Billing-Optimierung)
+    sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
 
-        if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
-          reject(new Error(`Place Details Fehler: ${status}`));
-          return;
-        }
+    const components: any[] = place.addressComponents || [];
+    let streetNumber = '';
+    let route = '';
+    let postalCode = '';
+    let locality = '';
+    let adminArea1 = '';
+    let country = '';
 
-        const components = place.address_components || [];
-        let streetNumber = '';
-        let route = '';
-        let postalCode = '';
-        let locality = '';
-        let adminArea1 = ''; // Bundesland
-        let country = ''; // Land (ISO-Code)
+    for (const component of components) {
+      const types: string[] = component.types || [];
+      const longText: string = component.longText ?? component.long_name ?? '';
+      const shortText: string = component.shortText ?? component.short_name ?? '';
+      if (types.includes('street_number')) streetNumber = longText;
+      else if (types.includes('route')) route = longText;
+      else if (types.includes('postal_code')) postalCode = longText;
+      else if (types.includes('locality')) locality = longText;
+      else if (types.includes('sublocality_level_1') && !locality) locality = longText;
+      else if (types.includes('administrative_area_level_1')) adminArea1 = longText;
+      else if (types.includes('country')) country = shortText;
+    }
 
-        for (const component of components) {
-          const types = component.types;
-          if (types.includes('street_number')) {
-            streetNumber = component.long_name;
-          } else if (types.includes('route')) {
-            route = component.long_name;
-          } else if (types.includes('postal_code')) {
-            postalCode = component.long_name;
-          } else if (types.includes('locality')) {
-            locality = component.long_name;
-          } else if (types.includes('sublocality_level_1') && !locality) {
-            // Fallback für Ortsteile
-            locality = component.long_name;
-          } else if (types.includes('administrative_area_level_1')) {
-            adminArea1 = component.long_name;
-          } else if (types.includes('country')) {
-            country = component.short_name; // 'DE', 'AT', 'CH', etc.
-          }
-        }
+    const strasse = route ? (streetNumber ? `${route} ${streetNumber}` : route) : '';
 
-        // Straße zusammensetzen (deutsche Schreibweise: Straße Hausnummer)
-        const strasse = route ? (streetNumber ? `${route} ${streetNumber}` : route) : '';
-
-        resolve({
-          strasse,
-          plz: postalCode,
-          ort: locality,
-          bundesland: adminArea1,
-          land: country || werte.land, // Fallback auf ausgewähltes Land
-        });
-      });
-    });
+    return {
+      strasse,
+      plz: postalCode,
+      ort: locality,
+      bundesland: adminArea1,
+      land: country || werte.land,
+    };
   };
 
   const applyVorschlag = async (v: Vorschlag) => {

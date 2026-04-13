@@ -560,6 +560,112 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.setFont('helvetica', 'normal');
   }
 
+  // === Universal-Artikel Rabattstaffelung ===
+  const universalPositionen = regulaerePositionen.filter(
+    pos => pos.istUniversalArtikel === true || pos.beschreibung?.startsWith('Universal:')
+  );
+  if (universalPositionen.length > 0) {
+    const universalNetto = universalPositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+
+    let rabattProzent = 0;
+    let rabattStufeIdx = -1;
+    if (universalNetto >= 3000) { rabattProzent = 16; rabattStufeIdx = 3; }
+    else if (universalNetto >= 2700) { rabattProzent = 14; rabattStufeIdx = 2; }
+    else if (universalNetto >= 2300) { rabattProzent = 12; rabattStufeIdx = 1; }
+    else if (universalNetto >= 1900) { rabattProzent = 10; rabattStufeIdx = 0; }
+
+    let naechsteStufe: { schwelle: number; prozent: number; fehlend: number } | null = null;
+    if (universalNetto < 1900) naechsteStufe = { schwelle: 1900, prozent: 10, fehlend: 1900 - universalNetto };
+    else if (universalNetto < 2300) naechsteStufe = { schwelle: 2300, prozent: 12, fehlend: 2300 - universalNetto };
+    else if (universalNetto < 2700) naechsteStufe = { schwelle: 2700, prozent: 14, fehlend: 2700 - universalNetto };
+    else if (universalNetto < 3000) naechsteStufe = { schwelle: 3000, prozent: 16, fehlend: 3000 - universalNetto };
+
+    summenY += 8;
+    const blockHoehe = 42 + (naechsteStufe ? 5 : 0) + (rabattProzent > 0 ? 5 : 0);
+    summenY = await ensureSpace(doc, summenY, blockHoehe, stammdaten);
+
+    const boxX = 25;
+    const boxBreite = 160;
+    const boxStartY = summenY;
+
+    // Box-Hintergrund (amber/orange-50)
+    doc.setFillColor(255, 251, 235);
+    doc.setDrawColor(252, 211, 77);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(boxX, boxStartY, boxBreite, blockHoehe, 2, 2, 'FD');
+
+    let contentY = boxStartY + 6;
+
+    // Überschrift
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(146, 64, 14); // amber-800
+    doc.text('Rabattstaffelung bei Auftragserteilung', boxX + 4, contentY);
+
+    // Aktueller Nettowert rechts
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Universal-Artikel netto: ${formatWaehrung(universalNetto)}`, boxX + boxBreite - 4, contentY, { align: 'right' });
+    contentY += 6;
+
+    // Staffeltabelle (4 Spalten)
+    const stufen = [
+      { prozent: '10%', bereich: '1.900 - 2.299 €' },
+      { prozent: '12%', bereich: '2.300 - 2.699 €' },
+      { prozent: '14%', bereich: '2.700 - 2.999 €' },
+      { prozent: '16%', bereich: 'ab 3.000 €' },
+    ];
+    const spaltenBreite = (boxBreite - 8) / 4;
+    doc.setFontSize(8);
+    stufen.forEach((stufe, idx) => {
+      const x = boxX + 4 + idx * spaltenBreite;
+      const ist_aktiv = idx === rabattStufeIdx;
+      if (ist_aktiv) {
+        doc.setFillColor(187, 247, 208); // green-200
+        doc.setDrawColor(34, 197, 94); // green-500
+      } else {
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(229, 231, 235);
+      }
+      doc.setLineWidth(ist_aktiv ? 0.5 : 0.2);
+      doc.roundedRect(x, contentY, spaltenBreite - 2, 12, 1, 1, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(ist_aktiv ? 21 : 17, ist_aktiv ? 128 : 24, ist_aktiv ? 61 : 39);
+      doc.text(stufe.prozent, x + (spaltenBreite - 2) / 2, contentY + 5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(75, 85, 99);
+      doc.text(stufe.bereich, x + (spaltenBreite - 2) / 2, contentY + 9.5, { align: 'center' });
+    });
+    contentY += 15;
+
+    // Status-Zeile
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    if (rabattProzent > 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(21, 128, 61); // green-700
+      doc.text(
+        `Ihr Rabatt: ${rabattProzent}% – Ersparnis ${formatWaehrung(universalNetto * rabattProzent / 100)}`,
+        boxX + 4,
+        contentY
+      );
+      doc.setFont('helvetica', 'normal');
+      contentY += 5;
+    }
+    if (naechsteStufe) {
+      doc.setTextColor(180, 83, 9); // amber-700
+      doc.text(
+        `Noch ${formatWaehrung(naechsteStufe.fehlend)} bis zur nächsten Stufe (${naechsteStufe.prozent}% ab ${naechsteStufe.schwelle.toLocaleString('de-DE')} €)`,
+        boxX + 4,
+        contentY
+      );
+      contentY += 5;
+    }
+    doc.setTextColor(0, 0, 0);
+
+    summenY = boxStartY + blockHoehe;
+  }
+
   // === Liefersaison-Hinweis (nur wenn aktiviert) ===
   if (daten.liefersaisonAnzeigen) {
     summenY += 8;
