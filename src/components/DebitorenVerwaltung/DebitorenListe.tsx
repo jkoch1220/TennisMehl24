@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG } from '../../types/debitor';
 
 interface DebitorenListeProps {
   debitoren: DebitorView[];
   onOpenDetail: (debitor: DebitorView) => void;
+  onMarkPaid?: (debitor: DebitorView) => void;
 }
 
 type SortField = 'kundenname' | 'rechnungsbetrag' | 'offenerBetrag' | 'tageUeberfaellig' | 'faelligkeitsdatum' | 'mahnstufe';
 type SortDirection = 'asc' | 'desc';
 
-const DebitorenListe = ({ debitoren, onOpenDetail }: DebitorenListeProps) => {
+const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid }: DebitorenListeProps) => {
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('tageUeberfaellig');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -165,16 +166,33 @@ const DebitorenListe = ({ debitoren, onOpenDetail }: DebitorenListeProps) => {
                   <StatusBadge status={debitor.status} />
                 </td>
                 <td className="px-4 py-4">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/projektabwicklung/${debitor.projektId}`);
-                    }}
-                    className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                    title="Zum Projekt"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {onMarkPaid && debitor.status !== 'bezahlt' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Möchten Sie diese Rechnung als vollständig bezahlt markieren?')) {
+                            onMarkPaid(debitor);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 transition-colors"
+                        title="Als bezahlt markieren"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Bezahlt
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/projektabwicklung/${debitor.projektId}`);
+                      }}
+                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      title="Zum Projekt"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -224,6 +242,24 @@ const DebitorenListe = ({ debitoren, onOpenDetail }: DebitorenListeProps) => {
                   className="bg-green-500 h-2 rounded-full"
                   style={{ width: `${debitor.prozentBezahlt}%` }}
                 />
+              </div>
+            )}
+
+            {onMarkPaid && debitor.status !== 'bezahlt' && (
+              <div className="mt-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('Möchten Sie diese Rechnung als vollständig bezahlt markieren?')) {
+                      onMarkPaid(debitor);
+                    }
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 rounded-md text-sm font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 transition-colors"
+                  title="Als bezahlt markieren"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Als bezahlt markieren
+                </button>
               </div>
             )}
           </div>

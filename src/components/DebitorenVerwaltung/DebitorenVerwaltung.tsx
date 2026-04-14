@@ -113,6 +113,40 @@ const DebitorenVerwaltung = () => {
     });
   };
 
+  // Schnelles "Als bezahlt markieren" direkt aus der Liste
+  const handleMarkPaidInList = async (debitor: DebitorView) => {
+    const heute = new Date().toISOString();
+    const optimistisch: DebitorView = {
+      ...debitor,
+      status: 'bezahlt',
+      offenerBetrag: 0,
+      bezahlterBetrag: debitor.rechnungsbetrag,
+      prozentBezahlt: 100,
+      tageUeberfaellig: 0,
+      zahlungen: [
+        ...debitor.zahlungen,
+        {
+          id: `temp-${Date.now()}`,
+          betrag: debitor.offenerBetrag,
+          datum: heute,
+          zahlungsart: 'ueberweisung',
+          notiz: 'Als bezahlt markiert',
+          erstelltAm: heute,
+        },
+      ],
+    };
+    handleOptimisticPatch(optimistisch);
+
+    try {
+      await debitorService.markiereAlsBezahlt(debitor.projektId);
+      loadData(true);
+    } catch (error) {
+      console.error('Fehler beim Markieren als bezahlt:', error);
+      alert('Fehler beim Markieren als bezahlt');
+      loadData();
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
@@ -481,6 +515,7 @@ const DebitorenVerwaltung = () => {
             <DebitorenListe
               debitoren={getFilteredDebitoren()}
               onOpenDetail={handleOpenDetail}
+              onMarkPaid={handleMarkPaidInList}
             />
           </div>
         )}
