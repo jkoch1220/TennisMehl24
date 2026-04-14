@@ -1219,7 +1219,11 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   const berechnung = berechneDokumentSummen(regulaerePositionen);
   const bedarfsBerechnung = berechneDokumentSummen(bedarfsPositionen);
   const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
-  const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
+  const gesamtrabattProzent = angebotsDaten.gesamtrabattProzent || 0;
+  const nettoVorRabatt = berechnung.nettobetrag + frachtUndVerpackung;
+  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
+  const nettoNachRabatt = nettoVorRabatt - gesamtrabattBetrag;
+  const gesamtBrutto = nettoNachRabatt * 1.19;
 
   // DB1-Berechnung (intern - nur für UI, nicht im PDF) - nur reguläre Positionen
   const db1Berechnung = (() => {
@@ -1537,19 +1541,37 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                   )}
                 </div>
 
-                {/* Checkbox: Auf Angebot-PDF drucken */}
-                <label className="mt-3 flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={angebotsDaten.rabattstaffelungAnzeigen || false}
-                    onChange={(e) => handleInputChange('rabattstaffelungAnzeigen', e.target.checked)}
-                    disabled={!!gespeichertesDokument && !istBearbeitungsModus}
-                    className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500 disabled:opacity-50"
-                  />
-                  <span className="text-sm text-amber-800 dark:text-amber-300 font-medium">
-                    Rabattstaffelung auf Angebot-PDF drucken
-                  </span>
-                </label>
+                {/* Quick-Apply Button + Checkbox */}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {universalBerechnung.rabattProzent > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleInputChange('gesamtrabattProzent', universalBerechnung.rabattProzent);
+                        if (!angebotsDaten.gesamtrabattBezeichnung?.trim()) {
+                          handleInputChange('gesamtrabattBezeichnung', 'Auftragsrabatt');
+                        }
+                      }}
+                      disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {universalBerechnung.rabattProzent}% Rabatt anwenden
+                    </button>
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={angebotsDaten.rabattstaffelungAnzeigen || false}
+                      onChange={(e) => handleInputChange('rabattstaffelungAnzeigen', e.target.checked)}
+                      disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                      className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500 disabled:opacity-50"
+                    />
+                    <span className="text-sm text-amber-800 dark:text-amber-300 font-medium">
+                      Staffelung auf PDF drucken
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -2360,6 +2382,88 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           </div>
         </div>
 
+        {/* Gesamtrabatt */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Tag className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Gesamtrabatt</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-4">
+            Prozentualer Nachlass auf Netto-Summe (Positionen + Fracht). Wird auf dem Angebot ausgewiesen.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Rabatt (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={angebotsDaten.gesamtrabattProzent ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                }}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="0"
+                className="w-24 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {[5, 10, 12, 14, 16].map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', p)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    angebotsDaten.gesamtrabattProzent === p
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-text border-gray-300 dark:border-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30'
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+              {gesamtrabattProzent > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', undefined)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+                >
+                  Entfernen
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Bezeichnung (optional)
+              </label>
+              <input
+                type="text"
+                value={angebotsDaten.gesamtrabattBezeichnung || ''}
+                onChange={(e) => handleInputChange('gesamtrabattBezeichnung', e.target.value)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="z.B. Auftragsrabatt, Treuerabatt"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+          </div>
+          {gesamtrabattProzent > 0 && (
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-green-800 dark:text-green-300">
+                Rabatt auf {nettoVorRabatt.toFixed(2)} € netto:
+              </span>
+              <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                - {gesamtrabattBetrag.toFixed(2)} €
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Liefersaison */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -2641,10 +2745,27 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 </div>
               )}
 
+              {gesamtrabattProzent > 0 && (
+                <>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-green-700 dark:text-green-400 font-medium">
+                      {angebotsDaten.gesamtrabattBezeichnung?.trim() || 'Rabatt'} ({gesamtrabattProzent}%):
+                    </span>
+                    <span className="font-medium text-green-700 dark:text-green-400">
+                      - {gesamtrabattBetrag.toFixed(2)} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600 dark:text-dark-textMuted">Zwischensumme netto:</span>
+                    <span className="font-medium text-gray-900 dark:text-dark-text">{nettoNachRabatt.toFixed(2)} €</span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">MwSt. (19%):</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">
-                  {((berechnung.nettobetrag + frachtUndVerpackung) * 0.19).toFixed(2)} €
+                  {(nettoNachRabatt * 0.19).toFixed(2)} €
                 </span>
               </div>
 

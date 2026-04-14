@@ -99,6 +99,10 @@ export interface AngebotsDaten extends BaseDokument {
   // Universal-Artikel Rabattstaffelung auf PDF drucken
   rabattstaffelungAnzeigen?: boolean;
 
+  // Gesamtrabatt (wird auf Nettobetrag + Fracht angewendet, vor MwSt)
+  gesamtrabattProzent?: number;
+  gesamtrabattBezeichnung?: string; // z.B. "Auftragsrabatt", "Treuerabatt"
+
   // Endpreis ausblenden (für Angebote mit variablen Mengen)
   endpreisAusblenden?: boolean;
   endpreisAlternativText?: string; // z.B. "gemäß Menge" oder leer lassen

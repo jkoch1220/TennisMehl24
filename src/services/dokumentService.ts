@@ -507,7 +507,10 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // Berechnung immer durchführen (für Skonto etc.) - NUR reguläre Positionen
   const nettobetrag = regulaerePositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
   const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-  const nettoGesamt = nettobetrag + frachtUndVerpackung;
+  const nettoVorRabatt = nettobetrag + frachtUndVerpackung;
+  const gesamtrabattProzent = daten.gesamtrabattProzent || 0;
+  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
+  const nettoGesamt = nettoVorRabatt - gesamtrabattBetrag;
   const umsatzsteuer = nettoGesamt * 0.19;
   const bruttobetrag = nettoGesamt + umsatzsteuer;
 
@@ -530,6 +533,21 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       summenY += 6;
       doc.text('Fracht/Verpackung:', summenX, summenY);
       doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    }
+
+    if (gesamtrabattProzent > 0) {
+      summenY += 6;
+      const rabattLabel = daten.gesamtrabattBezeichnung?.trim()
+        ? `${daten.gesamtrabattBezeichnung} (${gesamtrabattProzent}%):`
+        : `Rabatt (${gesamtrabattProzent}%):`;
+      doc.setTextColor(0, 100, 0);
+      doc.text(rabattLabel, summenX, summenY);
+      doc.text(`- ${formatWaehrung(gesamtrabattBetrag)}`, 180, summenY, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+
+      summenY += 6;
+      doc.text('Zwischensumme netto:', summenX, summenY);
+      doc.text(formatWaehrung(nettoGesamt), 180, summenY, { align: 'right' });
     }
 
     summenY += 6;
