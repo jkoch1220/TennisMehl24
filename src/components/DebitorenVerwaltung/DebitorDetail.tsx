@@ -45,9 +45,10 @@ interface DebitorDetailProps {
   debitor: DebitorView;
   onClose: () => void;
   onUpdate: () => void;
+  onOptimisticPatch?: (patched: DebitorView) => void;
 }
 
-const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
+const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: DebitorDetailProps) => {
   const navigate = useNavigate();
   const [showZahlungFormular, setShowZahlungFormular] = useState(false);
   const [showAktivitaetFormular, setShowAktivitaetFormular] = useState(false);
@@ -182,15 +183,40 @@ const DebitorDetail = ({ debitor, onClose, onUpdate }: DebitorDetailProps) => {
   const handleMarkiereAlsBezahlt = async () => {
     if (!confirm('Möchten Sie diese Rechnung als vollständig bezahlt markieren?')) return;
 
-    setLoading(true);
+    // Optimistisches Update: sofort als bezahlt anzeigen
+    if (onOptimisticPatch) {
+      const heute = new Date().toISOString();
+      const optimistisch: DebitorView = {
+        ...debitor,
+        status: 'bezahlt',
+        offenerBetrag: 0,
+        bezahlterBetrag: debitor.rechnungsbetrag,
+        prozentBezahlt: 100,
+        tageUeberfaellig: 0,
+        zahlungen: [
+          ...debitor.zahlungen,
+          {
+            id: `temp-${Date.now()}`,
+            betrag: debitor.offenerBetrag,
+            datum: heute,
+            zahlungsart: 'ueberweisung',
+            notiz: 'Als bezahlt markiert',
+            erstelltAm: heute,
+          },
+        ],
+      };
+      onOptimisticPatch(optimistisch);
+    }
+
     try {
       await debitorService.markiereAlsBezahlt(debitor.projektId);
+      // Nur stille Revalidierung via onUpdate (ohne Ladebalken)
       onUpdate();
     } catch (error) {
       console.error('Fehler beim Markieren als bezahlt:', error);
       alert('Fehler beim Markieren als bezahlt');
-    } finally {
-      setLoading(false);
+      // Bei Fehler: richtigen Zustand vom Server holen
+      onUpdate();
     }
   };
 

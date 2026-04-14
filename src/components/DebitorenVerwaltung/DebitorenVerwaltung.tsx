@@ -28,8 +28,8 @@ const DebitorenVerwaltung = () => {
   const [searchText, setSearchText] = useState('');
   const [saisonjahrFilter, setSaisonjahrFilter] = useState<number>(new Date().getFullYear());
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const filter: DebitorFilter = {
         saisonjahr: saisonjahrFilter || undefined,
@@ -45,7 +45,7 @@ const DebitorenVerwaltung = () => {
     } catch (error) {
       console.error('Fehler beim Laden der Daten:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [saisonjahrFilter]);
 
@@ -64,13 +64,53 @@ const DebitorenVerwaltung = () => {
   };
 
   const handleDetailUpdate = async () => {
+    // Stille Revalidierung im Hintergrund - keine UI-Sprünge durch Loading-Overlay
     if (selectedDebitor) {
-      const updated = await debitorService.loadDebitorFuerProjekt(selectedDebitor.projektId);
-      if (updated) {
-        setSelectedDebitor(updated);
+      try {
+        const updated = await debitorService.loadDebitorFuerProjekt(selectedDebitor.projektId);
+        if (updated) {
+          setSelectedDebitor(updated);
+        }
+      } catch (err) {
+        console.error('Fehler beim Nachladen des Debitors:', err);
       }
     }
-    loadData();
+    loadData(true);
+  };
+
+  // Optimistisches Patchen eines einzelnen Debitors (ohne Reload)
+  const handleOptimisticPatch = (patched: DebitorView) => {
+    setDebitoren((prev) =>
+      prev.map((d) => (d.projektId === patched.projektId ? patched : d))
+    );
+    setSelectedDebitor((prev) =>
+      prev && prev.projektId === patched.projektId ? patched : prev
+    );
+    // Statistik lokal anpassen (nur Zähler, die Button-Aktion betrifft)
+    setStatistik((prev) => {
+      if (!prev) return prev;
+      const existing = debitoren.find((d) => d.projektId === patched.projektId);
+      if (!existing) return prev;
+
+      const wurdeBezahlt = existing.status !== 'bezahlt' && patched.status === 'bezahlt';
+      if (!wurdeBezahlt) return prev;
+
+      return {
+        ...prev,
+        anzahlOffen: Math.max(0, prev.anzahlOffen - 1),
+        anzahlBezahlt: prev.anzahlBezahlt + 1,
+        gesamtOffen: Math.max(0, prev.gesamtOffen - existing.offenerBetrag),
+        gesamtBezahlt: prev.gesamtBezahlt + existing.offenerBetrag,
+        ueberfaelligBetrag:
+          existing.status === 'ueberfaellig' || existing.tageUeberfaellig > 0
+            ? Math.max(0, prev.ueberfaelligBetrag - existing.offenerBetrag)
+            : prev.ueberfaelligBetrag,
+        ueberfaelligAnzahl:
+          existing.status === 'ueberfaellig' || existing.tageUeberfaellig > 0
+            ? Math.max(0, prev.ueberfaelligAnzahl - 1)
+            : prev.ueberfaelligAnzahl,
+      };
+    });
   };
 
   const formatCurrency = (amount: number) => {
@@ -187,7 +227,7 @@ const DebitorenVerwaltung = () => {
             </div>
 
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
@@ -451,6 +491,7 @@ const DebitorenVerwaltung = () => {
             debitor={selectedDebitor}
             onClose={handleCloseDetail}
             onUpdate={handleDetailUpdate}
+            onOptimisticPatch={handleOptimisticPatch}
           />
         )}
       </div>
