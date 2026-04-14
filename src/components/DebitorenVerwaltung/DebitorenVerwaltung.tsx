@@ -147,6 +147,52 @@ const DebitorenVerwaltung = () => {
     }
   };
 
+  // Mehrere Rechnungen auf einmal als bezahlt markieren (für Sammelzahlungen)
+  const handleMarkPaidBulk = async (debitorenToMark: DebitorView[]) => {
+    if (debitorenToMark.length === 0) return;
+
+    // Optimistisch alle sofort als bezahlt darstellen
+    const heute = new Date().toISOString();
+    for (const d of debitorenToMark) {
+      const optimistisch: DebitorView = {
+        ...d,
+        status: 'bezahlt',
+        offenerBetrag: 0,
+        bezahlterBetrag: d.rechnungsbetrag,
+        prozentBezahlt: 100,
+        tageUeberfaellig: 0,
+        zahlungen: [
+          ...d.zahlungen,
+          {
+            id: `temp-${Date.now()}-${d.projektId}`,
+            betrag: d.offenerBetrag,
+            datum: heute,
+            zahlungsart: 'ueberweisung',
+            notiz: 'Sammelzahlung – als bezahlt markiert',
+            erstelltAm: heute,
+          },
+        ],
+      };
+      handleOptimisticPatch(optimistisch);
+    }
+
+    // Backend-Calls parallel ausführen
+    const results = await Promise.allSettled(
+      debitorenToMark.map((d) => debitorService.markiereAlsBezahlt(d.projektId))
+    );
+
+    const fehler = results.filter((r) => r.status === 'rejected');
+    if (fehler.length > 0) {
+      console.error('Fehler beim Sammel-Markieren:', fehler);
+      alert(
+        `${fehler.length} von ${debitorenToMark.length} Rechnungen konnten nicht als bezahlt markiert werden.`
+      );
+      loadData();
+    } else {
+      loadData(true);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
@@ -516,6 +562,7 @@ const DebitorenVerwaltung = () => {
               debitoren={getFilteredDebitoren()}
               onOpenDetail={handleOpenDetail}
               onMarkPaid={handleMarkPaidInList}
+              onMarkPaidBulk={handleMarkPaidBulk}
             />
           </div>
         )}
