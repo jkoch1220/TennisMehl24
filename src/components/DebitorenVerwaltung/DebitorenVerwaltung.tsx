@@ -37,10 +37,9 @@ const DebitorenVerwaltung = () => {
         saisonjahr: saisonjahrFilter || undefined,
       };
 
-      const [debitorenData, statistikData] = await Promise.all([
-        debitorService.loadAlleDebitoren(filter),
-        debitorService.berechneStatistik(saisonjahrFilter || undefined),
-      ]);
+      // Einmaliges Laden — Statistik wird daraus client-side berechnet
+      const debitorenData = await debitorService.loadAlleDebitoren(filter);
+      const statistikData = debitorService.berechneStatistikAus(debitorenData);
 
       setDebitoren(debitorenData);
       setStatistik(statistikData);

@@ -58,11 +58,8 @@ const parseZahlungszielTage = (zahlungsziel: string | undefined): number | null 
 };
 
 // Helper: Lädt das neueste Rechnungsdokument für ein Projekt (Fallback wenn rechnungsDaten fehlt)
-// Verwendet die GLEICHE Query wie ladeDokumenteNachTyp in projektabwicklungDokumentService
 const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokument | null> => {
   try {
-    console.log(`📄 ladeRechnungsDokument für Projekt ${projektId}...`);
-
     const response = await databases.listDocuments(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -73,46 +70,64 @@ const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokume
         Query.limit(1)
       ]
     );
-
-    console.log(`📄 Query Ergebnis: ${response.documents.length} Dokumente gefunden`);
-
     if (response.documents.length > 0) {
-      const dok = response.documents[0] as unknown as RechnungsDokument;
-      console.log(`📄 Dokument gefunden:`, {
-        $id: dok.$id,
-        dokumentNummer: dok.dokumentNummer,
-        bruttobetrag: dok.bruttobetrag,
-        istFinal: dok.istFinal
-      });
-      return dok;
+      return response.documents[0] as unknown as RechnungsDokument;
     }
-
-    console.log(`📄 Kein Rechnungsdokument gefunden für Projekt ${projektId}`);
     return null;
   } catch (error) {
-    console.error(`❌ Fehler beim Laden des Rechnungsdokuments für Projekt ${projektId}:`, error);
+    console.error(`Fehler beim Laden des Rechnungsdokuments für Projekt ${projektId}:`, error);
     return null;
   }
 };
 
-// Helper: Batch-Load Rechnungsdokumente für mehrere Projekte
-// Lädt für JEDES Projekt einzeln, um sicherzustellen dass es funktioniert wie die UI
-const ladeRechnungsDokumenteFuerProjekte = async (projektIds: string[]): Promise<Map<string, RechnungsDokument>> => {
+// Helper: Batch-Load via einer einzigen listDocuments-Query (IN-Filter statt N Requests)
+const ladeRechnungsDokumenteFuerProjekte = async (
+  projektIds: string[]
+): Promise<Map<string, RechnungsDokument>> => {
   const dokumenteMap = new Map<string, RechnungsDokument>();
-
   if (projektIds.length === 0) return dokumenteMap;
 
-  console.log(`📄 Starte Laden von Rechnungsdokumenten für ${projektIds.length} Projekte...`);
-
-  // Lade für jedes Projekt einzeln - wie es die UI auch macht
-  for (const projektId of projektIds) {
-    const dokument = await ladeRechnungsDokument(projektId);
-    if (dokument) {
-      dokumenteMap.set(projektId, dokument);
-    }
+  // Appwrite listet alle Rechnungsdokumente für ALLE projektIds in einem Query (IN-Filter).
+  // Bei vielen Projekten: in Chunks à 100 IDs aufteilen, parallel laden.
+  const CHUNK_SIZE = 100;
+  const chunks: string[][] = [];
+  for (let i = 0; i < projektIds.length; i += CHUNK_SIZE) {
+    chunks.push(projektIds.slice(i, i + CHUNK_SIZE));
   }
 
-  console.log(`📄 ERGEBNIS: ${dokumenteMap.size} Rechnungsdokumente für ${projektIds.length} Projekte geladen`);
+  const alleDokumente: RechnungsDokument[] = [];
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      let offset = 0;
+      const limit = 100;
+      while (true) {
+        const response = await databases.listDocuments(
+          DATABASE_ID,
+          BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+          [
+            Query.equal('projektId', chunk),
+            Query.equal('dokumentTyp', 'rechnung'),
+            Query.orderDesc('$createdAt'),
+            Query.limit(limit),
+            Query.offset(offset),
+          ]
+        );
+        alleDokumente.push(...(response.documents as unknown as RechnungsDokument[]));
+        if (response.documents.length < limit) break;
+        offset += limit;
+        if (offset > 2000) break; // safety guard
+      }
+    })
+  );
+
+  // Pro projektId nur das neueste Dokument (Liste ist bereits nach $createdAt DESC sortiert)
+  for (const dok of alleDokumente) {
+    const pid = (dok as any).projektId;
+    if (pid && !dokumenteMap.has(pid)) {
+      dokumenteMap.set(pid, dok);
+    }
+  }
 
   return dokumenteMap;
 };
@@ -129,99 +144,55 @@ class DebitorService {
    */
   async loadAlleDebitoren(filter?: DebitorFilter): Promise<DebitorView[]> {
     try {
-      // 1. Lade IMMER beide Status - rechnung UND bezahlt
-      // Die Filterung nach Debitor-Status erfolgt später
       const statusFilter = ['rechnung', 'bezahlt'];
-
-      console.log('📊 Debitor-Service: Lade Projekte mit Status:', statusFilter);
-
       const queries: string[] = [
         Query.equal('status', statusFilter),
         Query.orderDesc('geaendertAm'),
         Query.limit(1000),
       ];
-
       if (filter?.saisonjahr) {
         queries.push(Query.equal('saisonjahr', filter.saisonjahr));
       }
 
-      console.log('📊 Debitor-Service: Queries:', queries);
+      // 1+2: Projekte UND Metadaten parallel laden (unabhängig voneinander)
+      const [projekteResponse, metadatenResponse] = await Promise.all([
+        databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, queries),
+        databases.listDocuments(DATABASE_ID, this.collectionId, [Query.limit(1000)]),
+      ]);
 
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, queries);
-
-      console.log('📊 Debitor-Service: Gefundene Projekte:', response.documents.length);
-
-      let projekte: Projekt[] = [];
-
-      for (const doc of response.documents) {
-        let projekt: Projekt;
+      const projekte: Projekt[] = projekteResponse.documents.map((doc) => {
         if (doc.data && typeof doc.data === 'string') {
           try {
-            projekt = { ...JSON.parse(doc.data), $id: doc.$id };
+            return { ...JSON.parse(doc.data), $id: doc.$id };
           } catch {
-            projekt = doc as unknown as Projekt;
+            return doc as unknown as Projekt;
           }
-        } else {
-          projekt = doc as unknown as Projekt;
         }
-
-        // Debug: Zeige jeden gefundenen Projekt-Status
-        console.log(`📊 Projekt geladen: ${projekt.kundenname} - Status: ${projekt.status} - Rechnungsnr: ${projekt.rechnungsnummer || 'KEINE'}`);
-
-        projekte.push(projekt);
-      }
-
-      // HINWEIS: Bezahlte Projekte werden jetzt mit dem ersten Query geladen (statusFilter enthält beide)
-
-      // 2. Lade alle Metadaten
-      const metadatenResponse = await databases.listDocuments(DATABASE_ID, this.collectionId, [
-        Query.limit(1000),
-      ]);
+        return doc as unknown as Projekt;
+      });
 
       const metadatenMap = new Map<string, DebitorMetadaten>();
       for (const doc of metadatenResponse.documents) {
         const metadaten = this.parseMetadatenDocument(doc);
-        if (metadaten) {
-          metadatenMap.set(metadaten.projektId, metadaten);
-        }
+        if (metadaten) metadatenMap.set(metadaten.projektId, metadaten);
       }
 
-      // 3. Lade Rechnungsdokumente für ALLE Projekte
-      // WICHTIG: Der Bruttobetrag ist im Dokument gespeichert (BESTELLABWICKLUNG_DOKUMENTE),
-      // nicht im projekt.rechnungsDaten - daher IMMER laden!
-      const alleProjektIds: string[] = [];
-      for (const projekt of projekte) {
-        const projektId = (projekt as any).$id || projekt.id;
-        alleProjektIds.push(projektId);
-      }
-
-      console.log(`📄 Lade Rechnungsdokumente für ALLE ${alleProjektIds.length} Projekte...`);
+      // 3: Rechnungsdokumente in Bulk-Queries laden (1-N Calls statt N)
+      const alleProjektIds = projekte.map((p) => (p as any).$id || p.id);
       const rechnungsDokumenteMap = await ladeRechnungsDokumenteFuerProjekte(alleProjektIds);
 
-      // 5. Kombiniere Projekte mit Metadaten zu DebitorViews
+      // 4: Kombiniere Projekte mit Metadaten zu DebitorViews
       const debitoren: DebitorView[] = [];
-
-      console.log(`📊 Debitor-Service: Verarbeite ${projekte.length} Projekte...`);
-
       for (const projekt of projekte) {
-        // Projekte mit Status 'rechnung' oder 'bezahlt' sollen erscheinen,
-        // auch wenn rechnungsnummer/rechnungsdatum fehlen (ältere Daten)
         const hatRechnungsStatus = projekt.status === 'rechnung' || projekt.status === 'bezahlt';
         const hatRechnungsdaten = projekt.rechnungsnummer || projekt.rechnungsdatum;
-
-        if (!hatRechnungsStatus && !hatRechnungsdaten) {
-          console.log(`📊 Projekt übersprungen (kein Rechnungs-Status/Daten): ${projekt.kundenname}`);
-          continue;
-        }
+        if (!hatRechnungsStatus && !hatRechnungsdaten) continue;
 
         const projektId = (projekt as any).$id || projekt.id;
         const metadaten = metadatenMap.get(projektId) || metadatenMap.get(projekt.id) || null;
         const rechnungsDokument = rechnungsDokumenteMap.get(projektId) || null;
         const debitorView = this.createDebitorView(projekt, metadaten, rechnungsDokument);
 
-        console.log(`📊 DebitorView erstellt: ${debitorView.kundenname} - Status: ${debitorView.status} - Betrag: ${debitorView.rechnungsbetrag}€`);
-
-        // Filter anwenden
         if (this.matchesFilter(debitorView, filter)) {
           debitoren.push(debitorView);
         }
@@ -229,10 +200,8 @@ class DebitorService {
 
       // Sortieren nach offensten/kritischsten zuerst
       debitoren.sort((a, b) => {
-        // Bezahlte ans Ende
         if (a.status === 'bezahlt' && b.status !== 'bezahlt') return 1;
         if (b.status === 'bezahlt' && a.status !== 'bezahlt') return -1;
-        // Nach Tagen überfällig (absteigend)
         return b.tageUeberfaellig - a.tageUeberfaellig;
       });
 
@@ -699,9 +668,16 @@ class DebitorService {
    * Berechnet die Debitorenstatistik
    */
   async berechneStatistik(saisonjahr?: number): Promise<DebitorenStatistik> {
-    try {
-      const debitoren = await this.loadAlleDebitoren({ saisonjahr });
+    const debitoren = await this.loadAlleDebitoren({ saisonjahr });
+    return this.berechneStatistikAus(debitoren);
+  }
 
+  /**
+   * Berechnet Statistik aus bereits geladenen Debitoren (kein DB-Call).
+   * Nutze dies statt berechneStatistik(), wenn du loadAlleDebitoren schon aufgerufen hast.
+   */
+  berechneStatistikAus(debitoren: DebitorView[]): DebitorenStatistik {
+    try {
       const statistik: DebitorenStatistik = {
         gesamtForderungen: 0,
         gesamtOffen: 0,
