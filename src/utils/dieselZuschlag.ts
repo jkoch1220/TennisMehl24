@@ -2,7 +2,8 @@
  * Dieselpreiszuschlag-Berechnung
  *
  * Berechnet den Dieselpreiszuschlag gemäß AGB §5:
- * - Zuschlag nur auf Schüttgut-Tonnen (TM-ZM-02, TM-ZM-03)
+ * - Zuschlag auf Schüttgut-Tonnen (TM-ZM-02, TM-ZM-03) sowie
+ *   Palettenware/BigBag-Tonnen (TM-ZM-02St, TM-ZM-03St, TM-ZM-BIG-02, TM-ZM-BIG-03)
  * - Formel: Math.floor((tagesDieselPreis - basisPreis) / 0.05) * 0.45 €/t
  * - Zuschlag nur wenn tagesDieselPreis > basisPreis
  */
@@ -54,9 +55,19 @@ const FALLBACK_STAFFEL: DieselZuschlagConfig = {
 
 /**
  * Artikelnummern die für den Dieselzuschlag relevant sind
- * NUR loses Schüttgut mit eigener Lieferung per LKW
+ * - Loses Schüttgut mit eigener Lieferung per LKW (TM-ZM-02, TM-ZM-03)
+ * - Palettenware/Sackware per Spedition (TM-ZM-02St, TM-ZM-03St)
+ * - BigBag per Spedition (TM-ZM-BIG-02, TM-ZM-BIG-03)
+ * Alle Artikel werden in Tonnen abgerechnet, daher greift der €/t-Zuschlag einheitlich.
  */
-const ZUSCHLAGSFAEHIGE_ARTIKEL = ['TM-ZM-02', 'TM-ZM-03'];
+const ZUSCHLAGSFAEHIGE_ARTIKEL = [
+  'TM-ZM-02',
+  'TM-ZM-03',
+  'TM-ZM-02St',
+  'TM-ZM-03St',
+  'TM-ZM-BIG-02',
+  'TM-ZM-BIG-03',
+];
 
 /**
  * Artikelnummer für die Diesel-Zuschlagsposition
