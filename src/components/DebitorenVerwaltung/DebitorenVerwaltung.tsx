@@ -9,14 +9,16 @@ import {
   Search,
   Filter,
   Settings,
+  Landmark,
 } from 'lucide-react';
 import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import DebitorenListe from './DebitorenListe';
 import DebitorDetail from './DebitorDetail';
 import MahnwesenEinstellungen from './MahnwesenEinstellungen';
+import BankAbgleich from './BankAbgleich';
 
-type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt' | 'einstellungen';
+type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt' | 'bankabgleich' | 'einstellungen';
 
 const DebitorenVerwaltung = () => {
   const [debitoren, setDebitoren] = useState<DebitorView[]>([]);
@@ -266,6 +268,12 @@ const DebitorenVerwaltung = () => {
       label: 'Bezahlt',
       count: statistik?.anzahlBezahlt || 0,
       color: 'green',
+    },
+    {
+      id: 'bankabgleich',
+      label: 'Bankabgleich',
+      color: 'purple',
+      icon: Landmark,
     },
     {
       id: 'einstellungen',
@@ -536,6 +544,14 @@ const DebitorenVerwaltung = () => {
         )}
 
         {/* Einstellungen Tab */}
+        {activeTab === 'bankabgleich' && (
+          <BankAbgleich
+            debitoren={debitoren}
+            onDebitorAktualisiert={handleOptimisticPatch}
+            onReload={() => loadData()}
+          />
+        )}
+
         {activeTab === 'einstellungen' && (
           <MahnwesenEinstellungen />
         )}
