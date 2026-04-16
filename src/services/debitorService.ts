@@ -328,13 +328,55 @@ class DebitorService {
         geaendertAm: new Date().toISOString(),
       };
 
+      // Payload auf Appwrite-Limit (10000 Zeichen für data-Feld) begrenzen.
+      // Strategie: alte Aktivitäten zuerst pruning, dann ggf. Notizen/Zahlungen beschneiden.
+      const MAX_DATA = 9500;
+      let serialisiert = JSON.stringify(aktualisiert);
+
+      if (serialisiert.length > MAX_DATA) {
+        const ak = [...(aktualisiert.aktivitaeten || [])];
+        ak.sort((a, b) => (a.erstelltAm > b.erstelltAm ? 1 : -1)); // älteste zuerst
+        while (serialisiert.length > MAX_DATA && ak.length > 10) {
+          ak.shift();
+          aktualisiert.aktivitaeten = ak;
+          serialisiert = JSON.stringify(aktualisiert);
+        }
+      }
+
+      if (serialisiert.length > MAX_DATA) {
+        // Notiz kürzen
+        if (aktualisiert.notizen && aktualisiert.notizen.length > 500) {
+          aktualisiert.notizen = aktualisiert.notizen.substring(0, 500);
+          serialisiert = JSON.stringify(aktualisiert);
+        }
+      }
+
+      if (serialisiert.length > MAX_DATA) {
+        // Zahlungs-Notizen kürzen
+        aktualisiert.zahlungen = (aktualisiert.zahlungen || []).map((z) => ({
+          ...z,
+          notiz: z.notiz ? z.notiz.substring(0, 80) : undefined,
+        }));
+        serialisiert = JSON.stringify(aktualisiert);
+      }
+
+      if (serialisiert.length > MAX_DATA) {
+        console.warn(
+          `DebitorMetadaten zu groß (${serialisiert.length} chars) – weiteres Pruning notwendig`
+        );
+        // Notlösung: Aktivitäten vollständig entfernen außer die letzten 5
+        const ak = [...(aktualisiert.aktivitaeten || [])].slice(-5);
+        aktualisiert.aktivitaeten = ak;
+        serialisiert = JSON.stringify(aktualisiert);
+      }
+
       const dokument = {
         projektId: aktualisiert.projektId,
         status: aktualisiert.status,
         mahnstufe: aktualisiert.mahnstufe,
         prioritaet: aktualisiert.prioritaet,
         geaendertAm: aktualisiert.geaendertAm,
-        data: JSON.stringify(aktualisiert),
+        data: serialisiert,
       };
 
       await databases.updateDocument(DATABASE_ID, this.collectionId, metadaten.id, dokument);

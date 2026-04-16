@@ -95,12 +95,14 @@ const BankAbgleich = ({ debitoren, onDebitorAktualisiert, onReload }: BankAbglei
     setLaufendeBuchung(tx.id);
 
     try {
+      const kurzVwz = tx.verwendungszweck.replace(/\s+/g, ' ').trim().substring(0, 80);
+      const kurzName = (tx.auftraggeber || '').substring(0, 60);
       const aktualisiert = await debitorService.addZahlung(debitorKandidat.projektId, {
         betrag: tx.betrag,
         datum: tx.valutaDatum || tx.datum,
         zahlungsart: 'ueberweisung',
-        referenz: tx.auftraggeber,
-        notiz: `Bankimport: ${tx.verwendungszweck.substring(0, 200)}`,
+        referenz: kurzName || undefined,
+        notiz: kurzVwz ? `Bankimport: ${kurzVwz}` : 'Bankimport',
       });
 
       onDebitorAktualisiert(aktualisiert);
