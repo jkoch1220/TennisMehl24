@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown, Tag, Info } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown, Tag, Info, Fuel } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -36,6 +36,15 @@ import { UniversalArtikel } from '../../types/universaArtikel';
 import { sucheUniversalArtikel, getAlleUniversalArtikel } from '../../services/universaArtikelService';
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
+import {
+  berechneGesamtZuschlag,
+  erstelleDieselZuschlagPosition,
+  istDieselZuschlagPosition,
+  istZuschlagsfaehig,
+  formatDieselPreis,
+  DIESEL_ZUSCHLAG_ARTIKELNUMMER,
+} from '../../utils/dieselZuschlag';
+import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -800,6 +809,71 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     }
 
     setAngebotsDaten(prev => ({ ...prev, positionen: neuePositionen }));
+  };
+
+  // === DIESELZUSCHLAG als Position ===
+  const [dieselLaden, setDieselLaden] = useState(false);
+
+  const hatZuschlagsfaehigePos = angebotsDaten.positionen
+    .filter(p => !istDieselZuschlagPosition(p))
+    .some(istZuschlagsfaehig);
+
+  const hatDieselPosition = angebotsDaten.positionen.some(istDieselZuschlagPosition);
+
+  const handleDieselZuschlagHinzufuegen = async () => {
+    if (dieselLaden) return;
+    setDieselLaden(true);
+    try {
+      const preisErgebnis = await holeDieselPreisFuerDatum(
+        angebotsDaten.angebotsdatum || new Date().toISOString().split('T')[0],
+        '97828'
+      );
+      const ergebnis = berechneGesamtZuschlag(
+        angebotsDaten.positionen,
+        preisErgebnis.preis,
+        angebotsDaten.angebotsdatum || new Date().toISOString().split('T')[0]
+      );
+
+      if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
+        alert(
+          `Kein Zuschlag fällig: Dieselpreis ${formatDieselPreis(preisErgebnis.preis)} liegt unter Basis ${formatDieselPreis(ergebnis.basisPreis)}, oder keine zuschlagsfähigen Positionen (TM-ZM Artikel in Tonnen) vorhanden.`
+        );
+        return;
+      }
+
+      const zuschlagPosition = erstelleDieselZuschlagPosition(ergebnis);
+      hatGeaendert.current = true;
+
+      setAngebotsDaten(prev => {
+        const ohneAlte = prev.positionen.filter(p => !istDieselZuschlagPosition(p));
+        const fpIndex = ohneAlte.findIndex(p => p.artikelnummer === 'TM-FP');
+        const neuePositionen = [...ohneAlte];
+        if (fpIndex !== -1) {
+          neuePositionen.splice(fpIndex, 0, zuschlagPosition);
+        } else {
+          neuePositionen.push(zuschlagPosition);
+        }
+        return { ...prev, positionen: neuePositionen };
+      });
+
+      // Dieselzuschlag-Text automatisch aktivieren wenn noch nicht aktiv
+      if (!angebotsDaten.dieselpreiszuschlagAktiviert) {
+        handleInputChange('dieselpreiszuschlagAktiviert', true);
+      }
+    } catch (error) {
+      console.error('Fehler beim Laden des Dieselpreises:', error);
+      alert('Dieselpreis konnte nicht geladen werden.');
+    } finally {
+      setDieselLaden(false);
+    }
+  };
+
+  const handleDieselZuschlagEntfernen = () => {
+    hatGeaendert.current = true;
+    setAngebotsDaten(prev => ({
+      ...prev,
+      positionen: prev.positionen.filter(p => !istDieselZuschlagPosition(p)),
+    }));
   };
 
   const addPosition = () => {
@@ -2530,6 +2604,70 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
         {/* Dieselpreiszuschlag */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Fuel className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Dieselpreiszuschlag</h2>
+          </div>
+
+          {/* Zuschlag als Position berechnen */}
+          {hatZuschlagsfaehigePos && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">
+                Zuschlagsfähige Positionen erkannt (TM-ZM Artikel in Tonnen).
+                Aktuellen Dieselpreis abrufen und Zuschlag als Position einfügen.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {!hatDieselPosition ? (
+                  <button
+                    type="button"
+                    onClick={handleDieselZuschlagHinzufuegen}
+                    disabled={dieselLaden || (!!gespeichertesDokument && !istBearbeitungsModus)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {dieselLaden ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Fuel className="w-4 h-4" />
+                    )}
+                    Dieselzuschlag berechnen & einfügen
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleDieselZuschlagHinzufuegen}
+                      disabled={dieselLaden || (!!gespeichertesDokument && !istBearbeitungsModus)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {dieselLaden ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Fuel className="w-4 h-4" />
+                      )}
+                      Neu berechnen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDieselZuschlagEntfernen}
+                      disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                      className="inline-flex items-center gap-2 px-3 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Zuschlag entfernen
+                    </button>
+                  </>
+                )}
+              </div>
+              {hatDieselPosition && (
+                <p className="text-xs text-green-700 dark:text-green-400 mt-2 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Dieselzuschlag-Position ({DIESEL_ZUSCHLAG_ARTIKELNUMMER}) ist im Angebot enthalten.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Text-Hinweis (Klausel auf dem PDF) */}
           <div className="flex items-start gap-3 mb-3">
             <input
               id="dieselpreiszuschlag"
@@ -2538,18 +2676,18 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               onChange={(e) =>
                 handleInputChange('dieselpreiszuschlagAktiviert', e.target.checked)
               }
-              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500"
+              disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500 disabled:opacity-50"
             />
             <div className="flex-1">
               <label
                 htmlFor="dieselpreiszuschlag"
                 className="block text-sm font-medium text-gray-900 dark:text-dark-text"
               >
-                Dieselpreiszuschlag im Angebot ausweisen
+                Dieselzuschlag-Klausel auf dem Angebot drucken
               </label>
               <p className="mt-1 text-xs text-gray-600 dark:text-dark-textMuted">
-                Wenn aktiviert, wird im Angebot ein Hinweis zum Dieselpreiszuschlag mit
-                folgendem Text aufgenommen. Der Text kann bei Bedarf angepasst werden.
+                Texthinweis zur Dieselpreisregelung gemäß AGB §5 auf dem Angebot ausweisen.
               </p>
             </div>
           </div>
@@ -2564,8 +2702,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 onChange={(e) =>
                   handleInputChange('dieselpreiszuschlagText', e.target.value)
                 }
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:opacity-50"
               />
             </div>
           )}
