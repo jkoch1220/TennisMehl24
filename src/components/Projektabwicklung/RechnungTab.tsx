@@ -44,6 +44,7 @@ import { platzbauerverwaltungService } from '../../services/platzbauerverwaltung
 import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import { holeDieselPreisFuerDatum, getAktuellerDurchschnittspreis, DieselPreisErgebnis } from '../../utils/dieselPreisAPI';
+import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 import {
   berechneGesamtZuschlag,
   erstelleDieselZuschlagPosition,
@@ -745,10 +746,33 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     };
     
     if (field === 'menge' || field === 'einzelpreis') {
-      neuePositionen[index].gesamtpreis = 
+      neuePositionen[index].gesamtpreis =
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
-    
+
+    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
+    if (field === 'menge') {
+      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
+        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
+          return sum + (pos.menge || 0);
+        }
+        return sum;
+      }, 0);
+
+      const frachtkostenIndex = neuePositionen.findIndex(
+        pos => pos.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER
+      );
+
+      if (frachtkostenIndex !== -1) {
+        const neuerPreis = berechneFrachtkostenpauschale(gesamtTonnage);
+        neuePositionen[frachtkostenIndex] = {
+          ...neuePositionen[frachtkostenIndex],
+          einzelpreis: neuerPreis,
+          gesamtpreis: neuePositionen[frachtkostenIndex].menge * neuerPreis,
+        };
+      }
+    }
+
     setRechnungsDaten(prev => ({ ...prev, positionen: neuePositionen }));
   };
 
