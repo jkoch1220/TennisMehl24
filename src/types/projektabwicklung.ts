@@ -92,7 +92,10 @@ export interface AngebotsDaten extends BaseDokument {
   // Dieselpreiszuschlag
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
-  
+
+  // Raben-Dieselfloater (Palettenspedition)
+  rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
+
   // Liefersaison
   liefersaisonAnzeigen?: boolean;
 
@@ -189,6 +192,9 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
 
+  // Raben-Dieselfloater (Palettenspedition)
+  rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
+
   // Optionale Klauseln
   agbHinweis?: string;
   eigentumsVorbehalt?: string;
@@ -269,6 +275,9 @@ export interface RechnungsDaten extends BaseDokument {
     prozent: number;
     tage: number;
   };
+
+  // Raben-Dieselfloater (Palettenspedition)
+  rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
 }
 
 // Berechnungen

@@ -9,6 +9,10 @@
  */
 
 import { Position } from '../types/projektabwicklung';
+import {
+  istRabenDieselfloaterPosition,
+  istRabenSpeditionArtikel,
+} from './rabenDieselfloater';
 
 // ==========================================
 // KONFIGURATION - Zuschlagsstaffeln nach Jahr
@@ -197,9 +201,14 @@ export function berechneGesamtZuschlag(
     ? Math.floor((dieselPreis - config.basisPreis) / config.stufenGroesse)
     : 0;
 
+  // Palettenware/BigBag werden vom Raben-Dieselfloater (TM-DZ-R) abgedeckt, sobald
+  // eine solche Position im Dokument existiert. Doppelberechnung vermeiden.
+  const hatRabenFloater = positionen.some(istRabenDieselfloaterPosition);
+
   // Summe der zuschlagsfähigen Tonnen (ohne bestehende TM-DZ Position!)
   const gesamtTonnen = positionen
     .filter(p => !istDieselZuschlagPosition(p)) // Bestehende Zuschlagsposition ignorieren
+    .filter(p => !(hatRabenFloater && istRabenSpeditionArtikel(p)))
     .filter(istZuschlagsfaehig)
     .reduce((sum, p) => sum + (p.menge || 0), 0);
 

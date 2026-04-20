@@ -46,6 +46,12 @@ import EmailFormular from './EmailFormular';
 import { holeDieselPreisFuerDatum, getAktuellerDurchschnittspreis, DieselPreisErgebnis } from '../../utils/dieselPreisAPI';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 import {
+  berechneRabenDieselfloater,
+  erstelleRabenDieselfloaterPosition,
+  istRabenDieselfloaterPosition,
+  RABEN_DIESELFLOATER_ARTIKELNUMMER,
+} from '../../utils/rabenDieselfloater';
+import {
   berechneGesamtZuschlag,
   erstelleDieselZuschlagPosition,
   getDieselPreisStatus,
@@ -735,6 +741,60 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const handleInputChange = (field: keyof RechnungsDaten, value: any) => {
     hatGeaendert.current = true;
     setRechnungsDaten(prev => ({ ...prev, [field]: value }));
+  };
+
+  // === RABEN-DIESELFLOATER als Position ===
+  const [rabenLaden, setRabenLaden] = useState(false);
+  const hatRabenFloaterPosition = rechnungsDaten.positionen.some(istRabenDieselfloaterPosition);
+
+  const handleRabenFloaterHinzufuegen = async () => {
+    if (rabenLaden) return;
+    const basispreis = rechnungsDaten.rabenBasispreis ?? 0;
+    if (basispreis <= 0) {
+      alert('Bitte zuerst den Raben-Basispreis (Speditionsdienste EUR) eingeben.');
+      return;
+    }
+    setRabenLaden(true);
+    try {
+      const datum = rechnungsDaten.leistungsdatum || rechnungsDaten.rechnungsdatum || new Date().toISOString().split('T')[0];
+      const preisErgebnis = await holeDieselPreisFuerDatum(datum, '97828');
+      const ergebnis = berechneRabenDieselfloater(basispreis, preisErgebnis.preis);
+
+      if (!ergebnis.hatFloater) {
+        alert(
+          `Kein Raben-Floater fällig: Dieselpreis ${ergebnis.dieselPreisCent.toFixed(2)} ct/L liegt ≤ 120,75 ct/L.`
+        );
+        return;
+      }
+
+      const position = erstelleRabenDieselfloaterPosition(ergebnis);
+      hatGeaendert.current = true;
+
+      setRechnungsDaten(prev => {
+        const ohneAlte = prev.positionen.filter(p => !istRabenDieselfloaterPosition(p));
+        const fpIndex = ohneAlte.findIndex(p => p.artikelnummer === 'TM-FP');
+        const neuePositionen = [...ohneAlte];
+        if (fpIndex !== -1) {
+          neuePositionen.splice(fpIndex, 0, position);
+        } else {
+          neuePositionen.push(position);
+        }
+        return { ...prev, positionen: neuePositionen };
+      });
+    } catch (error) {
+      console.error('Fehler beim Laden des Dieselpreises für Raben-Floater:', error);
+      alert('Dieselpreis konnte nicht geladen werden.');
+    } finally {
+      setRabenLaden(false);
+    }
+  };
+
+  const handleRabenFloaterEntfernen = () => {
+    hatGeaendert.current = true;
+    setRechnungsDaten(prev => ({
+      ...prev,
+      positionen: prev.positionen.filter(p => !istRabenDieselfloaterPosition(p)),
+    }));
   };
 
   const handlePositionChange = (index: number, field: keyof Position, value: any) => {
@@ -1988,6 +2048,85 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Raben-Dieselfloater (Palettenspedition) */}
+          <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Fuel className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <span className="text-sm font-semibold text-red-900 dark:text-red-200">
+                Raben-Dieselfloater (Palettenspedition)
+              </span>
+            </div>
+            <p className="text-xs text-red-800 dark:text-red-300 mb-3">
+              Für Palettenware/BigBag per Raben: Speditionsdienste-Basispreis (netto lt. Raben-Rechnung) eingeben.
+              Der aktuelle Raben-Floater-% wird als separate Position aufgeschlagen.
+              Palettenware wird dann aus dem generischen Dieselzuschlag (€/t) ausgenommen.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="block text-xs font-medium text-red-900 dark:text-red-200 mb-1">
+                  Raben-Basispreis (EUR netto)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={rechnungsDaten.rabenBasispreis ?? ''}
+                  onChange={(e) =>
+                    handleInputChange(
+                      'rabenBasispreis',
+                      e.target.value === '' ? undefined : parseFloat(e.target.value)
+                    )
+                  }
+                  disabled={!!gespeichertesDokument}
+                  placeholder="z.B. 181,37"
+                  className="px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm disabled:opacity-50 w-44"
+                />
+              </div>
+              {!hatRabenFloaterPosition ? (
+                <button
+                  type="button"
+                  onClick={handleRabenFloaterHinzufuegen}
+                  disabled={
+                    rabenLaden ||
+                    !(rechnungsDaten.rabenBasispreis && rechnungsDaten.rabenBasispreis > 0) ||
+                    !!gespeichertesDokument
+                  }
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {rabenLaden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fuel className="w-4 h-4" />}
+                  Raben-Floater berechnen &amp; einfügen
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRabenFloaterHinzufuegen}
+                    disabled={rabenLaden || !!gespeichertesDokument}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    {rabenLaden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fuel className="w-4 h-4" />}
+                    Neu berechnen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRabenFloaterEntfernen}
+                    disabled={!!gespeichertesDokument}
+                    className="inline-flex items-center gap-2 px-3 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Entfernen
+                  </button>
+                </>
+              )}
+            </div>
+            {hatRabenFloaterPosition && (
+              <p className="text-xs text-green-700 dark:text-green-400 mt-2 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Raben-Dieselfloater-Position ({RABEN_DIESELFLOATER_ARTIKELNUMMER}) ist in der Rechnung enthalten.
+              </p>
+            )}
           </div>
 
           {/* Artikel-Auswahl */}

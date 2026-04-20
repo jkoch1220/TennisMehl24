@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck, Fuel } from 'lucide-react';
 import StatusAenderungModal from '../Shared/StatusAenderungModal';
 import {
   DndContext,
@@ -44,6 +44,13 @@ import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormu
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
+import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
+import {
+  berechneRabenDieselfloater,
+  erstelleRabenDieselfloaterPosition,
+  istRabenDieselfloaterPosition,
+  RABEN_DIESELFLOATER_ARTIKELNUMMER,
+} from '../../utils/rabenDieselfloater';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -594,6 +601,62 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     setAuftragsbestaetigungsDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter((_, i) => i !== index)
+    }));
+  };
+
+  // === RABEN-DIESELFLOATER als Position ===
+  const [rabenLaden, setRabenLaden] = useState(false);
+  const hatRabenFloaterPosition = auftragsbestaetigungsDaten.positionen.some(istRabenDieselfloaterPosition);
+
+  const handleRabenFloaterHinzufuegen = async () => {
+    if (rabenLaden) return;
+    const basispreis = auftragsbestaetigungsDaten.rabenBasispreis ?? 0;
+    if (basispreis <= 0) {
+      alert('Bitte zuerst den Raben-Basispreis (Speditionsdienste EUR) eingeben.');
+      return;
+    }
+    setRabenLaden(true);
+    try {
+      const preisErgebnis = await holeDieselPreisFuerDatum(
+        auftragsbestaetigungsDaten.auftragsbestaetigungsdatum || new Date().toISOString().split('T')[0],
+        '97828'
+      );
+      const ergebnis = berechneRabenDieselfloater(basispreis, preisErgebnis.preis);
+
+      if (!ergebnis.hatFloater) {
+        alert(
+          `Kein Raben-Floater fällig: Dieselpreis ${ergebnis.dieselPreisCent.toFixed(2)} ct/L liegt ≤ 120,75 ct/L.`
+        );
+        return;
+      }
+
+      const position = erstelleRabenDieselfloaterPosition(ergebnis);
+      hatGeaendert.current = true;
+
+      setAuftragsbestaetigungsDaten(prev => {
+        const ohneAlte = prev.positionen.filter(p => !istRabenDieselfloaterPosition(p));
+        const fpIndex = ohneAlte.findIndex(p => p.artikelnummer === 'TM-FP');
+        const neuePositionen = [...ohneAlte];
+        if (fpIndex !== -1) {
+          neuePositionen.splice(fpIndex, 0, position);
+        } else {
+          neuePositionen.push(position);
+        }
+        return { ...prev, positionen: neuePositionen };
+      });
+    } catch (error) {
+      console.error('Fehler beim Laden des Dieselpreises für Raben-Floater:', error);
+      alert('Dieselpreis konnte nicht geladen werden.');
+    } finally {
+      setRabenLaden(false);
+    }
+  };
+
+  const handleRabenFloaterEntfernen = () => {
+    hatGeaendert.current = true;
+    setAuftragsbestaetigungsDaten(prev => ({
+      ...prev,
+      positionen: prev.positionen.filter(p => !istRabenDieselfloaterPosition(p)),
     }));
   };
 
@@ -1613,6 +1676,86 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400 text-sm"
               />
             </div>
+          )}
+        </div>
+
+        {/* Raben-Dieselfloater (Palettenspedition) */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Fuel className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">
+              Raben-Dieselfloater (Palettenspedition)
+            </h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-3">
+            Für Palettenware/BigBag, die per Raben verschickt wird: Basispreis
+            (Speditionsdienste netto lt. Raben) eingeben und aktuellen Floater-% aufschlagen.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Raben-Basispreis (EUR netto)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={auftragsbestaetigungsDaten.rabenBasispreis ?? ''}
+                onChange={(e) =>
+                  handleInputChange(
+                    'rabenBasispreis',
+                    e.target.value === '' ? undefined : parseFloat(e.target.value)
+                  )
+                }
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="z.B. 181,37"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm disabled:opacity-50"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!hatRabenFloaterPosition ? (
+              <button
+                type="button"
+                onClick={handleRabenFloaterHinzufuegen}
+                disabled={
+                  rabenLaden ||
+                  !(auftragsbestaetigungsDaten.rabenBasispreis && auftragsbestaetigungsDaten.rabenBasispreis > 0) ||
+                  (!!gespeichertesDokument && !istBearbeitungsModus)
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                {rabenLaden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fuel className="w-4 h-4" />}
+                Raben-Floater berechnen &amp; einfügen
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRabenFloaterHinzufuegen}
+                  disabled={rabenLaden || (!!gespeichertesDokument && !istBearbeitungsModus)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {rabenLaden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fuel className="w-4 h-4" />}
+                  Neu berechnen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRabenFloaterEntfernen}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="inline-flex items-center gap-2 px-3 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Raben-Floater entfernen
+                </button>
+              </>
+            )}
+          </div>
+          {hatRabenFloaterPosition && (
+            <p className="text-xs text-green-700 dark:text-green-400 mt-2 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Raben-Dieselfloater-Position ({RABEN_DIESELFLOATER_ARTIKELNUMMER}) ist in der AB enthalten.
+            </p>
           )}
         </div>
 
