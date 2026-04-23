@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck, Fuel } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck, Fuel, Tag } from 'lucide-react';
 import StatusAenderungModal from '../Shared/StatusAenderungModal';
 import {
   DndContext,
@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
-import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
+import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument, AngebotsDaten } from '../../types/projektabwicklung';
 import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -345,12 +345,32 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         
         // AUTOMATISCH: Versuche Positionen vom vorherigen Dokument (Angebot) zu übernehmen
         let initialePositionen: Position[] = [];
-        
+        let angebotsRabattProzent: number | undefined;
+        let angebotsRabattBezeichnung: string | undefined;
+
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'auftragsbestaetigung');
           if (positionen && positionen.length > 0) {
             initialePositionen = positionen as Position[];
             console.log('✅ Stückliste vom Angebot übernommen:', initialePositionen.length, 'Positionen');
+          }
+
+          // Gesamtrabatt vom Angebot übernehmen (finalisiert oder Entwurf)
+          try {
+            let angebotsDaten: AngebotsDaten | null = null;
+            const finalisiertesAngebot = await ladeDokumentNachTyp(projekt.$id, 'angebot');
+            if (finalisiertesAngebot) {
+              angebotsDaten = ladeDokumentDaten<AngebotsDaten>(finalisiertesAngebot);
+            } else {
+              angebotsDaten = await ladeEntwurf<AngebotsDaten>(projekt.$id, 'angebotsDaten');
+            }
+            if (angebotsDaten?.gesamtrabattProzent) {
+              angebotsRabattProzent = angebotsDaten.gesamtrabattProzent;
+              angebotsRabattBezeichnung = angebotsDaten.gesamtrabattBezeichnung;
+              console.log('✅ Gesamtrabatt vom Angebot übernommen:', angebotsRabattProzent, '%');
+            }
+          } catch (error) {
+            console.warn('Gesamtrabatt vom Angebot konnte nicht geladen werden:', error);
           }
         }
         
@@ -466,6 +486,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           lieferzeitVon: prev.lieferzeitVon || lieferzeitVon,
           lieferzeitBis: prev.lieferzeitBis || lieferzeitBis,
           dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
+          // Gesamtrabatt vom Angebot übernehmen
+          gesamtrabattProzent: prev.gesamtrabattProzent ?? angebotsRabattProzent,
+          gesamtrabattBezeichnung: prev.gesamtrabattBezeichnung ?? angebotsRabattBezeichnung,
         }));
       }
     };
@@ -825,7 +848,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
   const berechnung = berechneDokumentSummen(auftragsbestaetigungsDaten.positionen);
   const frachtUndVerpackung = (auftragsbestaetigungsDaten.frachtkosten || 0) + (auftragsbestaetigungsDaten.verpackungskosten || 0);
-  const gesamtBrutto = (berechnung.nettobetrag + frachtUndVerpackung) * 1.19;
+  const gesamtrabattProzent = auftragsbestaetigungsDaten.gesamtrabattProzent || 0;
+  const nettoVorRabatt = berechnung.nettobetrag + frachtUndVerpackung;
+  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
+  const nettoNachRabatt = nettoVorRabatt - gesamtrabattBetrag;
+  const gesamtBrutto = nettoNachRabatt * 1.19;
 
   // Zeige Lade-Indikator
   if (ladeStatus === 'laden') {
@@ -1887,6 +1914,88 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           </div>
         </div>
 
+        {/* Gesamtrabatt */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Tag className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Gesamtrabatt</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-4">
+            Prozentualer Nachlass auf Netto-Summe (Positionen + Fracht). Wird auf der Auftragsbestätigung ausgewiesen.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Rabatt (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={auftragsbestaetigungsDaten.gesamtrabattProzent ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                }}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="0"
+                className="w-24 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {[5, 10, 12, 14, 16].map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', p)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    auftragsbestaetigungsDaten.gesamtrabattProzent === p
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-text border-gray-300 dark:border-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30'
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+              {gesamtrabattProzent > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', undefined)}
+                  disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+                >
+                  Entfernen
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Bezeichnung (optional)
+              </label>
+              <input
+                type="text"
+                value={auftragsbestaetigungsDaten.gesamtrabattBezeichnung || ''}
+                onChange={(e) => handleInputChange('gesamtrabattBezeichnung', e.target.value)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                placeholder="z.B. Auftragsrabatt, Treuerabatt"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+          </div>
+          {gesamtrabattProzent > 0 && (
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-green-800 dark:text-green-300">
+                Rabatt auf {nettoVorRabatt.toFixed(2)} € netto:
+              </span>
+              <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                - {gesamtrabattBetrag.toFixed(2)} €
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Bemerkung */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Bemerkung</h2>
@@ -1916,21 +2025,38 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                 <span className="text-gray-600 dark:text-dark-textMuted">Nettobetrag:</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</span>
               </div>
-              
+
               {frachtUndVerpackung > 0 && (
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-600 dark:text-dark-textMuted">Fracht/Verpackung:</span>
                   <span className="font-medium text-gray-900 dark:text-dark-text">{frachtUndVerpackung.toFixed(2)} €</span>
                 </div>
               )}
-              
+
+              {gesamtrabattProzent > 0 && (
+                <>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-green-700 dark:text-green-400 font-medium">
+                      {auftragsbestaetigungsDaten.gesamtrabattBezeichnung?.trim() || 'Rabatt'} ({gesamtrabattProzent}%):
+                    </span>
+                    <span className="font-medium text-green-700 dark:text-green-400">
+                      - {gesamtrabattBetrag.toFixed(2)} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600 dark:text-dark-textMuted">Zwischensumme netto:</span>
+                    <span className="font-medium text-gray-900 dark:text-dark-text">{nettoNachRabatt.toFixed(2)} €</span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">MwSt. (19%):</span>
                 <span className="font-medium text-gray-900 dark:text-dark-text">
-                  {((berechnung.nettobetrag + frachtUndVerpackung) * 0.19).toFixed(2)} €
+                  {(nettoNachRabatt * 0.19).toFixed(2)} €
                 </span>
               </div>
-              
+
               <div className="border-t border-orange-200 dark:border-slate-600 pt-3 mt-3">
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Auftragssumme:</span>

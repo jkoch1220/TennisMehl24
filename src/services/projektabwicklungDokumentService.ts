@@ -325,10 +325,12 @@ export const speichereAuftragsbestaetigung = async (
       file
     );
 
-    // Bruttobetrag berechnen
+    // Bruttobetrag berechnen (inkl. Gesamtrabatt)
     const summen = berechneRechnungsSummen(daten.positionen);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    const nettoVorRabatt = summen.nettobetrag + frachtUndVerpackung;
+    const rabattBetrag = nettoVorRabatt * ((daten.gesamtrabattProzent || 0) / 100);
+    const bruttobetrag = (nettoVorRabatt - rabattBetrag) * 1.19;
 
     // Dokument-Eintrag in DB erstellen (mit Versionierung)
     console.log(`📝 Erstelle AB-Version ${neueVersion} für Projekt ${projektId}...`);
@@ -459,10 +461,12 @@ export const aktualisiereAuftragsbestaetigung = async (
       file
     );
 
-    // Bruttobetrag berechnen
+    // Bruttobetrag berechnen (inkl. Gesamtrabatt)
     const summen = berechneRechnungsSummen(daten.positionen);
     const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    const nettoVorRabatt = summen.nettobetrag + frachtUndVerpackung;
+    const rabattBetrag = nettoVorRabatt * ((daten.gesamtrabattProzent || 0) / 100);
+    const bruttobetrag = (nettoVorRabatt - rabattBetrag) * 1.19;
 
     // NEUES Dokument erstellen (nicht überschreiben!) - mit Versionsnummer
     console.log(`📝 Erstelle neue AB-Version ${neueVersion} für Projekt ${projektId}...`);
