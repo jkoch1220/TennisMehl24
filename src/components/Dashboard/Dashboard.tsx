@@ -22,6 +22,7 @@ import {
 import { dashboardService } from '../../services/dashboardService';
 import type { LagerBestand, DashboardStats } from '../../types/dashboard';
 import OilBulletinChart from './OilBulletinChart';
+import ShopEinnahmenChart from './ShopEinnahmenChart';
 
 interface KennzahlKarteProps {
   titel: string;
@@ -822,6 +823,11 @@ const Dashboard = () => {
               Aktualisiert: {new Date(stats.lagerBestand.letztesUpdate).toLocaleString('de-DE')}
             </div>
           )}
+
+          {/* Onlineshop-Einnahmen Chart */}
+          <div className="mt-6 sm:mt-10">
+            <ShopEinnahmenChart />
+          </div>
 
           {/* Oil Bulletin Dieselpreis Chart */}
           <div className="mt-6 sm:mt-10">
