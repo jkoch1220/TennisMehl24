@@ -51,6 +51,11 @@ import {
   istRabenDieselfloaterPosition,
   RABEN_DIESELFLOATER_ARTIKELNUMMER,
 } from '../../utils/rabenDieselfloater';
+import {
+  getUniversalVersandZusammenfassung,
+  getUniversalVersandartLabel,
+  UniversalVersandart,
+} from '../../utils/universalVersandHinweis';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -1446,6 +1451,52 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               )}
             </div>
           )}
+
+          {/* Versandkosten-Hinweis: sichtbar wenn Universal-Artikel enthalten */}
+          {(() => {
+            const zus = getUniversalVersandZusammenfassung(auftragsbestaetigungsDaten.positionen);
+            if (!zus) return null;
+            const artReihenfolge: UniversalVersandart[] = ['gls', 'spedition', 'post', 'anfrage', 'unbekannt'];
+            return (
+              <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 dark:border-amber-400 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                      Versandkosten für Universal-Artikel nicht vergessen!
+                    </h3>
+                    <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
+                      {zus.anzahlUniversalPositionen} Universal-Position{zus.anzahlUniversalPositionen !== 1 ? 'en' : ''}
+                      {zus.gesamtGewichtKg > 0 && ` · Gesamtgewicht ca. ${zus.gesamtGewichtKg.toFixed(1).replace('.', ',')} kg`}
+                      {zus.hatSperrgut && ' · enthält Sperrgut'}
+                    </p>
+                    <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-0.5 mb-2">
+                      {artReihenfolge.map((art) => {
+                        const gruppe = zus.byArt[art];
+                        if (!gruppe) return null;
+                        return (
+                          <li key={art} className="flex items-start gap-2">
+                            <span className="font-semibold min-w-[140px]">{getUniversalVersandartLabel(art)}:</span>
+                            <span>
+                              {gruppe.anzahlPositionen} Position{gruppe.anzahlPositionen !== 1 ? 'en' : ''}
+                              {gruppe.codes.length > 0 && ` · Code${gruppe.codes.length !== 1 ? 's' : ''} DE: ${gruppe.codes.join(', ')}`}
+                              {gruppe.gesamtGewichtKg > 0 && ` · ${gruppe.gesamtGewichtKg.toFixed(1).replace('.', ',')} kg`}
+                              {gruppe.hatSperrgut && ' · Sperrgut'}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 italic">
+                      Bitte Versandkosten-Position manuell ergänzen. Preise im Universal-Versandkostenkatalog nachschlagen
+                      (Codes 3x=GLS DE, 4x=GLS AT, 5x=GLS Benelux, 2x=Spedition, 1x=Post).
+                      {zus.hatAnfrage && ' Bei "Fracht auf Anfrage" vorher beim Lieferanten nachfragen.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <DndContext
             sensors={sensors}
