@@ -27,6 +27,7 @@ import {
   HardHat,
   Banknote,
   ShoppingCart,
+  Landmark,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -278,6 +279,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/shop-bestellungen',
     icon: ShoppingCart,
     color: 'from-orange-500 to-red-500',
+  },
+  {
+    id: 'kontouebersicht',
+    name: 'Kontoübersicht',
+    description: 'Bankkonto-Übersicht mit Kontostand, Eingängen und Ausgängen (VR Bank)',
+    href: '/kontouebersicht',
+    icon: Landmark,
+    color: 'from-blue-600 to-cyan-600',
   },
 ];
 

@@ -7,21 +7,55 @@ import { databases } from '../config/appwrite';
 import { DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID } from '../config/appwrite';
 import { Stammdaten, StammdatenInput } from '../types/stammdaten';
 
+// ===== STAMMDATEN CACHE =====
+// Stammdaten ändern sich sehr selten, daher 5 Minuten Cache
+interface StammdatenCache {
+  data: Stammdaten | null;
+  timestamp: number;
+}
+const STAMMDATEN_CACHE_TTL = 5 * 60 * 1000; // 5 Minuten
+let stammdatenCache: StammdatenCache | null = null;
+
 /**
- * Lädt die Stammdaten
+ * Cache invalidieren (nach Speichern)
+ */
+export const invalidateStammdatenCache = (): void => {
+  stammdatenCache = null;
+};
+
+/**
+ * Lädt die Stammdaten (mit Cache!)
  * Es gibt nur einen Stammdaten-Datensatz
  */
 export const ladeStammdaten = async (): Promise<Stammdaten | null> => {
+  // Cache prüfen
+  const now = Date.now();
+  if (stammdatenCache && (now - stammdatenCache.timestamp) < STAMMDATEN_CACHE_TTL) {
+    return stammdatenCache.data;
+  }
+
   try {
     const response = await databases.getDocument(
       DATABASE_ID,
       STAMMDATEN_COLLECTION_ID,
       STAMMDATEN_DOCUMENT_ID
     );
-    return response as unknown as Stammdaten;
+    const stammdaten = response as unknown as Stammdaten;
+
+    // Cache aktualisieren
+    stammdatenCache = {
+      data: stammdaten,
+      timestamp: now,
+    };
+
+    return stammdaten;
   } catch (error: any) {
     if (error.code === 404) {
-      // Datensatz existiert noch nicht
+      // Datensatz existiert noch nicht - auch cachen (null)
+      stammdatenCache = {
+        data: null,
+        timestamp: now,
+      };
       return null;
     }
     console.error('Fehler beim Laden der Stammdaten:', error);
@@ -31,16 +65,17 @@ export const ladeStammdaten = async (): Promise<Stammdaten | null> => {
 
 /**
  * Speichert die Stammdaten (erstellt oder aktualisiert)
+ * OPTIMIERT: Versucht erst Update, dann Create (statt vorher laden)
  */
 export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stammdaten> => {
   try {
     const jetzt = new Date().toISOString();
-    
-    // Prüfe, ob bereits ein Datensatz existiert
-    const bestehendeStammdaten = await ladeStammdaten();
-    
-    if (bestehendeStammdaten) {
-      // Aktualisiere bestehende Stammdaten
+
+    // Cache invalidieren VOR dem Speichern
+    invalidateStammdatenCache();
+
+    try {
+      // Versuche erst Update (häufigster Fall)
       const response = await databases.updateDocument(
         DATABASE_ID,
         STAMMDATEN_COLLECTION_ID,
@@ -50,20 +85,39 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
           aktualisiertAm: jetzt,
         }
       );
-      return response as unknown as Stammdaten;
-    } else {
-      // Erstelle neue Stammdaten
-      const response = await databases.createDocument(
-        DATABASE_ID,
-        STAMMDATEN_COLLECTION_ID,
-        STAMMDATEN_DOCUMENT_ID,
-        {
-          ...daten,
-          erstelltAm: jetzt,
-          aktualisiertAm: jetzt,
-        }
-      );
-      return response as unknown as Stammdaten;
+      const stammdaten = response as unknown as Stammdaten;
+
+      // Cache mit neuen Daten aktualisieren
+      stammdatenCache = {
+        data: stammdaten,
+        timestamp: Date.now(),
+      };
+
+      return stammdaten;
+    } catch (updateError: any) {
+      // Wenn Dokument nicht existiert, erstelle es
+      if (updateError.code === 404) {
+        const response = await databases.createDocument(
+          DATABASE_ID,
+          STAMMDATEN_COLLECTION_ID,
+          STAMMDATEN_DOCUMENT_ID,
+          {
+            ...daten,
+            erstelltAm: jetzt,
+            aktualisiertAm: jetzt,
+          }
+        );
+        const stammdaten = response as unknown as Stammdaten;
+
+        // Cache mit neuen Daten aktualisieren
+        stammdatenCache = {
+          data: stammdaten,
+          timestamp: Date.now(),
+        };
+
+        return stammdaten;
+      }
+      throw updateError;
     }
   } catch (error) {
     console.error('Fehler beim Speichern der Stammdaten:', error);

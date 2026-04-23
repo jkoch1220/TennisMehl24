@@ -3,6 +3,19 @@ import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite
 import { KundenListenEintrag, NeuerKundenListenEintrag } from '../types/kundenliste';
 import { kundennummerService } from './kundennummerService';
 
+// ===== KUNDENLISTE CACHE =====
+interface KundenListeCache {
+  kunden: KundenListenEintrag[];
+  kundenMap: Map<string, KundenListenEintrag>; // ID -> Kunde für schnellen Einzelzugriff
+  timestamp: number;
+}
+const KUNDENLISTE_CACHE_TTL = 60 * 1000; // 1 Minute Cache
+let kundenListeCache: KundenListeCache | null = null;
+
+function invalidateCache(): void {
+  kundenListeCache = null;
+}
+
 function toStorageObject(entry: KundenListenEintrag) {
   // Legacy-Felder beilegen, damit bestehende Views weiterhin funktionieren
   return {
@@ -84,20 +97,53 @@ function parseDocument(doc: Models.Document): KundenListenEintrag {
 }
 
 export const kundenListeService = {
+  // Cache invalidieren
+  invalidateCache,
+
+  // Liste mit Cache
   async list(): Promise<KundenListenEintrag[]> {
+    const now = Date.now();
+
+    // Cache prüfen
+    if (kundenListeCache && (now - kundenListeCache.timestamp) < KUNDENLISTE_CACHE_TTL) {
+      return kundenListeCache.kunden;
+    }
+
     try {
       const response = await databases.listDocuments(DATABASE_ID, KUNDEN_COLLECTION_ID, [
         Query.limit(5000),
         Query.orderDesc('$createdAt'),
       ]);
-      return response.documents.map((doc) => parseDocument(doc));
+      const kunden = response.documents.map((doc) => parseDocument(doc));
+
+      // Cache aktualisieren (inkl. Map für schnellen Einzelzugriff)
+      const kundenMap = new Map<string, KundenListenEintrag>();
+      kunden.forEach(k => kundenMap.set(k.id, k));
+
+      kundenListeCache = {
+        kunden,
+        kundenMap,
+        timestamp: now,
+      };
+
+      return kunden;
     } catch (error) {
       console.error('Fehler beim Laden der Kundenliste:', error);
       return [];
     }
   },
 
+  // Einzelzugriff mit Cache
   async get(id: string): Promise<KundenListenEintrag | null> {
+    // Erst im Cache nachschauen
+    if (kundenListeCache && (Date.now() - kundenListeCache.timestamp) < KUNDENLISTE_CACHE_TTL) {
+      const cachedKunde = kundenListeCache.kundenMap.get(id);
+      if (cachedKunde) {
+        return cachedKunde;
+      }
+    }
+
+    // Nicht im Cache - direkt laden
     try {
       const doc = await databases.getDocument(DATABASE_ID, KUNDEN_COLLECTION_ID, id);
       return parseDocument(doc);
@@ -145,6 +191,9 @@ export const kundenListeService = {
       toPayload(entry)
     );
 
+    // Cache invalidieren
+    invalidateCache();
+
     return parseDocument(document);
   },
 
@@ -176,10 +225,16 @@ export const kundenListeService = {
       toPayload(entry)
     );
 
+    // Cache invalidieren
+    invalidateCache();
+
     return parseDocument(document);
   },
 
   async remove(id: string): Promise<void> {
     await databases.deleteDocument(DATABASE_ID, KUNDEN_COLLECTION_ID, id);
+
+    // Cache invalidieren
+    invalidateCache();
   },
 };

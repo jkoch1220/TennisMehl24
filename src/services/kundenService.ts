@@ -2,9 +2,30 @@ import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite
 import { Kunde, NeuerKunde } from '../types/dispo';
 import { ID, Query } from 'appwrite';
 
+// ===== KUNDEN CACHE =====
+interface KundenCache {
+  kunden: Kunde[];
+  kundenMap: Map<string, Kunde>; // ID -> Kunde für schnellen Einzelzugriff
+  timestamp: number;
+}
+const KUNDEN_CACHE_TTL = 60 * 1000; // 1 Minute Cache (Kunden ändern sich selten)
+let kundenCache: KundenCache | null = null;
+
 export const kundenService = {
-  // Lade alle Kunden
+  // Cache invalidieren
+  invalidateCache(): void {
+    kundenCache = null;
+  },
+
+  // Lade alle Kunden (MIT CACHE!)
   async loadAlleKunden(): Promise<Kunde[]> {
+    const now = Date.now();
+
+    // Cache prüfen
+    if (kundenCache && (now - kundenCache.timestamp) < KUNDEN_CACHE_TTL) {
+      return kundenCache.kunden;
+    }
+
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
@@ -13,21 +34,33 @@ export const kundenService = {
           Query.limit(5000)
         ]
       );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+
+      const kunden = response.documents.map(doc => this.parseDocument(doc));
+
+      // Cache aktualisieren (inkl. Map für schnellen Einzelzugriff)
+      const kundenMap = new Map<string, Kunde>();
+      kunden.forEach(k => kundenMap.set(k.id, k));
+
+      kundenCache = {
+        kunden,
+        kundenMap,
+        timestamp: now,
+      };
+
+      return kunden;
     } catch (error) {
       console.error('Fehler beim Laden der Kunden:', error);
       return [];
     }
   },
 
-  // Suche Kunden nach Name oder Kundennummer
+  // Suche Kunden nach Name oder Kundennummer (nutzt Cache)
   async sucheKunden(suchbegriff: string): Promise<Kunde[]> {
     try {
-      const alleKunden = await this.loadAlleKunden();
+      const alleKunden = await this.loadAlleKunden(); // Nutzt Cache!
       const begriff = suchbegriff.toLowerCase();
-      
-      return alleKunden.filter(kunde => 
+
+      return alleKunden.filter(kunde =>
         kunde.name.toLowerCase().includes(begriff) ||
         kunde.kundennummer.toLowerCase().includes(begriff) ||
         kunde.adresse.ort.toLowerCase().includes(begriff)
@@ -38,15 +71,24 @@ export const kundenService = {
     }
   },
 
-  // Lade einen einzelnen Kunden
+  // Lade einen einzelnen Kunden (nutzt Cache wenn möglich)
   async loadKunde(id: string): Promise<Kunde | null> {
+    // Erst im Cache nachschauen
+    if (kundenCache && (Date.now() - kundenCache.timestamp) < KUNDEN_CACHE_TTL) {
+      const cachedKunde = kundenCache.kundenMap.get(id);
+      if (cachedKunde) {
+        return cachedKunde;
+      }
+    }
+
+    // Nicht im Cache - direkt laden
     try {
       const document = await databases.getDocument(
         DATABASE_ID,
         KUNDEN_COLLECTION_ID,
         id
       );
-      
+
       return this.parseDocument(document);
     } catch (error) {
       console.error('Fehler beim Laden des Kunden:', error);
@@ -72,7 +114,10 @@ export const kundenService = {
           data: JSON.stringify(neuerKunde),
         }
       );
-      
+
+      // Cache invalidieren
+      this.invalidateCache();
+
       return this.parseDocument(document);
     } catch (error) {
       console.error('Fehler beim Erstellen des Kunden:', error);
@@ -103,7 +148,10 @@ export const kundenService = {
           data: JSON.stringify(aktualisiert),
         }
       );
-      
+
+      // Cache invalidieren
+      this.invalidateCache();
+
       return this.parseDocument(document);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kunden:', error);
@@ -119,6 +167,9 @@ export const kundenService = {
         KUNDEN_COLLECTION_ID,
         id
       );
+
+      // Cache invalidieren
+      this.invalidateCache();
     } catch (error) {
       console.error('Fehler beim Löschen des Kunden:', error);
       throw error;

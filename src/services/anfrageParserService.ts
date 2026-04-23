@@ -48,6 +48,12 @@ const siehtAusWieFeldname = (value: string): boolean => {
   if (!value) return false;
   const lower = value.toLowerCase().trim();
 
+  // E-Mail-Adressen (z. B. "mail@jobsthoeche.de") sehen nie wie ein Feldname aus,
+  // auch wenn sie mit einem bekannten Feldnamen wie "mail" beginnen.
+  if (/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) {
+    return false;
+  }
+
   // Prüfe auf bekannte Feldnamen
   for (const feldname of BEKANNTE_FELDNAMEN) {
     if (lower.startsWith(feldname)) {

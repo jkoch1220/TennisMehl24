@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar, Smartphone } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Projektabwicklung/ArtikelVerwaltungTab';
 import UniversalArtikelTab from './UniversaArtikelTab';
 import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 import SaisonEinstellungenTab from './SaisonEinstellungenTab';
+import KontaktExportTab from './KontaktExportTab';
 
-type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison';
+type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison' | 'kontaktExport';
 
 const Stammdaten = () => {
   const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
@@ -54,6 +55,13 @@ const Stammdaten = () => {
       icon: Calendar,
       color: 'from-orange-600 to-amber-600',
       description: 'Saison-Einstellungen'
+    },
+    {
+      id: 'kontaktExport' as TabId,
+      label: 'Kontakt-Export',
+      icon: Smartphone,
+      color: 'from-teal-600 to-cyan-600',
+      description: 'Kontakte als vCard exportieren'
     },
   ];
 
@@ -109,6 +117,7 @@ const Stammdaten = () => {
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
         {activeTab === 'saison' && <SaisonEinstellungenTab />}
+        {activeTab === 'kontaktExport' && <KontaktExportTab />}
       </div>
 
       {/* Info-Box über Stammdaten */}
@@ -135,6 +144,10 @@ const Stammdaten = () => {
           <p>
             <strong>Saison:</strong> Konfiguration der aktuellen Saison für die Auftragsbestätigungsnummern.
             AB-Nummern werden im Format AB-YYYY-0001 generiert, wobei YYYY das Saisonjahr ist.
+          </p>
+          <p>
+            <strong>Kontakt-Export:</strong> Exportiert alle Ansprechpartner der Vereine/Platzbauer als
+            vCard-Datei (.vcf) zum Import in iPhone-, Android- oder Google-Kontakte.
           </p>
           <p className="text-blue-700 font-medium mt-4">
             Tipp: Pflegen Sie Ihre Stammdaten sorgfältig, da diese zentral in vielen Bereichen verwendet werden.

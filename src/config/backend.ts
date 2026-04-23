@@ -20,6 +20,7 @@ export interface BackendConfig {
     calculations: boolean; // Cost calculations
     routeOptimizer: boolean; // Route optimization
     appwriteProxy: boolean; // Route Appwrite through backend
+    banking: boolean;     // Banking / GoCardless integration
   };
 }
 
@@ -31,7 +32,8 @@ const DEFAULT_FEATURES = {
   pdf: false,          // Keep PDF local for now (faster preview)
   calculations: false, // Keep calculations local (instant feedback)
   routeOptimizer: false, // Keep local (instant feedback)
-  appwriteProxy: false   // Direct Appwrite access for now
+  appwriteProxy: false,  // Direct Appwrite access for now
+  banking: true          // Always use backend for banking (API keys!)
 };
 
 // Ermittle Backend-URL:
@@ -62,7 +64,8 @@ export const BACKEND_CONFIG: BackendConfig = {
     pdf: import.meta.env.VITE_BACKEND_PDF === 'true' || DEFAULT_FEATURES.pdf,
     calculations: import.meta.env.VITE_BACKEND_CALC === 'true' || DEFAULT_FEATURES.calculations,
     routeOptimizer: import.meta.env.VITE_BACKEND_ROUTE === 'true' || DEFAULT_FEATURES.routeOptimizer,
-    appwriteProxy: import.meta.env.VITE_BACKEND_APPWRITE === 'true' || DEFAULT_FEATURES.appwriteProxy
+    appwriteProxy: import.meta.env.VITE_BACKEND_APPWRITE === 'true' || DEFAULT_FEATURES.appwriteProxy,
+    banking: import.meta.env.VITE_BACKEND_BANKING !== 'false' && DEFAULT_FEATURES.banking
   }
 };
 

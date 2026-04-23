@@ -64,6 +64,9 @@ const ProduktionsTracker = lazyWithRetry(() => import('./components/ProduktionsT
 // Shop Bestellungen
 const ShopBestellungen = lazyWithRetry(() => import('./components/ShopBestellungen/ShopBestellungen'));
 
+// Banking
+const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht/Kontouebersicht'));
+
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
@@ -257,6 +260,11 @@ function AuthenticatedContent() {
                   <Route path="/shop-bestellungen" element={
                     <ProtectedRoute toolId="shop-bestellungen">
                       <ShopBestellungen />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/kontouebersicht" element={
+                    <ProtectedRoute toolId="kontouebersicht">
+                      <Kontouebersicht />
                     </ProtectedRoute>
                   } />
 

@@ -213,12 +213,17 @@ const DispoPlanung = () => {
   const [buchungVonTourId, setBuchungVonTourId] = useState<string | undefined>(undefined);
   const [showBuchungDialog, setShowBuchungDialog] = useState(false);
 
-  // Daten laden
+  // Daten laden - OPTIMIERT: Parallele API-Calls!
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Lade alle Projekte (alle Jahre)
-      const alleProjekte = await projektService.loadProjekte();
+      // OPTIMIERT: Lade ALLE Daten parallel statt sequenziell!
+      const [alleProjekte, alleKunden, geladeneFahrzeuge, geladeneTouren] = await Promise.all([
+        projektService.loadProjekte(),
+        saisonplanungService.loadAlleKunden(),
+        fahrzeugService.loadAlleFahrzeuge(),
+        tourenService.loadAlleTouren(),
+      ]);
 
       // Filtere nur Dispo-relevante Projekte
       // Ausgelieferte Projekte (dispoStatus === 'geliefert') werden NICHT mehr angezeigt
@@ -239,20 +244,15 @@ const DispoPlanung = () => {
 
       setProjekte(projekteInitialisiert);
 
-      // OPTIMIERT: Lade ALLE Kunden auf einmal statt einzeln!
-      const alleKunden = await saisonplanungService.loadAlleKunden();
+      // Kunden-Map erstellen
       const neueKundenMap = new Map<string, SaisonKunde>();
       alleKunden.forEach(kunde => {
         neueKundenMap.set(kunde.id, kunde);
       });
       setKundenMap(neueKundenMap);
 
-      // Lade Fahrzeuge
-      const geladeneFahrzeuge = await fahrzeugService.loadAlleFahrzeuge();
+      // Fahrzeuge & Touren setzen
       setFahrzeuge(geladeneFahrzeuge);
-
-      // Lade Touren
-      const geladeneTouren = await tourenService.loadAlleTouren();
       setTouren(geladeneTouren);
     } catch (error) {
       console.error('Fehler beim Laden:', error);
