@@ -1017,7 +1017,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       id: Date.now().toString(),
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
-      beschreibung: `Universal: ${selectedArtikel.verpackungseinheit}`,
+      beschreibung: '',
       menge: 1,
       einheit: selectedArtikel.verpackungseinheit,
       einzelpreis: verkaufspreis,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Upload, Trash2, Search, ArrowUpDown, AlertCircle, CheckCircle2, FileSpreadsheet, Package, Loader2, Truck, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Search, ArrowUpDown, AlertCircle, CheckCircle2, FileSpreadsheet, Package, Loader2, Truck, ChevronDown, Plus, Pencil } from 'lucide-react';
 import { UniversalArtikel, ImportProgress } from '../../types/universaArtikel';
 import {
   getAlleUniversalArtikel,
@@ -8,7 +8,9 @@ import {
   importiereExcel,
   importiereArtikellisteExcel,
   aktualisiereUniversalArtikel,
+  loescheUniversalArtikel,
 } from '../../services/universaArtikelService';
+import UniversalArtikelDialog from './UniversalArtikelDialog';
 
 type SortField = 'artikelnummer' | 'bezeichnung' | 'katalogPreisBrutto';
 
@@ -31,6 +33,10 @@ const UniversalArtikelTab = () => {
 
   // Import-Dropdown State
   const [showImportDropdown, setShowImportDropdown] = useState(false);
+
+  // Dialog für Einzel-Anlage/Bearbeitung
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogArtikel, setDialogArtikel] = useState<UniversalArtikel | null>(null);
 
   // Artikel laden
   const ladeArtikel = useCallback(async () => {
@@ -76,6 +82,51 @@ const UniversalArtikelTab = () => {
   const handleSortieren = (field: SortField) => {
     setSortField(field);
     setPage(0);
+  };
+
+  // Dialog öffnen (neu oder bearbeiten)
+  const handleNeuAnlegen = () => {
+    setDialogArtikel(null);
+    setDialogOpen(true);
+  };
+
+  const handleBearbeiten = (art: UniversalArtikel) => {
+    setDialogArtikel(art);
+    setDialogOpen(true);
+  };
+
+  const handleDialogSaved = (art: UniversalArtikel) => {
+    setArtikel((prev) => {
+      const idx = prev.findIndex((a) => a.$id === art.$id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = art;
+        return copy;
+      }
+      return [art, ...prev];
+    });
+    if (!dialogArtikel) {
+      setTotal((t) => t + 1);
+    }
+    setImportStatus('success');
+    setImportMessage(dialogArtikel ? `Artikel "${art.artikelnummer}" aktualisiert` : `Artikel "${art.artikelnummer}" angelegt`);
+  };
+
+  // Einzelnen Artikel löschen
+  const handleEinzelLoeschen = async (art: UniversalArtikel) => {
+    if (!art.$id) return;
+    if (!confirm(`Artikel "${art.artikelnummer} – ${art.bezeichnung}" wirklich löschen?`)) return;
+    try {
+      await loescheUniversalArtikel(art.$id);
+      setArtikel((prev) => prev.filter((a) => a.$id !== art.$id));
+      setTotal((t) => Math.max(0, t - 1));
+      setImportStatus('success');
+      setImportMessage(`Artikel "${art.artikelnummer}" gelöscht`);
+    } catch (error) {
+      console.error('Fehler beim Löschen:', error);
+      setImportStatus('error');
+      setImportMessage('Fehler beim Löschen des Artikels');
+    }
   };
 
   // Toggle ohneMwSt für einzelnen Artikel
@@ -285,6 +336,18 @@ const UniversalArtikelTab = () => {
               />
             </div>
 
+            {/* Neu anlegen Button */}
+            <button
+              onClick={handleNeuAnlegen}
+              disabled={importStatus === 'uploading'}
+              className={`flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg transition-colors whitespace-nowrap ${
+                importStatus === 'uploading' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              Artikel anlegen
+            </button>
+
             {/* Excel-Import Dropdown */}
             <div className="relative">
               <button
@@ -480,16 +543,25 @@ const UniversalArtikelTab = () => {
             Laden Sie die Universal Sport Großhändler-/Katalogpreisliste als Excel-Datei hoch,
             um die Artikel zu importieren. Der Import unterstützt auch große Dateien mit 700+ Artikeln.
           </p>
-          <label className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors cursor-pointer">
-            <Upload className="h-5 w-5" />
-            Excel-Preisliste hochladen
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handlePreislisteUpload}
-              className="hidden"
-            />
-          </label>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <label className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-colors cursor-pointer">
+              <Upload className="h-5 w-5" />
+              Excel-Preisliste hochladen
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handlePreislisteUpload}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={handleNeuAnlegen}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              Einzelnen Artikel anlegen
+            </button>
+          </div>
         </div>
       )}
 
@@ -555,6 +627,9 @@ const UniversalArtikelTab = () => {
                       </th>
                       <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         ohne MwSt
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
+                        Aktionen
                       </th>
                     </tr>
                   </thead>
@@ -625,6 +700,24 @@ const UniversalArtikelTab = () => {
                             title="Artikel ist bereits Brutto (keine MwSt hinzufügen)"
                           />
                         </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleBearbeiten(art)}
+                              className="p-1.5 text-gray-500 hover:text-orange-600 dark:text-dark-textMuted dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-lg transition-colors"
+                              title="Bearbeiten"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEinzelLoeschen(art)}
+                              className="p-1.5 text-gray-500 hover:text-red-600 dark:text-dark-textMuted dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                              title="Löschen"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -677,6 +770,14 @@ const UniversalArtikelTab = () => {
           Versandcodes: 3x = GLS DE, 4x = GLS AT, 5x = GLS Benelux, 2x = Spedition, F.a.A. = Fracht auf Anfrage
         </p>
       </div>
+
+      {/* Dialog für Neuanlage/Bearbeitung einzelner Artikel */}
+      <UniversalArtikelDialog
+        open={dialogOpen}
+        artikel={dialogArtikel}
+        onClose={() => setDialogOpen(false)}
+        onSaved={handleDialogSaved}
+      />
     </div>
   );
 };
