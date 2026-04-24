@@ -229,13 +229,13 @@ const ShopBestellungDetail = ({
 
           {/* Kontakt & Zahlung */}
           <div className="flex flex-wrap gap-4 text-sm">
-            {bestellung.kundenEmail && (
+            {(bestellung.kundenEmail || bestellung.kundeEmail) && (
               <a
-                href={`mailto:${bestellung.kundenEmail}`}
+                href={`mailto:${bestellung.kundenEmail || bestellung.kundeEmail}`}
                 className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
               >
                 <Mail className="w-4 h-4" />
-                {bestellung.kundenEmail}
+                {bestellung.kundenEmail || bestellung.kundeEmail}
               </a>
             )}
             {bestellung.telefon && (

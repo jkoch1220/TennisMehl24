@@ -61,6 +61,7 @@ export interface ShopBestellung {
   gambioStatusId?: number;
   // Kunden-Kontakt & Historie
   kundenEmail?: string;
+  kundeEmail?: string; // Legacy-Feldname (wird vom Backend-Sync teilweise so geschrieben)
   statusHistorie?: string; // JSON Array
   aktivitaetsLog?: string; // JSON Array
   erstelltAm: string;
@@ -572,7 +573,7 @@ class ShopBestellungService {
       kundenname: lieferadresse.firma || lieferadresse.name,
       kundenstrasse: lieferadresse.strasse,
       kundenPlzOrt: `${lieferadresse.plz} ${lieferadresse.ort}`,
-      kundenEmail: bestellung.kundenEmail || '', // Kunden-Email aus Shop-Bestellung
+      kundenEmail: bestellung.kundenEmail || bestellung.kundeEmail || '', // Kunden-Email aus Shop-Bestellung (Backend-Feld: kundenEmail oder kundeEmail)
       kundenTelefon: bestellung.telefon || '', // Telefon aus Shop-Bestellung
       lieferadresse: {
         strasse: lieferadresse.strasse,
