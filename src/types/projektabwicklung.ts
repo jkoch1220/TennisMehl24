@@ -288,6 +288,10 @@ export interface RechnungsDaten extends BaseDokument {
 
   // Raben-Dieselfloater (Palettenspedition)
   rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
+
+  // Gesamtrabatt (wird auf Nettobetrag + Fracht angewendet, vor MwSt)
+  gesamtrabattProzent?: number;
+  gesamtrabattBezeichnung?: string; // z.B. "Auftragsrabatt", "Treuerabatt"
 }
 
 // Berechnungen

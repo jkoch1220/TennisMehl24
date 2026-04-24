@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info } from 'lucide-react';
+import { Plus, Trash2, Download, FileCheck, AlertCircle, CheckCircle2, Loader2, Lock, AlertTriangle, Cloud, CloudOff, Ban, RefreshCw, FileX, Mail, FileText, Package, ShoppingBag, Search, Fuel, Pencil, X, Info, Tag } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -592,12 +592,32 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
         // AUTOMATISCH: Versuche Positionen vom vorherigen Dokument (Auftragsbestätigung) zu übernehmen
         // WICHTIG: Wir nehmen die Positionen von der AB (mit Preisen), nicht vom Lieferschein!
         let initialePositionen: Position[] = [];
+        let abRabattProzent: number | undefined;
+        let abRabattBezeichnung: string | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'rechnung');
           if (positionen && positionen.length > 0) {
             initialePositionen = positionen as Position[];
             console.log('✅ Stückliste von Auftragsbestätigung übernommen:', initialePositionen.length, 'Positionen');
+          }
+
+          // Gesamtrabatt von Auftragsbestätigung übernehmen (finalisiert oder Entwurf)
+          try {
+            let abDaten: { gesamtrabattProzent?: number; gesamtrabattBezeichnung?: string } | null = null;
+            const finalisierteAB = await ladeDokumentNachTyp(projekt.$id, 'auftragsbestaetigung');
+            if (finalisierteAB) {
+              abDaten = ladeDokumentDaten(finalisierteAB);
+            } else {
+              abDaten = await ladeEntwurf(projekt.$id, 'auftragsbestaetigungsDaten');
+            }
+            if (abDaten?.gesamtrabattProzent) {
+              abRabattProzent = abDaten.gesamtrabattProzent;
+              abRabattBezeichnung = abDaten.gesamtrabattBezeichnung;
+              console.log('✅ Gesamtrabatt von Auftragsbestätigung übernommen:', abRabattProzent, '%');
+            }
+          } catch (error) {
+            console.warn('Gesamtrabatt von Auftragsbestätigung konnte nicht geladen werden:', error);
           }
         }
 
@@ -737,6 +757,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           lieferadresseName,
           lieferadresseStrasse,
           lieferadressePlzOrt,
+          gesamtrabattProzent: prev.gesamtrabattProzent ?? abRabattProzent,
+          gesamtrabattBezeichnung: prev.gesamtrabattBezeichnung ?? abRabattBezeichnung,
         }));
       }
     };
@@ -904,7 +926,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       id: Date.now().toString(),
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
-      beschreibung: `Universal: ${selectedArtikel.verpackungseinheit}`,
+      beschreibung: '',
       menge: 1,
       einheit: selectedArtikel.verpackungseinheit,
       einzelpreis: verkaufspreis,
@@ -1368,6 +1390,12 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   };
 
   const berechnung = berechneRechnungsSummen(rechnungsDaten.positionen, rechnungsDaten.ohneMehrwertsteuer, rechnungsDaten.mehrwertsteuersatz);
+  const gesamtrabattProzent = rechnungsDaten.gesamtrabattProzent || 0;
+  const rabattFaktor = gesamtrabattProzent > 0 ? gesamtrabattProzent / 100 : 0;
+  const gesamtrabattBetrag = Math.round(berechnung.nettobetrag * rabattFaktor * 100) / 100;
+  const nettoNachRabatt = Math.round((berechnung.nettobetrag - gesamtrabattBetrag) * 100) / 100;
+  const steuerNachRabatt = Math.round(berechnung.umsatzsteuer * (1 - rabattFaktor) * 100) / 100;
+  const bruttoNachRabatt = Math.round((nettoNachRabatt + steuerNachRabatt) * 100) / 100;
 
   // Prüfen ob Formular deaktiviert sein soll (finale Rechnung die nicht storniert ist)
   const istFormularDisabled = Boolean(
@@ -2838,6 +2866,88 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           </div>
         </div>
 
+        {/* Gesamtrabatt */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Tag className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Gesamtrabatt</h2>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted mb-4">
+            Prozentualer Nachlass auf den Nettobetrag. Wird auf der Rechnung ausgewiesen und reduziert die Bemessungsgrundlage für die MwSt.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_auto_1fr] gap-3 items-end">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Rabatt (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={rechnungsDaten.gesamtrabattProzent ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                }}
+                disabled={!!gespeichertesDokument}
+                placeholder="0"
+                className="w-24 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {[5, 10, 12, 14, 16].map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', p)}
+                  disabled={!!gespeichertesDokument}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    rechnungsDaten.gesamtrabattProzent === p
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-dark-text border-gray-300 dark:border-slate-700 hover:bg-green-50 dark:hover:bg-green-900/30'
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+              {gesamtrabattProzent > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('gesamtrabattProzent', undefined)}
+                  disabled={!!gespeichertesDokument}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
+                >
+                  Entfernen
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Bezeichnung (optional)
+              </label>
+              <input
+                type="text"
+                value={rechnungsDaten.gesamtrabattBezeichnung || ''}
+                onChange={(e) => handleInputChange('gesamtrabattBezeichnung', e.target.value)}
+                disabled={!!gespeichertesDokument}
+                placeholder="z.B. Auftragsrabatt, Treuerabatt"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+          </div>
+          {gesamtrabattProzent > 0 && (
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-green-800 dark:text-green-300">
+                Rabatt auf {berechnung.nettobetrag.toFixed(2)} € netto:
+              </span>
+              <span className="text-sm font-bold text-green-700 dark:text-green-400">
+                - {gesamtrabattBetrag.toFixed(2)} €
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Zahlungsbedingungen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -2939,12 +3049,29 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <span className="font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</span>
               </div>
 
+              {gesamtrabattProzent > 0 && (
+                <>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-green-700 dark:text-green-400 font-medium">
+                      {rechnungsDaten.gesamtrabattBezeichnung?.trim() || 'Rabatt'} ({gesamtrabattProzent}%):
+                    </span>
+                    <span className="font-medium text-green-700 dark:text-green-400">
+                      - {gesamtrabattBetrag.toFixed(2)} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600 dark:text-dark-textMuted">Zwischensumme netto:</span>
+                    <span className="font-medium text-gray-900 dark:text-dark-text">{nettoNachRabatt.toFixed(2)} €</span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600 dark:text-dark-textMuted">
                   {rechnungsDaten.ohneMehrwertsteuer ? 'MwSt.:' : `MwSt. (${berechnung.umsatzsteuersatz}%):`}
                 </span>
                 <span className={`font-medium ${rechnungsDaten.ohneMehrwertsteuer ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-dark-text'}`}>
-                  {rechnungsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${berechnung.umsatzsteuer.toFixed(2)} €`}
+                  {rechnungsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${steuerNachRabatt.toFixed(2)} €`}
                 </span>
               </div>
 
@@ -2952,7 +3079,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <div className="flex flex-col gap-1">
                   <span className="text-base font-semibold text-gray-900 dark:text-dark-text">Gesamtbetrag:</span>
                   <span className="text-3xl font-bold text-red-600 dark:text-red-400 break-all">
-                    {berechnung.bruttobetrag.toFixed(2)} €
+                    {bruttoNachRabatt.toFixed(2)} €
                   </span>
                 </div>
               </div>
@@ -2966,7 +3093,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-dark-textMuted">Skonto ({rechnungsDaten.skonto.prozent}%):</span>
                   <span className="font-semibold text-green-600 dark:text-green-400">
-                    {(berechnung.bruttobetrag * (1 - rechnungsDaten.skonto.prozent / 100)).toFixed(2)} €
+                    {(bruttoNachRabatt * (1 - rechnungsDaten.skonto.prozent / 100)).toFixed(2)} €
                   </span>
                 </div>
               </div>

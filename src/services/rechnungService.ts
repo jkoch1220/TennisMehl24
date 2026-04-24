@@ -443,9 +443,33 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
 
+  // Gesamtrabatt berechnen
+  const gesamtrabattProzent = daten.gesamtrabattProzent || 0;
+  const rabattFaktor = gesamtrabattProzent > 0 ? gesamtrabattProzent / 100 : 0;
+  const gesamtrabattBetrag = Math.round(berechnung.nettobetrag * rabattFaktor * 100) / 100;
+  const nettoNachRabatt = Math.round((berechnung.nettobetrag - gesamtrabattBetrag) * 100) / 100;
+  const steuerNachRabatt = Math.round(berechnung.umsatzsteuer * (1 - rabattFaktor) * 100) / 100;
+  const bruttoNachRabatt = Math.round((nettoNachRabatt + steuerNachRabatt) * 100) / 100;
+
   // Nettobetrag
   doc.text('Nettobetrag:', summenX, summenY);
   doc.text(formatWaehrung(berechnung.nettobetrag), 180, summenY, { align: 'right' });
+
+  // Rabatt-Zeile (optional)
+  if (gesamtrabattProzent > 0) {
+    summenY += 6;
+    const rabattLabel = daten.gesamtrabattBezeichnung?.trim()
+      ? `${daten.gesamtrabattBezeichnung} (${gesamtrabattProzent}%):`
+      : `Rabatt (${gesamtrabattProzent}%):`;
+    doc.setTextColor(0, 100, 0);
+    doc.text(rabattLabel, summenX, summenY);
+    doc.text(`- ${formatWaehrung(gesamtrabattBetrag)}`, 180, summenY, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    summenY += 6;
+    doc.text('Zwischensumme netto:', summenX, summenY);
+    doc.text(formatWaehrung(nettoNachRabatt), 180, summenY, { align: 'right' });
+  }
 
   summenY += 6;
   if (daten.ohneMehrwertsteuer) {
@@ -456,7 +480,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     doc.setTextColor(0, 0, 0);
   } else {
     doc.text(`MwSt. (${berechnung.umsatzsteuersatz}%):`, summenX, summenY);
-    doc.text(formatWaehrung(berechnung.umsatzsteuer), 180, summenY, { align: 'right' });
+    doc.text(formatWaehrung(steuerNachRabatt), 180, summenY, { align: 'right' });
   }
 
   // Trennlinie
@@ -469,7 +493,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.text('Rechnungsbetrag:', summenX, summenY);
-  doc.text(formatWaehrung(berechnung.bruttobetrag), 180, summenY, { align: 'right' });
+  doc.text(formatWaehrung(bruttoNachRabatt), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
 
   // === Hinweis Reverse Charge / steuerfreie Lieferung (nur bei Auslandsrechnung) ===
@@ -516,7 +540,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
     // Skonto nur anzeigen wenn aktiviert
     if (daten.skontoAktiviert && daten.skonto) {
       summenY += 4;
-      const skontoBetrag = berechnung.bruttobetrag * (1 - daten.skonto.prozent / 100);
+      const skontoBetrag = bruttoNachRabatt * (1 - daten.skonto.prozent / 100);
       doc.text(
         `${daten.skonto.prozent}% Skonto bei Zahlung innerhalb von ${daten.skonto.tage} Tagen: ${formatWaehrung(skontoBetrag)}`,
         25,
@@ -549,7 +573,7 @@ export const generiereRechnungPDF = async (daten: RechnungsDaten, stammdaten?: S
       stammdaten.firmenname,
       stammdaten.iban,
       stammdaten.bic,
-      berechnung.bruttobetrag,
+      bruttoNachRabatt,
       verwendungszweck
     );
     

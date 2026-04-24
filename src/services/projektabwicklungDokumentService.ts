@@ -739,6 +739,13 @@ export const speichereRechnung = async (
     // Bruttobetrag berechnen
     const summen = berechneRechnungsSummen(daten.positionen);
 
+    // Gesamtrabatt auf Bruttobetrag anwenden (falls vorhanden)
+    const rabattProzent = daten.gesamtrabattProzent || 0;
+    const rabattFaktor = rabattProzent > 0 ? rabattProzent / 100 : 0;
+    const rabattiertBrutto = Math.round(
+      (summen.nettobetrag * (1 - rabattFaktor) + summen.umsatzsteuer * (1 - rabattFaktor)) * 100
+    ) / 100;
+
     // Dokument-Eintrag in DB erstellen (FINAL!)
     const dokument = await databases.createDocument(
       DATABASE_ID,
@@ -750,7 +757,7 @@ export const speichereRechnung = async (
         dokumentNummer: daten.rechnungsnummer,
         dateiId: uploadedFile.$id,
         dateiname,
-        bruttobetrag: summen.bruttobetrag,
+        bruttobetrag: rabattiertBrutto,
         istFinal: true, // WICHTIG: Rechnungen sind immer final!
         daten: JSON.stringify(daten) // Für Archivierung
       }
@@ -767,8 +774,8 @@ export const speichereRechnung = async (
         rechnungsnummer: daten.rechnungsnummer,
         rechnungsdatum: daten.rechnungsdatum,
         rechnungsDaten: JSON.stringify({
-          gesamtBrutto: summen.bruttobetrag,
-          gesamtNetto: summen.nettobetrag,
+          gesamtBrutto: rabattiertBrutto,
+          gesamtNetto: Math.round(summen.nettobetrag * (1 - rabattFaktor) * 100) / 100,
           zahlungsziel: daten.zahlungsziel,
           zahlungszielTage: zahlungszielTage,
           positionen: daten.positionen.map(p => ({
