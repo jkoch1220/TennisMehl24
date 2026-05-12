@@ -57,7 +57,8 @@ const parseZahlungszielTage = (zahlungsziel: string | undefined): number | null 
   return null;
 };
 
-// Helper: Lädt das neueste Rechnungsdokument für ein Projekt (Fallback wenn rechnungsDaten fehlt)
+// Helper: Lädt das neueste AKTIVE Rechnungsdokument für ein Projekt (Fallback wenn rechnungsDaten fehlt).
+// Stornierte Rechnungen werden übersprungen, damit nach Storno+Neuerstellung die aktuelle Rechnung gefunden wird.
 const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokument | null> => {
   try {
     const response = await databases.listDocuments(
@@ -67,11 +68,13 @@ const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokume
         Query.equal('projektId', projektId),
         Query.equal('dokumentTyp', 'rechnung'),
         Query.orderDesc('$createdAt'),
-        Query.limit(1)
+        Query.limit(10)
       ]
     );
-    if (response.documents.length > 0) {
-      return response.documents[0] as unknown as RechnungsDokument;
+    const dokumente = response.documents as unknown as RechnungsDokument[];
+    const aktiveRechnung = dokumente.find((doc) => doc.rechnungsStatus !== 'storniert');
+    if (aktiveRechnung) {
+      return aktiveRechnung;
     }
     return null;
   } catch (error) {
@@ -121,11 +124,13 @@ const ladeRechnungsDokumenteFuerProjekte = async (
     })
   );
 
-  // Pro projektId nur das neueste Dokument (Liste ist bereits nach $createdAt DESC sortiert)
+  // Pro projektId nur das neueste AKTIVE Dokument (Liste ist bereits nach $createdAt DESC sortiert).
+  // Stornierte Rechnungen werden übersprungen, damit nach Storno+Neuerstellung die aktuelle Rechnung gefunden wird.
   for (const dok of alleDokumente) {
-    const pid = (dok as any).projektId;
-    if (pid && !dokumenteMap.has(pid)) {
-      dokumenteMap.set(pid, dok);
+    if (!dok.projektId) continue;
+    if (dok.rechnungsStatus === 'storniert') continue;
+    if (!dokumenteMap.has(dok.projektId)) {
+      dokumenteMap.set(dok.projektId, dok);
     }
   }
 
@@ -223,7 +228,9 @@ class DebitorService {
       }
 
       // Lade Rechnungsdokument als Fallback
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       // Prüfe ob Rechnungsnummer vorhanden (im Projekt oder im Dokument)
       const hatRechnungsnummer = projekt.rechnungsnummer || rechnungsDokument?.dokumentNummer;
@@ -404,7 +411,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       const neueZahlung: DebitorZahlung = {
         ...zahlung,
@@ -465,7 +474,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       const zahlungen = (metadaten.zahlungen || []).filter((z) => z.id !== zahlungId);
 
@@ -509,7 +520,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       const neueMahnstufe = Math.min(4, metadaten.mahnstufe + 1) as DebitorMahnstufe;
 
@@ -552,7 +565,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       // Aktivität hinzufügen
       const neueAktivitaet: DebitorAktivitaet = {
@@ -596,7 +611,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       const neueAktivitaet: DebitorAktivitaet = {
         ...aktivitaet,
@@ -630,7 +647,9 @@ class DebitorService {
       const projekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback wenn projekt.rechnungsDaten fehlt
-      const rechnungsDokument = !projekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
+      // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
       const bezahlt = (metadaten.zahlungen || []).reduce((sum, z) => sum + z.betrag, 0);
@@ -693,7 +712,7 @@ class DebitorService {
       const aktualisierteProjekt = await projektService.getProjekt(projektId);
 
       // Lade Rechnungsdokument als Fallback
-      const rechnungsDokument = !aktualisierteProjekt.rechnungsDaten ? await ladeRechnungsDokument(projektId) : null;
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
 
       return this.createDebitorView(aktualisierteProjekt, aktualisiert, rechnungsDokument);
     } catch (error) {
@@ -853,9 +872,10 @@ class DebitorService {
     const zahlungen = metadaten?.zahlungen || [];
     const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
 
-    // Rechnungsnummer und -datum: Fallback auf Dokument wenn im Projekt nicht vorhanden
-    const rechnungsnummer = projekt.rechnungsnummer || rechnungsDokument?.dokumentNummer;
-    const rechnungsdatum = projekt.rechnungsdatum || (rechnungsDokument?.$createdAt ? rechnungsDokument.$createdAt.split('T')[0] : undefined);
+    // Rechnungsnummer und -datum: Dokument ist Source of Truth (denormalisiertes projekt.rechnungsnummer
+    // kann nach Storno+Neuerstellung veraltet sein). Fallback auf Projekt-Felder nur wenn kein Dokument vorhanden.
+    const rechnungsnummer = rechnungsDokument?.dokumentNummer || projekt.rechnungsnummer;
+    const rechnungsdatum = (rechnungsDokument?.$createdAt ? rechnungsDokument.$createdAt.split('T')[0] : undefined) || projekt.rechnungsdatum;
 
     // Zahlungsziel-Priorität:
     // 1. Aus Debitor-Metadaten (explizit gesetzt)
