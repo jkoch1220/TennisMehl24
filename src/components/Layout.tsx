@@ -402,11 +402,11 @@ const Layout = ({ children }: LayoutProps) => {
               })}
             </div>
 
-            {/* Tablet/Mobile right side */}
-            <div className="flex sm:flex lg:hidden items-center gap-3 flex-shrink-0">
+            {/* Tablet right side */}
+            <div className="hidden sm:flex lg:hidden items-center gap-3 flex-shrink-0">
               <button
                 onClick={() => setGlobalSearchOpen(true)}
-                className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+                className="p-2 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
               >
                 <Search className="w-5 h-5" />
               </button>
@@ -421,8 +421,14 @@ const Layout = ({ children }: LayoutProps) => {
             {/* Mobile menu button */}
             <div className="flex items-center gap-2 flex-shrink-0 sm:hidden">
               <button
+                onClick={() => setGlobalSearchOpen(true)}
+                className="p-2 text-[#1d1d1f]/60 dark:text-white/60 hover:text-[#1d1d1f] dark:hover:text-white transition-colors"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+              <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-1.5 text-[#1d1d1f]/60 dark:text-white/60"
+                className="p-2 text-[#1d1d1f]/60 dark:text-white/60"
               >
                 <Menu className="w-5 h-5" />
               </button>
