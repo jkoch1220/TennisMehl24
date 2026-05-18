@@ -1231,10 +1231,16 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       setShowStornoDialog(false);
       setStornoGrund('');
       setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
-      
-      setStatusMeldung({ 
-        typ: 'erfolg', 
-        text: `Stornorechnung ${stornoNummer} erfolgreich erstellt! Sie können nun eine neue Rechnung erstellen.` 
+
+      // KRITISCH: Rechnungsnummer im Form-State leeren, damit eine evtl. folgende neue Rechnung
+      // automatisch eine frische Nummer aus generiereNaechsteDokumentnummer() bekommt.
+      // Ohne dieses Reset bliebe die alte (jetzt stornierte) Nummer im Form-State und würde
+      // bei "Speichern" wiederverwendet → Duplikat in bestellabwicklung_dokumente.
+      setRechnungsDaten(prev => ({ ...prev, rechnungsnummer: '' }));
+
+      setStatusMeldung({
+        typ: 'erfolg',
+        text: `Stornorechnung ${stornoNummer} erfolgreich erstellt! Sie können nun eine neue Rechnung erstellen.`
       });
       
     } catch (error) {

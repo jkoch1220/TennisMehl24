@@ -716,11 +716,36 @@ export const speichereRechnung = async (
   daten: RechnungsDaten
 ): Promise<GespeichertesDokument> => {
   try {
-    // Prüfen ob bereits eine AKTIVE Rechnung existiert
-    // WICHTIG: Stornierte Rechnungen blockieren NICHT die Erstellung einer neuen Rechnung!
+    // (1) Pro Projekt darf nur EINE aktive Rechnung existieren.
     const bestehendeRechnung = await ladeDokumentNachTyp(projektId, 'rechnung');
     if (bestehendeRechnung && bestehendeRechnung.rechnungsStatus !== 'storniert') {
       throw new Error('Für dieses Projekt existiert bereits eine aktive Rechnung. Rechnungen können nicht überschrieben werden. Bitte erst stornieren!');
+    }
+
+    // (2) GLOBALE EINDEUTIGKEITS-PRÜFUNG: die dokumentNummer darf nicht schon irgendwo anders
+    //     in bestellabwicklung_dokumente vergeben sein — weder als rechnung noch als stornorechnung.
+    //
+    //     Hintergrund: vor diesem Fix konnte das Form-Feld rechnungsnummer aus einer früheren
+    //     stornierten Rechnung "übrigbleiben" und beim Speichern erneut verwendet werden. Folge:
+    //     zwei Rechnungs-Dokumente mit identischer Nummer (eine storniert, eine aktiv). Das ist
+    //     GoBD-relevant — jede Nummer darf nur EINMAL vergeben werden, auch wenn ältere Belege
+    //     storniert sind.
+    if (!daten.rechnungsnummer || !daten.rechnungsnummer.trim()) {
+      throw new Error('Rechnungsnummer fehlt — bitte über generiereNaechsteDokumentnummer() vergeben.');
+    }
+    const eindeutigCheck = await databases.listDocuments(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      [
+        Query.equal('dokumentNummer', daten.rechnungsnummer),
+        Query.limit(1),
+      ]
+    );
+    if (eindeutigCheck.documents.length > 0) {
+      throw new Error(
+        `Rechnungsnummer ${daten.rechnungsnummer} ist bereits vergeben (auch wenn die alte Rechnung storniert wurde). ` +
+          `Bitte eine neue Nummer über generiereNaechsteDokumentnummer('rechnung') ziehen.`
+      );
     }
 
     // PDF generieren
