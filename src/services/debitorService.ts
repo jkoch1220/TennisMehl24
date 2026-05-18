@@ -486,7 +486,9 @@ class DebitorService {
       const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
       let neuerStatus: DebitorStatus;
 
-      if (bezahlt >= rechnungsbetrag) {
+      // bezahlt vergleichen wir nur, wenn der Rechnungsbetrag bekannt (>0) ist. Sonst gilt
+      // 0 >= 0 als "bezahlt", was nach Löschen der letzten Zahlung falsch wäre.
+      if (rechnungsbetrag > 0 && bezahlt >= rechnungsbetrag) {
         neuerStatus = 'bezahlt';
       } else if (bezahlt > 0) {
         neuerStatus = 'teilbezahlt';
@@ -657,7 +659,8 @@ class DebitorService {
 
       let neuerStatus: DebitorStatus;
 
-      if (bezahlt >= rechnungsbetrag) {
+      // Nur als bezahlt markieren, wenn ein gültiger Rechnungsbetrag bekannt ist (>0).
+      if (rechnungsbetrag > 0 && bezahlt >= rechnungsbetrag) {
         neuerStatus = 'bezahlt';
       } else if (bezahlt > 0) {
         neuerStatus = 'teilbezahlt';
