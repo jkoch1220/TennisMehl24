@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG } from '../../types/debitor';
 
@@ -8,12 +8,13 @@ interface DebitorenListeProps {
   onOpenDetail: (debitor: DebitorView) => void;
   onMarkPaid?: (debitor: DebitorView) => void;
   onMarkPaidBulk?: (debitoren: DebitorView[]) => void;
+  onDeleteBulk?: (debitoren: DebitorView[]) => void;
 }
 
 type SortField = 'kundenname' | 'rechnungsbetrag' | 'offenerBetrag' | 'tageUeberfaellig' | 'faelligkeitsdatum' | 'mahnstufe';
 type SortDirection = 'asc' | 'desc';
 
-const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk }: DebitorenListeProps) => {
+const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, onDeleteBulk }: DebitorenListeProps) => {
   const navigate = useNavigate();
   const [sortField, setSortField] = useState<SortField>('tageUeberfaellig');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -123,6 +124,36 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk }:
     if (!confirm(bestaetigung)) return;
 
     onMarkPaidBulk(selectedDebitoren);
+    setSelectedIds(new Set());
+    setErwartetBetrag('');
+  };
+
+  const handleBulkDelete = () => {
+    if (!onDeleteBulk || selectedDebitoren.length === 0) return;
+
+    const mitZahlungen = selectedDebitoren.filter((d) =>
+      (d.zahlungen || []).some((z) => z.betrag > 0)
+    );
+    if (mitZahlungen.length > 0) {
+      alert(
+        `Folgende Debitoren haben bereits Zahlungen erfasst und können nicht gelöscht werden:\n\n` +
+          mitZahlungen.map((d) => `• ${d.kundenname}`).join('\n') +
+          `\n\nBitte zuerst die Zahlungen löschen.`
+      );
+      return;
+    }
+
+    const liste = selectedDebitoren.map((d) => `• ${d.kundenname}`).join('\n');
+    if (
+      !confirm(
+        `Folgende ${selectedDebitoren.length} Debitor(en) wirklich löschen?\n\n${liste}\n\n` +
+          `Es werden nur die Debitor-Metadaten gelöscht. Die Projekte selbst bleiben erhalten.`
+      )
+    ) {
+      return;
+    }
+
+    onDeleteBulk(selectedDebitoren);
     setSelectedIds(new Set());
     setErwartetBetrag('');
   };
@@ -459,6 +490,16 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk }:
                 <X className="w-4 h-4" />
                 Auswahl aufheben
               </button>
+              {onDeleteBulk && (
+                <button
+                  onClick={handleBulkDelete}
+                  className="inline-flex items-center gap-1 px-4 py-1.5 rounded-md text-sm font-semibold text-white bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500 transition-colors"
+                  title="Ausgewählte Debitor-Metadaten löschen (Projekte bleiben)"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Löschen
+                </button>
+              )}
               <button
                 onClick={handleBulkMarkPaid}
                 className="inline-flex items-center gap-1 px-4 py-1.5 rounded-md text-sm font-semibold text-white bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 transition-colors"

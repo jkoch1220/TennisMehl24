@@ -727,6 +727,29 @@ class DebitorService {
   }
 
   // =====================================================
+  // LÖSCHEN
+  // =====================================================
+
+  /**
+   * Löscht die Debitor-Metadaten für ein Projekt. Das Projekt selbst bleibt unangetastet —
+   * für Lösch-Operationen auf dem Projekt projektService.deleteProjekt() verwenden.
+   *
+   * Idempotent: wenn keine Metadaten existieren, wird nichts gemacht.
+   */
+  async deleteDebitor(projektId: string): Promise<void> {
+    try {
+      const metadaten = await this.loadMetadatenFuerProjekt(projektId);
+      if (!metadaten) {
+        return;
+      }
+      await databases.deleteDocument(DATABASE_ID, this.collectionId, metadaten.id);
+    } catch (error) {
+      console.error('Fehler beim Löschen des Debitors:', error);
+      throw error;
+    }
+  }
+
+  // =====================================================
   // STATISTIK
   // =====================================================
 

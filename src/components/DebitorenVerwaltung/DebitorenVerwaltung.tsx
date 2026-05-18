@@ -228,6 +228,28 @@ const DebitorenVerwaltung = () => {
     }
   };
 
+  // Mehrere Debitor-Metadaten auf einmal löschen (Projekte bleiben erhalten)
+  const handleDeleteBulk = async (debitorenToDelete: DebitorView[]) => {
+    if (debitorenToDelete.length === 0) return;
+
+    const fehler: { projektId: string; error: unknown }[] = [];
+    for (const d of debitorenToDelete) {
+      try {
+        await debitorService.deleteDebitor(d.projektId);
+      } catch (error) {
+        fehler.push({ projektId: d.projektId, error });
+      }
+    }
+
+    if (fehler.length > 0) {
+      console.error('Fehler beim Sammel-Löschen:', fehler);
+      alert(
+        `${fehler.length} von ${debitorenToDelete.length} Debitoren konnten nicht gelöscht werden.`
+      );
+    }
+    loadData();
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
@@ -619,6 +641,7 @@ const DebitorenVerwaltung = () => {
               onOpenDetail={handleOpenDetail}
               onMarkPaid={handleMarkPaidInList}
               onMarkPaidBulk={handleMarkPaidBulk}
+              onDeleteBulk={handleDeleteBulk}
             />
           </div>
         )}
