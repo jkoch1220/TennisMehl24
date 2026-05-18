@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   RefreshCw,
   TrendingUp,
@@ -20,11 +21,44 @@ import BankAbgleich from './BankAbgleich';
 
 type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt' | 'bankabgleich' | 'einstellungen';
 
+const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
+  'dashboard',
+  'offen',
+  'ueberfaellig',
+  'bezahlt',
+  'bankabgleich',
+  'einstellungen',
+]);
+
 const DebitorenVerwaltung = () => {
   const [debitoren, setDebitoren] = useState<DebitorView[]>([]);
   const [statistik, setStatistik] = useState<DebitorenStatistik | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+
+  // Tab über URL-Parameter persistieren — überlebt Reload und ermöglicht Deep-Links.
+  // Ungültige Tab-Werte fallen auf 'dashboard' zurück.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabAusUrl = searchParams.get('tab');
+  const activeTab: TabId = tabAusUrl && GUELTIGE_TABS.has(tabAusUrl as TabId)
+    ? (tabAusUrl as TabId)
+    : 'dashboard';
+
+  const setActiveTab = useCallback(
+    (neuerTab: TabId) => {
+      setSearchParams(
+        (prev) => {
+          if (neuerTab === 'dashboard') {
+            prev.delete('tab');
+          } else {
+            prev.set('tab', neuerTab);
+          }
+          return prev;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
   const [selectedDebitor, setSelectedDebitor] = useState<DebitorView | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [searchText, setSearchText] = useState('');
