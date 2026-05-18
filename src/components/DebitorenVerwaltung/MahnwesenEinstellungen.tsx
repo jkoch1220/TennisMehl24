@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Save, RefreshCw, AlertTriangle, Mail, FileText } from 'lucide-react';
+import { Save, RefreshCw, AlertTriangle, Mail, FileText, FileWarning } from 'lucide-react';
 import {
   MahnwesenTextVorlagen,
   STANDARD_MAHNWESEN_VORLAGEN,
   MAHNWESEN_PLATZHALTER,
 } from '../../types/mahnwesen';
 import { ladeTextVorlagen, speichereTextVorlagen } from '../../services/mahnwesenService';
+import StornoMigrationDialog from './StornoMigrationDialog';
 
 const MahnwesenEinstellungen = () => {
   const [vorlagen, setVorlagen] = useState<MahnwesenTextVorlagen>(STANDARD_MAHNWESEN_VORLAGEN);
@@ -13,6 +14,7 @@ const MahnwesenEinstellungen = () => {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'zahlungserinnerung' | 'mahnung_1' | 'mahnung_2'>('zahlungserinnerung');
   const [hasChanges, setHasChanges] = useState(false);
+  const [zeigeMigrationDialog, setZeigeMigrationDialog] = useState(false);
 
   useEffect(() => {
     const loadVorlagen = async () => {
@@ -272,6 +274,38 @@ const MahnwesenEinstellungen = () => {
           <div className="whitespace-pre-wrap">{currentVorlage.schlusstext}</div>
         </div>
       </div>
+
+      {/* Admin-Bereich: einmalige Wartungs-Aktionen */}
+      <div className="border-t border-gray-200 dark:border-slate-700 pt-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-1">
+          Admin-Werkzeuge
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+          Einmalige Wartungs- und Migrations-Aktionen. Mit Vorsicht verwenden.
+        </p>
+        <div className="bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-800 rounded-lg p-4 flex items-start gap-4">
+          <FileWarning className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium text-gray-900 dark:text-slate-100">
+              Storno-Nummern auf RE-Nummernkreis migrieren
+            </p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              Vergibt für bestehende <code>STORNO-*</code>-Dokumente reguläre RE-Nummern aus den
+              bestehenden Lücken. Alte PDFs bleiben im Storage erhalten, neue werden generiert.
+            </p>
+          </div>
+          <button
+            onClick={() => setZeigeMigrationDialog(true)}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm flex-shrink-0"
+          >
+            Migration öffnen
+          </button>
+        </div>
+      </div>
+
+      {zeigeMigrationDialog && (
+        <StornoMigrationDialog onClose={() => setZeigeMigrationDialog(false)} />
+      )}
     </div>
   );
 };
