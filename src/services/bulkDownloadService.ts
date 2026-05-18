@@ -81,6 +81,10 @@ export async function fuehreBulkDownloadAus(
     throw new Error('Keine Dokumente passen zu den gewählten Filtern.');
   }
 
+  // Duplikate erkennen: gruppieren nach dokumentNummer.
+  // Pro Gruppe Versions-Index ermitteln (älteste = 1). Wird in Dateinamen und CSV verwendet.
+  const versionsInfo = berechneVersionsInfo(dokumente);
+
   const zip = new JSZip();
   const ordnerName = ordnernameFuerSaison(filter);
   const ordner = zip.folder(ordnerName);
@@ -93,7 +97,8 @@ export async function fuehreBulkDownloadAus(
 
   const bearbeite = async (dok: GespeichertesDokument): Promise<void> => {
     if (abbruch?.abgebrochen) return;
-    const dateiname = erzeugeDateiname(dok);
+    const info = versionsInfo.get(dok.$id!);
+    const dateiname = erzeugeDateiname(dok, info);
     fortschritt?.({ index: verarbeitet, gesamt, aktuellerName: dateiname });
 
     try {
@@ -116,7 +121,7 @@ export async function fuehreBulkDownloadAus(
   }
 
   const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-  const csvString = erzeugeCsv(dokumente);
+  const csvString = erzeugeCsv(dokumente, versionsInfo);
   const csvBlob = new Blob(['﻿' + csvString], { type: 'text/csv;charset=utf-8' });
 
   return {
@@ -202,7 +207,32 @@ async function ladePdfBlob(dateiId: string): Promise<Blob> {
   return await response.blob();
 }
 
-function erzeugeDateiname(dok: GespeichertesDokument): string {
+// Versions-Info pro Dokument-Id: wenn eine Rechnungsnummer mehrfach vergeben wurde, wird hier
+// die Version (1=älteste) und die Gesamtanzahl der Versionen gespeichert. Sonst undefined.
+interface VersionsInfo {
+  version: number;
+  gesamt: number;
+}
+
+function berechneVersionsInfo(dokumente: GespeichertesDokument[]): Map<string, VersionsInfo> {
+  const map = new Map<string, VersionsInfo>();
+  const proNummer = new Map<string, GespeichertesDokument[]>();
+  for (const dok of dokumente) {
+    const liste = proNummer.get(dok.dokumentNummer) ?? [];
+    liste.push(dok);
+    proNummer.set(dok.dokumentNummer, liste);
+  }
+  for (const [, liste] of proNummer) {
+    if (liste.length < 2) continue; // Kein Duplikat
+    liste.sort((a, b) => (a.$createdAt || '').localeCompare(b.$createdAt || ''));
+    liste.forEach((dok, idx) => {
+      map.set(dok.$id!, { version: idx + 1, gesamt: liste.length });
+    });
+  }
+  return map;
+}
+
+function erzeugeDateiname(dok: GespeichertesDokument, versionsInfo?: VersionsInfo): string {
   let kunde = 'Unbekannt';
   if (dok.daten) {
     try {
@@ -213,7 +243,11 @@ function erzeugeDateiname(dok: GespeichertesDokument): string {
     }
   }
   const stornoSuffix = dok.dokumentTyp === 'stornorechnung' ? '_STORNO' : '';
-  return `${dok.dokumentNummer}_${kunde}${stornoSuffix}.pdf`;
+  // Bei Duplikaten Versions-Suffix anhängen + Status-Marker für Klarheit beim Steuerberater
+  const versionsSuffix = versionsInfo
+    ? `_v${versionsInfo.version}-von-${versionsInfo.gesamt}${dok.rechnungsStatus === 'storniert' ? '_storniert' : '_aktuell'}`
+    : '';
+  return `${dok.dokumentNummer}_${kunde}${stornoSuffix}${versionsSuffix}.pdf`;
 }
 
 function ordnernameFuerSaison(filter: BulkDownloadFilter): string {
@@ -234,7 +268,10 @@ function parseNummer(nr: string): { prefix: string; saison: number; laufnummer: 
   return { prefix: match[1], saison: parseInt(match[2], 10), laufnummer: parseInt(match[3], 10) };
 }
 
-function erzeugeCsv(dokumente: GespeichertesDokument[]): string {
+function erzeugeCsv(
+  dokumente: GespeichertesDokument[],
+  versionsInfo: Map<string, VersionsInfo>
+): string {
   const header = [
     'Rechnungsnummer',
     'Datum',
@@ -247,11 +284,21 @@ function erzeugeCsv(dokumente: GespeichertesDokument[]): string {
     'Bruttobetrag',
     'Stornogrund',
     'Storno_zu',
+    'Duplikat',
+    'Version',
+    'Versionen_gesamt',
   ];
 
   const zeilen: string[] = [header.map(quoteCsv).join(';')];
 
-  for (const dok of dokumente) {
+  // Sortiere Einträge nach Rechnungsnummer und CreatedAt — damit Duplikate gruppiert auftauchen
+  const sortiert = [...dokumente].sort((a, b) => {
+    const cmp = a.dokumentNummer.localeCompare(b.dokumentNummer);
+    if (cmp !== 0) return cmp;
+    return (a.$createdAt || '').localeCompare(b.$createdAt || '');
+  });
+
+  for (const dok of sortiert) {
     const parsed = parseDaten(dok);
     const status = dok.rechnungsStatus === 'storniert' ? 'storniert' : 'aktiv';
     const datum = parsed?.rechnungsdatum || (dok.$createdAt ? dok.$createdAt.split('T')[0] : '');
@@ -259,6 +306,7 @@ function erzeugeCsv(dokumente: GespeichertesDokument[]): string {
     const mwstSatz = (parsed?.mehrwertsteuersatz ?? 19) / 100;
     const netto = brutto / (1 + mwstSatz);
     const mwst = brutto - netto;
+    const info = versionsInfo.get(dok.$id!);
 
     zeilen.push(
       [
@@ -273,6 +321,9 @@ function erzeugeCsv(dokumente: GespeichertesDokument[]): string {
         brutto.toFixed(2).replace('.', ','),
         dok.stornoGrund ?? '',
         dok.stornoVonRechnungsnummer ?? '',
+        info ? 'JA' : 'nein',
+        info ? info.version : '',
+        info ? info.gesamt : '',
       ]
         .map(quoteCsv)
         .join(';')
