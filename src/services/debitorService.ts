@@ -441,13 +441,14 @@ class DebitorService {
       const bezahlt = zahlungen.reduce((sum, z) => sum + z.betrag, 0);
       let neuerStatus: DebitorStatus = metadaten.status;
 
-      if (bezahlt >= rechnungsbetrag) {
+      // Automatisch auf bezahlt setzen — aber NUR wenn ein gültiger Rechnungsbetrag bekannt ist.
+      // Wenn parseRechnungsbetrag 0 zurückgibt (z.B. kein Rechnungsdokument gefunden), niemals
+      // automatisch als bezahlt markieren — sonst würden Cent-Beträge sofort als "vollständig"
+      // gelten.
+      if (rechnungsbetrag > 0 && bezahlt >= rechnungsbetrag) {
         neuerStatus = 'bezahlt';
-        // Projekt-Status auch auf bezahlt setzen
-        await projektService.updateProjekt(projektId, {
-          bezahltAm: new Date().toISOString(),
-          status: 'bezahlt',
-        });
+        // Projekt-Status auch auf bezahlt setzen — Partial-Update, schont das data-Feld
+        await projektService.markiereProjektAlsBezahlt(projektId);
       } else if (bezahlt > 0) {
         neuerStatus = 'teilbezahlt';
       }
@@ -682,16 +683,17 @@ class DebitorService {
 
   /**
    * Markiert als bezahlt
+   *
+   * Verwendet markiereProjektAlsBezahlt() statt updateProjekt(): Partial-Update auf nur die
+   * Top-Level-Felder (status, bezahltAm, geaendertAm). Verhindert den 10000-Zeichen-Overflow
+   * im `data`-Feld bei Projekten mit großen rechnungsDaten (z.B. TC Kürnach).
    */
   async markiereAlsBezahlt(projektId: string): Promise<DebitorView> {
     try {
       const metadaten = await this.getOrCreateMetadaten(projektId);
 
-      // Projekt-Status auf bezahlt setzen
-      await projektService.updateProjekt(projektId, {
-        bezahltAm: new Date().toISOString(),
-        status: 'bezahlt',
-      });
+      // Projekt-Status auf bezahlt setzen — KEIN volles updateProjekt (würde data überschreiben!)
+      await projektService.markiereProjektAlsBezahlt(projektId);
 
       // Aktivität hinzufügen
       const neueAktivitaet: DebitorAktivitaet = {

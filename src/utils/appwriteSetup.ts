@@ -73,7 +73,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '38'; // Shop E-Commerce Collections (shop_produkte, shop_kategorien, shop_ratgeber)
+const APPWRITE_SETUP_VERSION = '39'; // Projekte: bezahltAm, rechnungsnummer, rechnungsdatum als Top-Level-Felder
 
 type FieldConfig = {
   key: string;
@@ -162,6 +162,11 @@ const projekteFields: FieldConfig[] = [
   { key: 'status', type: 'string', size: 50, required: true },
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  // Top-Level-Felder für Debitorenverwaltung: erlauben Partial-Updates ohne `data`-Feld zu überschreiben
+  // (wichtig wenn rechnungsDaten in `data` den 10000-Zeichen-Limit ausreizen würde).
+  { key: 'bezahltAm', type: 'string', size: 50, required: false },
+  { key: 'rechnungsnummer', type: 'string', size: 100, required: false },
+  { key: 'rechnungsdatum', type: 'string', size: 50, required: false },
   { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Projektabwicklungsdaten
 ];
 

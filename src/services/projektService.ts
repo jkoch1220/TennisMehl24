@@ -24,6 +24,45 @@ interface ProjektCache {
 const CACHE_TTL = 30000; // 30 Sekunden Cache
 let projektCache: ProjektCache | null = null;
 
+// Maximalgröße für das `data`-Feld in Appwrite (Schema: 100000, aber alte Collections können noch
+// 10000 sein). Wir nutzen eine konservative Schwelle, um Sicherheitsmarge zu lassen.
+const MAX_DATA_FIELD_SIZE = 9500;
+
+// Felder, die als eigene Appwrite-Spalten existieren (Top-Level). Diese werden beim Lesen aus
+// dem Dokument bevorzugt — die JSON-Kopie in `data` kann nach Partial-Updates veraltet sein.
+const PROJEKT_TOP_LEVEL_FELDER = [
+  'status',
+  'geaendertAm',
+  'bezahltAm',
+  'rechnungsnummer',
+  'rechnungsdatum',
+] as const;
+
+// Wandelt ein Appwrite-Dokument in ein Projekt um. Top-Level-Felder überschreiben den JSON-Blob
+// in `data` (denormalisierte Spalten gelten als Source of Truth nach Partial-Updates).
+function parseProjektDocument(doc: Record<string, unknown>): Projekt {
+  let base: Record<string, unknown>;
+  if (doc.data && typeof doc.data === 'string') {
+    try {
+      base = JSON.parse(doc.data);
+    } catch {
+      base = { ...doc };
+    }
+  } else {
+    base = { ...doc };
+  }
+
+  for (const feld of PROJEKT_TOP_LEVEL_FELDER) {
+    const wert = doc[feld];
+    if (wert !== undefined && wert !== null && wert !== '') {
+      base[feld] = wert;
+    }
+  }
+
+  base.$id = doc.$id;
+  return base as unknown as Projekt;
+}
+
 class ProjektService {
   private readonly collectionId = COLLECTIONS.PROJEKTE;
 
@@ -54,16 +93,7 @@ class ProjektService {
       queries.push(Query.limit(1000));
 
       const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
-      return response.documents.map(doc => {
-        if (doc.data && typeof doc.data === 'string') {
-          try {
-            return { ...JSON.parse(doc.data), $id: doc.$id };
-          } catch {
-            return doc as unknown as Projekt;
-          }
-        }
-        return doc as unknown as Projekt;
-      });
+      return response.documents.map(doc => parseProjektDocument(doc as Record<string, unknown>));
     } catch (error) {
       console.error('Fehler beim Laden der Projekte:', error);
       throw error;
@@ -106,17 +136,10 @@ class ProjektService {
 
       const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
 
-      // WICHTIG: data JSON-Feld parsen, damit alle Felder (angebotsnummer, etc.) verfügbar sind!
-      const projekte = response.documents.map(doc => {
-        if (doc.data && typeof doc.data === 'string') {
-          try {
-            return { ...JSON.parse(doc.data), $id: doc.$id };
-          } catch {
-            return doc as unknown as Projekt;
-          }
-        }
-        return doc as unknown as Projekt;
-      });
+      // WICHTIG: data JSON-Feld parsen + Top-Level-Felder mergen (siehe parseProjektDocument).
+      const projekte = response.documents.map(doc =>
+        parseProjektDocument(doc as Record<string, unknown>)
+      );
 
       // Cache aktualisieren
       projektCache = {
@@ -144,14 +167,7 @@ class ProjektService {
   async getProjekt(projektId: string): Promise<Projekt> {
     try {
       const response = await databases.getDocument(DATABASE_ID, this.collectionId, projektId);
-      if (response.data && typeof response.data === 'string') {
-        try {
-          return { ...JSON.parse(response.data), $id: response.$id };
-        } catch {
-          return response as unknown as Projekt;
-        }
-      }
-      return response as unknown as Projekt;
+      return parseProjektDocument(response as unknown as Record<string, unknown>);
     } catch (error: unknown) {
       // 404-Fehler sind erwartet (Projekt gelöscht) - nicht loggen
       const is404 = error instanceof Error && error.message?.includes('could not be found');
@@ -187,16 +203,7 @@ class ProjektService {
       ]);
 
       if (response.documents.length > 0) {
-        const doc = response.documents[0];
-        // WICHTIG: data JSON-Feld parsen, damit alle Felder (dispoAnsprechpartner, etc.) verfügbar sind!
-        if (doc.data && typeof doc.data === 'string') {
-          try {
-            return { ...JSON.parse(doc.data), $id: doc.$id };
-          } catch {
-            return doc as unknown as Projekt;
-          }
-        }
-        return doc as unknown as Projekt;
+        return parseProjektDocument(response.documents[0] as Record<string, unknown>);
       }
       return null;
     } catch (error) {
@@ -215,16 +222,7 @@ class ProjektService {
         Query.limit(100),
       ]);
 
-      return response.documents.map(doc => {
-        if (doc.data && typeof doc.data === 'string') {
-          try {
-            return { ...JSON.parse(doc.data), $id: doc.$id };
-          } catch {
-            return doc as unknown as Projekt;
-          }
-        }
-        return doc as unknown as Projekt;
-      });
+      return response.documents.map(doc => parseProjektDocument(doc as Record<string, unknown>));
     } catch (error) {
       console.error('Fehler beim Laden der Projekte für KundeId:', error);
       return [];
@@ -244,17 +242,7 @@ class ProjektService {
       
       // Parse die Projekte und suche nach Kundennummer
       for (const doc of response.documents) {
-        let projekt: Projekt;
-        if (doc.data && typeof doc.data === 'string') {
-          try {
-            projekt = { ...JSON.parse(doc.data), $id: doc.$id };
-          } catch {
-            projekt = doc as unknown as Projekt;
-          }
-        } else {
-          projekt = doc as unknown as Projekt;
-        }
-        
+        const projekt = parseProjektDocument(doc as Record<string, unknown>);
         if (projekt.kundennummer === kundennummer) {
           return projekt;
         }
@@ -347,16 +335,9 @@ class ProjektService {
       // Cache invalidieren nach Erstellung
       this.invalidateCache();
 
-      let erstelltesProjekt: Projekt;
-      if (response.data && typeof response.data === 'string') {
-        try {
-          erstelltesProjekt = { ...JSON.parse(response.data), $id: response.$id };
-        } catch {
-          erstelltesProjekt = neuesProjekt;
-        }
-      } else {
-        erstelltesProjekt = neuesProjekt;
-      }
+      let erstelltesProjekt: Projekt = parseProjektDocument(
+        response as unknown as Record<string, unknown>
+      );
 
       // ===== AUTOMATISCHE PLATZBAUER-ZUORDNUNG =====
       // Prüfe ob der Kunde über einen Platzbauer bezieht
@@ -443,15 +424,30 @@ class ProjektService {
         geaendertAm: new Date().toISOString(),
       };
 
-      const dokument = {
+      const dokument: Record<string, unknown> = {
         projektName: aktualisiert.projektName,
         kundeId: aktualisiert.kundeId,
         kundenname: aktualisiert.kundenname,
         saisonjahr: aktualisiert.saisonjahr,
         status: aktualisiert.status,
         geaendertAm: aktualisiert.geaendertAm,
-        data: JSON.stringify(aktualisiert),
+        // Top-Level-Spalten für Debitorenverwaltung — werden beim Lesen bevorzugt (siehe parseProjektDocument).
+        // Null statt undefined senden, damit Appwrite das Feld bei Bedarf leert.
+        bezahltAm: aktualisiert.bezahltAm ?? null,
+        rechnungsnummer: aktualisiert.rechnungsnummer ?? null,
+        rechnungsdatum: aktualisiert.rechnungsdatum ?? null,
       };
+
+      // Wenn das serialisierte `data` über dem Appwrite-Limit liegt (z.B. Projekte mit großen
+      // rechnungsDaten), nur die Top-Level-Felder schreiben. Verhindert den 10000-chars-Fehler.
+      const serialisiert = JSON.stringify(aktualisiert);
+      if (serialisiert.length <= MAX_DATA_FIELD_SIZE) {
+        dokument.data = serialisiert;
+      } else {
+        console.warn(
+          `Projekt ${projektId}: data-Blob ist zu groß (${serialisiert.length} Zeichen) — Partial-Update auf Top-Level-Felder, data bleibt unverändert.`
+        );
+      }
 
       const response = await databases.updateDocument(
         DATABASE_ID,
@@ -463,16 +459,69 @@ class ProjektService {
       // Cache invalidieren nach Update
       this.invalidateCache();
 
-      if (response.data && typeof response.data === 'string') {
-        try {
-          return { ...JSON.parse(response.data), $id: response.$id };
-        } catch {
-          return aktualisiert;
-        }
-      }
-      return aktualisiert;
+      return parseProjektDocument(response as unknown as Record<string, unknown>);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Projekts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Partial-Update: Setzt ein Projekt auf "bezahlt" — schreibt NUR die Top-Level-Felder
+   * (status, bezahltAm, geaendertAm) und lässt das große `data`-Feld unangetastet.
+   * Erforderlich für Projekte mit großen rechnungsDaten, deren `data` das Appwrite-Limit ausreizt.
+   */
+  async markiereProjektAlsBezahlt(projektId: string, bezahltAm?: string): Promise<Projekt> {
+    try {
+      const jetzt = new Date().toISOString();
+      const dokument = {
+        status: 'bezahlt',
+        bezahltAm: bezahltAm ?? jetzt,
+        geaendertAm: jetzt,
+      };
+
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.collectionId,
+        projektId,
+        dokument
+      );
+
+      this.invalidateCache();
+      return parseProjektDocument(response as unknown as Record<string, unknown>);
+    } catch (error) {
+      console.error('Fehler beim Markieren des Projekts als bezahlt:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Partial-Update: Setzt rechnungsnummer und rechnungsdatum auf einem Projekt.
+   * Schreibt nur die Top-Level-Felder, lässt das `data`-Feld unangetastet (kein Overflow-Risiko).
+   */
+  async setzeRechnungsdaten(
+    projektId: string,
+    rechnungsnummer: string,
+    rechnungsdatum: string
+  ): Promise<Projekt> {
+    try {
+      const dokument = {
+        rechnungsnummer,
+        rechnungsdatum,
+        geaendertAm: new Date().toISOString(),
+      };
+
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        this.collectionId,
+        projektId,
+        dokument
+      );
+
+      this.invalidateCache();
+      return parseProjektDocument(response as unknown as Record<string, unknown>);
+    } catch (error) {
+      console.error('Fehler beim Setzen der Rechnungsdaten:', error);
       throw error;
     }
   }
@@ -482,22 +531,30 @@ class ProjektService {
     try {
       // Erst das aktuelle Projekt laden
       const aktuell = await this.getProjekt(projektId);
-      
+
       const aktualisiert = {
         ...aktuell,
         status: neuerStatus,
         geaendertAm: new Date().toISOString(),
       };
 
-      const dokument = {
+      const dokument: Record<string, unknown> = {
         projektName: aktualisiert.projektName,
         kundeId: aktualisiert.kundeId,
         kundenname: aktualisiert.kundenname,
         saisonjahr: aktualisiert.saisonjahr,
         status: aktualisiert.status,
         geaendertAm: aktualisiert.geaendertAm,
-        data: JSON.stringify(aktualisiert),
       };
+
+      const serialisiert = JSON.stringify(aktualisiert);
+      if (serialisiert.length <= MAX_DATA_FIELD_SIZE) {
+        dokument.data = serialisiert;
+      } else {
+        console.warn(
+          `Projekt ${projektId}: data-Blob ist zu groß (${serialisiert.length} Zeichen) — Status-Partial-Update.`
+        );
+      }
 
       const response = await databases.updateDocument(
         DATABASE_ID,
@@ -509,14 +566,7 @@ class ProjektService {
       // Cache invalidieren nach Status-Update
       this.invalidateCache();
 
-      if (response.data && typeof response.data === 'string') {
-        try {
-          return { ...JSON.parse(response.data), $id: response.$id };
-        } catch {
-          return aktualisiert;
-        }
-      }
-      return aktualisiert;
+      return parseProjektDocument(response as unknown as Record<string, unknown>);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Projekt-Status:', error);
       throw error;
