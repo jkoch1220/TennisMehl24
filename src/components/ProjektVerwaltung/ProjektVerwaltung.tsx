@@ -33,6 +33,7 @@ import {
   Download,
   Tag,
   Link2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -1213,6 +1214,16 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
           <div className="flex items-center gap-1">
             <FileText className="w-3 h-3 text-red-500 dark:text-red-400" />
             <span>{projekt.rechnungsnummer}</span>
+          </div>
+        )}
+        {/* Warn-Icon: Projekt hat Status 'rechnung' aber keine Rechnungsnummer — Invariante verletzt */}
+        {projekt.status === 'rechnung' && !projekt.rechnungsnummer && (
+          <div
+            className="flex items-center gap-1"
+            title="Rechnung fehlt — Projekt hat Status 'Rechnung' aber keine Rechnungsnummer. Bitte Rechnung erstellen oder Reparatur-Script ausführen."
+          >
+            <AlertTriangle className="w-3 h-3 text-orange-500 dark:text-orange-400" />
+            <span className="text-orange-600 dark:text-orange-300">Rechnung fehlt</span>
           </div>
         )}
       </div>
