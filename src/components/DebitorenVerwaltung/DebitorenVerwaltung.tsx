@@ -11,6 +11,7 @@ import {
   Filter,
   Settings,
   Landmark,
+  FileArchive,
 } from 'lucide-react';
 import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
@@ -19,6 +20,7 @@ import DebitorDetail from './DebitorDetail';
 import MahnwesenEinstellungen from './MahnwesenEinstellungen';
 import BankAbgleich from './BankAbgleich';
 import MahnungenTab from './MahnungenTab';
+import BulkDownloadDialog from './BulkDownloadDialog';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 
 type TabId =
@@ -44,6 +46,7 @@ const DebitorenVerwaltung = () => {
   const [debitoren, setDebitoren] = useState<DebitorView[]>([]);
   const [statistik, setStatistik] = useState<DebitorenStatistik | null>(null);
   const [loading, setLoading] = useState(true);
+  const [zeigeBulkDownload, setZeigeBulkDownload] = useState(false);
 
   // Tab über URL-Parameter persistieren — überlebt Reload und ermöglicht Deep-Links.
   // Ungültige Tab-Werte fallen auf 'dashboard' zurück.
@@ -391,6 +394,15 @@ const DebitorenVerwaltung = () => {
                 ))}
               </select>
             </div>
+
+            <button
+              onClick={() => setZeigeBulkDownload(true)}
+              className="px-4 py-2 border border-blue-300 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center gap-2"
+              title="Alle Rechnungen einer Saison als ZIP herunterladen"
+            >
+              <FileArchive className="w-5 h-5" />
+              Sammel-Export
+            </button>
 
             <button
               onClick={() => loadData()}
@@ -757,6 +769,11 @@ const DebitorenVerwaltung = () => {
             onUpdate={handleDetailUpdate}
             onOptimisticPatch={handleOptimisticPatch}
           />
+        )}
+
+        {/* Sammel-Export Dialog */}
+        {zeigeBulkDownload && (
+          <BulkDownloadDialog onClose={() => setZeigeBulkDownload(false)} />
         )}
       </div>
     </div>
