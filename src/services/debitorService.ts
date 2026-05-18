@@ -496,7 +496,7 @@ class DebitorService {
       } else if (metadaten.mahnstufe > 0) {
         neuerStatus = 'gemahnt';
       } else {
-        neuerStatus = this.berechneStatusAusRechnung(projekt, metadaten.zahlungszielTage);
+        neuerStatus = this.berechneStatusAusRechnung(projekt, metadaten.zahlungszielTage, rechnungsDokument);
       }
 
       const aktualisiert = await this.updateMetadaten(projektId, {
@@ -668,7 +668,7 @@ class DebitorService {
       } else if (metadaten.mahnstufe > 0) {
         neuerStatus = 'gemahnt';
       } else {
-        neuerStatus = this.berechneStatusAusRechnung(projekt, metadaten.zahlungszielTage);
+        neuerStatus = this.berechneStatusAusRechnung(projekt, metadaten.zahlungszielTage, rechnungsDokument);
       }
 
       if (neuerStatus !== metadaten.status) {
@@ -959,14 +959,21 @@ class DebitorService {
 
     const tageUeberfaellig = this.berechneTageUeberfaellig(faelligkeitsdatum);
 
-    // Status berechnen falls keine Metadaten vorhanden
+    // Status berechnen
+    // Sticky-Status (bleiben erhalten, bis Zahlung/Mahnung sie auflöst):
+    //   - bezahlt:    Endzustand
+    //   - teilbezahlt: bis vollständig bezahlt
+    //   - gemahnt:    bis Zahlung oder neue Mahnstufe
+    // Alle anderen (offen, faellig, ueberfaellig) werden bei jedem Laden frisch aus dem aktuellen
+    // tageUeberfaellig abgeleitet — damit eingefrorene "ueberfaellig"-Werte aus alten Metadaten
+    // nicht weiterleben, wenn die Rechnung gerade erst erstellt wurde.
     let status: DebitorStatus;
-    if (metadaten) {
-      status = metadaten.status;
-    } else if (projekt.status === 'bezahlt') {
+    if (projekt.status === 'bezahlt') {
       status = 'bezahlt';
+    } else if (metadaten && (metadaten.status === 'bezahlt' || metadaten.status === 'teilbezahlt' || metadaten.status === 'gemahnt')) {
+      status = metadaten.status;
     } else {
-      status = this.berechneStatusAusRechnung(projekt, zahlungszielTage);
+      status = this.statusAusTage(tageUeberfaellig);
     }
 
     return {
@@ -1074,30 +1081,55 @@ class DebitorService {
   }
 
   /**
-   * Berechnet den Status aus Rechnungsdaten
+   * Mapping tageUeberfaellig → Status (ohne Zahlungs-/Mahnungs-Logik).
+   *   tageUeberfaellig > 14 → 'ueberfaellig'
+   *   tageUeberfaellig >  0 → 'faellig'
+   *   sonst                 → 'offen'
+   */
+  private statusAusTage(tageUeberfaellig: number): DebitorStatus {
+    if (tageUeberfaellig > 14) return 'ueberfaellig';
+    if (tageUeberfaellig > 0) return 'faellig';
+    return 'offen';
+  }
+
+  /**
+   * Berechnet den Status aus Rechnungsdaten. Nutzt — wenn vorhanden — den $createdAt-Zeitstempel
+   * des Rechnungsdokuments als "Rechnungsstellung". Das vermeidet, dass nutzer-eingegebene
+   * (möglicherweise rückdatierte) projekt.rechnungsdatum-Werte zu sofortiger Überfälligkeit führen.
    */
   private berechneStatusAusRechnung(
     projekt: Projekt,
-    zahlungszielTage?: number
+    zahlungszielTage?: number,
+    rechnungsDokument?: RechnungsDokument | null
   ): DebitorStatus {
     if (projekt.status === 'bezahlt' || projekt.bezahltAm) {
       return 'bezahlt';
     }
 
-    const rechnungsdatum = projekt.rechnungsdatum || projekt.erstelltAm;
-    const faelligkeitsdatum = this.berechneFaelligkeitsdatum(
-      rechnungsdatum,
-      zahlungszielTage || STANDARD_ZAHLUNGSZIEL_TAGE
-    );
-    const tageUeberfaellig = this.berechneTageUeberfaellig(faelligkeitsdatum);
-
-    if (tageUeberfaellig > 14) {
-      return 'ueberfaellig';
-    } else if (tageUeberfaellig > 0) {
-      return 'faellig';
+    // Rechnungsstellungs-Datum nach gleicher Priorität wie in createDebitorView:
+    // 1. Rechnungsdokument.$createdAt (= wann die Rechnung im System erstellt wurde)
+    // 2. projekt.rechnungsdatum (Top-Level, vom User gesetzt)
+    // 3. rechnungsdatum aus geparstem rechnungsDaten-JSON
+    // 4. erstelltAm (letzter Notnagel)
+    let rechnungsdatum: string | undefined;
+    if (rechnungsDokument?.$createdAt) {
+      rechnungsdatum = rechnungsDokument.$createdAt.split('T')[0];
+    } else if (projekt.rechnungsdatum) {
+      rechnungsdatum = projekt.rechnungsdatum;
+    } else {
+      const inner = this.parseRechnungsDaten(projekt) as
+        | (RechnungsDaten & Partial<VolleRechnungsDaten>)
+        | null;
+      if (inner?.rechnungsdatum) {
+        rechnungsdatum = inner.rechnungsdatum;
+      }
     }
 
-    return 'offen';
+    const faelligkeitsdatum = this.berechneFaelligkeitsdatum(
+      rechnungsdatum || projekt.erstelltAm,
+      zahlungszielTage || STANDARD_ZAHLUNGSZIEL_TAGE
+    );
+    return this.statusAusTage(this.berechneTageUeberfaellig(faelligkeitsdatum));
   }
 
   /**
