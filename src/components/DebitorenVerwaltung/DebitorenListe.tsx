@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG } from '../../types/debitor';
+import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL } from '../../types/debitor';
+import { berechneMahnEmpfehlung } from '../../services/debitorService';
 
 interface DebitorenListeProps {
   debitoren: DebitorView[];
@@ -293,6 +294,19 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                   </td>
                   <td className="px-4 py-4">
                     <MahnstufeDisplay mahnstufe={debitor.mahnstufe} />
+                    {(() => {
+                      const empfehlung = berechneMahnEmpfehlung(debitor);
+                      if (empfehlung === 'keine') return null;
+                      return (
+                        <div
+                          className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                          title="Mahnung empfohlen — siehe Mahnungen-Tab"
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          {MAHN_EMPFEHLUNG_LABEL[empfehlung]}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-4">
                     <StatusBadge status={debitor.status} />

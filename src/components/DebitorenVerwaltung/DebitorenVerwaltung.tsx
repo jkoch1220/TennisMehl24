@@ -18,13 +18,23 @@ import DebitorenListe from './DebitorenListe';
 import DebitorDetail from './DebitorDetail';
 import MahnwesenEinstellungen from './MahnwesenEinstellungen';
 import BankAbgleich from './BankAbgleich';
+import MahnungenTab from './MahnungenTab';
+import { berechneMahnEmpfehlung } from '../../services/debitorService';
 
-type TabId = 'dashboard' | 'offen' | 'ueberfaellig' | 'bezahlt' | 'bankabgleich' | 'einstellungen';
+type TabId =
+  | 'dashboard'
+  | 'offen'
+  | 'ueberfaellig'
+  | 'mahnungen'
+  | 'bezahlt'
+  | 'bankabgleich'
+  | 'einstellungen';
 
 const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
   'dashboard',
   'offen',
   'ueberfaellig',
+  'mahnungen',
   'bezahlt',
   'bankabgleich',
   'einstellungen',
@@ -326,6 +336,12 @@ const DebitorenVerwaltung = () => {
       color: 'red',
     },
     {
+      id: 'mahnungen',
+      label: 'Mahnungen',
+      count: debitoren.filter((d) => berechneMahnEmpfehlung(d) !== 'keine').length,
+      color: 'orange',
+    },
+    {
       id: 'bezahlt',
       label: 'Bezahlt',
       count: statistik?.anzahlBezahlt || 0,
@@ -490,6 +506,76 @@ const DebitorenVerwaltung = () => {
               </div>
             </div>
 
+            {/* Mahnwesen-Karte: Action-Required-Übersicht */}
+            {(() => {
+              const empfehlungen = debitoren
+                .filter((d) => d.status !== 'bezahlt')
+                .map((d) => ({ debitor: d, empfehlung: berechneMahnEmpfehlung(d) }))
+                .filter((e) => e.empfehlung !== 'keine');
+
+              if (empfehlungen.length === 0) {
+                return null;
+              }
+
+              const gesamtBetrag = empfehlungen.reduce((s, e) => s + e.debitor.offenerBetrag, 0);
+              const proStufe = {
+                zahlungserinnerung: empfehlungen.filter((e) => e.empfehlung === 'zahlungserinnerung').length,
+                mahnung_1: empfehlungen.filter((e) => e.empfehlung === 'mahnung_1').length,
+                mahnung_2: empfehlungen.filter((e) => e.empfehlung === 'mahnung_2').length,
+                inkasso: empfehlungen.filter((e) => e.empfehlung === 'inkasso').length,
+              };
+
+              return (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-orange-200 dark:border-orange-800">
+                  <button
+                    onClick={() => setActiveTab('mahnungen')}
+                    className="w-full text-left p-6 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 transition-colors rounded-xl"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                          <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+                            Mahnwesen — Action Required
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                            {empfehlungen.length} fällige Mahnschritt{empfehlungen.length === 1 ? '' : 'e'} • {formatCurrency(gesamtBetrag)} betroffen
+                          </p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm">
+                            {proStufe.zahlungserinnerung > 0 && (
+                              <span className="text-blue-700 dark:text-blue-300">
+                                <strong>{proStufe.zahlungserinnerung}×</strong> Zahlungserinnerung
+                              </span>
+                            )}
+                            {proStufe.mahnung_1 > 0 && (
+                              <span className="text-amber-700 dark:text-amber-300">
+                                <strong>{proStufe.mahnung_1}×</strong> 1. Mahnung
+                              </span>
+                            )}
+                            {proStufe.mahnung_2 > 0 && (
+                              <span className="text-orange-700 dark:text-orange-300">
+                                <strong>{proStufe.mahnung_2}×</strong> 2. Mahnung
+                              </span>
+                            )}
+                            {proStufe.inkasso > 0 && (
+                              <span className="text-red-700 dark:text-red-300">
+                                <strong>{proStufe.inkasso}×</strong> Inkasso
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-sm font-medium text-orange-600 dark:text-orange-400 whitespace-nowrap">
+                        Mahnungen öffnen →
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              );
+            })()}
+
             {/* Kritische Debitoren */}
             {statistik.kritischeDebitoren.length > 0 && (
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
@@ -618,8 +704,16 @@ const DebitorenVerwaltung = () => {
           <MahnwesenEinstellungen />
         )}
 
+        {/* Mahnungen-Tab: eigene gruppierte Ansicht statt Standard-Liste */}
+        {activeTab === 'mahnungen' && (
+          <MahnungenTab debitoren={debitoren} onOpenDetail={handleOpenDetail} />
+        )}
+
         {/* Andere Tabs: Liste */}
-        {activeTab !== 'dashboard' && activeTab !== 'einstellungen' && (
+        {activeTab !== 'dashboard' &&
+          activeTab !== 'einstellungen' &&
+          activeTab !== 'bankabgleich' &&
+          activeTab !== 'mahnungen' && (
           <div className="space-y-4">
             {/* Suche */}
             <div className="flex gap-4">

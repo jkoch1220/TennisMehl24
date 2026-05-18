@@ -206,3 +206,22 @@ export const DEBITOR_STATUS_CONFIG: Record<DebitorStatus, { label: string; color
 
 // Standard-Zahlungsziel in Tagen
 export const STANDARD_ZAHLUNGSZIEL_TAGE = 14;
+
+// Mahn-Empfehlungen: welcher Schritt ist für einen Debitor aktuell fällig?
+// Reihenfolge der Eskalation:
+//   keine → zahlungserinnerung → mahnung_1 → mahnung_2 → inkasso
+export type MahnEmpfehlung =
+  | 'keine'                // Nichts zu tun (bezahlt, noch nicht fällig, gerade gemahnt)
+  | 'zahlungserinnerung'   // Mahnstufe 0 und überfällig >14 Tage
+  | 'mahnung_1'            // Mahnstufe 1 und >7 Tage seit letzter Mahnung
+  | 'mahnung_2'            // Mahnstufe 2 und >7 Tage seit letzter Mahnung
+  | 'inkasso';             // Mahnstufe 3 und >14 Tage seit letzter Mahnung
+
+// Beschriftungen für die UI
+export const MAHN_EMPFEHLUNG_LABEL: Record<MahnEmpfehlung, string> = {
+  keine: '',
+  zahlungserinnerung: 'Zahlungserinnerung empfohlen',
+  mahnung_1: '1. Mahnung empfohlen',
+  mahnung_2: '2. Mahnung empfohlen',
+  inkasso: 'Inkasso empfohlen',
+};

@@ -15,6 +15,7 @@ import {
   DebitorAktivitaet,
   DebitorenStatistik,
   DebitorFilter,
+  MahnEmpfehlung,
   STANDARD_ZAHLUNGSZIEL_TAGE,
 } from '../types/debitor';
 import { projektService } from './projektService';
@@ -1147,3 +1148,39 @@ class DebitorService {
 }
 
 export const debitorService = new DebitorService();
+
+/**
+ * Berechnet die Mahn-Empfehlung für einen Debitor.
+ *
+ * Regeln:
+ *   - Bezahlte oder noch nicht fällige Debitoren: 'keine'
+ *   - Mahnstufe 0 + tageUeberfaellig > 14: 'zahlungserinnerung'
+ *   - Mahnstufe 1 + > 7 Tage seit letzter Mahnung: 'mahnung_1'
+ *   - Mahnstufe 2 + > 7 Tage seit letzter Mahnung: 'mahnung_2'
+ *   - Mahnstufe 3 + > 14 Tage seit letzter Mahnung: 'inkasso'
+ *   - Sonst (gerade gemahnt, noch in Wartezeit): 'keine'
+ */
+export function berechneMahnEmpfehlung(debitor: DebitorView): MahnEmpfehlung {
+  if (debitor.status === 'bezahlt') return 'keine';
+  if (debitor.tageUeberfaellig <= 0) return 'keine';
+
+  const heute = new Date();
+  const tageSeitLetzterMahnung = debitor.letzteMahnungAm
+    ? Math.floor((heute.getTime() - new Date(debitor.letzteMahnungAm).getTime()) / (1000 * 60 * 60 * 24))
+    : Infinity;
+
+  switch (debitor.mahnstufe) {
+    case 0:
+      return debitor.tageUeberfaellig > 14 ? 'zahlungserinnerung' : 'keine';
+    case 1:
+      return tageSeitLetzterMahnung > 7 ? 'mahnung_1' : 'keine';
+    case 2:
+      return tageSeitLetzterMahnung > 7 ? 'mahnung_2' : 'keine';
+    case 3:
+      return tageSeitLetzterMahnung > 14 ? 'inkasso' : 'keine';
+    case 4:
+      return 'keine'; // Bereits in Inkasso — kein weiterer Schritt
+    default:
+      return 'keine';
+  }
+}
