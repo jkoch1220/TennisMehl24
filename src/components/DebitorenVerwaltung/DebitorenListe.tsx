@@ -445,10 +445,14 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
         </div>
       </div>
 
-      {/* Auswahl-Leiste (sticky unten) */}
+      {/* Auswahl-Leiste — fixiert am Viewport-Unterrand, damit sie auch bei langen Tabellen
+          sofort sichtbar ist, ohne nach unten scrollen zu müssen. Spacer-Höhe darunter im
+          äußeren Container, damit die letzte Tabellenzeile nicht verdeckt wird. */}
       {zeigeAuswahlSpalte && selectedDebitoren.length > 0 && (
-        <div className="sticky bottom-0 z-10 border-t-2 border-green-500 dark:border-green-600 bg-white dark:bg-slate-800 shadow-lg">
-          <div className="px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
+        <>
+          <div aria-hidden className="h-24" />
+          <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 border-green-500 dark:border-green-600 bg-white dark:bg-slate-800 shadow-2xl">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
             {/* Linke Seite: Zusammenfassung */}
             <div className="flex flex-wrap items-center gap-4 lg:gap-6">
               <div>
@@ -523,7 +527,8 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
