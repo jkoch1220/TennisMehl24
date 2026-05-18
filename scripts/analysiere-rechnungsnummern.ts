@@ -86,57 +86,99 @@ interface LueckenAnalyse {
   stornos: Dokument[];
   benutzteNummern: number[];
   luecken: number[];
-  zuordnung: Array<{ luecke: number; storno: Dokument; konflikt?: string }>;
+  zuordnung: Array<{
+    luecke: number;
+    storno: Dokument;
+    originalRechnung?: string;
+    konflikt?: string;
+    schonKorrekt?: boolean;
+  }>;
+}
+
+function ermittleOriginalNummer(storno: Dokument, alle: Dokument[]): string | null {
+  if (storno.stornoVonRechnungId) {
+    const original = alle.find((d) => d.$id === storno.stornoVonRechnungId);
+    if (original) return original.dokumentNummer;
+  }
+  if (storno.stornoVonRechnungsnummer) {
+    return storno.stornoVonRechnungsnummer;
+  }
+  return null;
 }
 
 function analysiereSaison(saison: number, dokumente: Dokument[]): LueckenAnalyse {
   const rechnungen: Dokument[] = [];
   const stornos: Dokument[] = [];
-  const benutzteNummern: number[] = [];
+  const echteRechnungsNummern = new Set<number>();
 
   for (const doc of dokumente) {
     const parsed = parseRechnungsnummer(doc.dokumentNummer);
     if (!parsed || parsed.saison !== saison) continue;
 
-    if (doc.dokumentTyp === 'rechnung' && parsed.prefix === 'RE') {
+    if (doc.dokumentTyp === 'rechnung') {
       rechnungen.push(doc);
-      benutzteNummern.push(parsed.laufnummer);
+      echteRechnungsNummern.add(parsed.laufnummer);
     } else if (doc.dokumentTyp === 'stornorechnung') {
       stornos.push(doc);
-      // Stornos die schon im RE-Kreis sind belegen Nummern (neue Logik)
-      if (parsed.prefix === 'RE') {
-        benutzteNummern.push(parsed.laufnummer);
-      }
     }
   }
 
-  benutzteNummern.sort((a, b) => a - b);
-  const maxNummer = benutzteNummern.length > 0 ? benutzteNummern[benutzteNummern.length - 1] : 0;
+  // Stornos chronologisch sortieren (älteste zuerst — Konflikt-Tie-Break)
+  const stornosSortiert = [...stornos].sort((a, b) =>
+    (a.$createdAt || '').localeCompare(b.$createdAt || '')
+  );
 
-  const luecken: number[] = [];
-  const benutzteSet = new Set(benutzteNummern);
-  for (let n = 1; n <= maxNummer; n++) {
-    if (!benutzteSet.has(n)) luecken.push(n);
-  }
-
-  // Stornos chronologisch (älteste zuerst), nur die mit STORNO-Prefix (alte Logik) bekommen Lücken zugeordnet
-  const alteStornos = stornos
-    .filter((s) => {
-      const p = parseRechnungsnummer(s.dokumentNummer);
-      return p && p.prefix !== 'RE';
-    })
-    .sort((a, b) => a.$createdAt.localeCompare(b.$createdAt));
-
+  // Für jeden Storno die ideale Lücke direkt nach der Original-Rechnung bestimmen
+  const zugewiesen = new Set<number>();
   const zuordnung: LueckenAnalyse['zuordnung'] = [];
-  const lueckenKopie = [...luecken];
 
-  for (const storno of alteStornos) {
-    const luecke = lueckenKopie.shift();
-    if (luecke === undefined) {
-      zuordnung.push({ luecke: -1, storno, konflikt: 'Keine Lücke mehr verfügbar' });
-    } else {
-      zuordnung.push({ luecke, storno });
+  for (const storno of stornosSortiert) {
+    const originalNummer = ermittleOriginalNummer(storno, dokumente);
+    const aktuell = parseRechnungsnummer(storno.dokumentNummer);
+    if (!originalNummer) {
+      zuordnung.push({
+        luecke: -1,
+        storno,
+        konflikt: 'Original-Rechnung kann nicht ermittelt werden',
+      });
+      continue;
     }
+    const originalParsed = parseRechnungsnummer(originalNummer);
+    if (!originalParsed) {
+      zuordnung.push({
+        luecke: -1,
+        storno,
+        originalRechnung: originalNummer,
+        konflikt: 'Original-Nummer nicht parsbar',
+      });
+      continue;
+    }
+
+    let kandidat = originalParsed.laufnummer + 1;
+    while (echteRechnungsNummern.has(kandidat) || zugewiesen.has(kandidat)) {
+      kandidat++;
+    }
+    zugewiesen.add(kandidat);
+
+    const schonKorrekt = aktuell?.prefix === 'RE' && aktuell.laufnummer === kandidat;
+    zuordnung.push({
+      luecke: kandidat,
+      storno,
+      originalRechnung: originalNummer,
+      schonKorrekt,
+    });
+  }
+
+  // Benutzte und Lücken für Info-Ausgabe
+  const alleBelegt = new Set<number>(echteRechnungsNummern);
+  for (const z of zuordnung) {
+    if (z.luecke > 0) alleBelegt.add(z.luecke);
+  }
+  const benutzteNummern = Array.from(alleBelegt).sort((a, b) => a - b);
+  const maxNummer = benutzteNummern.length > 0 ? benutzteNummern[benutzteNummern.length - 1] : 0;
+  const luecken: number[] = [];
+  for (let n = 1; n <= maxNummer; n++) {
+    if (!alleBelegt.has(n)) luecken.push(n);
   }
 
   return { saison, rechnungen, stornos, benutzteNummern, luecken, zuordnung };
@@ -159,47 +201,54 @@ async function main() {
   const zuAnalysierendeSaisons = ARG_SAISON ? [ARG_SAISON] : Array.from(saisons).sort();
 
   if (CSV_MODE) {
-    console.log('saison,luecke_re_nummer,storno_id,storno_dokumentnummer,storno_createdAt,projektId,konflikt');
+    console.log('saison,aktuell,neue_nummer,original_rechnung,storno_id,storno_createdAt,projektId,status');
   }
 
   for (const saison of zuAnalysierendeSaisons) {
     const analyse = analysiereSaison(saison, dokumente);
 
     if (CSV_MODE) {
-      for (const { luecke, storno, konflikt } of analyse.zuordnung) {
-        const lueckeNr = luecke > 0 ? `RE-${saison}-${String(luecke).padStart(4, '0')}` : '(keine)';
+      for (const eintrag of analyse.zuordnung) {
+        const neueNr = eintrag.luecke > 0 ? `RE-${saison}-${String(eintrag.luecke).padStart(4, '0')}` : '???';
+        const status = eintrag.konflikt
+          ? `KONFLIKT: ${eintrag.konflikt}`
+          : eintrag.schonKorrekt
+            ? 'korrekt'
+            : 'zu_migrieren';
         console.log(
-          `${saison},${lueckeNr},${storno.$id},${storno.dokumentNummer},${storno.$createdAt},${storno.projektId},${konflikt ?? ''}`
+          `${saison},${eintrag.storno.dokumentNummer},${neueNr},${eintrag.originalRechnung ?? ''},${eintrag.storno.$id},${eintrag.storno.$createdAt},${eintrag.storno.projektId},${status}`
         );
       }
       continue;
     }
 
+    const zuMigrieren = analyse.zuordnung.filter((e) => !e.schonKorrekt && !e.konflikt);
+    const schonKorrekt = analyse.zuordnung.filter((e) => e.schonKorrekt).length;
+    const konflikte = analyse.zuordnung.filter((e) => e.konflikt).length;
+
     console.log(`\n📅 Saison ${saison}`);
     console.log('-'.repeat(70));
-    console.log(`   Rechnungen mit RE-Nummer:     ${analyse.rechnungen.length}`);
+    console.log(`   Echte Rechnungen (RE-*):      ${analyse.rechnungen.length}`);
     console.log(`   Stornos gesamt:               ${analyse.stornos.length}`);
-    console.log(`   Davon mit STORNO-Prefix (alt): ${analyse.zuordnung.length}`);
-    console.log(`   Davon schon im RE-Kreis (neu): ${analyse.stornos.length - analyse.zuordnung.length}`);
-    console.log(`   Gesamt belegte Lauf-Nummern:  ${analyse.benutzteNummern.length}`);
-    console.log(`   Höchste belegte Nummer:       ${analyse.benutzteNummern.length > 0 ? analyse.benutzteNummern[analyse.benutzteNummern.length - 1] : '–'}`);
-    console.log(`   Lücken:                       ${analyse.luecken.length}`);
+    console.log(`   Davon schon korrekt:          ${schonKorrekt}`);
+    console.log(`   Davon zu migrieren:           ${zuMigrieren.length}`);
+    console.log(`   Davon Konflikte:              ${konflikte}`);
 
-    if (analyse.zuordnung.length > 0) {
-      console.log('\n   Vorgeschlagene Migrations-Zuordnung (chronologisch):');
-      for (const { luecke, storno, konflikt } of analyse.zuordnung) {
-        const neueLueckeNr = luecke > 0 ? `RE-${saison}-${String(luecke).padStart(4, '0')}` : '???';
-        const zeile = `      ${storno.dokumentNummer.padEnd(20)} → ${neueLueckeNr}  (${storno.$createdAt.split('T')[0]})`;
-        console.log(konflikt ? `${zeile}  ⚠️  ${konflikt}` : zeile);
+    if (zuMigrieren.length > 0) {
+      console.log('\n   Vorgeschlagene Migration (Storno → Original-Rechnung + 1):');
+      for (const e of zuMigrieren) {
+        const neueNr = `RE-${saison}-${String(e.luecke).padStart(4, '0')}`;
+        console.log(
+          `      ${e.storno.dokumentNummer.padEnd(20)} → ${neueNr}   (Storno zu ${e.originalRechnung ?? '???'}, erstellt ${e.storno.$createdAt.split('T')[0]})`
+        );
       }
     }
 
-    if (analyse.luecken.length > analyse.zuordnung.length) {
-      const restLuecken = analyse.luecken.slice(analyse.zuordnung.length);
-      console.log(`\n   ⚠️  ${restLuecken.length} Lücken ohne Storno-Zuordnung: ${restLuecken
-        .slice(0, 20)
-        .map((n) => `RE-${saison}-${String(n).padStart(4, '0')}`)
-        .join(', ')}${restLuecken.length > 20 ? ', …' : ''}`);
+    if (konflikte > 0) {
+      console.log('\n   ⚠️  Konflikte:');
+      for (const e of analyse.zuordnung.filter((x) => x.konflikt)) {
+        console.log(`      ${e.storno.dokumentNummer.padEnd(20)} — ${e.konflikt}`);
+      }
     }
   }
 }

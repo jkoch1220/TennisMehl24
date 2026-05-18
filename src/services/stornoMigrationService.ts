@@ -112,81 +112,103 @@ const ladeAlleRelevantenDokumente = async (): Promise<GespeichertesDokument[]> =
 /**
  * Erstellt einen Migrations-Plan für eine bestimmte Saison.
  *
- * Algorithmus:
- *  1. Sammelt alle RE-Nummern (Rechnungen + bereits migrierte Stornos) → benutzte Lauf-Nummern
- *  2. Bestimmt die Lücken (1..max ohne benutzte)
- *  3. Sortiert alte Stornos (STORNO-Prefix) chronologisch nach $createdAt aufsteigend
- *  4. Weist jeder alten Storno die nächste verfügbare Lücke zu (älteste Storno → kleinste Lücke)
+ * Algorithmus: "Storno bekommt die erste freie Lücke direkt nach der Original-Rechnung"
+ *
+ *  1. Sammelt alle Lauf-Nummern, die von ECHTEN Rechnungen belegt sind
+ *     (migrierte Stornos zählen nicht — ihre Nummer ist potentiell korrigierbar)
+ *  2. Sortiert Stornos chronologisch (deterministische Reihenfolge bei Konflikten)
+ *  3. Pro Storno:
+ *     - Original-Rechnungsnummer per stornoVonRechnungId / daten-JSON ermitteln
+ *     - Ideale Lücke = kleinste freie Nummer >= (Original-Laufnummer + 1),
+ *       die weder von einer echten Rechnung noch von einem anderen migrierten Storno belegt ist
+ *     - Wenn aktuelle Nummer == ideale Nummer → schon korrekt, überspringen
+ *     - Sonst → in Migrations-Plan aufnehmen
+ *
+ *  Diese Logik ist idempotent: nach einem Lauf liefert ein zweiter Lauf einen leeren Plan,
+ *  weil alle Stornos dann ihre korrekte "Original+1"-Nummer haben.
  */
 export async function berechneStornoMigrationsPlan(saison: number): Promise<StornoMigrationsPlan> {
   const alle = await ladeAlleRelevantenDokumente();
 
-  const benutzteNummern = new Set<number>();
-  const alteStornos: GespeichertesDokument[] = [];
-  let bereitsMigriert = 0;
-
+  // 1. Lauf-Nummern von echten Rechnungen sammeln (diese sind fix, dürfen nie geändert werden)
+  const echteRechnungsNummern = new Set<number>();
   for (const doc of alle) {
     const parsed = parseNummer(doc.dokumentNummer);
     if (!parsed || parsed.saison !== saison) continue;
-
-    if (doc.dokumentTyp === 'rechnung' && parsed.prefix === 'RE') {
-      benutzteNummern.add(parsed.laufnummer);
-    } else if (doc.dokumentTyp === 'stornorechnung') {
-      if (parsed.prefix === 'RE') {
-        // Storno läuft schon im RE-Kreis — nichts zu tun, Nummer belegt aber den Kreis
-        benutzteNummern.add(parsed.laufnummer);
-        bereitsMigriert++;
-      } else {
-        // STORNO-Prefix → muss migriert werden
-        alteStornos.push(doc);
-      }
+    if (doc.dokumentTyp === 'rechnung') {
+      echteRechnungsNummern.add(parsed.laufnummer);
     }
   }
 
-  const maxNummer = benutzteNummern.size > 0 ? Math.max(...benutzteNummern) : 0;
-  const luecken: number[] = [];
-  for (let n = 1; n <= maxNummer; n++) {
-    if (!benutzteNummern.has(n)) luecken.push(n);
-  }
-  // Wenn weniger Lücken als Stornos: zusätzliche Nummern oberhalb von maxNummer reservieren,
-  // damit jedes Storno eine eindeutige Nummer bekommt.
-  while (luecken.length < alteStornos.length) {
-    luecken.push(maxNummer + (luecken.length - (maxNummer > 0 ? maxNummer - luecken[luecken.length - 1] : 0)) + 1);
-    // Sicherheits-Stop falls Logik kippt:
-    if (luecken.length > 100000) break;
-  }
+  // 2. Stornos der Saison sammeln, chronologisch sortieren (älteste zuerst — gewinnt bei Konflikt)
+  const stornos = alle
+    .filter((doc) => {
+      const parsed = parseNummer(doc.dokumentNummer);
+      return parsed?.saison === saison && doc.dokumentTyp === 'stornorechnung';
+    })
+    .sort((a, b) => (a.$createdAt || '').localeCompare(b.$createdAt || ''));
 
-  // Chronologisch sortieren (älteste zuerst — fließen in die kleinsten Lücken)
-  alteStornos.sort((a, b) => (a.$createdAt || '').localeCompare(b.$createdAt || ''));
+  // 3. Pro Storno die ideale Lücke (Original+1, dann nächste freie) bestimmen
+  const zugewieseneStornoNummern = new Set<number>();
+  const eintraege: StornoMigrationEintrag[] = [];
+  let bereitsKorrekt = 0;
 
-  const eintraege: StornoMigrationEintrag[] = alteStornos.map((storno, idx) => {
-    const lueckenNr = luecken[idx];
-    const neueNummer = formatiereREnummer(saison, lueckenNr);
+  for (const storno of stornos) {
+    const aktuell = parseNummer(storno.dokumentNummer);
+    if (!aktuell) continue;
+
     const originalRechnungsnummer = ermittleOriginalRechnungsnummer(storno, alle);
+    if (!originalRechnungsnummer) {
+      eintraege.push({
+        storno,
+        alteNummer: storno.dokumentNummer,
+        neueNummer: storno.dokumentNummer, // unverändert lassen
+        originalRechnungsnummer: '???',
+        konflikt: 'Original-Rechnung kann nicht ermittelt werden (kein stornoVonRechnungId, kein daten-JSON)',
+      });
+      continue;
+    }
+    const originalParsed = parseNummer(originalRechnungsnummer);
+    if (!originalParsed) {
+      eintraege.push({
+        storno,
+        alteNummer: storno.dokumentNummer,
+        neueNummer: storno.dokumentNummer,
+        originalRechnungsnummer,
+        konflikt: `Original-Rechnungsnummer "${originalRechnungsnummer}" lässt sich nicht parsen`,
+      });
+      continue;
+    }
 
-    return {
+    // Ideale Lücke: erste freie Nummer ab (originalLaufnummer + 1)
+    let idealeLueckeNr = originalParsed.laufnummer + 1;
+    while (
+      echteRechnungsNummern.has(idealeLueckeNr) ||
+      zugewieseneStornoNummern.has(idealeLueckeNr)
+    ) {
+      idealeLueckeNr++;
+    }
+    zugewieseneStornoNummern.add(idealeLueckeNr);
+
+    // Schon korrekt?
+    if (aktuell.prefix === 'RE' && aktuell.laufnummer === idealeLueckeNr) {
+      bereitsKorrekt++;
+      continue;
+    }
+
+    eintraege.push({
       storno,
       alteNummer: storno.dokumentNummer,
-      neueNummer,
-      originalRechnungsnummer: originalRechnungsnummer ?? '???',
-      konflikt: originalRechnungsnummer ? undefined : 'Original-Rechnungsnummer konnte nicht ermittelt werden',
-    };
-  });
-
-  // Restliche unbelegte Lücken (überschüssige Lücken nach Storno-Zuordnung)
-  const verbrauchteLuecken = new Set(eintraege.map((e) => parseNummer(e.neueNummer)?.laufnummer));
-  const ungeloesteLuecken: string[] = [];
-  for (const n of luecken) {
-    if (!verbrauchteLuecken.has(n)) {
-      ungeloesteLuecken.push(formatiereREnummer(saison, n));
-    }
+      neueNummer: formatiereREnummer(saison, idealeLueckeNr),
+      originalRechnungsnummer,
+    });
   }
 
   return {
     saison,
     eintraege,
-    ungeloesteLuecken,
-    bereitsMigriert,
+    ungeloesteLuecken: [], // mit "Original+1"-Heuristik nicht mehr relevant — Lücken bleiben offen
+    bereitsMigriert: bereitsKorrekt,
   };
 }
 
