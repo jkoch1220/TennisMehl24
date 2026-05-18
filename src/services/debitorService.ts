@@ -1,7 +1,7 @@
 import { databases, DATABASE_ID, COLLECTIONS, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
-import { GespeichertesDokument } from '../types/projektabwicklung';
+import { GespeichertesDokument, RechnungsDaten as VolleRechnungsDaten } from '../types/projektabwicklung';
 
 // Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
 type RechnungsDokument = GespeichertesDokument;
@@ -798,8 +798,11 @@ class DebitorService {
             statistik.gemahntAnzahl++;
           }
 
-          // Kritische Debitoren (Top 10 nach offenem Betrag)
-          statistik.kritischeDebitoren.push(debitor);
+          // Kritische Debitoren (Top 10 nach offenem Betrag) — nur überfällig oder gemahnt,
+          // niemals offene (noch nicht fällige) oder bezahlte Rechnungen.
+          if (debitor.status === 'ueberfaellig' || debitor.status === 'gemahnt') {
+            statistik.kritischeDebitoren.push(debitor);
+          }
 
           // Nächste Fälligkeiten (in den nächsten 7 Tagen)
           const faelligkeit = new Date(debitor.faelligkeitsdatum);
@@ -877,7 +880,27 @@ class DebitorService {
     // Rechnungsnummer und -datum: Dokument ist Source of Truth (denormalisiertes projekt.rechnungsnummer
     // kann nach Storno+Neuerstellung veraltet sein). Fallback auf Projekt-Felder nur wenn kein Dokument vorhanden.
     const rechnungsnummer = rechnungsDokument?.dokumentNummer || projekt.rechnungsnummer;
-    const rechnungsdatum = (rechnungsDokument?.$createdAt ? rechnungsDokument.$createdAt.split('T')[0] : undefined) || projekt.rechnungsdatum;
+
+    // Fallback-Kette für rechnungsdatum:
+    // 1. $createdAt des aktiven Rechnungsdokuments (zuverlässig — wird beim Speichern gesetzt)
+    // 2. projekt.rechnungsdatum (Top-Level-Spalte)
+    // 3. rechnungsdatum aus parsed rechnungsDaten (innerhalb data-JSON)
+    // 4. KEIN Fallback auf projekt.erstelltAm — sonst gelten Rechnungen, die zu einem alten
+    //    Projekt nachträglich erstellt werden, sofort als überfällig (Projekt-Erstellungsdatum
+    //    liegt oft Monate vor dem Rechnungsdatum).
+    let rechnungsdatum: string | undefined;
+    if (rechnungsDokument?.$createdAt) {
+      rechnungsdatum = rechnungsDokument.$createdAt.split('T')[0];
+    } else if (projekt.rechnungsdatum) {
+      rechnungsdatum = projekt.rechnungsdatum;
+    } else {
+      const rechnungsDatenInner = this.parseRechnungsDaten(projekt) as
+        | (RechnungsDaten & Partial<VolleRechnungsDaten>)
+        | null;
+      if (rechnungsDatenInner?.rechnungsdatum) {
+        rechnungsdatum = rechnungsDatenInner.rechnungsdatum;
+      }
+    }
 
     // Zahlungsziel-Priorität:
     // 1. Aus Debitor-Metadaten (explizit gesetzt)
@@ -899,8 +922,11 @@ class DebitorService {
       }
     }
 
+    // Letzter Fallback wenn kein rechnungsdatum ermittelbar war: erstelltAm. In dem Fall ist
+    // die Berechnung zwar nicht ideal, aber wir haben keine andere Information.
+    const datumFuerFaelligkeit = rechnungsdatum || projekt.erstelltAm;
     const faelligkeitsdatum = this.berechneFaelligkeitsdatum(
-      rechnungsdatum || projekt.erstelltAm,
+      datumFuerFaelligkeit,
       zahlungszielTage
     );
 

@@ -218,8 +218,15 @@ const DebitorenVerwaltung = () => {
       case 'offen':
         return filtered.filter((d) => d.status !== 'bezahlt');
       case 'ueberfaellig':
+        // Bezahlte Debitoren NIE im Überfällig-Tab anzeigen, auch wenn das (alte)
+        // Fälligkeitsdatum in der Vergangenheit liegt (tageUeberfaellig > 0).
         return filtered.filter(
-          (d) => d.status === 'ueberfaellig' || d.status === 'faellig' || d.tageUeberfaellig > 0
+          (d) =>
+            d.status !== 'bezahlt' &&
+            (d.status === 'ueberfaellig' ||
+              d.status === 'faellig' ||
+              d.status === 'gemahnt' ||
+              d.tageUeberfaellig > 0)
         );
       case 'bezahlt':
         return filtered.filter((d) => d.status === 'bezahlt');
