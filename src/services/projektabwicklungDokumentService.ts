@@ -802,6 +802,19 @@ export const speichereRechnung = async (
       }
     } catch (statusError) {
       console.error('⚠️ Fehler beim Status-Wechsel (Rechnung wurde trotzdem gespeichert):', statusError);
+      // Fallback: Minimaler Partial-Update — nur rechnungsnummer + rechnungsdatum schreiben,
+      // damit Projekt und Rechnungsdokument konsistent bleiben (Invariante: Projekt mit Status
+      // 'rechnung' MUSS rechnungsnummer haben).
+      try {
+        await projektService.setzeRechnungsdaten(
+          projektId,
+          daten.rechnungsnummer,
+          daten.rechnungsdatum
+        );
+        console.log('✅ Fallback: rechnungsnummer/rechnungsdatum nachträglich gesetzt');
+      } catch (fallbackError) {
+        console.error('❌ Auch Fallback-Update fehlgeschlagen:', fallbackError);
+      }
     }
 
     // === PREIS IN KUNDENSTAMMDATEN AKTUALISIEREN (Last Year Price) ===
