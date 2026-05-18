@@ -989,6 +989,9 @@ export const speichereStornoRechnung = async (
     const summen = berechneRechnungsSummen(stornoPositionen);
     
     // Storno-Dokument erstellen
+    // dokumentNummer ist ab Schema-Version 40 eine reguläre RE-Nummer (kein STORNO-Prefix mehr),
+    // gezogen aus dem rechnungZaehler — Stornos und Rechnungen teilen einen Nummernkreis.
+    // stornoVonRechnungsnummer denormalisiert die Original-Rechnungsnummer für Lookups in der UI.
     const stornoDokument = await databases.createDocument(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -1002,6 +1005,7 @@ export const speichereStornoRechnung = async (
         bruttobetrag: summen.bruttobetrag, // Negativ!
         istFinal: true, // UNVERÄNDERBAR!
         stornoVonRechnungId: originalRechnung.$id,
+        stornoVonRechnungsnummer: originalDaten.rechnungsnummer,
         rechnungsStatus: 'aktiv',
         stornoGrund,
         daten: JSON.stringify(stornoDaten)
@@ -1076,37 +1080,55 @@ export const ladeDatenVonStornoRechnung = async (
 };
 
 // Storno-Rechnung PDF generieren
+//
+// Aufbau:
+// - Wiederverwendung des regulären Rechnungs-PDFs (Positionen liegen schon negativ vor)
+// - Im Header steht die neue RE-Nummer (Storno läuft im RE-Kreis)
+// - Roter Hinweis "Stornorechnung zu Rechnung RE-XXXX" direkt unter dem Betreff
+// - Diagonales "STORNORECHNUNG"-Wasserzeichen auf jeder Seite (Rückwärts-Kompatibilität)
 const generiereStornoRechnungPDF = async (daten: StornoRechnungsDaten): Promise<jsPDF> => {
-  // Wir verwenden das normale Rechnungs-PDF, aber mit Storno-Kennzeichnung
-  // Die Positionen haben bereits negative Beträge
   const rechnungsDaten: RechnungsDaten = {
     ...daten,
     rechnungsnummer: daten.stornoRechnungsnummer,
     rechnungsdatum: daten.stornoDatum
   };
-  
+
   const pdf = await generiereRechnungPDF(rechnungsDaten);
-  
-  // Storno-Wasserzeichen hinzufügen
+
+  // Roter Bezugshinweis unter dem Betreff der ersten Seite. Position y≈101mm liegt direkt unter
+  // dem "Rechnung Nr."-Betreff (y≈95mm) und vor der Anrede (y≈105mm) — siehe rechnungService.ts.
+  const originalDatumFormatiert = new Date(daten.originalRechnungsdatum).toLocaleDateString('de-DE');
+  pdf.setPage(1);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.setTextColor(220, 38, 38); // red-600
+  pdf.text(
+    `Stornorechnung zu Rechnung ${daten.originalRechnungsnummer} vom ${originalDatumFormatiert}`,
+    25,
+    101
+  );
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont('helvetica', 'normal');
+
+  // Diagonales Wasserzeichen auf jeder Seite (zusätzliche Sicherheit gegen Verwechslung)
   const totalPages = pdf.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     pdf.setPage(i);
     pdf.setFontSize(60);
     pdf.setTextColor(255, 0, 0);
     pdf.setFont('helvetica', 'bold');
-    
-    // Schräg über die Seite
     pdf.saveGraphicsState();
-    pdf.text('STORNORECHNUNG', 105, 150, {
-      align: 'center',
-      angle: 45
-    });
+    pdf.text('STORNORECHNUNG', 105, 150, { align: 'center', angle: 45 });
     pdf.restoreGraphicsState();
     pdf.setTextColor(0, 0, 0);
   }
-  
+
   return pdf;
 };
+
+// Export für die Migration der bestehenden Storno-Nummern (browser-basiertes Admin-Tool).
+// Re-generiert die PDF mit der aktuellen Logik und gibt sie zurück, ohne hochzuladen.
+export const generiereStornoRechnungPDFFuerMigration = generiereStornoRechnungPDF;
 
 // Prüfen ob eine neue Rechnung nach Storno erstellt werden kann
 export const kannNeueRechnungErstellen = async (projektId: string): Promise<{

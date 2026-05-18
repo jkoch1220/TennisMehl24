@@ -322,6 +322,7 @@ export interface GespeichertesDokument {
   version?: number; // Versionsnummer für Angebote/AB/LS
   // Storno-Referenzen (nur für Rechnungen und Stornos)
   stornoVonRechnungId?: string; // Bei Stornorechnung: ID der stornierten Rechnung
+  stornoVonRechnungsnummer?: string; // Bei Stornorechnung: Nummer der stornierten Rechnung (denormalisiert, für UI ohne Lookup)
   stornoRechnungId?: string; // Bei Rechnung: ID der zugehörigen Stornorechnung (wenn storniert)
   rechnungsStatus?: RechnungsStatus; // Status der Rechnung
   stornoGrund?: string; // Begründung für Stornierung
@@ -330,6 +331,10 @@ export interface GespeichertesDokument {
 }
 
 // Storno-Rechnung Daten
+//
+// Hinweis zur Nummerierung: stornoRechnungsnummer ist ab Schema-Version 40 eine reguläre
+// RE-Nummer (z.B. RE-2026-0042) — Stornos laufen im selben Nummernkreis wie Rechnungen, damit
+// keine Lücken entstehen. originalRechnungsnummer verweist auf die stornierte Rechnung.
 export interface StornoRechnungsDaten extends Omit<RechnungsDaten, 'rechnungsnummer' | 'rechnungsdatum'> {
   stornoRechnungsnummer: string;
   stornoDatum: string;

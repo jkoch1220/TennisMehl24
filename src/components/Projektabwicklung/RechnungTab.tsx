@@ -1213,8 +1213,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       setStornoInProgress(true);
       setStatusMeldung(null);
       
-      // Stornonummer generieren
-      const stornoNummer = await generiereNaechsteDokumentnummer('stornorechnung');
+      // Stornorechnung läuft im selben Nummernkreis wie reguläre Rechnungen — keine separate
+      // STORNO-Sequenz mehr. Vorteil: lückenlose Nummerierung, GoBD-konform. Das Dokument wird
+      // weiterhin über dokumentTyp='stornorechnung' und negative Beträge als Storno erkannt.
+      const stornoNummer = await generiereNaechsteDokumentnummer('rechnung');
       
       const { aktualisierteOriginalRechnung } = await speichereStornoRechnung(
         projekt.$id,

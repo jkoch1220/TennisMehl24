@@ -79,6 +79,13 @@ const neueAttribute = [
     size: 500,
     required: false,
     description: 'Begründung für die Stornierung (Pflichtfeld bei Storno)'
+  },
+  {
+    typ: 'string',
+    key: 'stornoVonRechnungsnummer',
+    size: 100,
+    required: false,
+    description: 'Bei Stornorechnung: Nummer der stornierten Rechnung (denormalisiert für UI ohne Lookup)'
   }
 ];
 
