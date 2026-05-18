@@ -759,6 +759,10 @@ export const speichereRechnung = async (
         dateiname,
         bruttobetrag: rabattiertBrutto,
         istFinal: true, // WICHTIG: Rechnungen sind immer final!
+        // rechnungsStatus explizit setzen: stellt sicher, dass nach Storno+Neuanlage die
+        // Debitoren-Filter (rechnungsStatus !== 'storniert') das neue Dokument zuverlässig
+        // finden — undefined kann je nach Appwrite-Version unterschiedlich behandelt werden.
+        rechnungsStatus: 'aktiv',
         daten: JSON.stringify(daten) // Für Archivierung
       }
     );
