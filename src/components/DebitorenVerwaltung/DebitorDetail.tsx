@@ -40,6 +40,8 @@ import {
   regeneriereMahnwesenDokument,
 } from '../../services/mahnwesenService';
 import { projektService } from '../../services/projektService';
+import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentService';
+import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -75,12 +77,24 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
     plzOrt: '',
   });
 
-  // Mahnwesen-Dokumente und Kundenadresse laden
+  // Rechnungs- und Storno-Historie aus bestellabwicklung_dokumente — zeigt die komplette
+  // Eskalationskette: stornierte Rechnung → Stornorechnung → neue Rechnung.
+  const [rechnungsVerlauf, setRechnungsVerlauf] = useState<DokumentVerlaufEintrag[]>([]);
+
+  // Mahnwesen-Dokumente, Kundenadresse + Rechnungs-/Stornoverlauf laden
   useEffect(() => {
     const loadData = async () => {
       // Lade Mahnwesen-Dokumente
       const dokumente = await ladeMahnwesenDokumenteFuerProjekt(debitor.projektId);
       setMahnwesenDokumente(dokumente);
+
+      // Lade Rechnungs-/Storno-Verlauf (Rechnungen + Stornos, sortiert nach $createdAt DESC)
+      try {
+        const verlauf = await ladeDokumentVerlauf(debitor.projektId, 'rechnung');
+        setRechnungsVerlauf(verlauf);
+      } catch (error) {
+        console.error('Fehler beim Laden des Rechnungs-Verlaufs:', error);
+      }
 
       // Lade Kundenadresse aus dem Projekt
       try {
@@ -517,6 +531,74 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                   )}
                 </div>
               </div>
+
+              {/* Rechnungsverlauf — nur anzeigen wenn es mehr als eine Rechnung gibt (z.B. nach Storno) */}
+              {rechnungsVerlauf.length > 1 && (
+                <div className="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-6">
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100 mb-3 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Rechnungsverlauf ({rechnungsVerlauf.length})
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    {rechnungsVerlauf.map((eintrag) => {
+                      const istStorno = eintrag.typ === 'stornorechnung';
+                      const istStorniert = eintrag.rechnungsStatus === 'storniert';
+                      return (
+                        <div
+                          key={eintrag.id}
+                          className="flex items-center justify-between gap-3 p-2 rounded-md bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`font-mono text-xs font-medium ${istStorniert ? 'line-through text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-slate-100'}`}
+                              >
+                                {eintrag.nummer}
+                              </span>
+                              {istStorno && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                                  Storno
+                                </span>
+                              )}
+                              {istStorniert && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-400">
+                                  storniert
+                                </span>
+                              )}
+                            </div>
+                            {istStorno && eintrag.stornoVonRechnungsnummer && (
+                              <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                Stornorechnung zu {eintrag.stornoVonRechnungsnummer}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                              {eintrag.erstelltAm.toLocaleDateString('de-DE')}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {typeof eintrag.bruttobetrag === 'number' && (
+                              <span
+                                className={`text-xs font-medium whitespace-nowrap ${eintrag.bruttobetrag < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-slate-300'}`}
+                              >
+                                {formatCurrency(eintrag.bruttobetrag)}
+                              </span>
+                            )}
+                            <a
+                              href={eintrag.viewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                              title="PDF öffnen"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Zahlungshistorie */}
               <div className="bg-gray-50 dark:bg-slate-900/50 rounded-xl p-6">

@@ -1208,6 +1208,7 @@ export const ladeDokumentVerlauf = async (
       version: dok.version,
       rechnungsStatus: dok.rechnungsStatus,
       stornoVonRechnungId: dok.stornoVonRechnungId,
+      stornoVonRechnungsnummer: dok.stornoVonRechnungsnummer,
       stornoGrund: dok.stornoGrund,
       // Neuestes Dokument ist "aktuell"
       istAktuell: index === 0 || (dok.dokumentTyp === 'stornorechnung' && index <= stornos.length),

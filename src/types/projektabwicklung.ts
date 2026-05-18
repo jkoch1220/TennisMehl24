@@ -379,6 +379,7 @@ export interface DokumentVerlaufEintrag {
   version?: number;
   rechnungsStatus?: RechnungsStatus;
   stornoVonRechnungId?: string;
+  stornoVonRechnungsnummer?: string; // Bei Stornorechnung: Nummer der stornierten Rechnung
   stornoGrund?: string;
   // UI-Helper
   istAktuell: boolean; // Neueste Version dieses Dokumenttyps
