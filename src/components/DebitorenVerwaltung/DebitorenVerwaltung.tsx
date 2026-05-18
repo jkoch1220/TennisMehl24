@@ -576,7 +576,7 @@ const DebitorenVerwaltung = () => {
               );
             })()}
 
-            {/* Kritische Debitoren */}
+            {/* Kritische Debitoren — sortiert nach Tagen überfällig (am längsten zuerst) */}
             {statistik.kritischeDebitoren.length > 0 && (
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
                 <div className="p-4 border-b border-gray-200 dark:border-slate-700">
@@ -584,29 +584,38 @@ const DebitorenVerwaltung = () => {
                     <AlertTriangle className="w-5 h-5 text-red-500" />
                     Kritische Debitoren (Top 10)
                   </h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                    Sortiert nach Tagen überfällig — am längsten überfällig zuerst
+                  </p>
                 </div>
                 <div className="divide-y divide-gray-200 dark:divide-slate-700">
-                  {statistik.kritischeDebitoren.map((debitor) => (
+                  {statistik.kritischeDebitoren.map((debitor, index) => (
                     <div
                       key={debitor.projektId}
                       className="p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
                       onClick={() => handleOpenDetail(debitor)}
                     >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-slate-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 flex items-center justify-center font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-slate-100 truncate">
                             {debitor.kundenname}
                           </p>
                           <p className="text-sm text-gray-500 dark:text-slate-400">
-                            {debitor.rechnungsnummer} • {debitor.tageUeberfaellig} Tage überfällig
+                            {debitor.rechnungsnummer}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-red-600 dark:text-red-400">
-                            {formatCurrency(debitor.offenerBetrag)}
+                        <div className="text-right whitespace-nowrap">
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                            {debitor.tageUeberfaellig} Tage überfällig
                           </p>
-                          <StatusBadge status={debitor.status} />
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            {formatCurrency(debitor.offenerBetrag)} offen
+                          </p>
                         </div>
+                        <StatusBadge status={debitor.status} />
                       </div>
                     </div>
                   ))}

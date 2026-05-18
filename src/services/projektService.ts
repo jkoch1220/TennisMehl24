@@ -38,6 +38,50 @@ const PROJEKT_TOP_LEVEL_FELDER = [
   'rechnungsdatum',
 ] as const;
 
+// Top-Level-Felder, die erst mit Schema-Version 39 (siehe appwriteSetup.ts) angelegt werden.
+// Solange die Migration auf einer Umgebung noch nicht gelaufen ist, akzeptiert Appwrite sie nicht
+// und wirft "Unknown attribute". `updateProjektMitSchemaFallback` entfernt fehlende Felder einzeln
+// und wiederholt den Request — so degradiert das System graceful, statt einen 400 durchzulassen.
+const SCHEMA_V39_OPTIONALE_FELDER: ReadonlySet<string> = new Set([
+  'bezahltAm',
+  'rechnungsnummer',
+  'rechnungsdatum',
+]);
+
+function extrahiereUnbekanntesAttribut(message: string): string | null {
+  const match = message.match(/Unknown attribute:\s*"?([\w-]+)"?/i);
+  return match ? match[1] : null;
+}
+
+async function updateProjektMitSchemaFallback(
+  collectionId: string,
+  projektId: string,
+  dokument: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  try {
+    return (await databases.updateDocument(
+      DATABASE_ID,
+      collectionId,
+      projektId,
+      dokument
+    )) as unknown as Record<string, unknown>;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const unbekanntesFeld = extrahiereUnbekanntesAttribut(message);
+    if (!unbekanntesFeld || !SCHEMA_V39_OPTIONALE_FELDER.has(unbekanntesFeld)) {
+      throw error;
+    }
+    if (!(unbekanntesFeld in dokument)) {
+      throw error;
+    }
+    console.warn(
+      `Schema-Migration ausstehend: Top-Level-Feld "${unbekanntesFeld}" existiert noch nicht in Appwrite. Schreibe ohne dieses Feld weiter (npm run setup:appwrite ausführen, um Schema-Version 39 anzulegen).`
+    );
+    const { [unbekanntesFeld]: _entfernt, ...rest } = dokument;
+    return updateProjektMitSchemaFallback(collectionId, projektId, rest);
+  }
+}
+
 // Wandelt ein Appwrite-Dokument in ein Projekt um. Top-Level-Felder überschreiben den JSON-Blob
 // in `data` (denormalisierte Spalten gelten als Source of Truth nach Partial-Updates).
 function parseProjektDocument(doc: Record<string, unknown>): Projekt {
@@ -449,17 +493,12 @@ class ProjektService {
         );
       }
 
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        this.collectionId,
-        projektId,
-        dokument
-      );
+      const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, dokument);
 
       // Cache invalidieren nach Update
       this.invalidateCache();
 
-      return parseProjektDocument(response as unknown as Record<string, unknown>);
+      return parseProjektDocument(response);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Projekts:', error);
       throw error;
@@ -474,21 +513,13 @@ class ProjektService {
   async markiereProjektAlsBezahlt(projektId: string, bezahltAm?: string): Promise<Projekt> {
     try {
       const jetzt = new Date().toISOString();
-      const dokument = {
+      const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
         status: 'bezahlt',
         bezahltAm: bezahltAm ?? jetzt,
         geaendertAm: jetzt,
-      };
-
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        this.collectionId,
-        projektId,
-        dokument
-      );
-
+      });
       this.invalidateCache();
-      return parseProjektDocument(response as unknown as Record<string, unknown>);
+      return parseProjektDocument(response);
     } catch (error) {
       console.error('Fehler beim Markieren des Projekts als bezahlt:', error);
       throw error;
@@ -505,21 +536,13 @@ class ProjektService {
     rechnungsdatum: string
   ): Promise<Projekt> {
     try {
-      const dokument = {
+      const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
         rechnungsnummer,
         rechnungsdatum,
         geaendertAm: new Date().toISOString(),
-      };
-
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        this.collectionId,
-        projektId,
-        dokument
-      );
-
+      });
       this.invalidateCache();
-      return parseProjektDocument(response as unknown as Record<string, unknown>);
+      return parseProjektDocument(response);
     } catch (error) {
       console.error('Fehler beim Setzen der Rechnungsdaten:', error);
       throw error;

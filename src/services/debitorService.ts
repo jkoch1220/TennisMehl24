@@ -839,8 +839,17 @@ class DebitorService {
         }
       }
 
-      // Sortiere kritische Debitoren nach offenem Betrag
-      statistik.kritischeDebitoren.sort((a, b) => b.offenerBetrag - a.offenerBetrag);
+      // Sortiere kritische Debitoren: am längsten überfällig zuerst (klares Eskalations-Ranking).
+      // Tie-Breaker: höherer offener Betrag, dann Kundenname für deterministische Reihenfolge.
+      statistik.kritischeDebitoren.sort((a, b) => {
+        if (b.tageUeberfaellig !== a.tageUeberfaellig) {
+          return b.tageUeberfaellig - a.tageUeberfaellig;
+        }
+        if (b.offenerBetrag !== a.offenerBetrag) {
+          return b.offenerBetrag - a.offenerBetrag;
+        }
+        return a.kundenname.localeCompare(b.kundenname);
+      });
       statistik.kritischeDebitoren = statistik.kritischeDebitoren.slice(0, 10);
 
       // Sortiere nächste Fälligkeiten nach Datum
