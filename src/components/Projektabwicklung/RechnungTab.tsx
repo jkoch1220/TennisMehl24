@@ -1660,17 +1660,44 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-50 dark:bg-slate-900">
+                    {/* Bei gesetztem Gesamtrabatt: drei Zeilen — Netto vor Rabatt, Rabatt-Abzug,
+                        Netto nach Rabatt. Sonst nur die einfache Netto-Zeile. */}
+                    {gesamtrabattProzent > 0 ? (
+                      <>
+                        <tr>
+                          <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">Netto (vor Rabatt):</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={4} className="px-4 py-3 text-right font-medium text-green-700 dark:text-green-400">
+                            {rechnungsDaten.gesamtrabattBezeichnung?.trim() || 'Rabatt'} ({gesamtrabattProzent}%):
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-green-700 dark:text-green-400">
+                            − {gesamtrabattBetrag.toFixed(2)} €
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">Netto:</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{nettoNachRabatt.toFixed(2)} €</td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">Netto:</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</td>
+                      </tr>
+                    )}
                     <tr>
-                      <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">Netto:</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.nettobetrag.toFixed(2)} €</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">MwSt. (19%):</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">{berechnung.umsatzsteuer.toFixed(2)} €</td>
+                      <td colSpan={4} className="px-4 py-3 text-right font-medium text-gray-700 dark:text-dark-textMuted">
+                        {rechnungsDaten.ohneMehrwertsteuer ? 'MwSt.:' : `MwSt. (${berechnung.umsatzsteuersatz}%):`}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-dark-text">
+                        {rechnungsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${steuerNachRabatt.toFixed(2)} €`}
+                      </td>
                     </tr>
                     <tr className={gespeichertesDokument.rechnungsStatus === 'storniert' ? 'bg-red-50 dark:bg-red-950/40' : 'bg-green-50 dark:bg-green-950/40'}>
                       <td colSpan={4} className={`px-4 py-3 text-right font-bold ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>Brutto:</td>
-                      <td className={`px-4 py-3 text-right font-bold text-lg ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 dark:text-red-300 line-through' : 'text-green-800 dark:text-green-300'}`}>{berechnung.bruttobetrag.toFixed(2)} €</td>
+                      <td className={`px-4 py-3 text-right font-bold text-lg ${gespeichertesDokument.rechnungsStatus === 'storniert' ? 'text-red-800 dark:text-red-300 line-through' : 'text-green-800 dark:text-green-300'}`}>{bruttoNachRabatt.toFixed(2)} €</td>
                     </tr>
                   </tfoot>
                 </table>
