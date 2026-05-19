@@ -1175,16 +1175,44 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
     }
-    
+
     try {
       setLadeStatus('speichern');
       setStatusMeldung(null);
       setShowFinalConfirm(false);
-      
-      const neuesDokument = await speichereRechnung(projekt.$id, rechnungsDaten);
-      
+
+      let aktuelleDaten = rechnungsDaten;
+      let neuesDokument: GespeichertesDokument;
+
+      try {
+        neuesDokument = await speichereRechnung(projekt.$id, aktuelleDaten);
+      } catch (error) {
+        // Auto-Recovery: wenn die Rechnungsnummer im Form-State schon vergeben ist (z.B. weil
+        // die Vorgänger-Rechnung storniert wurde und der Form-State die alte Nummer behalten
+        // hatte), holen wir hier transparent eine frische Nummer und speichern erneut.
+        const meldung = error instanceof Error ? error.message : String(error);
+        const istNummerKonflikt = meldung.includes('bereits vergeben');
+        if (!istNummerKonflikt) throw error;
+
+        const alteNummer = aktuelleDaten.rechnungsnummer;
+        const neueNummer = await generiereNaechsteDokumentnummer('rechnung');
+        aktuelleDaten = { ...aktuelleDaten, rechnungsnummer: neueNummer };
+        setRechnungsDaten(prev => ({ ...prev, rechnungsnummer: neueNummer }));
+        neuesDokument = await speichereRechnung(projekt.$id, aktuelleDaten);
+
+        setStatusMeldung({
+          typ: 'erfolg',
+          text: `Rechnungsnummer ${alteNummer} war schon vergeben — Rechnung mit neuer Nummer ${neueNummer} gespeichert.`,
+        });
+      }
+
       setGespeichertesDokument(neuesDokument);
-      setStatusMeldung({ typ: 'erfolg', text: 'Rechnung erfolgreich gespeichert und finalisiert! Diese Rechnung kann nicht mehr geändert werden.' });
+      // Erfolgsmeldung nur dann setzen, wenn nicht schon vom Auto-Recovery gesetzt
+      setStatusMeldung((prev) =>
+        prev?.typ === 'erfolg'
+          ? prev
+          : { typ: 'erfolg', text: 'Rechnung erfolgreich gespeichert und finalisiert! Diese Rechnung kann nicht mehr geändert werden.' }
+      );
       setLadeStatus('bereit');
       setVerlaufLadeZaehler(prev => prev + 1); // Verlauf neu laden
 
