@@ -2,6 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { handleServiceError } from '../utils/errorHandling';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
@@ -431,8 +432,7 @@ class ProjektService {
 
       return erstelltesProjekt;
     } catch (error) {
-      console.error('Fehler beim Erstellen des Projekts:', error);
-      throw error;
+      handleServiceError(error, 'Erstellen des Projekts');
     }
   }
 
@@ -498,8 +498,7 @@ class ProjektService {
 
       return parseProjektDocument(response);
     } catch (error) {
-      console.error('Fehler beim Aktualisieren des Projekts:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren des Projekts');
     }
   }
 
@@ -519,8 +518,7 @@ class ProjektService {
       this.invalidateCache();
       return parseProjektDocument(response);
     } catch (error) {
-      console.error('Fehler beim Markieren des Projekts als bezahlt:', error);
-      throw error;
+      handleServiceError(error, 'Markieren des Projekts als bezahlt');
     }
   }
 
@@ -542,8 +540,7 @@ class ProjektService {
       this.invalidateCache();
       return parseProjektDocument(response);
     } catch (error) {
-      console.error('Fehler beim Setzen der Rechnungsdaten:', error);
-      throw error;
+      handleServiceError(error, 'Setzen der Rechnungsdaten');
     }
   }
 
@@ -589,8 +586,7 @@ class ProjektService {
 
       return parseProjektDocument(response as unknown as Record<string, unknown>);
     } catch (error) {
-      console.error('Fehler beim Aktualisieren des Projekt-Status:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren des Projekt-Status');
     }
   }
 
@@ -604,8 +600,7 @@ class ProjektService {
       // Cache invalidieren nach Löschen
       this.invalidateCache();
     } catch (error) {
-      console.error('Fehler beim Löschen des Projekts:', error);
-      throw error;
+      handleServiceError(error, 'Löschen des Projekts');
     }
   }
 
@@ -622,8 +617,7 @@ class ProjektService {
         adresseUnbekannt: false,
       });
     } catch (error) {
-      console.error('Fehler beim Aktualisieren der Koordinaten:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren der Koordinaten');
     }
   }
 
@@ -636,8 +630,7 @@ class ProjektService {
         adresseUnbekannt: true,
       });
     } catch (error) {
-      console.error('Fehler beim Markieren der Adresse als unbekannt:', error);
-      throw error;
+      handleServiceError(error, 'Markieren der Adresse als unbekannt');
     }
   }
 
@@ -675,8 +668,7 @@ class ProjektService {
 
       return await this.updateProjekt(projektId, updates);
     } catch (error) {
-      console.error('Fehler beim Aktualisieren des Hydrocourt-Status:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren des Hydrocourt-Status');
     }
   }
 
@@ -689,8 +681,7 @@ class ProjektService {
         hydrocourtVersendetAm: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Fehler beim Setzen der Hydrocourt-Tracking-Nummer:', error);
-      throw error;
+      handleServiceError(error, 'Setzen der Hydrocourt-Tracking-Nummer');
     }
   }
 
@@ -707,8 +698,7 @@ class ProjektService {
         )
       );
     } catch (error) {
-      console.error('Fehler beim Batch-Update des Hydrocourt-Status:', error);
-      throw error;
+      handleServiceError(error, 'Batch-Update des Hydrocourt-Status');
     }
   }
 

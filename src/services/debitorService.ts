@@ -2,6 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS, BESTELLABWICKLUNG_DOKUMENTE_COLLEC
 import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { handleServiceError } from '../utils/errorHandling';
 import { GespeichertesDokument, RechnungsDaten as VolleRechnungsDaten } from '../types/projektabwicklung';
 
 // Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
@@ -313,8 +314,7 @@ class DebitorService {
 
       return this.parseMetadatenDocument(response)!;
     } catch (error) {
-      console.error('Fehler beim Erstellen der Metadaten:', error);
-      throw error;
+      handleServiceError(error, 'Erstellen der Debitor-Metadaten');
     }
   }
 
@@ -391,8 +391,7 @@ class DebitorService {
 
       return aktualisiert;
     } catch (error) {
-      console.error('Fehler beim Aktualisieren der Metadaten:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren der Debitor-Metadaten');
     }
   }
 
@@ -462,8 +461,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Hinzufügen der Zahlung:', error);
-      throw error;
+      handleServiceError(error, 'Hinzufügen der Zahlung');
     }
   }
 
@@ -506,8 +504,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Löschen der Zahlung:', error);
-      throw error;
+      handleServiceError(error, 'Löschen der Zahlung');
     }
   }
 
@@ -551,8 +548,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Erhöhen der Mahnstufe:', error);
-      throw error;
+      handleServiceError(error, 'Erhöhen der Mahnstufe');
     }
   }
 
@@ -594,8 +590,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Markieren der Mahnung:', error);
-      throw error;
+      handleServiceError(error, 'Markieren der Mahnung');
     }
   }
 
@@ -633,8 +628,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Hinzufügen der Aktivität:', error);
-      throw error;
+      handleServiceError(error, 'Hinzufügen der Aktivität');
     }
   }
 
@@ -680,8 +674,7 @@ class DebitorService {
 
       return this.createDebitorView(projekt, metadaten, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Aktualisieren des Status:', error);
-      throw error;
+      handleServiceError(error, 'Aktualisieren des Debitor-Status');
     }
   }
 
@@ -722,8 +715,7 @@ class DebitorService {
 
       return this.createDebitorView(aktualisierteProjekt, aktualisiert, rechnungsDokument);
     } catch (error) {
-      console.error('Fehler beim Markieren als bezahlt:', error);
-      throw error;
+      handleServiceError(error, 'Markieren als bezahlt');
     }
   }
 
@@ -745,8 +737,7 @@ class DebitorService {
       }
       await databases.deleteDocument(DATABASE_ID, this.collectionId, metadaten.id);
     } catch (error) {
-      console.error('Fehler beim Löschen des Debitors:', error);
-      throw error;
+      handleServiceError(error, 'Löschen des Debitors');
     }
   }
 
