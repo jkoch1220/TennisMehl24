@@ -64,8 +64,8 @@ export const kundenAktivitaetService = {
         queries: [Query.equal('kundeId', kundeId), Query.orderDesc('$createdAt')],
       });
       return documents.map((doc) => parseAktivitaetDocument(doc));
-    } catch (error: any) {
-      if (error?.code === 404) {
+    } catch (error: unknown) {
+      if ((error as { code?: number })?.code === 404) {
         console.warn('⚠️ Collection kunden_aktivitaeten fehlt. Bitte Appwrite Setup ausführen.');
         return [];
       }
@@ -152,8 +152,8 @@ export const kundenAktivitaetService = {
         Query.limit(100),
       ]);
       return response.documents.map((doc) => parseAktivitaetDocument(doc));
-    } catch (error: any) {
-      if (error?.code === 404) {
+    } catch (error: unknown) {
+      if ((error as { code?: number })?.code === 404) {
         console.warn('⚠️ Collection kunden_aktivitaeten fehlt. Bitte Appwrite Setup ausführen.');
         return [];
       }

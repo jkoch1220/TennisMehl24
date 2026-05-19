@@ -594,7 +594,7 @@ class ProjektService {
   async deleteProjekt(projekt: Projekt): Promise<void> {
     try {
       // Verwende $id falls vorhanden, sonst id
-      const documentId = (projekt as any).$id || projekt.id;
+      const documentId = projekt.$id || projekt.id;
       console.log('Lösche Projekt mit documentId:', documentId);
       await databases.deleteDocument(DATABASE_ID, this.collectionId, documentId);
       // Cache invalidieren nach Löschen

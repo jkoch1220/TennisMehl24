@@ -10,8 +10,8 @@ interface CacheEntry<T> {
 }
 
 class CacheService {
-  private cache = new Map<string, CacheEntry<any>>();
-  private readonly TTL = 2000; // 2 Sekunden für Echtzeit-Anforderungen
+  private cache = new Map<string, CacheEntry<unknown>>();
+  private TTL = 2000; // 2 Sekunden für Echtzeit-Anforderungen
 
   /**
    * Holt einen Wert aus dem Cache
@@ -109,7 +109,6 @@ class CacheService {
    * Ändert die TTL-Dauer (für Tests oder spezielle Anforderungen)
    */
   setTTL(ttl: number): void {
-    // @ts-ignore - Wir ändern die readonly property für Flexibilität
     this.TTL = ttl;
   }
 

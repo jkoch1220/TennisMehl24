@@ -185,7 +185,7 @@ class DebitorService {
       }
 
       // 3: Rechnungsdokumente in Bulk-Queries laden (1-N Calls statt N)
-      const alleProjektIds = projekte.map((p) => (p as any).$id || p.id);
+      const alleProjektIds = projekte.map((p) => p.$id || p.id);
       const rechnungsDokumenteMap = await ladeRechnungsDokumenteFuerProjekte(alleProjektIds);
 
       // 4: Kombiniere Projekte mit Metadaten zu DebitorViews
@@ -195,7 +195,7 @@ class DebitorService {
         const hatRechnungsdaten = projekt.rechnungsnummer || projekt.rechnungsdatum;
         if (!hatRechnungsStatus && !hatRechnungsdaten) continue;
 
-        const projektId = (projekt as any).$id || projekt.id;
+        const projektId = projekt.$id || projekt.id;
         const metadaten = metadatenMap.get(projektId) || metadatenMap.get(projekt.id) || null;
         const rechnungsDokument = rechnungsDokumenteMap.get(projektId) || null;
         const debitorView = this.createDebitorView(projekt, metadaten, rechnungsDokument);
@@ -897,7 +897,7 @@ class DebitorService {
     rechnungsDokument?: RechnungsDokument | null
   ): DebitorView {
     // Projekt-ID kann als $id (Appwrite) oder id (intern) vorliegen
-    const projektId = (projekt as any).$id || projekt.id;
+    const projektId = projekt.$id || projekt.id;
 
     // Rechnungsbetrag: Priorität = Projekt.rechnungsDaten > Rechnungsdokument
     const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);

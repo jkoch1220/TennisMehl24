@@ -57,8 +57,8 @@ export const chatNachrichtenService = {
         queries: [Query.equal('projektId', projektId), Query.orderAsc('$createdAt')],
       });
       return documents.map((doc) => parseNachrichtDocument(doc));
-    } catch (error: any) {
-      if (error?.code === 404) {
+    } catch (error: unknown) {
+      if ((error as { code?: number })?.code === 404) {
         console.warn('⚠️ Collection chat_nachrichten fehlt. Bitte Appwrite Setup ausführen.');
         return [];
       }
@@ -106,7 +106,7 @@ export const chatNachrichtenService = {
         Query.limit(100),
       ]);
       return response.documents.map((doc) => parseNachrichtDocument(doc));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fehler beim Laden der User-Nachrichten:', error);
       return [];
     }
@@ -123,7 +123,7 @@ export const chatNachrichtenService = {
         Query.limit(100),
       ]);
       return response.documents.map((doc) => parseNachrichtDocument(doc));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fehler beim Laden der Mentions:', error);
       return [];
     }

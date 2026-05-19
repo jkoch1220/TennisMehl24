@@ -141,11 +141,12 @@ export const dashboardService = {
       let anzahlVerloren = 0;
 
       for (const projekt of projekte) {
-        // Parse Projekt-Daten falls in data-Feld
-        let projektDaten = projekt;
-        if ((projekt as any).data && typeof (projekt as any).data === 'string') {
+        // Parse Projekt-Daten falls in data-Feld (Appwrite-Pattern: JSON-Blob im 'data'-String)
+        const projektWithData = projekt as Projekt & { data?: string };
+        let projektDaten: Projekt = projekt;
+        if (typeof projektWithData.data === 'string') {
           try {
-            projektDaten = { ...JSON.parse((projekt as any).data), $id: projekt.$id };
+            projektDaten = { ...JSON.parse(projektWithData.data), $id: projekt.$id };
           } catch {
             // Fallback auf Original
           }
@@ -161,7 +162,7 @@ export const dashboardService = {
           try {
             const daten = typeof datenString === 'string' ? JSON.parse(datenString) : datenString;
             if (daten.positionen && Array.isArray(daten.positionen)) {
-              return daten.positionen.reduce((sum: number, pos: any) => {
+              return daten.positionen.reduce((sum: number, pos: { menge?: number; einzelpreis?: number; einheit?: string; bezeichnung?: string }) => {
                 return sum + (pos.menge || 0) * (pos.einzelpreis || 0);
               }, 0);
             }
@@ -202,7 +203,7 @@ export const dashboardService = {
             const daten = typeof datenString === 'string' ? JSON.parse(datenString) : datenString;
             if (daten.positionen && Array.isArray(daten.positionen)) {
               // Suche nach Positionen die Tonnen enthalten (typischerweise Ziegelmehl)
-              return daten.positionen.reduce((sum: number, pos: any) => {
+              return daten.positionen.reduce((sum: number, pos: { menge?: number; einzelpreis?: number; einheit?: string; bezeichnung?: string }) => {
                 // Prüfe ob es sich um Tonnen handelt (Einheit oder Bezeichnung)
                 const einheit = (pos.einheit || '').toLowerCase();
                 const bezeichnung = (pos.bezeichnung || '').toLowerCase();
@@ -360,7 +361,7 @@ export const dashboardService = {
 
       for (const anfrage of anfragen) {
         // Parse extrahierte Daten
-        let extrahierteDaten: any = {};
+        let extrahierteDaten: { menge?: number } = {};
         if (anfrage.extrahierteDaten) {
           try {
             extrahierteDaten = typeof anfrage.extrahierteDaten === 'string'
