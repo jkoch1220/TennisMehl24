@@ -2,6 +2,7 @@ import { ID, Query, Models } from 'appwrite';
 import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite';
 import { KundenListenEintrag, NeuerKundenListenEintrag } from '../types/kundenliste';
 import { kundennummerService } from './kundennummerService';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // ===== KUNDENLISTE CACHE =====
 interface KundenListeCache {
@@ -110,11 +111,10 @@ export const kundenListeService = {
     }
 
     try {
-      const response = await databases.listDocuments(DATABASE_ID, KUNDEN_COLLECTION_ID, [
-        Query.limit(5000),
-        Query.orderDesc('$createdAt'),
-      ]);
-      const kunden = response.documents.map((doc) => parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, KUNDEN_COLLECTION_ID, {
+        queries: [Query.orderDesc('$createdAt')],
+      });
+      const kunden = documents.map((doc) => parseDocument(doc));
 
       // Cache aktualisieren (inkl. Map für schnellen Einzelzugriff)
       const kundenMap = new Map<string, KundenListenEintrag>();

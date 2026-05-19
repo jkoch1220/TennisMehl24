@@ -14,18 +14,15 @@ import {
   OverdueInfo,
   FREQUENZ_CONFIG,
 } from '../types/instandhaltung';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const instandhaltungService = {
   // ==================== CHECKLIST ITEMS ====================
 
   async ladeAlleChecklistItems(): Promise<InstandhaltungChecklistItem[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID,
-        [Query.limit(1000)]
-      );
-      return response.documents.map((doc) => this.parseChecklistDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID);
+      return documents.map((doc) => this.parseChecklistDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Checklist-Items:', error);
       return [];
@@ -36,12 +33,10 @@ export const instandhaltungService = {
     frequenz: InstandhaltungFrequenz
   ): Promise<InstandhaltungChecklistItem[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID,
-        [Query.equal('frequenz', frequenz), Query.limit(1000)]
-      );
-      return response.documents
+      const documents = await loadAllDocuments(DATABASE_ID, INSTANDHALTUNG_CHECKLISTEN_COLLECTION_ID, {
+        queries: [Query.equal('frequenz', frequenz)],
+      });
+      return documents
         .map((doc) => this.parseChecklistDocument(doc))
         .filter((item) => item.istAktiv)
         .sort((a, b) => a.sortierung - b.sortierung);
@@ -134,12 +129,10 @@ export const instandhaltungService = {
 
   async ladeAlleBegehungen(): Promise<Begehung[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID,
-        [Query.limit(1000), Query.orderDesc('$createdAt')]
-      );
-      return response.documents.map((doc) => this.parseBegehungDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, INSTANDHALTUNG_BEGEHUNGEN_COLLECTION_ID, {
+        queries: [Query.orderDesc('$createdAt')],
+      });
+      return documents.map((doc) => this.parseBegehungDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Begehungen:', error);
       return [];

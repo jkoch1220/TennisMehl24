@@ -5,6 +5,7 @@ import {
   databases,
 } from '../config/appwrite';
 import { ChatNachricht, NeueChatNachricht } from '../types/chatNachricht';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 function parseNachrichtDocument(doc: Models.Document): ChatNachricht {
   const anyDoc = doc as any;
@@ -52,12 +53,10 @@ export const chatNachrichtenService = {
    */
   async list(projektId: string): Promise<ChatNachricht[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, CHAT_NACHRICHTEN_COLLECTION_ID, [
-        Query.equal('projektId', projektId),
-        Query.orderAsc('$createdAt'),
-        Query.limit(500),
-      ]);
-      return response.documents.map((doc) => parseNachrichtDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, CHAT_NACHRICHTEN_COLLECTION_ID, {
+        queries: [Query.equal('projektId', projektId), Query.orderAsc('$createdAt')],
+      });
+      return documents.map((doc) => parseNachrichtDocument(doc));
     } catch (error: any) {
       if (error?.code === 404) {
         console.warn('⚠️ Collection chat_nachrichten fehlt. Bitte Appwrite Setup ausführen.');

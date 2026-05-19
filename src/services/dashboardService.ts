@@ -3,6 +3,7 @@ import { DATABASE_ID, COLLECTIONS, ANFRAGEN_COLLECTION_ID } from '../config/appw
 import { Query } from 'appwrite';
 import type { LagerBestand, DashboardStats, ProjektStats, AnfragenStats } from '../types/dashboard';
 import type { Projekt } from '../types/projekt';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const LAGER_COLLECTION_ID = 'lager_bestand';
 export const LAGER_DOCUMENT_ID = 'lager_data';
@@ -119,12 +120,11 @@ export const dashboardService = {
   // Projekt-Statistiken laden
   async getProjektStats(saisonjahr: number): Promise<ProjektStats> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
-        Query.equal('saisonjahr', saisonjahr),
-        Query.limit(5000),
-      ]);
+      const documents = await loadAllDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, {
+        queries: [Query.equal('saisonjahr', saisonjahr)],
+      });
 
-      const projekte = response.documents as unknown as Projekt[];
+      const projekte = documents as unknown as Projekt[];
 
       let verkaufteTonnen = 0;
       let bestellteTonnen = 0;
@@ -351,11 +351,7 @@ export const dashboardService = {
   // Anfragen-Statistiken laden
   async getAnfragenStats(): Promise<AnfragenStats> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, [
-        Query.limit(5000),
-      ]);
-
-      const anfragen = response.documents;
+      const anfragen = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID);
 
       let anzahlNeu = 0;
       let anzahlZugeordnet = 0;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Query } from 'appwrite';
 import { databases, DATABASE_ID, COLLECTIONS } from '../../../config/appwrite';
+import { loadAllDocuments } from '../../../utils/appwritePagination';
 import { ALL_TOOLS, ToolConfig } from '../../../constants/tools';
 import { filterAllowedTools } from '../../../services/permissionsService';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -121,22 +122,14 @@ async function loadKundenCache(): Promise<typeof kundenCache> {
 
   try {
     // Lade Kunden und Ansprechpartner parallel
-    const [kundenResponse, ansprechpartnerResponse] = await Promise.all([
-      databases.listDocuments(
-        DATABASE_ID,
-        SAISON_KUNDEN_COLLECTION_ID,
-        [Query.limit(5000)]
-      ),
-      databases.listDocuments(
-        DATABASE_ID,
-        SAISON_ANSPRECHPARTNER_COLLECTION_ID,
-        [Query.limit(10000)]
-      ),
+    const [kundenDocs, ansprechpartnerDocs] = await Promise.all([
+      loadAllDocuments(DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID),
+      loadAllDocuments(DATABASE_ID, SAISON_ANSPRECHPARTNER_COLLECTION_ID),
     ]);
 
     // Ansprechpartner nach kundeId gruppieren
     const ansprechpartnerMap = new Map<string, string[]>();
-    for (const doc of ansprechpartnerResponse.documents) {
+    for (const doc of ansprechpartnerDocs) {
       const kundeId = doc.kundeId as string;
       const name = doc.name as string;
       if (kundeId && name) {
@@ -147,7 +140,7 @@ async function loadKundenCache(): Promise<typeof kundenCache> {
       }
     }
 
-    kundenCache = kundenResponse.documents
+    kundenCache = kundenDocs
       .filter(doc => doc.data)
       .map(doc => {
         try {

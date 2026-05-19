@@ -41,7 +41,8 @@ import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import { debitorService } from '../../services/debitorService';
 import { saisonplanungService } from '../../services/saisonplanungService';
-import { databases, DATABASE_ID } from '../../config/appwrite';
+import { DATABASE_ID } from '../../config/appwrite';
+import { loadAllDocuments } from '../../utils/appwritePagination';
 import { Query } from 'appwrite';
 
 // Universal-Bestellung Interface
@@ -435,21 +436,18 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
     try {
       // Lade alle Email-Protokolle für Universal-Lieferscheine
       // Nur echte Versendungen (an Universal Sport, nicht an Test-Email)
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        'email_protokoll',
-        [
+      const documents = await loadAllDocuments(DATABASE_ID, 'email_protokoll', {
+        queries: [
           Query.equal('dokumentTyp', 'lieferschein'),
           Query.equal('status', 'gesendet'),
           Query.contains('empfaenger', UNIVERSAL_SPORT_EMAIL), // Universal Sport
           Query.orderDesc('gesendetAm'),
-          Query.limit(500),
-        ]
-      );
+        ],
+      });
 
       const statusMap: EmailStatus = {};
 
-      for (const doc of response.documents) {
+      for (const doc of documents) {
         const projektId = doc.projektId as string;
         // Nur wenn projektId in unseren relevanten projektIds ist
         if (projektIds.includes(projektId) && !statusMap[projektId]) {

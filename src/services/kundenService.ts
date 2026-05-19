@@ -1,6 +1,7 @@
 import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID } from '../config/appwrite';
 import { Kunde, NeuerKunde } from '../types/dispo';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // ===== KUNDEN CACHE =====
 interface KundenCache {
@@ -27,15 +28,8 @@ export const kundenService = {
     }
 
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        KUNDEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-
-      const kunden = response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, KUNDEN_COLLECTION_ID);
+      const kunden = documents.map(doc => this.parseDocument(doc));
 
       // Cache aktualisieren (inkl. Map für schnellen Einzelzugriff)
       const kundenMap = new Map<string, Kunde>();

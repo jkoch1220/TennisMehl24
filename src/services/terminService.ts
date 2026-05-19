@@ -2,21 +2,16 @@ import { databases } from '../config/appwrite';
 import { DATABASE_ID, KALENDER_COLLECTION_ID } from '../config/appwrite';
 import { Termin, NeuerTermin } from '../types/termin';
 import { Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const terminService = {
   // Alle Termine laden
   async loadAlleTermine(): Promise<Termin[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        KALENDER_COLLECTION_ID,
-        [
-          Query.orderDesc('startDatum'),
-          Query.limit(1000)
-        ]
-      );
-
-      return response.documents.map(parseTerminDocument);
+      const documents = await loadAllDocuments(DATABASE_ID, KALENDER_COLLECTION_ID, {
+        queries: [Query.orderDesc('startDatum')],
+      });
+      return documents.map(parseTerminDocument);
     } catch (error) {
       console.error('Fehler beim Laden der Termine:', error);
       throw new Error('Termine konnten nicht geladen werden');
@@ -26,18 +21,14 @@ export const terminService = {
   // Termine für einen bestimmten Zeitraum laden
   async loadTermineImZeitraum(startDatum: string, endDatum: string): Promise<Termin[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        KALENDER_COLLECTION_ID,
-        [
+      const documents = await loadAllDocuments(DATABASE_ID, KALENDER_COLLECTION_ID, {
+        queries: [
           Query.greaterThanEqual('startDatum', startDatum),
           Query.lessThanEqual('startDatum', endDatum),
           Query.orderAsc('startDatum'),
-          Query.limit(1000)
-        ]
-      );
-
-      return response.documents.map(parseTerminDocument);
+        ],
+      });
+      return documents.map(parseTerminDocument);
     } catch (error) {
       console.error('Fehler beim Laden der Termine für Zeitraum:', error);
       throw new Error('Termine für den Zeitraum konnten nicht geladen werden');

@@ -5,6 +5,7 @@ import {
   PLATZBAUER_PROJEKTE_COLLECTION_ID,
   PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import {
   PlatzbauerProjekt,
   ProjektZuordnung,
@@ -291,7 +292,6 @@ class PlatzbauerverwaltungService {
       const queries: string[] = [
         Query.equal('saisonjahr', saisonjahr),
         Query.orderDesc('$createdAt'),
-        Query.limit(1000),
       ];
 
       if (filter?.status && filter.status.length > 0) {
@@ -302,13 +302,11 @@ class PlatzbauerverwaltungService {
         queries.push(Query.equal('platzbauerId', filter.platzbauerId));
       }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        PLATZBAUER_PROJEKTE_COLLECTION_ID,
-        queries
-      );
+      const documents = await loadAllDocuments(DATABASE_ID, PLATZBAUER_PROJEKTE_COLLECTION_ID, {
+        queries,
+      });
 
-      let projekte = response.documents.map(doc =>
+      let projekte = documents.map(doc =>
         parseDocument<PlatzbauerProjekt>(doc, {
           id: doc.$id,
           platzbauerId: '',
@@ -629,17 +627,14 @@ class PlatzbauerverwaltungService {
    */
   async loadZuordnungen(platzbauerprojektId: string): Promise<ProjektZuordnung[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
-        [
+      const documents = await loadAllDocuments(DATABASE_ID, PROJEKT_ZUORDNUNGEN_COLLECTION_ID, {
+        queries: [
           Query.equal('platzbauerprojektId', platzbauerprojektId),
           Query.orderAsc('position'),
-          Query.limit(500),
-        ]
-      );
+        ],
+      });
 
-      return response.documents.map(doc =>
+      return documents.map(doc =>
         parseDocument<ProjektZuordnung>(doc, {
           id: doc.$id,
           vereinsProjektId: '',

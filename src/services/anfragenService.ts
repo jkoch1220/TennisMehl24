@@ -5,6 +5,7 @@ import {
   ANFRAGEN_COLLECTION_ID,
 } from '../config/appwrite';
 import { Anfrage, NeueAnfrage, AnfrageUpdate } from '../types/anfragen';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 /**
  * Service für die Verwaltung von Anfragen
@@ -17,16 +18,10 @@ export const anfragenService = {
    */
   async loadAlleAnfragen(): Promise<Anfrage[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        ANFRAGEN_COLLECTION_ID,
-        [
-          Query.orderDesc('emailDatum'),
-          Query.limit(1000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
+        queries: [Query.orderDesc('emailDatum')],
+      });
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Anfragen:', error);
       return [];
@@ -38,17 +33,10 @@ export const anfragenService = {
    */
   async loadAnfragenNachStatus(status: string): Promise<Anfrage[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        ANFRAGEN_COLLECTION_ID,
-        [
-          Query.equal('status', status),
-          Query.orderDesc('emailDatum'),
-          Query.limit(1000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
+        queries: [Query.equal('status', status), Query.orderDesc('emailDatum')],
+      });
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Anfragen:', error);
       return [];

@@ -1,6 +1,7 @@
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
@@ -134,10 +135,9 @@ class ProjektService {
       }
 
       queries.push(Query.orderDesc('erstelltAm'));
-      queries.push(Query.limit(1000));
 
-      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
-      return response.documents.map(doc => parseProjektDocument(doc as Record<string, unknown>));
+      const documents = await loadAllDocuments(DATABASE_ID, this.collectionId, { queries });
+      return documents.map(doc => parseProjektDocument(doc as Record<string, unknown>));
     } catch (error) {
       console.error('Fehler beim Laden der Projekte:', error);
       throw error;
@@ -172,16 +172,16 @@ class ProjektService {
         };
       }
 
-      const queries: string[] = [Query.orderDesc('erstelltAm'), Query.limit(1000)];
+      const queries: string[] = [Query.orderDesc('erstelltAm')];
 
       if (saisonjahr) {
         queries.push(Query.equal('saisonjahr', saisonjahr));
       }
 
-      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, queries);
+      const documents = await loadAllDocuments(DATABASE_ID, this.collectionId, { queries });
 
       // WICHTIG: data JSON-Feld parsen + Top-Level-Felder mergen (siehe parseProjektDocument).
-      const projekte = response.documents.map(doc =>
+      const projekte = documents.map(doc =>
         parseProjektDocument(doc as Record<string, unknown>)
       );
 
@@ -225,12 +225,11 @@ class ProjektService {
   // Alle Projekte für ein Saisonjahr laden (für Prüfung ob Kunde bereits Projekt hat)
   async getAllProjekte(saisonjahr: number): Promise<Projekt[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, [
-        Query.equal('saisonjahr', saisonjahr),
-        Query.limit(5000),
-      ]);
-      
-      return response.documents as unknown as Projekt[];
+      const documents = await loadAllDocuments(DATABASE_ID, this.collectionId, {
+        queries: [Query.equal('saisonjahr', saisonjahr)],
+      });
+
+      return documents as unknown as Projekt[];
     } catch (error) {
       console.error('Fehler beim Laden aller Projekte:', error);
       return []; // Return leeres Array bei Fehler (z.B. Collection existiert noch nicht)
@@ -277,15 +276,14 @@ class ProjektService {
   async getProjektFuerKundennummer(kundennummer: string, saisonjahr: number): Promise<Projekt | null> {
     try {
       if (!kundennummer) return null;
-      
+
       // Lade alle Projekte für das Saisonjahr und filtere nach Kundennummer
-      const response = await databases.listDocuments(DATABASE_ID, this.collectionId, [
-        Query.equal('saisonjahr', saisonjahr),
-        Query.limit(1000),
-      ]);
-      
+      const documents = await loadAllDocuments(DATABASE_ID, this.collectionId, {
+        queries: [Query.equal('saisonjahr', saisonjahr)],
+      });
+
       // Parse die Projekte und suche nach Kundennummer
-      for (const doc of response.documents) {
+      for (const doc of documents) {
         const projekt = parseProjektDocument(doc as Record<string, unknown>);
         if (projekt.kundennummer === kundennummer) {
           return projekt;

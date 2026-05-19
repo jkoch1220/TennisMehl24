@@ -1,6 +1,7 @@
 import { ID, Query } from 'appwrite';
 import { databases, storage, account, DATABASE_ID, WIKI_PAGES_COLLECTION_ID, WIKI_FILES_COLLECTION_ID, WIKI_DATEIEN_BUCKET_ID } from '../config/appwrite';
 import { WikiPage, WikiFile, CreateWikiPage, UpdateWikiPage, WikiSearchResult, WikiRecentView, WikiTocItem } from '../types/wiki';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Helper um aktuelle User-ID zu bekommen
 const getCurrentUserId = async (): Promise<string> => {
@@ -164,12 +165,10 @@ export const wikiPageService = {
   // Alle Seiten laden
   async getAll(): Promise<WikiPage[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        WIKI_PAGES_COLLECTION_ID,
-        [Query.orderAsc('sortOrder'), Query.limit(500)]
-      );
-      return response.documents.map(doc => ({
+      const documents = await loadAllDocuments(DATABASE_ID, WIKI_PAGES_COLLECTION_ID, {
+        queries: [Query.orderAsc('sortOrder')],
+      });
+      return documents.map(doc => ({
         ...doc,
         tags: doc.tags ? (typeof doc.tags === 'string' ? JSON.parse(doc.tags) : doc.tags) : [],
       })) as unknown as WikiPage[];

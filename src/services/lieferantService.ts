@@ -1,21 +1,17 @@
 import { databases, DATABASE_ID, LIEFERANTEN_COLLECTION_ID } from '../config/appwrite';
 import { Lieferant, NeuerLieferant } from '../types';
 import { ID, Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const lieferantService = {
   // Lade alle Lieferanten
   async loadAlleLieferanten(): Promise<Lieferant[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        LIEFERANTEN_COLLECTION_ID,
-        [
-          Query.orderDesc('$updatedAt'), // Verwende Appwrite's eingebautes updatedAt
-          Query.limit(5000)
-        ]
-      );
-      
-      const lieferanten = response.documents.map(doc => this.parseLieferantDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, LIEFERANTEN_COLLECTION_ID, {
+        queries: [Query.orderDesc('$updatedAt')],
+      });
+
+      const lieferanten = documents.map(doc => this.parseLieferantDocument(doc));
       
       // Sortiere zusätzlich nach geaendertAm aus dem JSON (falls vorhanden)
       return lieferanten.sort((a, b) => {

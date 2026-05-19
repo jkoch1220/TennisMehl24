@@ -7,6 +7,7 @@
 
 import { Query, ID } from 'appwrite';
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Interface für einen Dieselpreis-Eintrag
 export interface DieselpreisEintrag {
@@ -130,18 +131,15 @@ export async function holeDieselpreiseZeitraum(
   bisDatum: string
 ): Promise<DieselpreisEintrag[]> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTIONS.DIESELPREISE,
-      [
+    const documents = await loadAllDocuments(DATABASE_ID, COLLECTIONS.DIESELPREISE, {
+      queries: [
         Query.greaterThanEqual('datum', vonDatum),
         Query.lessThanEqual('datum', bisDatum),
         Query.orderAsc('datum'),
-        Query.limit(1000)
-      ]
-    );
+      ],
+    });
 
-    return response.documents as unknown as DieselpreisEintrag[];
+    return documents as unknown as DieselpreisEintrag[];
   } catch (error) {
     console.warn('Fehler beim Laden der Dieselpreise:', error);
     return [];

@@ -9,6 +9,7 @@ import {
   SAISON_AKTIVITAETEN_COLLECTION_ID,
   COLLECTIONS,
 } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import { formatAdresszeile } from './pdfHelpers';
 import {
   SaisonKunde,
@@ -114,15 +115,14 @@ async function setzeReferenzmengeFolgejahr(
  */
 async function generiereNaechsteKundennummer(): Promise<string> {
   try {
-    const response = await databases.listDocuments(
+    const documents = await loadAllDocuments(
       DATABASE_ID,
-      SAISON_KUNDEN_COLLECTION_ID,
-      [Query.limit(5000)]
+      SAISON_KUNDEN_COLLECTION_ID
     );
 
     let hoechsteNummer = 10000; // Startwert
 
-    for (const doc of response.documents) {
+    for (const doc of documents) {
       const kunde = parseDocument<SaisonKunde>(doc, { id: doc.$id } as SaisonKunde);
       if (kunde.kundennummer) {
         // Extrahiere die Zahl aus der Kundennummer (z.B. "K10042" -> 10042)
@@ -151,12 +151,12 @@ export const saisonplanungService = {
 
   async loadAlleKunden(): Promise<SaisonKunde[]> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
         SAISON_KUNDEN_COLLECTION_ID,
-        [Query.limit(5000), Query.orderDesc('$createdAt')]
+        { queries: [Query.orderDesc('$createdAt')] }
       );
-      return response.documents.map((doc) => {
+      return documents.map((doc) => {
         const emptyAdresse = { strasse: '', plz: '', ort: '', bundesland: '' };
         const parsed = parseDocument<SaisonKunde>(doc, {
           id: doc.$id,
@@ -353,17 +353,17 @@ export const saisonplanungService = {
   async synchronisiereProjekte(kundeId: string, kunde: SaisonKunde): Promise<void> {
     try {
       // Lade alle Projekte für diesen Kunden
-      const response = await databases.listDocuments(
+      const projekteDocs = await loadAllDocuments(
         DATABASE_ID,
         COLLECTIONS.PROJEKTE,
-        [Query.equal('kundeId', kundeId), Query.limit(1000)]
+        { queries: [Query.equal('kundeId', kundeId)] }
       );
 
-      if (response.documents.length === 0) {
+      if (projekteDocs.length === 0) {
         return; // Keine Projekte zum Synchronisieren
       }
 
-      console.log(`🔄 Synchronisiere ${response.documents.length} Projekte für Kunde "${kunde.name}"...`);
+      console.log(`🔄 Synchronisiere ${projekteDocs.length} Projekte für Kunde "${kunde.name}"...`);
 
       // Adresse für Projekte vorbereiten (verwende Rechnungsadresse als Kundenadresse)
       const adresse = kunde.rechnungsadresse || kunde.adresse;
@@ -373,7 +373,7 @@ export const saisonplanungService = {
       const kundenstrasse = adresse?.strasse || '';
 
       // Aktualisiere alle Projekte
-      for (const doc of response.documents) {
+      for (const doc of projekteDocs) {
         try {
           // Parse das bestehende data-Feld
           let projektData: Record<string, unknown> = {};
@@ -412,7 +412,7 @@ export const saisonplanungService = {
         }
       }
 
-      console.log(`✅ ${response.documents.length} Projekte synchronisiert`);
+      console.log(`✅ ${projekteDocs.length} Projekte synchronisiert`);
     } catch (error) {
       console.error('❌ Fehler beim Synchronisieren der Projekte:', error);
       // Werfe keinen Fehler, damit das Kunden-Update nicht fehlschlägt
@@ -495,12 +495,12 @@ export const saisonplanungService = {
 
   async loadAnsprechpartnerFuerKunde(kundeId: string): Promise<Ansprechpartner[]> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
         SAISON_ANSPRECHPARTNER_COLLECTION_ID,
-        [Query.equal('kundeId', kundeId), Query.limit(500)]
+        { queries: [Query.equal('kundeId', kundeId)] }
       );
-      return response.documents.map((doc) =>
+      return documents.map((doc) =>
         parseDocument<Ansprechpartner>(doc, {
           id: doc.$id,
           kundeId,
@@ -914,12 +914,12 @@ export const saisonplanungService = {
 
   async loadAktivitaetenFuerKunde(kundeId: string): Promise<SaisonAktivitaet[]> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
         SAISON_AKTIVITAETEN_COLLECTION_ID,
-        [Query.equal('kundeId', kundeId), Query.orderDesc('erstelltAm'), Query.limit(500)]
+        { queries: [Query.equal('kundeId', kundeId), Query.orderDesc('erstelltAm')] }
       );
-      return response.documents.map((doc) =>
+      return documents.map((doc) =>
         parseDocument<SaisonAktivitaet>(doc, {
           id: doc.$id,
           kundeId,
@@ -979,15 +979,14 @@ export const saisonplanungService = {
    */
   async loadAlleAnsprechpartner(): Promise<Map<string, Ansprechpartner[]>> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
-        SAISON_ANSPRECHPARTNER_COLLECTION_ID,
-        [Query.limit(5000)] // Lade alle Ansprechpartner
+        SAISON_ANSPRECHPARTNER_COLLECTION_ID
       );
 
       const ansprechpartnerMap = new Map<string, Ansprechpartner[]>();
-      
-      for (const doc of response.documents) {
+
+      for (const doc of documents) {
         const ansprechpartner = parseDocument<Ansprechpartner>(doc, {
           id: doc.$id,
           kundeId: '',
@@ -1017,15 +1016,15 @@ export const saisonplanungService = {
    */
   async loadAlleSaisonDatenFuerJahr(saisonjahr: number): Promise<Map<string, SaisonDaten>> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
         SAISON_DATEN_COLLECTION_ID,
-        [Query.equal('saisonjahr', saisonjahr), Query.limit(5000)]
+        { queries: [Query.equal('saisonjahr', saisonjahr)] }
       );
 
       const saisonDatenMap = new Map<string, SaisonDaten>();
-      
-      for (const doc of response.documents) {
+
+      for (const doc of documents) {
         const saisonDaten = parseDocument<SaisonDaten>(doc, {
           id: doc.$id,
           kundeId: '',
@@ -1054,16 +1053,15 @@ export const saisonplanungService = {
     alsPlatzbauer: Map<string, VereinPlatzbauerBeziehung[]>;
   }> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
-        SAISON_BEZIEHUNGEN_COLLECTION_ID,
-        [Query.limit(5000)]
+        SAISON_BEZIEHUNGEN_COLLECTION_ID
       );
 
       const alsVerein = new Map<string, VereinPlatzbauerBeziehung[]>();
       const alsPlatzbauer = new Map<string, VereinPlatzbauerBeziehung[]>();
-      
-      for (const doc of response.documents) {
+
+      for (const doc of documents) {
         const beziehung = parseDocument<VereinPlatzbauerBeziehung>(doc, {
           id: doc.$id,
           vereinId: '',
@@ -1099,15 +1097,15 @@ export const saisonplanungService = {
    */
   async loadAlleSaisonHistorie(): Promise<Map<string, SaisonDaten[]>> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
         SAISON_DATEN_COLLECTION_ID,
-        [Query.orderDesc('saisonjahr'), Query.limit(5000)]
+        { queries: [Query.orderDesc('saisonjahr')] }
       );
 
       const historieMap = new Map<string, SaisonDaten[]>();
-      
-      for (const doc of response.documents) {
+
+      for (const doc of documents) {
         const saisonDaten = parseDocument<SaisonDaten>(doc, {
           id: doc.$id,
           kundeId: '',

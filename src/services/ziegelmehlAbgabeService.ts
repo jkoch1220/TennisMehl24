@@ -10,6 +10,7 @@ import type {
   ZiegelmehlAbgabeUpdate,
   AbgabeStatus,
 } from '../types/ziegelmehlAbgabe';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 const COLLECTION_ID = 'ziegelmehl_abgaben';
 
@@ -38,12 +39,11 @@ export const ziegelmehlAbgabeService = {
    */
   async loadAlleAbgaben(): Promise<ZiegelmehlAbgabe[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID, [
-        Query.orderDesc('erstelltAm'),
-        Query.limit(500),
-      ]);
+      const documents = await loadAllDocuments(DATABASE_ID, COLLECTION_ID, {
+        queries: [Query.orderDesc('erstelltAm')],
+      });
 
-      return response.documents.map((doc) => parseDocument(doc as Record<string, unknown>));
+      return documents.map((doc) => parseDocument(doc as Record<string, unknown>));
     } catch (error) {
       console.error('Error loading submissions:', error);
       throw error;
@@ -55,13 +55,11 @@ export const ziegelmehlAbgabeService = {
    */
   async loadAbgabenNachStatus(status: AbgabeStatus): Promise<ZiegelmehlAbgabe[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTION_ID, [
-        Query.equal('status', status),
-        Query.orderDesc('erstelltAm'),
-        Query.limit(200),
-      ]);
+      const documents = await loadAllDocuments(DATABASE_ID, COLLECTION_ID, {
+        queries: [Query.equal('status', status), Query.orderDesc('erstelltAm')],
+      });
 
-      return response.documents.map((doc) => parseDocument(doc as Record<string, unknown>));
+      return documents.map((doc) => parseDocument(doc as Record<string, unknown>));
     } catch (error) {
       console.error('Error loading submissions by status:', error);
       throw error;

@@ -1,21 +1,17 @@
 import { databases, DATABASE_ID, LOGISTIKPARTNER_COLLECTION_ID } from '../config/appwrite';
 import { Logistikpartner, NeuerLogistikpartner, LogistikpartnerFilter } from '../types/logistikpartner';
 import { ID, Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const logistikpartnerService = {
   // Lade alle Logistikpartner
   async loadAlleLogistikpartner(): Promise<Logistikpartner[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        LOGISTIKPARTNER_COLLECTION_ID,
-        [
-          Query.orderDesc('$updatedAt'),
-          Query.limit(5000)
-        ]
-      );
+      const documents = await loadAllDocuments(DATABASE_ID, LOGISTIKPARTNER_COLLECTION_ID, {
+        queries: [Query.orderDesc('$updatedAt')],
+      });
 
-      const partner = response.documents.map(doc => this.parseDocument(doc));
+      const partner = documents.map(doc => this.parseDocument(doc));
 
       // Sortiere nach geaendertAm
       return partner.sort((a, b) => {

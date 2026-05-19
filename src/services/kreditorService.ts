@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, KREDITOREN_COLLECTION_ID, OFFENE_RECHNUNGEN_COLLECTION_ID } from '../config/appwrite';
-import { Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import { 
   Kreditor, 
   NeuerKreditor, 
@@ -22,15 +22,8 @@ export const kreditorService = {
   // Lade alle Kreditoren
   async loadAlleKreditoren(): Promise<Kreditor[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        KREDITOREN_COLLECTION_ID,
-        [
-          Query.limit(5000) // Erhöhe Limit von 25 auf 5000
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseKreditorDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, KREDITOREN_COLLECTION_ID);
+      return documents.map(doc => this.parseKreditorDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Kreditoren:', error);
       return [];
@@ -128,15 +121,8 @@ export const kreditorService = {
   // Lade alle Rechnungen
   async loadAlleRechnungen(): Promise<OffeneRechnung[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        OFFENE_RECHNUNGEN_COLLECTION_ID,
-        [
-          Query.limit(5000) // Erhöhe Limit von 25 auf 5000
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseRechnungsDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, OFFENE_RECHNUNGEN_COLLECTION_ID);
+      return documents.map(doc => this.parseRechnungsDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Rechnungen:', error);
       return [];

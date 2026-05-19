@@ -5,7 +5,8 @@ import {
   RECHNUNGS_DATEIEN_BUCKET_ID
 } from '../config/appwrite';
 import { RechnungsAktivitaet, NeueRechnungsAktivitaet, AktivitaetsTyp } from '../types/kreditor';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Factory-Funktion für privaten Aktivitäten-Service
 export const createPrivatAktivitaetService = (aktivitaetenCollectionId: string) => ({
@@ -14,15 +15,8 @@ export const createPrivatAktivitaetService = (aktivitaetenCollectionId: string) 
   // Lade alle Aktivitäten für eine Rechnung (neuste zuerst)
   async loadAktivitaetenFuerRechnung(rechnungId: string): Promise<RechnungsAktivitaet[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        aktivitaetenCollectionId,
-        [
-          Query.limit(5000)
-        ]
-      );
-
-      const alleAktivitaeten = response.documents.map(doc => this.parseAktivitaetDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, aktivitaetenCollectionId);
+      const alleAktivitaeten = documents.map(doc => this.parseAktivitaetDocument(doc));
 
       return alleAktivitaeten
         .filter(a => a.rechnungId === rechnungId)
@@ -62,15 +56,9 @@ export const createPrivatAktivitaetService = (aktivitaetenCollectionId: string) 
   // Lösche Aktivität
   async deleteAktivitaet(id: string): Promise<void> {
     try {
-      const aktivitaeten = await databases.listDocuments(
-        DATABASE_ID,
-        aktivitaetenCollectionId,
-        [
-          Query.limit(5000)
-        ]
-      );
+      const aktivitaetenDocs = await loadAllDocuments(DATABASE_ID, aktivitaetenCollectionId);
 
-      const aktivitaet = aktivitaeten.documents
+      const aktivitaet = aktivitaetenDocs
         .map(doc => this.parseAktivitaetDocument(doc))
         .find(a => a.id === id);
 

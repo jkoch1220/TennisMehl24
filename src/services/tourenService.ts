@@ -2,6 +2,7 @@
 
 import { ID, Query } from 'appwrite';
 import { databases, DATABASE_ID, TOUREN_COLLECTION_ID } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import type {
   Tour,
   NeueTour,
@@ -350,12 +351,10 @@ export const tourenService = {
   // Alle Touren laden (ohne Filter)
   async loadAlleTouren(): Promise<Tour[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        TOUREN_COLLECTION_ID,
-        [Query.orderDesc('$createdAt'), Query.limit(200)]
-      );
-      return response.documents.map(dokumentZuTour);
+      const documents = await loadAllDocuments(DATABASE_ID, TOUREN_COLLECTION_ID, {
+        queries: [Query.orderDesc('$createdAt')],
+      });
+      return documents.map(dokumentZuTour);
     } catch (error) {
       console.error('Fehler beim Laden aller Touren:', error);
       return [];

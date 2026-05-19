@@ -1,6 +1,7 @@
 import { databases, DATABASE_ID, COLLECTIONS, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import { GespeichertesDokument, RechnungsDaten as VolleRechnungsDaten } from '../types/projektabwicklung';
 
 // Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
@@ -154,19 +155,18 @@ class DebitorService {
       const queries: string[] = [
         Query.equal('status', statusFilter),
         Query.orderDesc('geaendertAm'),
-        Query.limit(1000),
       ];
       if (filter?.saisonjahr) {
         queries.push(Query.equal('saisonjahr', filter.saisonjahr));
       }
 
       // 1+2: Projekte UND Metadaten parallel laden (unabhängig voneinander)
-      const [projekteResponse, metadatenResponse] = await Promise.all([
-        databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, queries),
-        databases.listDocuments(DATABASE_ID, this.collectionId, [Query.limit(1000)]),
+      const [projekteDocuments, metadatenDocuments] = await Promise.all([
+        loadAllDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, { queries }),
+        loadAllDocuments(DATABASE_ID, this.collectionId),
       ]);
 
-      const projekte: Projekt[] = projekteResponse.documents.map((doc) => {
+      const projekte: Projekt[] = projekteDocuments.map((doc) => {
         if (doc.data && typeof doc.data === 'string') {
           try {
             return { ...JSON.parse(doc.data), $id: doc.$id };
@@ -178,7 +178,7 @@ class DebitorService {
       });
 
       const metadatenMap = new Map<string, DebitorMetadaten>();
-      for (const doc of metadatenResponse.documents) {
+      for (const doc of metadatenDocuments) {
         const metadaten = this.parseMetadatenDocument(doc);
         if (metadaten) metadatenMap.set(metadaten.projektId, metadaten);
       }

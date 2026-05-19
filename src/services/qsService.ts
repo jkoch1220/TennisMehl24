@@ -1,5 +1,6 @@
 import { ID, Query } from 'appwrite';
 import { databases, DATABASE_ID, SIEBANALYSEN_COLLECTION_ID } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import {
   Siebanalyse,
   NeueSiebanalyse,
@@ -202,15 +203,13 @@ async function generiereChargenNummer(): Promise<string> {
 
   try {
     // Lade alle Analysen des Jahres
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      SIEBANALYSEN_COLLECTION_ID,
-      [Query.limit(1000), Query.orderDesc('$createdAt')]
-    );
+    const documents = await loadAllDocuments(DATABASE_ID, SIEBANALYSEN_COLLECTION_ID, {
+      queries: [Query.orderDesc('$createdAt')],
+    });
 
     // Finde die höchste Nummer
     let maxNummer = 0;
-    for (const doc of response.documents) {
+    for (const doc of documents) {
       const analyse = parseDocument(doc as Record<string, unknown>);
       if (analyse.chargenNummer.startsWith(prefix)) {
         const nummerStr = analyse.chargenNummer.replace(prefix, '');
@@ -313,13 +312,11 @@ export const qsService = {
     }
 
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SIEBANALYSEN_COLLECTION_ID,
-        [Query.limit(1000), Query.orderDesc('$createdAt')]
-      );
+      const documents = await loadAllDocuments(DATABASE_ID, SIEBANALYSEN_COLLECTION_ID, {
+        queries: [Query.orderDesc('$createdAt')],
+      });
 
-      const analysen = response.documents.map(doc => parseDocument(doc as Record<string, unknown>));
+      const analysen = documents.map(doc => parseDocument(doc as Record<string, unknown>));
       cache.set('alle', { data: analysen, timestamp: Date.now() });
       return analysen;
     } catch (error) {

@@ -116,12 +116,13 @@ const zaehleBesteheneDokumente = async (
       stornorechnung: 'PB-ST',
     }[typ];
 
+    // Nur Count benötigt — minimale Anzahl Dokumente laden, response.total liefert echte Gesamtzahl
     const response = await databases.listDocuments(
       DATABASE_ID,
       collectionId,
       [
         Query.startsWith(typ === 'lieferschein' ? 'lieferscheinnummer' : 'dokumentNummer', `${prefix}-${saisonjahr}`),
-        Query.limit(1000),
+        Query.limit(1),
       ]
     );
 

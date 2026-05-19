@@ -1,20 +1,14 @@
 import { databases, DATABASE_ID, ROUTEN_COLLECTION_ID } from '../config/appwrite';
 import { Route, NeueRoute } from '../types/dispo';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const routeService = {
   // Lade alle Routen
   async loadAlleRouten(): Promise<Route[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        ROUTEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, ROUTEN_COLLECTION_ID);
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Routen:', error);
       return [];
@@ -29,15 +23,9 @@ export const routeService = {
       const tagEnd = new Date(datum);
       tagEnd.setHours(23, 59, 59, 999);
 
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        ROUTEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      const alleRouten = response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, ROUTEN_COLLECTION_ID);
+
+      const alleRouten = documents.map(doc => this.parseDocument(doc));
       
       // Client-seitige Filterung nach Datum
       return alleRouten.filter(route => {

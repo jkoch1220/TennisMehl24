@@ -1,20 +1,14 @@
 import { databases, DATABASE_ID, TODOS_COLLECTION_ID } from '../config/appwrite';
 import { Todo, NeuesTodo, TodoStatus } from '../types/todo';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const todoService = {
   // Lade alle TODOs
   async loadAlleTodos(): Promise<Todo[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        TODOS_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseTodoDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, TODOS_COLLECTION_ID);
+      return documents.map(doc => this.parseTodoDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der TODOs:', error);
       return [];

@@ -11,6 +11,7 @@ import { UniversalArtikel } from '../types/universaArtikel';
 import { Projekt, NeuesProjekt } from '../types/projekt';
 import { Position, AuftragsbestaetigungsDaten } from '../types/projektabwicklung';
 import { projektService } from './projektService';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // ============================================
 // INTERFACES
@@ -357,12 +358,8 @@ class ShopBestellungService {
    */
   private async ladeUniversalArtikel(): Promise<UniversalArtikel[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        UNIVERSA_ARTIKEL_COLLECTION_ID,
-        [Query.limit(5000)]
-      );
-      return response.documents as unknown as UniversalArtikel[];
+      const documents = await loadAllDocuments(DATABASE_ID, UNIVERSA_ARTIKEL_COLLECTION_ID);
+      return documents as unknown as UniversalArtikel[];
     } catch (error) {
       console.error('Fehler beim Laden der Universal-Artikel:', error);
       return [];

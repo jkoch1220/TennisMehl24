@@ -1,20 +1,14 @@
 import { databases, DATABASE_ID, BESTELLUNGEN_COLLECTION_ID } from '../config/appwrite';
 import { Bestellung, NeueBestellung } from '../types/bestellung';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const bestellungService = {
   // Lade alle Bestellungen
   async loadAlleBestellungen(): Promise<Bestellung[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        BESTELLUNGEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, BESTELLUNGEN_COLLECTION_ID);
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Bestellungen:', error);
       return [];

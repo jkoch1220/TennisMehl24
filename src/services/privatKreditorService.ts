@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID } from '../config/appwrite';
-import { Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import {
   Kreditor,
   NeuerKreditor,
@@ -32,15 +32,8 @@ export const createPrivatKreditorService = (
   // Lade alle Kreditoren
   async loadAlleKreditoren(): Promise<Kreditor[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        kreditorenCollectionId,
-        [
-          Query.limit(5000)
-        ]
-      );
-
-      return response.documents.map(doc => this.parseKreditorDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, kreditorenCollectionId);
+      return documents.map(doc => this.parseKreditorDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Kreditoren:', error);
       return [];
@@ -138,15 +131,8 @@ export const createPrivatKreditorService = (
   // Lade alle Rechnungen
   async loadAlleRechnungen(): Promise<OffeneRechnung[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        rechnungenCollectionId,
-        [
-          Query.limit(5000)
-        ]
-      );
-
-      return response.documents.map(doc => this.parseRechnungsDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, rechnungenCollectionId);
+      return documents.map(doc => this.parseRechnungsDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Rechnungen:', error);
       return [];

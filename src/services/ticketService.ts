@@ -1,20 +1,14 @@
 import { databases, DATABASE_ID, TICKETS_COLLECTION_ID } from '../config/appwrite';
 import { Ticket, NeuesTicket } from '../types/ticket';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const ticketService = {
   // Lade alle Tickets
   async loadAlleTickets(): Promise<Ticket[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        TICKETS_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseTicketDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, TICKETS_COLLECTION_ID);
+      return documents.map(doc => this.parseTicketDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Tickets:', error);
       return [];

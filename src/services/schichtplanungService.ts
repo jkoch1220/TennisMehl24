@@ -5,6 +5,7 @@ import {
   SCHICHT_MITARBEITER_COLLECTION_ID,
   SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
 } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import {
   Mitarbeiter,
   NeuerMitarbeiter,
@@ -30,12 +31,8 @@ export const schichtplanungService = {
 
   async ladeAlleMitarbeiter(): Promise<Mitarbeiter[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SCHICHT_MITARBEITER_COLLECTION_ID,
-        [Query.limit(1000)]
-      );
-      return response.documents.map((doc) => this.parseMitarbeiterDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, SCHICHT_MITARBEITER_COLLECTION_ID);
+      return documents.map((doc) => this.parseMitarbeiterDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Mitarbeiter:', error);
       return [];
@@ -44,12 +41,10 @@ export const schichtplanungService = {
 
   async ladeAktiveMitarbeiter(): Promise<Mitarbeiter[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SCHICHT_MITARBEITER_COLLECTION_ID,
-        [Query.equal('istAktiv', true), Query.limit(1000)]
-      );
-      return response.documents
+      const documents = await loadAllDocuments(DATABASE_ID, SCHICHT_MITARBEITER_COLLECTION_ID, {
+        queries: [Query.equal('istAktiv', true)],
+      });
+      return documents
         .map((doc) => this.parseMitarbeiterDocument(doc))
         .sort((a, b) => a.nachname.localeCompare(b.nachname));
     } catch (error) {
@@ -153,17 +148,14 @@ export const schichtplanungService = {
       const datumListe = wochentage.map((d) => formatDatum(d));
 
       // Query für alle Tage der Woche
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
-        [
+      const documents = await loadAllDocuments(DATABASE_ID, SCHICHT_ZUWEISUNGEN_COLLECTION_ID, {
+        queries: [
           Query.greaterThanEqual('datum', datumListe[0]),
           Query.lessThanEqual('datum', datumListe[6]),
-          Query.limit(1000),
-        ]
-      );
+        ],
+      });
 
-      return response.documents.map((doc) => this.parseZuweisungDocument(doc));
+      return documents.map((doc) => this.parseZuweisungDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Zuweisungen für Woche:', error);
       return [];
@@ -176,10 +168,7 @@ export const schichtplanungService = {
     endDatum?: string
   ): Promise<SchichtZuweisung[]> {
     try {
-      const queries = [
-        Query.equal('mitarbeiterId', mitarbeiterId),
-        Query.limit(1000),
-      ];
+      const queries = [Query.equal('mitarbeiterId', mitarbeiterId)];
 
       if (startDatum) {
         queries.push(Query.greaterThanEqual('datum', startDatum));
@@ -188,13 +177,11 @@ export const schichtplanungService = {
         queries.push(Query.lessThanEqual('datum', endDatum));
       }
 
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
-        queries
-      );
+      const documents = await loadAllDocuments(DATABASE_ID, SCHICHT_ZUWEISUNGEN_COLLECTION_ID, {
+        queries,
+      });
 
-      return response.documents.map((doc) => this.parseZuweisungDocument(doc));
+      return documents.map((doc) => this.parseZuweisungDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Zuweisungen für Mitarbeiter:', error);
       return [];

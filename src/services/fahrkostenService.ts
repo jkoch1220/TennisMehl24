@@ -1,6 +1,7 @@
 import { databases, DATABASE_ID, FAHRTEN_COLLECTION_ID, DEFAULT_STRECKEN_COLLECTION_ID } from '../config/appwrite';
 import { Fahrt, NeueFahrt, DefaultStrecke, DEFAULT_KILOMETER_PAUSCHALE, STANDARD_STRECKEN, MonatsZusammenfassung } from '../types/fahrtkosten';
 import { ID, Query } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Robustes Pattern: Alle Daten als JSON im "data" Feld speichern
 // So brauchen wir nur ein Feld in Appwrite
@@ -10,12 +11,8 @@ export const fahrkostenService = {
 
   async ladeAlleFahrten(): Promise<Fahrt[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        FAHRTEN_COLLECTION_ID,
-        [Query.limit(5000)]
-      );
-      return response.documents
+      const documents = await loadAllDocuments(DATABASE_ID, FAHRTEN_COLLECTION_ID);
+      return documents
         .map(doc => this.parseFahrtDocument(doc))
         .sort((a, b) => b.datum.localeCompare(a.datum)); // Neueste zuerst
     } catch (error) {

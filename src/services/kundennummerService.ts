@@ -1,5 +1,5 @@
-import { databases, DATABASE_ID, KUNDEN_COLLECTION_ID, SAISON_KUNDEN_COLLECTION_ID } from '../config/appwrite';
-import { Query } from 'appwrite';
+import { DATABASE_ID, KUNDEN_COLLECTION_ID, SAISON_KUNDEN_COLLECTION_ID } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 /**
  * Service für die automatische Verwaltung von Kundennummern
@@ -17,13 +17,9 @@ export const kundennummerService = {
 
       // Lade alle Kunden aus der Dispo-Kunden-Collection
       try {
-        const dispoKunden = await databases.listDocuments(
-          DATABASE_ID,
-          KUNDEN_COLLECTION_ID,
-          [Query.limit(5000)]
-        );
+        const dispoKundenDocs = await loadAllDocuments(DATABASE_ID, KUNDEN_COLLECTION_ID);
 
-        dispoKunden.documents.forEach(doc => {
+        dispoKundenDocs.forEach(doc => {
           try {
             let kundennummer: string | undefined;
             
@@ -51,13 +47,9 @@ export const kundennummerService = {
 
       // Lade alle Kunden aus der Kundenliste-Collection
       try {
-        const saisonKunden = await databases.listDocuments(
-          DATABASE_ID,
-          SAISON_KUNDEN_COLLECTION_ID,
-          [Query.limit(5000)]
-        );
+        const saisonKundenDocs = await loadAllDocuments(DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID);
 
-        saisonKunden.documents.forEach(doc => {
+        saisonKundenDocs.forEach(doc => {
           try {
             let kundennummer: string | undefined;
             

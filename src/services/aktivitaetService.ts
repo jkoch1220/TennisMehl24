@@ -1,29 +1,29 @@
-import { 
-  databases, 
-  storage, 
-  DATABASE_ID, 
+import {
+  databases,
+  storage,
+  DATABASE_ID,
   RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
-  RECHNUNGS_DATEIEN_BUCKET_ID 
+  RECHNUNGS_DATEIEN_BUCKET_ID
 } from '../config/appwrite';
 import { RechnungsAktivitaet, NeueRechnungsAktivitaet, AktivitaetsTyp } from '../types/kreditor';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const aktivitaetService = {
   // ========== AKTIVITÄTEN VERWALTUNG ==========
 
   // Lade alle Aktivitäten für eine Rechnung (neuste zuerst)
+  // TODO: rechnungId als Appwrite-Attribut + Index hinzufügen — dann Query.equal('rechnungId', ...)
+  // statt Client-Filter. Aktuell liegt rechnungId nur im JSON-`data`-Feld.
   async loadAktivitaetenFuerRechnung(rechnungId: string): Promise<RechnungsAktivitaet[]> {
     try {
-      const response = await databases.listDocuments(
+      const documents = await loadAllDocuments(
         DATABASE_ID,
-        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
+        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID
       );
-      
-      const alleAktivitaeten = response.documents.map(doc => this.parseAktivitaetDocument(doc));
-      
+
+      const alleAktivitaeten = documents.map(doc => this.parseAktivitaetDocument(doc));
+
       // Filtern nach rechnungId und sortieren (neuste zuerst)
       return alleAktivitaeten
         .filter(a => a.rechnungId === rechnungId)
@@ -64,15 +64,12 @@ export const aktivitaetService = {
   async deleteAktivitaet(id: string): Promise<void> {
     try {
       // Erst die Aktivität laden, um zu prüfen ob eine Datei gelöscht werden muss
-      const aktivitaeten = await databases.listDocuments(
+      const aktivitaetenDocs = await loadAllDocuments(
         DATABASE_ID,
-        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
+        RECHNUNGS_AKTIVITAETEN_COLLECTION_ID
       );
-      
-      const aktivitaet = aktivitaeten.documents
+
+      const aktivitaet = aktivitaetenDocs
         .map(doc => this.parseAktivitaetDocument(doc))
         .find(a => a.id === id);
       

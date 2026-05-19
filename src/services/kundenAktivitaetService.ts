@@ -7,6 +7,7 @@ import {
   storage,
 } from '../config/appwrite';
 import { KundenAktivitaet, KundenAktivitaetsTyp, NeueKundenAktivitaet } from '../types/kundenAktivitaet';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 function parseAktivitaetDocument(doc: Models.Document): KundenAktivitaet {
   const anyDoc = doc as any;
@@ -59,12 +60,10 @@ function toPayload(entry: KundenAktivitaet) {
 export const kundenAktivitaetService = {
   async list(kundeId: string): Promise<KundenAktivitaet[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, KUNDEN_AKTIVITAETEN_COLLECTION_ID, [
-        Query.equal('kundeId', kundeId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(500),
-      ]);
-      return response.documents.map((doc) => parseAktivitaetDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, KUNDEN_AKTIVITAETEN_COLLECTION_ID, {
+        queries: [Query.equal('kundeId', kundeId), Query.orderDesc('$createdAt')],
+      });
+      return documents.map((doc) => parseAktivitaetDocument(doc));
     } catch (error: any) {
       if (error?.code === 404) {
         console.warn('⚠️ Collection kunden_aktivitaeten fehlt. Bitte Appwrite Setup ausführen.');

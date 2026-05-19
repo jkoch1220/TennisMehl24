@@ -1,20 +1,14 @@
 import { databases, DATABASE_ID, FAHRZEUGE_COLLECTION_ID } from '../config/appwrite';
 import { Fahrzeug, NeuesFahrzeug } from '../types/dispo';
-import { ID, Query } from 'appwrite';
+import { ID } from 'appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 export const fahrzeugService = {
   // Lade alle Fahrzeuge
   async loadAlleFahrzeuge(): Promise<Fahrzeug[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        FAHRZEUGE_COLLECTION_ID,
-        [
-          Query.limit(5000)
-        ]
-      );
-      
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, FAHRZEUGE_COLLECTION_ID);
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Fahrzeuge:', error);
       return [];

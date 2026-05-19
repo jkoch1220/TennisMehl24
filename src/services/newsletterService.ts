@@ -7,6 +7,7 @@ import {
   NewsletterStats,
   NewsletterSource
 } from '../types/newsletter';
+import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Generiere einen sicheren Random-Token für Abmeldelinks
 const generateUnsubscribeToken = (): string => {
@@ -29,13 +30,10 @@ export const newsletterService = {
   // Alle Subscribers laden
   async loadAllSubscribers(): Promise<NewsletterSubscriber[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        NEWSLETTER_COLLECTION_ID,
-        [Query.limit(5000), Query.orderDesc('subscribedAt')]
-      );
-
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, NEWSLETTER_COLLECTION_ID, {
+        queries: [Query.orderDesc('subscribedAt')],
+      });
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der Newsletter-Subscribers:', error);
       return [];
@@ -45,17 +43,10 @@ export const newsletterService = {
   // Aktive Subscribers laden
   async loadActiveSubscribers(): Promise<NewsletterSubscriber[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        NEWSLETTER_COLLECTION_ID,
-        [
-          Query.equal('status', 'active'),
-          Query.limit(5000),
-          Query.orderDesc('subscribedAt')
-        ]
-      );
-
-      return response.documents.map(doc => this.parseDocument(doc));
+      const documents = await loadAllDocuments(DATABASE_ID, NEWSLETTER_COLLECTION_ID, {
+        queries: [Query.equal('status', 'active'), Query.orderDesc('subscribedAt')],
+      });
+      return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
       console.error('Fehler beim Laden der aktiven Subscribers:', error);
       return [];
