@@ -523,8 +523,13 @@ class ProjektService {
   }
 
   /**
-   * Partial-Update: Setzt rechnungsnummer und rechnungsdatum auf einem Projekt.
-   * Schreibt nur die Top-Level-Felder, lässt das `data`-Feld unangetastet (kein Overflow-Risiko).
+   * Partial-Update: setzt rechnungsnummer + rechnungsdatum + status='rechnung' auf dem Projekt.
+   *
+   * Schreibt NUR die Top-Level-Felder (kein `data`-Blob) — wichtig wenn das data-Feld am
+   * Appwrite-10000-Zeichen-Limit kratzt und ein voller updateProjekt() fehlschlagen würde.
+   *
+   * Invariante: Projekt mit aktiver Rechnung MUSS status='rechnung' (oder 'bezahlt') und eine
+   * rechnungsnummer haben. Diese Methode stellt beides in einem Schritt sicher.
    */
   async setzeRechnungsdaten(
     projektId: string,
@@ -533,6 +538,7 @@ class ProjektService {
   ): Promise<Projekt> {
     try {
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
+        status: 'rechnung',
         rechnungsnummer,
         rechnungsdatum,
         geaendertAm: new Date().toISOString(),
