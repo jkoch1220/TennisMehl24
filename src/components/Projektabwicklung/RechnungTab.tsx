@@ -1734,6 +1734,19 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           )}
         </div>
         
+        {/* Proforma-Verlauf - bleibt auch nach Finalisierung sichtbar */}
+        {projekt?.$id && (
+          <div className="mt-6">
+            <DokumentVerlauf
+              projektId={projekt.$id}
+              dokumentTyp="proformarechnung"
+              titel="Proforma-Rechnungen"
+              maxAnzeige={3}
+              ladeZaehler={proformaVerlaufZaehler}
+            />
+          </div>
+        )}
+
         {/* DATEIVERLAUF - zeigt alle Rechnungen und Stornos */}
         {projekt?.$id && (
           <div className="mt-6">
