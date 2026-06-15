@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers } from 'lucide-react';
+import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonAktivitaet,
@@ -32,6 +32,17 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const [loadingProjekte, setLoadingProjekte] = useState(false);
   const [showProjektDialog, setShowProjektDialog] = useState(false);
   const [savingProjekt, setSavingProjekt] = useState(false);
+  const [copiedNummer, setCopiedNummer] = useState<string | null>(null);
+
+  const copyTelefonnummer = async (nummer: string) => {
+    try {
+      await navigator.clipboard.writeText(nummer);
+      setCopiedNummer(nummer);
+      setTimeout(() => setCopiedNummer((current) => (current === nummer ? null : current)), 2000);
+    } catch (err) {
+      console.error('Kopieren fehlgeschlagen:', err);
+    }
+  };
 
   useEffect(() => {
     loadAktivitaeten();
@@ -291,6 +302,19 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                               {tel.nummer}
                             </a>
                             {tel.typ && <span className="text-gray-500 dark:text-slate-400">({tel.typ})</span>}
+                            <button
+                              type="button"
+                              onClick={() => copyTelefonnummer(tel.nummer)}
+                              className="text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-slate-200 transition-colors"
+                              title="Nummer kopieren"
+                              aria-label="Nummer kopieren"
+                            >
+                              {copiedNummer === tel.nummer ? (
+                                <Check className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </button>
                           </div>
                         ))}
                       </div>
