@@ -20,6 +20,7 @@
     "setup:fahrtkosten": "npx tsx scripts/setup-fahrtkosten.ts",
     "setup:logistikpartner": "npx tsx scripts/setup-logistikpartner.ts",
     "setup:schichtplanung": "node scripts/setup-schichtplanung.js",
+    "setup:mosaik-migration": "npx tsx scripts/setup-mosaik-migration.ts",
     "fix:wiki-content": "node scripts/fix-wiki-content-size.js"
   },
   "dependencies": {

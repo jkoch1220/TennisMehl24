@@ -209,6 +209,9 @@ export interface SaisonKunde {
     };
   };
 
+  /** Quell-Schlüssel aus Mosaik-Altsystem (gesetzt bei migrierten Kunden, sonst leer) */
+  mosaikKurzname?: string;
+
   erstelltAm: string;
   geaendertAm: string;
 }

@@ -67,6 +67,9 @@ const ShopBestellungen = lazyWithRetry(() => import('./components/ShopBestellung
 // Banking
 const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht/Kontouebersicht'));
 
+// Migration (Mosaik → CRM)
+const MosaikMigration = lazyWithRetry(() => import('./components/Migration/MosaikMigration'));
+
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
@@ -265,6 +268,11 @@ function AuthenticatedContent() {
                   <Route path="/kontouebersicht" element={
                     <ProtectedRoute toolId="kontouebersicht">
                       <Kontouebersicht />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/mosaik-migration" element={
+                    <ProtectedRoute toolId="mosaik-migration">
+                      <MosaikMigration />
                     </ProtectedRoute>
                   } />
 

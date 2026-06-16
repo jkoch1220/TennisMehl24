@@ -28,6 +28,7 @@ import {
   Banknote,
   ShoppingCart,
   Landmark,
+  Combine,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -287,6 +288,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/kontouebersicht',
     icon: Landmark,
     color: 'from-blue-600 to-cyan-600',
+  },
+  {
+    id: 'mosaik-migration',
+    name: 'Mosaik-Migration',
+    description: 'Kundenstamm aus altem ERP (Mosaik) ins CRM überführen mit Merge-UI',
+    href: '/mosaik-migration',
+    icon: Combine,
+    color: 'from-amber-600 to-red-700',
   },
 ];
 

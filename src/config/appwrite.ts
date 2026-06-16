@@ -93,6 +93,9 @@ export const SHOP_RATGEBER_COLLECTION_ID = 'shop_ratgeber';
 // Dieselpreis-Historie Collection
 export const DIESELPREISE_COLLECTION_ID = 'dieselpreise';
 
+// Mosaik-Migration (Staging für Migration aus altem ERP)
+export const MIGRATION_KANDIDATEN_COLLECTION_ID = 'migration_kandidaten';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -171,6 +174,8 @@ export const COLLECTIONS = {
   SHOP_RATGEBER: SHOP_RATGEBER_COLLECTION_ID,
   // Dieselpreis-Historie
   DIESELPREISE: DIESELPREISE_COLLECTION_ID,
+  // Mosaik-Migration
+  MIGRATION_KANDIDATEN: MIGRATION_KANDIDATEN_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
