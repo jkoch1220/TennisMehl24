@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check } from 'lucide-react';
+import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check, MapPin } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonAktivitaet,
@@ -9,6 +9,7 @@ import {
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { projektService } from '../../services/projektService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
+import { Adresse } from '../../types/dispo';
 import { Projekt, NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
@@ -33,6 +34,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const [showProjektDialog, setShowProjektDialog] = useState(false);
   const [savingProjekt, setSavingProjekt] = useState(false);
   const [copiedNummer, setCopiedNummer] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copyTelefonnummer = async (nummer: string) => {
     try {
@@ -42,6 +44,48 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
     } catch (err) {
       console.error('Kopieren fehlgeschlagen:', err);
     }
+  };
+
+  const copyText = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 2000);
+    } catch (err) {
+      console.error('Kopieren fehlgeschlagen:', err);
+    }
+  };
+
+  // Baut einen kompletten, einfügefertigen Adressblock (z.B. für Sendungsformulare)
+  const buildAdresstext = (adr: Adresse) =>
+    [kunde.kunde.name, adr.strasse, formatAdresszeile(adr.plz, adr.ort, adr.land)]
+      .filter(Boolean)
+      .join('\n');
+
+  const renderAdresse = (label: string, adr?: Adresse) => {
+    if (!adr) return null;
+    const text = buildAdresstext(adr);
+    const copied = copiedKey === label;
+    return (
+      <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+            {label}
+          </span>
+          <button
+            onClick={() => copyText(text, label)}
+            title="Komplette Adresse kopieren"
+            className="flex items-center gap-1 text-sm px-2 py-1 rounded-md text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+            {copied ? 'Kopiert' : 'Kopieren'}
+          </button>
+        </div>
+        <div className="text-sm text-gray-900 dark:text-slate-100 whitespace-pre-line select-all leading-relaxed">
+          {text}
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -186,6 +230,27 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Adresse */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Adresse
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {renderAdresse('Lieferadresse', kunde.kunde.lieferadresse)}
+              {(() => {
+                const lief = kunde.kunde.lieferadresse;
+                const rech = kunde.kunde.rechnungsadresse;
+                const abweichend =
+                  rech &&
+                  (rech.strasse !== lief?.strasse ||
+                    rech.plz !== lief?.plz ||
+                    rech.ort !== lief?.ort);
+                return abweichend ? renderAdresse('Rechnungsadresse', rech) : null;
+              })()}
+            </div>
+          </div>
+
           {/* Stammdaten */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2">
@@ -220,9 +285,20 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 </div>
               )}
               {kunde.kunde.email && (
-                <div>
+                <div className="flex items-center gap-1">
                   <span className="font-medium text-gray-700 dark:text-slate-400">E-Mail:</span>{' '}
-                  <span className="text-gray-900 dark:text-slate-100">{kunde.kunde.email}</span>
+                  <span className="text-gray-900 dark:text-slate-100 select-all">{kunde.kunde.email}</span>
+                  <button
+                    onClick={() => copyText(kunde.kunde.email!, 'email')}
+                    title="E-Mail kopieren"
+                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                  >
+                    {copiedKey === 'email' ? (
+                      <Check className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               )}
               {kunde.kunde.zuletztGezahlterPreis && (
