@@ -5,8 +5,11 @@
  * ausschließlich über das Backend (`POST /api/ai/chat`) — der API-Key bleibt
  * server-seitig.
  *
- * Modell: claude-haiku-4-5-20251001 (schnell, günstig, ausreichend für
- * strukturierte Ja/Nein-Entscheidungen mit Begründung).
+ * Modell: claude-sonnet-4-20250514 — gleiche Wahl wie die produktiven
+ * Services (claudeAnfrageService, claudeRouteOptimizer). Das Backend hat
+ * Haiku 4.5 (Oktober 2025) noch nicht freigeschaltet; sobald das passiert,
+ * können wir auf Haiku wechseln und ~6× Kosten sparen. Bei nur ~300
+ * Anfragen pro Lauf ist das aktuell vernachlässigbar (~0.70 €).
  */
 
 import { useBackend, backendFetch } from '../config/backend';
@@ -26,8 +29,8 @@ interface ClaudeResponse {
   content: Array<{ type: string; text?: string }>;
 }
 
-const MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 400;
+const MODEL = 'claude-sonnet-4-20250514';
+const MAX_TOKENS = 500;
 
 const SYSTEM_PROMPT = `Du bist ein Datenmigrations-Assistent für eine deutsche Tennisplatz-Material-Firma.
 Du bekommst genau einen Mosaik-Kunden (aus altem ERP) und bis zu drei CRM-Kandidaten (aus neuem System).
