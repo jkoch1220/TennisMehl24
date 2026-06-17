@@ -1,18 +1,13 @@
 /**
  * Claude-gestütztes Matching für den Mosaik-Migrations-Graubereich.
  *
- * Strikt nur für unklare Fälle (Score 0.55–0.85 nach Fuzzy). Aufruf läuft
- * ausschließlich über das Backend (`POST /api/ai/chat`) — der API-Key bleibt
- * server-seitig.
- *
- * Modell: claude-sonnet-4-20250514 — gleiche Wahl wie die produktiven
- * Services (claudeAnfrageService, claudeRouteOptimizer). Das Backend hat
- * Haiku 4.5 (Oktober 2025) noch nicht freigeschaltet; sobald das passiert,
- * können wir auf Haiku wechseln und ~6× Kosten sparen. Bei nur ~300
- * Anfragen pro Lauf ist das aktuell vernachlässigbar (~0.70 €).
+ * Ruft die dedizierte Netlify Function `/.netlify/functions/ai-mosaik-match`
+ * auf — dort liegt der Anthropic-API-Key, dort wird das aktuelle Modell
+ * (Sonnet 4.6) verwendet. Das alte VPS-Backend (`/api/ai/chat`) wird hier
+ * NICHT genutzt, weil es das `model`-Feld ignoriert und ein deprecated
+ * Modell verwendet.
  */
 
-import { useBackend, backendFetch } from '../config/backend';
 import { MosaikKunde } from '../types/mosaik';
 import { SaisonKunde } from '../types/saisonplanung';
 
@@ -25,30 +20,8 @@ export interface KiMatchAntwort {
   begruendung: string;
 }
 
-interface ClaudeResponse {
-  content: Array<{ type: string; text?: string }>;
-}
-
-const MODEL = 'claude-sonnet-4-20250514';
-const MAX_TOKENS = 500;
-
-const SYSTEM_PROMPT = `Du bist ein Datenmigrations-Assistent für eine deutsche Tennisplatz-Material-Firma.
-Du bekommst genau einen Mosaik-Kunden (aus altem ERP) und bis zu drei CRM-Kandidaten (aus neuem System).
-Entscheide, ob einer der Kandidaten exakt derselbe Kunde ist wie der Mosaik-Kunde.
-
-Hinweise:
-- "TC", "TSV", "TV", "SV", "FC", "e.V.", Jahreszahlen und Rechtsformen sind irrelevant für die Identität.
-- Gleicher Vereins-/Firmenname an gleicher PLZ ist ein sicheres Match.
-- Unterschiedliche PLZ-Region (erste Ziffer abweichend) UND unterschiedliche Namen = kein Match.
-- Schreibvarianten (ß/ss, Bindestrich, Umlaute) sind ok.
-- "Tennisclub Blau-Weiß München" und "TC BW München" sind dasselbe.
-- "1.FC Nürnberg" und "FC 1. Nürnberg" sind dasselbe.
-- Bei mehreren ähnlichen Kandidaten: nimm den mit der höchsten Konfidenz.
-
-Antworte AUSSCHLIESSLICH mit gültigem JSON in genau diesem Format:
-{"entscheidung":"match"|"kein_match","kandidat_id":string|null,"konfidenz":number_zwischen_0_und_1,"begruendung":string}
-
-Keine Codeblöcke, kein Markdown, kein Text außerhalb des JSON.`;
+const ENDPOINT = '/.netlify/functions/ai-mosaik-match';
+const TIMEOUT_MS = 30_000;
 
 interface MosaikKurzform {
   kurzname: string;
@@ -88,56 +61,36 @@ function kurzCrm(c: SaisonKunde): CrmKurzform {
   };
 }
 
-/**
- * Sehr defensive JSON-Extraktion — falls Claude doch Codeblöcke um die
- * Antwort wirft, ziehen wir das größte JSON-Objekt heraus.
- */
-function parseAntwort(text: string): KiMatchAntwort {
-  let kandidat = text.trim();
-  // Codeblock entfernen
-  const codeMatch = kandidat.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
-  if (codeMatch) kandidat = codeMatch[1].trim();
-  // Erste { bis letztes } extrahieren
-  const ersteOeffnend = kandidat.indexOf('{');
-  const letzteSchliessend = kandidat.lastIndexOf('}');
-  if (ersteOeffnend < 0 || letzteSchliessend < 0) {
-    throw new Error(`Keine JSON-Antwort gefunden in: ${text.slice(0, 200)}`);
+function validiereAntwort(parsed: unknown): KiMatchAntwort {
+  const p = parsed as Partial<KiMatchAntwort> | null;
+  if (!p || (p.entscheidung !== 'match' && p.entscheidung !== 'kein_match')) {
+    throw new Error(`Ungültige Entscheidung: ${p?.entscheidung}`);
   }
-  const json = kandidat.slice(ersteOeffnend, letzteSchliessend + 1);
-  const parsed = JSON.parse(json) as Partial<KiMatchAntwort>;
-  if (
-    parsed.entscheidung !== 'match' &&
-    parsed.entscheidung !== 'kein_match'
-  ) {
-    throw new Error(`Ungültige Entscheidung: ${parsed.entscheidung}`);
-  }
-  const konfidenz = Number(parsed.konfidenz);
+  const konfidenz = Number(p.konfidenz);
   if (Number.isNaN(konfidenz) || konfidenz < 0 || konfidenz > 1) {
-    throw new Error(`Ungültige Konfidenz: ${parsed.konfidenz}`);
+    throw new Error(`Ungültige Konfidenz: ${p.konfidenz}`);
   }
   return {
-    entscheidung: parsed.entscheidung,
+    entscheidung: p.entscheidung,
     kandidat_id:
-      parsed.entscheidung === 'match' ? String(parsed.kandidat_id ?? '') || null : null,
+      p.entscheidung === 'match' ? String(p.kandidat_id ?? '') || null : null,
     konfidenz,
-    begruendung: String(parsed.begruendung ?? ''),
+    begruendung: String(p.begruendung ?? ''),
   };
 }
 
 export const claudeMosaikMatchService = {
   /**
-   * Fragt Claude, ob einer der CRM-Kandidaten derselbe Kunde ist wie der
-   * Mosaik-Eintrag. Strikt JSON, kein freier Text.
+   * Fragt Claude (via Netlify-Function), ob einer der CRM-Kandidaten
+   * derselbe Kunde ist wie der Mosaik-Eintrag.
+   *
+   * Wirft bei Server-/Netzwerk-/Parse-Fehler — der Pipeline-Orchestrator
+   * fängt das ab und schickt den Kandidaten in die Review-Queue.
    */
   async entscheide(
     mosaik: MosaikKunde,
     crmKandidaten: SaisonKunde[]
   ): Promise<KiMatchAntwort> {
-    if (!useBackend('claude')) {
-      throw new Error(
-        'Claude-Backend nicht aktiviert (VITE_BACKEND_CLAUDE=true) — KI-Matching nicht erlaubt'
-      );
-    }
     if (crmKandidaten.length === 0) {
       return {
         entscheidung: 'kein_match',
@@ -147,31 +100,38 @@ export const claudeMosaikMatchService = {
       };
     }
 
-    const userPayload = {
-      mosaik: kurzMosaik(mosaik),
-      crm_kandidaten: crmKandidaten.slice(0, 3).map(kurzCrm),
-    };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    const response = await backendFetch<ClaudeResponse>('/api/ai/chat', {
-      method: 'POST',
-      body: JSON.stringify({
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: JSON.stringify(userPayload, null, 2),
-          },
-        ],
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mosaik: kurzMosaik(mosaik),
+          crm_kandidaten: crmKandidaten.slice(0, 3).map(kurzCrm),
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
-    const text = response.content
-      .map((c) => (c.type === 'text' ? c.text ?? '' : ''))
-      .join('')
-      .trim();
-    if (!text) throw new Error('Leere Claude-Antwort');
-    return parseAntwort(text);
+    if (!response.ok) {
+      const meldung = await response.text().catch(() => response.statusText);
+      // 429 vom Backend (z.B. Anthropic-Rate-Limit) → wiederholbar machen
+      const error = new Error(
+        `KI-Function ${response.status}: ${meldung.slice(0, 200)}`
+      );
+      if (response.status === 429) {
+        // Markiere mit '429' im Message, damit unser rateLimiter Backoff macht
+        throw new Error(`429 ${error.message}`);
+      }
+      throw error;
+    }
+
+    const parsed = await response.json();
+    return validiereAntwort(parsed);
   },
 };
