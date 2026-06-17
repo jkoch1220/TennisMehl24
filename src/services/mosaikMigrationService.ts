@@ -199,89 +199,96 @@ export const mosaikMigrationService = {
       return true;
     });
 
-    // Pro Kunde eine Operation: entweder update oder create
-    await runBatched({
+    // KONSERVATIVE Drosselung: 1 Write pro 400 ms = 150/min, deutlich unter
+    // dem Appwrite-Cloud-Limit (~240/min). Bei 429 wartet der Rate-Limiter
+    // 10–60 s, weil das Limit ein Sliding-Window über 60 s ist.
+    const ergebnisse = await runBatched({
       items: arbeitsliste,
-      concurrency: 5,
-      paceMs: 250,
-      maxRetries: 3,
-      onProgress: () => {
+      concurrency: 1,
+      paceMs: 400,
+      maxRetries: 5,
+      onProgress: (verarbeitet) => {
+        fortschritt.verarbeitet = verarbeitet;
         onProgress?.({ ...fortschritt });
       },
       operation: async (kunde) => {
         const kurzname = kunde.Kurzname;
-        try {
-          const ansprechpartner = bundle.ansprechpartner[kurzname] ?? [];
-          const refs = refsByKunde.get(kurzname) ?? [];
-          const subAdressen = refs
-            .map((ref) => {
-              const adresse = subAdressenMap.get(ref.Referenz);
-              return adresse ? { referenz: ref, adresse } : null;
+        const ansprechpartner = bundle.ansprechpartner[kurzname] ?? [];
+        const refs = refsByKunde.get(kurzname) ?? [];
+        const subAdressen = refs
+          .map((ref) => {
+            const adresse = subAdressenMap.get(ref.Referenz);
+            return adresse ? { referenz: ref, adresse } : null;
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null);
+
+        const data: MosaikKandidatData = {
+          rohdaten: kunde,
+          ansprechpartner,
+          subAdressen,
+          bestellhistorie: bundle.bestellhistorie[kurzname],
+          zahlungsverhalten: bundle.zahlungsverhalten[kurzname],
+        };
+
+        const inaktiv = Boolean(kunde.Löschdatum) || Boolean(kunde.Ausgeblendet);
+        const bundesland = plzZuBundesland(kunde.PLZ);
+        const gruppe = kunde.Gruppe ?? undefined;
+
+        const bestehend = bestehendeMap.get(kurzname);
+        if (bestehend) {
+          await databases.updateDocument(
+            DATABASE_ID,
+            MIGRATION_KANDIDATEN_COLLECTION_ID,
+            bestehend.id,
+            toPayload({
+              data: {
+                ...data,
+                feldDiff: bestehend.data.feldDiff,
+                matchBegruendung: bestehend.data.matchBegruendung,
+                notiz: bestehend.data.notiz,
+              },
+              gruppe,
+              bundesland,
+              mosaikInaktiv: inaktiv,
             })
-            .filter((x): x is NonNullable<typeof x> => x !== null);
-
-          const data: MosaikKandidatData = {
-            rohdaten: kunde,
-            ansprechpartner,
-            subAdressen,
-            bestellhistorie: bundle.bestellhistorie[kurzname],
-            zahlungsverhalten: bundle.zahlungsverhalten[kurzname],
-          };
-
-          const inaktiv = Boolean(kunde.Löschdatum) || Boolean(kunde.Ausgeblendet);
-          const bundesland = plzZuBundesland(kunde.PLZ);
-          const gruppe = kunde.Gruppe ?? undefined;
-
-          const bestehend = bestehendeMap.get(kurzname);
-          if (bestehend) {
-            await databases.updateDocument(
-              DATABASE_ID,
-              MIGRATION_KANDIDATEN_COLLECTION_ID,
-              bestehend.id,
-              toPayload({
-                data: {
-                  ...data,
-                  feldDiff: bestehend.data.feldDiff,
-                  matchBegruendung: bestehend.data.matchBegruendung,
-                  notiz: bestehend.data.notiz,
-                },
-                gruppe,
-                bundesland,
-                mosaikInaktiv: inaktiv,
-              })
-            );
-            fortschritt.aktualisiert++;
-          } else {
-            await databases.createDocument(
-              DATABASE_ID,
-              MIGRATION_KANDIDATEN_COLLECTION_ID,
-              ID.unique(),
-              toPayload({
-                mosaikKurzname: kurzname,
-                status: 'neu',
-                gruppe,
-                bundesland,
-                mosaikInaktiv: inaktiv,
-                data,
-              })
-            );
-            fortschritt.angelegt++;
-          }
-          fortschritt.verarbeitet++;
-        } catch (error) {
-          fortschritt.fehler++;
-          fortschritt.verarbeitet++;
-          const meldung = error instanceof Error ? error.message : String(error);
-          if (fortschritt.fehlerListe.length < 20) {
-            fortschritt.fehlerListe.push({ kurzname, meldung });
-          }
-          // Re-throw nur bei wiederholbaren Fehlern, damit der Rate-Limiter
-          // den Retry übernimmt; bei „echten" Fehlern (z.B. unique conflict)
-          // bleiben wir hier.
-          throw error;
+          );
+          fortschritt.aktualisiert++;
+        } else {
+          await databases.createDocument(
+            DATABASE_ID,
+            MIGRATION_KANDIDATEN_COLLECTION_ID,
+            ID.unique(),
+            toPayload({
+              mosaikKurzname: kurzname,
+              status: 'neu',
+              gruppe,
+              bundesland,
+              mosaikInaktiv: inaktiv,
+              data,
+            })
+          );
+          fortschritt.angelegt++;
         }
+        // verarbeitet wird via onProgress aus dem Rate-Limiter aktualisiert;
+        // hier nur die Erfolgsbuchung. Throws werden vom Rate-Limiter
+        // abgefangen und ggf. wiederholt — finale Fehler werden unten gezählt.
       },
     });
+
+    // Endgültige Fehler aus dem Rate-Limiter-Ergebnis übernehmen
+    // (so wird kein Eintrag doppelt gezählt, falls ein Retry erfolgreich war).
+    for (let i = 0; i < ergebnisse.length; i++) {
+      const r = ergebnisse[i];
+      if (!r.ok) {
+        fortschritt.fehler++;
+        if (fortschritt.fehlerListe.length < 20) {
+          fortschritt.fehlerListe.push({
+            kurzname: arbeitsliste[i].Kurzname,
+            meldung: r.fehler ?? 'unbekannter Fehler',
+          });
+        }
+      }
+    }
 
     return fortschritt;
   },

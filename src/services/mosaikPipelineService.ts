@@ -408,9 +408,9 @@ export const mosaikPipelineService = {
 
       await runBatched({
         items: anzuwenden,
-        concurrency: 5,
-        paceMs: 250,
-        maxRetries: 3,
+        concurrency: 1,
+        paceMs: 400,
+        maxRetries: 5,
         onProgress: (verarbeitet) => {
           fortschritt.verarbeitet = verarbeitet;
           opts.onProgress?.({ ...fortschritt, bilanz: { ...bilanz } });
@@ -484,9 +484,9 @@ export const mosaikPipelineService = {
       if (fuerReview.length > 0) {
         await runBatched({
           items: fuerReview,
-          concurrency: 5,
-          paceMs: 250,
-          maxRetries: 3,
+          concurrency: 1,
+          paceMs: 400,
+          maxRetries: 5,
           operation: async (eintrag) => {
             const k = eintrag.kandidat;
             await mosaikMigrationService.update(k.id, {

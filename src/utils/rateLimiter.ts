@@ -49,6 +49,26 @@ function istWiederholbar(error: unknown): boolean {
   return false;
 }
 
+function istRateLimit(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.includes('429') || /rate.?limit/i.test(msg);
+}
+
+/**
+ * Berechnet die Backoff-Dauer für den nächsten Versuch.
+ *  - Bei 429: lange Pausen (10/20/30/45/60 s), weil das Appwrite-Limit ein
+ *    Sliding-Window über ~60 s ist und kurze Waits nichts bringen.
+ *  - Bei 5xx/Timeout: klassischer Exponential-Backoff (1/2/4 s).
+ */
+function backoffMs(versuche: number, error: unknown): number {
+  if (istRateLimit(error)) {
+    const tabelle = [10_000, 20_000, 30_000, 45_000, 60_000];
+    const wartezeit = tabelle[Math.min(versuche - 1, tabelle.length - 1)];
+    return wartezeit + Math.random() * 1000;
+  }
+  return Math.pow(2, versuche - 1) * 1000 + Math.random() * 200;
+}
+
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -81,9 +101,7 @@ export async function runBatched<T, R>(
         letzterFehler = e;
         versuche++;
         if (!istWiederholbar(e) || versuche > maxRetries) break;
-        // 1 s, 2 s, 4 s + leichter Jitter
-        const backoff = Math.pow(2, versuche - 1) * 1000 + Math.random() * 200;
-        await pause(backoff);
+        await pause(backoffMs(versuche, e));
       }
     }
     const msg = letzterFehler instanceof Error ? letzterFehler.message : String(letzterFehler);
