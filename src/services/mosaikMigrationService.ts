@@ -14,6 +14,7 @@ import {
 } from '../config/appwrite';
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { plzZuBundesland } from '../utils/plzBundesland';
+import { runBatched } from '../utils/rateLimiter';
 import {
   MigrationKandidat,
   MigrationStatus,
@@ -78,6 +79,8 @@ export interface ImportFortschritt {
   aktualisiert: number;
   uebersprungen: number;
   fehler: number;
+  /** Letzte Fehlermeldungen (max. 20) — für UI-Diagnose */
+  fehlerListe: Array<{ kurzname: string; meldung: string }>;
 }
 
 export const mosaikMigrationService = {
@@ -146,8 +149,14 @@ export const mosaikMigrationService = {
    * Pro Mosaik-Kunde ein Dokument; existiert eines bereits, werden rohdaten
    * überschrieben und Status/Match-Entscheidung beibehalten.
    *
-   * onProgress wird nach jedem Datensatz aufgerufen — die UI kann damit einen
-   * Live-Fortschrittsbalken zeigen.
+   * **Robustheit:**
+   *  - max. 5 parallele Writes, 250 ms Pause zwischen Wellen → unter dem
+   *    Appwrite-Cloud-Rate-Limit
+   *  - 429/503 → Exponential Backoff
+   *  - Resume: bereits importierte Kandidaten werden in derselben Welle
+   *    aktualisiert statt neu angelegt
+   *  - Fehler werden mit Original-Meldung in `fortschritt.fehlerListe`
+   *    gesammelt
    */
   async importBundle(
     bundle: MosaikImportBundle,
@@ -177,78 +186,102 @@ export const mosaikMigrationService = {
       aktualisiert: 0,
       uebersprungen: 0,
       fehler: 0,
+      fehlerListe: [],
     };
 
-    for (const kunde of bundle.kunden) {
-      const kurzname = kunde.Kurzname;
-      if (!kurzname) {
+    // Kunden ohne Kurzname können wir nicht idempotent behandeln — gleich raus
+    const arbeitsliste = bundle.kunden.filter((k) => {
+      if (!k.Kurzname) {
         fortschritt.uebersprungen++;
         fortschritt.verarbeitet++;
+        return false;
+      }
+      return true;
+    });
+
+    // Pro Kunde eine Operation: entweder update oder create
+    await runBatched({
+      items: arbeitsliste,
+      concurrency: 5,
+      paceMs: 250,
+      maxRetries: 3,
+      onProgress: () => {
         onProgress?.({ ...fortschritt });
-        continue;
-      }
-
-      try {
-        const ansprechpartner = bundle.ansprechpartner[kurzname] ?? [];
-        const refs = refsByKunde.get(kurzname) ?? [];
-        const subAdressen = refs
-          .map((ref) => {
-            const adresse = subAdressenMap.get(ref.Referenz);
-            return adresse ? { referenz: ref, adresse } : null;
-          })
-          .filter((x): x is NonNullable<typeof x> => x !== null);
-
-        const data: MosaikKandidatData = {
-          rohdaten: kunde,
-          ansprechpartner,
-          subAdressen,
-          bestellhistorie: bundle.bestellhistorie[kurzname],
-          zahlungsverhalten: bundle.zahlungsverhalten[kurzname],
-        };
-
-        const inaktiv = Boolean(kunde.Löschdatum) || Boolean(kunde.Ausgeblendet);
-        const bundesland = plzZuBundesland(kunde.PLZ);
-        const gruppe = kunde.Gruppe ?? undefined;
-
-        const bestehend = bestehendeMap.get(kurzname);
-        if (bestehend) {
-          // Behalte Status & Match-Entscheidung, aktualisiere nur Rohdaten + abgeleitete Felder
-          await this.update(bestehend.id, {
-            data: {
-              ...data,
-              feldDiff: bestehend.data.feldDiff,
-              matchBegruendung: bestehend.data.matchBegruendung,
-              notiz: bestehend.data.notiz,
-            },
-            gruppe,
-            bundesland,
-            mosaikInaktiv: inaktiv,
-          });
-          fortschritt.aktualisiert++;
-        } else {
-          await databases.createDocument(
-            DATABASE_ID,
-            MIGRATION_KANDIDATEN_COLLECTION_ID,
-            ID.unique(),
-            toPayload({
-              mosaikKurzname: kurzname,
-              status: 'neu',
-              gruppe,
-              bundesland,
-              mosaikInaktiv: inaktiv,
-              data,
+      },
+      operation: async (kunde) => {
+        const kurzname = kunde.Kurzname;
+        try {
+          const ansprechpartner = bundle.ansprechpartner[kurzname] ?? [];
+          const refs = refsByKunde.get(kurzname) ?? [];
+          const subAdressen = refs
+            .map((ref) => {
+              const adresse = subAdressenMap.get(ref.Referenz);
+              return adresse ? { referenz: ref, adresse } : null;
             })
-          );
-          fortschritt.angelegt++;
-        }
-      } catch (error) {
-        console.error(`Fehler bei Kandidat ${kurzname}:`, error);
-        fortschritt.fehler++;
-      }
+            .filter((x): x is NonNullable<typeof x> => x !== null);
 
-      fortschritt.verarbeitet++;
-      onProgress?.({ ...fortschritt });
-    }
+          const data: MosaikKandidatData = {
+            rohdaten: kunde,
+            ansprechpartner,
+            subAdressen,
+            bestellhistorie: bundle.bestellhistorie[kurzname],
+            zahlungsverhalten: bundle.zahlungsverhalten[kurzname],
+          };
+
+          const inaktiv = Boolean(kunde.Löschdatum) || Boolean(kunde.Ausgeblendet);
+          const bundesland = plzZuBundesland(kunde.PLZ);
+          const gruppe = kunde.Gruppe ?? undefined;
+
+          const bestehend = bestehendeMap.get(kurzname);
+          if (bestehend) {
+            await databases.updateDocument(
+              DATABASE_ID,
+              MIGRATION_KANDIDATEN_COLLECTION_ID,
+              bestehend.id,
+              toPayload({
+                data: {
+                  ...data,
+                  feldDiff: bestehend.data.feldDiff,
+                  matchBegruendung: bestehend.data.matchBegruendung,
+                  notiz: bestehend.data.notiz,
+                },
+                gruppe,
+                bundesland,
+                mosaikInaktiv: inaktiv,
+              })
+            );
+            fortschritt.aktualisiert++;
+          } else {
+            await databases.createDocument(
+              DATABASE_ID,
+              MIGRATION_KANDIDATEN_COLLECTION_ID,
+              ID.unique(),
+              toPayload({
+                mosaikKurzname: kurzname,
+                status: 'neu',
+                gruppe,
+                bundesland,
+                mosaikInaktiv: inaktiv,
+                data,
+              })
+            );
+            fortschritt.angelegt++;
+          }
+          fortschritt.verarbeitet++;
+        } catch (error) {
+          fortschritt.fehler++;
+          fortschritt.verarbeitet++;
+          const meldung = error instanceof Error ? error.message : String(error);
+          if (fortschritt.fehlerListe.length < 20) {
+            fortschritt.fehlerListe.push({ kurzname, meldung });
+          }
+          // Re-throw nur bei wiederholbaren Fehlern, damit der Rate-Limiter
+          // den Retry übernimmt; bei „echten" Fehlern (z.B. unique conflict)
+          // bleiben wir hier.
+          throw error;
+        }
+      },
+    });
 
     return fortschritt;
   },

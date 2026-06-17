@@ -14,6 +14,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import MosaikImportPanel from './MosaikImportPanel';
 import MosaikKandidatenTabelle from './MosaikKandidatenTabelle';
 import MosaikKandidatDetail from './MosaikKandidatDetail';
+import MosaikPipelinePanel from './MosaikPipelinePanel';
 
 const STATUS_FOLGE: MigrationStatus[] = [
   'neu',
@@ -277,6 +278,9 @@ export default function MosaikMigration() {
       </header>
 
       {importPanelOffen && <MosaikImportPanel onImportFertig={ladeAlles} />}
+
+      <MosaikPipelinePanel bearbeiter={bearbeiter} onFertig={ladeAlles} />
+
 
       {/* Counter */}
       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
