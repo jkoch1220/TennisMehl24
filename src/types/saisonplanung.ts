@@ -51,6 +51,14 @@ export interface Ansprechpartner {
   bevorzugterKontaktweg?: 'telefon' | 'email';
   notizen?: string;
   aktiv: boolean;
+  // Erweiterte Stammdaten (z.T. aus Mosaik-Migration übernommen)
+  anrede?: string;           // "Herr", "Frau", "Divers"
+  namenszusatz?: string;     // "Dr.", "Prof.", "von"
+  abteilung?: string;        // z.B. "Vorstand", "Buchhaltung", "Platzwart-Team"
+  geburtsdatum?: string;     // ISO Date String
+  privatAdresse?: Adresse;   // DSGVO-sensibel — nur wenn ausdrücklich gegeben
+  /** Quell-Schlüssel aus Mosaik (gesetzt bei migrierten Kontakten) */
+  mosaikKurzname?: string;
   erstelltAm: string;
   geaendertAm: string;
 }
@@ -97,6 +105,23 @@ export interface PreisHistorienEintrag {
   saisonjahr: number;
   preisProTonne: number;
   geaendertAm: string;
+}
+
+/** Zusätzliche Lieferadressen — z.B. Vereine mit mehreren Anlagen.
+ *  Kommt häufig aus Mosaik sub_adressen + adressreferenzen. */
+export interface ZusaetzlicheLieferadresse extends Adresse {
+  bezeichnung?: string;     // z.B. "Hauptanlage", "Außenplatz", "Halle"
+  hinweis?: string;         // Freitext, z.B. "über Hofeinfahrt"
+  /** Quell-Schlüssel aus Mosaik (sub_adressen.Kurzname) */
+  mosaikKurzname?: string;
+}
+
+/** Aggregierte Zahlungsstatistik aus dem Altsystem (Mosaik zahlungsverhalten).
+ *  Reines Reporting-Feld — keine Buchungsschnittstelle. */
+export interface KundenZahlungsstatistik {
+  anzahlBuchungen?: number;
+  maxMahnstufe?: number;
+  letzteBuchung?: string; // ISO Date String
 }
 
 // Zusatzbemerkung für Kunden (für Dispo relevant, wird über Jahre hinweg gespeichert)
@@ -211,6 +236,37 @@ export interface SaisonKunde {
 
   /** Quell-Schlüssel aus Mosaik-Altsystem (gesetzt bei migrierten Kunden, sonst leer) */
   mosaikKurzname?: string;
+
+  // === ERWEITERTE STAMMDATEN (z.T. aus Mosaik-Migration übernommen) ===
+  /** Kundenart als Freitext (Tennisclub, Tennisplatzbau, GALA, Privatkunde,
+   *  Industrie, Baustoffhandel, …). Feinere Klassifikation neben `typ`. */
+  gruppe?: string;
+  /** Industrie-/Branchen-Bezeichnung (oft leer in Mosaik). */
+  branche?: string;
+  /** Akquise-Quelle / Lead-Source */
+  herkunft?: string;
+  /** Such-Kürzel — wurde in Mosaik manuell vergeben, kann hier weiter genutzt werden. */
+  matchcode?: string;
+  /** Hauptnummer am Kunden (zusätzlich zu Ansprechpartner-Nummern). */
+  telefon?: string;
+  mobiltelefon?: string;
+  /** Postfach-Adresse abweichend von Rechnungsadresse */
+  postfach?: string;
+  postfachort?: string;
+  /** ISO-Ländercode (DE = Default; AT, CH, …) */
+  laendercode?: string;
+
+  // === RISIKO / ZAHLUNGSVERHALTEN ===
+  /** Aktuelle Mahnstufe (1–5). Aus Mosaik übernommen, kann hier gepflegt werden. */
+  mahncode?: number;
+  /** Aggregierte Statistik aus dem Altsystem — als Risiko-Indikator beim Anlegen
+   *  neuer Aufträge sichtbar machen. */
+  zahlungsstatistik?: KundenZahlungsstatistik;
+
+  // === MEHRERE LIEFERADRESSEN ===
+  /** Zusätzliche Lieferadressen NEBEN der Standard-`lieferadresse`.
+   *  Beispiel: Verein hat Hauptanlage + Außenplatz. Kommt aus Mosaik sub_adressen. */
+  lieferadressen?: ZusaetzlicheLieferadresse[];
 
   erstelltAm: string;
   geaendertAm: string;

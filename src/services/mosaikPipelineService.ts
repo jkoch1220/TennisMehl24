@@ -40,7 +40,7 @@ import {
   claudeMosaikMatchService,
   KiMatchAntwort,
 } from './claudeMosaikMatchService';
-import { MigrationKandidat, MosaikKunde } from '../types/mosaik';
+import { MigrationKandidat } from '../types/mosaik';
 import { SaisonKunde } from '../types/saisonplanung';
 import { Adresse } from '../types/dispo';
 import { plzZuBundesland } from '../utils/plzBundesland';
@@ -155,15 +155,21 @@ function klassifiziereScore(score: number): Klassifikation {
  *   - leere CRM-Felder werden mit Mosaik-Werten gefüllt
  *   - Notizen werden angehängt (nie ersetzt)
  *   - alles andere bleibt
+ *
+ * Erste Schicht (`mosaikApplyService.ergaenzungsPatch`) deckt die erweiterten
+ * Stammdaten ab (gruppe, telefon, mahncode, lieferadressen, …).
+ * Hier kommt nur noch die Spezial-Logik für email, kundennummer, Notizen
+ * (mit Append) und Adresse (verschachteltes Objekt) drauf.
  */
 function baueAutoMergePatch(
-  mosaik: MosaikKunde,
+  kandidat: MigrationKandidat,
   crm: SaisonKunde
 ): Partial<SaisonKunde> {
-  const patch: Partial<SaisonKunde> = {};
-  const r: Adresse = { ...(crm.rechnungsadresse ?? { strasse: '', plz: '', ort: '', bundesland: '' }) };
-  const l: Adresse = { ...(crm.lieferadresse ?? r) };
-  let adresseGeaendert = false;
+  const mosaik = kandidat.data.rohdaten;
+  const patch: Partial<SaisonKunde> = mosaikApplyService.ergaenzungsPatch(
+    kandidat,
+    crm
+  );
 
   if (!crm.email && mosaik.Kommunikation) patch.email = mosaik.Kommunikation.trim();
   if (!crm.kundennummer && mosaik.Nummer) patch.kundennummer = mosaik.Nummer;
@@ -177,6 +183,11 @@ function baueAutoMergePatch(
     }
   }
 
+  const r: Adresse = {
+    ...(crm.rechnungsadresse ?? { strasse: '', plz: '', ort: '', bundesland: '' }),
+  };
+  const l: Adresse = { ...(crm.lieferadresse ?? r) };
+  let adresseGeaendert = false;
   if (!r.strasse && mosaik.Straße) {
     r.strasse = mosaik.Straße.trim();
     l.strasse = r.strasse;
@@ -419,10 +430,7 @@ export const mosaikPipelineService = {
           const k = eintrag.kandidat;
           try {
             if (eintrag.aktion === 'auto_merge' && eintrag.bestesMatch) {
-              const patch = baueAutoMergePatch(
-                k.data.rohdaten,
-                eintrag.bestesMatch.kunde
-              );
+              const patch = baueAutoMergePatch(k, eintrag.bestesMatch.kunde);
               const ergebnis = await mosaikApplyService.applyZusammenfuehren(
                 k,
                 {

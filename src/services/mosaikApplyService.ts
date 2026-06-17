@@ -18,12 +18,16 @@ import {
   NeuerAnsprechpartner,
   Telefonnummer,
   KundenTyp,
+  KundenZahlungsstatistik,
+  ZusaetzlicheLieferadresse,
 } from '../types/saisonplanung';
 import { Adresse } from '../types/dispo';
 import {
   MigrationKandidat,
   MosaikAnsprechpartner,
   MosaikKunde,
+  MosaikKandidatData,
+  MosaikZahlungsverhalten,
 } from '../types/mosaik';
 import { plzZuBundesland } from '../utils/plzBundesland';
 
@@ -62,19 +66,56 @@ export function extrahiereTelefonnummern(
   return liste;
 }
 
+/** Mosaik-Geschlecht (0=unbekannt, 1=m, 2=w, 3=d) → Anrede-Wort */
+function leiteAnredeAb(
+  m: Pick<MosaikAnsprechpartner, 'Anrede' | 'Geschlecht'>
+): string | undefined {
+  const ausFeld = m.Anrede?.trim();
+  if (ausFeld) return ausFeld;
+  if (m.Geschlecht === 1) return 'Herr';
+  if (m.Geschlecht === 2) return 'Frau';
+  return undefined;
+}
+
+/** Mosaik-Datum (ISO-String mit Zeit oder leer) → ISO-Datum oder undefined */
+function mosaikDatum(s: string | null | undefined): string | undefined {
+  if (!s) return undefined;
+  const trimmed = s.trim();
+  if (!trimmed) return undefined;
+  // Mosaik liefert "2018-04-12 00:00:00" → schneide die Zeit ab
+  return trimmed.split(' ')[0];
+}
+
 /** Mosaik-Ansprechpartner → NeuerAnsprechpartner-Entwurf */
 export function mosaikKontaktZuEntwurf(
   m: MosaikAnsprechpartner,
   kundeId: string
 ): NeuerAnsprechpartner {
+  // Eigene Privatadresse nur, wenn mindestens ein Adressfeld gefüllt ist
+  const hatPrivatAdresse = Boolean(m.Straße || m.PLZ || m.Ort);
+  const privatAdresse: Adresse | undefined = hatPrivatAdresse
+    ? {
+        strasse: m.Straße?.trim() || '',
+        plz: m.PLZ?.trim() || '',
+        ort: m.Ort?.trim() || '',
+        bundesland: plzZuBundesland(m.PLZ) || '',
+      }
+    : undefined;
+
   return {
     kundeId,
     name: (m.Ansprechpartner || '').trim() || 'Unbekannt',
-    rolle: m.Position?.trim() || m.Abteilung?.trim() || undefined,
+    rolle: m.Position?.trim() || undefined,
     email: m.Kommunikation?.trim() || undefined,
     telefonnummern: extrahiereTelefonnummern(m),
     notizen: m.Info?.trim() || undefined,
     aktiv: true,
+    anrede: leiteAnredeAb(m),
+    namenszusatz: m.Namenszusatz?.trim() || undefined,
+    abteilung: m.Abteilung?.trim() || undefined,
+    geburtsdatum: mosaikDatum(m.Geburtsdatum),
+    privatAdresse,
+    mosaikKurzname: m.Kurzname,
   };
 }
 
@@ -85,6 +126,39 @@ export function mosaikAdresse(m: MosaikKunde): Adresse {
     plz: m.PLZ?.trim() || '',
     ort: m.Ort?.trim() || '',
     bundesland: plzZuBundesland(m.PLZ) || '',
+    land: m.Ländercode?.trim() || undefined,
+  };
+}
+
+/** Mosaik sub_adressen → ZusaetzlicheLieferadresse[] */
+export function mosaikLieferadressen(
+  data: MosaikKandidatData
+): ZusaetzlicheLieferadresse[] {
+  return data.subAdressen.map(({ referenz, adresse }) => ({
+    strasse: adresse.Straße?.trim() || '',
+    plz: adresse.PLZ?.trim() || '',
+    ort: adresse.Ort?.trim() || '',
+    bundesland: plzZuBundesland(adresse.PLZ) || '',
+    land: adresse.Ländercode?.trim() || undefined,
+    bezeichnung:
+      adresse.Name3?.trim() ||
+      adresse.Gruppe?.trim() ||
+      adresse.Name2?.trim() ||
+      undefined,
+    hinweis: adresse.Info?.trim() || undefined,
+    mosaikKurzname: referenz.Referenz,
+  }));
+}
+
+/** Mosaik zahlungsverhalten → KundenZahlungsstatistik */
+export function mosaikZahlungsstatistik(
+  z: MosaikZahlungsverhalten | undefined
+): KundenZahlungsstatistik | undefined {
+  if (!z) return undefined;
+  return {
+    anzahlBuchungen: z.anzahl_buchungen,
+    maxMahnstufe: z.max_mahnstufe,
+    letzteBuchung: mosaikDatum(z.letzte_buchung),
   };
 }
 
@@ -124,7 +198,12 @@ export const mosaikApplyService = {
         throw new Error(`Ziel-Kunde ${plan.kundeId} nicht gefunden`);
       }
 
+      // Erweiterte Mosaik-Stammdaten automatisch ergänzen (nur leere CRM-Felder),
+      // damit beim manuellen Merge keine wertvollen Felder verloren gehen.
+      // Nutzer-Auswahl (`plan.patch`) hat Vorrang — sie überschreibt das.
+      const erweiterung = this.ergaenzungsPatch(kandidat, aktuell);
       await saisonplanungService.updateKunde(plan.kundeId, {
+        ...erweiterung,
         ...plan.patch,
         mosaikKurzname: kandidat.mosaikKurzname,
       });
@@ -249,11 +328,15 @@ export const mosaikApplyService = {
   /**
    * Hilfsfunktion: erzeugt aus einem Kandidaten einen sinnvollen Default-Entwurf
    * für die Neuanlage. Die UI lässt den Nutzer das ergänzen / korrigieren.
+   *
+   * Übernimmt alle wertvollen Mosaik-Felder, damit beim Migrationslauf nichts
+   * verloren geht — auch wenn die UI sie heute noch nicht anzeigt.
    */
   entwurfFuerNeuanlage(kandidat: MigrationKandidat): NeuerSaisonKunde {
     const m = kandidat.data.rohdaten;
     const adresse = mosaikAdresse(m);
     const name = (m.Name2 || m.Name3 || m.Name1 || kandidat.mosaikKurzname).trim();
+    const zusatzAdressen = mosaikLieferadressen(kandidat.data);
     return {
       typ: leiteKundentypAb(m.Gruppe),
       name,
@@ -263,6 +346,66 @@ export const mosaikApplyService = {
       email: m.Kommunikation?.trim() || undefined,
       notizen: m.Info?.trim() || undefined,
       aktiv: !(kandidat.mosaikInaktiv ?? false),
+      // === Erweiterte Stammdaten (Paket A) ===
+      gruppe: m.Gruppe?.trim() || undefined,
+      branche: m.Branche?.trim() || undefined,
+      herkunft: m.Herkunft?.trim() || undefined,
+      matchcode: m.Matchcode?.trim() || undefined,
+      telefon: m.Telefon?.trim() || undefined,
+      mobiltelefon: m.Mobiltelefon?.trim() || undefined,
+      postfach: m.Postfach?.trim() || undefined,
+      postfachort: m.Postfachort?.trim() || undefined,
+      laendercode: m.Ländercode?.trim() || undefined,
+      // === Risiko / Zahlungsverhalten ===
+      mahncode: typeof m.Mahncode === 'number' ? m.Mahncode : undefined,
+      zahlungsstatistik: mosaikZahlungsstatistik(kandidat.data.zahlungsverhalten),
+      // === Mehrere Lieferadressen ===
+      lieferadressen: zusatzAdressen.length > 0 ? zusatzAdressen : undefined,
     };
+  },
+
+  /**
+   * Berechnet ein Patch für `applyZusammenfuehren`, das ALLE erweiterten
+   * Mosaik-Felder ergänzt — aber nur dort, wo das CRM-Feld noch leer ist.
+   * Wird vom Pipeline-Orchestrator beim Auto-Merge genutzt; die manuelle
+   * Merge-UI baut ihr Patch über die Diff-Auswahl.
+   */
+  ergaenzungsPatch(kandidat: MigrationKandidat, crm: SaisonKunde): Partial<SaisonKunde> {
+    const m = kandidat.data.rohdaten;
+    const patch: Partial<SaisonKunde> = {};
+    const setze = <K extends keyof SaisonKunde>(key: K, wert: SaisonKunde[K] | undefined) => {
+      if (wert === undefined || wert === null || wert === '') return;
+      if (crm[key] !== undefined && crm[key] !== null && crm[key] !== '') return;
+      patch[key] = wert;
+    };
+    setze('gruppe', m.Gruppe?.trim() || undefined);
+    setze('branche', m.Branche?.trim() || undefined);
+    setze('herkunft', m.Herkunft?.trim() || undefined);
+    setze('matchcode', m.Matchcode?.trim() || undefined);
+    setze('telefon', m.Telefon?.trim() || undefined);
+    setze('mobiltelefon', m.Mobiltelefon?.trim() || undefined);
+    setze('postfach', m.Postfach?.trim() || undefined);
+    setze('postfachort', m.Postfachort?.trim() || undefined);
+    setze('laendercode', m.Ländercode?.trim() || undefined);
+    setze('mahncode', typeof m.Mahncode === 'number' ? m.Mahncode : undefined);
+    // Zahlungsstatistik: nur setzen, wenn CRM noch nichts hat (Mosaik ist Snapshot)
+    if (!crm.zahlungsstatistik) {
+      const stat = mosaikZahlungsstatistik(kandidat.data.zahlungsverhalten);
+      if (stat) patch.zahlungsstatistik = stat;
+    }
+    // Lieferadressen anhängen (nicht ersetzen) — Mosaik-Quellen werden idempotent
+    // gehalten über `mosaikKurzname` auf der Adresse
+    const zusatz = mosaikLieferadressen(kandidat.data);
+    if (zusatz.length > 0) {
+      const bestehend = crm.lieferadressen ?? [];
+      const bestehendeKurznamen = new Set(
+        bestehend.map((a) => a.mosaikKurzname).filter(Boolean)
+      );
+      const neu = zusatz.filter(
+        (a) => !a.mosaikKurzname || !bestehendeKurznamen.has(a.mosaikKurzname)
+      );
+      if (neu.length > 0) patch.lieferadressen = [...bestehend, ...neu];
+    }
+    return patch;
   },
 };
