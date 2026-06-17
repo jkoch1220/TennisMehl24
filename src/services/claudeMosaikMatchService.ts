@@ -10,7 +10,9 @@
  * für den Fall, dass das VPS-Backend wieder ausfällt. Braucht
  * `ANTHROPIC_API_KEY` in der Netlify-Env.
  *
- * Modell: claude-sonnet-4-6 (aktuell, Stand 06/2026).
+ * Modell: claude-haiku-4-5-20251001 — Haiku 4.5 ist ~6× günstiger als
+ * Sonnet 4.6 und für strukturierte Ja/Nein-Entscheidungen mit Begründung
+ * ausreichend (~0,40 € statt ~1,20 € pro 300-Aufrufe-Lauf).
  */
 
 import { useBackend, backendFetch } from '../config/backend';
@@ -26,7 +28,7 @@ export interface KiMatchAntwort {
   begruendung: string;
 }
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 500;
 const FALLBACK_ENDPOINT = '/.netlify/functions/ai-mosaik-match';
 const TIMEOUT_MS = 30_000;

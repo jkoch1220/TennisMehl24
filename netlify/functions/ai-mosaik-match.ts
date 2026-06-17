@@ -23,7 +23,7 @@
 
 import type { Handler, HandlerEvent } from '@netlify/functions';
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 500;
 
 const SYSTEM_PROMPT = `Du bist ein Datenmigrations-Assistent für eine deutsche Tennisplatz-Material-Firma.

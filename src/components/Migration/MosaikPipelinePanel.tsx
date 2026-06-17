@@ -23,7 +23,7 @@ interface Props {
 const PHASEN: Record<PipelineFortschritt['phase'], string> = {
   lade: 'Lade Kandidaten & CRM-Kunden',
   klassifiziere: 'Klassifiziere (deterministisch + Fuzzy)',
-  ki: 'KI-Bewertung im Graubereich (Sonnet 4)',
+  ki: 'KI-Bewertung im Graubereich (Haiku 4.5)',
   apply: 'Schreibe ins CRM',
   fertig: 'Fertig',
 };
