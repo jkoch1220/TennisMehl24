@@ -205,9 +205,10 @@ export interface WikiRecentView {
 // Such-Ergebnis
 export interface WikiSearchResult {
   page: WikiPage;
-  matchType: 'title' | 'content' | 'tag';
+  matchType: 'title' | 'content' | 'tag' | 'description' | 'file';
   snippet?: string;
   score: number;
+  file?: WikiFile; // gesetzt bei Datei-Treffern
 }
 
 // Inhaltsverzeichnis-Eintrag

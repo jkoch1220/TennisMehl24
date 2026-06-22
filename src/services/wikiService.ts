@@ -1,6 +1,6 @@
 import { ID, Query } from 'appwrite';
 import { databases, storage, account, DATABASE_ID, WIKI_PAGES_COLLECTION_ID, WIKI_FILES_COLLECTION_ID, WIKI_DATEIEN_BUCKET_ID } from '../config/appwrite';
-import { WikiPage, WikiFile, CreateWikiPage, UpdateWikiPage, WikiSearchResult, WikiRecentView, WikiTocItem } from '../types/wiki';
+import { WikiPage, WikiFile, CreateWikiPage, UpdateWikiPage, WikiSearchResult, WikiRecentView, WikiTocItem, WikiCategory } from '../types/wiki';
 import { loadAllDocuments } from '../utils/appwritePagination';
 
 // Helper um aktuelle User-ID zu bekommen
@@ -32,6 +32,26 @@ const htmlToText = (html: string): string => {
   const div = document.createElement('div');
   div.innerHTML = html;
   return div.textContent || div.innerText || '';
+};
+
+// Text normalisieren: lowercase + Umlaut-/Akzent-Faltung für tolerante Suche
+export const normalizeText = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, ''); // diakritische Zeichen entfernen
+
+// Prüft, ob "query" als Subsequenz in "text" vorkommt (einfache Fuzzy-Toleranz für Tippfehler/Lücken)
+const isSubsequence = (query: string, text: string): boolean => {
+  let i = 0;
+  for (let j = 0; j < text.length && i < query.length; j++) {
+    if (text[j] === query[i]) i++;
+  }
+  return i === query.length;
 };
 
 // Inhaltsverzeichnis aus HTML extrahieren
@@ -104,6 +124,145 @@ export const buildBreadcrumbs = (pageId: string, pages: WikiPage[]): WikiPage[] 
   }
 
   return breadcrumbs;
+};
+
+// ============ CLIENT-SEITIGE SUCHE (für Cmd+K Befehlspalette) ============
+
+export interface WikiSearchOptions {
+  category?: WikiCategory | 'all';
+  tag?: string | null;
+  onlyFavorites?: boolean;
+  favoriteIds?: string[];
+}
+
+// Snippet rund um den ersten Treffer erzeugen (Plain-Text, Highlight passiert in der UI)
+const buildSnippet = (plainText: string, normQuery: string): string => {
+  const normText = normalizeText(plainText);
+  const idx = normText.indexOf(normQuery);
+  if (idx === -1) {
+    return plainText.slice(0, 120).trim() + (plainText.length > 120 ? '…' : '');
+  }
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(plainText.length, idx + normQuery.length + 80);
+  return (
+    (start > 0 ? '…' : '') +
+    plainText.slice(start, end).trim() +
+    (end < plainText.length ? '…' : '')
+  );
+};
+
+/**
+ * Tolerante, client-seitige Volltextsuche über bereits geladene Seiten.
+ * Mehrere Suchbegriffe werden UND-verknüpft; Umlaute werden gefaltet,
+ * Subsequenz-Treffer geben eine geringe Fuzzy-Toleranz.
+ */
+export const searchPagesLocal = (
+  pages: WikiPage[],
+  query: string,
+  options: WikiSearchOptions = {}
+): WikiSearchResult[] => {
+  const trimmed = query.trim();
+  const tokens = normalizeText(trimmed).split(/\s+/).filter(Boolean);
+  const favSet = new Set(options.favoriteIds || []);
+
+  const results: WikiSearchResult[] = [];
+
+  for (const page of pages) {
+    // Filter: Kategorie / Tag / Favoriten
+    if (options.category && options.category !== 'all' && page.category !== options.category) continue;
+    if (options.tag && !(page.tags || []).includes(options.tag)) continue;
+    if (options.onlyFavorites && !favSet.has(page.$id!)) continue;
+
+    // Ohne Suchbegriff: alle (gefilterten) Seiten zurückgeben, nach Titel sortiert
+    if (tokens.length === 0) {
+      results.push({ page, matchType: 'title', score: 0, snippet: page.description });
+      continue;
+    }
+
+    const normTitle = normalizeText(page.title);
+    const normDesc = normalizeText(page.description || '');
+    const normTags = (page.tags || []).map(normalizeText);
+    const plainContent = htmlToText(page.content || '');
+    const normContent = normalizeText(plainContent);
+
+    let score = 0;
+    let matchType: WikiSearchResult['matchType'] = 'content';
+    let allTokensMatch = true;
+
+    for (const token of tokens) {
+      let tokenScore = 0;
+      if (normTitle.includes(token)) {
+        tokenScore = normTitle.startsWith(token) ? 130 : 100;
+        matchType = 'title';
+      } else if (normTags.some((t) => t.includes(token))) {
+        tokenScore = 60;
+        if (matchType !== 'title') matchType = 'tag';
+      } else if (normDesc.includes(token)) {
+        tokenScore = 40;
+        if (matchType !== 'title' && matchType !== 'tag') matchType = 'description';
+      } else if (normContent.includes(token)) {
+        tokenScore = 25;
+      } else if (token.length >= 4 && isSubsequence(token, normTitle)) {
+        tokenScore = 15; // Fuzzy-Titel-Treffer
+        if (matchType === 'content') matchType = 'title';
+      } else {
+        allTokensMatch = false;
+        break;
+      }
+      score += tokenScore;
+    }
+
+    if (!allTokensMatch || score === 0) continue;
+
+    // Bonus: Favorit
+    if (favSet.has(page.$id!)) score += 10;
+
+    const snippet =
+      matchType === 'description'
+        ? page.description
+        : buildSnippet(plainContent, tokens[0]);
+
+    results.push({ page, matchType, snippet, score });
+  }
+
+  return results.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.page.title.localeCompare(b.page.title, 'de');
+  });
+};
+
+/**
+ * Sucht in Dateinamen (über alle bereits geladenen Dateien).
+ * Liefert je Treffer die Datei + zugehörige Seite zum Navigieren.
+ */
+export const searchFilesLocal = (
+  files: WikiFile[],
+  pages: WikiPage[],
+  query: string
+): WikiSearchResult[] => {
+  const tokens = normalizeText(query.trim()).split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+
+  const pageMap = new Map(pages.map((p) => [p.$id!, p]));
+  const results: WikiSearchResult[] = [];
+
+  for (const file of files) {
+    const normName = normalizeText(file.fileName);
+    if (!tokens.every((t) => normName.includes(t))) continue;
+
+    const page = pageMap.get(file.pageId);
+    if (!page) continue; // verwaiste Datei ohne Seite überspringen
+
+    results.push({
+      page,
+      file,
+      matchType: 'file',
+      snippet: file.fileName,
+      score: 50,
+    });
+  }
+
+  return results;
 };
 
 // ============ LOCAL STORAGE HELPERS ============
@@ -410,6 +569,17 @@ export const wikiFileService = {
       return response.documents as unknown as WikiFile[];
     } catch (error) {
       console.error('Fehler beim Laden der Wiki-Dateien:', error);
+      return [];
+    }
+  },
+
+  // Alle Dateien laden (für globale Datei-Suche in der Befehlspalette)
+  async getAllFiles(): Promise<WikiFile[]> {
+    try {
+      const documents = await loadAllDocuments(DATABASE_ID, WIKI_FILES_COLLECTION_ID);
+      return documents as unknown as WikiFile[];
+    } catch (error) {
+      console.error('Fehler beim Laden aller Wiki-Dateien:', error);
       return [];
     }
   },
