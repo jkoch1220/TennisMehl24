@@ -43,12 +43,10 @@ interface RowState {
 
 const istValideEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-// Felder enthalten oft mehrere Adressen ("a@x.de; b@y.de") → einzeln aufsplitten.
+// Felder enthalten oft mehrere Adressen oder E-Mail + Telefon/Name im selben Feld
+// → nur die gültigen E-Mail-Adressen per Regex extrahieren.
 const splitEmails = (raw?: string): string[] =>
-  (raw || '')
-    .split(/[;,]/)
-    .map((t) => t.trim())
-    .filter(Boolean);
+  (raw || '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
 
 // Begrenzte Parallelität
 async function runPool<T>(items: T[], worker: (item: T, index: number) => Promise<void>, limit = 5) {

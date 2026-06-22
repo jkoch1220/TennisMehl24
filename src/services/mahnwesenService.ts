@@ -833,12 +833,11 @@ export const ladeMahnEmailKandidaten = async (debitor: DebitorView): Promise<Mah
   const kandidaten: MahnEmailKandidat[] = [];
   const add = (email: string | undefined, quelle: string) => {
     if (!email) return;
-    // Felder enthalten oft mehrere Adressen (z.B. "a@x.de; b@y.de") — einzeln aufsplitten,
-    // damit immer genau EINE gültige Empfänger-Adresse gewählt wird (sonst SMTP-Fehler).
-    for (const teil of email.split(/[;,]/)) {
-      const e = teil.trim();
-      if (e) kandidaten.push({ email: e, quelle });
-    }
+    // Felder enthalten oft mehrere Adressen ODER E-Mail + Telefon/Name im selben Feld
+    // (z.B. "a@x.de; b@y.de" oder "name@x.de 0171 123"). Per Regex nur die gültigen
+    // E-Mail-Adressen extrahieren, damit immer eine saubere Empfänger-Adresse entsteht.
+    const treffer = email.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+    for (const e of treffer) kandidaten.push({ email: e, quelle });
   };
 
   add(debitor.rechnungsEmail, 'Rechnungs-E-Mail (Projekt)');
