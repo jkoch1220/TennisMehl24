@@ -10,6 +10,7 @@ import { dashboardService } from '../services/dashboardService';
 import type { DashboardStats } from '../types/dashboard';
 import { terminService } from '../services/terminService';
 import type { Termin } from '../types/termin';
+import NotificationsHomeSection from '../components/Notifications/NotificationsHomeSection';
 
 // Erinnerungs-Einstellungen Typ
 interface ReminderSettings {
@@ -311,6 +312,9 @@ const Home = () => {
             Analysen
           </p>
         </div>
+
+        {/* Benachrichtigungen (persistent: Shop-Bestellungen, Anfragen) */}
+        <NotificationsHomeSection />
 
         {/* Wetter und Statistiken */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
