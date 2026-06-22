@@ -162,9 +162,16 @@ async function main() {
   console.log(`   Endpoint: ${endpoint}`);
   console.log(`   Database: ${databaseId}\n`);
 
-  // 1. typ-Feld in Stammdaten anlegen
+  // 1. Felder in Stammdaten anlegen
   console.log('--- STAMMDATEN Collection ---');
   await createField(STAMMDATEN_COLLECTION_ID, 'typ', 'string', { size: 100 });
+  await new Promise(r => setTimeout(r, 300));
+
+  // Mahnwesen-Textvorlagen + E-Mail-Templates werden als JSON-Feld am
+  // Stammdaten-Dokument gespeichert (analog emailTemplates).
+  await createField(STAMMDATEN_COLLECTION_ID, 'mahnwesenVorlagen', 'string', { size: 20000 });
+  await new Promise(r => setTimeout(r, 300));
+  await createField(STAMMDATEN_COLLECTION_ID, 'emailTemplates', 'string', { size: 50000 });
 
   // Warte kurz auf Feld-Erstellung
   await new Promise(r => setTimeout(r, 1000));
