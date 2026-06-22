@@ -190,7 +190,34 @@ const shopBestellungZuNotification = (doc: Models.Document): NotificationInput =
   };
 };
 
+/**
+ * Stößt email-sync an, damit neue Anfragen automatisch aus dem Postfach in die
+ * `anfragen`-Collection gezogen werden (email-sync legt dabei bereits die
+ * Notification am Ursprung an). So funktioniert die Kette auch, wenn niemand
+ * online ist und manuell synct. Fehler werden nur geloggt.
+ */
+const triggerEmailSync = async (): Promise<void> => {
+  const base = process.env.URL || process.env.DEPLOY_PRIME_URL;
+  if (!base) {
+    console.warn('⚠️ Keine Site-URL (process.env.URL) – email-sync nicht automatisch ausgelöst');
+    return;
+  }
+  try {
+    const res = await fetch(`${base}/.netlify/functions/email-sync`);
+    const data = await res.json().catch(() => ({}));
+    console.log(
+      `📧 email-sync ausgelöst: ${data.neueSpeicherungen ?? '?'} neu, ${data.duplikate ?? '?'} Duplikate`
+    );
+  } catch (error) {
+    console.warn('⚠️ email-sync konnte nicht ausgelöst werden:', (error as Error).message);
+  }
+};
+
 const reconcile = async (): Promise<{ anfragen: number; shop: number; geprueft: number }> => {
+  // Zuerst neue E-Mails ziehen (legt Notifications bereits am Ursprung an),
+  // danach als Sicherheitsnetz abgleichen.
+  await triggerEmailSync();
+
   const databases = createAppwriteClient();
   let erstelltAnfragen = 0;
   let erstelltShop = 0;
