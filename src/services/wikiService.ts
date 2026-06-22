@@ -549,6 +549,32 @@ export const wikiPageService = {
     }
   },
 
+  // Seite im Baum verschieben: neuen Parent setzen + Geschwister neu sortieren.
+  // orderedSiblingIds = vollständige, neu geordnete Kinderliste unter newParentId
+  // (inkl. der verschobenen Seite).
+  async movePage(
+    activeId: string,
+    newParentId: string | null,
+    orderedSiblingIds: string[]
+  ): Promise<void> {
+    const updates = orderedSiblingIds.map((id, index) => {
+      const data: Record<string, unknown> = { sortOrder: index };
+      if (id === activeId) data.parentId = newParentId || null;
+      return databases.updateDocument(DATABASE_ID, WIKI_PAGES_COLLECTION_ID, id, data);
+    });
+
+    // Falls die verschobene Seite (theoretisch) nicht in der Liste steht, Parent separat setzen
+    if (!orderedSiblingIds.includes(activeId)) {
+      updates.push(
+        databases.updateDocument(DATABASE_ID, WIKI_PAGES_COLLECTION_ID, activeId, {
+          parentId: newParentId || null,
+        })
+      );
+    }
+
+    await Promise.all(updates);
+  },
+
   // Sortierung aktualisieren
   async updateSortOrder(pages: { id: string; sortOrder: number }[]): Promise<void> {
     try {
@@ -572,7 +598,7 @@ export const wikiPageService = {
 // ============ Wiki Files Service ============
 
 export const wikiFileService = {
-  // Alle Dateien für eine Seite laden
+  // Alle Dateien für eine Seite laden (nach sortOrder, dann Upload-Zeit)
   async getForPage(pageId: string): Promise<WikiFile[]> {
     try {
       const response = await databases.listDocuments(
@@ -580,10 +606,30 @@ export const wikiFileService = {
         WIKI_FILES_COLLECTION_ID,
         [Query.equal('pageId', pageId), Query.limit(100)]
       );
-      return response.documents as unknown as WikiFile[];
+      const files = response.documents as unknown as WikiFile[];
+      // Client-seitig sortieren – robust, auch falls das sortOrder-Attribut (noch) fehlt
+      return files.sort((a, b) => {
+        const ao = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        const bo = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        if (ao !== bo) return ao - bo;
+        return (a.uploadTime || '').localeCompare(b.uploadTime || '');
+      });
     } catch (error) {
       console.error('Fehler beim Laden der Wiki-Dateien:', error);
       return [];
+    }
+  },
+
+  // Sortierreihenfolge der Dateien speichern (still fehlertolerant, falls Attribut fehlt)
+  async updateFilesSortOrder(files: { id: string; sortOrder: number }[]): Promise<void> {
+    try {
+      await Promise.all(
+        files.map(({ id, sortOrder }) =>
+          databases.updateDocument(DATABASE_ID, WIKI_FILES_COLLECTION_ID, id, { sortOrder })
+        )
+      );
+    } catch (error) {
+      console.error('Fehler beim Speichern der Datei-Sortierung:', error);
     }
   },
 

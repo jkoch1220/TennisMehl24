@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Migration Scripts (in `scripts/`)
 - `npx tsx scripts/migriere-universal-preise.ts` - Migriert Universal-Artikel von Brutto auf Netto-Preise
 - `npx tsx scripts/migriere-adressen.ts` - Migriert Adressen-Struktur
+- `node scripts/add-wiki-files-sortorder.js` - Fügt `wiki_files.sortOrder` hinzu (Datei-Sortierung im Wiki, idempotent)
 - Alle Scripts unterstützen `--dry-run` für Vorschau ohne Änderungen
 
 ## Architecture

@@ -68,6 +68,9 @@ export interface WikiFile {
   width?: number;
   height?: number;
 
+  // Sortierreihenfolge im Datei-Panel (Drag & Drop)
+  sortOrder?: number;
+
   // Upload-Info
   uploadedBy?: string;
   uploadTime?: string;

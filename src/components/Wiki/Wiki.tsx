@@ -3,7 +3,6 @@ import {
   Plus,
   Search,
   ChevronRight,
-  ChevronDown,
   Clock,
   Star,
   StarOff,
@@ -15,10 +14,8 @@ import {
   File,
   Download,
   Eye,
-  MoreVertical,
   Home,
   Menu,
-  Pin,
   BookOpen,
   Hash,
   Folder,
@@ -29,6 +26,7 @@ import {
 import WikiEditor from './WikiEditor';
 import WikiFilesPanel from './WikiFilesPanel';
 import WikiCommandPalette from './WikiCommandPalette';
+import WikiPageTree from './tree/WikiPageTree';
 import {
   WikiPage,
   WikiFile,
@@ -93,7 +91,6 @@ const Wiki = () => {
   const [showFilesPanel, setShowFilesPanel] = useState(false);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [currentFavorite, setCurrentFavorite] = useState(false);
-  const [showPageMenu, setShowPageMenu] = useState<string | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Refs
@@ -269,6 +266,51 @@ const Wiki = () => {
     }
   };
 
+  // Bestimmte Seite direkt bearbeiten (aus dem Baum-Menü, ohne auf State-Update zu warten)
+  const handleEditPage = (page: WikiPage) => {
+    setSelectedPage(page);
+    setFormTitle(page.title);
+    setFormContent(page.content);
+    setFormDescription(page.description || '');
+    setFormIcon(page.icon || '📄');
+    setFormCategory(page.category || 'sonstiges');
+    setFormTags(page.tags || []);
+    setFormParentId(page.parentId);
+    setFormIsPinned(page.isPinned || false);
+    setIsEditing(true);
+    setIsCreating(false);
+  };
+
+  // Seite im Baum verschieben (Drag & Drop) – optimistisch mit Rollback
+  const handleMovePage = async (
+    activeId: string,
+    newParentId: string | null,
+    siblingIds: string[]
+  ) => {
+    const backup = pages;
+    const updated = pages.map((p) => {
+      if (p.$id === activeId) {
+        return { ...p, parentId: newParentId || undefined, sortOrder: siblingIds.indexOf(activeId) };
+      }
+      const idx = siblingIds.indexOf(p.$id!);
+      return idx !== -1 ? { ...p, sortOrder: idx } : p;
+    });
+    setPages(updated);
+    setPageTree(buildPageTree(updated));
+    if (newParentId) {
+      setExpandedFolders((prev) => new Set(prev).add(newParentId));
+    }
+
+    try {
+      await wikiPageService.movePage(activeId, newParentId, siblingIds);
+    } catch (error) {
+      console.error('Verschieben fehlgeschlagen:', error);
+      setPages(backup);
+      setPageTree(buildPageTree(backup));
+      alert('Verschieben fehlgeschlagen. Die Änderung wurde rückgängig gemacht.');
+    }
+  };
+
   const handleUseTemplate = (templateId: string) => {
     const template = WIKI_TEMPLATES.find(t => t.id === templateId);
     if (template) {
@@ -357,7 +399,6 @@ const Wiki = () => {
       console.error('Fehler beim Löschen:', error);
       alert('Fehler beim Löschen der Seite.');
     }
-    setShowPageMenu(null);
   };
 
   const handleToggleFavorite = () => {
@@ -470,82 +511,6 @@ const Wiki = () => {
   const getCategoryColor = (category?: WikiCategory) => {
     if (!category) return 'gray';
     return WIKI_CATEGORIES[category]?.color || 'gray';
-  };
-
-  // === RENDER TREE NODE ===
-  const renderTreeNode = (page: WikiPage, depth = 0) => {
-    const hasChildren = page.children && page.children.length > 0;
-    const isExpanded = expandedFolders.has(page.$id!);
-    const isSelected = selectedPage?.$id === page.$id;
-
-    return (
-      <div key={page.$id}>
-        <div
-          className={`
-            group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all
-            ${isSelected
-              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-              : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-dark-text'
-            }
-          `}
-          style={{ paddingLeft: `${12 + depth * 16}px` }}
-          onClick={() => handleSelectPage(page)}
-        >
-          {hasChildren ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleToggleFolder(page.$id!); }}
-              className="p-0.5 hover:bg-gray-200 dark:hover:bg-slate-700 rounded"
-            >
-              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
-          ) : (
-            <span className="w-5" />
-          )}
-
-          <span className="text-lg">{page.icon || '📄'}</span>
-          <span className="flex-1 truncate text-sm font-medium">{page.title}</span>
-
-          {page.isPinned && <Pin className="w-3 h-3 text-amber-500" />}
-
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowPageMenu(showPageMenu === page.$id ? null : page.$id!); }}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
-
-          {showPageMenu === page.$id && (
-            <div className="absolute right-4 mt-24 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 py-1 z-50 min-w-[160px]">
-              <button
-                onClick={(e) => { e.stopPropagation(); handleStartCreate(page.$id); setShowPageMenu(null); }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
-              >
-                <Plus className="w-4 h-4" /> Unterseite
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleSelectPage(page); handleStartEdit(); setShowPageMenu(null); }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
-              >
-                <Edit3 className="w-4 h-4" /> Bearbeiten
-              </button>
-              <hr className="my-1 border-gray-200 dark:border-slate-700" />
-              <button
-                onClick={(e) => { e.stopPropagation(); handleDelete(page); }}
-                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="w-4 h-4" /> Löschen
-              </button>
-            </div>
-          )}
-        </div>
-
-        {hasChildren && isExpanded && (
-          <div>
-            {page.children!.map(child => renderTreeNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
   };
 
   // === LOADING STATE (Skelett) ===
@@ -721,9 +686,17 @@ const Wiki = () => {
               </button>
             </div>
           ) : viewMode === 'tree' ? (
-            <div className="space-y-0.5">
-              {pageTree.map(page => renderTreeNode(page))}
-            </div>
+            <WikiPageTree
+              tree={pageTree}
+              expanded={expandedFolders}
+              selectedId={selectedPage?.$id}
+              onSelect={handleSelectPage}
+              onToggle={handleToggleFolder}
+              onCreateSub={handleStartCreate}
+              onEdit={handleEditPage}
+              onDelete={handleDelete}
+              onMove={handleMovePage}
+            />
           ) : (
             <div className="space-y-0.5">
               {pages.map(page => (
