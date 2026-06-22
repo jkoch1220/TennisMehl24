@@ -51,6 +51,7 @@ const ANFRAGEN_EMAIL_KONTO = 'anfrage@tennismehl.com';
 const WEBFORMULAR_ABSENDER = 'mail@tennismehl.com';
 const DATABASE_ID = 'tennismehl24_db';
 const ANFRAGEN_COLLECTION_ID = 'anfragen';
+const NOTIFICATIONS_COLLECTION_ID = 'notifications';
 
 // ============================================
 // VALIDATOREN - Strikte Prüfung aller Werte
@@ -654,6 +655,56 @@ const speichereAnfrage = async (
   }
 };
 
+/**
+ * Erzeugt eine persistente Benachrichtigung für eine neue Anfrage.
+ * Idempotent über refTyp+refId (Doppelschutz). Fehler werden nur geloggt,
+ * damit der Sync-Vorgang nicht abbricht.
+ */
+const erstelleAnfrageNotification = async (
+  databases: Databases,
+  anfrageId: string,
+  extrahierteDaten: ExtrahierteDaten,
+  emailBetreff: string
+): Promise<void> => {
+  try {
+    // Doppelschutz: existiert bereits eine Notification für diese Anfrage?
+    const vorhanden = await databases.listDocuments(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, [
+      Query.equal('refTyp', ANFRAGEN_COLLECTION_ID),
+      Query.equal('refId', anfrageId),
+      Query.limit(1),
+    ]);
+    if (vorhanden.total > 0) return;
+
+    const kundenname =
+      extrahierteDaten.kundenname ||
+      extrahierteDaten.vereinsname ||
+      extrahierteDaten.ansprechpartner ||
+      '';
+    const ort = extrahierteDaten.ort || '';
+    const nachricht = kundenname
+      ? `${kundenname}${ort ? ` · ${ort}` : ''}`
+      : emailBetreff.substring(0, 120);
+
+    await databases.createDocument(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, ID.unique(), {
+      typ: 'anfrage',
+      titel: 'Neue Anfrage',
+      nachricht: nachricht.substring(0, 2000),
+      refTyp: ANFRAGEN_COLLECTION_ID,
+      refId: anfrageId,
+      link: '/anfragen',
+      prioritaet: 'normal',
+      gelesenVon: [],
+      erledigtVon: [],
+      erstelltAm: new Date().toISOString(),
+    });
+    console.log(`🔔 Benachrichtigung für Anfrage ${anfrageId} erstellt`);
+  } catch (error: any) {
+    // 409 = bereits vorhanden (Unique-Index). Sonst nur loggen, Sync läuft weiter.
+    if (error?.code === 409) return;
+    console.warn('⚠️ Konnte Benachrichtigung für Anfrage nicht erstellen:', error?.message || error);
+  }
+};
+
 // Main Handler
 const handler: Handler = async (event: HandlerEvent) => {
   const headers = {
@@ -735,6 +786,9 @@ const handler: Handler = async (event: HandlerEvent) => {
         gespeicherteIds.push(docId);
         neueSpeicherungen++;
         console.log(`✅ Gespeichert: ${email.subject.substring(0, 50)}...`);
+
+        // Persistente Benachrichtigung am Ursprung erzeugen (Doppelschutz)
+        await erstelleAnfrageNotification(databases, docId, extrahierteDaten, email.subject);
 
       } catch (error) {
         console.error(`❌ Fehler bei E-Mail ${email.uid}:`, error);
