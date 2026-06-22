@@ -982,6 +982,13 @@ class DebitorService {
       kundennummer: projekt.kundennummer,
       kundenname: projekt.kundenname,
       kundenEmail: projekt.kundenEmail,
+      rechnungsEmail: projekt.rechnungsEmail,
+      // Empfängeradresse fürs Mahn-PDF: Lieferadresse bevorzugt, sonst Kundenadresse
+      // (gleiche Logik wie in DebitorDetail beim Einzel-Mahnungsversand).
+      kundenstrasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
+      kundenPlzOrt: projekt.lieferadresse
+        ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+        : (projekt.kundenPlzOrt || ''),
       ansprechpartner: projekt.ansprechpartner,
       rechnungsnummer: rechnungsnummer || undefined,
       rechnungsdatum: rechnungsdatum || undefined,

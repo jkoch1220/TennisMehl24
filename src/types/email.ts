@@ -2,8 +2,13 @@
  * Type-Definitionen für das E-Mail-System
  */
 
-// Dokumenttypen die per E-Mail versendet werden können
+// Belegtypen die per E-Mail versendet werden können (Beleg-Templates, EmailFormular)
 export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung';
+
+// Dokumenttypen die im E-Mail-Protokoll auftauchen können (Belege + Mahnwesen).
+// 'mahnwesen' fasst Zahlungserinnerung + 1./2. Mahnung zusammen — die konkrete Stufe
+// steht in der dokumentNummer (z.B. ZE-2026-001 / MA-2026-001).
+export type ProtokollDokumentTyp = DokumentTyp | 'mahnwesen';
 
 // E-Mail-Template (HTML-basiert)
 export interface EmailTemplate {
@@ -55,7 +60,7 @@ export interface EmailProtokoll {
   $createdAt?: string;
   $updatedAt?: string;
   projektId: string;
-  dokumentTyp: DokumentTyp;
+  dokumentTyp: ProtokollDokumentTyp;
   dokumentNummer: string;
   empfaenger: string;
   absender: string;
@@ -72,7 +77,7 @@ export interface EmailProtokoll {
 // Input für neues Protokoll
 export interface EmailProtokollInput {
   projektId: string;
-  dokumentTyp: DokumentTyp;
+  dokumentTyp: ProtokollDokumentTyp;
   dokumentNummer: string;
   empfaenger: string;
   absender: string;

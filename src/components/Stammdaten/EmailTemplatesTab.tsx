@@ -51,10 +51,10 @@ const getDefaultTemplates = (): EmailTemplates => ({
 <p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`,
   },
   rechnung: {
-    betreff: 'Rechnung {dokumentNummer} - {kundenname}',
-    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
-<p>anbei erhalten Sie unsere Rechnung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
-<p>Bitte überweisen Sie den Rechnungsbetrag innerhalb der angegebenen Zahlungsfrist.</p>
+    betreff: 'Rechnung {dokumentNummer} – {kundenname}',
+    htmlContent: `<p>Guten Tag zusammen,</p>
+<p>anbei erhalten Sie Ihre Rechnung <strong>{dokumentNummer}</strong> für die Lieferung vom Tennismehl.</p>
+<p style="padding:10px 14px;background:#fff3cd;border-left:4px solid #c41e3a;font-weight:bold;">BITTE BEACHTEN SIE DIE GEÄNDERTEN KONTODATEN ZUM LETZTEN JAHR!</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
     signatur: `<p>Mit freundlichen Grüßen</p>
 <p><strong>Koch Dienste</strong></p>

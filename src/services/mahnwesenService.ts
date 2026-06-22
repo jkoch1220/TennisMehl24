@@ -22,9 +22,17 @@ import {
   MahnwesenTextVorlagen,
   STANDARD_MAHNWESEN_VORLAGEN
 } from '../types/mahnwesen';
-import { DebitorView } from '../types/debitor';
+import { DebitorView, DebitorMahnstufe } from '../types/debitor';
 import { getStammdatenOderDefault } from './stammdatenService';
 import { Stammdaten } from '../types/stammdaten';
+import {
+  sendeEmailMitPdf,
+  wrapInEmailTemplate,
+  generiereStandardSignatur,
+  blobZuBase64,
+} from './emailSendService';
+import { TEST_EMAIL_ADDRESS } from '../types/email';
+import { debitorService } from './debitorService';
 import {
   addDIN5008Header,
   addDIN5008Footer,
@@ -310,7 +318,7 @@ export const generiereMahnwesenPDF = async (
     doc.setTextColor(0, 0, 0);
   }
 
-  doc.text(daten.betreff, 25, yPos);
+  doc.text(ersetzePlatzhalter(daten.betreff, daten), 25, yPos);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
 
@@ -819,5 +827,183 @@ export const regeneriereMahnwesenDokument = async (
   } catch (error) {
     console.error('Fehler beim Regenerieren des Mahnwesen-Dokuments:', error);
     throw error;
+  }
+};
+
+// =====================================================
+// E-MAIL-VERSAND (halbautomatisch)
+// =====================================================
+
+/** Standard-Absender für Mahnungen (wie Universal-/Anfragen-Versand) */
+const MAHNWESEN_ABSENDER = 'info@tennismehl.com';
+
+/** Menschenlesbares Label je Mahn-Dokumenttyp */
+export const mahnTypLabel = (typ: MahnwesenDokumentTyp): string =>
+  typ === 'zahlungserinnerung' ? 'Zahlungserinnerung' : typ === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung';
+
+/** Mahn-Dokumenttyp → resultierende Mahnstufe nach Versand */
+const mahnTypZuMahnstufe = (typ: MahnwesenDokumentTyp): DebitorMahnstufe =>
+  typ === 'zahlungserinnerung' ? 1 : typ === 'mahnung_1' ? 2 : 3;
+
+/** Empfänger-Adresse bestimmen: rechnungsEmail zuerst, sonst kundenEmail */
+export const bestimmeMahnEmpfaenger = (debitor: DebitorView): string | undefined =>
+  debitor.rechnungsEmail?.trim() || debitor.kundenEmail?.trim() || undefined;
+
+/**
+ * Baut den E-Mail-Text (Anrede + Haupttext + Schlusstext) und den Betreff einer
+ * Mahnung aus den fertigen Dokumentdaten. Platzhalter werden ersetzt.
+ */
+const baueMahnungEmailInhalt = (daten: MahnwesenDokumentDaten): { betreff: string; bodyText: string } => {
+  const betreff = ersetzePlatzhalter(daten.betreff, daten);
+  const bodyText = [
+    ersetzePlatzhalter(daten.anrede, daten),
+    '',
+    ersetzePlatzhalter(daten.haupttext, daten),
+    '',
+    ersetzePlatzhalter(daten.schlusstext, daten),
+  ].join('\n');
+  return { betreff, bodyText };
+};
+
+/**
+ * Erstellt eine Vorschau der Mahn-E-Mail (Betreff + Text) sowie die zugrunde
+ * liegenden Dokumentdaten (für die PDF-Vorschau im UI). Persistiert nichts.
+ */
+export const erstelleMahnungEmailVorschau = async (
+  debitor: DebitorView,
+  dokumentTyp: MahnwesenDokumentTyp,
+  vorlagen?: MahnwesenTextVorlagen
+): Promise<{ betreff: string; bodyText: string; empfaenger?: string; daten: MahnwesenDokumentDaten }> => {
+  const daten = await erstelleMahnwesenDokumentDaten(debitor, dokumentTyp, vorlagen);
+  daten.kundenstrasse = debitor.kundenstrasse || daten.kundenstrasse;
+  daten.kundenPlzOrt = debitor.kundenPlzOrt || daten.kundenPlzOrt;
+  const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
+  return { betreff, bodyText, empfaenger: bestimmeMahnEmpfaenger(debitor), daten };
+};
+
+export interface SendeMahnungParams {
+  debitor: DebitorView;
+  dokumentTyp: MahnwesenDokumentTyp;
+  testModus: boolean;
+  /** Ziel-Adresse im Testmodus (Default: zentrale Test-Adresse) */
+  testEmpfaenger?: string;
+  /** Vorlagen einmal laden und an alle Aufrufe durchreichen (Bulk) */
+  vorlagen?: MahnwesenTextVorlagen;
+  absender?: string;
+}
+
+export interface SendeMahnungErgebnis {
+  success: boolean;
+  dokumentNummer?: string;
+  empfaenger: string;
+  fehler?: string;
+}
+
+/**
+ * Versendet eine Mahnung halbautomatisch per E-Mail:
+ *  1. Empfänger bestimmen (rechnungsEmail → kundenEmail; im Testmodus zur Not Testadresse)
+ *  2. Mahn-PDF erzeugen + archivieren (GoBD) → Base64
+ *  3. E-Mail-Body aus der Vorlage bauen
+ *  4. Versand via sendeEmailMitPdf (Testmodus: an Testadresse, [TEST]-Präfix, kein Protokoll)
+ *  5. Nur bei echtem Versand: Mahnstufe hochsetzen + Aktivität loggen
+ *
+ * Wirft NICHT — Fehler werden als { success:false, fehler } zurückgegeben (Bulk-tauglich).
+ */
+export const sendeMahnungPerEmail = async (
+  params: SendeMahnungParams
+): Promise<SendeMahnungErgebnis> => {
+  const { debitor, dokumentTyp, testModus } = params;
+  const testEmpfaenger = params.testEmpfaenger || TEST_EMAIL_ADDRESS;
+  const absender = params.absender || MAHNWESEN_ABSENDER;
+  const typLabel = mahnTypLabel(dokumentTyp);
+
+  const kundenEmpfaenger = bestimmeMahnEmpfaenger(debitor);
+
+  // Empfänger-Regel: ohne Kunden-Mail kein echter Versand. Im Testmodus darf ersatzweise
+  // an die Testadresse gesendet werden.
+  if (!testModus && !kundenEmpfaenger) {
+    return { success: false, empfaenger: '', fehler: 'Keine E-Mail-Adresse hinterlegt' };
+  }
+  const empfaenger = testModus ? (kundenEmpfaenger || testEmpfaenger) : (kundenEmpfaenger as string);
+
+  // Idempotenz: bei echtem Versand nicht zweimal am selben Tag mahnen.
+  if (!testModus && debitor.letzteMahnungAm) {
+    const letzte = new Date(debitor.letzteMahnungAm);
+    const heute = new Date();
+    const gleicherTag =
+      letzte.getFullYear() === heute.getFullYear() &&
+      letzte.getMonth() === heute.getMonth() &&
+      letzte.getDate() === heute.getDate();
+    if (gleicherTag) {
+      return {
+        success: false,
+        empfaenger,
+        fehler: 'Heute wurde für diesen Debitor bereits eine Mahnung versendet',
+      };
+    }
+  }
+
+  try {
+    // Vorlagen + Dokumentdaten
+    const vorlagen = params.vorlagen || (await ladeTextVorlagen());
+    const daten = await erstelleMahnwesenDokumentDaten(debitor, dokumentTyp, vorlagen);
+    daten.kundenstrasse = debitor.kundenstrasse || daten.kundenstrasse;
+    daten.kundenPlzOrt = debitor.kundenPlzOrt || daten.kundenPlzOrt;
+
+    // PDF erzeugen + archivieren (GoBD) — speichereMahnwesenDokument nutzt dieselbe Nummer.
+    const gespeichert = await speichereMahnwesenDokument(daten);
+
+    // Base64 für den E-Mail-Anhang (PDF einmal neu rendern — identischer Inhalt).
+    const pdf = await generiereMahnwesenPDF(daten);
+    const pdfBase64 = await blobZuBase64(pdf.output('blob'));
+
+    // E-Mail-Body
+    const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
+    const finalBetreff = testModus ? `[TEST] ${betreff}` : betreff;
+    const htmlBody = wrapInEmailTemplate(bodyText, generiereStandardSignatur());
+
+    const result = await sendeEmailMitPdf({
+      empfaenger,
+      absender,
+      betreff: finalBetreff,
+      htmlBody,
+      pdfBase64,
+      pdfDateiname: gespeichert.dateiname,
+      projektId: debitor.projektId,
+      dokumentTyp: 'mahnwesen',
+      dokumentNummer: daten.dokumentNummer,
+      testModus,
+      skipProtokoll: testModus,
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        empfaenger,
+        dokumentNummer: daten.dokumentNummer,
+        fehler: result.error || 'Unbekannter Fehler beim Versand',
+      };
+    }
+
+    // Nur bei echtem Versand: Mahnstufe hochsetzen.
+    if (!testModus) {
+      const neueMahnstufe = mahnTypZuMahnstufe(dokumentTyp);
+      if (neueMahnstufe > debitor.mahnstufe) {
+        await debitorService.markiereMahnungVersendet(
+          debitor.projektId,
+          neueMahnstufe,
+          `${typLabel} per E-Mail an ${empfaenger} versendet: ${daten.dokumentNummer}`
+        );
+      }
+    }
+
+    return { success: true, empfaenger, dokumentNummer: daten.dokumentNummer };
+  } catch (error) {
+    console.error('Fehler beim Mahnungs-Versand:', error);
+    return {
+      success: false,
+      empfaenger,
+      fehler: error instanceof Error ? error.message : 'Unbekannter Fehler beim Versand',
+    };
   }
 };

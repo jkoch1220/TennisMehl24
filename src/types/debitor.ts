@@ -107,6 +107,11 @@ export interface DebitorView {
   kundennummer?: string;
   kundenname: string;
   kundenEmail?: string;
+  /** Abweichende Rechnungs-/Buchhaltungs-Adresse (Vorrang vor kundenEmail beim Mahn-/Rechnungsversand) */
+  rechnungsEmail?: string;
+  /** Empfängeradresse für Mahn-PDFs (Liefer- bzw. Kundenadresse) */
+  kundenstrasse?: string;
+  kundenPlzOrt?: string;
   ansprechpartner?: string;
   rechnungsnummer?: string;
   rechnungsdatum?: string;
