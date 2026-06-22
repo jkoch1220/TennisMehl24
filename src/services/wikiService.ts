@@ -151,15 +151,20 @@ export const buildPageTree = (pages: WikiPage[]): WikiPage[] => {
   return sortPages(roots);
 };
 
-// Breadcrumbs für eine Seite erstellen
+// Breadcrumbs für eine Seite erstellen (zyklensicher: bricht bei Selbst-Eltern/Zyklen ab)
 export const buildBreadcrumbs = (pageId: string, pages: WikiPage[]): WikiPage[] => {
   const breadcrumbs: WikiPage[] = [];
   const pageMap = new Map(pages.map(p => [p.$id!, p]));
 
   let current = pageMap.get(pageId);
-  while (current) {
+  const seen = new Set<string>();
+  while (current && current.$id && !seen.has(current.$id)) {
+    seen.add(current.$id);
     breadcrumbs.unshift(current);
-    current = current.parentId ? pageMap.get(current.parentId) : undefined;
+    current =
+      current.parentId && current.parentId !== current.$id
+        ? pageMap.get(current.parentId)
+        : undefined;
   }
 
   return breadcrumbs;
