@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -52,6 +52,14 @@ const WikiPageTree = ({
   const [offsetLeft, setOffsetLeft] = useState(0);
   const [menuFor, setMenuFor] = useState<WikiPage | null>(null);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const expandTimerRef = useRef<number | null>(null);
+
+  const clearExpandTimer = () => {
+    if (expandTimerRef.current) {
+      clearTimeout(expandTimerRef.current);
+      expandTimerRef.current = null;
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -75,6 +83,7 @@ const WikiPageTree = ({
   const activeItem = activeId ? visibleItems.find((i) => i.id === activeId) : null;
 
   const resetDrag = () => {
+    clearExpandTimer();
     setActiveId(null);
     setOverId(null);
     setOffsetLeft(0);
@@ -88,7 +97,20 @@ const WikiPageTree = ({
 
   const handleDragMove = ({ delta }: DragMoveEvent) => setOffsetLeft(delta.x);
 
-  const handleDragOver = ({ over }: DragOverEvent) => setOverId(over ? String(over.id) : null);
+  const handleDragOver = ({ over }: DragOverEvent) => {
+    const overIdStr = over ? String(over.id) : null;
+    setOverId(overIdStr);
+
+    // Auto-Aufklappen: über einem eingeklappten Ordner kurz verweilen → öffnet sich,
+    // damit man die Seite direkt hineinziehen kann.
+    clearExpandTimer();
+    if (overIdStr && overIdStr !== activeId) {
+      const target = flattenTree(tree, expanded).find((i) => i.id === overIdStr);
+      if (target && target.childCount > 0 && !expanded.has(overIdStr)) {
+        expandTimerRef.current = window.setTimeout(() => onToggle(overIdStr), 600);
+      }
+    }
+  };
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (projected && over) {
@@ -129,6 +151,9 @@ const WikiPageTree = ({
           <div className="space-y-0.5">
             {visibleItems.map((item) => {
               const isActive = item.id === activeId;
+              // Zielordner, in den verschachtelt wird (für Highlight)
+              const isHighlightedParent =
+                !!activeId && !!projected?.parentId && item.id === projected.parentId && !isActive;
               return (
                 <SortableTreeItem
                   key={item.id}
@@ -139,6 +164,8 @@ const WikiPageTree = ({
                   hasChildren={item.childCount > 0}
                   selected={selectedId === item.id}
                   indentationWidth={INDENT}
+                  indicator={isActive}
+                  highlighted={isHighlightedParent}
                   onSelect={() => onSelect(item.page)}
                   onToggle={() => onToggle(item.id)}
                   onMenu={(e) => openMenu(e, item.page)}

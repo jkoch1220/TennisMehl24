@@ -3,6 +3,7 @@ import {
   Plus,
   Search,
   ChevronRight,
+  ChevronDown,
   Clock,
   Star,
   StarOff,
@@ -92,6 +93,13 @@ const Wiki = () => {
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
   const [currentFavorite, setCurrentFavorite] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(JSON.parse(localStorage.getItem('wiki_collapsed_sections') || '[]'));
+    } catch {
+      return new Set();
+    }
+  });
 
   // Refs
   const contentRef = useRef<HTMLDivElement>(null);
@@ -409,6 +417,16 @@ const Wiki = () => {
     }
   };
 
+  const toggleSection = (key: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      localStorage.setItem('wiki_collapsed_sections', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   const handleToggleFolder = (pageId: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
@@ -637,10 +655,15 @@ const Wiki = () => {
           {/* Favorites */}
           {favoritePages.length > 0 && (
               <div className="p-2 border-b border-gray-200 dark:border-dark-border">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                <button
+                  onClick={() => toggleSection('favorites')}
+                  className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider hover:text-gray-700 dark:hover:text-slate-100 transition-colors"
+                >
+                  {collapsedSections.has('favorites') ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   <Star className="w-3 h-3" /> Favoriten
-                </div>
-                {favoritePages.map(page => (
+                  <span className="ml-auto text-gray-400 normal-case">{favoritePages.length}</span>
+                </button>
+                {!collapsedSections.has('favorites') && favoritePages.map(page => (
                   <button
                     key={page.$id}
                     onClick={() => handleSelectPage(page)}
@@ -660,10 +683,14 @@ const Wiki = () => {
             {/* Recent */}
             {recentViews.length > 0 && (
               <div className="p-2 border-b border-gray-200 dark:border-dark-border">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+                <button
+                  onClick={() => toggleSection('recent')}
+                  className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider hover:text-gray-700 dark:hover:text-slate-100 transition-colors"
+                >
+                  {collapsedSections.has('recent') ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   <Clock className="w-3 h-3" /> Zuletzt besucht
-                </div>
-                {recentViews.slice(0, 5).map(view => (
+                </button>
+                {!collapsedSections.has('recent') && recentViews.slice(0, 5).map(view => (
                   <button
                     key={view.pageId}
                     onClick={() => {
@@ -683,9 +710,13 @@ const Wiki = () => {
         {/* Page Tree */}
         <div className="flex-1 overflow-y-auto p-2">
           <div className="flex items-center justify-between px-3 py-1.5 mb-1">
-            <span className="text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
+            <button
+              onClick={() => toggleSection('pages')}
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider hover:text-gray-700 dark:hover:text-slate-100 transition-colors"
+            >
+              {collapsedSections.has('pages') ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               Seiten
-            </span>
+            </button>
             <div className="flex gap-1">
               <button
                 onClick={() => setViewMode('tree')}
@@ -702,7 +733,7 @@ const Wiki = () => {
             </div>
           </div>
 
-          {pageTree.length === 0 ? (
+          {!collapsedSections.has('pages') && (pageTree.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
               <p className="text-sm text-gray-500 dark:text-slate-300">Noch keine Seiten</p>
@@ -742,7 +773,7 @@ const Wiki = () => {
                 </button>
               ))}
             </div>
-          )}
+          ))}
         </div>
       </aside>
 
