@@ -85,7 +85,7 @@ export const injectHeadingIds = (html: string): string => {
   return div.innerHTML;
 };
 
-// Seiten in Baumstruktur konvertieren
+// Seiten in Baumstruktur konvertieren (zyklensicher gegen korrupte parentId-Daten)
 export const buildPageTree = (pages: WikiPage[]): WikiPage[] => {
   const pageMap = new Map<string, WikiPage>();
   const roots: WikiPage[] = [];
@@ -95,15 +95,40 @@ export const buildPageTree = (pages: WikiPage[]): WikiPage[] => {
     pageMap.set(page.$id!, { ...page, children: [], depth: 0 });
   });
 
+  // Würde das Anhängen an parentId einen Zyklus erzeugen?
+  // (Schützt vor Endlosrekursion, falls eine Seite – mittelbar – ihr eigener Vorfahre ist.)
+  const createsCycle = (pageId: string, parentId: string): boolean => {
+    let current: string | undefined = parentId;
+    const seen = new Set<string>();
+    while (current) {
+      if (current === pageId) return true;
+      if (seen.has(current)) return true;
+      seen.add(current);
+      current = pageMap.get(current)?.parentId;
+    }
+    return false;
+  };
+
   // Dann Hierarchie aufbauen
   pages.forEach(page => {
     const currentPage = pageMap.get(page.$id!)!;
-    if (page.parentId && pageMap.has(page.parentId)) {
-      const parent = pageMap.get(page.parentId)!;
+    const parentId = page.parentId;
+    const validParent =
+      !!parentId &&
+      parentId !== page.$id &&
+      pageMap.has(parentId) &&
+      !createsCycle(page.$id!, parentId);
+
+    if (validParent) {
+      const parent = pageMap.get(parentId!)!;
       currentPage.depth = (parent.depth || 0) + 1;
       parent.children = parent.children || [];
       parent.children.push(currentPage);
     } else {
+      // Waise oder aufgebrochener Zyklus → als Root anzeigen (kein Datenverlust, kein Freeze)
+      if (parentId && parentId !== page.$id && pageMap.has(parentId)) {
+        console.warn(`Wiki: Zyklische Eltern-Beziehung für Seite "${page.title}" aufgebrochen.`);
+      }
       roots.push(currentPage);
     }
   });

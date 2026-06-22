@@ -20,10 +20,14 @@ export const flattenTree = (
   tree: WikiPage[],
   expanded: Set<string>,
   parentId: string | null = null,
-  depth = 0
+  depth = 0,
+  visited: Set<string> = new Set()
 ): FlattenedItem[] => {
   return tree.reduce<FlattenedItem[]>((acc, page) => {
     const id = page.$id!;
+    if (visited.has(id)) return acc; // Schutz vor Endlosrekursion bei Zyklen
+    visited.add(id);
+
     const children = page.children || [];
     const collapsed = children.length > 0 && !expanded.has(id);
 
@@ -37,7 +41,7 @@ export const flattenTree = (
     });
 
     if (children.length > 0 && expanded.has(id)) {
-      acc.push(...flattenTree(children, expanded, id, depth + 1));
+      acc.push(...flattenTree(children, expanded, id, depth + 1, visited));
     }
     return acc;
   }, []);

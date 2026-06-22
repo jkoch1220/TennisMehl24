@@ -296,6 +296,22 @@ const Wiki = () => {
     newParentId: string | null,
     siblingIds: string[]
   ) => {
+    // Zyklus verhindern: neuer Parent darf nicht die Seite selbst oder ein Nachfahre sein
+    const isDescendantOrSelf = (candidateId: string | null, ancestorId: string): boolean => {
+      let cur: string | null | undefined = candidateId;
+      const seen = new Set<string>();
+      while (cur) {
+        if (cur === ancestorId) return true;
+        if (seen.has(cur)) break;
+        seen.add(cur);
+        cur = pages.find((p) => p.$id === cur)?.parentId;
+      }
+      return false;
+    };
+    if (newParentId && isDescendantOrSelf(newParentId, activeId)) {
+      return; // würde eine zyklische Hierarchie erzeugen → ignorieren
+    }
+
     const backup = pages;
     const updated = pages.map((p) => {
       if (p.$id === activeId) {
