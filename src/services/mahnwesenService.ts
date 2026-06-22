@@ -28,9 +28,9 @@ import { Stammdaten } from '../types/stammdaten';
 import {
   sendeEmailMitPdf,
   wrapInEmailTemplate,
-  generiereStandardSignatur,
   blobZuBase64,
 } from './emailSendService';
+import { generiereStandardEmail } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
 import { debitorService } from './debitorService';
 import {
@@ -957,10 +957,11 @@ export const sendeMahnungPerEmail = async (
     const pdf = await generiereMahnwesenPDF(daten);
     const pdfBase64 = await blobZuBase64(pdf.output('blob'));
 
-    // E-Mail-Body
+    // E-Mail-Body — Signatur aus den Stammdaten-E-Mail-Templates laden (wie Universal-Versand)
     const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
     const finalBetreff = testModus ? `[TEST] ${betreff}` : betreff;
-    const htmlBody = wrapInEmailTemplate(bodyText, generiereStandardSignatur());
+    const signaturVorlage = await generiereStandardEmail('angebot', daten.dokumentNummer, daten.kundenname);
+    const htmlBody = wrapInEmailTemplate(bodyText, signaturVorlage.signatur || '');
 
     const result = await sendeEmailMitPdf({
       empfaenger,
