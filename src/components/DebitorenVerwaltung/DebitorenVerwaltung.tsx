@@ -727,7 +727,7 @@ const DebitorenVerwaltung = () => {
 
         {/* Mahnungen-Tab: eigene gruppierte Ansicht statt Standard-Liste */}
         {activeTab === 'mahnungen' && (
-          <MahnungenTab debitoren={debitoren} onOpenDetail={handleOpenDetail} />
+          <MahnungenTab debitoren={debitoren} onOpenDetail={handleOpenDetail} onReload={() => loadData(true)} />
         )}
 
         {/* Andere Tabs: Liste */}
