@@ -234,7 +234,17 @@ const MahnVersandDialog = ({ entries, testModus, onClose, onFinished }: MahnVers
                       <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
                         {mahnTypLabel(row.typ)}
                       </span>
+                      {row.debitor.istPlatzbauerprojekt && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                          Platzbauer
+                        </span>
+                      )}
                     </div>
+                    {row.debitor.istPlatzbauerprojekt && (
+                      <div className="mt-0.5 text-xs text-purple-600 dark:text-purple-300">
+                        Platzbauer-Projekt — Empfänger ist der Platzbauer, nicht der Verein „{row.debitor.kundenname}". Bitte Platzbauer-Adresse wählen.
+                      </div>
+                    )}
                   </div>
                   {/* Status je Zeile */}
                   <div className="text-xs whitespace-nowrap">

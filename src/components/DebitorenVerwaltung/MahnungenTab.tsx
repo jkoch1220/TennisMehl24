@@ -341,6 +341,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                       <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {debitor.rechnungsnummer}
                       </span>
+                      {debitor.istPlatzbauerprojekt && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" title="Rechnung/Mahnung geht an den Platzbauer, nicht an den Verein">
+                          Platzbauer
+                        </span>
+                      )}
                       {heuteVersendet ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                           <CheckCircle2 className="w-3 h-3" /> heute versendet

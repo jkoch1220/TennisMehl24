@@ -35,6 +35,7 @@ import { TEST_EMAIL_ADDRESS } from '../types/email';
 import { debitorService } from './debitorService';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
+import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 import {
   addDIN5008Header,
   addDIN5008Footer,
@@ -826,6 +827,23 @@ export interface MahnEmailKandidat {
 }
 
 /**
+ * Ermittelt die SaisonKunde-ID des Platzbauers für ein Platzbauer-Projekt
+ * (direkt über platzbauerId, sonst über das zugeordnete Platzbauer-Projekt).
+ */
+const resolvePlatzbauerKundeId = async (debitor: DebitorView): Promise<string | undefined> => {
+  if (debitor.platzbauerId) return debitor.platzbauerId;
+  if (debitor.zugeordnetesPlatzbauerprojektId) {
+    try {
+      const pp = await platzbauerverwaltungService.getPlatzbauerprojekt(debitor.zugeordnetesPlatzbauerprojektId);
+      return pp?.platzbauerId;
+    } catch (error) {
+      console.warn('Platzbauer-Projekt konnte nicht aufgelöst werden:', error);
+    }
+  }
+  return undefined;
+};
+
+/**
  * Sammelt alle hinterlegten E-Mail-Adressen für einen Debitor aus Projekt + Kunde +
  * Ansprechpartnern (dedupliziert). Quelle dient als Label im Auswahl-Dropdown.
  */
@@ -844,7 +862,21 @@ export const ladeMahnEmailKandidaten = async (debitor: DebitorView): Promise<Mah
   add(debitor.kundenEmail, 'Kunden-E-Mail (Projekt)');
 
   try {
-    if (debitor.kundeId) {
+    if (debitor.istPlatzbauerprojekt) {
+      // Platzbauer-Projekt: Rechnungs-/Mahn-Empfänger ist der PLATZBAUER, nicht der Verein.
+      const platzbauerKundeId = await resolvePlatzbauerKundeId(debitor);
+      if (platzbauerKundeId) {
+        const daten = await saisonplanungService.loadKundeMitDaten(platzbauerKundeId, debitor.saisonjahr);
+        if (daten) {
+          add(daten.kunde.rechnungsEmail, 'Rechnungs-E-Mail (Platzbauer)');
+          add(daten.kunde.email, 'E-Mail (Platzbauer)');
+          for (const ap of daten.ansprechpartner) {
+            const label = `Platzbauer-Ansprechpartner${ap.name ? ': ' + ap.name : ''}${ap.rolle ? ' (' + ap.rolle + ')' : ''}`;
+            add(ap.email, label);
+          }
+        }
+      }
+    } else if (debitor.kundeId) {
       const daten = await saisonplanungService.loadKundeMitDaten(debitor.kundeId, debitor.saisonjahr);
       if (daten) {
         add(daten.kunde.rechnungsEmail, 'Rechnungs-E-Mail (Kunde)');

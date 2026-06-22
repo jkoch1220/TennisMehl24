@@ -113,6 +113,10 @@ export interface DebitorView {
   kundenstrasse?: string;
   kundenPlzOrt?: string;
   ansprechpartner?: string;
+  /** Platzbauer-Projekt: Rechnung/Mahnung geht an den Platzbauer, NICHT an den Verein (kundeId) */
+  istPlatzbauerprojekt?: boolean;
+  platzbauerId?: string;
+  zugeordnetesPlatzbauerprojektId?: string;
   rechnungsnummer?: string;
   rechnungsdatum?: string;
   rechnungsbetrag: number;

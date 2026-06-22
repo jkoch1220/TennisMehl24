@@ -990,6 +990,9 @@ class DebitorService {
         ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
         : (projekt.kundenPlzOrt || ''),
       ansprechpartner: projekt.ansprechpartner,
+      istPlatzbauerprojekt: projekt.istPlatzbauerprojekt,
+      platzbauerId: projekt.platzbauerId,
+      zugeordnetesPlatzbauerprojektId: projekt.zugeordnetesPlatzbauerprojektId,
       rechnungsnummer: rechnungsnummer || undefined,
       rechnungsdatum: rechnungsdatum || undefined,
       rechnungsbetrag,
