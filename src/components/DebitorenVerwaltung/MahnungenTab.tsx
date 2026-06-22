@@ -8,6 +8,7 @@ import {
   Eye,
   Send,
   Loader2,
+  CheckCircle2,
   FlaskConical,
   X,
 } from 'lucide-react';
@@ -41,6 +42,18 @@ const formatCurrency = (amount: number) =>
 
 const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
 
+// Wurde an diesem Debitor HEUTE bereits eine Mahnung versendet? (Doppelversand-Schutz)
+const istHeute = (iso?: string): boolean => {
+  if (!iso) return false;
+  const d = new Date(iso);
+  const heute = new Date();
+  return (
+    d.getFullYear() === heute.getFullYear() &&
+    d.getMonth() === heute.getMonth() &&
+    d.getDate() === heute.getDate()
+  );
+};
+
 // Empfehlung → versendbarer Mahn-Dokumenttyp (Inkasso/keine werden NICHT automatisch versendet)
 const empfehlungZuTyp = (e: MahnEmpfehlung): MahnwesenDokumentTyp | null =>
   e === 'zahlungserinnerung' ? 'zahlungserinnerung' : e === 'mahnung_1' ? 'mahnung_1' : e === 'mahnung_2' ? 'mahnung_2' : null;
@@ -50,6 +63,8 @@ interface FaelligEntry {
   empfehlung: MahnEmpfehlung;
   typ: MahnwesenDokumentTyp | null;
   empfaenger?: string;
+  /** Heute bereits eine Mahnung versendet → sichtbar markieren, nicht erneut senden */
+  heuteVersendet: boolean;
 }
 
 interface PreviewState {
@@ -84,7 +99,8 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
 
   const offene = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt'), [debitoren]);
 
-  // Fällige Mahnschritte (inkl. Inkasso-Empfehlung als reiner Hinweis).
+  // Fällige Mahnschritte (inkl. Inkasso-Hinweis) PLUS heute bereits versendete
+  // (letztere bleiben als "✅ heute versendet" sichtbar → Doppelversand-Schutz).
   const faellig = useMemo<FaelligEntry[]>(
     () =>
       offene
@@ -95,18 +111,20 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
             empfehlung,
             typ: empfehlungZuTyp(empfehlung),
             empfaenger: bestimmeMahnEmpfaenger(d),
+            heuteVersendet: istHeute(d.letzteMahnungAm),
           };
         })
-        .filter((e) => e.empfehlung !== 'keine'),
+        .filter((e) => e.empfehlung !== 'keine' || e.heuteVersendet),
     [offene]
   );
 
-  // Versendbar = konkreter Mahn-Typ vorhanden (nicht Inkasso/keine). Die Empfänger-Adresse
-  // wird im Versand-Dialog gewählt (auch aus Kunde/Ansprechpartnern oder manuell), daher
-  // ist hier KEIN hinterlegter Empfänger mehr Voraussetzung für die Auswahl.
-  const istVersendbar = (e: FaelligEntry) => e.typ !== null;
+  // Versendbar = konkreter Mahn-Typ vorhanden (nicht Inkasso/keine) UND heute noch nicht versendet.
+  const istVersendbar = (e: FaelligEntry) => e.typ !== null && !e.heuteVersendet;
 
-  const versendbareEntries = useMemo(() => faellig.filter((e) => e.typ !== null), [faellig]);
+  const versendbareEntries = useMemo(
+    () => faellig.filter((e) => e.typ !== null && !e.heuteVersendet),
+    [faellig]
+  );
 
   // Gruppierung nach Mahnstufe (0-4) — Eskalations-Pipeline.
   const gruppen = useMemo(() => {
@@ -207,6 +225,8 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
   }
 
   const anzahlSelected = versendbareEntries.filter((e) => selected.has(e.debitor.projektId)).length;
+  const heuteVersendetAnzahl = faellig.filter((e) => e.heuteVersendet).length;
+  const offeneFaelligAnzahl = faellig.filter((e) => !e.heuteVersendet).length;
 
   return (
     <div className="space-y-6">
@@ -222,8 +242,13 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-orange-900 dark:text-orange-200">
-                    {faellig.length} fällige{faellig.length === 1 ? 'r' : ''} Mahnschritt
-                    {faellig.length === 1 ? '' : 'e'}
+                    {offeneFaelligAnzahl} offene{offeneFaelligAnzahl === 1 ? 'r' : ''} Mahnschritt
+                    {offeneFaelligAnzahl === 1 ? '' : 'e'}
+                    {heuteVersendetAnzahl > 0 && (
+                      <span className="ml-2 text-sm font-normal text-green-700 dark:text-green-400">
+                        · {heuteVersendetAnzahl} heute versendet
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-orange-700 dark:text-orange-300">
                     Gesamtbetrag offen:{' '}
@@ -286,7 +311,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
           {/* Zeilen */}
           <div className="divide-y divide-gray-100 dark:divide-slate-700">
             {faellig.map((entry) => {
-              const { debitor, empfehlung, empfaenger } = entry;
+              const { debitor, empfehlung, empfaenger, heuteVersendet } = entry;
               const id = debitor.projektId;
               const versendbar = istVersendbar(entry);
               const istInkasso = empfehlung === 'inkasso';
@@ -294,7 +319,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
               return (
                 <div
                   key={id}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors"
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                    heuteVersendet
+                      ? 'bg-green-50 dark:bg-green-900/15'
+                      : 'hover:bg-gray-50 dark:hover:bg-slate-700/30'
+                  }`}
                 >
                   <input
                     type="checkbox"
@@ -312,15 +341,21 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                       <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {debitor.rechnungsnummer}
                       </span>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                          istInkasso
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                            : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
-                        }`}
-                      >
-                        {MAHN_EMPFEHLUNG_LABEL[empfehlung]}
-                      </span>
+                      {heuteVersendet ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                          <CheckCircle2 className="w-3 h-3" /> heute versendet
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            istInkasso
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                              : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                          }`}
+                        >
+                          {MAHN_EMPFEHLUNG_LABEL[empfehlung]}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-xs">
                       <span className="text-gray-500 dark:text-slate-400">
@@ -351,7 +386,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
 
                   {/* Aktionen */}
                   <div className="flex items-center gap-1.5">
-                    {istInkasso ? (
+                    {heuteVersendet ? (
+                      <span className="flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 px-2">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> versendet am {formatDate(debitor.letzteMahnungAm)}
+                      </span>
+                    ) : istInkasso ? (
                       <span className="text-xs text-red-600 dark:text-red-400 px-2">
                         manuell prüfen
                       </span>
