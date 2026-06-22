@@ -109,7 +109,10 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
   // Versendbar = konkreter Mahn-Typ vorhanden UND (Testmodus ODER Empfänger hinterlegt).
   const istVersendbar = (e: FaelligEntry) => e.typ !== null && (testModus || !!e.empfaenger);
 
-  const versendbareEntries = useMemo(() => faellig.filter(istVersendbar), [faellig, testModus]);
+  const versendbareEntries = useMemo(
+    () => faellig.filter((e) => e.typ !== null && (testModus || !!e.empfaenger)),
+    [faellig, testModus]
+  );
 
   // Gruppierung nach Mahnstufe (0-4) — Eskalations-Pipeline.
   const gruppen = useMemo(() => {

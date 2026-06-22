@@ -68,7 +68,10 @@ const RechnungsVersandTab = () => {
   const istVersendbar = (item: RechnungVersandItem) =>
     item.hatAktiveRechnung && (testModus || !!item.empfaenger);
 
-  const versendbareItems = useMemo(() => items.filter(istVersendbar), [items, testModus]);
+  const versendbareItems = useMemo(
+    () => items.filter((i) => i.hatAktiveRechnung && (testModus || !!i.empfaenger)),
+    [items, testModus]
+  );
 
   // ---- Auswahl ----
   const toggleSelect = (projektId: string) => {
