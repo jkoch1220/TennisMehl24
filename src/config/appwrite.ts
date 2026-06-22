@@ -96,6 +96,9 @@ export const DIESELPREISE_COLLECTION_ID = 'dieselpreise';
 // Mosaik-Migration (Staging für Migration aus altem ERP)
 export const MIGRATION_KANDIDATEN_COLLECTION_ID = 'migration_kandidaten';
 
+// Benachrichtigungen (persistenter Notification-Service)
+export const NOTIFICATIONS_COLLECTION_ID = 'notifications';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -176,6 +179,8 @@ export const COLLECTIONS = {
   DIESELPREISE: DIESELPREISE_COLLECTION_ID,
   // Mosaik-Migration
   MIGRATION_KANDIDATEN: MIGRATION_KANDIDATEN_COLLECTION_ID,
+  // Benachrichtigungen
+  NOTIFICATIONS: NOTIFICATIONS_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
