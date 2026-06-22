@@ -17,6 +17,7 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCw,
+  Plus,
 } from 'lucide-react';
 import { WikiFile, getFileTypeCategory, FILE_TYPE_CONFIG, FileTypeCategory } from '../../types/wiki';
 import { wikiFileService } from '../../services/wikiService';
@@ -24,6 +25,7 @@ import { wikiFileService } from '../../services/wikiService';
 interface WikiFileCardProps {
   file: WikiFile;
   onDelete: (file: WikiFile) => void;
+  onInsert?: (file: WikiFile) => void; // ins Dokument einfügen (nur Bilder, nur im Editor)
   compact?: boolean;
 }
 
@@ -140,7 +142,7 @@ const ImageLightbox: React.FC<{
   );
 };
 
-const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, compact = false }) => {
+const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, onInsert, compact = false }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -192,6 +194,15 @@ const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, compact = f
 
           {/* Actions */}
           <div className={`flex items-center gap-1 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+            {isImage && onInsert && (
+              <button
+                onClick={() => onInsert(file)}
+                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                title="Ins Dokument einfügen"
+              >
+                <Plus className="w-4 h-4 text-red-500" />
+              </button>
+            )}
             {isImage && (
               <button
                 onClick={() => setShowPreview(true)}
@@ -257,6 +268,15 @@ const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, compact = f
               {/* Overlay on hover */}
               <div className={`absolute inset-0 bg-black/40 flex items-center justify-center gap-3
                               transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                {onInsert && (
+                  <button
+                    onClick={() => onInsert(file)}
+                    className="p-3 bg-red-500/80 hover:bg-red-600 backdrop-blur-sm rounded-xl transition-colors"
+                    title="Ins Dokument einfügen"
+                  >
+                    <Plus className="w-5 h-5 text-white" />
+                  </button>
+                )}
                 <button
                   onClick={() => setShowPreview(true)}
                   className="p-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl transition-colors"

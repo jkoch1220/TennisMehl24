@@ -23,7 +23,7 @@ import {
   Layout,
   List,
 } from 'lucide-react';
-import WikiEditor from './WikiEditor';
+import WikiEditor, { type WikiEditorHandle } from './WikiEditor';
 import WikiFilesPanel from './WikiFilesPanel';
 import WikiCommandPalette from './WikiCommandPalette';
 import WikiPageTree from './tree/WikiPageTree';
@@ -97,6 +97,7 @@ const Wiki = () => {
   const contentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const editorApiRef = useRef<WikiEditorHandle>(null);
 
   // === DATA LOADING ===
   const loadPages = useCallback(async () => {
@@ -488,6 +489,24 @@ const Wiki = () => {
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
     }
+  };
+
+  // Datei-Sortierung per Drag & Drop – optimistisch, dann persistieren
+  const handleReorderFiles = async (orderedIds: string[]) => {
+    const fileMap = new Map(files.map((f) => [f.$id!, f]));
+    const reordered: WikiFile[] = [];
+    orderedIds.forEach((id, index) => {
+      const f = fileMap.get(id);
+      if (f) reordered.push({ ...f, sortOrder: index });
+    });
+    setFiles(reordered);
+    await wikiFileService.updateFilesSortOrder(orderedIds.map((id, index) => ({ id, sortOrder: index })));
+  };
+
+  // Bild aus dem Datei-Panel an der Cursor-Position ins Dokument einfügen
+  const handleInsertImageFromPanel = (file: WikiFile) => {
+    const url = wikiFileService.getFileUrl(file.fileId);
+    editorApiRef.current?.insertImageUrl(url, file.fileName);
   };
 
   // === RENDER HELPERS ===
@@ -1004,6 +1023,7 @@ const Wiki = () => {
                   {/* Editor */}
                   <div className="border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
                     <WikiEditor
+                      ref={editorApiRef}
                       content={formContent}
                       onChange={setFormContent}
                       onImageUpload={async (file) => {
@@ -1024,6 +1044,8 @@ const Wiki = () => {
                         await uploadFiles(filesToUpload);
                       }}
                       onDelete={handleDeleteFile}
+                      onInsertImage={handleInsertImageFromPanel}
+                      onReorder={handleReorderFiles}
                       uploading={uploadingFile}
                     />
                   ) : isCreating ? (
@@ -1116,6 +1138,7 @@ const Wiki = () => {
                           await uploadFiles(filesToUpload);
                         }}
                         onDelete={handleDeleteFile}
+                        onReorder={handleReorderFiles}
                         uploading={uploadingFile}
                       />
                     </div>

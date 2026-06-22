@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import { buildEditorExtensions } from './editor/extensions';
 import EditorToolbar from './editor/EditorToolbar';
@@ -11,6 +11,11 @@ interface WikiEditorProps {
   onChange: (content: string) => void;
   placeholder?: string;
   onImageUpload?: (file: File) => Promise<string | null>;
+}
+
+// Imperativer Handle, damit das Datei-Panel Bilder an der Cursor-Position einfügen kann
+export interface WikiEditorHandle {
+  insertImageUrl: (url: string, alt?: string) => void;
 }
 
 // Styling der Bearbeitungs-Oberfläche (auf das contenteditable-Element angewendet)
@@ -35,12 +40,12 @@ const EDITOR_CLASS = `wiki-editor-content min-h-[440px] px-5 py-4 focus:outline-
   [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:px-3 [&_td]:py-2
   [&_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.is-editor-empty:first-child::before]:text-gray-400 [&_.is-editor-empty:first-child::before]:float-left [&_.is-editor-empty:first-child::before]:pointer-events-none [&_.is-editor-empty:first-child::before]:h-0`;
 
-const WikiEditor = ({
+const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(({
   content,
   onChange,
   placeholder = 'Beginne hier zu schreiben oder tippe „/" für Befehle…',
   onImageUpload,
-}: WikiEditorProps) => {
+}, ref) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<Editor | null>(null);
   const onChangeRef = useRef(onChange);
@@ -189,6 +194,13 @@ const WikiEditor = ({
   });
 
   editorRef.current = editor;
+
+  // Imperativer Handle: Bild-URL an aktueller Cursor-Position einfügen
+  useImperativeHandle(ref, () => ({
+    insertImageUrl: (url: string, alt?: string) => {
+      editorRef.current?.chain().focus().setImage({ src: url, alt: alt || '' }).run();
+    },
+  }), []);
 
   // Bild hochladen und an Position (oder am Cursor) einfügen
   const uploadAndInsert = useCallback(async (file: File, pos?: number) => {
@@ -364,6 +376,8 @@ const WikiEditor = ({
       )}
     </div>
   );
-};
+});
+
+WikiEditor.displayName = 'WikiEditor';
 
 export default WikiEditor;

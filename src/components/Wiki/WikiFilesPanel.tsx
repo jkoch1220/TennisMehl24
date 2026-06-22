@@ -1,5 +1,18 @@
 import { useState, useRef, useCallback } from 'react';
 import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
   Upload,
   Grid3X3,
   List,
@@ -9,23 +22,47 @@ import {
   Loader2,
   FolderOpen,
   Sparkles,
+  Image as ImageIcon,
+  FileText as FileTextIcon,
+  Files as FilesIcon,
 } from 'lucide-react';
 import { WikiFile, getFileTypeCategory, FILE_TYPE_CONFIG } from '../../types/wiki';
 import WikiFileCard from './WikiFileCard';
+import SortableFileRow from './SortableFileRow';
 
 interface WikiFilesPanelProps {
   files: WikiFile[];
   pageId?: string; // Optional, für zukünftige Erweiterungen
   onUpload: (files: File[]) => Promise<void>;
   onDelete: (file: WikiFile) => void;
+  onInsertImage?: (file: WikiFile) => void; // ins Dokument einfügen (Editor-Modus)
+  onReorder?: (orderedIds: string[]) => void; // Drag-&-Drop-Sortierung
   uploading?: boolean;
   className?: string;
 }
+
+// Übergeordnete Gruppe für die Sektions-Darstellung
+type SuperGroup = 'Bilder' | 'Dokumente' | 'Sonstiges';
+const SUPER_GROUP_ORDER: SuperGroup[] = ['Bilder', 'Dokumente', 'Sonstiges'];
+const SUPER_GROUP_ICON: Record<SuperGroup, typeof ImageIcon> = {
+  Bilder: ImageIcon,
+  Dokumente: FileTextIcon,
+  Sonstiges: FilesIcon,
+};
+
+const getSuperGroup = (file: WikiFile): SuperGroup => {
+  const type = getFileTypeCategory(file.fileName);
+  if (file.mimeType?.startsWith('image/') || type === 'image') return 'Bilder';
+  if (['pdf', 'word', 'excel', 'powerpoint', 'text', 'code'].includes(type)) return 'Dokumente';
+  return 'Sonstiges';
+};
 
 const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
   files,
   onUpload,
   onDelete,
+  onInsertImage,
+  onReorder,
   uploading = false,
   className = '',
 }) => {
@@ -75,13 +112,30 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
     e.target.value = '';
   }, [onUpload]);
 
-  // Gruppiere Dateien nach Typ
+  // Gruppiere Dateien nach Typ (für die Übersichts-Statistik)
   const groupedFiles = files.reduce((acc, file) => {
     const type = getFileTypeCategory(file.fileName);
     if (!acc[type]) acc[type] = [];
     acc[type].push(file);
     return acc;
   }, {} as Record<string, WikiFile[]>);
+
+  // Gruppiere in Sektionen (Bilder / Dokumente / Sonstiges)
+  const sections = SUPER_GROUP_ORDER.map((group) => ({
+    group,
+    files: files.filter((f) => getSuperGroup(f) === group),
+  })).filter((s) => s.files.length > 0);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleSortEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id || !onReorder) return;
+    const oldIndex = files.findIndex((f) => f.$id === active.id);
+    const newIndex = files.findIndex((f) => f.$id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(files, oldIndex, newIndex);
+    onReorder(reordered.map((f) => f.$id!));
+  };
 
   const hasFiles = files.length > 0;
 
@@ -231,32 +285,61 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
         </div>
       )}
 
-      {/* Files Grid */}
+      {/* Files Grid – nach Typ gruppiert (Bilder / Dokumente / Sonstiges) */}
       {hasFiles && viewMode === 'grid' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {files.map(file => (
-            <WikiFileCard
-              key={file.$id}
-              file={file}
-              onDelete={onDelete}
-            />
-          ))}
+        <div className="space-y-6">
+          {sections.map(({ group, files: groupFiles }) => {
+            const GroupIcon = SUPER_GROUP_ICON[group];
+            return (
+              <div key={group}>
+                <div className="flex items-center gap-2 mb-3">
+                  <GroupIcon className="w-4 h-4 text-gray-400" />
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                    {group}
+                  </h4>
+                  <span className="text-xs text-gray-400">({groupFiles.length})</span>
+                  <div className="flex-1 h-px bg-gray-100 dark:bg-slate-700/50" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {groupFiles.map((file) => (
+                    <WikiFileCard
+                      key={file.$id}
+                      file={file}
+                      onDelete={onDelete}
+                      onInsert={onInsertImage}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Files List */}
-      {hasFiles && viewMode === 'list' && (
-        <div className="space-y-2">
-          {files.map(file => (
-            <WikiFileCard
-              key={file.$id}
-              file={file}
-              onDelete={onDelete}
-              compact
-            />
-          ))}
-        </div>
-      )}
+      {/* Files List – per Drag & Drop sortierbar (wenn onReorder gesetzt) */}
+      {hasFiles && viewMode === 'list' &&
+        (onReorder ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSortEnd}>
+            <SortableContext items={files.map((f) => f.$id!)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {files.map((file) => (
+                  <SortableFileRow
+                    key={file.$id}
+                    file={file}
+                    onDelete={onDelete}
+                    onInsert={onInsertImage}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="space-y-2">
+            {files.map((file) => (
+              <WikiFileCard key={file.$id} file={file} onDelete={onDelete} onInsert={onInsertImage} compact />
+            ))}
+          </div>
+        ))}
 
       {/* Quick Stats */}
       {hasFiles && (
