@@ -55,10 +55,14 @@ const SortableTreeItem = forwardRef<HTMLDivElement, SortableTreeItemProps>((prop
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="relative" {...attributes}>
+    <div ref={setNodeRef} style={style} className="relative">
+      {/* Ganze Zeile ist ziehbar; Klick (< 5px Bewegung) öffnet weiterhin die Seite */}
       <div
+        ref={setActivatorNodeRef}
         onClick={onSelect}
-        className={`group flex items-center gap-1.5 pr-2 py-2 rounded-lg cursor-pointer transition-all ${
+        {...attributes}
+        {...listeners}
+        className={`group flex items-center gap-1.5 pr-2 py-2 rounded-lg cursor-pointer active:cursor-grabbing transition-all ${
           highlighted
             ? 'bg-red-50 dark:bg-red-900/20 ring-2 ring-red-300 dark:ring-red-600'
             : selected
@@ -66,20 +70,15 @@ const SortableTreeItem = forwardRef<HTMLDivElement, SortableTreeItemProps>((prop
               : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-dark-text'
         }`}
       >
-        {/* Drag-Griff */}
-        <button
-          ref={setActivatorNodeRef}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 -ml-1 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-200"
-          title="Ziehen zum Verschieben"
-        >
+        {/* Drag-Griff (nur visueller Hinweis – die ganze Zeile ist ziehbar) */}
+        <span className="opacity-30 group-hover:opacity-100 p-0.5 -ml-1 text-gray-400 dark:text-slate-500">
           <GripVertical className="w-3.5 h-3.5" />
-        </button>
+        </span>
 
-        {/* Chevron / Platzhalter */}
+        {/* Chevron / Platzhalter – darf keinen Drag starten */}
         {hasChildren ? (
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onToggle();
@@ -98,6 +97,7 @@ const SortableTreeItem = forwardRef<HTMLDivElement, SortableTreeItemProps>((prop
         {page.isPinned && <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />}
 
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={onMenu}
           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded flex-shrink-0"
         >
