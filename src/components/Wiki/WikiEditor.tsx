@@ -138,7 +138,9 @@ const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(({
     extensions: buildEditorExtensions(placeholder),
     content,
     editorProps: {
-      attributes: { class: EDITOR_CLASS },
+      // Whitespace zu einzelnen Leerzeichen kollabieren – ProseMirror übergibt den
+      // String an classList.add(), das Zeilenumbrüche als ungültige Tokens ablehnt.
+      attributes: { class: EDITOR_CLASS.replace(/\s+/g, ' ').trim() },
       handleKeyDown: (_view, event) => {
         const s = dataRef.current;
         if (!s.open || s.items.length === 0) return false;
