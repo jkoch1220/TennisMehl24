@@ -66,6 +66,8 @@ import {
   SHOP_KATEGORIEN_COLLECTION_ID,
   SHOP_RATGEBER_COLLECTION_ID,
   SHOP_PRODUKTBILDER_BUCKET_ID,
+  // Benachrichtigungen
+  NOTIFICATIONS_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -73,7 +75,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '39'; // Projekte: bezahltAm, rechnungsnummer, rechnungsdatum als Top-Level-Felder
+const APPWRITE_SETUP_VERSION = '40'; // Notifications: persistente Benachrichtigungen (Glocke + Startseite)
 
 type FieldConfig = {
   key: string;
@@ -711,6 +713,20 @@ const shopRatgeberFields: FieldConfig[] = [
   { key: 'aktualisiertAm', type: 'string', size: 50, required: true },
 ];
 
+// Notifications Collection - persistente Benachrichtigungen (Glocke + Startseite)
+const notificationsFields: FieldConfig[] = [
+  { key: 'typ', type: 'string', size: 50, required: true },          // 'shop_bestellung' | 'anfrage' | 'mahnung' | 'zahlung'
+  { key: 'titel', type: 'string', size: 500, required: true },       // z.B. "Neue Shop-Bestellung #1234"
+  { key: 'nachricht', type: 'string', size: 2000, required: true },  // Kurzbeschreibung
+  { key: 'refTyp', type: 'string', size: 100, required: true },      // Quell-Collection ('shop_bestellungen' / 'anfragen')
+  { key: 'refId', type: 'string', size: 100, required: true },       // Dokument-ID der Quelle
+  { key: 'link', type: 'string', size: 500, required: true },        // Ziel-Route
+  { key: 'prioritaet', type: 'string', size: 20, required: false },  // 'normal' | 'hoch'
+  { key: 'gelesenVon', type: 'string', size: 100, array: true },     // User-IDs (Glocken-Zähler)
+  { key: 'erledigtVon', type: 'string', size: 100, array: true },    // User-IDs (abgehakt -> aus offener Liste)
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -1056,6 +1072,13 @@ export async function setupAppwriteFields() {
         fields: shopRatgeberFields,
         permissions: ['read("any")', 'create("users")', 'update("users")', 'delete("users")'],
       },
+      // Benachrichtigungen (persistenter Notification-Service)
+      {
+        id: NOTIFICATIONS_COLLECTION_ID,
+        name: 'Benachrichtigungen',
+        fields: notificationsFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
     ];
 
     for (const { id, name, fields, permissions } of kundenCollections) {
@@ -1181,6 +1204,12 @@ export async function setupAppwriteFields() {
     await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'slug_index', ['slug'], 'unique');
     await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'typ_index', ['typ']);
     await ensureIndex(SHOP_RATGEBER_COLLECTION_ID, 'istVeroeffentlicht_index', ['istVeroeffentlicht']);
+
+    // Indizes für Benachrichtigungen
+    // Unique-Compound-Index als Doppelschutz: pro Quell-Datensatz nur EINE Notification
+    await ensureIndex(NOTIFICATIONS_COLLECTION_ID, 'ref_unique_index', ['refTyp', 'refId'], 'unique');
+    await ensureIndex(NOTIFICATIONS_COLLECTION_ID, 'erstelltAm_index', ['erstelltAm']);
+    await ensureIndex(NOTIFICATIONS_COLLECTION_ID, 'typ_index', ['typ']);
 
     console.log('✅ Appwrite Field Setup abgeschlossen!');
   } catch (error) {
