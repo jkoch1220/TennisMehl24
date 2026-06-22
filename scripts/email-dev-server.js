@@ -8,6 +8,7 @@ import cors from 'cors';
 import Imap from 'imap';
 import { simpleParser } from 'mailparser';
 import nodemailer from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer/index.js';
 import dotenv from 'dotenv';
 
 // .env laden
@@ -33,6 +34,91 @@ try {
   EMAIL_ACCOUNTS = JSON.parse(process.env.EMAIL_ACCOUNTS || '[]');
 } catch (e) {
   console.error('Fehler beim Parsen von EMAIL_ACCOUNTS:', e);
+}
+
+// Mögliche Namen für den "Gesendet"-Ordner (identisch zur Netlify-Funktion)
+const SENT_FOLDER_NAMES = [
+  'INBOX.Sent', 'Sent', 'INBOX.Gesendet', 'Gesendet',
+  'Sent Items', 'Sent Messages', 'Gesendete Objekte', 'SENT',
+];
+
+/**
+ * Kopiert eine bereits versendete E-Mail (raw MIME) in den "Gesendet"-Ordner via IMAP.
+ * Best-effort — Fehler werden zurückgegeben, brechen den Versand nicht ab.
+ */
+function copyToSentFolder(account, rawEmail) {
+  return new Promise((resolve) => {
+    const imap = new Imap({
+      user: account.email,
+      password: account.password,
+      host: IMAP_HOST,
+      port: IMAP_PORT,
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+      connTimeout: 10000,
+      authTimeout: 10000,
+    });
+
+    let resolved = false;
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true;
+        try { imap.end(); } catch { /* ignore */ }
+      }
+    };
+
+    imap.once('error', (err) => {
+      cleanup();
+      resolve({ success: false, error: err.message });
+    });
+
+    imap.once('ready', () => {
+      const tryFolders = [...SENT_FOLDER_NAMES];
+      const tried = [];
+
+      const appendToFolder = (folderName) => {
+        imap.append(rawEmail, { mailbox: folderName, flags: ['\\Seen'] }, (appendErr) => {
+          if (appendErr) {
+            cleanup();
+            resolve({ success: false, error: appendErr.message });
+          } else {
+            cleanup();
+            resolve({ success: true, folder: folderName });
+          }
+        });
+      };
+
+      const tryNextFolder = () => {
+        if (tryFolders.length === 0) {
+          imap.addBox('INBOX.Sent', (addErr) => {
+            if (addErr) {
+              cleanup();
+              resolve({ success: false, error: `No Sent folder found (tried: ${tried.join(', ')})` });
+            } else {
+              appendToFolder('INBOX.Sent');
+            }
+          });
+          return;
+        }
+        const folderName = tryFolders.shift();
+        tried.push(folderName);
+        imap.openBox(folderName, false, (err) => {
+          if (err) tryNextFolder();
+          else appendToFolder(folderName);
+        });
+      };
+
+      tryNextFolder();
+    });
+
+    imap.connect();
+    setTimeout(() => {
+      if (!resolved) {
+        cleanup();
+        resolve({ success: false, error: 'IMAP timeout' });
+      }
+    }, 15000);
+  });
 }
 
 // Email parsen
@@ -424,12 +510,36 @@ app.post('/.netlify/functions/email-send', async (req, res) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ Email sent successfully. MessageId: ${info.messageId}`);
 
+    // In den "Gesendet"-Ordner kopieren (wie bei Universal/Produktion) — best-effort.
+    let sentFolderCopy = false;
+    let sentFolder;
+    try {
+      const rawEmail = await new Promise((resolve, reject) => {
+        new MailComposer(mailOptions).compile().build((err, message) => {
+          if (err) reject(err);
+          else resolve(message);
+        });
+      });
+      const sentResult = await copyToSentFolder(senderAccount, rawEmail);
+      sentFolderCopy = sentResult.success;
+      sentFolder = sentResult.folder;
+      if (sentResult.success) {
+        console.log(`📁 Email in Gesendet-Ordner kopiert: ${sentResult.folder}`);
+      } else {
+        console.warn(`⚠️  Kopie in Gesendet-Ordner fehlgeschlagen: ${sentResult.error}`);
+      }
+    } catch (imapError) {
+      console.warn('⚠️  IMAP-Kopie in Gesendet-Ordner fehlgeschlagen:', imapError.message);
+    }
+
     return res.json({
       success: true,
       messageId: info.messageId,
       testModeActive,
       actualRecipient,
       originalRecipient: to,
+      sentFolderCopy,
+      sentFolder,
     });
   } catch (error) {
     console.error('❌ Email send error:', error);

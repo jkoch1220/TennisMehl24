@@ -8,8 +8,6 @@ import {
   Eye,
   Send,
   Loader2,
-  CheckCircle2,
-  XCircle,
   FlaskConical,
   X,
 } from 'lucide-react';
@@ -23,14 +21,13 @@ import { MahnwesenDokumentTyp, MahnwesenTextVorlagen } from '../../types/mahnwes
 import { TEST_EMAIL_ADDRESS } from '../../types/email';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 import {
-  sendeMahnungPerEmail,
   erstelleMahnungEmailVorschau,
   generiereMahnwesenPDF,
   ladeTextVorlagen,
   bestimmeMahnEmpfaenger,
   mahnTypLabel,
-  SendeMahnungErgebnis,
 } from '../../services/mahnwesenService';
+import MahnVersandDialog, { MahnVersandEntry } from './MahnVersandDialog';
 
 interface MahnungenTabProps {
   debitoren: DebitorView[];
@@ -74,11 +71,9 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
   // Sicherheit zuerst: Testmodus ist Default-AN, echter Versand erst nach bewusstem Umschalten.
   const [testModus, setTestModus] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
-  const [results, setResults] = useState<Record<string, SendeMahnungErgebnis>>({});
-  const [bulkProgress, setBulkProgress] = useState<{ total: number; done: number } | null>(null);
-  const [bulkSummary, setBulkSummary] = useState<{ erfolg: number; fehler: { kunde: string; grund?: string }[] } | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  // Versand-Dialog (Empfänger-Auswahl je Debitor). null = geschlossen.
+  const [versandEntries, setVersandEntries] = useState<MahnVersandEntry[] | null>(null);
 
   // Vorlagen einmal laden und für alle Versände/Vorschauen wiederverwenden.
   const vorlagenRef = useRef<MahnwesenTextVorlagen | null>(null);
@@ -106,13 +101,12 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
     [offene]
   );
 
-  // Versendbar = konkreter Mahn-Typ vorhanden UND (Testmodus ODER Empfänger hinterlegt).
-  const istVersendbar = (e: FaelligEntry) => e.typ !== null && (testModus || !!e.empfaenger);
+  // Versendbar = konkreter Mahn-Typ vorhanden (nicht Inkasso/keine). Die Empfänger-Adresse
+  // wird im Versand-Dialog gewählt (auch aus Kunde/Ansprechpartnern oder manuell), daher
+  // ist hier KEIN hinterlegter Empfänger mehr Voraussetzung für die Auswahl.
+  const istVersendbar = (e: FaelligEntry) => e.typ !== null;
 
-  const versendbareEntries = useMemo(
-    () => faellig.filter((e) => e.typ !== null && (testModus || !!e.empfaenger)),
-    [faellig, testModus]
-  );
+  const versendbareEntries = useMemo(() => faellig.filter((e) => e.typ !== null), [faellig]);
 
   // Gruppierung nach Mahnstufe (0-4) — Eskalations-Pipeline.
   const gruppen = useMemo(() => {
@@ -148,63 +142,28 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
     setSelected(alleVersendbarSelected ? new Set() : new Set(versendbareEntries.map((e) => e.debitor.projektId)));
   };
 
-  // ---- Versand ----
-  const versendeEinzeln = async (entry: FaelligEntry): Promise<SendeMahnungErgebnis> => {
-    const vorlagen = await getVorlagen();
-    setSendingIds((prev) => new Set(prev).add(entry.debitor.projektId));
-    try {
-      const res = await sendeMahnungPerEmail({
-        debitor: entry.debitor,
-        dokumentTyp: entry.typ as MahnwesenDokumentTyp,
-        testModus,
-        vorlagen,
-      });
-      setResults((prev) => ({ ...prev, [entry.debitor.projektId]: res }));
-      return res;
-    } finally {
-      setSendingIds((prev) => {
-        const n = new Set(prev);
-        n.delete(entry.debitor.projektId);
-        return n;
-      });
-    }
-  };
+  // ---- Versand (öffnet den Dialog mit Empfänger-Auswahl) ----
+  const toEntries = (items: FaelligEntry[]): MahnVersandEntry[] =>
+    items
+      .filter((e) => e.typ !== null)
+      .map((e) => ({ debitor: e.debitor, typ: e.typ as MahnwesenDokumentTyp }));
 
-  const handleSendOne = async (entry: FaelligEntry) => {
+  const handleSendOne = (entry: FaelligEntry) => {
     if (!entry.typ) return;
-    if (!testModus && !window.confirm(`${mahnTypLabel(entry.typ)} an ${entry.empfaenger} ECHT versenden?`)) return;
-    const res = await versendeEinzeln(entry);
-    if (res.success && !testModus) onReload?.();
+    setVersandEntries(toEntries([entry]));
   };
 
-  const handleSendSelected = async () => {
-    const entries = versendbareEntries.filter((e) => selected.has(e.debitor.projektId));
+  const handleSendSelected = () => {
+    const entries = toEntries(versendbareEntries.filter((e) => selected.has(e.debitor.projektId)));
     if (entries.length === 0) return;
-    if (!testModus && !window.confirm(`${entries.length} Mahnung(en) ECHT per E-Mail versenden? Mahnstufen werden hochgesetzt.`)) {
-      return;
+    setVersandEntries(entries);
+  };
+
+  const handleVersandFinished = (hatEchtenErfolg: boolean) => {
+    if (hatEchtenErfolg) {
+      setSelected(new Set());
+      onReload?.();
     }
-
-    setBulkSummary(null);
-    setBulkProgress({ total: entries.length, done: 0 });
-    const summary = { erfolg: 0, fehler: [] as { kunde: string; grund?: string }[] };
-
-    // Begrenzte Parallelität (max 4 gleichzeitig), Einzelfehler brechen den Lauf nicht ab.
-    let index = 0;
-    const worker = async () => {
-      while (index < entries.length) {
-        const entry = entries[index++];
-        const res = await versendeEinzeln(entry);
-        if (res.success) summary.erfolg++;
-        else summary.fehler.push({ kunde: entry.debitor.kundenname, grund: res.fehler });
-        setBulkProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(4, entries.length) }, worker));
-
-    setBulkProgress(null);
-    setBulkSummary(summary);
-    setSelected(new Set());
-    if (!testModus && summary.erfolg > 0) onReload?.();
   };
 
   // ---- Vorschau ----
@@ -301,21 +260,19 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                   type="checkbox"
                   checked={alleVersendbarSelected}
                   onChange={toggleSelectAll}
-                  disabled={versendbareEntries.length === 0 || !!bulkProgress}
+                  disabled={versendbareEntries.length === 0}
                   className="w-4 h-4 rounded border-gray-300"
                 />
-                Alle versendbaren auswählen ({versendbareEntries.length})
+                Alle auswählen ({versendbareEntries.length})
               </label>
 
               <button
                 onClick={handleSendSelected}
-                disabled={anzahlSelected === 0 || !!bulkProgress}
+                disabled={anzahlSelected === 0}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
               >
-                {bulkProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {bulkProgress
-                  ? `Sende ${bulkProgress.done} von ${bulkProgress.total}…`
-                  : `Ausgewählte senden (${anzahlSelected})`}
+                <Send className="w-4 h-4" />
+                Ausgewählte senden ({anzahlSelected})
               </button>
 
               {!testModus && (
@@ -324,31 +281,6 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                 </span>
               )}
             </div>
-
-            {/* Bulk-Zusammenfassung */}
-            {bulkSummary && (
-              <div className="mt-3 p-3 rounded-lg bg-white dark:bg-slate-900/40 border border-gray-200 dark:border-slate-700 text-sm">
-                <div className="flex items-center gap-2 font-medium text-gray-800 dark:text-slate-200">
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                  {bulkSummary.erfolg} erfolgreich
-                  {bulkSummary.fehler.length > 0 && (
-                    <>
-                      <XCircle className="w-4 h-4 text-red-600 ml-2" />
-                      {bulkSummary.fehler.length} fehlgeschlagen
-                    </>
-                  )}
-                </div>
-                {bulkSummary.fehler.length > 0 && (
-                  <ul className="mt-1 ml-6 list-disc text-red-600 dark:text-red-400">
-                    {bulkSummary.fehler.map((f, i) => (
-                      <li key={i}>
-                        {f.kunde}: {f.grund || 'Unbekannter Fehler'}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Zeilen */}
@@ -356,8 +288,6 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
             {faellig.map((entry) => {
               const { debitor, empfehlung, empfaenger } = entry;
               const id = debitor.projektId;
-              const sending = sendingIds.has(id);
-              const result = results[id];
               const versendbar = istVersendbar(entry);
               const istInkasso = empfehlung === 'inkasso';
 
@@ -370,7 +300,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                     type="checkbox"
                     checked={selected.has(id)}
                     onChange={() => toggleSelect(id)}
-                    disabled={!versendbar || !!bulkProgress}
+                    disabled={!versendbar}
                     className="w-4 h-4 rounded border-gray-300 disabled:opacity-30"
                   />
 
@@ -406,30 +336,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                           )}
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 font-medium text-red-600 dark:text-red-400">
-                          <MailX className="w-3 h-3" /> keine E-Mail hinterlegt
+                        <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                          <MailX className="w-3 h-3" /> keine Projekt-E-Mail – im Versand wählbar
                         </span>
                       )}
                     </div>
-                    {result && (
-                      <div
-                        className={`mt-0.5 text-xs flex items-center gap-1 ${
-                          result.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        }`}
-                      >
-                        {result.success ? (
-                          <>
-                            <CheckCircle2 className="w-3 h-3" />
-                            Gesendet an {result.empfaenger} ({result.dokumentNummer})
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-3 h-3" />
-                            {result.fehler}
-                          </>
-                        )}
-                      </div>
-                    )}
                   </button>
 
                   <div className="text-right whitespace-nowrap mr-1">
@@ -448,7 +359,6 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                       <>
                         <button
                           onClick={() => handlePreview(entry)}
-                          disabled={sending}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-40"
                           title="Vorschau"
                         >
@@ -456,11 +366,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                         </button>
                         <button
                           onClick={() => handleSendOne(entry)}
-                          disabled={!versendbar || sending || !!bulkProgress}
+                          disabled={!versendbar}
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={versendbar ? 'Senden' : 'Keine E-Mail-Adresse'}
+                          title="Senden"
                         >
-                          {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          <Send className="w-3.5 h-3.5" />
                           Senden
                         </button>
                       </>
@@ -619,6 +529,16 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
             )}
           </div>
         </div>
+      )}
+
+      {/* === Versand-Dialog mit Empfänger-Auswahl === */}
+      {versandEntries && (
+        <MahnVersandDialog
+          entries={versandEntries}
+          testModus={testModus}
+          onClose={() => setVersandEntries(null)}
+          onFinished={handleVersandFinished}
+        />
       )}
     </div>
   );

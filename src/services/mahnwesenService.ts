@@ -33,6 +33,8 @@ import {
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
 import { debitorService } from './debitorService';
+import { projektService } from './projektService';
+import { saisonplanungService } from './saisonplanungService';
 import {
   addDIN5008Header,
   addDIN5008Footer,
@@ -849,6 +851,67 @@ const mahnTypZuMahnstufe = (typ: MahnwesenDokumentTyp): DebitorMahnstufe =>
 export const bestimmeMahnEmpfaenger = (debitor: DebitorView): string | undefined =>
   debitor.rechnungsEmail?.trim() || debitor.kundenEmail?.trim() || undefined;
 
+export interface MahnEmailKandidat {
+  email: string;
+  quelle: string;
+}
+
+/**
+ * Sammelt alle hinterlegten E-Mail-Adressen für einen Debitor aus Projekt + Kunde +
+ * Ansprechpartnern (dedupliziert). Quelle dient als Label im Auswahl-Dropdown.
+ */
+export const ladeMahnEmailKandidaten = async (debitor: DebitorView): Promise<MahnEmailKandidat[]> => {
+  const kandidaten: MahnEmailKandidat[] = [];
+  const add = (email: string | undefined, quelle: string) => {
+    if (email && email.trim()) kandidaten.push({ email: email.trim(), quelle });
+  };
+
+  add(debitor.rechnungsEmail, 'Rechnungs-E-Mail (Projekt)');
+  add(debitor.kundenEmail, 'Kunden-E-Mail (Projekt)');
+
+  try {
+    if (debitor.kundeId) {
+      const daten = await saisonplanungService.loadKundeMitDaten(debitor.kundeId, debitor.saisonjahr);
+      if (daten) {
+        add(daten.kunde.rechnungsEmail, 'Rechnungs-E-Mail (Kunde)');
+        add(daten.kunde.email, 'Kunden-E-Mail');
+        for (const ap of daten.ansprechpartner) {
+          const label = `Ansprechpartner${ap.name ? ': ' + ap.name : ''}${ap.rolle ? ' (' + ap.rolle + ')' : ''}`;
+          add(ap.email, label);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Kunden-/Ansprechpartner-E-Mails konnten nicht geladen werden:', error);
+  }
+
+  // Dedupe nach E-Mail (case-insensitiv), erste Quelle gewinnt.
+  const gesehen = new Set<string>();
+  return kandidaten.filter((k) => {
+    const key = k.email.toLowerCase();
+    if (gesehen.has(key)) return false;
+    gesehen.add(key);
+    return true;
+  });
+};
+
+/**
+ * Hinterlegt die gewählte E-Mail als Rechnungs-E-Mail — am Projekt (sofort wirksam für
+ * den Versand) und am Kunden (für künftige Projekte). Kunden-Update ist best-effort.
+ */
+export const hinterlegeRechnungsEmail = async (debitor: DebitorView, email: string): Promise<void> => {
+  const sauber = email.trim();
+  if (!sauber) return;
+  await projektService.updateProjekt(debitor.projektId, { rechnungsEmail: sauber });
+  try {
+    if (debitor.kundeId) {
+      await saisonplanungService.updateKunde(debitor.kundeId, { rechnungsEmail: sauber });
+    }
+  } catch (error) {
+    console.warn('Rechnungs-E-Mail konnte am Kunden nicht gespeichert werden:', error);
+  }
+};
+
 /**
  * Baut den E-Mail-Text (Anrede + Haupttext + Schlusstext) und den Betreff einer
  * Mahnung aus den fertigen Dokumentdaten. Platzhalter werden ersetzt.
@@ -890,6 +953,8 @@ export interface SendeMahnungParams {
   /** Vorlagen einmal laden und an alle Aufrufe durchreichen (Bulk) */
   vorlagen?: MahnwesenTextVorlagen;
   absender?: string;
+  /** Explizit gewählte Empfänger-Adresse (überschreibt rechnungsEmail/kundenEmail) */
+  empfaengerOverride?: string;
 }
 
 export interface SendeMahnungErgebnis {
@@ -917,7 +982,7 @@ export const sendeMahnungPerEmail = async (
   const absender = params.absender || MAHNWESEN_ABSENDER;
   const typLabel = mahnTypLabel(dokumentTyp);
 
-  const kundenEmpfaenger = bestimmeMahnEmpfaenger(debitor);
+  const kundenEmpfaenger = params.empfaengerOverride?.trim() || bestimmeMahnEmpfaenger(debitor);
 
   // Empfänger-Regel: ohne Kunden-Mail kein echter Versand. Im Testmodus darf ersatzweise
   // an die Testadresse gesendet werden.
