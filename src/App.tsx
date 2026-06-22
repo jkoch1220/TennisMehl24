@@ -2,6 +2,7 @@ import { useEffect, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -318,7 +319,11 @@ function AppContent() {
     return <Login />;
   }
 
-  return <AuthenticatedContent />;
+  return (
+    <NotificationProvider>
+      <AuthenticatedContent />
+    </NotificationProvider>
+  );
 }
 
 // Main App mit Theme und Auth Provider
