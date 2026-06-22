@@ -9,7 +9,7 @@ import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import ThemeToggle from './ThemeToggle';
 import GlobalChatDropdown from './Shared/GlobalChatDropdown';
-import { useShopBestellungenRealtime } from '../hooks/useShopBestellungenRealtime';
+import NotificationBell from './Notifications/NotificationBell';
 import GlobalSearch from './GlobalSearch';
 
 // Erinnerungs-Einstellungen Typ
@@ -62,17 +62,8 @@ const Layout = ({ children }: LayoutProps) => {
   const globalSearchRef = useRef<HTMLDivElement>(null);
   const { user, logout: authLogout, isAdmin, permissionsLoading } = useAuth();
 
-  // Shop-Bestellungen Realtime Notifications
-  const { neueBestellungenCount, resetCounter: resetShopCounter } = useShopBestellungenRealtime({
-    showToasts: true,
-  });
-
-  // Reset Shop-Counter wenn User die Shop-Bestellungen Seite besucht
-  useEffect(() => {
-    if (location.pathname === '/shop-bestellungen') {
-      resetShopCounter();
-    }
-  }, [location.pathname, resetShopCounter]);
+  // Hinweis: Neue Shop-Bestellungen & Anfragen laufen jetzt über den persistenten
+  // Notification-Service (Glocke + Startseite), nicht mehr über flüchtige Toast-Zähler.
 
   // Erinnerungs-Einstellungen
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(() => loadReminderSettings());
@@ -297,8 +288,7 @@ const Layout = ({ children }: LayoutProps) => {
       href: tool.href,
       icon: tool.icon,
       id: tool.id,
-      // Badge für Shop-Bestellungen
-      badge: tool.id === 'shop-bestellungen' ? neueBestellungenCount : 0,
+      badge: 0,
     })),
   ];
 
@@ -363,6 +353,9 @@ const Layout = ({ children }: LayoutProps) => {
                   onClose={() => setGlobalSearchOpen(false)}
                 />
               </div>
+
+              {/* Benachrichtigungen (Glocke) */}
+              <NotificationBell />
 
               {/* Global Chat */}
               <GlobalChatDropdown />
