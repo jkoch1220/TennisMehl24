@@ -34,6 +34,9 @@ import {
   ladeDatenVonStornoRechnung
 } from '../../services/projektabwicklungDokumentService';
 import { Projekt } from '../../types/projekt';
+import { projektService } from '../../services/projektService';
+import { ladeEmailProtokoll } from '../../services/emailSendService';
+import { EmailProtokoll } from '../../types/email';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Artikel } from '../../types/artikel';
 import { UniversalArtikel } from '../../types/universaArtikel';
@@ -169,6 +172,34 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
+  // Versand-Status der Rechnung (Quelle: Projekt-Feld + E-Mail-Protokoll)
+  const [rechnungVersendetAm, setRechnungVersendetAm] = useState<string | undefined>(projekt?.rechnungVersendetAm);
+  const [emailVerlauf, setEmailVerlauf] = useState<EmailProtokoll[]>([]);
+
+  const ladeEmailVerlauf = useCallback(() => {
+    if (projekt?.$id) {
+      ladeEmailProtokoll(projekt.$id).then(setEmailVerlauf).catch(() => {});
+    }
+  }, [projekt?.$id]);
+
+  useEffect(() => {
+    setRechnungVersendetAm(projekt?.rechnungVersendetAm);
+    ladeEmailVerlauf();
+  }, [projekt?.$id, projekt?.rechnungVersendetAm, ladeEmailVerlauf]);
+
+  // Nach erfolgreichem Versand: Verlauf nachladen; bei ECHTEM Versand zusätzlich Status am Projekt setzen.
+  const handleRechnungEmailGesendet = async ({ testModus }: { testModus: boolean; empfaenger: string }) => {
+    ladeEmailVerlauf();
+    if (!testModus && projekt?.$id) {
+      try {
+        const jetzt = new Date().toISOString();
+        await projektService.markiereRechnungVersendet(projekt.$id, jetzt);
+        setRechnungVersendetAm(jetzt);
+      } catch (error) {
+        console.error('Konnte Rechnungs-Versand-Status nicht setzen:', error);
+      }
+    }
+  };
 
   // Storno-Status
   const [showStornoDialog, setShowStornoDialog] = useState(false);
@@ -3214,8 +3245,54 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 dark:bg-red-600 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-500 transition-all shadow-lg dark:shadow-dark-glow-red hover:shadow-xl"
             >
               <Mail className="h-5 w-5" />
-              E-Mail mit PDF öffnen
+              {rechnungVersendetAm ? 'Rechnung erneut per E-Mail senden' : 'E-Mail mit PDF öffnen'}
             </button>
+
+            {/* Versand-Status + E-Mail-Verlauf */}
+            {(rechnungVersendetAm || emailVerlauf.length > 0) && (
+              <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 p-3 space-y-2">
+                {rechnungVersendetAm && (
+                  <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                    Rechnung per E-Mail versendet am{' '}
+                    {new Date(rechnungVersendetAm).toLocaleDateString('de-DE')}
+                  </div>
+                )}
+                {emailVerlauf.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                      E-Mail-Verlauf
+                    </div>
+                    {emailVerlauf.map((e) => (
+                      <div
+                        key={e.$id}
+                        className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-slate-300"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {e.status === 'gesendet' ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          ) : (
+                            <AlertCircle className="h-3 w-3 text-red-600 flex-shrink-0" />
+                          )}
+                          <span className="font-medium whitespace-nowrap">{e.dokumentTyp}</span>
+                          <span className="text-gray-400">·</span>
+                          <span className="truncate">{e.empfaenger}</span>
+                        </span>
+                        <span className="whitespace-nowrap text-gray-400">
+                          {new Date(e.gesendetAm).toLocaleString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Finalisieren */}
             {projekt?.$id && !showFinalConfirm && (
@@ -3317,6 +3394,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           kundennummer={rechnungsDaten.kundennummer}
           projektId={projekt?.$id}
           standardEmpfaenger={projekt?.rechnungsEmail || projekt?.kundenEmail}
+          onSend={handleRechnungEmailGesendet}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);

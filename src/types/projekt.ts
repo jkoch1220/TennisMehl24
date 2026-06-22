@@ -104,7 +104,9 @@ export interface Projekt {
   rechnungId?: string;
   rechnungsnummer?: string;
   rechnungsdatum?: string;
-  
+  /** ISO-Datum, wann die Rechnung per E-Mail an den Kunden versendet wurde (letzter Versand) */
+  rechnungVersendetAm?: string;
+
   bezahltAm?: string;
   
   // Mengen- und Preis-Info (aus Callliste)

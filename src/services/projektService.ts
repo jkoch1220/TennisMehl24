@@ -38,6 +38,7 @@ const PROJEKT_TOP_LEVEL_FELDER = [
   'bezahltAm',
   'rechnungsnummer',
   'rechnungsdatum',
+  'rechnungVersendetAm',
 ] as const;
 
 // Top-Level-Felder, die erst mit Schema-Version 39 (siehe appwriteSetup.ts) angelegt werden.
@@ -48,6 +49,7 @@ const SCHEMA_V39_OPTIONALE_FELDER: ReadonlySet<string> = new Set([
   'bezahltAm',
   'rechnungsnummer',
   'rechnungsdatum',
+  'rechnungVersendetAm',
 ]);
 
 function extrahiereUnbekanntesAttribut(message: string): string | null {
@@ -547,6 +549,23 @@ class ProjektService {
       return parseProjektDocument(response);
     } catch (error) {
       handleServiceError(error, 'Setzen der Rechnungsdaten');
+    }
+  }
+
+  /**
+   * Markiert eine Rechnung als per E-Mail versendet (setzt rechnungVersendetAm).
+   * Schreibt NUR das Top-Level-Feld (kein data-Blob → keine 10.000-Zeichen-Falle).
+   */
+  async markiereRechnungVersendet(projektId: string, versendetAm?: string): Promise<Projekt> {
+    try {
+      const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
+        rechnungVersendetAm: versendetAm ?? new Date().toISOString(),
+        geaendertAm: new Date().toISOString(),
+      });
+      this.invalidateCache();
+      return parseProjektDocument(response);
+    } catch (error) {
+      handleServiceError(error, 'Markieren der Rechnung als versendet');
     }
   }
 

@@ -32,7 +32,7 @@ interface EmailFormularProps {
   projektId?: string;
   pdfVersion?: number;
   onClose: () => void;
-  onSend?: () => void;
+  onSend?: (info: { testModus: boolean; empfaenger: string }) => void;
 }
 
 type SendeStatus = 'bereit' | 'laden' | 'senden' | 'erfolg' | 'fehler';
@@ -210,7 +210,7 @@ const EmailFormular = ({
         setErfolgsMeldung(`E-Mail erfolgreich an ${ziel} gesendet!`);
 
         if (onSend) {
-          onSend();
+          onSend({ testModus, empfaenger: empfaenger.trim() });
         }
 
         // Nach 2 Sekunden schließen

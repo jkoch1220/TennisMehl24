@@ -75,7 +75,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '40'; // Notifications: persistente Benachrichtigungen (Glocke + Startseite)
+const APPWRITE_SETUP_VERSION = '41'; // rechnungVersendetAm: Status "Rechnung per E-Mail versendet" am Projekt
 
 type FieldConfig = {
   key: string;
@@ -169,6 +169,7 @@ const projekteFields: FieldConfig[] = [
   { key: 'bezahltAm', type: 'string', size: 50, required: false },
   { key: 'rechnungsnummer', type: 'string', size: 100, required: false },
   { key: 'rechnungsdatum', type: 'string', size: 50, required: false },
+  { key: 'rechnungVersendetAm', type: 'string', size: 50, required: false },
   { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Projektabwicklungsdaten
 ];
 
