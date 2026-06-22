@@ -45,6 +45,7 @@ import {
   buildPageTree,
   buildBreadcrumbs,
   extractToc,
+  injectHeadingIds,
   getRecentViews,
   addRecentView,
   toggleFavorite,
@@ -85,6 +86,7 @@ const Wiki = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showToc, setShowToc] = useState(true);
   const [toc, setToc] = useState<WikiTocItem[]>([]);
+  const [activeHeading, setActiveHeading] = useState<string>('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
@@ -97,6 +99,7 @@ const Wiki = () => {
   // Refs
   const contentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   // === DATA LOADING ===
   const loadPages = useCallback(async () => {
@@ -159,6 +162,58 @@ const Wiki = () => {
     if (!selectedPage?.$id) return [];
     return buildBreadcrumbs(selectedPage.$id, pages);
   }, [selectedPage, pages]);
+
+  // Inhalt mit Überschriften-IDs für TOC-Sprungmarken & Scroll-Spy
+  const renderedContent = useMemo(
+    () => injectHeadingIds(selectedPage?.content || ''),
+    [selectedPage?.content]
+  );
+
+  // Scroll-Spy: aktiven TOC-Eintrag anhand der sichtbaren Überschrift hervorheben
+  useEffect(() => {
+    observerRef.current?.disconnect();
+    if (isEditing || !selectedPage || toc.length === 0) {
+      setActiveHeading('');
+      return;
+    }
+    const root = contentRef.current;
+    if (!root) return;
+
+    const timer = setTimeout(() => {
+      const headings = toc
+        .map((t) => root.querySelector<HTMLElement>(`#${t.id}`))
+        .filter((el): el is HTMLElement => !!el);
+      if (headings.length === 0) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          if (visible.length > 0) setActiveHeading(visible[0].target.id);
+        },
+        { root, rootMargin: '0px 0px -70% 0px', threshold: 0 }
+      );
+      headings.forEach((h) => observer.observe(h));
+      setActiveHeading(headings[0].id);
+      observerRef.current = observer;
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      observerRef.current?.disconnect();
+    };
+  }, [selectedPage, toc, isEditing]);
+
+  // Sanftes Scrollen zu einer Überschrift bei TOC-Klick
+  const handleTocClick = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    const el = contentRef.current?.querySelector<HTMLElement>(`#${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveHeading(id);
+    }
+  };
 
   const recentViews = useMemo(() => getRecentViews(), [selectedPage]);
 
@@ -493,14 +548,40 @@ const Wiki = () => {
     );
   };
 
-  // === LOADING STATE ===
+  // === LOADING STATE (Skelett) ===
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-bg">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-dark-textMuted">Wiki wird geladen...</p>
-        </div>
+      <div className="flex h-[calc(100vh-64px)] bg-gray-50 dark:bg-dark-bg overflow-hidden">
+        {/* Sidebar-Skelett */}
+        <aside className="hidden lg:flex w-80 flex-col bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-dark-border p-4 gap-3">
+          <div className="h-8 w-32 bg-gray-200 dark:bg-slate-700 rounded-lg animate-pulse" />
+          <div className="h-10 w-full bg-gray-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+          <div className="mt-4 space-y-2">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-8 bg-gray-100 dark:bg-slate-800 rounded-lg animate-pulse"
+                style={{ width: `${70 + (i % 3) * 10}%` }}
+              />
+            ))}
+          </div>
+        </aside>
+        {/* Inhalt-Skelett */}
+        <main className="flex-1 p-8 lg:p-12">
+          <div className="max-w-[760px] mx-auto space-y-6">
+            <div className="h-10 w-2/3 bg-gray-200 dark:bg-slate-700 rounded-lg animate-pulse" />
+            <div className="h-4 w-1/3 bg-gray-100 dark:bg-slate-800 rounded animate-pulse" />
+            <div className="space-y-3 pt-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-4 bg-gray-100 dark:bg-slate-800 rounded animate-pulse"
+                  style={{ width: `${85 - (i % 4) * 10}%` }}
+                />
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -990,7 +1071,7 @@ const Wiki = () => {
                 </div>
               ) : (
                 /* View Mode */
-                <article>
+                <article className="max-w-[760px] mx-auto">
                   {/* Page Header */}
                   <header className="mb-8">
                     <div className="flex items-start gap-4 mb-4">
@@ -1033,18 +1114,23 @@ const Wiki = () => {
 
                   {/* Content */}
                   <div
-                    className="prose prose-lg dark:prose-invert max-w-none
+                    className="wiki-content prose prose-lg dark:prose-invert max-w-none
                              prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-dark-text
-                             prose-p:text-gray-700 dark:prose-p:text-dark-text
+                             prose-headings:scroll-mt-24
+                             prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-10 prose-h2:pb-1
+                             prose-h2:border-b prose-h2:border-gray-100 dark:prose-h2:border-slate-800
+                             prose-h3:text-xl
+                             prose-p:text-gray-700 dark:prose-p:text-dark-text prose-p:leading-relaxed
                              prose-a:text-red-600 dark:prose-a:text-red-400 prose-a:no-underline hover:prose-a:underline
                              prose-strong:text-gray-900 dark:prose-strong:text-dark-text
                              prose-ul:text-gray-700 dark:prose-ul:text-dark-text
                              prose-ol:text-gray-700 dark:prose-ol:text-dark-text
-                             prose-li:text-gray-700 dark:prose-li:text-dark-text
+                             prose-li:text-gray-700 dark:prose-li:text-dark-text prose-li:my-1
+                             prose-blockquote:border-l-4 prose-blockquote:border-red-400 prose-blockquote:text-gray-600 dark:prose-blockquote:text-dark-textMuted
                              prose-table:border-collapse prose-th:bg-gray-100 dark:prose-th:bg-slate-800 prose-th:px-4 prose-th:py-2
                              prose-td:px-4 prose-td:py-2 prose-td:border prose-td:border-gray-200 dark:prose-td:border-slate-700
                              prose-img:rounded-lg prose-img:shadow-lg"
-                    dangerouslySetInnerHTML={{ __html: selectedPage?.content || '' }}
+                    dangerouslySetInnerHTML={{ __html: renderedContent }}
                   />
 
                   {/* Attached Files Section */}
@@ -1069,21 +1155,29 @@ const Wiki = () => {
           {/* Table of Contents (Desktop) */}
           {showToc && selectedPage && !isEditing && toc.length > 0 && (
             <aside className="hidden lg:block w-64 flex-shrink-0 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface overflow-y-auto">
-              <div className="p-4">
+              <div className="sticky top-0 p-4">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider mb-3">
                   Auf dieser Seite
                 </h3>
-                <nav className="space-y-1">
-                  {toc.map((item) => (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      className="block text-sm text-gray-600 hover:text-red-600 dark:text-dark-textMuted dark:hover:text-red-400 transition-colors"
-                      style={{ paddingLeft: `${(item.level - 1) * 12}px` }}
-                    >
-                      {item.text}
-                    </a>
-                  ))}
+                <nav className="space-y-0.5 border-l border-gray-200 dark:border-slate-700">
+                  {toc.map((item) => {
+                    const isActive = activeHeading === item.id;
+                    return (
+                      <a
+                        key={item.id}
+                        href={`#${item.id}`}
+                        onClick={(e) => handleTocClick(e, item.id)}
+                        className={`block text-sm py-1 -ml-px border-l-2 transition-colors ${
+                          isActive
+                            ? 'border-red-500 text-red-600 dark:text-red-400 font-medium'
+                            : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-dark-textMuted dark:hover:text-dark-text'
+                        }`}
+                        style={{ paddingLeft: `${12 + (item.level - 1) * 12}px` }}
+                      >
+                        {item.text}
+                      </a>
+                    );
+                  })}
                 </nav>
               </div>
             </aside>

@@ -71,6 +71,20 @@ export const extractToc = (html: string): WikiTocItem[] => {
   return toc;
 };
 
+// IDs in Überschriften injizieren, damit TOC-Sprungmarken & Scroll-Spy funktionieren.
+// Gleiche Reihenfolge/Indexierung wie extractToc → ids passen 1:1 zum Inhaltsverzeichnis.
+export const injectHeadingIds = (html: string): string => {
+  if (!html) return html;
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const headings = div.querySelectorAll('h1, h2, h3, h4');
+  headings.forEach((heading, index) => {
+    heading.id = `heading-${index}`;
+    heading.setAttribute('data-toc-id', `heading-${index}`);
+  });
+  return div.innerHTML;
+};
+
 // Seiten in Baumstruktur konvertieren
 export const buildPageTree = (pages: WikiPage[]): WikiPage[] => {
   const pageMap = new Map<string, WikiPage>();
