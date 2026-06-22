@@ -23,8 +23,8 @@ import {
   STANDARD_MAHNWESEN_VORLAGEN
 } from '../types/mahnwesen';
 import { DebitorView, DebitorMahnstufe } from '../types/debitor';
-import { getStammdatenOderDefault } from './stammdatenService';
-import { Stammdaten } from '../types/stammdaten';
+import { getStammdatenOderDefault, ladeStammdaten, speichereStammdaten } from './stammdatenService';
+import { Stammdaten, StammdatenInput } from '../types/stammdaten';
 import {
   sendeEmailMitPdf,
   wrapInEmailTemplate,
@@ -143,22 +143,15 @@ export const generiereNaechsteDokumentNummer = async (
 // =====================================================
 
 /**
- * Lädt die konfigurierbaren Textvorlagen aus den Stammdaten
- * Falls keine gespeichert sind, werden die Standardvorlagen zurückgegeben
+ * Lädt die konfigurierbaren Textvorlagen aus dem Stammdaten-Dokument
+ * (Feld `mahnwesenVorlagen`, analog zu `emailTemplates`).
+ * Falls keine gespeichert sind, werden die Standardvorlagen zurückgegeben.
  */
 export const ladeTextVorlagen = async (): Promise<MahnwesenTextVorlagen> => {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTIONS.STAMMDATEN,
-      [Query.equal('typ', 'mahnwesen_vorlagen'), Query.limit(1)]
-    );
-
-    if (response.documents.length > 0 && response.documents[0].data) {
-      const data = response.documents[0].data;
-      if (typeof data === 'string') {
-        return JSON.parse(data) as MahnwesenTextVorlagen;
-      }
+    const stammdaten = await ladeStammdaten();
+    if (stammdaten?.mahnwesenVorlagen) {
+      return JSON.parse(stammdaten.mahnwesenVorlagen) as MahnwesenTextVorlagen;
     }
   } catch (error) {
     console.warn('Fehler beim Laden der Mahnwesen-Vorlagen, verwende Standard:', error);
@@ -168,42 +161,12 @@ export const ladeTextVorlagen = async (): Promise<MahnwesenTextVorlagen> => {
 };
 
 /**
- * Speichert die Textvorlagen in den Stammdaten
+ * Speichert die Textvorlagen als Feld `mahnwesenVorlagen` am Stammdaten-Dokument.
+ * Partielles Merge-Update (Appwrite updateDocument lässt andere Felder unangetastet).
  */
 export const speichereTextVorlagen = async (vorlagen: MahnwesenTextVorlagen): Promise<void> => {
   try {
-    // Prüfe ob bereits ein Eintrag existiert
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTIONS.STAMMDATEN,
-      [Query.equal('typ', 'mahnwesen_vorlagen'), Query.limit(1)]
-    );
-
-    const dokument = {
-      typ: 'mahnwesen_vorlagen',
-      data: JSON.stringify(vorlagen),
-      geaendertAm: new Date().toISOString()
-    };
-
-    if (response.documents.length > 0) {
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.STAMMDATEN,
-        response.documents[0].$id,
-        dokument
-      );
-    } else {
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.STAMMDATEN,
-        ID.unique(),
-        {
-          ...dokument,
-          erstelltAm: new Date().toISOString()
-        }
-      );
-    }
-
+    await speichereStammdaten({ mahnwesenVorlagen: JSON.stringify(vorlagen) } as StammdatenInput);
     console.log('✅ Mahnwesen-Textvorlagen gespeichert');
   } catch (error) {
     console.error('Fehler beim Speichern der Textvorlagen:', error);

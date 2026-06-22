@@ -39,6 +39,9 @@ export interface Stammdaten {
   // E-Mail-Templates (als JSON-String gespeichert)
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
 
+  // Mahnwesen-Textvorlagen (als JSON-String gespeichert)
+  mahnwesenVorlagen?: string; // JSON von MahnwesenTextVorlagen
+
   // Saison-Einstellungen
   // Die Saison geht von November bis April (z.B. Nov 2025 - Apr 2026 = Saison 2026)
   aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
@@ -85,6 +88,7 @@ export interface StammdatenInput {
   werkPlz?: string;
   werkOrt?: string;
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
+  mahnwesenVorlagen?: string; // JSON von MahnwesenTextVorlagen
   aktuelleSaison?: number;
   saisonStartMonat?: number;
   // Liefersaison für PDF-Dokumente

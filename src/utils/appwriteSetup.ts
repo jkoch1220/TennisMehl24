@@ -75,7 +75,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '41'; // rechnungVersendetAm: Status "Rechnung per E-Mail versendet" am Projekt
+const APPWRITE_SETUP_VERSION = '42'; // stammdaten.mahnwesenVorlagen + emailTemplates als Attribute
 
 type FieldConfig = {
   key: string;
@@ -260,6 +260,10 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'liefersaisonStartKW', type: 'integer' },
   { key: 'liefersaisonEndKW', type: 'integer' },
   { key: 'liefersaisonJahr', type: 'integer' },
+
+  // E-Mail-Templates + Mahnwesen-Vorlagen (JSON-Strings)
+  { key: 'emailTemplates', type: 'string', size: 50000, required: false },
+  { key: 'mahnwesenVorlagen', type: 'string', size: 20000, required: false },
 
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },
