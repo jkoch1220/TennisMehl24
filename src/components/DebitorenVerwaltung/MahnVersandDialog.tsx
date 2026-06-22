@@ -43,6 +43,13 @@ interface RowState {
 
 const istValideEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
+// Felder enthalten oft mehrere Adressen ("a@x.de; b@y.de") → einzeln aufsplitten.
+const splitEmails = (raw?: string): string[] =>
+  (raw || '')
+    .split(/[;,]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
 // Begrenzte Parallelität
 async function runPool<T>(items: T[], worker: (item: T, index: number) => Promise<void>, limit = 5) {
   let index = 0;
@@ -59,9 +66,9 @@ const MahnVersandDialog = ({ entries, testModus, onClose, onFinished }: MahnVers
   const [rows, setRows] = useState<RowState[]>(() =>
     entries.map((e) => {
       const initial: MahnEmailKandidat[] = [];
-      if (e.debitor.rechnungsEmail?.trim()) initial.push({ email: e.debitor.rechnungsEmail.trim(), quelle: 'Rechnungs-E-Mail (Projekt)' });
-      if (e.debitor.kundenEmail?.trim()) initial.push({ email: e.debitor.kundenEmail.trim(), quelle: 'Kunden-E-Mail (Projekt)' });
-      const standard = e.debitor.rechnungsEmail?.trim() || e.debitor.kundenEmail?.trim() || '';
+      for (const em of splitEmails(e.debitor.rechnungsEmail)) initial.push({ email: em, quelle: 'Rechnungs-E-Mail (Projekt)' });
+      for (const em of splitEmails(e.debitor.kundenEmail)) initial.push({ email: em, quelle: 'Kunden-E-Mail (Projekt)' });
+      const standard = initial[0]?.email || '';
       return {
         debitor: e.debitor,
         typ: e.typ,
