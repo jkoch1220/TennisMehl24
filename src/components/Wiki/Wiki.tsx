@@ -527,9 +527,18 @@ const Wiki = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const getCategoryColor = (category?: WikiCategory) => {
-    if (!category) return 'gray';
-    return WIKI_CATEGORIES[category]?.color || 'gray';
+  // Vollständige (statische) Badge-Klassen je Kategorie – dynamische Klassen wie
+  // `bg-${color}-100` kann Tailwind nicht erzeugen und würden unsichtbar bleiben.
+  const getCategoryBadgeClass = (category?: WikiCategory): string => {
+    const map: Record<string, string> = {
+      prozess: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+      anleitung: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
+      richtlinie: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200',
+      vorlage: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200',
+      dokumentation: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-200',
+      sonstiges: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+    };
+    return (category && map[category]) || map.sonstiges;
   };
 
   // === LOADING STATE (Skelett) ===
@@ -628,7 +637,7 @@ const Wiki = () => {
           {/* Favorites */}
           {favoritePages.length > 0 && (
               <div className="p-2 border-b border-gray-200 dark:border-dark-border">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                   <Star className="w-3 h-3" /> Favoriten
                 </div>
                 {favoritePages.map(page => (
@@ -651,7 +660,7 @@ const Wiki = () => {
             {/* Recent */}
             {recentViews.length > 0 && (
               <div className="p-2 border-b border-gray-200 dark:border-dark-border">
-                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                   <Clock className="w-3 h-3" /> Zuletzt besucht
                 </div>
                 {recentViews.slice(0, 5).map(view => (
@@ -674,7 +683,7 @@ const Wiki = () => {
         {/* Page Tree */}
         <div className="flex-1 overflow-y-auto p-2">
           <div className="flex items-center justify-between px-3 py-1.5 mb-1">
-            <span className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
               Seiten
             </span>
             <div className="flex gap-1">
@@ -696,7 +705,7 @@ const Wiki = () => {
           {pageTree.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-500 dark:text-dark-textMuted">Noch keine Seiten</p>
+              <p className="text-sm text-gray-500 dark:text-slate-300">Noch keine Seiten</p>
               <button
                 onClick={() => handleStartCreate()}
                 className="mt-3 text-sm text-red-600 hover:text-red-700 font-medium"
@@ -762,7 +771,7 @@ const Wiki = () => {
             <nav className="flex items-center gap-1 text-sm overflow-x-auto flex-1 min-w-0">
               <button
                 onClick={() => setSelectedPage(null)}
-                className="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:text-dark-textMuted dark:hover:text-dark-text whitespace-nowrap"
+                className="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:text-slate-300 dark:hover:text-dark-text whitespace-nowrap"
               >
                 <Home className="w-4 h-4" />
               </button>
@@ -774,7 +783,7 @@ const Wiki = () => {
                     className={`whitespace-nowrap ${
                       i === breadcrumbs.length - 1
                         ? 'text-gray-900 dark:text-dark-text font-medium'
-                        : 'text-gray-500 hover:text-gray-700 dark:text-dark-textMuted dark:hover:text-dark-text'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-slate-300 dark:hover:text-dark-text'
                     }`}
                   >
                     {crumb.title}
@@ -880,7 +889,7 @@ const Wiki = () => {
                 <div className="text-center py-16">
                   <BookOpen className="w-20 h-20 text-gray-300 dark:text-gray-600 mx-auto mb-6" />
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-dark-text mb-2">TennisMehl Wiki</h2>
-                  <p className="text-gray-500 dark:text-dark-textMuted mb-8 max-w-md mx-auto">
+                  <p className="text-gray-500 dark:text-slate-300 mb-8 max-w-md mx-auto">
                     Dokumentiere alle Prozesse, Anleitungen und Richtlinien deines Unternehmens an einem zentralen Ort.
                   </p>
                   <button
@@ -932,14 +941,14 @@ const Wiki = () => {
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
                     placeholder="Kurze Beschreibung (optional)"
-                    className="w-full text-lg bg-transparent border-0 focus:ring-0 text-gray-500 dark:text-dark-textMuted placeholder-gray-300 dark:placeholder-gray-600"
+                    className="w-full text-lg bg-transparent border-0 focus:ring-0 text-gray-500 dark:text-slate-300 placeholder-gray-300 dark:placeholder-gray-600"
                   />
 
                   {/* Meta: Category, Parent, Tags */}
                   <div className="flex flex-wrap gap-4 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-xl">
                     {/* Category */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-dark-textMuted mb-1">Kategorie</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-300 mb-1">Kategorie</label>
                       <select
                         value={formCategory}
                         onChange={(e) => setFormCategory(e.target.value as WikiCategory)}
@@ -953,7 +962,7 @@ const Wiki = () => {
 
                     {/* Parent */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-dark-textMuted mb-1">Übergeordnete Seite</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-300 mb-1">Übergeordnete Seite</label>
                       <select
                         value={formParentId || ''}
                         onChange={(e) => setFormParentId(e.target.value || undefined)}
@@ -1076,7 +1085,7 @@ const Wiki = () => {
                           {selectedPage?.title}
                         </h1>
                         {selectedPage?.description && (
-                          <p className="text-lg text-gray-500 dark:text-dark-textMuted">
+                          <p className="text-lg text-gray-500 dark:text-slate-300">
                             {selectedPage.description}
                           </p>
                         )}
@@ -1084,15 +1093,15 @@ const Wiki = () => {
                     </div>
 
                     {/* Meta */}
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-dark-textMuted">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-slate-300">
                       {selectedPage?.category && (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 bg-${getCategoryColor(selectedPage.category)}-100 dark:bg-${getCategoryColor(selectedPage.category)}-900/30 text-${getCategoryColor(selectedPage.category)}-700 dark:text-${getCategoryColor(selectedPage.category)}-300 rounded-full`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${getCategoryBadgeClass(selectedPage.category)}`}>
                           {WIKI_CATEGORIES[selectedPage.category]?.icon}
                           {WIKI_CATEGORIES[selectedPage.category]?.label}
                         </span>
                       )}
                       {selectedPage?.tags?.map(tag => (
-                        <span key={tag} className="inline-flex items-center gap-1 text-gray-600 dark:text-dark-textMuted">
+                        <span key={tag} className="inline-flex items-center gap-1 text-gray-600 dark:text-slate-300">
                           <Hash className="w-3 h-3" />{tag}
                         </span>
                       ))}
@@ -1152,7 +1161,7 @@ const Wiki = () => {
           {showToc && selectedPage && !isEditing && toc.length > 0 && (
             <aside className="hidden lg:block w-64 flex-shrink-0 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-surface overflow-y-auto">
               <div className="sticky top-0 p-4">
-                <h3 className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider mb-3">
                   Auf dieser Seite
                 </h3>
                 <nav className="space-y-0.5 border-l border-gray-200 dark:border-slate-700">
@@ -1166,7 +1175,7 @@ const Wiki = () => {
                         className={`block text-sm py-1 -ml-px border-l-2 transition-colors ${
                           isActive
                             ? 'border-red-500 text-red-600 dark:text-red-400 font-medium'
-                            : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-dark-textMuted dark:hover:text-dark-text'
+                            : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-slate-300 dark:hover:text-dark-text'
                         }`}
                         style={{ paddingLeft: `${12 + (item.level - 1) * 12}px` }}
                       >
@@ -1199,7 +1208,7 @@ const Wiki = () => {
                 </div>
 
                 {files.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-dark-textMuted text-center py-8">
+                  <p className="text-sm text-gray-500 dark:text-slate-300 text-center py-8">
                     Keine Dateien
                   </p>
                 ) : (
@@ -1222,7 +1231,7 @@ const Wiki = () => {
                           <p className="text-sm font-medium text-gray-900 dark:text-dark-text truncate">
                             {file.fileName}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                          <p className="text-xs text-gray-500 dark:text-slate-300">
                             {formatFileSize(file.size)}
                           </p>
                         </div>
@@ -1274,7 +1283,7 @@ const Wiki = () => {
                 >
                   <div className="text-3xl mb-2">{template.icon}</div>
                   <h3 className="font-semibold text-gray-900 dark:text-dark-text mb-1">{template.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-dark-textMuted">{template.description}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-300">{template.description}</p>
                 </button>
               ))}
             </div>

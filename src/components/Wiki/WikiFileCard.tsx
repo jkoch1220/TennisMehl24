@@ -187,7 +187,7 @@ const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, onInsert, c
             <p className="text-sm font-medium text-gray-900 dark:text-dark-text truncate">
               {file.fileName}
             </p>
-            <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+            <p className="text-xs text-gray-500 dark:text-slate-300">
               {formatFileSize(file.size)} {file.uploadTime && `• ${formatDate(file.uploadTime)}`}
             </p>
           </div>
@@ -325,7 +325,7 @@ const WikiFileCard: React.FC<WikiFileCardProps> = ({ file, onDelete, onInsert, c
           <h4 className="text-sm font-semibold text-gray-900 dark:text-dark-text truncate mb-1" title={file.fileName}>
             {file.fileName}
           </h4>
-          <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+          <p className="text-xs text-gray-500 dark:text-slate-300">
             {file.uploadTime ? formatDate(file.uploadTime) : 'Hochgeladen'}
           </p>
         </div>

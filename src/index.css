@@ -2,6 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============ Wiki: kontraststarke Lesbarkeit im Dark Mode ============ */
+/* Inhalt (View) und Editor-Fläche sollen klaren, hellen Text zeigen. */
+.dark .wiki-content,
+.dark .wiki-editor-content {
+  color: #e2e8f0; /* slate-200 als Basistext */
+}
+.dark .wiki-content p,
+.dark .wiki-content li,
+.dark .wiki-editor-content p,
+.dark .wiki-editor-content li {
+  color: #e2e8f0;
+}
+.dark .wiki-content strong,
+.dark .wiki-editor-content strong {
+  color: #f8fafc; /* slate-50 */
+}
+/* Inline-Code gut sichtbar */
+.dark .wiki-content :not(pre) > code,
+.dark .wiki-editor-content :not(pre) > code {
+  color: #fca5a5; /* red-300 */
+  background: rgba(148, 163, 184, 0.16);
+  padding: 0.1em 0.36em;
+  border-radius: 0.35em;
+}
+/* Tabellen */
+.dark .wiki-content th,
+.dark .wiki-editor-content th {
+  color: #f1f5f9;
+}
+.dark .wiki-content td,
+.dark .wiki-editor-content td {
+  color: #e2e8f0;
+}
+/* Links */
+.dark .wiki-content a,
+.dark .wiki-editor-content a {
+  color: #f87171; /* red-400 */
+}
+/* Zitate etwas heller als Standard-Muted */
+.dark .wiki-content blockquote,
+.dark .wiki-editor-content blockquote {
+  color: #cbd5e1; /* slate-300 */
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

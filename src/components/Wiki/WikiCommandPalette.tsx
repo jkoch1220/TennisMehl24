@@ -189,7 +189,7 @@ const WikiCommandPalette = ({
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 categoryFilter === 'all'
                   ? 'bg-red-600 text-white'
-                  : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-dark-textMuted hover:bg-gray-300 dark:hover:bg-slate-600'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
               }`}
             >
               Alle
@@ -201,7 +201,7 @@ const WikiCommandPalette = ({
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                   categoryFilter === key
                     ? 'bg-red-600 text-white'
-                    : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-dark-textMuted hover:bg-gray-300 dark:hover:bg-slate-600'
+                    : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
                 }`}
               >
                 {icon} {label}
@@ -213,7 +213,7 @@ const WikiCommandPalette = ({
               className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 onlyFavorites
                   ? 'bg-amber-500 text-white'
-                  : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-dark-textMuted hover:bg-gray-300 dark:hover:bg-slate-600'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-600'
               }`}
             >
               <Star className="w-3 h-3" /> Favoriten
@@ -226,7 +226,7 @@ const WikiCommandPalette = ({
           {flatResults.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <FileText className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-500 dark:text-dark-textMuted">
+              <p className="text-sm text-gray-500 dark:text-slate-300">
                 {debouncedQuery.trim() ? 'Keine Treffer gefunden' : 'Tippe, um zu suchen…'}
               </p>
             </div>
@@ -261,13 +261,13 @@ const WikiCommandPalette = ({
                               <Star className="w-3 h-3 text-amber-500 fill-amber-500 flex-shrink-0" />
                             )}
                             {result.page.category && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-dark-textMuted flex-shrink-0">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex-shrink-0">
                                 {WIKI_CATEGORIES[result.page.category]?.label}
                               </span>
                             )}
                           </div>
                           {result.snippet && (
-                            <p className="text-xs text-gray-500 dark:text-dark-textMuted truncate mt-0.5">
+                            <p className="text-xs text-gray-500 dark:text-slate-300 truncate mt-0.5">
                               <Highlighted text={result.snippet} query={debouncedQuery} />
                             </p>
                           )}
@@ -310,7 +310,7 @@ const WikiCommandPalette = ({
                           <div className="text-sm font-medium text-gray-900 dark:text-dark-text truncate">
                             <Highlighted text={result.file!.fileName} query={debouncedQuery} />
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-dark-textMuted truncate mt-0.5">
+                          <p className="text-xs text-gray-500 dark:text-slate-300 truncate mt-0.5">
                             in {result.page.icon} {result.page.title}
                           </p>
                         </div>

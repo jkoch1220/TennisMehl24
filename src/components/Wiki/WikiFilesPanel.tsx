@@ -157,7 +157,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
             <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text">
               Dateianhänge
             </h3>
-            <p className="text-sm text-gray-500 dark:text-dark-textMuted">
+            <p className="text-sm text-gray-500 dark:text-slate-300">
               {files.length} {files.length === 1 ? 'Datei' : 'Dateien'}
             </p>
           </div>
@@ -172,7 +172,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
                 className={`p-2 rounded-md transition-all ${
                   viewMode === 'grid'
                     ? 'bg-white dark:bg-slate-700 shadow-sm text-red-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 <Grid3X3 className="w-4 h-4" />
@@ -182,7 +182,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
                 className={`p-2 rounded-md transition-all ${
                   viewMode === 'list'
                     ? 'bg-white dark:bg-slate-700 shadow-sm text-red-600'
-                    : 'text-gray-500 hover:text-gray-700'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 <List className="w-4 h-4" />
@@ -222,7 +222,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
             <p className="text-xl font-bold text-gray-900 dark:text-dark-text mb-1">
               Dateien hier ablegen
             </p>
-            <p className="text-gray-500 dark:text-dark-textMuted">
+            <p className="text-gray-500 dark:text-slate-300">
               PDF, Word, Excel, Bilder und mehr
             </p>
           </div>
@@ -250,7 +250,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
             <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Keine Dateien angehängt
             </p>
-            <p className="text-gray-500 dark:text-dark-textMuted mb-4 max-w-sm mx-auto">
+            <p className="text-gray-500 dark:text-slate-300 mb-4 max-w-sm mx-auto">
               Ziehe Dateien hierher oder klicke zum Hochladen.
               <br />
               <span className="text-xs">PDF, Word, Excel, Bilder und mehr</span>
@@ -294,7 +294,7 @@ const WikiFilesPanel: React.FC<WikiFilesPanelProps> = ({
               <div key={group}>
                 <div className="flex items-center gap-2 mb-3">
                   <GroupIcon className="w-4 h-4 text-gray-400" />
-                  <h4 className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wider">
                     {group}
                   </h4>
                   <span className="text-xs text-gray-400">({groupFiles.length})</span>

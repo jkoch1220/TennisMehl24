@@ -46,14 +46,14 @@ const SlashMenu = ({ items, activeIndex, position, onSelect, onHover }: SlashMen
               className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border ${
                 isActive
                   ? 'border-red-200 dark:border-red-800 bg-white dark:bg-slate-800 text-red-600 dark:text-red-400'
-                  : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-dark-textMuted'
+                  : 'border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-gray-500 dark:text-slate-300'
               }`}
             >
               <Icon className="w-4 h-4" />
             </span>
             <div className="min-w-0">
               <div className="text-sm font-medium text-gray-900 dark:text-dark-text">{item.title}</div>
-              <div className="text-xs text-gray-500 dark:text-dark-textMuted truncate">
+              <div className="text-xs text-gray-500 dark:text-slate-300 truncate">
                 {item.description}
               </div>
             </div>
