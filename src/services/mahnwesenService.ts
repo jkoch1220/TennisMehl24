@@ -307,7 +307,9 @@ export const generiereMahnwesenPDF = async (
   }
 
   // === BETREFF ===
-  yPos = 95;
+  // Unter den Info-Block setzen (der reicht bis ~y=95), damit der Titel nie mit
+  // Kundennummer/Rechnungsnummer rechts überlappt.
+  yPos = 112;
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
 
@@ -320,7 +322,11 @@ export const generiereMahnwesenPDF = async (
     doc.setTextColor(0, 0, 0);
   }
 
-  doc.text(ersetzePlatzhalter(daten.betreff, daten), 25, yPos);
+  // Im PDF nur den kurzen Titel zeigen (ohne "– Rechnung <Nr.>"); die Rechnungsnummer
+  // steht rechts im Info-Block und in der Referenzzeile darunter. Der lange Betreff
+  // bleibt der E-Mail vorbehalten.
+  const pdfTitel = ersetzePlatzhalter(daten.betreff, daten).split(' – Rechnung')[0];
+  doc.text(pdfTitel, 25, yPos);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'normal');
 
