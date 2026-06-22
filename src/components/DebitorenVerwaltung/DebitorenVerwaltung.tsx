@@ -12,6 +12,7 @@ import {
   Settings,
   Landmark,
   FileArchive,
+  Mail,
 } from 'lucide-react';
 import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
@@ -20,6 +21,7 @@ import DebitorDetail from './DebitorDetail';
 import MahnwesenEinstellungen from './MahnwesenEinstellungen';
 import BankAbgleich from './BankAbgleich';
 import MahnungenTab from './MahnungenTab';
+import RechnungsVersandTab from './RechnungsVersandTab';
 import BulkDownloadDialog from './BulkDownloadDialog';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 
@@ -28,6 +30,7 @@ type TabId =
   | 'offen'
   | 'ueberfaellig'
   | 'mahnungen'
+  | 'rechnungsversand'
   | 'bezahlt'
   | 'bankabgleich'
   | 'einstellungen';
@@ -37,6 +40,7 @@ const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
   'offen',
   'ueberfaellig',
   'mahnungen',
+  'rechnungsversand',
   'bezahlt',
   'bankabgleich',
   'einstellungen',
@@ -343,6 +347,12 @@ const DebitorenVerwaltung = () => {
       label: 'Mahnungen',
       count: debitoren.filter((d) => berechneMahnEmpfehlung(d) !== 'keine').length,
       color: 'orange',
+    },
+    {
+      id: 'rechnungsversand',
+      label: 'Rechnungsversand',
+      color: 'green',
+      icon: Mail,
     },
     {
       id: 'bezahlt',
@@ -730,11 +740,15 @@ const DebitorenVerwaltung = () => {
           <MahnungenTab debitoren={debitoren} onOpenDetail={handleOpenDetail} onReload={() => loadData(true)} />
         )}
 
+        {/* Rechnungsversand-Tab: halbautomatischer Rechnungs-E-Mail-Versand */}
+        {activeTab === 'rechnungsversand' && <RechnungsVersandTab />}
+
         {/* Andere Tabs: Liste */}
         {activeTab !== 'dashboard' &&
           activeTab !== 'einstellungen' &&
           activeTab !== 'bankabgleich' &&
-          activeTab !== 'mahnungen' && (
+          activeTab !== 'mahnungen' &&
+          activeTab !== 'rechnungsversand' && (
           <div className="space-y-4">
             {/* Suche */}
             <div className="flex gap-4">
