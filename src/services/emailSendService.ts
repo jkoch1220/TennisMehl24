@@ -11,7 +11,7 @@ import {
   EmailProtokollInput,
   EmailAccount,
   EmailPlatzhalter,
-  DokumentTyp,
+  ProtokollDokumentTyp,
 } from '../types/email';
 import { Query } from 'appwrite';
 
@@ -226,7 +226,7 @@ export const sendeEmailMitPdf = async (params: {
   pdfBase64: string;
   pdfDateiname: string;
   projektId: string;
-  dokumentTyp: DokumentTyp;
+  dokumentTyp: ProtokollDokumentTyp;
   dokumentNummer: string;
   pdfVersion?: number;
   testModus?: boolean;

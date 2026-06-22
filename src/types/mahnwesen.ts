@@ -107,26 +107,26 @@ export interface MahnwesenTextVorlagen {
 // Standard-Textvorlagen
 export const STANDARD_MAHNWESEN_VORLAGEN: MahnwesenTextVorlagen = {
   zahlungserinnerung: {
-    betreff: 'Zahlungserinnerung',
-    anrede: 'Sehr geehrte Damen und Herren,',
-    haupttext: `sicherlich ist es nur in der Hektik des Alltags untergegangen - wir möchten Sie freundlich daran erinnern, dass die Zahlung für die oben genannte Rechnung noch aussteht.
+    betreff: 'Zahlungserinnerung – Rechnung {rechnungsnummer}',
+    anrede: 'Guten Tag zusammen,',
+    haupttext: `sicherlich ist es im Tagesgeschäft nur untergegangen: Für die Rechnung {rechnungsnummer} konnten wir bislang keinen Zahlungseingang feststellen. Wir möchten Sie daher freundlich an den offenen Betrag von {offenerBetrag} erinnern und bitten Sie um Überweisung bis zum {neueZahlungsfrist}.
 
-Bitte überweisen Sie den offenen Betrag von {offenerBetrag} bis zum {neueZahlungsfrist} auf unser unten angegebenes Konto.
+BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten) – diese haben sich gegenüber dem letzten Jahr geändert.
 
 Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.`,
-    schlusstext: `Bei Fragen zu dieser Rechnung stehen wir Ihnen gerne zur Verfügung.
+    schlusstext: `Bei Fragen zu dieser Rechnung sind wir gerne für Sie da.
 
 Mit freundlichen Grüßen`,
     fristTage: 7,
   },
 
   mahnung_1: {
-    betreff: '1. Mahnung',
-    anrede: 'Sehr geehrte Damen und Herren,',
-    haupttext: `trotz unserer Zahlungserinnerung haben wir leider noch keinen Zahlungseingang für die oben genannte Rechnung feststellen können.
+    betreff: '1. Mahnung – Rechnung {rechnungsnummer}',
+    anrede: 'Guten Tag zusammen,',
+    haupttext: `trotz unserer Zahlungserinnerung konnten wir für die Rechnung {rechnungsnummer} noch keinen Zahlungseingang feststellen. Wir bitten Sie daher, den ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens {neueZahlungsfrist} auf unser unten angegebenes Konto zu überweisen.
 
-Wir bitten Sie daher, den ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens zum {neueZahlungsfrist} auf unser unten angegebenes Konto zu überweisen.`,
-    schlusstext: `Sollte die Zahlung bereits veranlasst sein, bitten wir Sie, dieses Schreiben als gegenstandslos zu betrachten.
+BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten)!`,
+    schlusstext: `Sollte die Zahlung zwischenzeitlich erfolgt sein, betrachten Sie dieses Schreiben bitte als gegenstandslos.
 
 Mit freundlichen Grüßen`,
     fristTage: 10,
@@ -134,12 +134,12 @@ Mit freundlichen Grüßen`,
   },
 
   mahnung_2: {
-    betreff: '2. Mahnung - Letzte Zahlungsaufforderung',
-    anrede: 'Sehr geehrte Damen und Herren,',
-    haupttext: `trotz unserer bisherigen Mahnungen ist die Zahlung für die oben genannte Rechnung noch immer nicht bei uns eingegangen.
+    betreff: '2. Mahnung – Letzte Zahlungsaufforderung – Rechnung {rechnungsnummer}',
+    anrede: 'Guten Tag zusammen,',
+    haupttext: `trotz unserer vorangegangenen Mahnung ist die Zahlung für die Rechnung {rechnungsnummer} weiterhin offen. Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens {neueZahlungsfrist} zu begleichen.
 
-Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens zum {neueZahlungsfrist} zu begleichen.`,
-    schlusstext: `Wir hoffen, dass wir diese Angelegenheit noch einvernehmlich klären können, und verbleiben
+BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten)!`,
+    schlusstext: `Wir hoffen, dass sich diese Angelegenheit einvernehmlich klären lässt, und verbleiben
 
 mit freundlichen Grüßen`,
     fristTage: 7,
