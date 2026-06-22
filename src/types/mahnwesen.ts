@@ -114,7 +114,7 @@ export const STANDARD_MAHNWESEN_VORLAGEN: MahnwesenTextVorlagen = {
 BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten) – diese haben sich gegenüber dem letzten Jahr geändert.
 
 Sollte sich Ihre Zahlung mit diesem Schreiben überschnitten haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.`,
-    schlusstext: `Bei Fragen zu dieser Rechnung sind wir gerne für Sie da.
+    schlusstext: `Bei Fragen zu dieser Rechnung sind wir gerne für Sie da. Sollte diese Zahlungserinnerung künftig an eine andere E-Mail-Adresse (z. B. Buchhaltung/Vorstand) gehen, teilen Sie uns diese bitte kurz mit.
 
 Mit freundlichen Grüßen`,
     fristTage: 7,
@@ -126,7 +126,7 @@ Mit freundlichen Grüßen`,
     haupttext: `trotz unserer Zahlungserinnerung konnten wir für die Rechnung {rechnungsnummer} noch keinen Zahlungseingang feststellen. Wir bitten Sie daher, den ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens {neueZahlungsfrist} auf unser unten angegebenes Konto zu überweisen.
 
 BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten)!`,
-    schlusstext: `Sollte die Zahlung zwischenzeitlich erfolgt sein, betrachten Sie dieses Schreiben bitte als gegenstandslos.
+    schlusstext: `Sollte die Zahlung zwischenzeitlich erfolgt sein, betrachten Sie dieses Schreiben bitte als gegenstandslos. Sollte dieses Schreiben künftig an eine andere E-Mail-Adresse (z. B. Buchhaltung/Vorstand) gehen, teilen Sie uns diese bitte kurz mit.
 
 Mit freundlichen Grüßen`,
     fristTage: 10,
@@ -139,7 +139,9 @@ Mit freundlichen Grüßen`,
     haupttext: `trotz unserer vorangegangenen Mahnung ist die Zahlung für die Rechnung {rechnungsnummer} weiterhin offen. Wir fordern Sie hiermit letztmalig auf, den gesamten ausstehenden Betrag von {gesamtforderung} (inkl. Mahngebühren) bis spätestens {neueZahlungsfrist} zu begleichen.
 
 BITTE BEACHTEN SIE UNSERE GEÄNDERTEN KONTODATEN (siehe unten)!`,
-    schlusstext: `Wir hoffen, dass sich diese Angelegenheit einvernehmlich klären lässt, und verbleiben
+    schlusstext: `Sollte dieses Schreiben künftig an eine andere E-Mail-Adresse (z. B. Buchhaltung/Vorstand) gehen, teilen Sie uns diese bitte kurz mit.
+
+Wir hoffen, dass sich diese Angelegenheit einvernehmlich klären lässt, und verbleiben
 
 mit freundlichen Grüßen`,
     fristTage: 7,
