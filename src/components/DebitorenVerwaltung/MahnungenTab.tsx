@@ -58,6 +58,36 @@ const istHeute = (iso?: string): boolean => {
 const empfehlungZuTyp = (e: MahnEmpfehlung): MahnwesenDokumentTyp | null =>
   e === 'zahlungserinnerung' ? 'zahlungserinnerung' : e === 'mahnung_1' ? 'mahnung_1' : e === 'mahnung_2' ? 'mahnung_2' : null;
 
+// Badges für den Bestelltyp (Hydrocourt / Universal / Onlineshop) – zur schnellen Einordnung in der Liste
+const BestelltypBadges = ({ debitor }: { debitor: DebitorView }) => (
+  <>
+    {debitor.istHydrocourt && (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300"
+        title="Hydrocourt-Bestellung (TM-HYC)"
+      >
+        Hydrocourt
+      </span>
+    )}
+    {debitor.istUniversal && (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+        title="Universal-Artikel-Bestellung"
+      >
+        Universal
+      </span>
+    )}
+    {debitor.istOnlineshop && (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+        title="Bestellung aus dem Online-Shop (Gambio)"
+      >
+        Onlineshop
+      </span>
+    )}
+  </>
+);
+
 interface FaelligEntry {
   debitor: DebitorView;
   empfehlung: MahnEmpfehlung;
@@ -346,6 +376,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                           Platzbauer
                         </span>
                       )}
+                      <BestelltypBadges debitor={debitor} />
                       {heuteVersendet ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
                           <CheckCircle2 className="w-3 h-3" /> heute versendet
@@ -475,6 +506,12 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                         <span className="font-medium text-gray-900 dark:text-slate-100 truncate">
                           {debitor.kundenname}
                         </span>
+                        {debitor.istPlatzbauerprojekt && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" title="Rechnung/Mahnung geht an den Platzbauer, nicht an den Verein">
+                            Platzbauer
+                          </span>
+                        )}
+                        <BestelltypBadges debitor={debitor} />
                         {empfehlung !== 'keine' && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
                             <AlertTriangle className="w-3 h-3" />

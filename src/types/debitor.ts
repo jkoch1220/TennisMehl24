@@ -117,6 +117,10 @@ export interface DebitorView {
   istPlatzbauerprojekt?: boolean;
   platzbauerId?: string;
   zugeordnetesPlatzbauerprojektId?: string;
+  /** Bestelltyp-Marker (abgeleitet aus Positionen/Status) — für Badges in der Mahnliste */
+  istHydrocourt?: boolean;
+  istUniversal?: boolean;
+  istOnlineshop?: boolean;
   rechnungsnummer?: string;
   rechnungsdatum?: string;
   rechnungsbetrag: number;

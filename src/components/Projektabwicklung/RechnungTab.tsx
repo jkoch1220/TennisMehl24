@@ -217,6 +217,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
+  // Verhindert dass ladeDaten gespeicherte Rechnung/Entwurf oder manuell gesetzte Daten überschreibt.
+  const datenBereitsVorhandenRef = useRef(false);
 
   // Artikel-Auswahl States
   const [artikel, setArtikel] = useState<Artikel[]>([]);
@@ -252,7 +254,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       
       try {
         setLadeStatus('laden');
-        
+        datenBereitsVorhandenRef.current = false; // reset für dieses Projekt
+
         // Erst prüfen ob eine finale Rechnung existiert
         const dokument = await ladeDokumentNachTyp(projekt.$id, 'rechnung');
         
@@ -305,6 +308,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             });
           }
           setAutoSaveStatus('gespeichert');
+          datenBereitsVorhandenRef.current = true; // gespeicherte Rechnung geladen – ladeDaten soll nicht überschreiben
         } else {
           // Keine Rechnung vorhanden - prüfen ob neue erstellt werden darf
           setNeueRechnungMoeglich(neueRechnungPruefung.erlaubt);
@@ -343,9 +347,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               lieferadressePlzOrt: lieferadressePlzOrt,
             });
             setAutoSaveStatus('gespeichert');
+            datenBereitsVorhandenRef.current = true; // Entwurf geladen – ladeDaten soll nicht überschreiben
           }
         }
-        
+
         setLadeStatus('bereit');
         initialLaden.current = false;
       } catch (error) {
@@ -613,6 +618,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
     const ladeDaten = async () => {
+      // Erst ausführen wenn ladeDokument fertig ist (verhindert Race-Condition beim initialen Laden)
+      if (ladeStatus !== 'bereit') return;
+      // Nicht ausführen wenn ladeDokument bereits Daten geladen hat (Rechnung, Entwurf oder starteNeueRechnung)
+      if (datenBereitsVorhandenRef.current) return;
       // Nicht überschreiben wenn bereits ein Dokument geladen wurde (Rechnung ist FINAL!)
       if (gespeichertesDokument) return;
 
@@ -791,10 +800,12 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           gesamtrabattProzent: prev.gesamtrabattProzent ?? abRabattProzent,
           gesamtrabattBezeichnung: prev.gesamtrabattBezeichnung ?? abRabattBezeichnung,
         }));
+        datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
     };
     ladeDaten();
-  }, [projekt, kundeInfo, gespeichertesDokument]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projekt, kundeInfo, gespeichertesDokument, ladeStatus]);
 
   const handleInputChange = (field: keyof RechnungsDaten, value: any) => {
     hatGeaendert.current = true;
@@ -1439,6 +1450,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       }));
 
       // Reset der States
+      // Ref VOR setGespeichertesDokument(null) setzen – verhindert dass ladeDaten die soeben
+      // gesetzten Storno-Daten durch AB-Defaults überschreibt.
+      datenBereitsVorhandenRef.current = true;
       setGespeichertesDokument(null);
       setNeueRechnungMoeglich(false);
       setVerlaufLadeZaehler(prev => prev + 1);
@@ -1577,7 +1591,64 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                     Neue Rechnung erstellen
                   </button>
                 )}
+
+                {/* E-MAIL BUTTON - nur für aktive (nicht stornierte) Rechnungen */}
+                {gespeichertesDokument.rechnungsStatus !== 'storniert' && (
+                  <button
+                    onClick={oeffneEmailMitRechnung}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg dark:shadow-dark-glow-red hover:shadow-xl font-medium"
+                  >
+                    <Mail className="h-5 w-5" />
+                    {rechnungVersendetAm ? 'Rechnung erneut per E-Mail senden' : 'E-Mail mit PDF senden'}
+                  </button>
+                )}
               </div>
+
+              {/* Versand-Status + E-Mail-Verlauf */}
+              {(rechnungVersendetAm || emailVerlauf.length > 0) && (
+                <div className="mt-4 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/60 p-3 space-y-2">
+                  {rechnungVersendetAm && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                      Rechnung per E-Mail versendet am{' '}
+                      {new Date(rechnungVersendetAm).toLocaleDateString('de-DE')}
+                    </div>
+                  )}
+                  {emailVerlauf.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
+                        E-Mail-Verlauf
+                      </div>
+                      {emailVerlauf.map((e) => (
+                        <div
+                          key={e.$id}
+                          className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-slate-300"
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {e.status === 'gesendet' ? (
+                              <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
+                            ) : (
+                              <AlertCircle className="h-3 w-3 text-red-600 flex-shrink-0" />
+                            )}
+                            <span className="font-medium whitespace-nowrap">{e.dokumentTyp}</span>
+                            <span className="text-gray-400">·</span>
+                            <span className="truncate">{e.empfaenger}</span>
+                          </span>
+                          <span className="whitespace-nowrap text-gray-400">
+                            {new Date(e.gesendetAm).toLocaleString('de-DE', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3237,61 +3308,6 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                   </>
                 )}
               </button>
-            )}
-
-            {/* E-Mail mit PDF öffnen */}
-            <button
-              onClick={oeffneEmailMitRechnung}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 dark:bg-red-600 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-500 transition-all shadow-lg dark:shadow-dark-glow-red hover:shadow-xl"
-            >
-              <Mail className="h-5 w-5" />
-              {rechnungVersendetAm ? 'Rechnung erneut per E-Mail senden' : 'E-Mail mit PDF öffnen'}
-            </button>
-
-            {/* Versand-Status + E-Mail-Verlauf */}
-            {(rechnungVersendetAm || emailVerlauf.length > 0) && (
-              <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 p-3 space-y-2">
-                {rechnungVersendetAm && (
-                  <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
-                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                    Rechnung per E-Mail versendet am{' '}
-                    {new Date(rechnungVersendetAm).toLocaleDateString('de-DE')}
-                  </div>
-                )}
-                {emailVerlauf.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">
-                      E-Mail-Verlauf
-                    </div>
-                    {emailVerlauf.map((e) => (
-                      <div
-                        key={e.$id}
-                        className="flex items-center justify-between gap-2 text-xs text-gray-600 dark:text-slate-300"
-                      >
-                        <span className="flex items-center gap-1.5 min-w-0">
-                          {e.status === 'gesendet' ? (
-                            <CheckCircle2 className="h-3 w-3 text-green-600 flex-shrink-0" />
-                          ) : (
-                            <AlertCircle className="h-3 w-3 text-red-600 flex-shrink-0" />
-                          )}
-                          <span className="font-medium whitespace-nowrap">{e.dokumentTyp}</span>
-                          <span className="text-gray-400">·</span>
-                          <span className="truncate">{e.empfaenger}</span>
-                        </span>
-                        <span className="whitespace-nowrap text-gray-400">
-                          {new Date(e.gesendetAm).toLocaleString('de-DE', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             )}
 
             {/* Finalisieren */}

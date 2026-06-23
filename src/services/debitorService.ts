@@ -993,6 +993,7 @@ class DebitorService {
       istPlatzbauerprojekt: projekt.istPlatzbauerprojekt,
       platzbauerId: projekt.platzbauerId,
       zugeordnetesPlatzbauerprojektId: projekt.zugeordnetesPlatzbauerprojektId,
+      ...this.bestimmeBestelltyp(projekt),
       rechnungsnummer: rechnungsnummer || undefined,
       rechnungsdatum: rechnungsdatum || undefined,
       rechnungsbetrag,
@@ -1069,6 +1070,71 @@ class DebitorService {
       }
     }
     return null;
+  }
+
+  /**
+   * Extrahiert die Positionen aus den bereits geladenen JSON-Daten des Projekts
+   * (bevorzugt Rechnung, sonst Auftragsbestätigung). KEIN zusätzlicher DB-Zugriff.
+   */
+  private extrahierePositionen(
+    projekt: Projekt
+  ): Array<{ artikelnummer?: string; istUniversalArtikel?: boolean; beschreibung?: string }> {
+    const quellen = [projekt.rechnungsDaten, projekt.auftragsbestaetigungsDaten];
+    for (const quelle of quellen) {
+      if (!quelle) continue;
+      try {
+        const parsed = JSON.parse(quelle);
+        if (Array.isArray(parsed?.positionen) && parsed.positionen.length > 0) {
+          return parsed.positionen;
+        }
+      } catch {
+        // defekte JSON-Daten ignorieren
+      }
+    }
+    return [];
+  }
+
+  /**
+   * Leitet den Bestelltyp eines Projekts ab (Hydrocourt / Universal / Onlineshop).
+   * Arbeitet ausschließlich auf bereits geladenen Projekt-Daten — geeignet für die Listenansicht.
+   *
+   * - Hydrocourt: Position mit Artikelnummer 'TM-HYC', Teilprojekt-Typ oder gesetzter Hydrocourt-Status
+   * - Universal:  Position mit istUniversalArtikel / 'Universal:'-Präfix, Teilprojekt-Typ oder Universal-Status
+   * - Onlineshop: Shop-Herkunft (kundeId 'shop-…', AB-Nummer 'SHOP-…' oder Projektname 'Shop #…')
+   */
+  private bestimmeBestelltyp(projekt: Projekt): {
+    istHydrocourt: boolean;
+    istUniversal: boolean;
+    istOnlineshop: boolean;
+  } {
+    const positionen = this.extrahierePositionen(projekt);
+
+    const hatHydrocourtPos = positionen.some((p) => p?.artikelnummer === 'TM-HYC');
+    const hatUniversalPos = positionen.some(
+      (p) =>
+        p?.istUniversalArtikel === true ||
+        (typeof p?.beschreibung === 'string' && p.beschreibung.startsWith('Universal:'))
+    );
+
+    const istHydrocourt =
+      hatHydrocourtPos ||
+      projekt.teilprojektTyp === 'hydrocourt' ||
+      !!projekt.hydrocourtStatus ||
+      !!projekt.hydrocourtBestelltAm;
+
+    const istUniversal =
+      hatUniversalPos ||
+      projekt.teilprojektTyp === 'universal' ||
+      !!projekt.universalKanbanStatus ||
+      !!projekt.universalBestelltAm;
+
+    const istOnlineshop =
+      (typeof projekt.kundeId === 'string' && projekt.kundeId.startsWith('shop-')) ||
+      (typeof projekt.auftragsbestaetigungsnummer === 'string' &&
+        projekt.auftragsbestaetigungsnummer.startsWith('SHOP-')) ||
+      (typeof projekt.projektName === 'string' && projekt.projektName.startsWith('Shop #'));
+
+    return { istHydrocourt, istUniversal, istOnlineshop };
   }
 
   /**
