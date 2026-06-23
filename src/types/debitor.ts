@@ -117,6 +117,11 @@ export interface DebitorView {
   istPlatzbauerprojekt?: boolean;
   platzbauerId?: string;
   zugeordnetesPlatzbauerprojektId?: string;
+  /**
+   * Bei Platzbauer-Projekten: Name des Vereins (Lieferempfänger) als Kontext.
+   * `kundenname` enthält dann den Platzbauer (= Schuldner). Wird nur gesetzt, wenn auflösbar.
+   */
+  vereinName?: string;
   /** Bestelltyp-Marker (abgeleitet aus Positionen/Status) — für Badges in der Mahnliste */
   istHydrocourt?: boolean;
   istUniversal?: boolean;

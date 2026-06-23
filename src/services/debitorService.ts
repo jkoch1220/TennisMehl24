@@ -21,6 +21,9 @@ import {
   STANDARD_ZAHLUNGSZIEL_TAGE,
 } from '../types/debitor';
 import { projektService } from './projektService';
+import { saisonplanungService } from './saisonplanungService';
+import { platzbauerverwaltungService } from './platzbauerverwaltungService';
+import { SaisonKunde } from '../types/saisonplanung';
 
 // Interface für geparste Rechnungsdaten aus Projekt
 interface RechnungsDaten {
@@ -205,6 +208,9 @@ class DebitorService {
         }
       }
 
+      // Platzbauer-Projekte: Schuldner = Platzbauer (Name/Anschrift), Verein als Kontext
+      await this.reichereMitPlatzbauerAn(debitoren);
+
       // Sortieren nach offensten/kritischsten zuerst
       debitoren.sort((a, b) => {
         if (a.status === 'bezahlt' && b.status !== 'bezahlt') return 1;
@@ -241,7 +247,9 @@ class DebitorService {
       }
 
       const metadaten = await this.loadMetadatenFuerProjekt(projektId);
-      return this.createDebitorView(projekt, metadaten, rechnungsDokument);
+      const view = this.createDebitorView(projekt, metadaten, rechnungsDokument);
+      await this.reichereMitPlatzbauerAn([view]);
+      return view;
     } catch (error) {
       console.error('Fehler beim Laden des Debitors:', error);
       throw error;
@@ -891,6 +899,87 @@ class DebitorService {
   /**
    * Erstellt ein DebitorView aus Projekt + Metadaten + optionalem Rechnungsdokument
    */
+  /**
+   * Ermittelt die SaisonKunde-ID des Platzbauers (= Schuldner) für eine Debitor-View:
+   * bevorzugt direkt über platzbauerId, sonst über das zugeordnete Platzbauer-Projekt.
+   */
+  private async resolvePlatzbauerKundeId(view: DebitorView): Promise<string | undefined> {
+    if (view.platzbauerId) return view.platzbauerId;
+    if (view.zugeordnetesPlatzbauerprojektId) {
+      try {
+        const pp = await platzbauerverwaltungService.getPlatzbauerprojekt(view.zugeordnetesPlatzbauerprojektId);
+        return pp?.platzbauerId;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Bei Platzbauer-Projekten ist der SCHULDNER der Platzbauer — nicht der Verein.
+   * Diese Anreicherung stellt `kundenname` + Rechnungsadresse auf den Platzbauer um und
+   * hält den Verein als Kontext (`vereinName`) fest. Damit sind Liste, Mahn-PDF und
+   * E-Mail-Anschrift konsistent an den Platzbauer adressiert.
+   *
+   * Robust gegenüber Altdaten: Platzbauer und Verein werden BEIDE frisch aus ihren
+   * SaisonKunden (platzbauerId bzw. kundeId) geladen — unabhängig davon, was historisch
+   * im denormalisierten projekt.kundenname stand. Batch: lädt alle SaisonKunden parallel.
+   */
+  private async reichereMitPlatzbauerAn(views: DebitorView[]): Promise<void> {
+    const platzbauerViews = views.filter(
+      (v) => v.istPlatzbauerprojekt || v.platzbauerId || v.zugeordnetesPlatzbauerprojektId
+    );
+    if (platzbauerViews.length === 0) return;
+
+    // 1. Platzbauer-KundenId je View auflösen (ggf. via Platzbauer-Projekt-Lookup)
+    const platzbauerKundeIdByView = new Map<DebitorView, string>();
+    await Promise.all(
+      platzbauerViews.map(async (v) => {
+        const id = await this.resolvePlatzbauerKundeId(v);
+        if (id) platzbauerKundeIdByView.set(v, id);
+      })
+    );
+
+    // 2. Alle benötigten SaisonKunden (Platzbauer + Vereine) einmalig laden
+    const idsToLoad = new Set<string>();
+    for (const v of platzbauerViews) {
+      const pbId = platzbauerKundeIdByView.get(v);
+      if (pbId) idsToLoad.add(pbId);
+      if (v.kundeId) idsToLoad.add(v.kundeId);
+    }
+    const kundeById = new Map<string, SaisonKunde>();
+    await Promise.all(
+      [...idsToLoad].map(async (id) => {
+        try {
+          const k = await saisonplanungService.loadKunde(id);
+          if (k) kundeById.set(id, k);
+        } catch {
+          /* Verein/Platzbauer nicht ladbar — View bleibt unverändert */
+        }
+      })
+    );
+
+    // 3. Views anreichern
+    for (const v of platzbauerViews) {
+      const pbId = platzbauerKundeIdByView.get(v);
+      const platzbauer = pbId ? kundeById.get(pbId) : undefined;
+      if (!platzbauer) continue; // ohne Platzbauer-Daten lieber unverändert lassen
+
+      // Verein (Lieferempfänger) als Kontext — aus kundeId-SaisonKunde, sonst bisheriger Name
+      const verein = v.kundeId ? kundeById.get(v.kundeId) : undefined;
+      v.vereinName = verein?.name || v.kundenname;
+
+      // Schuldner = Platzbauer (Name + Rechnungsadresse)
+      v.kundenname = platzbauer.name;
+      if (platzbauer.rechnungsadresse) {
+        v.kundenstrasse = platzbauer.rechnungsadresse.strasse || v.kundenstrasse;
+        const plzOrt = `${platzbauer.rechnungsadresse.plz || ''} ${platzbauer.rechnungsadresse.ort || ''}`.trim();
+        if (plzOrt) v.kundenPlzOrt = plzOrt;
+      }
+    }
+  }
+
   private createDebitorView(
     projekt: Projekt,
     metadaten: DebitorMetadaten | null,

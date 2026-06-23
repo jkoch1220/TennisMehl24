@@ -368,6 +368,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                       <span className="font-medium text-gray-900 dark:text-slate-100 truncate">
                         {debitor.kundenname}
                       </span>
+                      {debitor.vereinName && debitor.vereinName !== debitor.kundenname && (
+                        <span className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap truncate" title="Lieferempfänger / Verein">
+                          für {debitor.vereinName}
+                        </span>
+                      )}
                       <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {debitor.rechnungsnummer}
                       </span>
@@ -506,6 +511,11 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                         <span className="font-medium text-gray-900 dark:text-slate-100 truncate">
                           {debitor.kundenname}
                         </span>
+                        {debitor.vereinName && debitor.vereinName !== debitor.kundenname && (
+                          <span className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap truncate" title="Lieferempfänger / Verein">
+                            für {debitor.vereinName}
+                          </span>
+                        )}
                         {debitor.istPlatzbauerprojekt && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" title="Rechnung/Mahnung geht an den Platzbauer, nicht an den Verein">
                             Platzbauer
