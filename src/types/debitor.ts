@@ -118,6 +118,12 @@ export interface DebitorView {
   platzbauerId?: string;
   zugeordnetesPlatzbauerprojektId?: string;
   /**
+   * Bezugsweg entscheidet, WER der Schuldner ist:
+   * - 'ueber_platzbauer' / 'platzbauer' → Platzbauer ist Schuldner
+   * - 'direkt' / 'direkt_instandsetzung' → Endkunde ist Schuldner (Platzbauer hat nur gebaut)
+   */
+  bezugsweg?: string;
+  /**
    * Bei Platzbauer-Projekten: Name des Vereins (Lieferempfänger) als Kontext.
    * `kundenname` enthält dann den Platzbauer (= Schuldner). Wird nur gesetzt, wenn auflösbar.
    */

@@ -900,6 +900,20 @@ class DebitorService {
    * Erstellt ein DebitorView aus Projekt + Metadaten + optionalem Rechnungsdokument
    */
   /**
+   * Ist bei dieser View der PLATZBAUER der Schuldner (Rechnungsempfänger)?
+   *
+   * Maßgeblich ist der Bezugsweg:
+   * - 'direkt' / 'direkt_instandsetzung' → NEIN: der Endkunde zahlt, der Platzbauer hat nur
+   *   gebaut. platzbauerId ist hier reine Bau-Info und darf den Schuldner NICHT überschreiben.
+   * - 'ueber_platzbauer' / 'platzbauer' (oder explizites istPlatzbauerprojekt) → JA.
+   */
+  private istPlatzbauerSchuldner(view: DebitorView): boolean {
+    const bw = view.bezugsweg;
+    if (bw === 'direkt' || bw === 'direkt_instandsetzung') return false;
+    return view.istPlatzbauerprojekt === true || bw === 'platzbauer' || bw === 'ueber_platzbauer';
+  }
+
+  /**
    * Ermittelt die SaisonKunde-ID des Platzbauers (= Schuldner) für eine Debitor-View:
    * bevorzugt direkt über platzbauerId, sonst über das zugeordnete Platzbauer-Projekt.
    */
@@ -927,9 +941,7 @@ class DebitorService {
    * im denormalisierten projekt.kundenname stand. Batch: lädt alle SaisonKunden parallel.
    */
   private async reichereMitPlatzbauerAn(views: DebitorView[]): Promise<void> {
-    const platzbauerViews = views.filter(
-      (v) => v.istPlatzbauerprojekt || v.platzbauerId || v.zugeordnetesPlatzbauerprojektId
-    );
+    const platzbauerViews = views.filter((v) => this.istPlatzbauerSchuldner(v));
     if (platzbauerViews.length === 0) return;
 
     // 1. Platzbauer-KundenId je View auflösen (ggf. via Platzbauer-Projekt-Lookup)
@@ -969,6 +981,11 @@ class DebitorService {
       // Verein (Lieferempfänger) als Kontext — aus kundeId-SaisonKunde, sonst bisheriger Name
       const verein = v.kundeId ? kundeById.get(v.kundeId) : undefined;
       v.vereinName = verein?.name || v.kundenname;
+
+      // Diese View IST ein Platzbauer-Debitor — auch wenn das Projekt-Flag (Altdaten /
+      // bezugsweg='platzbauer') nie gesetzt wurde. Aktiviert Badge in der Liste UND die
+      // Platzbauer-E-Mail-Auflösung in mahnwesenService.ladeMahnEmailKandidaten.
+      v.istPlatzbauerprojekt = true;
 
       // Schuldner = Platzbauer (Name + Rechnungsadresse)
       v.kundenname = platzbauer.name;
@@ -1082,6 +1099,7 @@ class DebitorService {
       istPlatzbauerprojekt: projekt.istPlatzbauerprojekt,
       platzbauerId: projekt.platzbauerId,
       zugeordnetesPlatzbauerprojektId: projekt.zugeordnetesPlatzbauerprojektId,
+      bezugsweg: projekt.bezugsweg,
       ...this.bestimmeBestelltyp(projekt),
       rechnungsnummer: rechnungsnummer || undefined,
       rechnungsdatum: rechnungsdatum || undefined,
