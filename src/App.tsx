@@ -70,6 +70,7 @@ const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht
 
 // Migration (Mosaik → CRM)
 const MosaikMigration = lazyWithRetry(() => import('./components/Migration/MosaikMigration'));
+const DuplikatMergeTool = lazyWithRetry(() => import('./components/Duplikate/DuplikatMergeTool'));
 
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
@@ -274,6 +275,11 @@ function AuthenticatedContent() {
                   <Route path="/mosaik-migration" element={
                     <ProtectedRoute toolId="mosaik-migration">
                       <MosaikMigration />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/duplikate" element={
+                    <ProtectedRoute toolId="duplikate">
+                      <DuplikatMergeTool />
                     </ProtectedRoute>
                   } />
 

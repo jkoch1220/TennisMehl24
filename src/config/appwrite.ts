@@ -105,6 +105,9 @@ export const NOTIFICATIONS_COLLECTION_ID = 'notifications';
 // Protokoll der Massen-Angebots-Läufe (Frühjahrsinstandsetzung)
 export const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
 
+// Archiv der Kunden-Merges (Wiederherstellung nach Duplikat-Zusammenführung)
+export const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -191,6 +194,7 @@ export const COLLECTIONS = {
   // Benachrichtigungen
   NOTIFICATIONS: NOTIFICATIONS_COLLECTION_ID,
   ANGEBOTS_LAEUFE: ANGEBOTS_LAEUFE_COLLECTION_ID,
+  KUNDEN_MERGE_ARCHIV: KUNDEN_MERGE_ARCHIV_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

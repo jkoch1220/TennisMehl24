@@ -74,6 +74,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-purple-500 to-indigo-600',
   },
   {
+    id: 'duplikate',
+    name: 'Duplikate',
+    description: 'Doppelte Kunden aus dem Mosaik-Import sicher zusammenführen (kein Datenverlust)',
+    href: '/duplikate',
+    icon: Users,
+    color: 'from-rose-500 to-pink-600',
+  },
+  {
     id: 'platzbauer-verwaltung',
     name: 'Platzbauer-Verwaltung',
     description: 'Platzbauer verwalten mit Vereinen, Saisonprojekten und Nachträgen',

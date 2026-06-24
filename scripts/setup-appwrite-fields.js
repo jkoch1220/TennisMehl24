@@ -45,6 +45,7 @@ const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 const WIKI_FILES_COLLECTION_ID = 'wiki_files';
 const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
 const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
+const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
 
 // Standard-Permissions für eingeloggte Nutzer (Collection-Level)
 const USER_PERMISSIONS = ['read("users")', 'create("users")', 'update("users")', 'delete("users")'];
@@ -166,6 +167,20 @@ const angebotsLaeufeFields = [
   { key: 'anzahlFehler', type: 'integer', required: false },
   { key: 'rueckgaengigGemacht', type: 'boolean', required: false, default: false },
   { key: 'data', type: 'string', size: 100000, required: false },
+];
+
+// Archiv der Kunden-Merges (Sicherheitsnetz: jeder Merge voll wiederherstellbar)
+const kundenMergeArchivFields = [
+  { key: 'survivorId', type: 'string', size: 100, required: true },
+  { key: 'loserId', type: 'string', size: 100, required: true },
+  { key: 'survivorName', type: 'string', size: 255, required: false },
+  { key: 'loserName', type: 'string', size: 255, required: false },
+  { key: 'zeitpunkt', type: 'string', size: 50, required: true },
+  { key: 'benutzer', type: 'string', size: 255, required: false },
+  { key: 'loserKunde', type: 'string', size: 200000, required: false },     // kompletter Verlierer-Datensatz
+  { key: 'survivorVorher', type: 'string', size: 200000, required: false }, // Survivor vor dem Merge
+  { key: 'repointed', type: 'string', size: 200000, required: false },      // umgehängte Kind-IDs je Collection
+  { key: 'rueckgaengig', type: 'boolean', required: false, default: false },
 ];
 
 const artikelFields = [
@@ -474,6 +489,7 @@ async function main() {
     await ensureCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files');
     // Massen-Angebots-Läufe: Collection-Level-Permissions für eingeloggte Nutzer
     await ensureCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', USER_PERMISSIONS, false);
+    await ensureCollection(KUNDEN_MERGE_ARCHIV_COLLECTION_ID, 'Kunden-Merge-Archiv', USER_PERMISSIONS, false);
 
     // Erstelle Bucket für Wiki-Dateien
     await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
@@ -491,6 +507,7 @@ async function main() {
     await setupCollection(WIKI_PAGES_COLLECTION_ID, 'Wiki Pages', wikiPagesFields);
     await setupCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files', wikiFilesFields);
     await setupCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', angebotsLaeufeFields);
+    await setupCollection(KUNDEN_MERGE_ARCHIV_COLLECTION_ID, 'Kunden-Merge-Archiv', kundenMergeArchivFields);
 
     // Warte kurz, damit Felder erstellt sind
     console.log('\n⏳ Warte auf Feld-Erstellung...');
