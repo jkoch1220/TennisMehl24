@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, DragEvent, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, DragEvent, useMemo } from 'react';
 import {
   FileCheck,
   FileSignature,
@@ -34,11 +34,17 @@ import {
   Tag,
   Link2,
   AlertTriangle,
+  CalendarDays,
+  Plus,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
+import { getAktuelleSaison, berechneAktuelleSaison } from '../../services/nummerierungService';
+import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
+import { StammdatenInput } from '../../types/stammdaten';
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
@@ -107,6 +113,103 @@ const saveSetting = <T,>(key: string, value: T): void => {
   }
 };
 
+// Dialog zum Erstellen einer neuen Saison (setzt sie als Standard, Board startet leer)
+const NeueSaisonModal = ({
+  aktuelleSaison,
+  onClose,
+  onErstellen,
+}: {
+  aktuelleSaison: number;
+  onClose: () => void;
+  onErstellen: (neuesJahr: number, mitRollover: boolean) => Promise<void>;
+}) => {
+  const [neuesJahr, setNeuesJahr] = useState(aktuelleSaison + 1);
+  const [mitRollover, setMitRollover] = useState(true);
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  const handleBestaetigen = async () => {
+    setLaeuft(true);
+    setFehler(null);
+    try {
+      await onErstellen(neuesJahr, mitRollover);
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Saison:', error);
+      setFehler(error instanceof Error ? error.message : 'Unbekannter Fehler');
+      setLaeuft(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-lg w-full p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-purple-100 dark:bg-purple-950/50 rounded-lg">
+            <CalendarDays className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">Neue Saison erstellen</h2>
+        </div>
+
+        <div className="space-y-4 text-sm text-gray-700 dark:text-slate-300">
+          <div>
+            <label className="block font-medium mb-1">Neue Saison (Jahr)</label>
+            <input
+              type="number"
+              value={neuesJahr}
+              onChange={(e) => setNeuesJahr(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          <p className="leading-relaxed">
+            Saison <strong>{neuesJahr}</strong> wird als <strong>Standard</strong> gesetzt; das Board startet
+            leer. Saison <strong>{aktuelleSaison}</strong> bleibt jederzeit auswählbar — es werden{' '}
+            <strong>keine Projekte gelöscht</strong>.
+          </p>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mitRollover}
+              onChange={(e) => setMitRollover(e.target.checked)}
+              className="mt-0.5 h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-slate-600"
+            />
+            <span>
+              Referenzmengen aus Vorjahres-Ist übernehmen (Rollover der Saisondaten) — empfohlen, damit
+              Mengen-Vorschläge fürs Angebots-Tool bereitstehen.
+            </span>
+          </label>
+
+          {fehler && (
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>{fehler}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            disabled={laeuft}
+            className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleBestaetigen}
+            disabled={laeuft || !neuesJahr}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
+          >
+            {laeuft ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            Saison {neuesJahr} erstellen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ProjektVerwaltung = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -133,7 +236,13 @@ const ProjektVerwaltung = () => {
   const [nummerSuche, setNummerSuche] = useState(''); // Dedizierte Suche für Dokument-Nummern
   const [draggedProjekt, setDraggedProjekt] = useState<Projekt | null>(null);
   const [dragOverTab, setDragOverTab] = useState<ProjektStatus | null>(null);
-  const [saisonjahr] = useState(2026); // Aktuelle Saison
+  // Aktuell angezeigte Saison (umschaltbar). Default-/Standard-Saison separat,
+  // damit wir "· aktuell" markieren und Archiv-Saisons klar kennzeichnen können.
+  const [saisonjahr, setSaisonjahr] = useState<number>(() => berechneAktuelleSaison());
+  const [aktuelleSaison, setAktuelleSaison] = useState<number>(() => berechneAktuelleSaison());
+  const saisonManuellGewaehlt = useRef(false);
+  const [showNeueSaisonModal, setShowNeueSaisonModal] = useState(false);
+  const { isAdmin } = useAuth();
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [verlorenProjekt, setVerlorenProjekt] = useState<Projekt | null>(null);
@@ -197,6 +306,58 @@ const ProjektVerwaltung = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Standard-/Default-Saison aus Stammdaten laden (manuell > berechnet).
+  // Solange der Nutzer nicht selbst eine Saison gewählt hat, folgt die Ansicht der Default-Saison.
+  useEffect(() => {
+    let aktiv = true;
+    getAktuelleSaison()
+      .then((saison) => {
+        if (!aktiv) return;
+        setAktuelleSaison(saison);
+        if (!saisonManuellGewaehlt.current) {
+          setSaisonjahr(saison);
+        }
+      })
+      .catch((error) => console.error('Saison konnte nicht geladen werden:', error));
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+
+  // Verfügbare Saisons fürs Dropdown: Default-Saison ± einige Jahre, plus die gerade
+  // betrachtete (falls außerhalb des Bereichs liegend). Absteigend, neueste zuerst.
+  const verfuegbareSaisons = useMemo(() => {
+    const jahre = new Set<number>();
+    for (let jahr = aktuelleSaison + 1; jahr >= aktuelleSaison - 5; jahr--) {
+      jahre.add(jahr);
+    }
+    jahre.add(saisonjahr);
+    return Array.from(jahre).sort((a, b) => b - a);
+  }, [aktuelleSaison, saisonjahr]);
+
+  const handleSaisonWechsel = useCallback((jahr: number) => {
+    saisonManuellGewaehlt.current = true;
+    setSaisonjahr(jahr);
+  }, []);
+
+  // Neue Saison als Standard setzen. Ändert NUR Stammdaten (aktuelleSaison) +
+  // optional Rollover der saison_daten (Referenzmengen). Es werden KEINE Projekte gelöscht.
+  const handleNeueSaisonErstellen = useCallback(
+    async (neuesJahr: number, mitRollover: boolean) => {
+      const stammdaten = await ladeStammdaten();
+      await speichereStammdaten({ ...(stammdaten ?? {}), aktuelleSaison: neuesJahr } as StammdatenInput);
+      if (mitRollover) {
+        // Referenzmengen aus Vorjahres-Ist anlegen (idempotent, überspringt Vorhandenes)
+        await saisonplanungService.erstelleNeueSaison(neuesJahr);
+      }
+      setAktuelleSaison(neuesJahr);
+      saisonManuellGewaehlt.current = false;
+      setSaisonjahr(neuesJahr);
+      setShowNeueSaisonModal(false);
+    },
+    []
+  );
 
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
@@ -548,13 +709,54 @@ const ProjektVerwaltung = () => {
             </div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-dark-text">Projekt-Verwaltung</h1>
-              <p className="text-sm md:text-base text-gray-600 dark:text-dark-textMuted mt-0.5 md:mt-1">
-                {gesamt} aktive Projekte {gesamtVerloren > 0 && `• ${gesamtVerloren} verloren`} • Saison {saisonjahr}
+              <p className="text-sm md:text-base text-gray-600 dark:text-dark-textMuted mt-0.5 md:mt-1 flex items-center gap-2 flex-wrap">
+                <span>
+                  {gesamt} aktive Projekte {gesamtVerloren > 0 && `• ${gesamtVerloren} verloren`} • Saison {saisonjahr}
+                </span>
+                {saisonjahr === aktuelleSaison ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                    aktuelle Saison
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                    <AlertTriangle className="w-3 h-3" /> Archiv-Ansicht · aktuell ist {aktuelleSaison}
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 flex-wrap w-full md:w-auto">
+            {/* Saison-Auswahl */}
+            <div className="flex items-center gap-1.5">
+              <div className="relative">
+                <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-dark-textMuted pointer-events-none" />
+                <select
+                  value={saisonjahr}
+                  onChange={(e) => handleSaisonWechsel(Number(e.target.value))}
+                  title="Saison auswählen – ändert nur die Ansicht, keine Daten"
+                  className="pl-9 pr-8 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent appearance-none font-medium"
+                >
+                  {verfuegbareSaisons.map((jahr) => (
+                    <option key={jahr} value={jahr}>
+                      Saison {jahr}
+                      {jahr === aktuelleSaison ? ' · aktuell' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowNeueSaisonModal(true)}
+                  title="Neue Saison erstellen und als Standard setzen"
+                  className="px-3 py-2 flex items-center gap-2 rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden lg:inline">Neue Saison</span>
+                </button>
+              )}
+            </div>
+
             {/* Suche nach Vereinsname/PLZ */}
             <div className="relative flex-1 md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
@@ -748,6 +950,15 @@ const ProjektVerwaltung = () => {
           </div>
         </div>
       </div>
+
+      {/* Neue-Saison-Dialog */}
+      {showNeueSaisonModal && (
+        <NeueSaisonModal
+          aktuelleSaison={aktuelleSaison}
+          onClose={() => setShowNeueSaisonModal(false)}
+          onErstellen={handleNeueSaisonErstellen}
+        />
+      )}
 
       {/* Kanban Board */}
       {viewMode === 'kanban' && (
