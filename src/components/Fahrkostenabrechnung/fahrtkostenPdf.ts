@@ -14,12 +14,16 @@ interface PdfOptions {
 }
 
 const fmtDatum = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('de-DE');
-const fmtEuro = (n: number) => n.toFixed(2).replace('.', ',') + ' €';
+const fmtEuro = (n: number) => n.toFixed(2).replace('.', ',') + ' EUR';
 const fmtZahl = (n: number) => String(n).replace('.', ',');
+const fmtKmStand = (f: Fahrt) =>
+  (f.startKm != null && f.endKm != null) ? `${f.startKm} - ${f.endKm}` : '';
 
 /**
  * Erzeugt eine abrechnungsfertige Fahrtkosten-PDF (A4 quer).
  * Jede Firma ist ein eigener Beleg auf einer eigenen Seite.
+ * Es werden bewusst nur WinAnsi-Zeichen verwendet (kein →/Unicode),
+ * damit die Standard-PDF-Schrift sauber rendert.
  */
 export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, bis }: PdfOptions) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -28,16 +32,21 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
   const pageHeight = doc.internal.pageSize.getHeight(); // ~210
   const rightX = pageWidth - marginLeft;
   const showPerson = !personName; // Person-Spalte nur, wenn nicht auf eine Person gefiltert
-  const kmCol = showPerson ? 5 : 4;
+
+  // Spalten-Indizes (abhängig von der optionalen Person-Spalte)
+  const idxKm = showPerson ? 6 : 5;
+  const idxPauschale = idxKm + 1;
+  const idxBetrag = idxKm + 2;
 
   const head = [[
     'Datum',
     ...(showPerson ? ['Person'] : []),
-    'Strecke',
+    'Start',
+    'Ziel',
     'Auto',
     'km-Stand',
     'km',
-    '€/km',
+    'EUR/km',
     'Betrag',
     'Kommentar',
   ]];
@@ -71,16 +80,17 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Zeitraum: ${fmtDatum(von)} – ${fmtDatum(bis)}`, marginLeft, y);
+    doc.text(`Zeitraum: ${fmtDatum(von)} bis ${fmtDatum(bis)}`, marginLeft, y);
     if (personName) doc.text(`Person: ${personName}`, marginLeft + 110, y);
     y += 3;
 
     const body = rows.map(f => [
       fmtDatum(f.datum),
       ...(showPerson ? [f.personName || ''] : []),
-      `${f.startort} → ${f.zielort}`,
+      f.startort,
+      f.zielort,
       f.autoName || '',
-      (f.startKm != null && f.endKm != null) ? `${f.startKm}–${f.endKm}` : '',
+      fmtKmStand(f),
       fmtZahl(f.kilometer),
       f.kilometerPauschale.toFixed(2).replace('.', ','),
       fmtEuro(f.betrag),
@@ -92,8 +102,8 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
 
     const foot = [head[0].map((_, i) => {
       if (i === 0) return 'Summe';
-      if (i === kmCol) return fmtZahl(summeKm);
-      if (i === kmCol + 2) return fmtEuro(summeBetrag);
+      if (i === idxKm) return fmtZahl(summeKm);
+      if (i === idxBetrag) return fmtEuro(summeBetrag);
       return '';
     })];
 
@@ -102,14 +112,17 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
       head,
       body,
       foot,
-      theme: 'striped',
-      headStyles: { fillColor: [220, 38, 38], textColor: 255, fontStyle: 'bold' },
+      theme: 'grid',
+      headStyles: { fillColor: [220, 38, 38], textColor: 255, fontStyle: 'bold', halign: 'left' },
       footStyles: { fillColor: [243, 244, 246], textColor: 20, fontStyle: 'bold' },
-      styles: { fontSize: 8.5, cellPadding: 1.4, overflow: 'linebreak' },
+      bodyStyles: { textColor: 30 },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      styles: { fontSize: 8.5, cellPadding: 1.6, overflow: 'linebreak', lineColor: [220, 220, 220], lineWidth: 0.1 },
       columnStyles: {
-        [kmCol]: { halign: 'right', cellWidth: 14 },
-        [kmCol + 1]: { halign: 'right', cellWidth: 16 },
-        [kmCol + 2]: { halign: 'right', cellWidth: 22 },
+        0: { cellWidth: 20 },
+        [idxKm]: { halign: 'right', cellWidth: 13 },
+        [idxPauschale]: { halign: 'right', cellWidth: 17 },
+        [idxBetrag]: { halign: 'right', cellWidth: 22 },
       },
       margin: { left: marginLeft, right: marginLeft },
     });
@@ -127,7 +140,7 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
     doc.text('Datum, Unterschrift Mitarbeiter', marginLeft, sigY + 4);
-    doc.text('Geprüft – Buchhaltung', rightX - sigWidth, sigY + 4);
+    doc.text('Geprueft - Buchhaltung', rightX - sigWidth, sigY + 4);
     doc.setTextColor(0, 0, 0);
   };
 
