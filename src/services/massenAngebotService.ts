@@ -20,6 +20,7 @@ import {
   Preisanpassung,
   ErzeugungsErgebnis,
   AngebotsLauf,
+  VersandKandidat,
 } from '../types/massenAngebot';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -30,6 +31,8 @@ import {
   loescheDokumenteFuerProjekt,
 } from './projektabwicklungDokumentService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
+import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
+import { generiereAngebotPDF } from './dokumentService';
 import { getArtikelPreis, getStammdatenOderDefault } from './stammdatenService';
 import { Stammdaten } from '../types/stammdaten';
 import { getZoneFromPLZ, berechneSpeditionskosten, AUFSCHLAEGE } from '../constants/pricing';
@@ -645,6 +648,120 @@ async function ladeLaeufe(saisonjahr?: number): Promise<AngebotsLauf[]> {
   }
 }
 
+// ===== HALBAUTOMATISCHER E-MAIL-VERSAND =====
+
+const TEST_EMAIL = 'jtatwcook@gmail.com';
+const ANGEBOT_ABSENDER = 'anfrage@tennismehl.com';
+
+// Lädt die versandbereiten Angebote eines Batches (status === 'angebot', noch nicht versendet).
+async function ladeVersandKandidaten(batchId: string): Promise<VersandKandidat[]> {
+  const [projekte, alleKunden] = await Promise.all([
+    projektService.loadProjekteFuerBatch(batchId),
+    saisonplanungService.loadAlleKunden(),
+  ]);
+  const kundenMap = new Map(alleKunden.map((k) => [k.id, k]));
+
+  return projekte
+    .filter((p) => p.status === 'angebot')
+    .map((p) => {
+      const kunde = kundenMap.get(p.kundeId);
+      const email = kunde ? ermittleEmpfaenger(kunde) : undefined;
+      return {
+        projektId: p.$id || p.id,
+        kundeId: p.kundeId,
+        kundenname: p.kundenname,
+        angebotsnummer: p.angebotsnummer,
+        empfaengerEmail: email,
+        emailFehlt: !email,
+        ausgewaehlt: !!email,
+      };
+    });
+}
+
+/**
+ * Versendet das Angebot eines Projekts per E-Mail (PDF aus den gespeicherten Angebotsdaten).
+ * testModus: Empfänger ist ausschließlich die Test-Adresse, kein Statuswechsel beim Kunden,
+ * kein Versand-Protokoll (skipProtokoll). Nur bei echtem Versand → Status 'angebot_versendet'.
+ */
+async function versendeAngebot(
+  projektId: string,
+  realEmail: string | undefined,
+  testModus: boolean
+): Promise<{ success: boolean; testModeActive?: boolean; error?: string }> {
+  const empfaenger = testModus ? TEST_EMAIL : realEmail;
+  if (!empfaenger) {
+    return { success: false, error: 'Keine Empfänger-E-Mail' };
+  }
+
+  const dokument = await ladeDokumentNachTyp(projektId, 'angebot');
+  if (!dokument) return { success: false, error: 'Kein gespeichertes Angebot gefunden' };
+  const daten = ladeDokumentDaten<AngebotsDaten>(dokument);
+  if (!daten) return { success: false, error: 'Angebotsdaten nicht lesbar' };
+
+  const stammdaten = await getStammdatenOderDefault();
+  const pdf = await generiereAngebotPDF(daten, stammdaten);
+  const pdfBase64 = pdfZuBase64(pdf);
+
+  const betreff = `${testModus ? '[TEST] ' : ''}Ihr Angebot zur Frühjahrsinstandsetzung – ${daten.angebotsnummer}`;
+  const text =
+    `Sehr geehrte Damen und Herren,\n\n` +
+    `anbei erhalten Sie unser Angebot ${daten.angebotsnummer} für die diesjährige ` +
+    `Frühjahrsinstandsetzung Ihrer Tennisplätze.\n\n` +
+    `Bei Fragen stehen wir Ihnen gerne zur Verfügung. Über Ihren Auftrag freuen wir uns.\n\n` +
+    `Mit freundlichen Grüßen\nIhr TENNISMEHL-Team`;
+  const htmlBody = wrapInEmailTemplate(text);
+
+  const result = await sendeEmailMitPdf({
+    empfaenger,
+    absender: ANGEBOT_ABSENDER,
+    betreff,
+    htmlBody,
+    pdfBase64,
+    pdfDateiname: `Angebot_${daten.angebotsnummer.replace(/\//g, '-')}.pdf`,
+    projektId,
+    dokumentTyp: 'angebot',
+    dokumentNummer: daten.angebotsnummer,
+    testModus,
+    skipProtokoll: testModus,
+  });
+
+  if (result.success && !testModus) {
+    await projektService.updateProjektStatus(projektId, 'angebot_versendet');
+  }
+  return {
+    success: result.success,
+    testModeActive: result.testModeActive,
+    error: result.success ? undefined : 'Versand fehlgeschlagen',
+  };
+}
+
+// Versendet mehrere Angebote nacheinander (sequentiell, mit Fortschritt + Fehlersammlung).
+async function versendeBatch(
+  kandidaten: VersandKandidat[],
+  testModus: boolean,
+  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void
+): Promise<{ gesendet: number; fehler: { kundenname: string; fehler: string }[] }> {
+  let gesendet = 0;
+  const fehler: { kundenname: string; fehler: string }[] = [];
+  let index = 0;
+  for (const kandidat of kandidaten) {
+    index += 1;
+    try {
+      const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus);
+      if (res.success) gesendet += 1;
+      else fehler.push({ kundenname: kandidat.kundenname, fehler: res.error || 'Fehler' });
+    } catch (error) {
+      fehler.push({
+        kundenname: kandidat.kundenname,
+        fehler: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      onFortschritt?.(index, kandidaten.length, kandidat.kundenname);
+    }
+  }
+  return { gesendet, fehler };
+}
+
 export const massenAngebotService = {
   sammleKandidaten,
   berechneZusammenfassung,
@@ -654,6 +771,9 @@ export const massenAngebotService = {
   erzeugeBatch,
   rollbackBatch,
   ladeLaeufe,
+  ladeVersandKandidaten,
+  versendeAngebot,
+  versendeBatch,
   istTestumgebung,
   getStammdaten: getStammdatenOderDefault,
 };

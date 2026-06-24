@@ -79,6 +79,17 @@ export interface AngebotsLauf {
   rueckgaengigGemacht?: boolean;
 }
 
+/** Ein erzeugtes Angebot, das versendet werden kann. */
+export interface VersandKandidat {
+  projektId: string;
+  kundeId: string;
+  kundenname: string;
+  angebotsnummer?: string;
+  empfaengerEmail?: string;
+  emailFehlt: boolean;
+  ausgewaehlt: boolean;
+}
+
 /** Ergebnis eines scharfen Erzeugungslaufs. */
 export interface ErzeugungsErgebnis {
   batchId: string;
