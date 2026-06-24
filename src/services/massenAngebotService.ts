@@ -11,23 +11,35 @@
 //   3. PLZ-Preiskalkulation (echter Neukunde: Zone + Spedition + Aufschlag)
 //   4. sonst: manuell prüfen (nicht automatisch erzeugen)
 
+import { ID, Query } from 'appwrite';
 import { SaisonKunde } from '../types/saisonplanung';
 import { Position, AngebotsDaten } from '../types/projektabwicklung';
 import {
   MassenAngebotKandidat,
   KandidatenZusammenfassung,
   Preisanpassung,
+  ErzeugungsErgebnis,
+  AngebotsLauf,
 } from '../types/massenAngebot';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
 import {
   ladeDokumentNachTyp,
   ladeDokumentDaten,
+  speichereAngebot,
+  loescheDokumenteFuerProjekt,
 } from './projektabwicklungDokumentService';
+import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { getArtikelPreis, getStammdatenOderDefault } from './stammdatenService';
 import { Stammdaten } from '../types/stammdaten';
 import { getZoneFromPLZ, berechneSpeditionskosten, AUFSCHLAEGE } from '../constants/pricing';
 import { formatAdresszeile } from './pdfHelpers';
+import {
+  databases,
+  DATABASE_ID,
+  ANGEBOTS_LAEUFE_COLLECTION_ID,
+  PROJECT_ID,
+} from '../config/appwrite';
 
 // Standard-Menge (Tonnen) für PLZ-Kalkulation, wenn keine Referenzmenge vorliegt.
 export const STANDARD_MENGE_DEFAULT = 10;
@@ -108,6 +120,19 @@ function ermittleEmpfaenger(kunde: SaisonKunde): string | undefined {
 
 function ermittlePlz(kunde: SaisonKunde): string | undefined {
   return kunde.lieferadresse?.plz || kunde.rechnungsadresse?.plz || undefined;
+}
+
+// Flache Kundenadresse (Rechnungsadresse bevorzugt) für Projekt/Angebot.
+function flacheKundenadresse(kunde: SaisonKunde): { strasse: string; plzOrt: string } {
+  const rech = kunde.rechnungsadresse;
+  const liefer = kunde.lieferadresse;
+  const strasse = rech?.strasse || liefer?.strasse || '';
+  const plzOrt = rech
+    ? formatAdresszeile(rech.plz, rech.ort, rech.land)
+    : liefer
+    ? formatAdresszeile(liefer.plz, liefer.ort, liefer.land)
+    : '';
+  return { strasse, plzOrt };
 }
 
 // Harte Validierung (blockiert Erzeugung) + weiche Hinweise. Setzt status/ausgewaehlt.
@@ -413,11 +438,222 @@ function baueAngebotsDaten(
   };
 }
 
+// ===== SCHARFE ERZEUGUNG / ROLLBACK / PROTOKOLL =====
+
+// Erkennt, ob die App gegen eine Appwrite-Testumgebung läuft (für Banner + Protokoll).
+function istTestumgebung(): boolean {
+  const flag = import.meta.env.VITE_APPWRITE_TESTUMGEBUNG;
+  if (typeof flag === 'string') return flag === 'true' || flag === '1';
+  const pid = (PROJECT_ID || '').toLowerCase();
+  return pid.includes('test') || pid.includes('staging');
+}
+
+function neueBatchId(): string {
+  return `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function schreibeProtokoll(
+  batchId: string,
+  saisonjahr: number,
+  ergebnis: ErzeugungsErgebnis,
+  meta: { benutzer?: string }
+): Promise<void> {
+  try {
+    await databases.createDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, ID.unique(), {
+      batchId,
+      saisonjahr,
+      zeitpunkt: new Date().toISOString(),
+      benutzer: meta.benutzer,
+      testModus: istTestumgebung(),
+      anzahlErzeugt: ergebnis.erzeugt.length,
+      anzahlUebersprungen: ergebnis.uebersprungen.length,
+      anzahlFehler: ergebnis.fehler.length,
+      rueckgaengigGemacht: false,
+      data: JSON.stringify(ergebnis).slice(0, 99000),
+    });
+  } catch (error) {
+    console.warn('Angebots-Lauf konnte nicht protokolliert werden:', error);
+  }
+}
+
+/**
+ * Erzeugt scharf Angebote für die ausgewählten, erzeugbaren Kandidaten (status 'neu').
+ * SEQUENTIELL – die Dokumentnummern teilen sich einen Zähler, paralleles Generieren
+ * würde doppelte Angebotsnummern erzeugen (GoBD-kritisch).
+ * Einzelfehler werden gesammelt, der Lauf bricht NICHT ab. Jedes Projekt erhält die
+ * erzeugungsBatchId für den Rollback. Der Lauf wird protokolliert.
+ */
+async function erzeugeBatch(
+  kandidaten: MassenAngebotKandidat[],
+  saisonjahr: number,
+  optionen: {
+    benutzer?: string;
+    limit?: number;
+    onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void;
+  } = {}
+): Promise<ErzeugungsErgebnis> {
+  const batchId = neueBatchId();
+  const stammdaten = await getStammdatenOderDefault();
+  const ergebnis: ErzeugungsErgebnis = { batchId, erzeugt: [], uebersprungen: [], fehler: [] };
+
+  const erzeugbar = kandidaten.filter((k) => k.status === 'neu' && k.ausgewaehlt);
+  const zuErzeugen =
+    optionen.limit && optionen.limit > 0 ? erzeugbar.slice(0, optionen.limit) : erzeugbar;
+  const gesamt = zuErzeugen.length;
+
+  let index = 0;
+  for (const kandidat of zuErzeugen) {
+    index += 1;
+    try {
+      // Doppelschutz: erneut prüfen, ob es das Zielsaison-Projekt schon gibt.
+      const existiert = await projektService.getProjektFuerKunde(kandidat.kundeId, saisonjahr);
+      if (existiert) {
+        ergebnis.uebersprungen.push({
+          kundeId: kandidat.kundeId,
+          kundenname: kandidat.kundenname,
+          grund: 'Projekt existiert bereits',
+        });
+        continue;
+      }
+
+      const adresse = flacheKundenadresse(kandidat.kunde);
+      const projekt = await projektService.createProjekt(
+        {
+          projektName: kandidat.kundenname,
+          kundeId: kandidat.kundeId,
+          kundennummer: kandidat.kundennummer,
+          kundenname: kandidat.kundenname,
+          kundenstrasse: adresse.strasse,
+          kundenPlzOrt: adresse.plzOrt,
+          saisonjahr,
+          status: 'angebot',
+          automatischErzeugt: true,
+          erzeugungsBatchId: batchId,
+          preisProTonne: kandidat.preisProTonne,
+        },
+        // Im Massenlauf keine kaskadierende Platzbauer-Projekt-Zuordnung auslösen.
+        { skipPlatzbauerProjektZuordnung: true }
+      );
+
+      const projektId = projekt.id;
+      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
+      const heute = new Date().toISOString().split('T')[0];
+      await projektService.updateProjekt(projektId, { angebotsnummer, angebotsdatum: heute });
+
+      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten);
+      await speichereAngebot(projektId, angebotsDaten);
+
+      ergebnis.erzeugt.push({
+        kundeId: kandidat.kundeId,
+        kundenname: kandidat.kundenname,
+        projektId,
+        angebotsnummer,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Fehler bei Angebot für ${kandidat.kundenname}:`, error);
+      ergebnis.fehler.push({
+        kundeId: kandidat.kundeId,
+        kundenname: kandidat.kundenname,
+        fehler: message,
+      });
+    } finally {
+      optionen.onFortschritt?.(index, gesamt, kandidat.kundenname);
+    }
+  }
+
+  await schreibeProtokoll(batchId, saisonjahr, ergebnis, { benutzer: optionen.benutzer });
+  return ergebnis;
+}
+
+async function markiereLaufRueckgaengig(batchId: string): Promise<void> {
+  try {
+    const res = await databases.listDocuments(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, [
+      Query.equal('batchId', batchId),
+      Query.limit(25),
+    ]);
+    for (const dok of res.documents) {
+      await databases.updateDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, dok.$id, {
+        rueckgaengigGemacht: true,
+      });
+    }
+  } catch (error) {
+    console.warn('Lauf konnte nicht als rückgängig markiert werden:', error);
+  }
+}
+
+/**
+ * Macht einen kompletten Erzeugungslauf rückgängig: löscht alle Projekte (+ deren Dokumente/PDFs)
+ * des Batches, die noch NICHT versendet wurden (status === 'angebot'). Versendete Angebote
+ * bleiben aus GoBD-Gründen erhalten.
+ */
+async function rollbackBatch(
+  batchId: string,
+  optionen: { onFortschritt?: (erledigt: number, gesamt: number) => void } = {}
+): Promise<{ geloescht: number; uebersprungenVersendet: number; fehler: number }> {
+  const projekte = await projektService.loadProjekteFuerBatch(batchId);
+  let geloescht = 0;
+  let uebersprungenVersendet = 0;
+  let fehler = 0;
+
+  let index = 0;
+  for (const projekt of projekte) {
+    index += 1;
+    if (projekt.status !== 'angebot') {
+      // Bereits versendet/weiter im Workflow → behalten (GoBD).
+      uebersprungenVersendet += 1;
+      optionen.onFortschritt?.(index, projekte.length);
+      continue;
+    }
+    try {
+      await loescheDokumenteFuerProjekt(projekt.$id || projekt.id);
+      await projektService.deleteProjekt(projekt);
+      geloescht += 1;
+    } catch (error) {
+      console.error('Rollback-Fehler:', error);
+      fehler += 1;
+    } finally {
+      optionen.onFortschritt?.(index, projekte.length);
+    }
+  }
+
+  await markiereLaufRueckgaengig(batchId);
+  return { geloescht, uebersprungenVersendet, fehler };
+}
+
+// Lädt die letzten Protokoll-Einträge (optional nach Saison gefiltert).
+async function ladeLaeufe(saisonjahr?: number): Promise<AngebotsLauf[]> {
+  try {
+    const queries = [Query.orderDesc('zeitpunkt'), Query.limit(50)];
+    if (saisonjahr) queries.unshift(Query.equal('saisonjahr', saisonjahr));
+    const res = await databases.listDocuments(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, queries);
+    return (res.documents as unknown as Array<Record<string, unknown>>).map((d) => ({
+      id: String(d.$id),
+      batchId: String(d.batchId ?? ''),
+      saisonjahr: Number(d.saisonjahr ?? 0),
+      zeitpunkt: String(d.zeitpunkt ?? ''),
+      benutzer: d.benutzer ? String(d.benutzer) : undefined,
+      testModus: Boolean(d.testModus),
+      anzahlErzeugt: Number(d.anzahlErzeugt ?? 0),
+      anzahlUebersprungen: Number(d.anzahlUebersprungen ?? 0),
+      anzahlFehler: Number(d.anzahlFehler ?? 0),
+      rueckgaengigGemacht: Boolean(d.rueckgaengigGemacht),
+    }));
+  } catch (error) {
+    console.warn('Angebots-Läufe konnten nicht geladen werden:', error);
+    return [];
+  }
+}
+
 export const massenAngebotService = {
   sammleKandidaten,
   berechneZusammenfassung,
   aktualisiereMengePreis,
   wendePreisanpassungAn,
   baueAngebotsDaten,
+  erzeugeBatch,
+  rollbackBatch,
+  ladeLaeufe,
+  istTestumgebung,
   getStammdaten: getStammdatenOderDefault,
 };

@@ -129,6 +129,31 @@ export const ladeProjektDokumente = async (projektId: string): Promise<Gespeiche
   }
 };
 
+// Löscht ALLE gespeicherten Dokumente (inkl. PDF-Dateien) eines Projekts.
+// Genutzt vom Massen-Angebots-Rollback, um einen kompletten Erzeugungslauf rückstandsfrei zu entfernen.
+export const loescheDokumenteFuerProjekt = async (projektId: string): Promise<number> => {
+  const dokumente = await ladeProjektDokumente(projektId);
+  let geloescht = 0;
+  for (const dok of dokumente) {
+    const { $id: dokId, dateiId } = dok as unknown as { $id?: string; dateiId?: string };
+    if (dateiId) {
+      try {
+        await storage.deleteFile(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID, dateiId);
+      } catch (error) {
+        console.warn('PDF-Datei konnte nicht gelöscht werden (evtl. bereits entfernt):', error);
+      }
+    }
+    if (!dokId) continue;
+    try {
+      await databases.deleteDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokId);
+      geloescht++;
+    } catch (error) {
+      console.warn('Dokument-Datensatz konnte nicht gelöscht werden:', error);
+    }
+  }
+  return geloescht;
+};
+
 export const ladeDokumentNachTyp = async (
   projektId: string,
   dokumentTyp: DokumentTyp

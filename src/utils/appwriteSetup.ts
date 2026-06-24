@@ -68,6 +68,8 @@ import {
   SHOP_PRODUKTBILDER_BUCKET_ID,
   // Benachrichtigungen
   NOTIFICATIONS_COLLECTION_ID,
+  // Massen-Angebots-Läufe (Protokoll)
+  ANGEBOTS_LAEUFE_COLLECTION_ID,
 } from '../config/appwrite';
 
 // Verwende die REST API direkt für Management-Operationen
@@ -75,7 +77,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '43'; // projekte.erzeugungsBatchId (Massen-Angebote Rollback)
+const APPWRITE_SETUP_VERSION = '43'; // Massen-Angebote: projekte.erzeugungsBatchId + Collection angebots_laeufe
 
 type FieldConfig = {
   key: string;
@@ -734,6 +736,20 @@ const notificationsFields: FieldConfig[] = [
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
 ];
 
+// Protokoll der Massen-Angebots-Läufe (Audit: wer/wann/Saison/Anzahl/Testmodus)
+const angebotsLaeufeFields: FieldConfig[] = [
+  { key: 'batchId', type: 'string', size: 100, required: true },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'zeitpunkt', type: 'string', size: 50, required: true },
+  { key: 'benutzer', type: 'string', size: 255, required: false },
+  { key: 'testModus', type: 'boolean', default: false },
+  { key: 'anzahlErzeugt', type: 'integer', required: false },
+  { key: 'anzahlUebersprungen', type: 'integer', required: false },
+  { key: 'anzahlFehler', type: 'integer', required: false },
+  { key: 'rueckgaengigGemacht', type: 'boolean', default: false },
+  { key: 'data', type: 'string', size: 100000, required: false }, // Detail-JSON (ErzeugungsErgebnis)
+];
+
 async function ensureIndex(collectionId: string, indexKey: string, attributes: string[], type: 'key' | 'unique' | 'fulltext' = 'key') {
   if (!apiKey) return;
   const headers = {
@@ -1084,6 +1100,13 @@ export async function setupAppwriteFields() {
         id: NOTIFICATIONS_COLLECTION_ID,
         name: 'Benachrichtigungen',
         fields: notificationsFields,
+        permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
+      },
+      // Protokoll der Massen-Angebots-Läufe
+      {
+        id: ANGEBOTS_LAEUFE_COLLECTION_ID,
+        name: 'Angebots-Läufe',
+        fields: angebotsLaeufeFields,
         permissions: ['read("users")', 'create("users")', 'update("users")', 'delete("users")'],
       },
     ];

@@ -99,6 +99,9 @@ export const MIGRATION_KANDIDATEN_COLLECTION_ID = 'migration_kandidaten';
 // Benachrichtigungen (persistenter Notification-Service)
 export const NOTIFICATIONS_COLLECTION_ID = 'notifications';
 
+// Protokoll der Massen-Angebots-Läufe (Frühjahrsinstandsetzung)
+export const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -181,6 +184,7 @@ export const COLLECTIONS = {
   MIGRATION_KANDIDATEN: MIGRATION_KANDIDATEN_COLLECTION_ID,
   // Benachrichtigungen
   NOTIFICATIONS: NOTIFICATIONS_COLLECTION_ID,
+  ANGEBOTS_LAEUFE: ANGEBOTS_LAEUFE_COLLECTION_ID,
 };
 
 // Storage Bucket IDs

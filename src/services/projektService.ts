@@ -148,6 +148,33 @@ class ProjektService {
     }
   }
 
+  // Alle Projekte eines Massen-Angebots-Laufs laden (für Rollback).
+  // Primär über die top-level Spalte erzeugungsBatchId; Fallback (Schema noch nicht migriert):
+  // alle Projekte laden und nach dem Wert im geparsten Dokument filtern.
+  async loadProjekteFuerBatch(batchId: string): Promise<Projekt[]> {
+    try {
+      const documents = await loadAllDocuments(DATABASE_ID, this.collectionId, {
+        queries: [Query.equal('erzeugungsBatchId', batchId)],
+      });
+      return documents.map(doc => parseProjektDocument(doc as Record<string, unknown>));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/Unknown attribute|Attribute not found/i.test(message)) {
+        console.error('Fehler beim Laden der Batch-Projekte:', error);
+        throw error;
+      }
+      console.warn(
+        'erzeugungsBatchId-Spalte fehlt (Schema < v43). Rollback fällt auf Volltext-Scan zurück.'
+      );
+      const alle = await loadAllDocuments(DATABASE_ID, this.collectionId, {
+        queries: [Query.orderDesc('erstelltAm')],
+      });
+      return alle
+        .map(doc => parseProjektDocument(doc as Record<string, unknown>))
+        .filter(p => p.erzeugungsBatchId === batchId);
+    }
+  }
+
   // Projekte gruppiert nach Status laden (mit Cache!)
   async loadProjekteGruppiert(saisonjahr?: number): Promise<{
     angebot: Projekt[];
