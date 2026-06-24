@@ -129,8 +129,9 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
 
   const offene = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt'), [debitoren]);
 
-  // Fällige Mahnschritte (inkl. Inkasso-Hinweis) PLUS heute bereits versendete
-  // (letztere bleiben als "✅ heute versendet" sichtbar → Doppelversand-Schutz).
+  // Fällige Mahnschritte (inkl. Inkasso-Hinweis). Heute bereits versendete werden
+  // NICHT mehr gelistet — sie stehen im Tab "Versendete Mahnungen". Doppelversand bleibt
+  // service-seitig (gleicher Tag) blockiert.
   const faellig = useMemo<FaelligEntry[]>(
     () =>
       offene
@@ -144,7 +145,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
             heuteVersendet: istHeute(d.letzteMahnungAm),
           };
         })
-        .filter((e) => e.empfehlung !== 'keine' || e.heuteVersendet),
+        .filter((e) => e.empfehlung !== 'keine' && !e.heuteVersendet),
     [offene]
   );
 
