@@ -61,7 +61,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     tonnenLetztesJahr: undefined,
     beziehtUeberUnsPlatzbauer: false,
     abwerkspreis: false,
-    automatischesAngebot: false,
+    automatischesAngebot: true,
     zahlungsziel: 14,
     schuettstellenAnzahl: undefined,
     belieferungsart: undefined,
@@ -112,7 +112,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: kunde.kunde.tonnenLetztesJahr,
         beziehtUeberUnsPlatzbauer: kunde.kunde.beziehtUeberUnsPlatzbauer,
         abwerkspreis: kunde.kunde.abwerkspreis || false,
-        automatischesAngebot: kunde.kunde.automatischesAngebot || false,
+        automatischesAngebot: kunde.kunde.automatischesAngebot ?? true,
         schuettstellenAnzahl: kunde.kunde.schuettstellenAnzahl,
         belieferungsart: kunde.kunde.belieferungsart,
         zahlungsziel: kunde.kunde.zahlungsziel ?? 14,
@@ -153,7 +153,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: undefined,
         beziehtUeberUnsPlatzbauer: false,
         abwerkspreis: false,
-        automatischesAngebot: false,
+        automatischesAngebot: true,
         belieferungsart: undefined,
         zahlungsziel: 14,
         standardLieferzeitfenster: undefined,
@@ -678,7 +678,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   <input
                     id="automatischesAngebot"
                     type="checkbox"
-                    checked={formData.automatischesAngebot ?? false}
+                    checked={formData.automatischesAngebot ?? true}
                     onChange={(e) => setFormData({ ...formData, automatischesAngebot: e.target.checked })}
                     className="h-4 w-4 text-green-600 border-gray-300 dark:border-slate-700 rounded"
                   />

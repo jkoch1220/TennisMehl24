@@ -281,11 +281,13 @@ async function bestimmeKandidat(
 
 /**
  * Sammelt alle Kandidaten für die Zielsaison (Dry-Run – schreibt nichts).
- * Nur Kunden mit aktiv === true && automatischesAngebot === true werden einbezogen.
+ * Opt-out: alle aktiven Kunden sind dabei, außer automatischesAngebot === false.
  */
 async function sammleKandidaten(saisonjahr: number): Promise<MassenAngebotKandidat[]> {
   const alleKunden = await saisonplanungService.loadAlleKunden();
-  const berechtigte = alleKunden.filter((k) => k.aktiv && k.automatischesAngebot);
+  // Opt-out-Semantik: standardmäßig sind alle aktiven Kunden dabei; nur explizit
+  // abgewählte (automatischesAngebot === false) werden ausgeschlossen.
+  const berechtigte = alleKunden.filter((k) => k.aktiv && k.automatischesAngebot !== false);
 
   const werkspreisProTonne = await getArtikelPreis(STANDARD_ARTIKEL.nummer);
 

@@ -196,7 +196,7 @@ export interface SaisonKunde {
   // Falls Verein: bezieht über Platzbauer, die von uns gestellt werden
   beziehtUeberUnsPlatzbauer?: boolean;
   abwerkspreis?: boolean; // Kunde bekommt Abwerkspreis (Ja/Nein)
-  /** Nur wenn true (und aktiv === true): Kunde wird ins automatische Saison-Angebot einbezogen */
+  /** Opt-out fürs Massen-Angebot: Standard (undefined/true) = einbezogen, false = ausgeschlossen (nur wenn aktiv) */
   automatischesAngebot?: boolean;
   zahlungsziel?: number; // Zahlungsziel in Tagen (z.B. 14, 30)
   schuettstellenAnzahl?: number; // Anzahl der Schüttstellen
