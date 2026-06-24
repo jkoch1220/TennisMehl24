@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { X, Download, FileSpreadsheet } from 'lucide-react';
+import { X, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { fahrkostenService } from '../../services/fahrkostenService';
 import { Fahrt, Person, Firma } from '../../types/fahrtkosten';
 import { toISODate } from './dateUtils';
+import { generiereFahrtkostenPdf } from './fahrtkostenPdf';
 
 interface ReportModalProps {
   fahrten: Fahrt[];
@@ -96,6 +97,17 @@ export default function ReportModal({ fahrten, personen, firmen, startPersonId, 
     XLSX.writeFile(wb, dateiname);
   };
 
+  const handlePdf = () => {
+    if (gefiltert.length === 0) return;
+    generiereFahrtkostenPdf({
+      fahrten: gefiltert,
+      firmaName: firmaId ? firmen.find(f => f.id === firmaId)?.name : undefined,
+      personName: personId ? personen.find(p => p.id === personId)?.name : undefined,
+      von,
+      bis,
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
       <div className="bg-white dark:bg-dark-surface rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[92vh] overflow-hidden flex flex-col">
@@ -185,14 +197,22 @@ export default function ReportModal({ fahrten, personen, firmen, startPersonId, 
           )}
         </div>
 
-        <div className="p-4 border-t dark:border-dark-border">
+        <div className="p-4 border-t dark:border-dark-border flex gap-3">
+          <button
+            type="button"
+            onClick={handlePdf}
+            disabled={gefiltert.length === 0}
+            className="flex-1 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <FileText className="w-5 h-5" /> PDF (Abrechnung)
+          </button>
           <button
             type="button"
             onClick={handleExport}
             disabled={gefiltert.length === 0}
-            className="w-full py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <Download className="w-5 h-5" /> Excel exportieren
+            <Download className="w-5 h-5" /> Excel
           </button>
         </div>
       </div>
