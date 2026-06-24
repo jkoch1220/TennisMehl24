@@ -39,6 +39,7 @@ const PROJEKT_TOP_LEVEL_FELDER = [
   'rechnungsnummer',
   'rechnungsdatum',
   'rechnungVersendetAm',
+  'erzeugungsBatchId',
 ] as const;
 
 // Top-Level-Felder, die erst mit Schema-Version 39 (siehe appwriteSetup.ts) angelegt werden.
@@ -359,7 +360,7 @@ class ProjektService {
         geaendertAm: jetzt,
       } as Projekt;
 
-      const dokument = {
+      const dokument: Record<string, unknown> = {
         projektName: neuesProjekt.projektName,
         kundeId: neuesProjekt.kundeId,
         kundenname: neuesProjekt.kundenname,
@@ -369,13 +370,37 @@ class ProjektService {
         geaendertAm: jetzt,
         data: JSON.stringify(neuesProjekt),
       };
+      // Massen-Angebots-Tool: Batch-ID als top-level Spalte für Rollback. Der Wert liegt
+      // zusätzlich in `data`, daher ist ein Fallback ohne die Spalte verlustfrei (Schema v43).
+      if (neuesProjekt.erzeugungsBatchId) {
+        dokument.erzeugungsBatchId = neuesProjekt.erzeugungsBatchId;
+      }
 
-      const response = await databases.createDocument(
-        DATABASE_ID,
-        this.collectionId,
-        dokumentId,
-        dokument
-      );
+      let response;
+      try {
+        response = await databases.createDocument(
+          DATABASE_ID,
+          this.collectionId,
+          dokumentId,
+          dokument
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (dokument.erzeugungsBatchId && /Unknown attribute/i.test(message)) {
+          console.warn(
+            'Schema-Migration ausstehend: projekte.erzeugungsBatchId existiert noch nicht (npm run setup:appwrite für v43). Batch-ID bleibt nur in `data`.'
+          );
+          const { erzeugungsBatchId: _entfernt, ...ohneFeld } = dokument;
+          response = await databases.createDocument(
+            DATABASE_ID,
+            this.collectionId,
+            dokumentId,
+            ohneFeld
+          );
+        } else {
+          throw error;
+        }
+      }
 
       // Cache invalidieren nach Erstellung
       this.invalidateCache();

@@ -75,7 +75,7 @@ const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
 
-const APPWRITE_SETUP_VERSION = '42'; // stammdaten.mahnwesenVorlagen + emailTemplates als Attribute
+const APPWRITE_SETUP_VERSION = '43'; // projekte.erzeugungsBatchId (Massen-Angebote Rollback)
 
 type FieldConfig = {
   key: string;
@@ -170,6 +170,8 @@ const projekteFields: FieldConfig[] = [
   { key: 'rechnungsnummer', type: 'string', size: 100, required: false },
   { key: 'rechnungsdatum', type: 'string', size: 50, required: false },
   { key: 'rechnungVersendetAm', type: 'string', size: 50, required: false },
+  // Massen-Angebots-Tool: top-level queryable für Rollback eines kompletten Erzeugungslaufs
+  { key: 'erzeugungsBatchId', type: 'string', size: 100, required: false },
   { key: 'data', type: 'string', size: 100000, required: true }, // Erhöht für Projektabwicklungsdaten
 ];
 

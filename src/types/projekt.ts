@@ -223,6 +223,12 @@ export interface Projekt {
   // Wenn aus diesem Projekt Teilprojekte erstellt wurden
   teilprojektIds?: string[];          // IDs der ausgelagerten Teilprojekte
 
+  // === MASSEN-ANGEBOTE (Frühjahrs-Instandsetzung) ===
+  // Kennzeichnung von Projekten, die durch das Massen-Angebots-Tool erzeugt wurden.
+  // erzeugungsBatchId ist top-level queryable (für Rollback eines kompletten Laufs).
+  automatischErzeugt?: boolean;       // true = vom Massen-Angebots-Tool angelegt
+  erzeugungsBatchId?: string;         // ID des Erzeugungslaufs (für Rollback)
+
   // Timestamps
   erstelltAm: string;
   geaendertAm: string;

@@ -1,0 +1,545 @@
+﻿rechnungsnummer;dokumentTyp;createdAt;aktualisiertAm;rechnungsStatus;bruttobetrag_eur;kundenname;kundennummer;projektId;docId;duplikat;duplikat_version;duplikat_gesamt;storno_zu;stornoGrund
+RE-2026-0044;rechnung;2026-01-16 22:50:29;2026-01-16 22:50:29;(kein Status);801,47;Tennisclub  RW Sprendlingen;368;69414d250037670ba87b;696ac0b500300b03aecb;nein;;;;
+RE-2026-0093;rechnung;2026-02-16 10:23:14;2026-02-16 10:23:14;(kein Status);8633,45;Wiener Parkclub;385;695e4aaa002a1ebff84d;6992f012000c26447b9d;nein;;;;
+RE-2026-0095;rechnung;2026-02-18 07:53:39;2026-02-20 08:15:51;storniert;1499,40;TSV Ebensfeld e. V. ;232;69739ee00014ff2fd017;69957003001da5756051;JA;1;3;;Fehlerhafte Rechnungsadresse
+RE-2026-0095;rechnung;2026-02-20 10:05:18;2026-02-20 10:40:54;storniert;1499,40;TSV Ebensfeld e. V. ;232;69739ee00014ff2fd017;699831dd00296191a36a;JA;2;3;;Lieferadresse fehlerhaft hinterlegt
+RE-2026-0095;rechnung;2026-02-20 10:41:10;2026-02-20 10:41:10;(kein Status);1499,40;TSV Ebensfeld e. V. ;232;69739ee00014ff2fd017;69983a46003898d9c65d;JA;3;3;;
+RE-2026-0096;stornorechnung;2026-02-20 08:15:51;2026-05-18 19:43:31;aktiv;-1499,40;TSV Ebensfeld e. V. ;232;69739ee00014ff2fd017;69981837000e65dd8c9a;nein;;;RE-2026-0095;Fehlerhafte Rechnungsadresse
+RE-2026-0097;stornorechnung;2026-02-20 10:40:54;2026-05-18 19:43:32;aktiv;-1499,40;TSV Ebensfeld e. V. ;232;69739ee00014ff2fd017;69983a36001f8938e0ab;nein;;;RE-2026-0095;Lieferadresse fehlerhaft hinterlegt
+RE-2026-0111;rechnung;2026-02-25 20:50:59;2026-02-25 20:50:59;(kein Status);3163,62;PTS Tennisplatz- und Sportanlagenbau GmbH;K10083;699dfda5003736b78337;699f60b30032114e81fa;nein;;;;
+RE-2026-0112;rechnung;2026-02-25 20:55:01;2026-02-25 20:57:58;storniert;1836,77;PTS Tennisplatz- und Sportanlagenbau GmbH;K10100;699eb12d003711c1fc6c;699f61a500321d1a5184;JA;1;2;;1 Folie fehlt
+RE-2026-0112;rechnung;2026-02-25 20:58:31;2026-02-25 20:58:31;(kein Status);1858,42;PTS Tennisplatz- und Sportanlagenbau GmbH;K10100;699eb12d003711c1fc6c;699f62770027463c2a3d;JA;2;2;;
+RE-2026-0113;stornorechnung;2026-02-25 20:57:58;2026-05-18 19:43:33;aktiv;-1836,77;PTS Tennisplatz- und Sportanlagenbau GmbH;K10100;699eb12d003711c1fc6c;699f625600071d3064c6;nein;;;RE-2026-0112;1 Folie fehlt
+RE-2026-0114;rechnung;2026-02-27 07:36:31;2026-02-27 07:40:55;storniert;1138,53;Tennisclub Nüssttal e.V.;396;6966370d00299bfe8a53;69a1497f00219f8e89b0;JA;1;2;;"Fehlerhafte Rechnungsanschrift
+"
+RE-2026-0114;rechnung;2026-02-27 07:55:27;2026-02-27 07:55:27;(kein Status);1138,53;Tennisclub Nüssttal e.V.;396;6966370d00299bfe8a53;69a14def003612c04d45;JA;2;2;;
+RE-2026-0115;stornorechnung;2026-02-27 07:40:55;2026-05-18 19:43:34;aktiv;-1138,53;Tennisclub Nüssttal e.V.;396;6966370d00299bfe8a53;69a14a870036a2cc96ad;nein;;;RE-2026-0114;"Fehlerhafte Rechnungsanschrift
+"
+RE-2026-0120;rechnung;2026-03-04 10:20:01;2026-03-04 10:20:41;storniert;0,00;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a80750003db508dc39;nein;;;;Menge fehlt
+RE-2026-0121;stornorechnung;2026-03-04 10:20:41;2026-05-18 19:43:35;aktiv;0,00;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a807790002bc2e4891;nein;;;RE-2026-0120;Menge fehlt
+RE-2026-0122;rechnung;2026-03-04 10:24:24;2026-03-04 10:24:46;storniert;1515,04;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a80858000e6c0283e0;JA;1;4;;fehlerhafte Rechnungsadresse
+RE-2026-0122;rechnung;2026-03-04 10:26:05;2026-03-04 10:26:24;storniert;0,00;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a808bd002eb7e93ec1;JA;2;4;;Fehlerhafte Menge
+RE-2026-0122;rechnung;2026-03-04 10:27:42;2026-03-04 10:39:50;storniert;1515,04;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a8091e0019f7e3dea3;JA;3;4;;Fehlerhafte Rechnungsadresse
+RE-2026-0122;rechnung;2026-03-04 10:42:04;2026-03-04 10:42:04;(kein Status);1515,04;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a80c7c0020727d18bb;JA;4;4;;
+RE-2026-0123;stornorechnung;2026-03-04 10:24:46;2026-05-18 19:43:37;aktiv;-1515,04;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a8086e000a030b90de;nein;;;RE-2026-0122;fehlerhafte Rechnungsadresse
+RE-2026-0124;stornorechnung;2026-03-04 10:26:23;2026-05-18 19:43:38;aktiv;0,00;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a808cf003bb8a46253;nein;;;RE-2026-0122;Fehlerhafte Menge
+RE-2026-0125;stornorechnung;2026-03-04 10:39:50;2026-05-18 19:43:38;aktiv;-1515,04;TC Dietenhofen e.V.;K10085;69a5b904002693472d95;69a80bf6000eb08c5672;nein;;;RE-2026-0122;Fehlerhafte Rechnungsadresse
+RE-2026-0130;rechnung;2026-03-04 10:58:26;2026-03-04 10:58:26;(kein Status);1335,05;TC Kürnach;488;699ec92c000a855cfb24;69a8105200191b5003fa;nein;;;;
+RE-2026-0136;rechnung;2026-03-06 19:43:17;2026-03-06 19:43:17;(kein Status);1117,83;TV 1891 Rammelsbach e.V.;457;6980b1dc00061880e913;69ab2e55000c47bb1711;nein;;;;
+RE-2026-0137;rechnung;2026-03-06 19:46:20;2026-03-06 19:46:20;(kein Status);1460,20;TC KOB Wolfstein ;238;696bc5d90002dfd869dd;69ab2f0c001925bd9e5f;nein;;;;
+RE-2026-0139;rechnung;2026-03-06 19:55:15;2026-03-06 19:55:15;(kein Status);1350,54;FC Queidersbach e. V.;236;696bb07f0034d443d80c;69ab31230024aead8bd4;nein;;;;
+RE-2026-0142;rechnung;2026-03-06 20:02:50;2026-03-06 20:02:50;(kein Status);2813,87;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10103;69a15b88003263e4875a;69ab32ea00307db2d331;nein;;;;
+RE-2026-0143;rechnung;2026-03-06 20:07:02;2026-03-19 08:58:42;storniert;1452,75;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;279;69a16f870038585852c2;69ab33e600176c40c38c;JA;1;2;;Frachtkostenpauschale 
+RE-2026-0143;rechnung;2026-03-19 08:59:22;2026-03-19 08:59:22;(kein Status);1434,90;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;279;69a16f870038585852c2;69bbbaea003356aff50c;JA;2;2;;
+RE-2026-0144;rechnung;2026-03-06 20:10:40;2026-03-19 09:00:37;storniert;1643,15;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10042;69a16f87001ee4dbc36b;69ab34c0002259f34a69;JA;1;2;;Frachtkostenpauschale
+RE-2026-0144;rechnung;2026-03-19 09:01:06;2026-03-19 09:01:06;(kein Status);1628,87;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10042;69a16f87001ee4dbc36b;69bbbb520014feae34fd;JA;2;2;;
+RE-2026-0145;rechnung;2026-03-06 20:15:28;2026-03-19 09:02:01;storniert;2315,80;TC Großheubach;K10044;69a16f86002fe2b1e21e;69ab35e0002e3abad822;nein;;;;Frachtkostenpauschale
+RE-2026-0146;rechnung;2026-03-06 20:17:57;2026-03-19 09:08:50;storniert;717,69;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10045;69a16f860013ecaf2193;69ab3675002a60c2861d;JA;1;2;;Frachtkostenpauschale
+RE-2026-0146;rechnung;2026-03-19 09:09:56;2026-03-19 09:09:56;(kein Status);687,94;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10045;69a16f860013ecaf2193;69bbbd64003b151352bd;JA;2;2;;
+RE-2026-0147;stornorechnung;2026-03-19 08:58:42;2026-05-18 19:43:53;aktiv;-1452,75;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;279;69a16f870038585852c2;69bbbac20002f16237b9;nein;;;RE-2026-0143;Frachtkostenpauschale 
+RE-2026-0148;rechnung;2026-03-06 20:22:52;2026-03-19 09:10:42;storniert;1649,40;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10043;69a16f87000a8ad2d6de;69ab379c0017c3c2fe80;JA;1;2;;Frachtkostenpauschale
+RE-2026-0148;rechnung;2026-03-19 09:11:50;2026-03-19 09:11:50;(kein Status);1635,12;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10043;69a16f87000a8ad2d6de;69bbbdd600322f357e10;JA;2;2;;
+RE-2026-0149;stornorechnung;2026-03-19 09:00:37;2026-05-18 19:43:54;aktiv;-1643,15;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10042;69a16f87001ee4dbc36b;69bbbb350009e8254998;nein;;;RE-2026-0144;Frachtkostenpauschale
+RE-2026-0150;stornorechnung;2026-03-19 09:02:01;2026-05-18 19:43:55;aktiv;-2315,80;TC Großheubach;K10044;69a16f86002fe2b1e21e;69bbbb8900144e8384bf;nein;;;RE-2026-0145;Frachtkostenpauschale
+RE-2026-0151;stornorechnung;2026-03-19 09:08:50;2026-05-18 19:43:56;aktiv;-717,69;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10045;69a16f860013ecaf2193;69bbbd220002242d307c;nein;;;RE-2026-0146;Frachtkostenpauschale
+RE-2026-0152;rechnung;2026-03-06 20:35:17;2026-03-06 20:35:17;(kein Status);1841,64;TG Heidingsfeld;357;696694550032f2d4ace9;69ab3a850028c1abe978;nein;;;;
+RE-2026-0153;rechnung;2026-03-06 20:43:48;2026-03-06 20:43:48;(kein Status);2294,64;TC Klein-Krotzenburg 1973 e.V.;453;6992e20500348bbe8254;69ab3c84000ef6aa8ba6;nein;;;;
+RE-2026-0154;stornorechnung;2026-03-19 09:10:42;2026-05-18 19:43:57;aktiv;-1649,40;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10043;69a16f87000a8ad2d6de;69bbbd920028e0d0cc59;nein;;;RE-2026-0148;Frachtkostenpauschale
+RE-2026-0155;rechnung;2026-03-06 20:50:12;2026-03-06 20:50:56;storniert;1350,39;TG 1905 Nieder-Roden e.V.;439;696f3360003308885a95;69ab3e04003063644390;nein;;;;Lieferadresse fehlt
+RE-2026-0156;stornorechnung;2026-03-06 20:50:56;2026-05-18 19:43:39;aktiv;-1350,39;TG 1905 Nieder-Roden e.V.;439;696f3360003308885a95;69ab3e300031680003aa;nein;;;RE-2026-0155;Lieferadresse fehlt
+RE-2026-0157;rechnung;2026-03-06 20:52:15;2026-03-06 20:52:15;(kein Status);1350,39;TG 1905 Nieder-Roden e.V.;439;696f3360003308885a95;69ab3e7f001c243e469a;nein;;;;
+RE-2026-0159;rechnung;2026-03-06 20:57:39;2026-03-07 13:15:24;storniert;1224,28;FC Germania 08 Weilbach e.V.;454;6992e206001706cb2d81;69ab3fc300317d34baf2;JA;1;2;;wird erst KW 11 Ausgeliefert.
+RE-2026-0159;rechnung;2026-03-19 11:30:50;2026-03-19 11:30:50;(kein Status);1151,50;FC Germania 08 Weilbach e.V.;454;6992e206001706cb2d81;69bbde6a001cb79c6430;JA;2;2;;
+RE-2026-0160;rechnung;2026-03-06 21:00:36;2026-03-06 21:00:36;(kein Status);1739,63;TV 1888 Königstädten e.V.;450;6992e2030013356765f0;69ab407400152e2c6bfe;nein;;;;
+RE-2026-0161;stornorechnung;2026-03-07 13:15:24;2026-05-18 19:43:41;aktiv;-1224,28;FC Germania 08 Weilbach e.V.;454;6992e206001706cb2d81;69ac24ec00029a1692b1;nein;;;RE-2026-0159;wird erst KW 11 Ausgeliefert.
+RE-2026-0162;rechnung;2026-03-06 21:04:02;2026-03-06 21:04:02;(kein Status);2964,87;PTS Tennisplatz- und Sportanlagenbau GmbH;K10104;69a548b70010157c7b17;69ab4142002cf5aada2f;nein;;;;
+RE-2026-0163;rechnung;2026-03-06 21:07:07;2026-03-06 21:07:07;(kein Status);1424,79;TSV Burgbernheim ;291;696ccaf100064307b774;69ab41fb003b90fd018d;nein;;;;
+RE-2026-0164;rechnung;2026-03-06 21:15:25;2026-03-08 17:02:12;storniert;2333,71;HC Marktbreit;235;696e525b00329756f258;69ab43ed000529cbec5b;JA;1;2;;"PE Folie wurde nicht mitgeliefert
+"
+RE-2026-0164;rechnung;2026-03-08 17:05:40;2026-03-08 17:05:40;(kein Status);2312,05;HC Marktbreit;235;696e525b00329756f258;69adac6400283b32659c;JA;2;2;;
+RE-2026-0165;rechnung;2026-03-06 21:19:38;2026-03-06 21:19:38;(kein Status);1351,60;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10113;69a9fc1b002552b3f04b;69ab44ea00228ff4073d;nein;;;;
+RE-2026-0166;rechnung;2026-03-06 21:23:08;2026-03-06 21:23:08;(kein Status);2936,05;TC Weis-Blau Würzburg;K10112;69a89ac90026cd3edc8b;69ab45bc0003aae6ec59;nein;;;;
+RE-2026-0167;stornorechnung;2026-03-08 17:02:11;2026-05-18 19:43:42;aktiv;-2333,71;HC Marktbreit;235;696e525b00329756f258;69adab930031ab962e35;nein;;;RE-2026-0164;"PE Folie wurde nicht mitgeliefert
+"
+RE-2026-0169;rechnung;2026-03-06 21:27:36;2026-03-06 21:27:36;(kein Status);1581,30;TC  Hainstadt 1959 e.V.;K10015;6992e20700218faab4a4;69ab46c8000d762a0ebd;nein;;;;
+RE-2026-0170;rechnung;2026-03-06 21:33:38;2026-03-06 21:33:38;(kein Status);176,18;Emil Schuck;501;69ab47ab0002295d41fb;69ab48320015078af205;nein;;;;
+RE-2026-0173;rechnung;2026-03-07 13:24:43;2026-03-07 13:24:43;(kein Status);1536,68;Tennisclub Weilbach-Weckbach 1986 e.V.;467;698d8d2d000b54fcf98c;69ac271b001f8c34125b;nein;;;;
+RE-2026-0181;rechnung;2026-03-09 09:53:10;2026-03-09 09:53:10;(kein Status);512,90;Martin Beimbauer;9288;69a95486002052adbcf5;69ae9886002370ffbfbb;nein;;;;
+RE-2026-0183;rechnung;2026-03-09 10:04:22;2026-03-09 10:04:22;(kein Status);447,00;TC Blau-Weiss Eibelstadt;378;69ae9a25000c59d06bf0;69ae9b260034b699adf7;nein;;;;
+RE-2026-0189;rechnung;2026-03-13 15:56:47;2026-03-13 15:56:47;(kein Status);95,50;Daniel Rietz;9291;69aaae8c003bbc97df36;69b433be003e0f121912;nein;;;;
+RE-2026-0190;rechnung;2026-03-13 16:03:55;2026-03-13 16:03:55;(kein Status);402,50;Mull und Partner Ingenieurgesellschaft mbH;9289;69aaae3b001af36b7017;69b4356b0001c63c1f8c;nein;;;;
+RE-2026-0191;rechnung;2026-03-13 17:42:54;2026-03-13 17:42:54;(kein Status);191,90;Tennisclub Rheinböllen e.V.;9290;69aab2e7000750bd6558;69b44c9e00330c9ab910;nein;;;;
+RE-2026-0193;rechnung;2026-03-13 17:56:21;2026-03-13 17:56:47;storniert;898,00;TSC Gelb-Blau Wertheim e. V. ;491;69b44f5f00380a3000af;69b44fc5001fc09413a5;nein;;;;Mwst
+RE-2026-0194;stornorechnung;2026-03-13 17:56:47;2026-05-18 19:43:43;aktiv;-898,00;TSC Gelb-Blau Wertheim e. V. ;491;69b44f5f00380a3000af;69b44fdf000ae0b1b446;nein;;;RE-2026-0193;Mwst
+RE-2026-0195;rechnung;2026-03-13 17:57:19;2026-03-13 17:57:19;(kein Status);754,62;TSC Gelb-Blau Wertheim e. V. ;491;69b44f5f00380a3000af;69b44fff00151d7f17ce;nein;;;;
+RE-2026-0198;rechnung;2026-03-15 19:52:03;2026-04-14 16:31:56;storniert;770,09;Arnsteiner Tennisclub e. V. ;293;696ccc74001fd0e91252;69b70de3001d27957972;JA;1;2;;Mengenanpassung
+RE-2026-0198;rechnung;2026-04-14 16:32:18;2026-04-14 16:32:18;(kein Status);764,22;Arnsteiner Tennisclub e. V. ;293;696ccc74001fd0e91252;69de6c11003e688fb532;JA;2;2;;
+RE-2026-0199;stornorechnung;2026-04-14 16:31:56;2026-05-18 19:44:31;aktiv;-770,09;Arnsteiner Tennisclub e. V. ;293;696ccc74001fd0e91252;69de6bfc001ec0ca343d;nein;;;RE-2026-0198;Mengenanpassung
+RE-2026-0200;rechnung;2026-03-15 19:58:48;2026-03-15 19:58:48;(kein Status);1108,07;HTC Würzburg e.V. ;267;696bd6e800027873a925;69b70f78000881e714d6;nein;;;;
+RE-2026-0202;rechnung;2026-03-15 20:01:39;2026-03-15 20:01:39;(kein Status);376,62;Kaminbau GmbH;359;69b3eb040022cfa9345b;69b7102200396c9f7e0c;nein;;;;
+RE-2026-0205;rechnung;2026-03-15 20:08:31;2026-03-15 20:08:31;(kein Status);928,40;TC 1972 Sprendlingen e. V. ;270;695406e00036e085cead;69b711bf0032bbb7e27b;nein;;;;
+RE-2026-0206;rechnung;2026-03-15 20:12:32;2026-03-15 20:12:32;(kein Status);1762,14;TC Wöllstein e.V;390;696503f5003202f06458;69b712b00006c9749eb9;nein;;;;
+RE-2026-0207;rechnung;2026-03-15 20:14:28;2026-03-15 20:14:28;(kein Status);1110,70;TC Beckstein 1989 e. V. ;280;696bdca9002d96387093;69b713240009c08bd866;nein;;;;
+RE-2026-0208;rechnung;2026-03-15 20:16:51;2026-03-15 20:16:51;(kein Status);1526,41;TC Gemünden ;252;6968427e0000eab228a2;69b713b3001c1d01220f;nein;;;;
+RE-2026-0210;rechnung;2026-03-15 20:21:01;2026-03-15 20:21:19;storniert;1979,38;PTS Tennisplatz- und Sportanlagenbau GmbH;K10152;69aeac4c00129f437018;69b714ad003b5065c013;nein;;;;falsche PE Menge
+RE-2026-0211;stornorechnung;2026-03-15 20:21:19;2026-05-18 19:43:44;aktiv;-1979,38;PTS Tennisplatz- und Sportanlagenbau GmbH;K10152;69aeac4c00129f437018;69b714bf0000f74f78a2;nein;;;RE-2026-0210;falsche PE Menge
+RE-2026-0212;rechnung;2026-03-15 20:21:31;2026-03-18 16:27:53;storniert;2001,04;PTS Tennisplatz- und Sportanlagenbau GmbH;K10152;69aeac4c00129f437018;69b714cb0028a456b668;JA;1;2;;Fehlerhafte Preise
+RE-2026-0212;rechnung;2026-03-18 16:28:27;2026-03-18 16:28:27;(kein Status);2039,00;PTS Tennisplatz- und Sportanlagenbau GmbH;K10152;69aeac4c00129f437018;69bad2ab000c950fba70;JA;2;2;;
+RE-2026-0213;rechnung;2026-03-15 20:22:57;2026-03-15 20:27:00;storniert;1436,97;PTS Tennisplatz- und Sportanlagenbau GmbH;K10151;69aeaad8000396d70999;69b71521001dca3c748b;JA;1;3;;"fehlerhafter Preis#
+"
+RE-2026-0213;rechnung;2026-03-15 20:27:18;2026-03-18 16:52:29;storniert;1583,95;PTS Tennisplatz- und Sportanlagenbau GmbH;K10151;69aeaad8000396d70999;69b7162600178c8ad050;JA;2;3;;fehlerhafter Preis
+RE-2026-0213;rechnung;2026-03-18 16:52:48;2026-03-18 16:52:48;(kein Status);1621,91;PTS Tennisplatz- und Sportanlagenbau GmbH;K10151;69aeaad8000396d70999;69bad86000066322f828;JA;3;3;;
+RE-2026-0214;rechnung;2026-03-15 20:23:49;2026-03-15 20:26:07;storniert;908,43;PTS Tennisplatz- und Sportanlagenbau GmbH;K10155;69aec0ea0009312ca867;69b715550013ad591d60;JA;1;3;;Fehlerhafter Preis
+RE-2026-0214;rechnung;2026-03-15 20:26:26;2026-03-18 16:51:11;storniert;1000,52;PTS Tennisplatz- und Sportanlagenbau GmbH;K10155;69aec0ea0009312ca867;69b715f200335c4a4052;JA;2;3;;Fehlerhafter Preis
+RE-2026-0214;rechnung;2026-03-18 16:51:32;2026-03-18 16:51:32;(kein Status);1048,00;PTS Tennisplatz- und Sportanlagenbau GmbH;K10155;69aec0ea0009312ca867;69bad8140038d72e6665;JA;3;3;;
+RE-2026-0215;rechnung;2026-03-15 20:25:34;2026-03-18 16:53:31;storniert;1000,52;PTS Tennisplatz- und Sportanlagenbau GmbH;K10154;69aebf530028b8793d0a;69b715be001de0a75235;JA;1;3;;"fehlerhafter Preis
+"
+RE-2026-0215;rechnung;2026-03-18 16:54:04;2026-03-18 16:54:29;storniert;198,79;PTS Tennisplatz- und Sportanlagenbau GmbH;K10154;69aebf530028b8793d0a;69bad8ac002933e12986;JA;2;3;;falsche Menge
+RE-2026-0215;rechnung;2026-03-18 16:55:09;2026-03-18 16:55:09;(kein Status);1038,48;PTS Tennisplatz- und Sportanlagenbau GmbH;K10154;69aebf530028b8793d0a;69bad8ed0038c85821c4;JA;3;3;;
+RE-2026-0216;stornorechnung;2026-03-15 20:26:07;2026-05-18 19:43:45;aktiv;-908,43;PTS Tennisplatz- und Sportanlagenbau GmbH;K10155;69aec0ea0009312ca867;69b715df000f380cf6b1;nein;;;RE-2026-0214;Fehlerhafter Preis
+RE-2026-0217;stornorechnung;2026-03-15 20:27:00;2026-05-18 19:43:46;aktiv;-1436,97;PTS Tennisplatz- und Sportanlagenbau GmbH;K10151;69aeaad8000396d70999;69b7161400335627ca1a;nein;;;RE-2026-0213;"fehlerhafter Preis#
+"
+RE-2026-0218;stornorechnung;2026-03-18 16:27:53;2026-05-18 19:43:47;aktiv;-2001,04;PTS Tennisplatz- und Sportanlagenbau GmbH;K10152;69aeac4c00129f437018;69bad2890001587e9420;nein;;;RE-2026-0212;Fehlerhafte Preise
+RE-2026-0219;stornorechnung;2026-03-18 16:51:11;2026-05-18 19:43:48;aktiv;-1000,52;PTS Tennisplatz- und Sportanlagenbau GmbH;K10155;69aec0ea0009312ca867;69bad7ff0022dc4081bc;nein;;;RE-2026-0214;Fehlerhafter Preis
+RE-2026-0220;stornorechnung;2026-03-18 16:52:29;2026-05-18 19:43:49;aktiv;-1583,95;PTS Tennisplatz- und Sportanlagenbau GmbH;K10151;69aeaad8000396d70999;69bad84d00231d688439;nein;;;RE-2026-0213;fehlerhafter Preis
+RE-2026-0221;stornorechnung;2026-03-18 16:53:31;2026-05-18 19:43:50;aktiv;-1000,52;PTS Tennisplatz- und Sportanlagenbau GmbH;K10154;69aebf530028b8793d0a;69bad88b0000e8c27dcb;nein;;;RE-2026-0215;"fehlerhafter Preis
+"
+RE-2026-0222;stornorechnung;2026-03-18 16:54:29;2026-05-18 19:43:51;aktiv;-198,79;PTS Tennisplatz- und Sportanlagenbau GmbH;K10154;69aebf530028b8793d0a;69bad8c50023fc6b879d;nein;;;RE-2026-0215;falsche Menge
+RE-2026-0223;rechnung;2026-03-18 16:26:25;2026-03-18 16:26:25;(kein Status);1365,64;PTS Tennisplatz- und Sportanlagenbau GmbH;K10149;69ae8deb001dfa4d3dc1;69bad230003c1ad08b91;nein;;;;
+RE-2026-0225;rechnung;2026-03-18 16:35:29;2026-03-18 16:35:29;(kein Status);2039,00;PTS Tennisplatz- und Sportanlagenbau GmbH;K10156;69b1bc140002144bb392;69bad4510038e8464ee3;nein;;;;
+RE-2026-0226;rechnung;2026-03-18 16:43:20;2026-03-18 16:43:20;(kein Status);1613,21;PTS Tennisplatz- und Sportanlagenbau GmbH;K10157;69b1bcb1003a0ebaa78a;69bad6280015febecc3e;nein;;;;
+RE-2026-0227;rechnung;2026-03-18 16:46:41;2026-03-18 16:46:41;(kein Status);1665,22;PTS Tennisplatz- und Sportanlagenbau GmbH;K10150;69ae8fed0010502b82eb;69bad6f100393b8eb921;nein;;;;
+RE-2026-0228;rechnung;2026-03-18 16:48:29;2026-03-18 16:48:29;(kein Status);1773,22;PTS Tennisplatz- und Sportanlagenbau GmbH;K10148;69ae7580002fa58425ff;69bad75d001cacaeed85;nein;;;;
+RE-2026-0229;rechnung;2026-03-18 16:50:02;2026-03-18 16:50:02;(kein Status);1365,64;PTS Tennisplatz- und Sportanlagenbau GmbH;K10153;69aebd8f0026efb428c8;69bad7ba003570640e44;nein;;;;
+RE-2026-0234;rechnung;2026-03-18 16:56:54;2026-03-18 16:56:54;(kein Status);858,94;PTS Tennisplatz- und Sportanlagenbau GmbH;K10159;69b1bdc4001b6bfdbc66;69bad9560024e068a980;nein;;;;
+RE-2026-0235;rechnung;2026-03-18 16:58:13;2026-03-18 16:58:13;(kein Status);741,19;PTS Tennisplatz- und Sportanlagenbau GmbH;K10158;69b1bd9300121eeb7e5c;69bad9a4003df272f818;nein;;;;
+RE-2026-0236;rechnung;2026-03-18 16:59:45;2026-03-18 16:59:45;(kein Status);1637,08;PTS Tennisplatz- und Sportanlagenbau GmbH;K10147;69ae745c000224d9f087;69bada0100080e6a6501;nein;;;;
+RE-2026-0237;rechnung;2026-03-18 17:13:57;2026-03-18 17:13:57;(kein Status);2306,31;TC Ober-Roden e.V.;449;6992e202002ea95537af;69badd55000e03501c83;nein;;;;
+RE-2026-0238;rechnung;2026-03-18 17:16:00;2026-03-18 17:16:00;(kein Status);2653,78;Andreas Meinecke Tennisservice ;K10117;69b1c33800019b3e2d36;69baddd0000286fa26b4;nein;;;;
+RE-2026-0240;rechnung;2026-03-19 07:53:38;2026-03-19 07:53:38;(kein Status);2922,22;Omar Taouil Tennisplatzbau;406;69666e9f002449da6913;69bbab81003db28975ac;nein;;;;
+RE-2026-0242;rechnung;2026-03-19 08:38:13;2026-03-19 08:38:13;(kein Status);2482,01;TC Schweinfurt e.V.;K10032;6992e20f001d81179c88;69bbb5f5002a6762ca51;nein;;;;
+RE-2026-0243;rechnung;2026-03-19 08:39:59;2026-03-19 08:39:59;(kein Status);2095,47;TC Höchstadt/Aisch e.V.;K10019;6992e20900105d13b509;69bbb65f000bad248613;nein;;;;
+RE-2026-0250;rechnung;2026-03-19 09:23:41;2026-03-19 09:23:41;(kein Status);1493,11;Topp Commerce OOD (USt.ID Nr. BG203906757);447;69aef9050004c1ec0a54;69bbc09d002639d0a64a;nein;;;;
+RE-2026-0252;rechnung;2026-03-19 09:33:41;2026-03-19 09:33:49;storniert;1564,89;TSC Gelb-Blau Wertheim e. V. ;491;69a6ee89001feb8f7594;69bbc2f500266d3ee172;nein;;;;PE Menge
+RE-2026-0253;stornorechnung;2026-03-19 09:33:49;2026-05-18 19:43:59;aktiv;-1564,89;TSC Gelb-Blau Wertheim e. V. ;491;69a6ee89001feb8f7594;69bbc2fd00331faa10d5;nein;;;RE-2026-0252;PE Menge
+RE-2026-0254;rechnung;2026-03-19 09:34:07;2026-03-19 09:34:07;(kein Status);1608,21;TSC Gelb-Blau Wertheim e. V. ;491;69a6ee89001feb8f7594;69bbc30f000ed92c0e89;nein;;;;
+RE-2026-0255;rechnung;2026-03-19 09:45:18;2026-03-19 09:45:18;(kein Status);955,69;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10050;69b2e2f8002ca702e6de;69bbc5ae001d70711bd3;nein;;;;
+RE-2026-0256;rechnung;2026-03-19 09:46:35;2026-03-19 09:46:35;(kein Status);1863,90;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10051;69b2e2f8000bb73548c4;69bbc5fb00296ecb17df;nein;;;;
+RE-2026-0257;rechnung;2026-03-19 09:49:05;2026-03-20 07:36:03;storniert;3470,99;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10058;69b3a0950019a47e82fd;69bbc690003d59bb7877;JA;1;2;;Falscher Preis
+RE-2026-0257;rechnung;2026-03-20 07:37:56;2026-03-20 07:37:56;(kein Status);3352,59;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10058;69b3a0950019a47e82fd;69bcf954002ad6e671d8;JA;2;2;;
+RE-2026-0258;rechnung;2026-03-19 11:22:25;2026-03-19 11:22:25;(kein Status);1003,29;TSG Waldbüttelbrunn Tennis;K10048;69a82e65000f22d5eb97;69bbdc710000cdde571f;nein;;;;
+RE-2026-0259;rechnung;2026-03-19 11:24:39;2026-03-19 11:24:39;(kein Status);1885,56;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10052;69b4f20e00376781caf4;69bbdcf700060f15e448;nein;;;;
+RE-2026-0260;stornorechnung;2026-03-20 07:36:03;2026-05-18 19:44:02;aktiv;-3827,99;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10058;69b3a0950019a47e82fd;69bcf8e3000e73381a4b;nein;;;RE-2026-0257;Falscher Preis
+RE-2026-0264;rechnung;2026-03-19 11:50:31;2026-03-20 06:11:06;storniert;2161,72;TC Rot-Gold Alzenau;352;6966ba5d0017f39ed6af;69bbe3070020b83dc3a9;JA;1;2;;"Fehlende Lieferadresse
+"
+RE-2026-0264;rechnung;2026-03-20 06:12:42;2026-03-20 06:12:42;(kein Status);2161,72;TC Rot-Gold Alzenau;352;6966ba5d0017f39ed6af;69bce55a001341924318;JA;2;2;;
+RE-2026-0265;rechnung;2026-03-19 12:17:31;2026-03-19 12:17:31;(kein Status);2095,47;TG Schweinfurt 1848 e.V.;K10030;6992e20e002508d6eda5;69bbe95a00373c6305d0;nein;;;;
+RE-2026-0266;stornorechnung;2026-03-20 06:11:06;2026-05-18 19:44:01;aktiv;-2161,72;TC Rot-Gold Alzenau;352;6966ba5d0017f39ed6af;69bce4fa0022289a4336;nein;;;RE-2026-0264;"Fehlende Lieferadresse
+"
+RE-2026-0268;rechnung;2026-03-19 15:19:42;2026-03-19 15:19:42;(kein Status);1972,48;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10124;69b3d18d002c7499334d;69bc140e0021fe6cdeae;nein;;;;
+RE-2026-0269;rechnung;2026-03-19 15:21:21;2026-03-19 15:21:21;(kein Status);1594,24;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10139;69b1c0bb00064added9c;69bc147100071c896c8b;nein;;;;
+RE-2026-0270;rechnung;2026-03-19 15:26:15;2026-03-19 15:26:15;(kein Status);2586,58;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10131;69ae8a68000bdaf2d60b;69bc15970019f79e5986;nein;;;;
+RE-2026-0271;rechnung;2026-03-19 15:27:59;2026-03-19 15:27:59;(kein Status);2292,42;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10049;69aa9dd20031b6c06063;69bc15ff00057dda0031;nein;;;;
+RE-2026-0272;rechnung;2026-03-19 15:35:26;2026-03-19 15:35:26;(kein Status);1313,34;TA SV Neustetten ;262;696bd29d001ad7f08f51;69bc17be00126bb7fa8c;nein;;;;
+RE-2026-0273;rechnung;2026-03-19 15:38:15;2026-03-19 15:38:15;(kein Status);1494,76;TSV Altenburg ;250;696bcdb3001302cea32d;69bc1867002314ea4be9;nein;;;;
+RE-2026-0275;rechnung;2026-03-19 16:01:00;2026-03-19 16:01:00;(kein Status);1870,79;TV Altenriet e.V. ;249;69679884002ec8c6733d;69bc1dbc000e4b1635fa;nein;;;;
+RE-2026-0276;rechnung;2026-03-19 16:04:53;2026-03-19 16:04:53;(kein Status);766,44;Sport Park Frick KG ;269;6966527d000fcf469329;69bc1ea500066c0e4810;nein;;;;
+RE-2026-0277;rechnung;2026-03-19 16:09:09;2026-03-19 16:09:09;(kein Status);1410,75;TC Hackenheim 1986 e.V. ;258;69665ad400199d3927ad;69bc1fa5000acdbb2ff4;nein;;;;
+RE-2026-0278;rechnung;2026-03-19 16:12:14;2026-03-19 16:12:14;(kein Status);1932,38;TC Rot-Weiß Sobernheim ;264;69665ba5001d8901a838;69bc205e0004672c3b72;nein;;;;
+RE-2026-0279;rechnung;2026-03-19 16:15:53;2026-03-19 16:15:53;(kein Status);2171,56;TC Schwarz-Rot Lengfeld;443;697a4194000c944d6d08;69bc213900022e2e8a2d;nein;;;;
+RE-2026-0280;rechnung;2026-03-19 16:19:15;2026-03-19 16:19:15;(kein Status);522,09;TSV Eintracht Rottenberg;489;69a6cffb001363228b88;69bc2203003a9eeab279;nein;;;;
+RE-2026-0284;rechnung;2026-03-20 08:12:48;2026-03-20 08:12:48;(kein Status);1815,42;Dotterweich;510;69b7e1900007c36aef0e;69bd018000263f04ad91;nein;;;;
+RE-2026-0290;rechnung;2026-03-22 15:06:34;2026-03-22 15:06:34;(kein Status);759,58;TC Roth e.V.;287;696bdf600032cb74b16a;69c0057a002ab9f30a2c;nein;;;;
+RE-2026-0292;rechnung;2026-03-22 15:10:33;2026-03-22 15:10:33;(kein Status);1615,43;PTS Tennisplatz- und Sportanlagenbau GmbH;K10165;69b945400015d7c788de;69c006690004f9f5294b;nein;;;;
+RE-2026-0293;rechnung;2026-03-22 15:12:33;2026-03-22 15:12:33;(kein Status);979,90;PTS Tennisplatz- und Sportanlagenbau GmbH;K10166;69b9453f00356f941e24;69c006e1002900a55da3;nein;;;;
+RE-2026-0294;rechnung;2026-03-22 15:23:14;2026-03-22 15:23:14;(kein Status);1048,00;PTS Tennisplatz- und Sportanlagenbau GmbH;K10171;69c008fe002b1e46b09c;69c0096200093d60c1c4;nein;;;;
+RE-2026-0295;rechnung;2026-03-22 15:24:43;2026-03-22 15:24:43;(kein Status);1628,39;PTS Tennisplatz- und Sportanlagenbau GmbH;K10169;69bb8d340003a5abacce;69c009bb001208182281;nein;;;;
+RE-2026-0296;rechnung;2026-03-22 15:25:59;2026-03-22 15:25:59;(kein Status);1372,13;PTS Tennisplatz- und Sportanlagenbau GmbH;K10168;69bb8cad00127d602e0a;69c00a07002999de836f;nein;;;;
+RE-2026-0297;rechnung;2026-03-22 15:27:40;2026-03-22 15:27:40;(kein Status);1393,78;PTS Tennisplatz- und Sportanlagenbau GmbH;K10167;69bab1e8000f87f96ae5;69c00a6c0024608bb0c1;nein;;;;
+RE-2026-0298;rechnung;2026-03-22 15:31:02;2026-03-22 15:31:02;(kein Status);1426,34;TC 84 Gronau e.V.;451;6992e2030038186a6e86;69c00b360022231c55f2;nein;;;;
+RE-2026-0299;rechnung;2026-03-22 15:35:42;2026-03-22 15:35:42;(kein Status);2742,13;TC Bergen-Enkheim e.V.;452;6992e205000803035294;69c00c4e0001419c7213;nein;;;;
+RE-2026-0301;rechnung;2026-03-22 15:38:49;2026-03-22 15:38:49;(kein Status);2587,57;Topp Commerce OOD (USt.ID Nr. BG203906757);448;69b2e59b002a16120c59;69c00d090023cc511ded;nein;;;;
+RE-2026-0304;rechnung;2026-03-22 15:43:26;2026-03-22 15:43:26;(kein Status);814,91;SV Fuchsstadt -TAFrau Marion Fuchs ;284;695f8184002630dcbd14;69c00e1e002681b2bbb1;nein;;;;
+RE-2026-0305;rechnung;2026-03-22 15:46:51;2026-03-22 15:46:51;(kein Status);757,65;TC Gaukönigshofen ;306;696cedd200013f19a902;69c00eeb002e4db6bf9e;nein;;;;
+RE-2026-0306;rechnung;2026-03-22 15:48:46;2026-03-26 09:47:59;storniert;966,40;TSV 75 Eßfeld ;285;697c5764000c8fadda25;69c00f5e001ae46079e7;JA;1;2;;Nachlass
+RE-2026-0306;rechnung;2026-03-26 09:48:22;2026-03-26 09:48:22;(kein Status);818,84;TSV 75 Eßfeld ;285;697c5764000c8fadda25;69c500e60007144da296;JA;2;2;;
+RE-2026-0307;stornorechnung;2026-03-26 09:47:59;2026-05-18 19:44:05;aktiv;-966,40;TSV 75 Eßfeld ;285;697c5764000c8fadda25;69c500cf001f99a7087a;nein;;;RE-2026-0306;Nachlass
+RE-2026-0309;rechnung;2026-03-22 15:52:11;2026-03-22 15:52:11;(kein Status);1385,78;TC Eichenbühl 1984 e.V.;441;69777826002f4abd24d3;69c0102b001cc214cfc5;nein;;;;
+RE-2026-0310;rechnung;2026-03-22 15:54:00;2026-03-22 15:54:00;(kein Status);1228,48;1. Tennisclub Leinach;K10003;697b63e60020b36a2377;69c0109800264fb06b6e;nein;;;;
+RE-2026-0313;rechnung;2026-03-24 08:13:32;2026-03-24 08:13:32;(kein Status);1358,80;TC 1987 Marbach;346;69663059001bb0e52b0b;69c247ac0020158adc8f;nein;;;;
+RE-2026-0314;rechnung;2026-03-24 10:09:11;2026-03-24 10:09:11;(kein Status);258,23;TC Rot-Weiß Miltenberg ;279;69c261950021c18977c5;69c262c70025ea486bea;nein;;;;
+RE-2026-0317;rechnung;2026-03-24 14:25:33;2026-03-24 14:25:33;(kein Status);529,00;Joachim Schick;9292;69b2d3f9003bc78b7ed8;69c29edd0002898e2b34;nein;;;;
+RE-2026-0322;rechnung;2026-03-25 16:07:46;2026-03-26 05:31:32;storniert;87,40;TSV Eintracht Rottenberg;489;69bbccd00034468a8988;69c408520007930c0e14;JA;1;2;;fehlerhafte Position erfasst
+RE-2026-0322;rechnung;2026-03-26 05:32:22;2026-03-26 05:32:22;(kein Status);76,87;TSV Eintracht Rottenberg;489;69bbccd00034468a8988;69c4c4e60008ab08a04a;JA;2;2;;
+RE-2026-0323;stornorechnung;2026-03-26 05:31:32;2026-05-18 19:44:04;aktiv;-87,40;TSV Eintracht Rottenberg;489;69bbccd00034468a8988;69c4c4b4001dc74ab0d0;nein;;;RE-2026-0322;fehlerhafte Position erfasst
+RE-2026-0325;rechnung;2026-03-26 07:41:30;2026-03-26 07:41:30;(kein Status);1309,00;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10059;69bbee28003d846e556e;69c4e32a001e7245e2ec;nein;;;;
+RE-2026-0327;rechnung;2026-03-26 09:44:50;2026-03-26 09:44:50;(kein Status);2134,28;Tennisclub Umpfertal ;298;694553630003d4224bad;69c50012000f7b35257f;nein;;;;
+RE-2026-0330;rechnung;2026-03-26 10:58:02;2026-03-26 11:03:45;storniert;365,50;Würzburger Versorgungs-und Verkehrs-GmbH c/o Sportfreunde WVV e. V.;516;69c510fd001fc46560f1;69c5113a0016491b86c9;JA;1;2;;Versandkosten nicht Angeboten
+RE-2026-0330;rechnung;2026-03-26 11:04:10;2026-03-26 11:04:10;(kein Status);350,00;Würzburger Versorgungs-und Verkehrs-GmbH c/o Sportfreunde WVV e. V.;516;69c510fd001fc46560f1;69c512aa0014bc197ebb;JA;2;2;;
+RE-2026-0331;stornorechnung;2026-03-26 11:03:45;2026-05-18 19:44:07;aktiv;-365,50;Würzburger Versorgungs-und Verkehrs-GmbH c/o Sportfreunde WVV e. V.;516;69c510fd001fc46560f1;69c5129100014822c3cf;nein;;;RE-2026-0330;Versandkosten nicht Angeboten
+RE-2026-0332;rechnung;2026-03-27 05:15:13;2026-03-27 05:15:13;(kein Status);1285,08;TC Röthenbach/Altdorf;K10097;699e04c70036535d77ec;69c61261000cf10b1bf8;nein;;;;
+RE-2026-0333;rechnung;2026-03-27 05:16:41;2026-03-27 05:16:41;(kein Status);1322,21;SV Schwaig/Nürnberg;K10098;699e04ca00224e099abd;69c612b90001094c3921;nein;;;;
+RE-2026-0334;rechnung;2026-03-27 10:01:41;2026-03-27 10:01:56;storniert;983,22;TC Rot-Weiß Röttingen ;321;696cf4ac000f62535fee;69c6558500107f0a6581;nein;;;;"Datum flasch
+"
+RE-2026-0335;stornorechnung;2026-03-27 10:01:56;2026-05-18 19:44:09;aktiv;-983,22;TC Rot-Weiß Röttingen ;321;696cf4ac000f62535fee;69c655940014cd0e8801;nein;;;RE-2026-0334;"Datum flasch
+"
+RE-2026-0336;rechnung;2026-03-27 10:02:13;2026-03-27 10:02:13;(kein Status);977,53;TC Rot-Weiß Röttingen ;321;696cf4ac000f62535fee;69c655a50025619e8620;nein;;;;
+RE-2026-0337;rechnung;2026-03-27 10:03:50;2026-03-27 11:34:37;storniert;1163,94;TC Mainstockheim e.V.;428;696e3ee40024691f5505;69c65606001a383cd277;JA;1;2;;"fragt ob wir folie erlassen können weil broke
+
+"
+RE-2026-0337;rechnung;2026-03-27 11:34:58;2026-03-27 11:34:58;(kein Status);1142,28;TC Mainstockheim e.V.;428;696e3ee40024691f5505;69c66b62000370ec990e;JA;2;2;;
+RE-2026-0338;stornorechnung;2026-03-27 11:34:37;2026-05-18 19:44:11;aktiv;-1163,94;TC Mainstockheim e.V.;428;696e3ee40024691f5505;69c66b4c003b1fb9e425;nein;;;RE-2026-0337;"fragt ob wir folie erlassen können weil broke
+
+"
+RE-2026-0340;rechnung;2026-03-27 10:07:10;2026-03-27 10:07:10;(kein Status);810,38;TC 1. FC Gössenheim;338;6966a29f00192aa1d60d;69c656ce0032148789f5;nein;;;;
+RE-2026-0341;rechnung;2026-03-27 10:09:39;2026-03-27 10:09:39;(kein Status);1607,81;TSV Retzbach;461;698992e1002371bfb55e;69c65763002d19e94db6;nein;;;;
+RE-2026-0342;rechnung;2026-03-27 10:13:27;2026-03-27 10:13:27;(kein Status);906,87;SG Hettstadt;K10130;69b817ad00394e465aa6;69c658470001a29a4890;nein;;;;
+RE-2026-0344;rechnung;2026-03-27 10:19:06;2026-03-27 10:19:06;(kein Status);1090,39;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10163;69b7d1ad00169bd9c99f;69c6599a001f2a03305f;nein;;;;
+RE-2026-0345;rechnung;2026-03-27 10:20:32;2026-03-27 10:20:32;(kein Status);2301,01;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10127;69b7951b0003cf9389dc;69c659f0003a6d6b08c9;nein;;;;
+RE-2026-0348;rechnung;2026-03-27 10:26:51;2026-03-27 10:26:51;(kein Status);1004,00;DJK Hirschfeld ;283;696bde5d002636a9c662;69c65b6b00057f2abde6;nein;;;;
+RE-2026-0349;rechnung;2026-03-27 10:28:21;2026-03-27 10:28:21;(kein Status);1791,22;TFC Echzell;369;6942a773002bc53e9482;69c65bc5000d1246dcbe;nein;;;;
+RE-2026-0350;rechnung;2026-03-27 10:30:14;2026-03-27 10:30:14;(kein Status);874,52;DJK-SV Eigenzell 1962 e.V. ;286;696bdf0f003cd3446e91;69c65c360009dfed23b5;nein;;;;
+RE-2026-0352;rechnung;2026-03-27 10:33:11;2026-03-27 10:33:11;(kein Status);1080,60;FC/DJK Burgoberbach ;247;699f26ed00235972cdc6;69c65ce70021f60046bc;nein;;;;
+RE-2026-0354;rechnung;2026-03-27 10:35:58;2026-03-27 10:35:58;(kein Status);2114,56;DJK Ellwangen;274;696bd9700022dd790c10;69c65d8e000627da42a2;nein;;;;
+RE-2026-0356;rechnung;2026-03-27 10:51:40;2026-03-27 10:51:40;(kein Status);1432,08;SG Randersacker;500;69aaf2dc00150c798dc3;69c6613c0000b17c9231;nein;;;;
+RE-2026-0357;rechnung;2026-03-27 10:56:04;2026-03-27 10:56:04;(kein Status);484,20;TC RW Gerbrunn e.V.;K10124;69c661bc002964642941;69c66244003ce605602e;nein;;;;
+RE-2026-0358;rechnung;2026-03-27 11:07:40;2026-03-27 11:07:40;(kein Status);1413,17;Ostheimer Tennisclub Nidderau 1976 e.V;231;695e307b0034813e60cf;69c664fc001ddc001e87;nein;;;;
+RE-2026-0359;rechnung;2026-03-27 11:10:10;2026-03-27 11:10:10;(kein Status);980,34;TC Rotlipp e.V. ;313;696cf14c0020552169cb;69c66592003a7ad40ef8;nein;;;;
+RE-2026-0362;rechnung;2026-03-27 11:24:19;2026-03-27 11:24:19;(kein Status);1899,60;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10055;69bb8f47000a5886c2c5;69c668e30028c214f20c;nein;;;;
+RE-2026-0363;rechnung;2026-03-27 11:27:14;2026-03-27 11:27:14;(kein Status);1519,39;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10054;69bb8f4700262c8dc64f;69c669920024c60b9d6c;nein;;;;
+RE-2026-0364;rechnung;2026-03-27 11:28:28;2026-03-27 11:28:28;(kein Status);1622,68;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10056;69bac65700336f64a3a3;69c669dc0008f32dd543;nein;;;;
+RE-2026-0365;rechnung;2026-03-27 11:30:17;2026-03-27 11:30:17;(kein Status);1045,87;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10061;69bac6580013988da9dd;69c66a49000c0ddb84be;nein;;;;
+RE-2026-0379;rechnung;2026-03-31 06:24:37;2026-03-31 07:48:13;storniert;1434,85;TV Herlikofen e.V., Abt. Tennis;325;696cf60b0007a98ecdc4;69cb68a5002ef6fb9e6f;nein;;;;fehlende Position
+RE-2026-0380;stornorechnung;2026-03-31 07:48:12;2026-05-18 19:44:12;aktiv;-1434,85;TV Herlikofen e.V., Abt. Tennis;325;696cf60b0007a98ecdc4;69cb7c3c0037deaedd81;nein;;;RE-2026-0379;fehlende Position
+RE-2026-0382;rechnung;2026-03-31 07:48:34;2026-03-31 07:48:34;(kein Status);1646,08;TV Herlikofen e.V., Abt. Tennis;325;696cf60b0007a98ecdc4;69cb7c5200094f25703e;nein;;;;
+RE-2026-0383;rechnung;2026-04-01 07:17:21;2026-04-10 15:13:55;storniert;871,38;SV Bieberehren - Tennisabteilung -;317;696cf343000eb43a28cf;69ccc681002f2ac57dcb;JA;1;3;;flasche menge und disel preis pauschale
+RE-2026-0383;rechnung;2026-04-10 15:14:43;2026-04-10 15:19:06;storniert;1132,68;SV Bieberehren - Tennisabteilung -;317;696cf343000eb43a28cf;69d913e30000be0bfe7e;JA;2;3;;doch falsche menge
+RE-2026-0383;rechnung;2026-04-10 15:19:29;2026-04-10 15:19:29;(kein Status);897,77;SV Bieberehren - Tennisabteilung -;317;696cf343000eb43a28cf;69d91501000e1a31b549;JA;3;3;;
+RE-2026-0384;stornorechnung;2026-04-10 15:13:55;2026-05-18 19:44:23;aktiv;-871,38;SV Bieberehren - Tennisabteilung -;317;696cf343000eb43a28cf;69d913b30018c9197a24;nein;;;RE-2026-0383;flasche menge und disel preis pauschale
+RE-2026-0385;stornorechnung;2026-04-10 15:19:06;2026-05-18 19:44:25;aktiv;-1132,68;SV Bieberehren - Tennisabteilung -;317;696cf343000eb43a28cf;69d914ea002a673f3646;nein;;;RE-2026-0383;doch falsche menge
+RE-2026-0425;rechnung;2026-04-01 16:59:03;2026-04-01 16:59:03;(kein Status);605,06;PTS Tennisplatz- und Sportanlagenbau GmbH;K10172;69c0c8f200071a97f813;69cd4ed7001d1a912b6a;nein;;;;
+RE-2026-0426;rechnung;2026-04-01 17:01:48;2026-04-01 17:01:48;(kein Status);988,59;PTS Tennisplatz- und Sportanlagenbau GmbH;K10170;69bd4a2b00018f7a274c;69cd4f7c000ba73f178b;nein;;;;
+RE-2026-0428;rechnung;2026-04-01 17:04:11;2026-04-01 17:04:11;(kein Status);1881,21;PTS Tennisplatz- und Sportanlagenbau GmbH;K10173;69c2a721003e6ce55804;69cd500b0024c718199b;nein;;;;
+RE-2026-0430;rechnung;2026-04-01 17:06:46;2026-04-01 17:06:46;(kein Status);1352,68;PTS Tennisplatz- und Sportanlagenbau GmbH;K10174;69c2a721000d55cee616;69cd50a6002c706916f0;nein;;;;
+RE-2026-0431;rechnung;2026-04-01 17:09:01;2026-04-01 17:09:01;(kein Status);1634,87;PTS Tennisplatz- und Sportanlagenbau GmbH;K10162;69b79be5000ec183f6ee;69cd512d0012da784432;nein;;;;
+RE-2026-0432;rechnung;2026-04-01 17:10:59;2026-04-01 17:10:59;(kein Status);1015,59;PTS Tennisplatz- und Sportanlagenbau GmbH;K10190;69cc0a1c001712c6b34a;69cd51a30008809c5346;nein;;;;
+RE-2026-0433;rechnung;2026-04-01 17:14:34;2026-04-01 17:14:34;(kein Status);1049,95;PTS Tennisplatz- und Sportanlagenbau GmbH;K10183;69c6ab210003fdd13b7a;69cd527a000fdeeb705e;nein;;;;
+RE-2026-0434;rechnung;2026-04-01 17:16:21;2026-04-01 17:16:21;(kein Status);747,67;PTS Tennisplatz- und Sportanlagenbau GmbH;K10182;69c6ab210026115008b6;69cd52e5003d1f3b89e2;nein;;;;
+RE-2026-0435;rechnung;2026-04-01 17:18:27;2026-04-01 17:18:27;(kein Status);1372,13;PTS Tennisplatz- und Sportanlagenbau GmbH;K10180;69c61fcf001a88eb5f4c;69cd53630034faafeab2;nein;;;;
+RE-2026-0436;rechnung;2026-04-01 17:19:56;2026-04-01 17:19:56;(kein Status);1041,52;PTS Tennisplatz- und Sportanlagenbau GmbH;K10185;69ca81c4002e71008134;69cd53bc001b31641b5a;nein;;;;
+RE-2026-0437;rechnung;2026-04-01 17:21:22;2026-04-01 17:21:22;(kein Status);1673,77;PTS Tennisplatz- und Sportanlagenbau GmbH;K10186;69caad4f001f024bd3cc;69cd54120006ed339ccb;nein;;;;
+RE-2026-0439;rechnung;2026-04-01 17:28:17;2026-04-01 17:28:17;(kein Status);1881,21;PTS Tennisplatz- und Sportanlagenbau GmbH;K10177;69c53234001d80353813;69cd55b10036f8f40f04;nein;;;;
+RE-2026-0440;rechnung;2026-04-01 17:36:49;2026-04-01 17:47:02;storniert;1385,09;PTS Tennisplatz- und Sportanlagenbau GmbH;K10178;69c53233003cb374e509;69cd57b100172aacfba4;JA;1;2;;falsche Menge
+RE-2026-0440;rechnung;2026-04-01 17:47:32;2026-04-01 17:47:32;(kein Status);1106,34;PTS Tennisplatz- und Sportanlagenbau GmbH;K10178;69c53233003cb374e509;69cd5a34000bd2d76116;JA;2;2;;
+RE-2026-0441;stornorechnung;2026-04-01 17:47:02;2026-05-18 19:44:14;aktiv;-1385,09;PTS Tennisplatz- und Sportanlagenbau GmbH;K10178;69c53233003cb374e509;69cd5a160024aa4500fe;nein;;;RE-2026-0440;falsche Menge
+RE-2026-0442;rechnung;2026-04-01 17:55:21;2026-04-01 17:55:21;(kein Status);1515,23;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10063;69bd46bb002d41b493a5;69cd5c09002c9073690b;nein;;;;
+RE-2026-0443;rechnung;2026-04-01 17:58:54;2026-04-01 17:58:54;(kein Status);934,27;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10064;69bd46ba0033ead22c7c;69cd5cde0025641d4583;nein;;;;
+RE-2026-0444;rechnung;2026-04-01 18:00:45;2026-04-01 18:00:45;(kein Status);1069,93;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10062;69bd46bc00287852c6c1;69cd5d4d00243946dd6c;nein;;;;
+RE-2026-0445;rechnung;2026-04-01 18:02:53;2026-04-01 18:02:53;(kein Status);1061,24;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10057;69bbee29001ecf3e740f;69cd5dcd003b49d4486c;nein;;;;
+RE-2026-0446;rechnung;2026-04-01 18:07:23;2026-04-01 18:07:23;(kein Status);2648,54;ATV Frankonia Nürnberg;485;699eab050031f5d164fa;69cd5eda003c9eda5de4;nein;;;;
+RE-2026-0447;rechnung;2026-04-01 18:15:27;2026-04-13 06:47:28;storniert;995,55;Deutsche Jugendkraft DJK-  Sportverein Retzstadt e.V. ;289;696cc95a001e85bd4502;69cd60bf002b2c1812f7;JA;1;2;;fehlerhafte Rechnungsadresse
+RE-2026-0447;rechnung;2026-04-13 06:48:20;2026-04-13 06:48:20;(kein Status);995,55;Deutsche Jugendkraft DJK-  Sportverein Retzstadt e.V. ;289;696cc95a001e85bd4502;69dc91b4002fd8506b32;JA;2;2;;
+RE-2026-0448;rechnung;2026-04-01 18:19:06;2026-04-01 18:19:06;(kein Status);1711,10;TC Schwarz Weiß Pegnitz;438;69707e1f003cf7f2feaf;69cd619a00193d2834db;nein;;;;
+RE-2026-0449;stornorechnung;2026-04-13 06:47:28;2026-05-18 19:44:30;aktiv;-995,55;Deutsche Jugendkraft DJK-  Sportverein Retzstadt e.V. ;289;696cc95a001e85bd4502;69dc91800009cfd3084e;nein;;;RE-2026-0447;fehlerhafte Rechnungsadresse
+RE-2026-0451;rechnung;2026-04-01 18:26:00;2026-04-01 18:26:00;(kein Status);616,66;SSV Mainperle 1920 e.V. Urphar-Lindelbach ;305;696ced17000392856dae;69cd633800169c1b50b6;nein;;;;
+RE-2026-0452;rechnung;2026-04-01 18:30:02;2026-04-01 18:30:02;(kein Status);1292,97;Tennisclub Tiefenbach 1978 e.V. ;296;696917e30009eca039e0;69cd642a0000ff06c336;nein;;;;
+RE-2026-0453;rechnung;2026-04-01 18:34:02;2026-04-01 18:34:02;(kein Status);1540,76;Tennisclub Weilmünster ;297;6966200a0024fda2bf40;69cd651a001d9a3d075a;nein;;;;
+RE-2026-0454;rechnung;2026-04-01 18:36:35;2026-04-01 18:36:35;(kein Status);1139,37;SV Greußenheim -TA;253;696bce6d001e3846e92d;69cd65b3002a9546e028;nein;;;;
+RE-2026-0455;rechnung;2026-04-01 18:41:07;2026-04-01 18:41:07;(kein Status);825,71;FC 1920 Thüngen;511;69ba5257000ab9536b9f;69cd66c3002b20ad5524;nein;;;;
+RE-2026-0457;rechnung;2026-04-01 18:44:17;2026-04-01 18:44:17;(kein Status);1918,04;TC Schmelz;456;6980a8a50011e82a0b62;69cd6781003195ad8db3;nein;;;;
+RE-2026-0458;rechnung;2026-04-01 18:46:10;2026-04-01 18:46:10;(kein Status);902,91;TC Gerlachsheim;327;696cf6eb00234e4fdb1a;69cd67f20026f89418e9;nein;;;;
+RE-2026-0459;rechnung;2026-04-01 18:48:01;2026-04-01 18:48:01;(kein Status);1796,07;TC Rot-Weiß Lauda e.V.;344;6966b5be00376c41dc49;69cd6861000283715787;nein;;;;
+RE-2026-0462;rechnung;2026-04-01 18:53:44;2026-04-01 18:53:56;storniert;1248,00;TC Blau Weiss im ASC Dudweiler;K10106;69a82cbc000643f370ee;69cd69b80005fbba0701;JA;1;2;;falsche Menge
+RE-2026-0462;rechnung;2026-04-01 18:55:16;2026-04-01 18:55:16;(kein Status);1255,45;TC Blau Weiss im ASC Dudweiler;K10106;69a82cbc000643f370ee;69cd6a14001eb0bc3d46;JA;2;2;;
+RE-2026-0463;stornorechnung;2026-04-01 18:53:56;2026-05-18 19:44:15;aktiv;-1248,00;TC Blau Weiss im ASC Dudweiler;K10106;69a82cbc000643f370ee;69cd69c4001f49ccfce0;nein;;;RE-2026-0462;falsche Menge
+RE-2026-0478;rechnung;2026-04-03 06:38:50;2026-04-03 06:38:50;(kein Status);1399,18;TUS Laumersheim ;260;696bd1440037a15dbd30;69cf607a003a3f5eb8a7;nein;;;;
+RE-2026-0482;rechnung;2026-04-03 06:45:32;2026-04-03 06:45:32;(kein Status);1874,85;Tennisclub Heuchelheim e.V. ;255;696bcf670021964c9e84;69cf620c00225a554d2d;nein;;;;
+RE-2026-0483;rechnung;2026-04-03 06:57:38;2026-04-03 06:57:38;(kein Status);1373,69;TC Burgsinn;486;699ebfeb002515f7867d;69cf64e20036d843d58c;nein;;;;
+RE-2026-0485;rechnung;2026-04-03 07:03:10;2026-04-03 07:04:12;storniert;1925,99;TC Hardheim 1960 e.V. ;256;696bd0100019a5c47196;69cf662e000fe50b284c;nein;;;;falsches Lieferdatum
+RE-2026-0486;stornorechnung;2026-04-03 07:04:12;2026-05-18 19:44:16;aktiv;-1925,99;TC Hardheim 1960 e.V. ;256;696bd0100019a5c47196;69cf666c002738a7f040;nein;;;RE-2026-0485;falsches Lieferdatum
+RE-2026-0487;rechnung;2026-04-03 07:04:49;2026-04-03 07:04:49;(kein Status);1911,53;TC Hardheim 1960 e.V. ;256;696bd0100019a5c47196;69cf6691002660316610;nein;;;;
+RE-2026-0488;rechnung;2026-04-03 07:07:09;2026-04-03 07:07:09;(kein Status);1393,15;Tennisverein Burgebrach e.V. ;251;696bcce2003930a1ecf7;69cf671d002d423763d6;nein;;;;
+RE-2026-0490;rechnung;2026-04-03 07:13:05;2026-04-03 07:13:05;(kein Status);1421,76;TC Bödigheim;326;696cf676001e906b2ca7;69cf6881001de43abe32;nein;;;;
+RE-2026-0491;rechnung;2026-04-03 07:14:57;2026-04-03 07:14:57;(kein Status);1245,19;TC Sonnefeld 1978 e. V. Herrn ;300;696ccf8b000bedc18cbb;69cf68f10019d29f6951;nein;;;;
+RE-2026-0492;rechnung;2026-04-03 08:35:44;2026-04-03 08:39:21;storniert;1653,39;TC Birstein;478;699c7a6400226839f5cf;69cf7be000183a2e3fc1;nein;;;;"Falsches leistungs Datum
+"
+RE-2026-0493;stornorechnung;2026-04-03 08:39:21;2026-05-18 19:44:17;aktiv;-1653,39;TC Birstein;478;699c7a6400226839f5cf;69cf7cb9001fab0e262b;nein;;;RE-2026-0492;"Falsches leistungs Datum
+"
+RE-2026-0494;rechnung;2026-04-03 08:40:23;2026-04-03 08:41:35;storniert;1644,94;TC Birstein;478;699c7a6400226839f5cf;69cf7cf700009ea6314b;nein;;;;"falsche menge
+"
+RE-2026-0495;stornorechnung;2026-04-03 08:41:35;2026-05-18 19:44:18;aktiv;-1644,94;TC Birstein;478;699c7a6400226839f5cf;69cf7d3f00315fafb26a;nein;;;RE-2026-0494;"falsche menge
+"
+RE-2026-0496;rechnung;2026-04-03 08:42:01;2026-04-03 08:42:01;(kein Status);1637,33;TC Birstein;478;699c7a6400226839f5cf;69cf7d59000f7d103672;nein;;;;
+RE-2026-0499;rechnung;2026-04-03 08:49:59;2026-04-03 08:50:11;storniert;945,63;SV Königshofen;331;6964fd1d002103bd826f;69cf7f36003d28317881;JA;1;2;;"dieselpreis
+"
+RE-2026-0499;rechnung;2026-04-03 09:23:13;2026-04-03 09:23:13;(kein Status);969,20;SV Königshofen;331;6964fd1d002103bd826f;69cf87010016d52d93b0;JA;2;2;;
+RE-2026-0500;stornorechnung;2026-04-03 08:50:11;2026-05-18 19:44:20;aktiv;-945,63;SV Königshofen;331;6964fd1d002103bd826f;69cf7f430014380bbc97;nein;;;RE-2026-0499;"dieselpreis
+"
+RE-2026-0503;rechnung;2026-04-03 08:56:31;2026-04-03 08:56:31;(kein Status);218,37;SV Königshofen;331;69c28a4d0002d4fc250a;69cf80bf000574be3105;nein;;;;
+RE-2026-0507;rechnung;2026-04-03 09:14:02;2026-04-03 09:14:02;(kein Status);1854,54;TC Rot-Weiß Osterburken e.V. ;248;69aab5d200237e534f4e;69cf84da0028007905ee;nein;;;;
+RE-2026-0509;rechnung;2026-04-03 09:25:19;2026-04-03 09:25:19;(kein Status);932,67;Tennisclub Ernsthofen e.V. ;302;696cd61d00159cbf8cf5;69cf877f002b6c5d241e;nein;;;;
+RE-2026-0510;rechnung;2026-04-03 09:28:13;2026-04-03 09:28:13;(kein Status);1545,85;MTV 1882 Bamberg e. V.;319;696cf41e0017bbcad505;69cf882d00363d14517a;nein;;;;
+RE-2026-0511;rechnung;2026-04-03 09:31:16;2026-04-03 09:31:16;(kein Status);1823,42;TC Staffelstein;459;69822a74001b0e34545d;69cf88e40038d3399028;nein;;;;
+RE-2026-0512;rechnung;2026-04-03 09:33:02;2026-04-03 09:33:02;(kein Status);780,68;TC Oberhaid e. V. ;281;696bdd4d002be1b543f9;69cf894e002b65c16af1;nein;;;;
+RE-2026-0514;rechnung;2026-04-03 09:39:40;2026-04-03 09:39:40;(kein Status);1294,64;SV Germania Erlenbach;479;699d6775002037395263;69cf8adc0013e1f98970;nein;;;;
+RE-2026-0515;rechnung;2026-04-03 09:43:20;2026-04-03 09:43:20;(kein Status);1101,46;TCM Marktheidenfeld e. V.;506;69b1b4a10036aef0a07c;69cf8bb8003c9eb4e899;nein;;;;
+RE-2026-0516;rechnung;2026-04-03 09:45:43;2026-04-03 09:47:37;storniert;1288,33;SB Versbach;492;69a7e7400021e80053fb;69cf8c47003996a358a9;nein;;;;Palette
+RE-2026-0517;stornorechnung;2026-04-03 09:47:37;2026-05-18 19:44:22;aktiv;-1288,33;SB Versbach;492;69a7e7400021e80053fb;69cf8cb9001ef64d0ae0;nein;;;RE-2026-0516;Palette
+RE-2026-0518;rechnung;2026-04-03 09:48:28;2026-04-03 09:48:28;(kein Status);1303,21;SB Versbach;492;69a7e7400021e80053fb;69cf8cec00365544e89b;nein;;;;
+RE-2026-0523;rechnung;2026-04-10 07:49:24;2026-04-10 07:49:24;(kein Status);3008,32;TC Weis-Blau Würzburg;K10112;69ac2d3b0023b0d26bae;69d8ab8400327b94d335;nein;;;;
+RE-2026-0524;rechnung;2026-04-10 08:00:37;2026-04-10 08:00:37;(kein Status);316,94;TC Massenbuch;304;69ba5d34003af1064354;69d8ae250002360a7ecc;nein;;;;
+RE-2026-0525;rechnung;2026-04-10 08:15:18;2026-04-10 08:15:18;(kein Status);143,05;TSV Himmelstadt -TA;243;69cbb5ba00203062b24b;69d8b196001279685891;nein;;;;
+RE-2026-0526;rechnung;2026-04-10 08:31:20;2026-04-10 08:31:20;(kein Status);65,70;TC Schwarz-Weiß Adelsheim;522;69d755c70005adfd02b0;69d8b558001bacb9f576;nein;;;;
+RE-2026-0534;rechnung;2026-04-10 15:27:30;2026-04-10 15:27:30;(kein Status);1151,86;TC Tauberbischofsheim;505;69b1b0a70019056afee0;69d916e20003b0cefe33;nein;;;;
+RE-2026-0536;rechnung;2026-04-10 15:36:46;2026-04-10 15:36:46;(kein Status);1347,05;SV 67 Weinberg;480;699dd202003d0549daac;69d9190e0001bc87fc42;nein;;;;
+RE-2026-0538;rechnung;2026-04-10 18:50:08;2026-04-10 18:50:08;(kein Status);1773,27;Tennisclub Uffenheim;475;6996f507003c4d546da1;69d9465f003549e82e0f;nein;;;;
+RE-2026-0539;rechnung;2026-04-10 18:52:48;2026-04-10 18:52:48;(kein Status);1546,76;Tennisclub Rödental e.V.;371;69495d4e000ec85e1bf4;69d947000003102df28e;nein;;;;
+RE-2026-0540;rechnung;2026-04-10 18:55:22;2026-04-10 18:55:22;(kein Status);1602,17;DJK Mainaschaff ;261;696bd1f000394907adea;69d9479a002bb3b11391;nein;;;;
+RE-2026-0541;rechnung;2026-04-10 19:00:03;2026-04-10 19:00:03;(kein Status);1483,57;TG Veitshöchheim 1877 e. V.;465;698c49f1002fb9ce5c1f;69d948b300217035b222;nein;;;;
+RE-2026-0542;rechnung;2026-04-10 19:04:23;2026-04-10 19:04:23;(kein Status);1084,97;TC Fahrenbach e.V.  ;328;696cf751003c8f0a818f;69d949b6003e3268438a;nein;;;;
+RE-2026-0543;rechnung;2026-04-10 19:08:15;2026-04-10 19:08:15;(kein Status);1105,23;Tennisclub Umpfertal ;298;69732408002e7730e8fc;69d94a9f002c0d299bab;nein;;;;
+RE-2026-0544;rechnung;2026-04-10 19:12:13;2026-04-10 19:12:13;(kein Status);1041,13;1. FC Germania Bargau;324;696cf5d7002eede62646;69d94b8d00265e71363a;nein;;;;
+RE-2026-0545;rechnung;2026-04-10 19:14:28;2026-04-15 12:19:08;storniert;1841,41;Turnverein Bargau e.V.;336;69669c900019ecff2022;69d94c1400179ed4a5a1;nein;;;;falsche menge
+RE-2026-0546;rechnung;2026-04-10 19:16:00;2026-04-10 19:16:00;(kein Status);2263,60;TC Freigericht;503;69b034f6000d56f33dc1;69d94c7000065d4c294a;nein;;;;
+RE-2026-0547;rechnung;2026-04-10 19:28:45;2026-04-10 19:28:45;(kein Status);1387,09;FV Opferbaum Tennisabteilung;521;69ca3428003866f88692;69d94f6d000d90c2cadc;nein;;;;
+RE-2026-0548;rechnung;2026-04-10 19:31:57;2026-04-10 19:31:57;(kein Status);656,04;TC-Primstal  ;482;699ddff9002746f57825;69d9502d002e392d4af7;nein;;;;
+RE-2026-0549;rechnung;2026-04-10 19:37:59;2026-04-10 19:37:59;(kein Status);729,26;SG Violental 1910 e.V. ;266;696bd62b0033660ff2ca;69d9519700032169ef61;nein;;;;
+RE-2026-0550;rechnung;2026-04-10 19:39:16;2026-04-10 19:39:16;(kein Status);665,92;TC Gonnesweiler e.V.;496;69a825a30011817f2e91;69d951e400052933e11b;nein;;;;
+RE-2026-0551;rechnung;2026-04-10 19:42:06;2026-04-10 19:42:06;(kein Status);631,12;TC Albisheim;495;69a82318001d0ad2f005;69d9528d003d164a396a;nein;;;;
+RE-2026-0552;rechnung;2026-04-10 19:45:30;2026-04-10 19:45:30;(kein Status);2887,77;Coburger Turnerschaft e. V. Abteilung Tennis ;277;696bdb77000d3c136254;69d9535a001331e64a24;nein;;;;
+RE-2026-0553;rechnung;2026-04-10 19:49:42;2026-04-10 19:49:42;(kein Status);1578,57;BSC Tauperlitz 1930 e. V.;316;698c3614000602e8f8dc;69d9545600086a66d91b;nein;;;;
+RE-2026-0554;rechnung;2026-04-10 19:56:46;2026-04-10 19:57:03;storniert;1145,22;TSV Scheinfeld;329;695e14c600056fd4903f;69d955fe001d7af90daa;nein;;;;leistungsdatum
+RE-2026-0555;stornorechnung;2026-04-10 19:57:03;2026-05-18 19:44:26;aktiv;-1145,22;TSV Scheinfeld;329;695e14c600056fd4903f;69d9560f000ce2ae57cb;nein;;;RE-2026-0554;leistungsdatum
+RE-2026-0556;rechnung;2026-04-10 19:57:25;2026-04-10 19:57:25;(kein Status);1145,22;TSV Scheinfeld;329;695e14c600056fd4903f;69d95625001ef4f3a876;nein;;;;
+RE-2026-0557;stornorechnung;2026-04-15 12:19:08;2026-05-18 19:44:33;aktiv;-1841,41;Turnverein Bargau e.V.;336;69669c900019ecff2022;69df823c000a3a46be90;nein;;;RE-2026-0545;falsche menge
+RE-2026-0559;rechnung;2026-04-10 20:01:54;2026-04-10 20:01:54;(kein Status);1480,69;TSV Coburg Scheuerfeld 1900 e.V. ;276;696bdadc002ac53ac516;69d95732003b6dac15b6;nein;;;;
+RE-2026-0561;rechnung;2026-04-10 20:04:18;2026-04-10 20:04:18;(kein Status);743,16;SpVgg Rot-Weiß Sulzdorf;341;6966b00a001c80b6d751;69d957c2002442d80fe6;nein;;;;
+RE-2026-0562;rechnung;2026-04-10 20:08:06;2026-04-10 20:08:06;(kein Status);975,00;SV 1929 Eußenheim e.V. Abteilung Tennis ;323;696cf572002d01968b81;69d958a5003cc06ed314;nein;;;;
+RE-2026-0563;rechnung;2026-04-10 20:14:22;2026-04-10 20:14:22;(kein Status);1184,94;DJK Karbach;332;696697e40014072aa76f;69d95a1e001c3cb75de5;nein;;;;
+RE-2026-0565;rechnung;2026-04-10 20:20:15;2026-04-10 20:20:15;(kein Status);457,01;TC Remlingen ;303;696ce617001ad40f1d4b;69d95b7f003152c3fd74;nein;;;;
+RE-2026-0568;rechnung;2026-04-12 16:34:55;2026-04-12 16:35:16;storniert;1291,08;TV Jahn 1895 e.V. Schweinfurt;K10036;6992e211000b11bcdcda;69dbc9af0036e79f01f2;nein;;;;"rechnungsadresse vogl
+"
+RE-2026-0569;stornorechnung;2026-04-12 16:35:16;2026-05-18 19:44:27;aktiv;-1291,08;TV Jahn 1895 e.V. Schweinfurt;K10036;6992e211000b11bcdcda;69dbc9c40016fcbf9f10;nein;;;RE-2026-0568;"rechnungsadresse vogl
+"
+RE-2026-0570;rechnung;2026-04-12 16:35:50;2026-04-12 16:35:50;(kein Status);1291,08;TV Jahn 1895 e.V. Schweinfurt;K10036;6992e211000b11bcdcda;69dbc9e600022ba07287;nein;;;;
+RE-2026-0571;rechnung;2026-04-12 16:37:56;2026-04-12 16:38:13;storniert;1129,95;ATS Kulmbach e.V.;K10035;6992e210002e16bc0f24;69dbca64002a77506da9;nein;;;;adresse
+RE-2026-0572;stornorechnung;2026-04-12 16:38:13;2026-05-18 19:44:28;aktiv;-1129,95;ATS Kulmbach e.V.;K10035;6992e210002e16bc0f24;69dbca740039f09ea41e;nein;;;RE-2026-0571;adresse
+RE-2026-0573;rechnung;2026-04-12 16:38:20;2026-04-12 16:38:20;(kein Status);1176,49;ATS Kulmbach e.V.;K10035;6992e210002e16bc0f24;69dbca7c0025cfc9e1ef;nein;;;;
+RE-2026-0575;rechnung;2026-04-12 16:40:11;2026-04-12 16:40:11;(kein Status);1418,65;TSV Melkendorf e. V.;K10024;6992e20b0035c55a17e5;69dbcaeb001047f35347;nein;;;;
+RE-2026-0576;rechnung;2026-04-12 16:41:41;2026-04-12 16:41:41;(kein Status);1034,42;Tennisclub Rot-Weiß Gefrees;K10026;6992e20c00311b6ee17d;69dbcb44003b82f583a8;nein;;;;
+RE-2026-0577;rechnung;2026-04-12 16:43:18;2026-04-12 16:43:18;(kein Status);1021,00;BLSV Sportcamp Nordbayern gGmbH;K10027;6992e20d000e0045f9fa;69dbcba6002aa74d5dc1;nein;;;;
+RE-2026-0584;rechnung;2026-04-15 12:21:46;2026-04-15 12:42:02;storniert;1108,84;Turnverein Bargau e.V.;336;69669c900019ecff2022;69df82da001c1f0b5a89;nein;;;;dieselpreis zuschlag
+RE-2026-0585;stornorechnung;2026-04-15 12:42:02;2026-05-18 19:44:34;aktiv;-1108,84;Turnverein Bargau e.V.;336;69669c900019ecff2022;69df8799003cf3ccded0;nein;;;RE-2026-0584;dieselpreis zuschlag
+RE-2026-0586;rechnung;2026-04-15 12:42:25;2026-04-15 12:42:25;(kein Status);1084,21;Turnverein Bargau e.V.;336;69669c900019ecff2022;69df87b00036e59de9e7;nein;;;;
+RE-2026-0593;rechnung;2026-04-16 15:25:43;2026-04-16 15:25:43;(kein Status);433,40;Hoffmann Druck;9277;69de0dbb0028896db3bb;69e0ff760037eef34eb6;nein;;;;
+RE-2026-0594;rechnung;2026-04-16 15:38:50;2026-04-16 15:38:50;(kein Status);333,84;TC Tauberbischofsheim;505;69df73cf0037b67f6023;69e1028a0007ef375ea5;nein;;;;
+RE-2026-0595;rechnung;2026-04-16 15:53:02;2026-04-16 15:55:00;storniert;1183,76;Sportverein Wernsdorf e.V. Sportanlagen ;233;697726d80013419cb9d4;69e105dd003d7969d135;nein;;;;leistungsdatum
+RE-2026-0596;stornorechnung;2026-04-16 15:55:00;2026-05-18 19:44:35;aktiv;-1183,76;Sportverein Wernsdorf e.V. Sportanlagen ;233;697726d80013419cb9d4;69e1065400298e2201ab;nein;;;RE-2026-0595;leistungsdatum
+RE-2026-0598;rechnung;2026-04-16 15:55:21;2026-04-16 15:55:21;(kein Status);1181,09;Sportverein Wernsdorf e.V. Sportanlagen ;233;697726d80013419cb9d4;69e1066900092af64434;nein;;;;
+RE-2026-0599;rechnung;2026-04-16 15:57:44;2026-04-16 15:57:44;(kein Status);141,61;Brohm Richard;526;69df76b70017d243cba6;69e106f8000801c95610;nein;;;;
+RE-2026-0600;rechnung;2026-04-16 16:00:37;2026-04-16 16:00:37;(kein Status);188,70;FV Opferbaum Tennisabteilung;521;69df736d003b24c1418c;69e107a5001037095ccf;nein;;;;
+RE-2026-0601;rechnung;2026-04-17 20:38:10;2026-04-17 20:38:10;(kein Status);1336,13;Schönfeld Tennisservice;;69bcdba00033f8ab36c9;69e29a32000a5ee4bfd0;nein;;;;
+RE-2026-0602;rechnung;2026-04-17 20:41:53;2026-04-17 20:42:17;storniert;1106,30;Schönfeld Tennisservice;;69c18e63000ecbf85136;69e29b1100276484b220;nein;;;;dieselpreiszuschlag
+RE-2026-0603;stornorechnung;2026-04-17 20:42:17;2026-05-18 19:44:37;aktiv;-1106,30;Schönfeld Tennisservice;;69c18e63000ecbf85136;69e29b290003b78359e6;nein;;;RE-2026-0602;dieselpreiszuschlag
+RE-2026-0604;rechnung;2026-04-17 20:42:29;2026-04-17 20:42:29;(kein Status);1134,25;Schönfeld Tennisservice;;69c18e63000ecbf85136;69e29b350037b10a6d04;nein;;;;
+RE-2026-0605;rechnung;2026-04-17 20:44:38;2026-04-17 20:44:38;(kein Status);738,32;Schönfeld Tennisservice;;69c525ab003b8ce7a710;69e29bb600212b23952a;nein;;;;
+RE-2026-0607;rechnung;2026-04-17 20:47:23;2026-04-17 20:47:23;(kein Status);801,47;Schönfeld Tennisservice;;69c5259e0027deef0524;69e29c5b00126350122b;nein;;;;
+RE-2026-0608;rechnung;2026-04-17 20:48:49;2026-04-17 20:48:57;storniert;766,60;Schönfeld Tennisservice;;69c525a60003aa32b093;69e29cb1000d59327d65;nein;;;;DPZS
+RE-2026-0609;stornorechnung;2026-04-17 20:48:57;2026-05-18 19:44:39;aktiv;-766,60;Schönfeld Tennisservice;;69c525a60003aa32b093;69e29cb900339331cac2;nein;;;RE-2026-0608;DPZS
+RE-2026-0610;rechnung;2026-04-17 20:49:15;2026-04-17 20:49:15;(kein Status);793,37;Schönfeld Tennisservice;;69c525a60003aa32b093;69e29ccb000f62148b77;nein;;;;
+RE-2026-0611;rechnung;2026-04-17 20:51:01;2026-04-17 20:51:01;(kein Status);781,16;Schönfeld Tennisservice;;69c3a28600006dd43ebf;69e29d3500173d48cede;nein;;;;
+RE-2026-0612;rechnung;2026-04-17 20:53:33;2026-04-17 20:53:33;(kein Status);1560,29;Schönfeld Tennisservice;;69c3d243002432a02a3a;69e29dcd002952c172fe;nein;;;;
+RE-2026-0613;rechnung;2026-04-17 20:55:23;2026-04-17 20:55:23;(kein Status);1568,46;Schönfeld Tennisservice;;69b8e5f60006c5b18265;69e29e3b00301d7ed42e;nein;;;;
+RE-2026-0615;rechnung;2026-04-17 20:57:45;2026-04-17 20:57:45;(kein Status);1730,38;Schönfeld Tennisservice;;69b9175b001532cbc4c0;69e29ec9001356b1f200;nein;;;;
+RE-2026-0616;rechnung;2026-04-17 20:58:54;2026-04-17 20:58:54;(kein Status);796,05;Schönfeld Tennisservice;;69b9175b0031a2f34d41;69e29f0d003cd4ddb622;nein;;;;
+RE-2026-0617;rechnung;2026-04-17 21:00:13;2026-04-17 21:00:13;(kein Status);1962,36;Schönfeld Tennisservice;;69b8e5f50026cb0b170f;69e29f5d0028116e2d1b;nein;;;;
+RE-2026-0618;rechnung;2026-04-17 21:02:07;2026-04-17 21:02:07;(kein Status);909,46;Schönfeld Tennisservice;;69b8136f001255cf4e15;69e29fce003bb3a1092d;nein;;;;
+RE-2026-0619;rechnung;2026-04-17 21:03:33;2026-04-17 21:03:33;(kein Status);2465,09;Schönfeld Tennisservice;;69c3d01d0007ee6ca592;69e2a025002b79cba2fc;nein;;;;
+RE-2026-0620;rechnung;2026-04-17 21:11:11;2026-04-17 21:11:11;(kein Status);1470,01;Schönfeld Tennisservice;;69b7d5ae0009ded3a6c8;69e2a1ef001feb199947;nein;;;;
+RE-2026-0621;rechnung;2026-04-17 21:21:31;2026-04-17 21:21:31;(kein Status);1051,90;Schönfeld Tennisservice;;69b2c9d60014f9d6a7f5;69e2a45b002daedc0739;nein;;;;
+RE-2026-0622;rechnung;2026-04-17 21:28:47;2026-04-17 21:28:47;(kein Status);630,34;Schönfeld Tennisservice;;69d8de560010d608e9c1;69e2a60f00139430ad46;nein;;;;
+RE-2026-0623;rechnung;2026-04-17 21:32:12;2026-04-17 21:32:12;(kein Status);1684,21;Topp Commerce OOD (USt.ID Nr. BG203906757);446;69c15aac00023380f5b6;69e2a6dc001523900bed;nein;;;;
+RE-2026-0624;rechnung;2026-04-17 21:51:13;2026-04-17 21:51:13;(kein Status);3482,37;Turnverein Hösbach ;254;69a6ce4400240341f3f6;69e2ab510002a5bd2c4b;nein;;;;
+RE-2026-0626;rechnung;2026-04-18 16:20:00;2026-04-18 17:09:16;storniert;1067,38;TC 1979 Brensbach e.V.;K10119;69ca3b4d0009ef8fe3da;69e3af300008d67e9758;JA;1;2;;falsche Rechnungsadresse
+RE-2026-0626;rechnung;2026-04-18 17:10:01;2026-04-18 17:10:01;(kein Status);1067,38;TC 1979 Brensbach e.V.;K10119;69ca3b4d0009ef8fe3da;69e3bae9000988269a84;JA;2;2;;
+RE-2026-0627;rechnung;2026-04-18 16:24:27;2026-04-18 16:24:27;(kein Status);747,68;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10188;69cbd10b00325320c592;69e3b03b001ffaf18189;nein;;;;
+RE-2026-0628;rechnung;2026-04-18 16:26:11;2026-04-18 16:26:11;(kein Status);1119,17;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10122;69ca25c5002a88ad9af9;69e3b0a3002654fbbef6;nein;;;;
+RE-2026-0629;rechnung;2026-04-18 16:30:15;2026-04-18 16:30:15;(kein Status);1078,72;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10145;69cd0b9900186e74d8fa;69e3b197001743139677;nein;;;;
+RE-2026-0630;rechnung;2026-04-18 16:31:41;2026-04-18 16:31:41;(kein Status);1068,05;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10141;69c4e1b70035bd97d1e8;69e3b1ed001c4f38dded;nein;;;;
+RE-2026-0631;rechnung;2026-04-18 16:32:47;2026-04-18 16:32:59;storniert;2237,97;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10134;69d49443003c6bd1df5f;69e3b22f000363c42ff3;nein;;;;Dieselpreiszuschlag
+RE-2026-0632;stornorechnung;2026-04-18 16:32:59;2026-05-18 19:44:40;aktiv;-2237,97;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10134;69d49443003c6bd1df5f;69e3b23b000cb099d9e7;nein;;;RE-2026-0631;Dieselpreiszuschlag
+RE-2026-0633;rechnung;2026-04-18 16:33:10;2026-04-18 16:33:10;(kein Status);2301,70;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10134;69d49443003c6bd1df5f;69e3b2460010878d91f9;nein;;;;
+RE-2026-0634;stornorechnung;2026-04-18 17:09:16;2026-05-18 19:44:49;aktiv;-1067,38;TC 1979 Brensbach e.V.;K10119;69ca3b4d0009ef8fe3da;69e3babc000f5ca4f43e;nein;;;RE-2026-0626;falsche Rechnungsadresse
+RE-2026-0635;rechnung;2026-04-18 16:35:09;2026-04-18 16:35:09;(kein Status);1122,93;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10088;69d4944300189cce9944;69e3b2bd000e85ad4cd2;nein;;;;
+RE-2026-0637;rechnung;2026-04-18 16:36:39;2026-04-18 16:36:48;storniert;2134,25;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10087;69c52b05000f0028ada0;69e3b317000239402a13;nein;;;;Dieselpreiszuschlag
+RE-2026-0638;stornorechnung;2026-04-18 16:36:48;2026-05-18 19:44:41;aktiv;-2134,25;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10087;69c52b05000f0028ada0;69e3b32000222cbeb841;nein;;;RE-2026-0637;Dieselpreiszuschlag
+RE-2026-0639;rechnung;2026-04-18 16:37:16;2026-04-18 16:37:16;(kein Status);2228,23;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10087;69c52b05000f0028ada0;69e3b33c00082deca06c;nein;;;;
+RE-2026-0640;rechnung;2026-04-18 16:39:07;2026-04-18 17:06:14;storniert;2399,36;TC Blau Weiss Bad Neustadt a.d. Saale;K10118;69ce4cef000f54e47b7a;69e3b3ab002995081e61;JA;1;2;;Falsche Rechnungsadresse
+RE-2026-0640;rechnung;2026-04-18 17:08:25;2026-04-18 17:08:25;(kein Status);2136,48;TC Blau Weiss Bad Neustadt a.d. Saale;K10118;69ce4cef000f54e47b7a;69e3ba8900098ce85594;JA;2;2;;
+RE-2026-0641;rechnung;2026-04-18 16:40:17;2026-04-18 16:40:17;(kein Status);1325,02;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10105;69ce4ce60031d5ebd0a3;69e3b3f1003151d90597;nein;;;;
+RE-2026-0642;rechnung;2026-04-18 16:41:31;2026-04-18 16:41:31;(kein Status);609,87;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10132;69cbd12d001ee516dca0;69e3b43b0022a9fc81e2;nein;;;;
+RE-2026-0643;rechnung;2026-04-18 16:42:29;2026-04-18 16:42:29;(kein Status);1336,25;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10126;69c4e1b7001a3dd1af95;69e3b4750028f3f67537;nein;;;;
+RE-2026-0644;rechnung;2026-04-18 16:43:35;2026-04-18 16:43:44;storniert;2301,01;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10176;69c4fab9002880b856a1;69e3b4b7001a97c1f1cd;nein;;;;Dieselpreiszuschlag 
+RE-2026-0645;stornorechnung;2026-04-18 16:43:44;2026-05-18 19:44:42;aktiv;-2301,01;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10176;69c4fab9002880b856a1;69e3b4bf003e5cdc1c5a;nein;;;RE-2026-0644;Dieselpreiszuschlag 
+RE-2026-0646;rechnung;2026-04-18 16:44:09;2026-04-18 16:44:09;(kein Status);2404,10;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10176;69c4fab9002880b856a1;69e3b4d900326ebfa007;nein;;;;
+RE-2026-0647;rechnung;2026-04-18 16:46:33;2026-04-18 16:46:42;storniert;837,52;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10144;69bcdae20026d9c5b18e;69e3b5690020e8cf16fe;nein;;;;Dieselpreiszuschlag
+RE-2026-0648;stornorechnung;2026-04-18 16:46:42;2026-05-18 19:44:43;aktiv;-837,52;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10144;69bcdae20026d9c5b18e;69e3b5720012ba0f4196;nein;;;RE-2026-0647;Dieselpreiszuschlag
+RE-2026-0649;rechnung;2026-04-18 16:46:59;2026-04-18 16:46:59;(kein Status);863,23;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10144;69bcdae20026d9c5b18e;69e3b5830014c558acda;nein;;;;
+RE-2026-0650;rechnung;2026-04-18 16:48:05;2026-04-18 16:48:05;(kein Status);744,76;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10128;69bcdc2f001bbe9122ad;69e3b5c5000e33dd53ad;nein;;;;
+RE-2026-0651;rechnung;2026-04-18 16:49:23;2026-04-18 16:49:23;(kein Status);2654,77;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10121;69c0cc9500323f361044;69e3b61300260b216dbe;nein;;;;
+RE-2026-0652;rechnung;2026-04-18 16:50:29;2026-04-18 16:50:29;(kein Status);2049,78;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10140;69bbcfe7003382bbbbdb;69e3b655001883cfc421;nein;;;;
+RE-2026-0653;rechnung;2026-04-18 16:52:13;2026-04-18 16:52:13;(kein Status);1702,56;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10129;69c3ed47001a788f8622;69e3b6bd0027c5550628;nein;;;;
+RE-2026-0654;rechnung;2026-04-18 16:53:26;2026-04-18 16:53:26;(kein Status);1391,22;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10133;69c0ca3e000ce09a3eb2;69e3b706003c64d5e6e1;nein;;;;
+RE-2026-0655;rechnung;2026-04-18 16:54:27;2026-04-18 16:54:36;storniert;1629,32;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10143;69c398cc000b33425f16;69e3b7430003a62ba185;nein;;;;Dieselpreiszuschlag
+RE-2026-0656;stornorechnung;2026-04-18 16:54:36;2026-05-18 19:44:44;aktiv;-1629,32;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10143;69c398cc000b33425f16;69e3b74c00243493279d;nein;;;RE-2026-0655;Dieselpreiszuschlag
+RE-2026-0657;rechnung;2026-04-18 16:54:51;2026-04-18 16:55:12;storniert;1675,99;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10143;69c398cc000b33425f16;69e3b75b0037f60ca2b0;nein;;;;falsches Leistungsdatum
+RE-2026-0658;stornorechnung;2026-04-18 16:55:12;2026-05-18 19:44:45;aktiv;-1675,99;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10143;69c398cc000b33425f16;69e3b770001d8dd5a5cb;nein;;;RE-2026-0657;falsches Leistungsdatum
+RE-2026-0659;rechnung;2026-04-18 16:55:46;2026-04-18 16:55:46;(kein Status);1696,00;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10143;69c398cc000b33425f16;69e3b791003d826e789d;nein;;;;
+RE-2026-0660;rechnung;2026-04-18 16:57:00;2026-04-18 16:57:00;(kein Status);1014,74;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10187;69cb4fde002bfd4fdf97;69e3b7dc0004b8d1a995;nein;;;;
+RE-2026-0661;rechnung;2026-04-18 16:58:31;2026-04-18 17:03:42;storniert;1395,45;TC Reichelsheim e.V.;K10137;69ca3b4c001e70945d2b;69e3b8370004f79559df;JA;1;2;;Fehlerhafte Rechungsadresse
+RE-2026-0661;rechnung;2026-04-18 17:04:35;2026-04-18 17:04:35;(kein Status);1395,45;TC Reichelsheim e.V.;K10137;69ca3b4c001e70945d2b;69e3b9a30012c3d9b7be;JA;2;2;;
+RE-2026-0662;rechnung;2026-04-18 16:59:53;2026-04-18 17:01:25;storniert;938,86;TC Rimbach e.V.;K10138;69ca3b4c000316c2b880;69e3b88900312af537d6;nein;;;;Rechnungsadresse falsch
+RE-2026-0663;stornorechnung;2026-04-18 17:01:25;2026-05-18 19:44:46;aktiv;-938,86;TC Rimbach e.V.;K10138;69ca3b4c000316c2b880;69e3b8e50013996ada0e;nein;;;RE-2026-0662;Rechnungsadresse falsch
+RE-2026-0664;stornorechnung;2026-04-18 17:03:42;2026-05-18 19:44:47;aktiv;-1395,45;TC Reichelsheim e.V.;K10137;69ca3b4c001e70945d2b;69e3b96e002ced621324;nein;;;RE-2026-0661;Fehlerhafte Rechungsadresse
+RE-2026-0665;rechnung;2026-04-18 17:02:59;2026-04-18 17:02:59;(kein Status);938,86;TC Rimbach e.V.;K10138;69ca3b4c000316c2b880;69e3b9430009d309568d;nein;;;;
+RE-2026-0666;stornorechnung;2026-04-18 17:06:14;2026-05-18 19:44:48;aktiv;-2399,36;TC Blau Weiss Bad Neustadt a.d. Saale;K10118;69ce4cef000f54e47b7a;69e3ba0600082adb7b98;nein;;;RE-2026-0640;Falsche Rechnungsadresse
+RE-2026-0669;rechnung;2026-04-18 17:11:13;2026-04-18 17:11:13;(kein Status);772,59;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10120;69ca3b4d00307a4dc8f6;69e3bb3100381a76d859;nein;;;;
+RE-2026-0670;rechnung;2026-04-18 17:12:43;2026-04-18 17:12:43;(kein Status);1408,64;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10146;69c7f18f000a59f71cb1;69e3bb8b00280c812cfa;nein;;;;
+RE-2026-0672;rechnung;2026-04-18 17:40:24;2026-04-18 17:40:24;(kein Status);988,41;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10046;69b4f57f0019e0176529;69e3c208000ed631a7b5;nein;;;;
+RE-2026-0673;rechnung;2026-04-18 17:41:34;2026-04-18 17:41:34;(kein Status);687,94;K.S.D Tennisplatzbau Garten- und Sportplatzbau GmbH;K10047;69b4f57e003e061f4fb0;69e3c24e001ebce42f14;nein;;;;
+RE-2026-0674;rechnung;2026-04-18 17:53:39;2026-04-18 17:53:39;(kein Status);886,07;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10123;69ccbf5c00308d265eeb;69e3c523001642d2561d;nein;;;;
+RE-2026-0675;rechnung;2026-04-18 17:55:44;2026-04-18 17:56:17;storniert;1033,65;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10175;69c4fac10035f6eb7912;69e3c5a00023df8fed3e;nein;;;;Dieselpreisfloater fehlt
+RE-2026-0676;stornorechnung;2026-04-18 17:56:16;2026-05-18 19:44:50;aktiv;-1033,65;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10175;69c4fac10035f6eb7912;69e3c5c00037ac6294a6;nein;;;RE-2026-0675;Dieselpreisfloater fehlt
+RE-2026-0677;rechnung;2026-04-18 17:56:46;2026-04-18 17:56:46;(kein Status);1078,72;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10175;69c4fac10035f6eb7912;69e3c5de0003c7933ce4;nein;;;;
+RE-2026-0678;rechnung;2026-04-18 17:58:34;2026-04-18 17:58:34;(kein Status);2307,35;Averbeck GmbH Tennisplatzbau und Beregnungsanlagen;K10125;69c4e1b60039f75026eb;69e3c64a0031f755a70d;nein;;;;
+RE-2026-0679;rechnung;2026-04-19 20:39:20;2026-04-19 20:39:20;(kein Status);1599,23;Tennisclub Selb e.V.;K10022;6992e20a003b9bc5a8e8;69e53d7800268ce08f5a;nein;;;;
+RE-2026-0680;rechnung;2026-04-19 20:43:30;2026-04-19 20:43:44;storniert;2295,77;Baur S. V. Burgkunstadt e.V.;K10029;6992e20e000c6e53d1ba;69e53e7200125d836677;nein;;;;falscher preis
+RE-2026-0681;stornorechnung;2026-04-19 20:43:44;2026-05-18 19:44:51;aktiv;-2295,77;Baur S. V. Burgkunstadt e.V.;K10029;6992e20e000c6e53d1ba;69e53e80002250ace335;nein;;;RE-2026-0680;falscher preis
+RE-2026-0682;rechnung;2026-04-19 20:45:29;2026-04-19 20:45:42;storniert;2600,33;Baur S. V. Burgkunstadt e.V.;K10029;6992e20e000c6e53d1ba;69e53ee9001b3fb42a93;nein;;;;adresse
+RE-2026-0683;stornorechnung;2026-04-19 20:45:42;2026-05-18 19:44:52;aktiv;-2600,33;Baur S. V. Burgkunstadt e.V.;K10029;6992e20e000c6e53d1ba;69e53ef60020601e565e;nein;;;RE-2026-0682;adresse
+RE-2026-0684;rechnung;2026-04-19 20:46:08;2026-04-19 20:46:08;(kein Status);2600,33;Baur S. V. Burgkunstadt e.V.;K10029;6992e20e000c6e53d1ba;69e53f1000183aa287c5;nein;;;;
+RE-2026-0685;rechnung;2026-04-19 20:49:54;2026-04-19 20:49:54;(kein Status);2020,92;SG 1912 Dittelbrunn e.V.;K10037;6992e2110024bd45eb93;69e53ff20028dd972126;nein;;;;
+RE-2026-0686;rechnung;2026-04-19 20:52:34;2026-04-19 20:52:34;(kein Status);795,39;RSV 1929 e.V. Büblingshausen;K10014;6992e2070006de5dbd52;69e54092002ce63235e6;nein;;;;
+RE-2026-0687;rechnung;2026-04-19 20:54:53;2026-04-19 20:55:14;storniert;1463,05;TC Rot-Weiß Gerolzhofen e.V.;K10033;6992e20f00373bf177f2;69e5411d00274e61674c;nein;;;;preis
+RE-2026-0688;stornorechnung;2026-04-19 20:55:14;2026-05-18 19:44:53;aktiv;-1463,05;TC Rot-Weiß Gerolzhofen e.V.;K10033;6992e20f00373bf177f2;69e541320017d6825423;nein;;;RE-2026-0687;preis
+RE-2026-0689;rechnung;2026-04-19 20:55:43;2026-04-19 20:55:43;(kein Status);1654,87;TC Rot-Weiß Gerolzhofen e.V.;K10033;6992e20f00373bf177f2;69e5414f001129a2144d;nein;;;;
+RE-2026-0690;rechnung;2026-04-19 20:57:26;2026-04-19 20:57:26;(kein Status);784,14;TC Waldbrunn 1988 e.V.;K10016;6992e207003b1055a1f4;69e541b6002cdf01c0bb;nein;;;;
+RE-2026-0691;rechnung;2026-04-19 20:58:49;2026-04-19 20:58:56;storniert;713,80;TSV Mistelbach;K10028;6992e20d002a060390ba;69e5420900107f92fce1;nein;;;;"preis
+"
+RE-2026-0692;stornorechnung;2026-04-19 20:58:56;2026-05-18 19:44:54;aktiv;-713,80;TSV Mistelbach;K10028;6992e20d002a060390ba;69e542100001ff1c7b78;nein;;;RE-2026-0691;"preis
+"
+RE-2026-0693;rechnung;2026-04-19 20:59:32;2026-04-19 20:59:32;(kein Status);807,80;TSV Mistelbach;K10028;6992e20d002a060390ba;69e542340003c2d8cc85;nein;;;;
+RE-2026-0694;rechnung;2026-04-19 21:01:37;2026-04-19 21:01:53;storniert;1027,71;SG Franken e.V.;K10025;6992e20c001555113af9;69e542b10005e844ffa5;nein;;;;dieselfloater
+RE-2026-0695;stornorechnung;2026-04-19 21:01:53;2026-05-18 19:44:55;aktiv;-1027,71;SG Franken e.V.;K10025;6992e20c001555113af9;69e542c10026f3b71e37;nein;;;RE-2026-0694;dieselfloater
+RE-2026-0696;rechnung;2026-04-19 21:02:23;2026-04-19 21:02:23;(kein Status);1069,24;SG Franken e.V.;K10025;6992e20c001555113af9;69e542df000af17a224a;nein;;;;
+RE-2026-0697;rechnung;2026-04-19 21:04:00;2026-04-19 21:04:00;(kein Status);1477,85;Thomas Vogl;;69c7f0d500275914d2bd;69e54340000468f419fe;nein;;;;
+RE-2026-0698;rechnung;2026-04-19 21:16:09;2026-04-19 21:16:09;(kein Status);1181,93;TC Gochsheim 77 e.V.;K10034;6992e210001084b83f58;69e546190009125f9b9c;nein;;;;
+RE-2026-0700;rechnung;2026-04-19 21:26:12;2026-04-19 21:26:12;(kein Status);1447,85;TV 1974 Adelsdorf e.V.;K10020;6992e209002b4074adbf;69e548740025d98817c9;nein;;;;
+RE-2026-0703;rechnung;2026-04-21 10:40:38;2026-04-21 10:40:38;(kein Status);1160,01;TC 1978 Eltmann;512;69ba8f06001363cb180a;69e7542600386244ce9b;nein;;;;
+RE-2026-0704;rechnung;2026-04-21 10:48:46;2026-04-21 10:48:46;(kein Status);1018,70;ASV Trabelsdorf;502;69adb147002bb7d0564b;69e7560e000406ce3e56;nein;;;;
+RE-2026-0706;rechnung;2026-04-21 10:54:15;2026-04-21 10:54:15;(kein Status);930,22;TSV Himmelstadt -TA;243;696bc9580029063e0b05;69e75757000a4003edd2;nein;;;;
+RE-2026-0708;rechnung;2026-04-21 11:16:10;2026-04-21 11:16:10;(kein Status);556,21;TSV Aubstadt;515;69c2150100284260284f;69e75c7a0032ebe49555;nein;;;;
+RE-2026-0711;rechnung;2026-04-21 11:24:56;2026-04-21 11:24:56;(kein Status);773,43;TC Sennfeld;K10164;69b7d34b00340c7de35f;69e75e88001673d7416a;nein;;;;
+RE-2026-0713;rechnung;2026-04-21 11:32:13;2026-04-21 11:33:00;storniert;527,84;Gemeinde Iggingen;460;69822fa2001dcbb0aad0;69e7603d0017812d0504;nein;;;;kein Skontooption
+RE-2026-0714;stornorechnung;2026-04-21 11:32:59;2026-05-18 19:44:56;aktiv;-527,84;Gemeinde Iggingen;460;69822fa2001dcbb0aad0;69e7606b003854d3e9b0;nein;;;RE-2026-0713;kein Skontooption
+RE-2026-0715;rechnung;2026-04-21 11:33:10;2026-04-21 11:33:10;(kein Status);526,77;Gemeinde Iggingen;460;69822fa2001dcbb0aad0;69e76076001a1bebc034;nein;;;;
+RE-2026-0717;rechnung;2026-04-21 12:24:49;2026-04-21 12:26:05;storniert;573,04;TC Grünsfeld ;473;6995939c0033cedadd41;69e76c91002e545e8ca9;nein;;;;fehlerhaftes Lieferdatum
+RE-2026-0718;stornorechnung;2026-04-21 12:26:05;2026-05-18 19:44:57;aktiv;-573,04;TC Grünsfeld ;473;6995939c0033cedadd41;69e76cdd000d817cc07d;nein;;;RE-2026-0717;fehlerhaftes Lieferdatum
+RE-2026-0719;rechnung;2026-04-21 12:26:26;2026-04-21 12:26:26;(kein Status);573,04;TC Grünsfeld ;473;6995939c0033cedadd41;69e76cf2000a019aa80d;nein;;;;
+RE-2026-0720;rechnung;2026-04-21 13:36:29;2026-04-21 13:36:29;(kein Status);1970,64;Tennis-Club Gerstetten e. V.;373;694d4d3200382e248b68;69e77d5d001a1221416f;nein;;;;
+RE-2026-0721;rechnung;2026-04-21 14:00:43;2026-04-24 11:27:04;storniert;575,96;LSB Thüringen Sportmanagement GmbH Landessportschule;513;69bc1c42000bd36ae745;69e7830b000c05f1839d;JA;1;2;;Rechnungsadresse falsch
+RE-2026-0721;rechnung;2026-04-24 11:28:04;2026-04-24 11:28:04;(kein Status);575,96;LSB Thüringen Sportmanagement GmbH Landessportschule;513;69bc1c42000bd36ae745;69eb53c4002d31942cd0;JA;2;2;;
+RE-2026-0722;rechnung;2026-04-21 14:06:19;2026-04-21 15:00:11;storniert;788,76;Sportpark Heppenheim GmbH;K10109;69a82fe5002e79efd30b;69e7845b00006b2e3eb7;JA;1;2;;Rechnungsadressenkorrektur
+RE-2026-0722;rechnung;2026-04-21 15:01:00;2026-04-21 15:01:00;(kein Status);788,76;Sportpark Heppenheim GmbH;K10109;69a82fe5002e79efd30b;69e7912c000cfa169b85;JA;2;2;;
+RE-2026-0723;rechnung;2026-04-21 14:21:08;2026-04-21 14:21:08;(kein Status);718,76;TSV Bartenbach e.V.;K10017;6992e20800177ef0a5d7;69e787d40019f06aed17;nein;;;;
+RE-2026-0724;rechnung;2026-04-21 14:20:15;2026-04-21 14:20:15;(kein Status);347,12;TC Schwarz Weiß Pegnitz;438;69e78701001a20717bc2;69e7879f000f95e22bc3;nein;;;;
+RE-2026-0725;rechnung;2026-04-21 14:24:08;2026-04-21 14:29:50;storniert;816,04;TSV Sparwiesen e.V.;K10018;6992e20800322dd47480;69e78888000beb674dba;JA;1;2;;fehelrhafte Rechnungsadresse
+RE-2026-0725;rechnung;2026-04-21 14:34:16;2026-04-21 14:34:16;(kein Status);816,04;TSV Sparwiesen e.V.;K10018;6992e20800322dd47480;69e78ae80020401fe4dc;JA;2;2;;
+RE-2026-0726;rechnung;2026-04-21 14:29:03;2026-04-21 14:29:03;(kein Status);1341,90;EC Erkersreuth e. V.;K10023;6992e20b0018d8718008;69e789af0038e4f0224e;nein;;;;
+RE-2026-0727;stornorechnung;2026-04-21 14:29:50;2026-05-18 19:44:58;aktiv;-816,04;TSV Sparwiesen e.V.;K10018;6992e20800322dd47480;69e789de0023cb1b3509;nein;;;RE-2026-0725;fehelrhafte Rechnungsadresse
+RE-2026-0728;rechnung;2026-04-21 14:37:07;2026-04-21 14:37:07;(kein Status);595,95;TuSpo Frielendorf ;517;69c2440200237df41331;69e78b9300000aa01ee9;nein;;;;
+RE-2026-0729;stornorechnung;2026-04-21 15:00:11;2026-05-18 19:45:02;aktiv;-788,76;Sportpark Heppenheim GmbH;K10109;69a82fe5002e79efd30b;69e790fb001b43e03672;nein;;;RE-2026-0722;Rechnungsadressenkorrektur
+RE-2026-0730;rechnung;2026-04-21 14:45:45;2026-04-21 14:46:36;storniert;1937,16;TC Röttenbach;K10021;6992e20a0009e3488131;69e78d99003120b405ed;nein;;;;Fehlerhafte Rechnungsadresse
+RE-2026-0731;stornorechnung;2026-04-21 14:46:36;2026-05-18 19:44:59;aktiv;-1937,16;TC Röttenbach;K10021;6992e20a0009e3488131;69e78dcc0029b2cf92bc;nein;;;RE-2026-0730;Fehlerhafte Rechnungsadresse
+RE-2026-0732;rechnung;2026-04-21 14:51:16;2026-04-21 14:53:09;storniert;1937,16;TC Röttenbach;K10021;6992e20a0009e3488131;69e78ee4003643a46966;nein;;;;falsche Rechnungsadresse
+RE-2026-0733;stornorechnung;2026-04-21 14:53:09;2026-05-18 19:45:00;aktiv;-1937,16;TC Röttenbach;K10021;6992e20a0009e3488131;69e78f55001a6b0613d3;nein;;;RE-2026-0732;falsche Rechnungsadresse
+RE-2026-0734;rechnung;2026-04-21 14:53:34;2026-04-21 14:53:34;(kein Status);1937,16;TC Röttenbach;K10021;6992e20a0009e3488131;69e78f6e001d9586deba;nein;;;;
+RE-2026-0735;stornorechnung;2026-04-24 11:27:04;2026-05-18 19:45:05;aktiv;-575,96;LSB Thüringen Sportmanagement GmbH Landessportschule;513;69bc1c42000bd36ae745;69eb5388000f18b16554;nein;;;RE-2026-0721;Rechnungsadresse falsch
+RE-2026-0737;rechnung;2026-04-21 15:04:10;2026-04-21 15:04:10;(kein Status);639,27;TSV Reichenberg ;320;696cf49a0026f2df393c;69e791ea003425031faf;nein;;;;
+RE-2026-0740;rechnung;2026-04-23 10:27:01;2026-04-23 10:27:01;(kein Status);560,49;VfR Hermannsberg-Breitbrunn;481;699ddbe10012f01faf6e;69e9f3f500183b2087f4;nein;;;;
+RE-2026-0741;rechnung;2026-04-23 11:51:10;2026-04-23 11:51:10;(kein Status);418,90;Martin Beimbauer;9288;69d8b89f000e247a28e5;69ea07ae0011b5f682d9;nein;;;;
+RE-2026-0743;rechnung;2026-04-23 11:58:08;2026-04-23 11:58:08;(kein Status);491,50;TC Großrinderfeld;9295;69d8b95400379b6805e2;69ea094f003c626c8acf;nein;;;;
+RE-2026-0746;rechnung;2026-04-23 12:05:59;2026-04-23 12:06:15;storniert;124,50;TC Birstein;478;69dd111f003d479905af;69ea0b27000d6c0bb0e7;nein;;;;mwst
+RE-2026-0747;stornorechnung;2026-04-23 12:06:15;2026-05-18 19:45:03;aktiv;-124,50;TC Birstein;478;69dd111f003d479905af;69ea0b36003dea339daf;nein;;;RE-2026-0746;mwst
+RE-2026-0749;rechnung;2026-04-23 12:06:20;2026-04-23 12:06:20;(kein Status);127,44;TC Birstein;478;69dd111f003d479905af;69ea0b3c000cffc2aec5;nein;;;;
+RE-2026-0751;rechnung;2026-04-23 12:10:45;2026-04-23 12:10:45;(kein Status);932,44;TC Weis-Blau Würzburg;K10112;69dcc7ff000503976d78;69ea0c45000e15ea79ac;nein;;;;
+RE-2026-0752;rechnung;2026-04-23 12:17:22;2026-04-23 12:17:22;(kein Status);32,00;Lothar Lorenz;9299;69e096d9003afd3cea3e;69ea0dd20007c0204ba1;nein;;;;
+RE-2026-0756;rechnung;2026-04-24 13:39:28;2026-04-24 13:39:28;(kein Status);2117,15;Garten- und Landschaftsbau Catalkaya ;497;69dbf7f9000ce25099a2;69eb7290001dabb0a0b6;nein;;;;
+RE-2026-0759;rechnung;2026-04-24 13:29:03;2026-04-24 13:29:03;(kein Status);300,28;SV 1946 Aschfeld e.V..;K10192;69dcab340013ebc86690;69eb701f002208c855e9;nein;;;;
+RE-2026-0764;rechnung;2026-04-27 07:45:29;2026-04-27 07:45:29;(kein Status);3224,58;TC Habichsthal;415;6968b116001c8453ae44;69ef14190003009e3ef3;nein;;;;
+RE-2026-0765;rechnung;2026-04-27 07:59:39;2026-04-27 07:59:39;(kein Status);1566,71;TC Rot-Weiß Ensdorf e.V. ;273;696bd8b30011d74fffcb;69ef176b001b91a01275;nein;;;;
+RE-2026-0767;rechnung;2026-04-27 08:33:47;2026-04-27 08:33:47;(kein Status);4097,28;SpVgg Heigenbrücken;377;695776530011d1c849ff;69ef1f6b0034616408a5;nein;;;;
+RE-2026-0769;rechnung;2026-04-27 08:39:57;2026-04-27 08:39:57;(kein Status);1514,16;TC Weis Blau Partenstein;367;6939f4bd00082e0df6a4;69ef20dd002418ff5c0b;nein;;;;
+RE-2026-0773;rechnung;2026-04-27 18:20:09;2026-04-27 18:20:09;(kein Status);664,39;TC Bruchköbel e.V.;K10121;69e74ea6003a9337677f;69efa8d9001785335be9;nein;;;;
+RE-2026-0774;rechnung;2026-04-28 10:41:30;2026-04-28 10:41:30;(kein Status);915,88;SV Frankonia Schönbrunn;504;69b1aac7002d623202be;69f08eda001de38655f2;nein;;;;
+RE-2026-0778;rechnung;2026-04-28 11:01:46;2026-04-28 11:01:46;(kein Status);497,30;TCSR Lengfeld;9294;69d8b902001e55951d00;69f0939a0011238d495d;nein;;;;
+RE-2026-0782;rechnung;2026-04-28 11:12:26;2026-04-28 11:12:26;(kein Status);994,60;Dirk Rumler;9296;69d8b97100083030bf77;69f0961a001ea840ec28;nein;;;;
+RE-2026-0784;rechnung;2026-04-28 11:15:58;2026-04-28 11:15:58;(kein Status);497,30;Wilhelmshavener Schwimm- und Sportverein e. V.;9297;69d8b98b000bb2539117;69f096ee0021c531669a;nein;;;;
+RE-2026-0785;rechnung;2026-04-28 11:20:39;2026-04-28 11:20:39;(kein Status);587,86;Sportverein Oberbalbach 1948 e. V.;524;69dc970400062c243797;69f098070036f2c13c53;nein;;;;
+RE-2026-0791;rechnung;2026-04-28 16:47:38;2026-04-28 16:47:38;(kein Status);973,66;TSV Jahn Kreuzwertheim -TA;259;696bb44600320c314b77;69f0e4aa0005ad309544;nein;;;;
+RE-2026-0793;rechnung;2026-04-28 17:11:14;2026-04-28 17:11:14;(kein Status);376,16;TC Marxheim;;69dfa310001ca65c0f89;69f0ea320027e501cf78;nein;;;;
+RE-2026-0794;rechnung;2026-04-28 17:22:56;2026-04-28 17:25:39;storniert;3634,20;TSV Maßbach;412;6968451f00043baa0c95;69f0ecf00027ded6a5e2;nein;;;;falsches Leistungsdatum
+RE-2026-0795;stornorechnung;2026-04-28 17:25:39;2026-05-18 19:45:06;aktiv;-3634,20;TSV Maßbach;412;6968451f00043baa0c95;69f0ed93001a39fa60d9;nein;;;RE-2026-0794;falsches Leistungsdatum
+RE-2026-0796;rechnung;2026-04-28 17:27:14;2026-04-28 17:27:14;(kein Status);3642,23;TSV Maßbach;412;6968451f00043baa0c95;69f0edf200018dfed09c;nein;;;;
+RE-2026-0797;rechnung;2026-04-28 17:37:54;2026-05-18 06:44:43;storniert;3298,42;TSV 1897 Grafenrheinfeld e. V.;382;695e2b810020c3eb419c;69f0f072002e593278ed;JA;1;2;;korrektur Regiestunden
+RE-2026-0797;rechnung;2026-05-18 06:49:39;2026-05-18 06:49:39;(kein Status);3184,54;TSV 1897 Grafenrheinfeld e. V.;382;695e2b810020c3eb419c;6a0ab68300017159ace6;JA;2;2;;
+RE-2026-0798;rechnung;2026-04-28 17:42:26;2026-04-28 17:42:26;(kein Status);2029,84;TC Bergrheinfeld 1978;383;695e371a000f8fcd7845;69f0f182000700f8c361;nein;;;;
+RE-2026-0799;stornorechnung;2026-05-18 06:44:43;2026-05-18 19:45:11;aktiv;-3298,42;TSV 1897 Grafenrheinfeld e. V.;382;695e2b810020c3eb419c;6a0ab55b001152c98dc3;nein;;;RE-2026-0797;korrektur Regiestunden
+RE-2026-0800;rechnung;2026-04-28 17:44:38;2026-04-28 17:44:38;(kein Status);2447,15;TV SW-Oberndorf;411;6966c2160019178ce804;69f0f2060023afeead56;nein;;;;
+RE-2026-0801;rechnung;2026-04-28 17:49:21;2026-04-28 17:50:58;storniert;2528,48;TSV Beiersdorf;422;6968c5840012265b2533;69f0f321002a6cd64955;nein;;;;"falsches Rechnungsdatum
+"
+RE-2026-0802;stornorechnung;2026-04-28 17:50:58;2026-05-18 19:45:07;aktiv;-2528,48;TSV Beiersdorf;422;6968c5840012265b2533;69f0f38200377b8c75b2;nein;;;RE-2026-0801;"falsches Rechnungsdatum
+"
+RE-2026-0803;rechnung;2026-04-28 17:52:45;2026-04-28 17:52:45;(kein Status);2533,56;TSV Beiersdorf;422;6968c5840012265b2533;69f0f3ed0028dc4869ac;nein;;;;
+RE-2026-0804;rechnung;2026-04-28 18:17:05;2026-04-28 18:17:05;(kein Status);1300,73;SVS Münchsteinach;384;695e3d03001253fcbd75;69f0f9a1000b2582e8ed;nein;;;;
+RE-2026-0807;rechnung;2026-04-28 18:25:24;2026-04-28 18:25:24;(kein Status);4715,85;DJK Schweinfurt;413;6968a9d8002be3815e71;69f0fb940013ed649acf;nein;;;;
+RE-2026-0810;rechnung;2026-04-28 18:32:59;2026-04-28 18:32:59;(kein Status);2883,38;TC Külsheim e.V.;419;6968c160003a18666e53;69f0fd5b002fb840c2be;nein;;;;
+RE-2026-0813;rechnung;2026-04-28 18:44:20;2026-04-28 18:44:20;(kein Status);5353,07;TC Hafenlohr;318;69675fc2002662cb59d9;69f100040013eeadf84a;nein;;;;
+RE-2026-0814;rechnung;2026-04-28 18:59:50;2026-04-28 18:59:50;(kein Status);3116,90;SV Hoheim v. 1948 e.V.;420;6968c2cd00248ca6605f;69f103a60029beb8f950;nein;;;;
+RE-2026-0815;rechnung;2026-04-28 19:11:34;2026-04-28 19:11:34;(kein Status);4394,61;TC Neubrunn;388;69617d7700124ab358b4;69f1066600025d3a3b96;nein;;;;
+RE-2026-0818;rechnung;2026-04-28 19:14:53;2026-04-28 19:14:53;(kein Status);588,04;CTO Tennis Harrbach;472;69931eec0003a657d824;69f1072d000c63b2c376;nein;;;;
+RE-2026-0822;rechnung;2026-04-30 09:25:58;2026-04-30 09:25:58;(kein Status);40,46;TSG Waldbüttelbrunn Tennis;K10048;69f31f14003391bbca27;69f32026002f82a06a15;nein;;;;
+RE-2026-0823;rechnung;2026-05-04 10:39:36;2026-05-04 10:39:36;(kein Status);1750,35;TSV Werneck -Tennisabteilung-;514;69bd4c9c000c55bfa108;69f877680014d280ac91;nein;;;;
+RE-2026-0825;rechnung;2026-05-04 10:43:09;2026-05-04 10:43:09;(kein Status);1033,97;PTS Tennisplatz- und Sportanlagenbau GmbH;K10189;69cc0565002000c1e583;69f8783d001eb3b98bb5;nein;;;;
+RE-2026-0826;rechnung;2026-05-06 14:01:24;2026-05-06 14:01:24;(kein Status);960,57;Tennis Academy C+J;525;69dcc67d002c5e4c7daa;69fb49b4001ad3bfc9a3;nein;;;;
+RE-2026-0829;rechnung;2026-05-06 14:10:12;2026-05-06 14:10:12;(kein Status);455,18;Tennisclub Niedwald e. V.;307;696cee6b000791662c64;69fb4bc40004fa450d18;nein;;;;
+RE-2026-0830;rechnung;2026-05-06 14:15:48;2026-05-06 14:15:48;(kein Status);151,73;TCM Marktheidenfeld e. V.;506;69f845ea0001a05ff8cc;69fb4d140001de7b6ace;nein;;;;
+RE-2026-0832;rechnung;2026-05-06 14:18:24;2026-05-06 14:18:24;(kein Status);1207,24;Garten- und Landschaftsbau Catalkaya ;;69c3d10400217cbed4da;69fb4db00000b50c05a8;nein;;;;
+RE-2026-0834;rechnung;2026-05-06 14:20:19;2026-05-06 14:20:19;(kein Status);815,89;Garten- und Landschaftsbau Catalkaya ;;69c36d99003bb35b0c88;69fb4e2300268971847d;nein;;;;
+RE-2026-0835;rechnung;2026-05-06 14:22:02;2026-05-06 14:24:50;storniert;1812,87;Garten- und Landschaftsbau Catalkaya ;;69c36da1001fbb275c12;69fb4e8a003adaf0f1ad;JA;1;2;;falscher preis
+RE-2026-0835;rechnung;2026-05-06 14:25:18;2026-05-06 14:25:18;(kein Status);2099,79;Garten- und Landschaftsbau Catalkaya ;;69c36da1001fbb275c12;69fb4f4e003510fd99e5;JA;2;2;;
+RE-2026-0836;stornorechnung;2026-05-06 14:24:50;2026-05-18 19:45:08;aktiv;-1812,87;Garten- und Landschaftsbau Catalkaya ;;69c36da1001fbb275c12;69fb4f32000a6b147e49;nein;;;RE-2026-0835;falscher preis
+RE-2026-0837;rechnung;2026-05-06 14:23:52;2026-05-06 14:23:52;(kein Status);677,68;Garten- und Landschaftsbau Catalkaya ;;69c21649002fb6f0132c;69fb4ef80024de5f8c9e;nein;;;;
+RE-2026-0840;rechnung;2026-05-06 14:27:32;2026-05-06 14:27:32;(kein Status);1097,45;Garten- und Landschaftsbau Catalkaya ;;69c555cf0028d3b58104;69fb4fd4001508bb3076;nein;;;;
+RE-2026-0841;rechnung;2026-05-06 14:29:46;2026-05-06 14:29:58;storniert;1799,21;Garten- und Landschaftsbau Catalkaya ;;69c0caab00065ae090ba;69fb505a0004a6539f1c;nein;;;;preis falsch
+RE-2026-0842;stornorechnung;2026-05-06 14:29:58;2026-05-18 19:45:10;aktiv;-1799,20;Garten- und Landschaftsbau Catalkaya ;;69c0caab00065ae090ba;69fb50660029ddfe3f42;nein;;;RE-2026-0841;preis falsch
+RE-2026-0843;rechnung;2026-05-06 14:30:28;2026-05-06 14:30:28;(kein Status);2085,11;Garten- und Landschaftsbau Catalkaya ;;69c0caab00065ae090ba;69fb50840016ce8625ce;nein;;;;
+RE-2026-0847;rechnung;2026-05-15 19:21:01;2026-05-15 19:21:01;(kein Status);1043,08;Tennispark Lichtenfels ;244;696bcb1c00099bcb3c69;6a07721d00172f78eb46;nein;;;;
+RE-2026-0849;rechnung;2026-05-18 10:10:45;2026-05-18 10:10:45;(kein Status);5061,43;TC Rot Weis Lebach e.V;418;6968bf86001d9ea0a827;6a0ae5a5003ae0cdace0;nein;;;;
+RE-2026-0852;rechnung;2026-05-18 10:57:36;2026-05-18 10:57:36;(kein Status);6058,33;Staatliches Bauamt Würzburg;355;695fba5e0019b6bec39e;6a0af0a00011e8d4d281;nein;;;;
+RE-2026-0855;rechnung;2026-05-18 11:18:05;2026-05-18 11:18:05;(kein Status);4302,02;SV Waldbrunn;425;6968d70a0017b3edb94b;6a0af56d001703c4265f;nein;;;;
+RE-2026-0856;rechnung;2026-05-18 11:35:05;2026-05-18 11:35:05;(kein Status);3027,68;SG Margetshöchheim 06 e.V;386;6960d4e6003e2ad6dbf8;6a0af969000d8a92cb3f;nein;;;;
+RE-2026-0857;rechnung;2026-05-18 11:40:35;2026-05-18 11:40:35;(kein Status);277,87;SG Margetshöchheim 06 e.V;386;698c4527003d017fdda5;6a0afab3000ebd7d5acd;nein;;;;
+RE-2026-0858;rechnung;2026-05-18 11:43:40;2026-05-18 11:43:40;(kein Status);3325,25;Ski + Tennisclub Rieneck;426;6968d9b800321c1a2a08;6a0afb6c00085ce90ea5;nein;;;;
+RE-2026-0859;rechnung;2026-05-18 11:47:41;2026-05-18 11:47:41;(kein Status);3035,87;SV Frankonia Lengfurt;466;698c50c30002add286eb;6a0afc5d0009d3235ae2;nein;;;;
+RE-2026-0861;rechnung;2026-05-18 11:52:03;2026-05-18 11:52:03;(kein Status);675,36;TC Massenbuch;304;696ce800002cf917af46;6a0afd630028115651c1;nein;;;;
+RE-2026-0864;rechnung;2026-05-18 15:28:34;2026-05-18 15:30:20;storniert;3630,10;TSG Hohenlohe;370;6943b6b8000075d2e0f4;6a0b30220024a94f0cfb;nein;;;;falsche Positionen
+RE-2026-0865;stornorechnung;2026-05-18 15:30:20;2026-05-18 19:45:12;aktiv;-3630,09;TSG Hohenlohe;370;6943b6b8000075d2e0f4;6a0b308c000ae6ee77c2;nein;;;RE-2026-0864;falsche Positionen
+RE-2026-0867;rechnung;2026-05-18 15:30:59;2026-05-18 15:30:59;(kein Status);3900,82;TSG Hohenlohe;370;6943b6b8000075d2e0f4;6a0b30b30034f74cc00c;nein;;;;
+RE-2026-0870;rechnung;2026-05-18 15:38:20;2026-05-18 15:38:20;(kein Status);347,26;TC Altertheim;509;69b3d43f000fd545215b;6a0b326c002eeb26ff2e;nein;;;;
+RE-2026-0880;rechnung;2026-05-18 16:35:14;2026-05-18 16:35:14;(kein Status);1501,40;TSV Bad Kissingen 1876 e.V. Abteilung Tennis ;290;69833d730010f162139f;6a0b3fc20031c4b1c42a;nein;;;;
+RE-2026-0881;rechnung;2026-05-18 16:38:33;2026-05-18 16:38:33;(kein Status);1107,35;TC Wiesenfeld;295;69a82726000d4009e066;6a0b4089001d78274bb8;nein;;;;
+RE-2026-0882;rechnung;2026-05-18 16:42:33;2026-05-18 16:42:33;(kein Status);895,56;FSV Laudenbach ;322;696cf5010000c480c4b5;6a0b4179003127f51f4f;nein;;;;
+RE-2026-0883;rechnung;2026-05-18 16:44:35;2026-05-18 16:44:35;(kein Status);785,51;TSV Kützberg 1928;508;69b1cb89002d1cd7389a;6a0b41f30022fbc9bdf9;nein;;;;
+RE-2026-0884;rechnung;2026-05-18 16:49:36;2026-05-18 16:49:36;(kein Status);1950,83;SV Neuhof-TA-;395;6966331e000c8b971a03;6a0b43200031970c3cd9;nein;;;;
+RE-2026-0885;rechnung;2026-05-18 16:52:53;2026-05-18 16:52:53;(kein Status);1094,48;DJK Rieden ;315;696cf2f9002b5349b9ef;6a0b43e4003dbeae461b;nein;;;;
