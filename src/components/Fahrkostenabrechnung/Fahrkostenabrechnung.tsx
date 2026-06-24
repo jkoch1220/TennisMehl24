@@ -383,10 +383,8 @@ export default function Fahrkostenabrechnung() {
 
 // Fahrt-Karte
 function FahrtKarte({ fahrt, onEdit, onDelete }: { fahrt: Fahrt; onEdit: () => void; onDelete: () => void }) {
-  const [showActions, setShowActions] = useState(false);
-
   return (
-    <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden" onClick={() => setShowActions(!showActions)}>
+    <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm overflow-hidden">
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -412,23 +410,22 @@ function FahrtKarte({ fahrt, onEdit, onDelete }: { fahrt: Fahrt; onEdit: () => v
               </div>
             )}
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className="font-bold text-red-600">{fahrt.betrag.toFixed(2)} €</p>
-            <p className="text-xs text-gray-500 dark:text-dark-textMuted">{fahrt.kilometer} km</p>
+          <div className="flex flex-col items-end flex-shrink-0 gap-2">
+            <div className="text-right">
+              <p className="font-bold text-red-600">{fahrt.betrag.toFixed(2)} €</p>
+              <p className="text-xs text-gray-500 dark:text-dark-textMuted">{fahrt.kilometer} km</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={onEdit} title="Bearbeiten" className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                <Edit3 className="w-4 h-4" />
+              </button>
+              <button onClick={onDelete} title="Löschen" className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      {showActions && (
-        <div className="flex border-t dark:border-dark-border divide-x dark:divide-dark-border">
-          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="flex-1 py-3 flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
-            <Edit3 className="w-4 h-4" /> <span className="text-sm">Bearbeiten</span>
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="flex-1 py-3 flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
-            <Trash2 className="w-4 h-4" /> <span className="text-sm">Löschen</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
