@@ -61,6 +61,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     tonnenLetztesJahr: undefined,
     beziehtUeberUnsPlatzbauer: false,
     abwerkspreis: false,
+    automatischesAngebot: false,
     zahlungsziel: 14,
     schuettstellenAnzahl: undefined,
     belieferungsart: undefined,
@@ -111,6 +112,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: kunde.kunde.tonnenLetztesJahr,
         beziehtUeberUnsPlatzbauer: kunde.kunde.beziehtUeberUnsPlatzbauer,
         abwerkspreis: kunde.kunde.abwerkspreis || false,
+        automatischesAngebot: kunde.kunde.automatischesAngebot || false,
         schuettstellenAnzahl: kunde.kunde.schuettstellenAnzahl,
         belieferungsart: kunde.kunde.belieferungsart,
         zahlungsziel: kunde.kunde.zahlungsziel ?? 14,
@@ -151,6 +153,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         tonnenLetztesJahr: undefined,
         beziehtUeberUnsPlatzbauer: false,
         abwerkspreis: false,
+        automatischesAngebot: false,
         belieferungsart: undefined,
         zahlungsziel: 14,
         standardLieferzeitfenster: undefined,
@@ -668,6 +671,23 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   />
                   <label htmlFor="abwerkspreis" className="text-sm font-medium text-gray-700 dark:text-slate-400">
                     Abwerkspreis
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    id="automatischesAngebot"
+                    type="checkbox"
+                    checked={formData.automatischesAngebot ?? false}
+                    onChange={(e) => setFormData({ ...formData, automatischesAngebot: e.target.checked })}
+                    className="h-4 w-4 text-green-600 border-gray-300 dark:border-slate-700 rounded"
+                  />
+                  <label
+                    htmlFor="automatischesAngebot"
+                    className="text-sm font-medium text-gray-700 dark:text-slate-400"
+                    title="Kunde wird beim Massen-Angebots-Tool für die Frühjahrsinstandsetzung berücksichtigt (nur zusammen mit Aktiv)"
+                  >
+                    Für automatisches Saison-Angebot
                   </label>
                 </div>
               </div>

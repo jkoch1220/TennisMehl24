@@ -44,6 +44,10 @@ const STAMMDATEN_COLLECTION_ID = 'stammdaten';
 const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 const WIKI_FILES_COLLECTION_ID = 'wiki_files';
 const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
+const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
+
+// Standard-Permissions für eingeloggte Nutzer (Collection-Level)
+const USER_PERMISSIONS = ['read("users")', 'create("users")', 'update("users")', 'delete("users")'];
 
 const fixkostenFields = [
   { key: 'grundstueck_pacht', type: 'double' },
@@ -145,7 +149,23 @@ const projekteFields = [
   { key: 'status', type: 'string', size: 50, required: true },
   { key: 'erstelltAm', type: 'string', size: 50, required: true },
   { key: 'geaendertAm', type: 'string', size: 50, required: true },
+  // Massen-Angebots-Tool: top-level für Rollback eines Erzeugungslaufs
+  { key: 'erzeugungsBatchId', type: 'string', size: 100, required: false },
   { key: 'data', type: 'string', size: 100000, required: true },
+];
+
+// Protokoll der Massen-Angebots-Läufe (Frühjahrsinstandsetzung)
+const angebotsLaeufeFields = [
+  { key: 'batchId', type: 'string', size: 100, required: true },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'zeitpunkt', type: 'string', size: 50, required: true },
+  { key: 'benutzer', type: 'string', size: 255, required: false },
+  { key: 'testModus', type: 'boolean', required: false, default: false },
+  { key: 'anzahlErzeugt', type: 'integer', required: false },
+  { key: 'anzahlUebersprungen', type: 'integer', required: false },
+  { key: 'anzahlFehler', type: 'integer', required: false },
+  { key: 'rueckgaengigGemacht', type: 'boolean', required: false, default: false },
+  { key: 'data', type: 'string', size: 100000, required: false },
 ];
 
 const artikelFields = [
@@ -298,7 +318,7 @@ async function setupCollection(collectionId, collectionName, fields) {
   }
 }
 
-async function ensureCollection(collectionId, name) {
+async function ensureCollection(collectionId, name, permissions = [], documentSecurity = true) {
   const headers = {
     'Content-Type': 'application/json',
     'X-Appwrite-Project': projectId,
@@ -329,8 +349,8 @@ async function ensureCollection(collectionId, name) {
     body: JSON.stringify({
       collectionId,
       name,
-      documentSecurity: true,
-      permissions: [],
+      documentSecurity,
+      permissions,
     }),
   });
 
@@ -452,6 +472,8 @@ async function main() {
     await ensureCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten');
     await ensureCollection(WIKI_PAGES_COLLECTION_ID, 'Wiki Pages');
     await ensureCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files');
+    // Massen-Angebots-Läufe: Collection-Level-Permissions für eingeloggte Nutzer
+    await ensureCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', USER_PERMISSIONS, false);
 
     // Erstelle Bucket für Wiki-Dateien
     await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
@@ -468,6 +490,7 @@ async function main() {
     await setupCollection(STAMMDATEN_COLLECTION_ID, 'Stammdaten', stammdatenFields);
     await setupCollection(WIKI_PAGES_COLLECTION_ID, 'Wiki Pages', wikiPagesFields);
     await setupCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files', wikiFilesFields);
+    await setupCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', angebotsLaeufeFields);
 
     // Warte kurz, damit Felder erstellt sind
     console.log('\n⏳ Warte auf Feld-Erstellung...');
