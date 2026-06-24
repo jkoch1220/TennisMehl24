@@ -3,7 +3,7 @@
  * Führe aus mit: npx tsx scripts/setup-fahrtkosten.ts
  */
 
-import { Client, Databases } from 'node-appwrite';
+import { Client, Databases, ID, Query } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -28,6 +28,9 @@ const databases = new Databases(client);
 const DATABASE_ID = 'tennismehl24_db';
 const FAHRTEN_COLLECTION_ID = 'fahrten';
 const DEFAULT_STRECKEN_COLLECTION_ID = 'default_strecken';
+const PERSONEN_COLLECTION_ID = 'fahrtkosten_personen';
+const AUTOS_COLLECTION_ID = 'fahrtkosten_autos';
+const FIRMEN_COLLECTION_ID = 'fahrtkosten_firmen';
 
 async function ensureCollection(collectionId: string, name: string) {
   try {
@@ -109,6 +112,27 @@ async function ensureIntegerAttribute(collectionId: string, key: string, require
   }
 }
 
+/** Seedet ein Stammdaten-Dokument idempotent (anhand des name-Feldes) */
+async function ensureSeedDocument(
+  collectionId: string,
+  data: { name: string; [key: string]: unknown }
+) {
+  try {
+    const existing = await databases.listDocuments(DATABASE_ID, collectionId, [
+      Query.equal('name', data.name),
+      Query.limit(1),
+    ]);
+    if (existing.total > 0) {
+      console.log(`  ✅ "${data.name}" existiert bereits`);
+      return;
+    }
+    await databases.createDocument(DATABASE_ID, collectionId, ID.unique(), data);
+    console.log(`  🌱 "${data.name}" angelegt`);
+  } catch (error) {
+    console.error(`  ⚠️  Seed "${data.name}" fehlgeschlagen:`, error);
+  }
+}
+
 async function main() {
   console.log('🚀 Starte Fahrtkosten Setup...\n');
 
@@ -116,12 +140,19 @@ async function main() {
     // Collections erstellen
     await ensureCollection(FAHRTEN_COLLECTION_ID, 'Fahrten');
     await ensureCollection(DEFAULT_STRECKEN_COLLECTION_ID, 'Default Strecken');
+    await ensureCollection(PERSONEN_COLLECTION_ID, 'Fahrtkosten Personen');
+    await ensureCollection(AUTOS_COLLECTION_ID, 'Fahrtkosten Autos');
+    await ensureCollection(FIRMEN_COLLECTION_ID, 'Fahrtkosten Firmen');
 
     // Fahrten Attribute
     console.log('\n📝 Fahrten Attribute:');
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'datum', 20, true);
-    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrer', 100, true);
-    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrerName', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrer', 100, false); // = personId
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrerName', 200, false); // = personName
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'autoId', 100, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'autoName', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'firmaId', 100, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'firmaName', 200, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'startort', 200, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'startAdresse', 500, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zielort', 200, false);
@@ -131,7 +162,7 @@ async function main() {
     await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'betrag', false);
     await ensureBooleanAttribute(FAHRTEN_COLLECTION_ID, 'hinpirsUndZurueck', false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zweck', 500, false);
-    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'notizen', 2000, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'notizen', 2000, false); // = kommentar
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'defaultStreckeId', 100, false);
 
     // Default Strecken Attribute
@@ -144,6 +175,37 @@ async function main() {
     await ensureFloatAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'kilometer', false);
     await ensureBooleanAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'istFavorit', false);
     await ensureIntegerAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'sortierung', false);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'standardAutoId', 100, false);
+    await ensureBooleanAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'standardHinUndZurueck', false);
+
+    // Personen Attribute
+    console.log('\n📝 Personen Attribute:');
+    await ensureStringAttribute(PERSONEN_COLLECTION_ID, 'name', 200, true);
+    await ensureBooleanAttribute(PERSONEN_COLLECTION_ID, 'aktiv', false);
+    await ensureIntegerAttribute(PERSONEN_COLLECTION_ID, 'sortierung', false);
+
+    // Autos Attribute
+    console.log('\n📝 Autos Attribute:');
+    await ensureStringAttribute(AUTOS_COLLECTION_ID, 'name', 200, true);
+    await ensureFloatAttribute(AUTOS_COLLECTION_ID, 'kmPauschale', false);
+    await ensureBooleanAttribute(AUTOS_COLLECTION_ID, 'aktiv', false);
+    await ensureIntegerAttribute(AUTOS_COLLECTION_ID, 'sortierung', false);
+
+    // Firmen Attribute
+    console.log('\n📝 Firmen Attribute:');
+    await ensureStringAttribute(FIRMEN_COLLECTION_ID, 'name', 200, true);
+    await ensureBooleanAttribute(FIRMEN_COLLECTION_ID, 'aktiv', false);
+    await ensureIntegerAttribute(FIRMEN_COLLECTION_ID, 'sortierung', false);
+
+    // Seed: Standard-Personen
+    console.log('\n🌱 Seed Personen:');
+    await ensureSeedDocument(PERSONEN_COLLECTION_ID, { name: 'Luca', aktiv: true, sortierung: 0 });
+    await ensureSeedDocument(PERSONEN_COLLECTION_ID, { name: 'Julian', aktiv: true, sortierung: 1 });
+    await ensureSeedDocument(PERSONEN_COLLECTION_ID, { name: 'Ronald', aktiv: true, sortierung: 2 });
+
+    // Seed: Beispiel-Auto
+    console.log('\n🌱 Seed Autos:');
+    await ensureSeedDocument(AUTOS_COLLECTION_ID, { name: 'PKW (0,30 €/km)', kmPauschale: 0.30, aktiv: true, sortierung: 0 });
 
     console.log('\n✅ Fahrtkosten Setup abgeschlossen!');
     console.log('Die Collections sind jetzt bereit.');

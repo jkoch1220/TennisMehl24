@@ -1,5 +1,34 @@
 // Fahrtkosten Types - Mileage Expense Tracking
 
+// ==================== STAMMDATEN ====================
+
+/** Person, die Fahrten erfasst (Luca, Julian, Ronald, ...) */
+export interface Person {
+  id: string;
+  name: string;
+  aktiv: boolean;
+  sortierung: number;
+}
+
+/** Fahrzeug mit eigener km-Pauschale */
+export interface Auto {
+  id: string;
+  name: string;
+  kmPauschale: number; // €/km
+  aktiv: boolean;
+  sortierung: number;
+}
+
+/** Firma, der eine Fahrt zugeordnet wird (Basis für den Report) */
+export interface Firma {
+  id: string;
+  name: string;
+  aktiv: boolean;
+  sortierung: number;
+}
+
+// ==================== VORLAGEN ====================
+
 export interface DefaultStrecke {
   id: string;
   name: string;
@@ -10,13 +39,29 @@ export interface DefaultStrecke {
   kilometer: number;
   istFavorit: boolean; // Quick-Access auf Hauptseite
   sortierung: number;
+
+  // Standardwerte für Quick-Add (überschreibbar)
+  standardAutoId?: string;
+  standardHinUndZurueck?: boolean;
 }
+
+// ==================== FAHRTEN ====================
 
 export interface Fahrt {
   id: string;
-  datum: string; // ISO date
-  fahrer: string;
-  fahrerName: string;
+  datum: string; // ISO date (YYYY-MM-DD)
+
+  // Person (im Appwrite-Dokument als fahrer/fahrerName gespeichert)
+  personId: string;
+  personName: string;
+
+  // Auto / Pauschale
+  autoId?: string;
+  autoName?: string;
+
+  // Firma (Pflicht)
+  firmaId: string;
+  firmaName: string;
 
   // Strecke
   startort: string;
@@ -26,24 +71,27 @@ export interface Fahrt {
   kilometer: number;
 
   // Berechnung
-  kilometerPauschale: number; // €/km (default 0.30)
+  kilometerPauschale: number; // €/km (vom Auto)
   betrag: number; // kilometer * pauschale
 
   // Optional
-  hinpirsUndZurueck: boolean; // Hin- und Rückfahrt
-  zweck?: string;
-  notizen?: string;
+  hinpirsUndZurueck: boolean; // Hin- und Rückfahrt (km werden verdoppelt)
+  kommentar?: string; // im Appwrite-Dokument als notizen gespeichert
 
   // Meta
-  defaultStreckeId?: string; // Referenz zur verwendeten Default-Strecke
+  defaultStreckeId?: string; // Referenz zur verwendeten Vorlage
   erstelltAm: string;
   geaendertAm: string;
 }
 
 export interface NeueFahrt {
   datum: string;
-  fahrer: string;
-  fahrerName: string;
+  personId: string;
+  personName: string;
+  autoId?: string;
+  autoName?: string;
+  firmaId: string;
+  firmaName: string;
   startort: string;
   startAdresse: string;
   zielort: string;
@@ -51,15 +99,15 @@ export interface NeueFahrt {
   kilometer: number;
   kilometerPauschale?: number;
   hinpirsUndZurueck?: boolean;
-  zweck?: string;
-  notizen?: string;
+  kommentar?: string;
   defaultStreckeId?: string;
 }
 
 export interface FahrkostenFilter {
-  fahrer?: string;
-  monat?: string; // YYYY-MM
-  nurMeine?: boolean;
+  personId?: string;
+  firmaId?: string;
+  von?: string; // YYYY-MM-DD
+  bis?: string; // YYYY-MM-DD
 }
 
 export interface MonatsZusammenfassung {
@@ -73,6 +121,18 @@ export interface MonatsZusammenfassung {
 // Default-Werte
 export const DEFAULT_KILOMETER_PAUSCHALE = 0.30; // €/km
 
+// Personen, die beim ersten Setup angelegt werden
+export const STANDARD_PERSONEN: Omit<Person, 'id'>[] = [
+  { name: 'Luca', aktiv: true, sortierung: 0 },
+  { name: 'Julian', aktiv: true, sortierung: 1 },
+  { name: 'Ronald', aktiv: true, sortierung: 2 },
+];
+
+// Beispiel-Auto, das beim ersten Setup angelegt wird
+export const STANDARD_AUTOS: Omit<Auto, 'id'>[] = [
+  { name: 'PKW (0,30 €/km)', kmPauschale: 0.30, aktiv: true, sortierung: 0 },
+];
+
 // Vordefinierte Strecken für TennisMehl
 export const STANDARD_STRECKEN: Omit<DefaultStrecke, 'id'>[] = [
   {
@@ -84,6 +144,7 @@ export const STANDARD_STRECKEN: Omit<DefaultStrecke, 'id'>[] = [
     kilometer: 45,
     istFavorit: true,
     sortierung: 1,
+    standardHinUndZurueck: false,
   },
   {
     name: 'Giebelstadt ↔ Produktion (Hin+Rück)',
@@ -91,8 +152,9 @@ export const STANDARD_STRECKEN: Omit<DefaultStrecke, 'id'>[] = [
     startAdresse: 'Giebelstadt',
     zielort: 'Produktion Marktheidenfeld',
     zielAdresse: 'Wertheimer Straße 30, 97828 Marktheidenfeld',
-    kilometer: 90,
+    kilometer: 45,
     istFavorit: true,
     sortierung: 0,
+    standardHinUndZurueck: true,
   },
 ];
