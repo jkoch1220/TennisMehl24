@@ -13,6 +13,7 @@ import {
   Landmark,
   FileArchive,
   Mail,
+  History,
 } from 'lucide-react';
 import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
@@ -22,6 +23,7 @@ import MahnwesenEinstellungen from './MahnwesenEinstellungen';
 import BankAbgleich from './BankAbgleich';
 import MahnungenTab from './MahnungenTab';
 import RechnungsVersandTab from './RechnungsVersandTab';
+import VersendeteMailsTab from './VersendeteMailsTab';
 import BulkDownloadDialog from './BulkDownloadDialog';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 
@@ -31,6 +33,7 @@ type TabId =
   | 'ueberfaellig'
   | 'mahnungen'
   | 'rechnungsversand'
+  | 'mahnhistorie'
   | 'bezahlt'
   | 'bankabgleich'
   | 'einstellungen';
@@ -41,6 +44,7 @@ const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
   'ueberfaellig',
   'mahnungen',
   'rechnungsversand',
+  'mahnhistorie',
   'bezahlt',
   'bankabgleich',
   'einstellungen',
@@ -353,6 +357,12 @@ const DebitorenVerwaltung = () => {
       label: 'Rechnungsversand',
       color: 'green',
       icon: Mail,
+    },
+    {
+      id: 'mahnhistorie',
+      label: 'Versendete Mahnungen',
+      color: 'orange',
+      icon: History,
     },
     {
       id: 'bezahlt',
@@ -743,12 +753,16 @@ const DebitorenVerwaltung = () => {
         {/* Rechnungsversand-Tab: halbautomatischer Rechnungs-E-Mail-Versand */}
         {activeTab === 'rechnungsversand' && <RechnungsVersandTab />}
 
+        {/* Versendete-Mahnungen-Tab: Protokoll aller versendeten Mahn-/Zahlungserinnerungs-Mails */}
+        {activeTab === 'mahnhistorie' && <VersendeteMailsTab debitoren={debitoren} />}
+
         {/* Andere Tabs: Liste */}
         {activeTab !== 'dashboard' &&
           activeTab !== 'einstellungen' &&
           activeTab !== 'bankabgleich' &&
           activeTab !== 'mahnungen' &&
-          activeTab !== 'rechnungsversand' && (
+          activeTab !== 'rechnungsversand' &&
+          activeTab !== 'mahnhistorie' && (
           <div className="space-y-4">
             {/* Suche */}
             <div className="flex gap-4">
