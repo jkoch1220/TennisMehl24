@@ -339,6 +339,7 @@ function aktualisiereMengePreis(
   const primaerId = hatPrimaer ? kandidat.primaerPositionId : finalePositionen[0].id;
 
   // ausgewaehlt-Zustand des Nutzers erhalten, aber Fehlerstatus neu berechnen.
+  const warFehler = kandidat.status === 'fehler';
   const revalidiert = validiere({
     ...kandidat,
     positionen: finalePositionen,
@@ -348,7 +349,10 @@ function aktualisiereMengePreis(
     angebotssumme: berechneSumme(finalePositionen),
     warnungen: kandidat.warnungen.filter((w) => !w.startsWith('Empfänger-E-Mail fehlt')),
   });
-  return { ...revalidiert, ausgewaehlt: revalidiert.status === 'fehler' ? false : kandidat.ausgewaehlt };
+  // Fehler → bleibt abgewählt; gerade behobener Fehler → automatisch anwählen; sonst Auswahl erhalten.
+  const ausgewaehlt =
+    revalidiert.status === 'fehler' ? false : warFehler ? true : kandidat.ausgewaehlt;
+  return { ...revalidiert, ausgewaehlt };
 }
 
 /**
@@ -381,6 +385,7 @@ function wendePreisanpassungAn(
           }
     );
     const primaer = positionen.find((p) => p.id === kandidat.primaerPositionId);
+    const warFehler = kandidat.status === 'fehler';
     const revalidiert = validiere({
       ...kandidat,
       positionen,
@@ -388,7 +393,9 @@ function wendePreisanpassungAn(
       angebotssumme: berechneSumme(positionen),
       warnungen: kandidat.warnungen.filter((w) => !w.startsWith('Empfänger-E-Mail fehlt')),
     });
-    return { ...revalidiert, ausgewaehlt: revalidiert.status === 'fehler' ? false : kandidat.ausgewaehlt };
+    const ausgewaehlt =
+      revalidiert.status === 'fehler' ? false : warFehler ? true : kandidat.ausgewaehlt;
+    return { ...revalidiert, ausgewaehlt };
   });
 }
 
