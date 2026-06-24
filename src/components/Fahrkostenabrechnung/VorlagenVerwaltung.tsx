@@ -21,7 +21,7 @@ const LEER = {
   kilometer: 0,
   istFavorit: true,
   standardAutoId: '',
-  standardHinUndZurueck: false,
+  standardHinUndZurueck: true, // immer Hin- und Rückfahrt
 };
 
 export default function VorlagenVerwaltung({ strecken, autos, direktAnlegen, onClose, onUpdate }: VorlagenVerwaltungProps) {
@@ -128,7 +128,7 @@ export default function VorlagenVerwaltung({ strecken, autos, direktAnlegen, onC
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 dark:text-white truncate">{s.name}</p>
                 <p className="text-sm text-gray-500 dark:text-dark-textMuted">
-                  {s.kilometer} km{s.standardHinUndZurueck ? ' · ↔' : ''}
+                  {s.kilometer} km einfach · {s.kilometer * 2} km Hin+Rück
                   {s.standardAutoId && autos.find(a => a.id === s.standardAutoId)
                     ? ` · ${autos.find(a => a.id === s.standardAutoId)!.name}`
                     : ''}
@@ -188,15 +188,6 @@ export default function VorlagenVerwaltung({ strecken, autos, direktAnlegen, onC
                   <option key={a.id} value={a.id}>{a.name} · {a.kmPauschale.toFixed(2)} €/km</option>
                 ))}
               </select>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.standardHinUndZurueck}
-                  onChange={e => setForm({ ...form, standardHinUndZurueck: e.target.checked })}
-                  className="rounded border-gray-300 text-red-600"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Standard: Hin- und Rückfahrt</span>
-              </label>
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"

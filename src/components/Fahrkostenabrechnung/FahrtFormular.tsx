@@ -31,8 +31,7 @@ export default function FahrtFormular({
   const [startAdresse, setStartAdresse] = useState(bearbeitungsFahrt?.startAdresse || '');
   const [zielort, setZielort] = useState(bearbeitungsFahrt?.zielort || '');
   const [zielAdresse, setZielAdresse] = useState(bearbeitungsFahrt?.zielAdresse || '');
-  const [hinUndZurueck, setHinUndZurueck] = useState(bearbeitungsFahrt?.hinpirsUndZurueck || false);
-  // km im Formular = einfache Strecke
+  // km im Formular = einfache Strecke; es wird immer Hin- und Rückfahrt gerechnet
   const [kilometer, setKilometer] = useState<number>(
     bearbeitungsFahrt
       ? (bearbeitungsFahrt.hinpirsUndZurueck ? bearbeitungsFahrt.kilometer / 2 : bearbeitungsFahrt.kilometer)
@@ -44,7 +43,7 @@ export default function FahrtFormular({
 
   const auto = autos.find(a => a.id === autoId);
   const pauschale = auto?.kmPauschale ?? 0.3;
-  const effektivKm = hinUndZurueck ? kilometer * 2 : kilometer;
+  const effektivKm = kilometer * 2; // immer Hin- und Rückfahrt
   const betrag = Math.round(effektivKm * pauschale * 100) / 100;
 
   const kannSpeichern = !!startort && !!zielort && kilometer > 0 && !!firmaId && !!auto && !saving;
@@ -55,7 +54,6 @@ export default function FahrtFormular({
     setZielort(s.zielort);
     setZielAdresse(s.zielAdresse);
     setKilometer(s.kilometer);
-    setHinUndZurueck(s.standardHinUndZurueck ?? false);
     if (s.standardAutoId) setAutoId(s.standardAutoId);
   };
 
@@ -81,7 +79,7 @@ export default function FahrtFormular({
         zielAdresse: zielAdresse || zielort,
         kilometer,
         kilometerPauschale: auto.kmPauschale,
-        hinpirsUndZurueck: hinUndZurueck,
+        hinpirsUndZurueck: true,
         kommentar: kommentar.trim() || undefined,
         defaultStreckeId: bearbeitungsFahrt?.defaultStreckeId,
       };
@@ -102,7 +100,7 @@ export default function FahrtFormular({
           zielAdresse: daten.zielAdresse,
           kilometer: effektivKm,
           kilometerPauschale: auto.kmPauschale,
-          hinpirsUndZurueck: hinUndZurueck,
+          hinpirsUndZurueck: true,
           kommentar: daten.kommentar,
         });
         onSaved(aktualisiert, false);
@@ -230,7 +228,9 @@ export default function FahrtFormular({
 
           {/* Kilometer */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Kilometer (einfach)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Kilometer (einfache Strecke)
+            </label>
             <input
               type="number"
               value={kilometer || ''}
@@ -240,21 +240,8 @@ export default function FahrtFormular({
               step="0.1"
               className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
             />
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">Wird automatisch als Hin- und Rückfahrt (×2) gerechnet.</p>
           </div>
-
-          {/* Hin + Rück */}
-          <label className="flex items-center gap-3 p-3 border border-gray-200 dark:border-dark-border rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input
-              type="checkbox"
-              checked={hinUndZurueck}
-              onChange={e => setHinUndZurueck(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
-            />
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Hin- und Rückfahrt</p>
-              <p className="text-sm text-gray-500 dark:text-dark-textMuted">Kilometer werden verdoppelt</p>
-            </div>
-          </label>
 
           {/* Kommentar */}
           <div>

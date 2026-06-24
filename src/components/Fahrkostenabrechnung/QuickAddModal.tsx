@@ -17,14 +17,13 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
   const [tage, setTage] = useState<string[]>([]);
   const [autoId, setAutoId] = useState<string>(vorlage.standardAutoId || autos[0]?.id || '');
   const [firmaId, setFirmaId] = useState<string>('');
-  const [hinUndZurueck, setHinUndZurueck] = useState<boolean>(vorlage.standardHinUndZurueck ?? false);
   const [kommentar, setKommentar] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   const auto = autos.find(a => a.id === autoId);
   const firma = firmen.find(f => f.id === firmaId);
   const pauschale = auto?.kmPauschale ?? 0.3;
-  const kmProTag = hinUndZurueck ? vorlage.kilometer * 2 : vorlage.kilometer;
+  const kmProTag = vorlage.kilometer * 2; // immer Hin- und Rückfahrt
   const betragProTag = Math.round(kmProTag * pauschale * 100) / 100;
   const gesamtBetrag = Math.round(betragProTag * tage.length * 100) / 100;
 
@@ -51,7 +50,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
         zielAdresse: vorlage.zielAdresse,
         kilometer: vorlage.kilometer,
         kilometerPauschale: auto.kmPauschale,
-        hinpirsUndZurueck: hinUndZurueck,
+        hinpirsUndZurueck: true,
         kommentar: kommentar.trim() || undefined,
         defaultStreckeId: vorlage.id,
       };
@@ -138,20 +137,6 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
             </select>
           </div>
 
-          {/* Hin + Rück */}
-          <label className="flex items-center gap-3 p-3 border border-gray-200 dark:border-dark-border rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input
-              type="checkbox"
-              checked={hinUndZurueck}
-              onChange={e => setHinUndZurueck(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
-            />
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Hin- und Rückfahrt</p>
-              <p className="text-sm text-gray-500 dark:text-dark-textMuted">Kilometer werden verdoppelt</p>
-            </div>
-          </label>
-
           {/* Kommentar */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -170,7 +155,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
           {tage.length > 0 && (
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>{tage.length} × {kmProTag} km × {pauschale.toFixed(2)} €</span>
+                <span>{tage.length} × {kmProTag} km (Hin+Rück) × {pauschale.toFixed(2)} €</span>
                 <span>{betragProTag.toFixed(2)} € / Tag</span>
               </div>
               <div className="flex items-center justify-between font-bold text-lg">

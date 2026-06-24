@@ -91,6 +91,16 @@ export default function Fahrkostenabrechnung() {
     }
   };
 
+  const handleVorlageLoeschen = async (strecke: DefaultStrecke) => {
+    if (!confirm(`Quick-Add „${strecke.name}" löschen?`)) return;
+    try {
+      await fahrkostenService.loescheDefaultStrecke(strecke.id);
+      await ladeStammdaten();
+    } catch (error) {
+      console.error('Fehler beim Löschen der Vorlage:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -241,20 +251,28 @@ export default function Fahrkostenabrechnung() {
           </div>
           <div className="flex flex-col gap-2">
             {favoritStrecken.map(strecke => (
-              <button
-                key={strecke.id}
-                onClick={() => setModal({ typ: 'quickAdd', vorlage: strecke })}
-                className="flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl shadow-lg hover:from-red-600 hover:to-red-700 active:scale-[0.98] transition-all"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Calendar className="w-4 h-4 opacity-80 flex-shrink-0" />
-                  <span className="font-medium truncate">{strecke.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm opacity-90 flex-shrink-0">
-                  <span>{strecke.standardHinUndZurueck ? strecke.kilometer * 2 : strecke.kilometer} km</span>
-                  <Plus className="w-4 h-4" />
-                </div>
-              </button>
+              <div key={strecke.id} className="flex items-stretch gap-2">
+                <button
+                  onClick={() => setModal({ typ: 'quickAdd', vorlage: strecke })}
+                  className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl shadow-lg hover:from-red-600 hover:to-red-700 active:scale-[0.98] transition-all"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calendar className="w-4 h-4 opacity-80 flex-shrink-0" />
+                    <span className="font-medium truncate">{strecke.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm opacity-90 flex-shrink-0">
+                    <span>{strecke.kilometer * 2} km</span>
+                    <Plus className="w-4 h-4" />
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleVorlageLoeschen(strecke)}
+                  title="Quick-Add löschen"
+                  className="px-3 rounded-xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-700 flex items-center justify-center transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -353,9 +371,6 @@ function FahrtKarte({ fahrt, onEdit, onDelete }: { fahrt: Fahrt; onEdit: () => v
             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-textMuted mb-1">
               <Calendar className="w-3.5 h-3.5" />
               <span>{new Date(fahrt.datum).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-              {fahrt.hinpirsUndZurueck && (
-                <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded">↔</span>
-              )}
             </div>
             <div className="flex items-center gap-2 text-gray-900 dark:text-white font-medium">
               <span className="truncate">{fahrt.startort}</span>
