@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { duplikatService } from '../../services/duplikatService';
-import { DuplikatPaar, MergeKontext, MergeArchivEintrag } from '../../types/duplikat';
+import { DuplikatPaar, MergeKontext, MergeArchivEintrag, ReferenzZaehlung } from '../../types/duplikat';
 import { SaisonKunde } from '../../types/saisonplanung';
 
 const konfidenz = (score: number) =>
@@ -77,7 +77,6 @@ const MergeDetail = ({
 
   const survivor = survivorSeite === 'a' ? kontext.a : kontext.b;
   const loser = survivorSeite === 'a' ? kontext.b : kontext.a;
-  const refSurvivor = survivorSeite === 'a' ? kontext.referenzenA : kontext.referenzenB;
   const refLoser = survivorSeite === 'a' ? kontext.referenzenB : kontext.referenzenA;
 
   const vorschau = useMemo(() => duplikatService.baueMergePatch(survivor, loser), [survivor, loser]);
@@ -95,7 +94,15 @@ const MergeDetail = ({
     }
   };
 
-  const SeitenKopf = ({ seite, k, ref }: { seite: 'a' | 'b'; k: SaisonKunde; ref: typeof refSurvivor }) => {
+  const SeitenKopf = ({
+    seite,
+    k,
+    referenz,
+  }: {
+    seite: 'a' | 'b';
+    k: SaisonKunde;
+    referenz: ReferenzZaehlung;
+  }) => {
     const istSurvivor = survivorSeite === seite;
     return (
       <button
@@ -122,8 +129,8 @@ const MergeDetail = ({
           {k.kundennummer || '—'} · {adresse(k) || 'keine Adresse'}
         </div>
         <div className="text-xs text-gray-400 mt-1">
-          {ref.projekte} Projekte · {ref.ansprechpartner} Ansprechp. · {ref.saisonDaten} Saisondaten ·{' '}
-          {ref.aktivitaeten} Akt.
+          {referenz.projekte} Projekte · {referenz.ansprechpartner} Ansprechp. · {referenz.saisonDaten}{' '}
+          Saisondaten · {referenz.aktivitaeten} Akt.
         </div>
       </button>
     );
@@ -148,11 +155,11 @@ const MergeDetail = ({
 
         {/* Survivor-Auswahl */}
         <div className="flex gap-3 mb-4">
-          <SeitenKopf seite="a" k={kontext.a} ref={kontext.referenzenA} />
+          <SeitenKopf seite="a" k={kontext.a} referenz={kontext.referenzenA} />
           <div className="flex items-center">
             <ArrowRight className="w-5 h-5 text-gray-400" />
           </div>
-          <SeitenKopf seite="b" k={kontext.b} ref={kontext.referenzenB} />
+          <SeitenKopf seite="b" k={kontext.b} referenz={kontext.referenzenB} />
         </div>
 
         {/* Feldvergleich */}
