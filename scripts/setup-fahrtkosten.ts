@@ -177,6 +177,7 @@ async function main() {
     await ensureIntegerAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'sortierung', false);
     await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'standardAutoId', 100, false);
     await ensureBooleanAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'standardHinUndZurueck', false);
+    await ensureStringAttribute(DEFAULT_STRECKEN_COLLECTION_ID, 'personId', 100, false);
 
     // Personen Attribute
     console.log('\n📝 Personen Attribute:');
@@ -184,18 +185,20 @@ async function main() {
     await ensureBooleanAttribute(PERSONEN_COLLECTION_ID, 'aktiv', false);
     await ensureIntegerAttribute(PERSONEN_COLLECTION_ID, 'sortierung', false);
 
-    // Autos Attribute
+    // Autos Attribute (pro Person)
     console.log('\n📝 Autos Attribute:');
     await ensureStringAttribute(AUTOS_COLLECTION_ID, 'name', 200, true);
     await ensureFloatAttribute(AUTOS_COLLECTION_ID, 'kmPauschale', false);
     await ensureBooleanAttribute(AUTOS_COLLECTION_ID, 'aktiv', false);
     await ensureIntegerAttribute(AUTOS_COLLECTION_ID, 'sortierung', false);
+    await ensureStringAttribute(AUTOS_COLLECTION_ID, 'personId', 100, false);
 
-    // Firmen Attribute
+    // Firmen Attribute (pro Person)
     console.log('\n📝 Firmen Attribute:');
     await ensureStringAttribute(FIRMEN_COLLECTION_ID, 'name', 200, true);
     await ensureBooleanAttribute(FIRMEN_COLLECTION_ID, 'aktiv', false);
     await ensureIntegerAttribute(FIRMEN_COLLECTION_ID, 'sortierung', false);
+    await ensureStringAttribute(FIRMEN_COLLECTION_ID, 'personId', 100, false);
 
     // Seed: Standard-Personen
     console.log('\n🌱 Seed Personen:');
@@ -203,9 +206,7 @@ async function main() {
     await ensureSeedDocument(PERSONEN_COLLECTION_ID, { name: 'Julian', aktiv: true, sortierung: 1 });
     await ensureSeedDocument(PERSONEN_COLLECTION_ID, { name: 'Ronald', aktiv: true, sortierung: 2 });
 
-    // Seed: Beispiel-Auto
-    console.log('\n🌱 Seed Autos:');
-    await ensureSeedDocument(AUTOS_COLLECTION_ID, { name: 'PKW (0,30 €/km)', kmPauschale: 0.30, aktiv: true, sortierung: 0 });
+    // Autos werden pro Person in der App angelegt (kein globaler Seed).
 
     console.log('\n✅ Fahrtkosten Setup abgeschlossen!');
     console.log('Die Collections sind jetzt bereit.');

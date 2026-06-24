@@ -10,18 +10,20 @@ export interface Person {
   sortierung: number;
 }
 
-/** Fahrzeug mit eigener km-Pauschale */
+/** Fahrzeug mit eigener km-Pauschale (pro Person) */
 export interface Auto {
   id: string;
+  personId: string;
   name: string;
   kmPauschale: number; // €/km
   aktiv: boolean;
   sortierung: number;
 }
 
-/** Firma, der eine Fahrt zugeordnet wird (Basis für den Report) */
+/** Firma, der eine Fahrt zugeordnet wird (pro Person; Basis für den Report) */
 export interface Firma {
   id: string;
+  personId: string;
   name: string;
   aktiv: boolean;
   sortierung: number;
@@ -31,6 +33,7 @@ export interface Firma {
 
 export interface DefaultStrecke {
   id: string;
+  personId: string; // Vorlagen/Quick-Adds gehören zu einer Person
   name: string;
   startort: string;
   startAdresse: string;
@@ -120,41 +123,3 @@ export interface MonatsZusammenfassung {
 
 // Default-Werte
 export const DEFAULT_KILOMETER_PAUSCHALE = 0.30; // €/km
-
-// Personen, die beim ersten Setup angelegt werden
-export const STANDARD_PERSONEN: Omit<Person, 'id'>[] = [
-  { name: 'Luca', aktiv: true, sortierung: 0 },
-  { name: 'Julian', aktiv: true, sortierung: 1 },
-  { name: 'Ronald', aktiv: true, sortierung: 2 },
-];
-
-// Beispiel-Auto, das beim ersten Setup angelegt wird
-export const STANDARD_AUTOS: Omit<Auto, 'id'>[] = [
-  { name: 'PKW (0,30 €/km)', kmPauschale: 0.30, aktiv: true, sortierung: 0 },
-];
-
-// Vordefinierte Strecken für TennisMehl
-export const STANDARD_STRECKEN: Omit<DefaultStrecke, 'id'>[] = [
-  {
-    name: 'Giebelstadt → Produktion',
-    startort: 'Giebelstadt',
-    startAdresse: 'Giebelstadt',
-    zielort: 'Produktion Marktheidenfeld',
-    zielAdresse: 'Wertheimer Straße 30, 97828 Marktheidenfeld',
-    kilometer: 45,
-    istFavorit: true,
-    sortierung: 1,
-    standardHinUndZurueck: false,
-  },
-  {
-    name: 'Giebelstadt ↔ Produktion (Hin+Rück)',
-    startort: 'Giebelstadt',
-    startAdresse: 'Giebelstadt',
-    zielort: 'Produktion Marktheidenfeld',
-    zielAdresse: 'Wertheimer Straße 30, 97828 Marktheidenfeld',
-    kilometer: 45,
-    istFavorit: true,
-    sortierung: 0,
-    standardHinUndZurueck: true,
-  },
-];

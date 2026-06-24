@@ -16,7 +16,7 @@ type ModalState =
   | { typ: 'quickAdd'; vorlage: DefaultStrecke }
   | { typ: 'fahrt'; fahrt: Fahrt | null }
   | { typ: 'vorlagen'; direktAnlegen?: boolean }
-  | { typ: 'stammdaten'; startTab?: 'autos' | 'firmen' | 'personen' }
+  | { typ: 'stammdaten' }
   | { typ: 'report' };
 
 export default function Fahrkostenabrechnung() {
@@ -30,34 +30,56 @@ export default function Fahrkostenabrechnung() {
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ typ: 'none' });
 
-  const ladeStammdaten = useCallback(async () => {
-    const [personenData, autosData, firmenData, streckenData] = await Promise.all([
-      fahrkostenService.ladePersonen(),
-      fahrkostenService.ladeAutos(),
-      fahrkostenService.ladeFirmen(),
-      fahrkostenService.ladeDefaultStrecken(),
+  // Personen-Liste (global) neu laden
+  const reloadPersonen = useCallback(async () => {
+    setPersonen(await fahrkostenService.ladePersonen());
+  }, []);
+
+  // Autos / Firmen / Vorlagen der gewählten Person laden
+  const ladePersonStammdaten = useCallback(async (personId: string) => {
+    const [autosData, firmenData, streckenData] = await Promise.all([
+      fahrkostenService.ladeAutos(personId),
+      fahrkostenService.ladeFirmen(personId),
+      fahrkostenService.ladeDefaultStrecken(personId),
     ]);
-    setPersonen(personenData);
     setAutos(autosData);
     setFirmen(firmenData);
     setDefaultStrecken(streckenData);
   }, []);
 
-  const ladeAlles = useCallback(async () => {
+  const ladeBasis = useCallback(async () => {
     setLoading(true);
     try {
-      await Promise.all([
-        ladeStammdaten(),
-        fahrkostenService.ladeAlleFahrten().then(setFahrten),
+      const [personenData, fahrtenData] = await Promise.all([
+        fahrkostenService.ladePersonen(),
+        fahrkostenService.ladeAlleFahrten(),
       ]);
+      setPersonen(personenData);
+      setFahrten(fahrtenData);
     } catch (error) {
       console.error('Fehler beim Laden:', error);
     } finally {
       setLoading(false);
     }
-  }, [ladeStammdaten]);
+  }, []);
 
-  useEffect(() => { ladeAlles(); }, [ladeAlles]);
+  useEffect(() => { ladeBasis(); }, [ladeBasis]);
+
+  // Stammdaten der gewählten Person nachladen
+  useEffect(() => {
+    if (selectedPersonId) {
+      ladePersonStammdaten(selectedPersonId);
+    } else {
+      setAutos([]);
+      setFirmen([]);
+      setDefaultStrecken([]);
+    }
+  }, [selectedPersonId, ladePersonStammdaten]);
+
+  // Stammdaten der aktuellen Person neu laden (für Modal-Updates)
+  const reloadStammdaten = useCallback(async () => {
+    if (selectedPersonId) await ladePersonStammdaten(selectedPersonId);
+  }, [selectedPersonId, ladePersonStammdaten]);
 
   const selectedPerson = personen.find(p => p.id === selectedPersonId) || null;
 
@@ -95,7 +117,7 @@ export default function Fahrkostenabrechnung() {
     if (!confirm(`Quick-Add „${strecke.name}" löschen?`)) return;
     try {
       await fahrkostenService.loescheDefaultStrecke(strecke.id);
-      await ladeStammdaten();
+      await reloadStammdaten();
     } catch (error) {
       console.error('Fehler beim Löschen der Vorlage:', error);
     }
@@ -123,7 +145,7 @@ export default function Fahrkostenabrechnung() {
               </div>
             </div>
             <button
-              onClick={() => setModal({ typ: 'stammdaten', startTab: 'personen' })}
+              onClick={() => setModal({ typ: 'stammdaten' })}
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
               title="Stammdaten"
             >
@@ -136,7 +158,7 @@ export default function Fahrkostenabrechnung() {
           {personen.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500 dark:text-dark-textMuted mb-3">Noch keine Personen angelegt.</p>
-              <button onClick={() => setModal({ typ: 'stammdaten', startTab: 'personen' })} className="px-4 py-2 bg-red-600 text-white rounded-xl">
+              <button onClick={() => setModal({ typ: 'stammdaten' })} className="px-4 py-2 bg-red-600 text-white rounded-xl">
                 Person anlegen
               </button>
             </div>
@@ -164,12 +186,10 @@ export default function Fahrkostenabrechnung() {
 
         {modal.typ === 'stammdaten' && (
           <StammdatenVerwaltung
+            tabs={['personen']}
             personen={personen}
-            autos={autos}
-            firmen={firmen}
-            startTab={modal.startTab}
             onClose={() => setModal({ typ: 'none' })}
-            onUpdate={ladeStammdaten}
+            onUpdate={reloadPersonen}
           />
         )}
       </div>
@@ -201,7 +221,7 @@ export default function Fahrkostenabrechnung() {
             <button onClick={() => setModal({ typ: 'vorlagen' })} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400" title="Vorlagen">
               <Route className="w-5 h-5" />
             </button>
-            <button onClick={() => setModal({ typ: 'stammdaten', startTab: 'autos' })} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400" title="Stammdaten">
+            <button onClick={() => setModal({ typ: 'stammdaten' })} className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400" title="Autos & Firmen">
               <Settings className="w-5 h-5" />
             </button>
           </div>
@@ -329,20 +349,22 @@ export default function Fahrkostenabrechnung() {
         <VorlagenVerwaltung
           strecken={defaultStrecken}
           autos={autos}
+          personId={selectedPerson.id}
           direktAnlegen={modal.direktAnlegen}
           onClose={() => setModal({ typ: 'none' })}
-          onUpdate={ladeStammdaten}
+          onUpdate={reloadStammdaten}
         />
       )}
 
       {modal.typ === 'stammdaten' && (
         <StammdatenVerwaltung
-          personen={personen}
+          tabs={['autos', 'firmen']}
+          personId={selectedPerson.id}
+          personName={selectedPerson.name}
           autos={autos}
           firmen={firmen}
-          startTab={modal.startTab}
           onClose={() => setModal({ typ: 'none' })}
-          onUpdate={ladeStammdaten}
+          onUpdate={reloadStammdaten}
         />
       )}
 

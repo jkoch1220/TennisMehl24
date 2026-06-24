@@ -6,6 +6,8 @@ import { DefaultStrecke, Auto } from '../../types/fahrtkosten';
 interface VorlagenVerwaltungProps {
   strecken: DefaultStrecke[];
   autos: Auto[];
+  /** Person, zu der die Vorlagen gehören */
+  personId: string;
   /** Wenn gesetzt: direkt im Anlege-Formular starten */
   direktAnlegen?: boolean;
   onClose: () => void;
@@ -24,7 +26,7 @@ const LEER = {
   standardHinUndZurueck: true, // immer Hin- und Rückfahrt
 };
 
-export default function VorlagenVerwaltung({ strecken, autos, direktAnlegen, onClose, onUpdate }: VorlagenVerwaltungProps) {
+export default function VorlagenVerwaltung({ strecken, autos, personId, direktAnlegen, onClose, onUpdate }: VorlagenVerwaltungProps) {
   const [showForm, setShowForm] = useState(!!direktAnlegen);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...LEER, standardAutoId: autos[0]?.id || '' });
@@ -64,6 +66,7 @@ export default function VorlagenVerwaltung({ strecken, autos, direktAnlegen, onC
       } else {
         await fahrkostenService.erstelleDefaultStrecke({
           ...form,
+          personId,
           startAdresse: form.startAdresse || form.startort,
           zielAdresse: form.zielAdresse || form.zielort,
           standardAutoId: form.standardAutoId || undefined,

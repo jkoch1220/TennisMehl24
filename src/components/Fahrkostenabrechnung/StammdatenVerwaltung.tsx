@@ -5,17 +5,36 @@ import { Person, Auto, Firma } from '../../types/fahrtkosten';
 
 type Tab = 'autos' | 'firmen' | 'personen';
 
+const TAB_META: Record<Tab, { label: string; icon: typeof Car }> = {
+  autos: { label: 'Autos', icon: Car },
+  firmen: { label: 'Firmen', icon: Building2 },
+  personen: { label: 'Personen', icon: Users },
+};
+
 interface StammdatenVerwaltungProps {
-  personen: Person[];
-  autos: Auto[];
-  firmen: Firma[];
-  startTab?: Tab;
+  /** Welche Tabs angezeigt werden */
+  tabs: Tab[];
+  /** Person, zu der Autos/Firmen gehören (für die Tabs autos/firmen erforderlich) */
+  personId?: string;
+  personName?: string;
+  personen?: Person[];
+  autos?: Auto[];
+  firmen?: Firma[];
   onClose: () => void;
   onUpdate: () => void;
 }
 
-export default function StammdatenVerwaltung({ personen, autos, firmen, startTab, onClose, onUpdate }: StammdatenVerwaltungProps) {
-  const [tab, setTab] = useState<Tab>(startTab || 'autos');
+export default function StammdatenVerwaltung({
+  tabs,
+  personId,
+  personName,
+  personen = [],
+  autos = [],
+  firmen = [],
+  onClose,
+  onUpdate,
+}: StammdatenVerwaltungProps) {
+  const [tab, setTab] = useState<Tab>(tabs[0]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 sm:p-4">
@@ -25,36 +44,39 @@ export default function StammdatenVerwaltung({ personen, autos, firmen, startTab
         </div>
 
         <div className="flex items-center justify-between p-4 border-b dark:border-dark-border">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Stammdaten</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Stammdaten{personName ? ` · ${personName}` : ''}
+          </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b dark:border-dark-border">
-          {([
-            { key: 'autos', label: 'Autos', icon: Car },
-            { key: 'firmen', label: 'Firmen', icon: Building2 },
-            { key: 'personen', label: 'Personen', icon: Users },
-          ] as const).map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex-1 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 ${
-                tab === key
-                  ? 'border-red-600 text-red-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-              }`}
-            >
-              <Icon className="w-4 h-4" /> {label}
-            </button>
-          ))}
-        </div>
+        {tabs.length > 1 && (
+          <div className="flex border-b dark:border-dark-border">
+            {tabs.map(key => {
+              const { label, icon: Icon } = TAB_META[key];
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={`flex-1 py-3 flex items-center justify-center gap-2 text-sm font-medium border-b-2 ${
+                    tab === key
+                      ? 'border-red-600 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" /> {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="p-4 overflow-y-auto">
-          {tab === 'autos' && <AutoListe autos={autos} onUpdate={onUpdate} />}
-          {tab === 'firmen' && <FirmaListe firmen={firmen} onUpdate={onUpdate} />}
+          {tab === 'autos' && personId && <AutoListe autos={autos} personId={personId} onUpdate={onUpdate} />}
+          {tab === 'firmen' && personId && <FirmaListe firmen={firmen} personId={personId} onUpdate={onUpdate} />}
           {tab === 'personen' && <PersonListe personen={personen} onUpdate={onUpdate} />}
         </div>
       </div>
@@ -63,7 +85,7 @@ export default function StammdatenVerwaltung({ personen, autos, firmen, startTab
 }
 
 // ==================== AUTOS ====================
-function AutoListe({ autos, onUpdate }: { autos: Auto[]; onUpdate: () => void }) {
+function AutoListe({ autos, personId, onUpdate }: { autos: Auto[]; personId: string; onUpdate: () => void }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [pauschale, setPauschale] = useState<number>(0.3);
@@ -77,7 +99,7 @@ function AutoListe({ autos, onUpdate }: { autos: Auto[]; onUpdate: () => void })
       if (editId) {
         await fahrkostenService.aktualisiereAuto(editId, { name: name.trim(), kmPauschale: pauschale });
       } else {
-        await fahrkostenService.erstelleAuto({ name: name.trim(), kmPauschale: pauschale, aktiv: true, sortierung: autos.length });
+        await fahrkostenService.erstelleAuto({ personId, name: name.trim(), kmPauschale: pauschale, aktiv: true, sortierung: autos.length });
       }
       reset();
       onUpdate();
@@ -91,6 +113,7 @@ function AutoListe({ autos, onUpdate }: { autos: Auto[]; onUpdate: () => void })
 
   return (
     <div className="space-y-3">
+      {autos.length === 0 && <p className="text-sm text-gray-500 dark:text-dark-textMuted text-center py-2">Noch keine Autos für diese Person.</p>}
       {autos.map(a => (
         <div key={a.id} className="flex items-center gap-3 p-3 border border-gray-200 dark:border-dark-border rounded-xl">
           <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg"><Car className="w-4 h-4 text-gray-500" /></div>
@@ -143,7 +166,7 @@ function AutoListe({ autos, onUpdate }: { autos: Auto[]; onUpdate: () => void })
 }
 
 // ==================== FIRMEN ====================
-function FirmaListe({ firmen, onUpdate }: { firmen: Firma[]; onUpdate: () => void }) {
+function FirmaListe({ firmen, personId, onUpdate }: { firmen: Firma[]; personId: string; onUpdate: () => void }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -156,7 +179,7 @@ function FirmaListe({ firmen, onUpdate }: { firmen: Firma[]; onUpdate: () => voi
       if (editId) {
         await fahrkostenService.aktualisiereFirma(editId, { name: name.trim() });
       } else {
-        await fahrkostenService.erstelleFirma({ name: name.trim(), aktiv: true, sortierung: firmen.length });
+        await fahrkostenService.erstelleFirma({ personId, name: name.trim(), aktiv: true, sortierung: firmen.length });
       }
       reset();
       onUpdate();
@@ -170,6 +193,7 @@ function FirmaListe({ firmen, onUpdate }: { firmen: Firma[]; onUpdate: () => voi
 
   return (
     <div className="space-y-3">
+      {firmen.length === 0 && <p className="text-sm text-gray-500 dark:text-dark-textMuted text-center py-2">Noch keine Firmen für diese Person.</p>}
       {firmen.map(f => (
         <div key={f.id} className="flex items-center gap-3 p-3 border border-gray-200 dark:border-dark-border rounded-xl">
           <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg"><Building2 className="w-4 h-4 text-gray-500" /></div>

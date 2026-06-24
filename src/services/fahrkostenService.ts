@@ -16,7 +16,6 @@ import {
   Firma,
   FahrkostenFilter,
   DEFAULT_KILOMETER_PAUSCHALE,
-  STANDARD_STRECKEN,
   MonatsZusammenfassung,
 } from '../types/fahrtkosten';
 import { ID, Query } from 'appwrite';
@@ -195,12 +194,15 @@ export const fahrkostenService = {
 
   // ==================== AUTOS ====================
 
-  async ladeAutos(): Promise<Auto[]> {
+  async ladeAutos(personId?: string): Promise<Auto[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, [Query.limit(100)]);
+      const queries = [Query.limit(100)];
+      if (personId) queries.push(Query.equal('personId', personId));
+      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, queries);
       return response.documents
         .map(doc => ({
           id: doc.$id as string,
+          personId: (doc.personId as string) || '',
           name: (doc.name as string) || '',
           kmPauschale: (doc.kmPauschale as number) ?? DEFAULT_KILOMETER_PAUSCHALE,
           aktiv: (doc.aktiv as boolean) ?? true,
@@ -216,6 +218,7 @@ export const fahrkostenService = {
   async erstelleAuto(auto: Omit<Auto, 'id'>): Promise<Auto> {
     const id = ID.unique();
     await databases.createDocument(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, id, {
+      personId: auto.personId,
       name: auto.name,
       kmPauschale: auto.kmPauschale,
       aktiv: auto.aktiv,
@@ -234,11 +237,19 @@ export const fahrkostenService = {
 
   // ==================== FIRMEN ====================
 
-  async ladeFirmen(): Promise<Firma[]> {
+  async ladeFirmen(personId?: string): Promise<Firma[]> {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, [Query.limit(500)]);
+      const queries = [Query.limit(500)];
+      if (personId) queries.push(Query.equal('personId', personId));
+      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, queries);
       return response.documents
-        .map(doc => this.parseStammDocument(doc) as Firma)
+        .map(doc => ({
+          id: doc.$id as string,
+          personId: (doc.personId as string) || '',
+          name: (doc.name as string) || '',
+          aktiv: (doc.aktiv as boolean) ?? true,
+          sortierung: (doc.sortierung as number) || 0,
+        }))
         .sort((a, b) => a.sortierung - b.sortierung || a.name.localeCompare(b.name));
     } catch (error) {
       console.error('Fehler beim Laden der Firmen:', error);
@@ -249,6 +260,7 @@ export const fahrkostenService = {
   async erstelleFirma(firma: Omit<Firma, 'id'>): Promise<Firma> {
     const id = ID.unique();
     await databases.createDocument(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, id, {
+      personId: firma.personId,
       name: firma.name,
       aktiv: firma.aktiv,
       sortierung: firma.sortierung,
@@ -266,19 +278,16 @@ export const fahrkostenService = {
 
   // ==================== DEFAULT STRECKEN (Vorlagen) ====================
 
-  async ladeDefaultStrecken(): Promise<DefaultStrecke[]> {
+  async ladeDefaultStrecken(personId?: string): Promise<DefaultStrecke[]> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        DEFAULT_STRECKEN_COLLECTION_ID,
-        [Query.limit(100)]
-      );
+      const queries = [Query.limit(100)];
+      if (personId) queries.push(Query.equal('personId', personId));
+      const response = await databases.listDocuments(DATABASE_ID, DEFAULT_STRECKEN_COLLECTION_ID, queries);
       const strecken = response.documents.map(doc => this.parseDefaultStreckeDocument(doc));
       return strecken.sort((a, b) => a.sortierung - b.sortierung);
     } catch (error) {
       console.error('Fehler beim Laden der Default-Strecken:', error);
-      // Fallback: Standard-Strecken aus Memory zurückgeben
-      return STANDARD_STRECKEN.map((s, i) => ({ ...s, id: `standard-${i}` }));
+      return [];
     }
   },
 
@@ -316,6 +325,7 @@ export const fahrkostenService = {
 
   buildStreckePayload(strecke: DefaultStrecke) {
     return {
+      personId: strecke.personId,
       name: strecke.name,
       startort: strecke.startort,
       startAdresse: strecke.startAdresse,
@@ -384,7 +394,7 @@ export const fahrkostenService = {
 
   // ==================== HELPERS ====================
 
-  parseStammDocument(doc: Record<string, unknown>): Person | Firma {
+  parseStammDocument(doc: Record<string, unknown>): Person {
     return {
       id: doc.$id as string,
       name: (doc.name as string) || '',
@@ -421,6 +431,7 @@ export const fahrkostenService = {
   parseDefaultStreckeDocument(doc: Record<string, unknown>): DefaultStrecke {
     return {
       id: doc.$id as string,
+      personId: (doc.personId as string) || '',
       name: (doc.name as string) || '',
       startort: (doc.startort as string) || '',
       startAdresse: (doc.startAdresse as string) || '',
