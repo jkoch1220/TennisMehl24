@@ -1,10 +1,29 @@
-import { databases, DATABASE_ID, FAHRTEN_COLLECTION_ID, DEFAULT_STRECKEN_COLLECTION_ID } from '../config/appwrite';
-import { Fahrt, NeueFahrt, DefaultStrecke, DEFAULT_KILOMETER_PAUSCHALE, STANDARD_STRECKEN, MonatsZusammenfassung } from '../types/fahrtkosten';
+import {
+  databases,
+  DATABASE_ID,
+  FAHRTEN_COLLECTION_ID,
+  DEFAULT_STRECKEN_COLLECTION_ID,
+  FAHRTKOSTEN_PERSONEN_COLLECTION_ID,
+  FAHRTKOSTEN_AUTOS_COLLECTION_ID,
+  FAHRTKOSTEN_FIRMEN_COLLECTION_ID,
+} from '../config/appwrite';
+import {
+  Fahrt,
+  NeueFahrt,
+  DefaultStrecke,
+  Person,
+  Auto,
+  Firma,
+  FahrkostenFilter,
+  DEFAULT_KILOMETER_PAUSCHALE,
+  STANDARD_STRECKEN,
+  MonatsZusammenfassung,
+} from '../types/fahrtkosten';
 import { ID, Query } from 'appwrite';
 import { loadAllDocuments } from '../utils/appwritePagination';
 
-// Robustes Pattern: Alle Daten als JSON im "data" Feld speichern
-// So brauchen wir nur ein Feld in Appwrite
+// Fahrten werden mit echten Appwrite-Attributen gespeichert.
+// Mapping: personId -> fahrer, personName -> fahrerName, kommentar -> notizen.
 
 export const fahrkostenService = {
   // ==================== FAHRTEN ====================
@@ -21,46 +40,83 @@ export const fahrkostenService = {
     }
   },
 
-  async erstelleFahrt(neueFahrt: NeueFahrt): Promise<Fahrt> {
-    const jetzt = new Date().toISOString();
+  /** Erstellt das Appwrite-Payload aus einer (berechneten) Fahrt */
+  buildFahrtPayload(fahrt: Fahrt) {
+    return {
+      datum: fahrt.datum,
+      fahrer: fahrt.personId,
+      fahrerName: fahrt.personName,
+      autoId: fahrt.autoId || null,
+      autoName: fahrt.autoName || null,
+      firmaId: fahrt.firmaId || null,
+      firmaName: fahrt.firmaName || null,
+      startort: fahrt.startort,
+      startAdresse: fahrt.startAdresse,
+      zielort: fahrt.zielort,
+      zielAdresse: fahrt.zielAdresse,
+      kilometer: fahrt.kilometer,
+      kilometerPauschale: fahrt.kilometerPauschale,
+      betrag: fahrt.betrag,
+      hinpirsUndZurueck: fahrt.hinpirsUndZurueck,
+      notizen: fahrt.kommentar || null,
+      defaultStreckeId: fahrt.defaultStreckeId || null,
+    };
+  },
+
+  /** Berechnet die Fahrt-Felder (km verdoppeln, Betrag) aus den Eingaben */
+  berechneFahrt(neueFahrt: NeueFahrt, id: string, jetzt: string): Fahrt {
     const pauschale = neueFahrt.kilometerPauschale ?? DEFAULT_KILOMETER_PAUSCHALE;
     const km = neueFahrt.hinpirsUndZurueck ? neueFahrt.kilometer * 2 : neueFahrt.kilometer;
-    const id = ID.unique();
-
-    const fahrt: Fahrt = {
-      ...neueFahrt,
+    return {
       id,
+      datum: neueFahrt.datum,
+      personId: neueFahrt.personId,
+      personName: neueFahrt.personName,
+      autoId: neueFahrt.autoId,
+      autoName: neueFahrt.autoName,
+      firmaId: neueFahrt.firmaId,
+      firmaName: neueFahrt.firmaName,
+      startort: neueFahrt.startort,
+      startAdresse: neueFahrt.startAdresse,
+      zielort: neueFahrt.zielort,
+      zielAdresse: neueFahrt.zielAdresse,
       kilometer: km,
       kilometerPauschale: pauschale,
       betrag: Math.round(km * pauschale * 100) / 100,
       hinpirsUndZurueck: neueFahrt.hinpirsUndZurueck ?? false,
+      kommentar: neueFahrt.kommentar,
+      defaultStreckeId: neueFahrt.defaultStreckeId,
       erstelltAm: jetzt,
       geaendertAm: jetzt,
     };
+  },
+
+  async erstelleFahrt(neueFahrt: NeueFahrt): Promise<Fahrt> {
+    const jetzt = new Date().toISOString();
+    const id = ID.unique();
+    const fahrt = this.berechneFahrt(neueFahrt, id, jetzt);
 
     await databases.createDocument(
       DATABASE_ID,
       FAHRTEN_COLLECTION_ID,
       id,
-      {
-        datum: fahrt.datum,
-        fahrer: fahrt.fahrer,
-        fahrerName: fahrt.fahrerName,
-        startort: fahrt.startort,
-        startAdresse: fahrt.startAdresse,
-        zielort: fahrt.zielort,
-        zielAdresse: fahrt.zielAdresse,
-        kilometer: fahrt.kilometer,
-        kilometerPauschale: fahrt.kilometerPauschale,
-        betrag: fahrt.betrag,
-        hinpirsUndZurueck: fahrt.hinpirsUndZurueck,
-        zweck: fahrt.zweck || null,
-        notizen: fahrt.notizen || null,
-        defaultStreckeId: fahrt.defaultStreckeId || null,
-      }
+      this.buildFahrtPayload(fahrt)
     );
 
     return fahrt;
+  },
+
+  /** Quick-Add: für jeden Tag eine eigene Fahrt anlegen (gleiche Strecke/Firma/Auto) */
+  async erstelleFahrtenFuerTage(
+    basis: Omit<NeueFahrt, 'datum'>,
+    tage: string[]
+  ): Promise<Fahrt[]> {
+    const erstellte: Fahrt[] = [];
+    for (const datum of tage) {
+      const fahrt = await this.erstelleFahrt({ ...basis, datum });
+      erstellte.push(fahrt);
+    }
+    return erstellte;
   },
 
   async aktualisiereFahrt(id: string, daten: Partial<Fahrt>): Promise<Fahrt> {
@@ -86,22 +142,7 @@ export const fahrkostenService = {
       DATABASE_ID,
       FAHRTEN_COLLECTION_ID,
       id,
-      {
-        datum: aktualisiert.datum,
-        fahrer: aktualisiert.fahrer,
-        fahrerName: aktualisiert.fahrerName,
-        startort: aktualisiert.startort,
-        startAdresse: aktualisiert.startAdresse,
-        zielort: aktualisiert.zielort,
-        zielAdresse: aktualisiert.zielAdresse,
-        kilometer: aktualisiert.kilometer,
-        kilometerPauschale: aktualisiert.kilometerPauschale,
-        betrag: aktualisiert.betrag,
-        hinpirsUndZurueck: aktualisiert.hinpirsUndZurueck,
-        zweck: aktualisiert.zweck || null,
-        notizen: aktualisiert.notizen || null,
-        defaultStreckeId: aktualisiert.defaultStreckeId || null,
-      }
+      this.buildFahrtPayload(aktualisiert)
     );
 
     return aktualisiert;
@@ -120,7 +161,110 @@ export const fahrkostenService = {
     }
   },
 
-  // ==================== DEFAULT STRECKEN ====================
+  // ==================== PERSONEN ====================
+
+  async ladePersonen(): Promise<Person[]> {
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_PERSONEN_COLLECTION_ID, [Query.limit(100)]);
+      return response.documents
+        .map(doc => this.parseStammDocument(doc) as Person)
+        .sort((a, b) => a.sortierung - b.sortierung || a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error('Fehler beim Laden der Personen:', error);
+      return [];
+    }
+  },
+
+  async erstellePerson(person: Omit<Person, 'id'>): Promise<Person> {
+    const id = ID.unique();
+    await databases.createDocument(DATABASE_ID, FAHRTKOSTEN_PERSONEN_COLLECTION_ID, id, {
+      name: person.name,
+      aktiv: person.aktiv,
+      sortierung: person.sortierung,
+    });
+    return { ...person, id };
+  },
+
+  async aktualisierePerson(id: string, daten: Partial<Omit<Person, 'id'>>): Promise<void> {
+    await databases.updateDocument(DATABASE_ID, FAHRTKOSTEN_PERSONEN_COLLECTION_ID, id, daten);
+  },
+
+  async loeschePerson(id: string): Promise<void> {
+    await databases.deleteDocument(DATABASE_ID, FAHRTKOSTEN_PERSONEN_COLLECTION_ID, id);
+  },
+
+  // ==================== AUTOS ====================
+
+  async ladeAutos(): Promise<Auto[]> {
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, [Query.limit(100)]);
+      return response.documents
+        .map(doc => ({
+          id: doc.$id as string,
+          name: (doc.name as string) || '',
+          kmPauschale: (doc.kmPauschale as number) ?? DEFAULT_KILOMETER_PAUSCHALE,
+          aktiv: (doc.aktiv as boolean) ?? true,
+          sortierung: (doc.sortierung as number) || 0,
+        }))
+        .sort((a, b) => a.sortierung - b.sortierung || a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error('Fehler beim Laden der Autos:', error);
+      return [];
+    }
+  },
+
+  async erstelleAuto(auto: Omit<Auto, 'id'>): Promise<Auto> {
+    const id = ID.unique();
+    await databases.createDocument(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, id, {
+      name: auto.name,
+      kmPauschale: auto.kmPauschale,
+      aktiv: auto.aktiv,
+      sortierung: auto.sortierung,
+    });
+    return { ...auto, id };
+  },
+
+  async aktualisiereAuto(id: string, daten: Partial<Omit<Auto, 'id'>>): Promise<void> {
+    await databases.updateDocument(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, id, daten);
+  },
+
+  async loescheAuto(id: string): Promise<void> {
+    await databases.deleteDocument(DATABASE_ID, FAHRTKOSTEN_AUTOS_COLLECTION_ID, id);
+  },
+
+  // ==================== FIRMEN ====================
+
+  async ladeFirmen(): Promise<Firma[]> {
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, [Query.limit(500)]);
+      return response.documents
+        .map(doc => this.parseStammDocument(doc) as Firma)
+        .sort((a, b) => a.sortierung - b.sortierung || a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error('Fehler beim Laden der Firmen:', error);
+      return [];
+    }
+  },
+
+  async erstelleFirma(firma: Omit<Firma, 'id'>): Promise<Firma> {
+    const id = ID.unique();
+    await databases.createDocument(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, id, {
+      name: firma.name,
+      aktiv: firma.aktiv,
+      sortierung: firma.sortierung,
+    });
+    return { ...firma, id };
+  },
+
+  async aktualisiereFirma(id: string, daten: Partial<Omit<Firma, 'id'>>): Promise<void> {
+    await databases.updateDocument(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, id, daten);
+  },
+
+  async loescheFirma(id: string): Promise<void> {
+    await databases.deleteDocument(DATABASE_ID, FAHRTKOSTEN_FIRMEN_COLLECTION_ID, id);
+  },
+
+  // ==================== DEFAULT STRECKEN (Vorlagen) ====================
 
   async ladeDefaultStrecken(): Promise<DefaultStrecke[]> {
     try {
@@ -140,25 +284,13 @@ export const fahrkostenService = {
 
   async erstelleDefaultStrecke(strecke: Omit<DefaultStrecke, 'id'>): Promise<DefaultStrecke> {
     const id = ID.unique();
-    const neueStrecke: DefaultStrecke = {
-      ...strecke,
-      id,
-    };
+    const neueStrecke: DefaultStrecke = { ...strecke, id };
 
     await databases.createDocument(
       DATABASE_ID,
       DEFAULT_STRECKEN_COLLECTION_ID,
       id,
-      {
-        name: neueStrecke.name,
-        startort: neueStrecke.startort,
-        startAdresse: neueStrecke.startAdresse,
-        zielort: neueStrecke.zielort,
-        zielAdresse: neueStrecke.zielAdresse,
-        kilometer: neueStrecke.kilometer,
-        istFavorit: neueStrecke.istFavorit,
-        sortierung: neueStrecke.sortierung,
-      }
+      this.buildStreckePayload(neueStrecke)
     );
 
     return neueStrecke;
@@ -170,28 +302,31 @@ export const fahrkostenService = {
       throw new Error('Strecke nicht gefunden');
     }
 
-    const aktualisiert: DefaultStrecke = {
-      ...existierend,
-      ...daten,
-    };
+    const aktualisiert: DefaultStrecke = { ...existierend, ...daten };
 
     await databases.updateDocument(
       DATABASE_ID,
       DEFAULT_STRECKEN_COLLECTION_ID,
       id,
-      {
-        name: aktualisiert.name,
-        startort: aktualisiert.startort,
-        startAdresse: aktualisiert.startAdresse,
-        zielort: aktualisiert.zielort,
-        zielAdresse: aktualisiert.zielAdresse,
-        kilometer: aktualisiert.kilometer,
-        istFavorit: aktualisiert.istFavorit,
-        sortierung: aktualisiert.sortierung,
-      }
+      this.buildStreckePayload(aktualisiert)
     );
 
     return aktualisiert;
+  },
+
+  buildStreckePayload(strecke: DefaultStrecke) {
+    return {
+      name: strecke.name,
+      startort: strecke.startort,
+      startAdresse: strecke.startAdresse,
+      zielort: strecke.zielort,
+      zielAdresse: strecke.zielAdresse,
+      kilometer: strecke.kilometer,
+      istFavorit: strecke.istFavorit,
+      sortierung: strecke.sortierung,
+      standardAutoId: strecke.standardAutoId || null,
+      standardHinUndZurueck: strecke.standardHinUndZurueck ?? false,
+    };
   },
 
   async ladeDefaultStrecke(id: string): Promise<DefaultStrecke | null> {
@@ -207,7 +342,18 @@ export const fahrkostenService = {
     await databases.deleteDocument(DATABASE_ID, DEFAULT_STRECKEN_COLLECTION_ID, id);
   },
 
-  // ==================== ZUSAMMENFASSUNGEN ====================
+  // ==================== FILTER & ZUSAMMENFASSUNGEN ====================
+
+  /** Filtert Fahrten nach Person, Firma und Zeitraum (alle optional) */
+  filtereFahrten(fahrten: Fahrt[], filter: FahrkostenFilter): Fahrt[] {
+    return fahrten.filter(f => {
+      if (filter.personId && f.personId !== filter.personId) return false;
+      if (filter.firmaId && f.firmaId !== filter.firmaId) return false;
+      if (filter.von && f.datum < filter.von) return false;
+      if (filter.bis && f.datum > filter.bis) return false;
+      return true;
+    });
+  },
 
   berechneMonatsZusammenfassung(fahrten: Fahrt[], monat: string): MonatsZusammenfassung {
     const monatsFahrten = fahrten.filter(f => f.datum.startsWith(monat));
@@ -238,41 +384,53 @@ export const fahrkostenService = {
 
   // ==================== HELPERS ====================
 
-  parseFahrtDocument(doc: Record<string, unknown>): Fahrt {
-    // Direkte Felder aus Appwrite
+  parseStammDocument(doc: Record<string, unknown>): Person | Firma {
     return {
       id: doc.$id as string,
-      datum: doc.datum as string || '',
-      fahrer: doc.fahrer as string || '',
-      fahrerName: doc.fahrerName as string || '',
-      startort: doc.startort as string || '',
-      startAdresse: doc.startAdresse as string || '',
-      zielort: doc.zielort as string || '',
-      zielAdresse: doc.zielAdresse as string || '',
+      name: (doc.name as string) || '',
+      aktiv: (doc.aktiv as boolean) ?? true,
+      sortierung: (doc.sortierung as number) || 0,
+    };
+  },
+
+  parseFahrtDocument(doc: Record<string, unknown>): Fahrt {
+    return {
+      id: doc.$id as string,
+      datum: (doc.datum as string) || '',
+      personId: (doc.fahrer as string) || '',
+      personName: (doc.fahrerName as string) || '',
+      autoId: (doc.autoId as string) || undefined,
+      autoName: (doc.autoName as string) || undefined,
+      firmaId: (doc.firmaId as string) || '',
+      firmaName: (doc.firmaName as string) || '',
+      startort: (doc.startort as string) || '',
+      startAdresse: (doc.startAdresse as string) || '',
+      zielort: (doc.zielort as string) || '',
+      zielAdresse: (doc.zielAdresse as string) || '',
       kilometer: (doc.kilometer as number) || 0,
       kilometerPauschale: (doc.kilometerPauschale as number) || DEFAULT_KILOMETER_PAUSCHALE,
       betrag: (doc.betrag as number) || 0,
       hinpirsUndZurueck: (doc.hinpirsUndZurueck as boolean) || false,
-      zweck: doc.zweck as string | undefined,
-      notizen: doc.notizen as string | undefined,
-      defaultStreckeId: doc.defaultStreckeId as string | undefined,
-      erstelltAm: doc.$createdAt as string || '',
-      geaendertAm: doc.$updatedAt as string || '',
+      kommentar: (doc.notizen as string) || undefined,
+      defaultStreckeId: (doc.defaultStreckeId as string) || undefined,
+      erstelltAm: (doc.$createdAt as string) || '',
+      geaendertAm: (doc.$updatedAt as string) || '',
     };
   },
 
   parseDefaultStreckeDocument(doc: Record<string, unknown>): DefaultStrecke {
-    // Direkte Felder aus Appwrite
     return {
       id: doc.$id as string,
-      name: doc.name as string || '',
-      startort: doc.startort as string || '',
-      startAdresse: doc.startAdresse as string || '',
-      zielort: doc.zielort as string || '',
-      zielAdresse: doc.zielAdresse as string || '',
+      name: (doc.name as string) || '',
+      startort: (doc.startort as string) || '',
+      startAdresse: (doc.startAdresse as string) || '',
+      zielort: (doc.zielort as string) || '',
+      zielAdresse: (doc.zielAdresse as string) || '',
       kilometer: (doc.kilometer as number) || 0,
       istFavorit: (doc.istFavorit as boolean) || false,
       sortierung: (doc.sortierung as number) || 0,
+      standardAutoId: (doc.standardAutoId as string) || undefined,
+      standardHinUndZurueck: (doc.standardHinUndZurueck as boolean) || false,
     };
   },
 };
