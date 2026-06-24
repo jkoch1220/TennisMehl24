@@ -131,7 +131,7 @@ export default function VorlagenVerwaltung({ strecken, autos, personId, direktAn
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900 dark:text-white truncate">{s.name}</p>
                 <p className="text-sm text-gray-500 dark:text-dark-textMuted">
-                  {s.kilometer} km einfach · {s.kilometer * 2} km Hin+Rück
+                  {s.kilometer} km gesamt
                   {s.standardAutoId && autos.find(a => a.id === s.standardAutoId)
                     ? ` · ${autos.find(a => a.id === s.standardAutoId)!.name}`
                     : ''}
@@ -176,7 +176,7 @@ export default function VorlagenVerwaltung({ strecken, autos, personId, direktAn
                 type="number"
                 value={form.kilometer || ''}
                 onChange={e => setForm({ ...form, kilometer: Number(e.target.value) })}
-                placeholder="Kilometer (einfach)"
+                placeholder="Kilometer gesamt (z.B. Hin + Rück)"
                 min="0"
                 step="0.1"
                 className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-white"

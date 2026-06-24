@@ -31,22 +31,30 @@ export default function FahrtFormular({
   const [startAdresse, setStartAdresse] = useState(bearbeitungsFahrt?.startAdresse || '');
   const [zielort, setZielort] = useState(bearbeitungsFahrt?.zielort || '');
   const [zielAdresse, setZielAdresse] = useState(bearbeitungsFahrt?.zielAdresse || '');
-  // km im Formular = einfache Strecke; es wird immer Hin- und Rückfahrt gerechnet
-  const [kilometer, setKilometer] = useState<number>(
-    bearbeitungsFahrt
-      ? (bearbeitungsFahrt.hinpirsUndZurueck ? bearbeitungsFahrt.kilometer / 2 : bearbeitungsFahrt.kilometer)
-      : 0
-  );
+  // km gesamt (gefahrene Strecke) – direkt oder aus Kilometerstand berechnet
+  const [kilometer, setKilometer] = useState<number>(bearbeitungsFahrt?.kilometer || 0);
+  const [startKm, setStartKm] = useState<string>(bearbeitungsFahrt?.startKm != null ? String(bearbeitungsFahrt.startKm) : '');
+  const [endKm, setEndKm] = useState<string>(bearbeitungsFahrt?.endKm != null ? String(bearbeitungsFahrt.endKm) : '');
   const [autoId, setAutoId] = useState(bearbeitungsFahrt?.autoId || autos[0]?.id || '');
   const [firmaId, setFirmaId] = useState(bearbeitungsFahrt?.firmaId || '');
   const [kommentar, setKommentar] = useState(bearbeitungsFahrt?.kommentar || '');
 
   const auto = autos.find(a => a.id === autoId);
   const pauschale = auto?.kmPauschale ?? 0.3;
-  const effektivKm = kilometer * 2; // immer Hin- und Rückfahrt
+
+  // Kilometerstand-Differenz (wenn beide Stände gültig)
+  const startNum = parseFloat(startKm.replace(',', '.'));
+  const endNum = parseFloat(endKm.replace(',', '.'));
+  const standGesetzt = startKm.trim() !== '' && endKm.trim() !== '';
+  const kmAusStand = standGesetzt && !isNaN(startNum) && !isNaN(endNum) && endNum >= startNum
+    ? Math.round((endNum - startNum) * 10) / 10
+    : null;
+  const standUngueltig = standGesetzt && kmAusStand === null;
+
+  const effektivKm = kmAusStand ?? kilometer; // km gesamt
   const betrag = Math.round(effektivKm * pauschale * 100) / 100;
 
-  const kannSpeichern = !!startort && !!zielort && kilometer > 0 && !!firmaId && !!auto && !saving;
+  const kannSpeichern = !!startort && !!zielort && effektivKm > 0 && !standUngueltig && !!firmaId && !!auto && !saving;
 
   const handleStreckeAuswahl = (s: DefaultStrecke) => {
     setStartort(s.startort);
@@ -77,15 +85,16 @@ export default function FahrtFormular({
         startAdresse: startAdresse || startort,
         zielort,
         zielAdresse: zielAdresse || zielort,
-        kilometer,
+        kilometer: effektivKm,
+        startKm: kmAusStand !== null ? startNum : undefined,
+        endKm: kmAusStand !== null ? endNum : undefined,
         kilometerPauschale: auto.kmPauschale,
-        hinpirsUndZurueck: true,
+        hinpirsUndZurueck: false,
         kommentar: kommentar.trim() || undefined,
         defaultStreckeId: bearbeitungsFahrt?.defaultStreckeId,
       };
 
       if (bearbeitungsFahrt) {
-        // km auf effektiven Wert bringen, da aktualisiereFahrt mit bereits verdoppeltem km rechnet
         const aktualisiert = await fahrkostenService.aktualisiereFahrt(bearbeitungsFahrt.id, {
           datum: daten.datum,
           personId: daten.personId,
@@ -99,8 +108,10 @@ export default function FahrtFormular({
           zielort: daten.zielort,
           zielAdresse: daten.zielAdresse,
           kilometer: effektivKm,
+          startKm: daten.startKm,
+          endKm: daten.endKm,
           kilometerPauschale: auto.kmPauschale,
-          hinpirsUndZurueck: true,
+          hinpirsUndZurueck: false,
           kommentar: daten.kommentar,
         });
         onSaved(aktualisiert, false);
@@ -181,12 +192,12 @@ export default function FahrtFormular({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Ziel</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Ziel(e)</label>
               <input
                 type="text"
                 value={zielort}
                 onChange={e => setZielort(e.target.value)}
-                placeholder="z.B. Produktion"
+                placeholder="z.B. Kunde A, Kunde B"
                 className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
               />
             </div>
@@ -226,21 +237,54 @@ export default function FahrtFormular({
             </select>
           </div>
 
-          {/* Kilometer */}
+          {/* Kilometerstand */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              Kilometer (einfache Strecke)
+              Kilometerstand <span className="text-gray-400">(optional)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={startKm}
+                onChange={e => setStartKm(e.target.value)}
+                placeholder="Start (z.B. 123450)"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
+              />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={endKm}
+                onChange={e => setEndKm(e.target.value)}
+                placeholder="Ende (z.B. 123512)"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
+              />
+            </div>
+            {standUngueltig && (
+              <p className="text-xs text-red-500 mt-1">Ende muss größer oder gleich Start sein.</p>
+            )}
+          </div>
+
+          {/* km gesamt */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Gefahrene km (gesamt) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
-              value={kilometer || ''}
+              value={kmAusStand !== null ? kmAusStand : (kilometer || '')}
               onChange={e => setKilometer(Number(e.target.value))}
-              placeholder="45"
+              readOnly={kmAusStand !== null}
+              placeholder="z.B. 90"
               min="0"
               step="0.1"
-              className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
+              className={`w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-white ${
+                kmAusStand !== null ? 'bg-gray-100 dark:bg-gray-800' : 'bg-white dark:bg-dark-surface'
+              }`}
             />
-            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">Wird automatisch als Hin- und Rückfahrt (×2) gerechnet.</p>
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+              {kmAusStand !== null ? 'Aus Kilometerstand berechnet.' : 'Direkt eintragen oder oben Kilometerstand erfassen.'}
+            </p>
           </div>
 
           {/* Kommentar */}
@@ -258,7 +302,7 @@ export default function FahrtFormular({
           </div>
 
           {/* Vorschau */}
-          {kilometer > 0 && (
+          {effektivKm > 0 && (
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Berechnung</span>

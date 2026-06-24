@@ -71,14 +71,18 @@ export interface Fahrt {
   startAdresse: string;
   zielort: string;
   zielAdresse: string;
-  kilometer: number;
+  kilometer: number; // gefahrene Gesamt-km
+
+  // Kilometerstand (optional, für manuelle Fahrten mit mehreren Zielen)
+  startKm?: number;
+  endKm?: number;
 
   // Berechnung
   kilometerPauschale: number; // €/km (vom Auto)
   betrag: number; // kilometer * pauschale
 
   // Optional
-  hinpirsUndZurueck: boolean; // Hin- und Rückfahrt (km werden verdoppelt)
+  hinpirsUndZurueck: boolean; // veraltet – km gelten jetzt immer als Gesamtstrecke
   kommentar?: string; // im Appwrite-Dokument als notizen gespeichert
 
   // Meta
@@ -100,6 +104,8 @@ export interface NeueFahrt {
   zielort: string;
   zielAdresse: string;
   kilometer: number;
+  startKm?: number;
+  endKm?: number;
   kilometerPauschale?: number;
   hinpirsUndZurueck?: boolean;
   kommentar?: string;

@@ -281,7 +281,7 @@ export default function Fahrkostenabrechnung() {
                     <span className="font-medium truncate">{strecke.name}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm opacity-90 flex-shrink-0">
-                    <span>{strecke.kilometer * 2} km</span>
+                    <span>{strecke.kilometer} km</span>
                     <Plus className="w-4 h-4" />
                   </div>
                 </button>
@@ -408,6 +408,9 @@ function FahrtKarte({ fahrt, onEdit, onDelete }: { fahrt: Fahrt; onEdit: () => v
                 <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{fahrt.kommentar}</span>
               </div>
+            )}
+            {fahrt.startKm != null && fahrt.endKm != null && (
+              <p className="text-xs text-gray-400 mt-0.5">Tacho: {fahrt.startKm} → {fahrt.endKm}</p>
             )}
           </div>
           <div className="flex flex-col items-end flex-shrink-0 gap-2">

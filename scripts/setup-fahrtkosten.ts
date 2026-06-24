@@ -158,6 +158,8 @@ async function main() {
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zielort', 200, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'zielAdresse', 500, false);
     await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'kilometer', false);
+    await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'startKm', false);
+    await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'endKm', false);
     await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'kilometerPauschale', false);
     await ensureFloatAttribute(FAHRTEN_COLLECTION_ID, 'betrag', false);
     await ensureBooleanAttribute(FAHRTEN_COLLECTION_ID, 'hinpirsUndZurueck', false);

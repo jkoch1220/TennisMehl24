@@ -23,7 +23,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
   const auto = autos.find(a => a.id === autoId);
   const firma = firmen.find(f => f.id === firmaId);
   const pauschale = auto?.kmPauschale ?? 0.3;
-  const kmProTag = vorlage.kilometer * 2; // immer Hin- und Rückfahrt
+  const kmProTag = vorlage.kilometer; // km gesamt aus der Vorlage
   const betragProTag = Math.round(kmProTag * pauschale * 100) / 100;
   const gesamtBetrag = Math.round(betragProTag * tage.length * 100) / 100;
 
@@ -50,7 +50,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
         zielAdresse: vorlage.zielAdresse,
         kilometer: vorlage.kilometer,
         kilometerPauschale: auto.kmPauschale,
-        hinpirsUndZurueck: true,
+        hinpirsUndZurueck: false,
         kommentar: kommentar.trim() || undefined,
         defaultStreckeId: vorlage.id,
       };
@@ -155,7 +155,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
           {tage.length > 0 && (
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>{tage.length} × {kmProTag} km (Hin+Rück) × {pauschale.toFixed(2)} €</span>
+                <span>{tage.length} × {kmProTag} km × {pauschale.toFixed(2)} €</span>
                 <span>{betragProTag.toFixed(2)} € / Tag</span>
               </div>
               <div className="flex items-center justify-between font-bold text-lg">
