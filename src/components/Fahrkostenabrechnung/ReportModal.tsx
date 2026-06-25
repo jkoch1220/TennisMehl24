@@ -57,6 +57,7 @@ export default function ReportModal({ fahrten, personen, firmen, startPersonId, 
       'Start': f.startort,
       'Ziel': f.zielort,
       'Auto': f.autoName || '',
+      'Kennzeichen': f.autoKennzeichen || '',
       'km-Stand Start': f.startKm ?? '',
       'km-Stand Ende': f.endKm ?? '',
       'Kilometer': f.kilometer,
@@ -69,11 +70,11 @@ export default function ReportModal({ fahrten, personen, firmen, startPersonId, 
     data.push({} as Record<string, string | number>);
     data.push({
       'Nr.': '', 'Datum': '', 'Person': '', 'Firma': '', 'Start': '', 'Ziel': 'GESAMT:',
-      'Auto': '', 'km-Stand Start': '', 'km-Stand Ende': '', 'Kilometer': summeKm, 'Pauschale (€/km)': '',
+      'Auto': '', 'Kennzeichen': '', 'km-Stand Start': '', 'km-Stand Ende': '', 'Kilometer': summeKm, 'Pauschale (€/km)': '',
       'Betrag (€)': summeBetrag.toFixed(2), 'Kommentar': `${rows.length} Fahrten`,
     });
     const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [{ wch: 5 }, { wch: 11 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 13 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 24 }];
+    ws['!cols'] = [{ wch: 5 }, { wch: 11 }, { wch: 12 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 10 }, { wch: 14 }, { wch: 11 }, { wch: 24 }];
     return ws;
   };
 

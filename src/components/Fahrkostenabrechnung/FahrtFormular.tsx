@@ -79,6 +79,7 @@ export default function FahrtFormular({
         personName: person.name,
         autoId: auto.id,
         autoName: auto.name,
+        autoKennzeichen: auto.kennzeichen,
         firmaId: firma.id,
         firmaName: firma.name,
         startort,
@@ -101,6 +102,7 @@ export default function FahrtFormular({
           personName: daten.personName,
           autoId: daten.autoId,
           autoName: daten.autoName,
+          autoKennzeichen: daten.autoKennzeichen,
           firmaId: daten.firmaId,
           firmaName: daten.firmaName,
           startort: daten.startort,
@@ -232,7 +234,7 @@ export default function FahrtFormular({
             >
               <option value="">Auto wählen …</option>
               {autos.filter(a => a.aktiv || a.id === autoId).map(a => (
-                <option key={a.id} value={a.id}>{a.name} · {a.kmPauschale.toFixed(2)} €/km</option>
+                <option key={a.id} value={a.id}>{a.name}{a.kennzeichen ? ` (${a.kennzeichen})` : ''} · {a.kmPauschale.toFixed(2)} €/km</option>
               ))}
             </select>
           </div>

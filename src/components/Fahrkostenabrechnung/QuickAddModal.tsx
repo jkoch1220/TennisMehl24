@@ -42,6 +42,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
         personName: person.name,
         autoId: auto.id,
         autoName: auto.name,
+        autoKennzeichen: auto.kennzeichen,
         firmaId: firma.id,
         firmaName: firma.name,
         startort: vorlage.startort,
@@ -132,7 +133,7 @@ export default function QuickAddModal({ vorlage, person, autos, firmen, onClose,
             >
               <option value="">Auto wählen …</option>
               {autos.filter(a => a.aktiv).map(a => (
-                <option key={a.id} value={a.id}>{a.name} · {a.kmPauschale.toFixed(2)} €/km</option>
+                <option key={a.id} value={a.id}>{a.name}{a.kennzeichen ? ` (${a.kennzeichen})` : ''} · {a.kmPauschale.toFixed(2)} €/km</option>
               ))}
             </select>
           </div>

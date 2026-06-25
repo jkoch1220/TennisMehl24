@@ -151,6 +151,7 @@ async function main() {
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'fahrerName', 200, false); // = personName
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'autoId', 100, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'autoName', 200, false);
+    await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'autoKennzeichen', 50, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'firmaId', 100, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'firmaName', 200, false);
     await ensureStringAttribute(FAHRTEN_COLLECTION_ID, 'startort', 200, false);
@@ -190,6 +191,7 @@ async function main() {
     // Autos Attribute (pro Person)
     console.log('\n📝 Autos Attribute:');
     await ensureStringAttribute(AUTOS_COLLECTION_ID, 'name', 200, true);
+    await ensureStringAttribute(AUTOS_COLLECTION_ID, 'kennzeichen', 50, false);
     await ensureFloatAttribute(AUTOS_COLLECTION_ID, 'kmPauschale', false);
     await ensureBooleanAttribute(AUTOS_COLLECTION_ID, 'aktiv', false);
     await ensureIntegerAttribute(AUTOS_COLLECTION_ID, 'sortierung', false);

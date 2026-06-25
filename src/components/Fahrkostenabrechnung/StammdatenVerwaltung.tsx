@@ -88,20 +88,22 @@ export default function StammdatenVerwaltung({
 function AutoListe({ autos, personId, onUpdate }: { autos: Auto[]; personId: string; onUpdate: () => void }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [kennzeichen, setKennzeichen] = useState('');
   const [pauschale, setPauschale] = useState<string>('0,30');
   const [showForm, setShowForm] = useState(false);
 
   const pauschaleNum = parseFloat(pauschale.replace(',', '.'));
 
-  const reset = () => { setEditId(null); setName(''); setPauschale('0,30'); setShowForm(false); };
+  const reset = () => { setEditId(null); setName(''); setKennzeichen(''); setPauschale('0,30'); setShowForm(false); };
 
   const speichern = async () => {
     if (!name.trim() || !(pauschaleNum > 0)) return;
     try {
+      const kennzeichenWert = kennzeichen.trim() || undefined;
       if (editId) {
-        await fahrkostenService.aktualisiereAuto(editId, { name: name.trim(), kmPauschale: pauschaleNum });
+        await fahrkostenService.aktualisiereAuto(editId, { name: name.trim(), kennzeichen: kennzeichenWert, kmPauschale: pauschaleNum });
       } else {
-        await fahrkostenService.erstelleAuto({ personId, name: name.trim(), kmPauschale: pauschaleNum, aktiv: true, sortierung: autos.length });
+        await fahrkostenService.erstelleAuto({ personId, name: name.trim(), kennzeichen: kennzeichenWert, kmPauschale: pauschaleNum, aktiv: true, sortierung: autos.length });
       }
       reset();
       onUpdate();
@@ -121,9 +123,11 @@ function AutoListe({ autos, personId, onUpdate }: { autos: Auto[]; personId: str
           <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg"><Car className="w-4 h-4 text-gray-500" /></div>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 dark:text-white truncate">{a.name}</p>
-            <p className="text-sm text-gray-500 dark:text-dark-textMuted">{a.kmPauschale.toFixed(2)} €/km</p>
+            <p className="text-sm text-gray-500 dark:text-dark-textMuted">
+              {a.kennzeichen ? `${a.kennzeichen} · ` : ''}{a.kmPauschale.toFixed(2)} €/km
+            </p>
           </div>
-          <button onClick={() => { setEditId(a.id); setName(a.name); setPauschale(String(a.kmPauschale).replace('.', ',')); setShowForm(true); }} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <button onClick={() => { setEditId(a.id); setName(a.name); setKennzeichen(a.kennzeichen || ''); setPauschale(String(a.kmPauschale).replace('.', ',')); setShowForm(true); }} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
             <Edit3 className="w-4 h-4" />
           </button>
           <button onClick={() => loeschen(a.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
@@ -141,6 +145,16 @@ function AutoListe({ autos, personId, onUpdate }: { autos: Auto[]; personId: str
             placeholder="Bezeichnung (z.B. VW Caddy)"
             className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
           />
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Kennzeichen (optional)</label>
+            <input
+              type="text"
+              value={kennzeichen}
+              onChange={e => setKennzeichen(e.target.value)}
+              placeholder="z.B. WÜ-TM 123"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
+            />
+          </div>
           <div>
             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">km-Pauschale (€/km)</label>
             <input

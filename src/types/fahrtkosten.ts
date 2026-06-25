@@ -15,6 +15,7 @@ export interface Auto {
   id: string;
   personId: string;
   name: string;
+  kennzeichen?: string; // amtliches Kennzeichen (z.B. WÜ-TM 123)
   kmPauschale: number; // €/km
   aktiv: boolean;
   sortierung: number;
@@ -61,6 +62,7 @@ export interface Fahrt {
   // Auto / Pauschale
   autoId?: string;
   autoName?: string;
+  autoKennzeichen?: string; // Kennzeichen des Fahrzeugs (für Report)
 
   // Firma (Pflicht)
   firmaId: string;
@@ -97,6 +99,7 @@ export interface NeueFahrt {
   personName: string;
   autoId?: string;
   autoName?: string;
+  autoKennzeichen?: string;
   firmaId: string;
   firmaName: string;
   startort: string;

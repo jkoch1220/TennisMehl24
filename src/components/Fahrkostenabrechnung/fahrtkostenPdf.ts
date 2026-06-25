@@ -89,7 +89,7 @@ export function generiereFahrtkostenPdf({ fahrten, firmaName, personName, von, b
       ...(showPerson ? [f.personName || ''] : []),
       f.startort,
       f.zielort,
-      f.autoName || '',
+      f.autoKennzeichen ? `${f.autoName || ''}\n${f.autoKennzeichen}`.trim() : (f.autoName || ''),
       fmtKmStand(f),
       fmtZahl(f.kilometer),
       f.kilometerPauschale.toFixed(2).replace('.', ','),
