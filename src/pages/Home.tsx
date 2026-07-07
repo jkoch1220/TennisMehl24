@@ -302,6 +302,17 @@ const Home = () => {
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
+        {/* Beispiel-Banner (Test) */}
+        <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-4 shadow-lg flex items-center gap-3">
+          <AlertTriangle className="w-6 h-6 text-white flex-shrink-0" />
+          <div>
+            <p className="font-bold text-white">Beispiel-Banner</p>
+            <p className="text-sm text-white/90">
+              Dies ist ein Test-Banner auf der Startseite.
+            </p>
+          </div>
+        </div>
+
         {/* Hero Section */}
         <div className="text-center mb-8 mt-8">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-dark-text mb-4 transition-colors duration-300">
