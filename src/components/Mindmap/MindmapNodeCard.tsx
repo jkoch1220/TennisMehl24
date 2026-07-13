@@ -12,14 +12,14 @@ import {
   UserRound,
 } from 'lucide-react';
 import { MindmapNode, MindmapNodeType } from '../../types/mindmap';
-import { istTaskUeberfaellig, NODE_WIDTH } from './mindmapUtils';
+import { istTaskUeberfaellig, LayoutPos, NODE_WIDTH } from './mindmapUtils';
 
 interface MindmapNodeCardProps {
   node: MindmapNode;
+  pos: LayoutPos;
   isRoot: boolean;
   childCount: number;
   isEditing: boolean;
-  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onAddChild: (type: MindmapNodeType) => void;
   onToggleCollapse: () => void;
   onDelete: () => void;
@@ -33,10 +33,10 @@ interface MindmapNodeCardProps {
 
 const MindmapNodeCard = ({
   node,
+  pos,
   isRoot,
   childCount,
   isEditing,
-  onPointerDown,
   onAddChild,
   onToggleCollapse,
   onDelete,
@@ -82,9 +82,8 @@ const MindmapNodeCard = ({
 
   return (
     <div
-      className={`group absolute select-none rounded-xl border cursor-grab active:cursor-grabbing ${cardClasses}`}
-      style={{ left: node.x, top: node.y, width: NODE_WIDTH }}
-      onPointerDown={onPointerDown}
+      className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${cardClasses}`}
+      style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
       {/* Titelzeile */}
       <div className="flex items-center gap-1 px-2 py-2">

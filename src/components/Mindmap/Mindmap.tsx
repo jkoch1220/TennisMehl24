@@ -10,17 +10,17 @@ import {
 import { toast } from 'sonner';
 import { MindmapData, MindmapNode, MindmapNodeType } from '../../types/mindmap';
 import {
-  createInitialData,
   loadMindmap,
   ROOT_NODE_ID,
   saveMindmap,
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
 import {
-  ANCHOR_Y,
   getChildren,
   getDescendantIds,
   getVisibleNodes,
+  layoutTree,
+  nodeHeight,
   NODE_WIDTH,
 } from './mindmapUtils';
 import MindmapNodeCard from './MindmapNodeCard';
@@ -28,16 +28,12 @@ import MindmapNodeCard from './MindmapNodeCard';
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2;
 
-type DragState =
-  | { mode: 'node'; ids: string[]; lastX: number; lastY: number }
-  | { mode: 'pan'; lastX: number; lastY: number };
-
 const Mindmap = () => {
   const [data, setData] = useState<MindmapData>(() => loadMindmap());
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<DragState | null>(null);
+  const panState = useRef<{ lastX: number; lastY: number } | null>(null);
   // Frische Map (noch nie gespeichert/bewegt) → Root beim ersten Rendern zentrieren
   const isFresh = useRef(
     data.viewport.x === 0 &&
@@ -57,7 +53,13 @@ const Mindmap = () => {
   }, [data]);
   useEffect(() => () => saveMindmap(dataRef.current), []);
 
-  // Root beim allerersten Öffnen in die Mitte der Fläche rücken
+  // Organigramm-Layout: Positionen werden komplett aus der Hierarchie berechnet
+  const layout = useMemo(
+    () => layoutTree(data.nodes, ROOT_NODE_ID),
+    [data.nodes]
+  );
+
+  // Root beim allerersten Öffnen mittig oben platzieren
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !isFresh.current) return;
@@ -65,41 +67,29 @@ const Mindmap = () => {
       ...d,
       viewport: {
         x: el.clientWidth / 2 - NODE_WIDTH / 2,
-        y: el.clientHeight / 2 - 60,
+        y: 48,
         scale: 1,
       },
     }));
   }, []);
 
-  // Drag (Knoten + Pan) über globale Pointer-Events
+  // Pan über globale Pointer-Events
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      const st = dragState.current;
+      const st = panState.current;
       if (!st) return;
       e.preventDefault();
       const dx = e.clientX - st.lastX;
       const dy = e.clientY - st.lastY;
       st.lastX = e.clientX;
       st.lastY = e.clientY;
-      if (st.mode === 'pan') {
-        setData((d) => ({
-          ...d,
-          viewport: { ...d.viewport, x: d.viewport.x + dx, y: d.viewport.y + dy },
-        }));
-      } else {
-        setData((d) => {
-          const scale = d.viewport.scale;
-          const nodes = { ...d.nodes };
-          for (const id of st.ids) {
-            const n = nodes[id];
-            if (n) nodes[id] = { ...n, x: n.x + dx / scale, y: n.y + dy / scale };
-          }
-          return { ...d, nodes };
-        });
-      }
+      setData((d) => ({
+        ...d,
+        viewport: { ...d.viewport, x: d.viewport.x + dx, y: d.viewport.y + dy },
+      }));
     };
     const onUp = () => {
-      dragState.current = null;
+      panState.current = null;
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -160,14 +150,11 @@ const Mindmap = () => {
     setData((d) => {
       const parent = d.nodes[parentId];
       if (!parent) return d;
-      const children = getChildren(d.nodes, parentId);
       const newNode: MindmapNode = {
         id,
         parentId,
         type,
         titel: type === 'task' ? 'Neuer Task' : 'Neuer Knoten',
-        x: parent.x + NODE_WIDTH + 64,
-        y: parent.y + children.length * 96,
         collapsed: false,
         ...(type === 'task' ? { faelligAm: '', zustaendig: '', erledigt: false } : {}),
       };
@@ -243,32 +230,15 @@ const Mindmap = () => {
   const resetView = () => {
     const el = containerRef.current;
     if (!el) return;
-    setData((d) => {
-      const root = d.nodes[ROOT_NODE_ID] ?? createInitialData().nodes[ROOT_NODE_ID];
-      return {
-        ...d,
-        viewport: {
-          x: el.clientWidth / 2 - NODE_WIDTH / 2 - root.x,
-          y: el.clientHeight / 2 - 60 - root.y,
-          scale: 1,
-        },
-      };
-    });
-  };
-
-  const beginNodeDrag = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
-    // Eingabefelder und Buttons nicht als Drag-Griff verwenden
-    if ((e.target as HTMLElement).closest('input, button, textarea, select, label')) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    dragState.current = {
-      mode: 'node',
-      ids: [id, ...getDescendantIds(data.nodes, id)],
-      lastX: e.clientX,
-      lastY: e.clientY,
-    };
+    const rootPos = layout[ROOT_NODE_ID] ?? { x: 0, y: 0 };
+    setData((d) => ({
+      ...d,
+      viewport: {
+        x: el.clientWidth / 2 - NODE_WIDTH / 2 - rootPos.x,
+        y: 48 - rootPos.y,
+        scale: 1,
+      },
+    }));
   };
 
   const beginPan = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -276,29 +246,30 @@ const Mindmap = () => {
     if (e.target !== e.currentTarget) return;
     e.preventDefault();
     setEditingId(null);
-    dragState.current = { mode: 'pan', lastX: e.clientX, lastY: e.clientY };
+    panState.current = { lastX: e.clientX, lastY: e.clientY };
   };
 
   const zustaendige = useMemo(() => getCachedUsersList(), []);
 
-  const visibleNodes = getVisibleNodes(data.nodes);
+  const visibleNodes = getVisibleNodes(data.nodes).filter((n) => layout[n.id]);
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
   const { x: vx, y: vy, scale } = data.viewport;
 
-  // Verbindungslinien Eltern → Kind (nur wenn beide sichtbar)
+  // Orthogonale Organigramm-Kanten: Eltern-Unterkante → Kind-Oberkante
   const edges = visibleNodes
     .filter((n) => n.parentId && visibleIds.has(n.parentId))
     .map((n) => {
       const parent = data.nodes[n.parentId!];
-      const fromRight = n.x + NODE_WIDTH / 2 >= parent.x + NODE_WIDTH / 2;
-      const x1 = fromRight ? parent.x + NODE_WIDTH : parent.x;
-      const y1 = parent.y + ANCHOR_Y;
-      const x2 = fromRight ? n.x : n.x + NODE_WIDTH;
-      const y2 = n.y + ANCHOR_Y;
-      const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fromRight ? 1 : -1);
+      const p = layout[parent.id];
+      const c = layout[n.id];
+      const x1 = p.x + NODE_WIDTH / 2;
+      const y1 = p.y + nodeHeight(parent);
+      const x2 = c.x + NODE_WIDTH / 2;
+      const y2 = c.y;
+      const midY = (y1 + y2) / 2;
       return {
         id: n.id,
-        d: `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`,
+        d: `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`,
       };
     });
 
@@ -315,8 +286,8 @@ const Mindmap = () => {
               Mindmap
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
-              Doppelklick: umbenennen · Karte ziehen: verschieben · Scrollen/Fläche
-              ziehen: Ansicht bewegen · Pinch oder Ctrl+Scrollen: zoomen
+              Doppelklick: umbenennen · Scrollen/Fläche ziehen: Ansicht bewegen ·
+              Pinch oder Ctrl+Scrollen: zoomen
             </p>
           </div>
         </div>
@@ -389,7 +360,7 @@ const Mindmap = () => {
                 d={edge.d}
                 fill="none"
                 strokeWidth={2}
-                className="stroke-gray-300 dark:stroke-dark-border"
+                className="stroke-gray-300 transition-[d] duration-200 dark:stroke-dark-border"
               />
             ))}
           </svg>
@@ -397,10 +368,10 @@ const Mindmap = () => {
             <MindmapNodeCard
               key={node.id}
               node={node}
+              pos={layout[node.id]}
               isRoot={node.id === ROOT_NODE_ID}
               childCount={getChildren(data.nodes, node.id).length}
               isEditing={editingId === node.id}
-              onPointerDown={(e) => beginNodeDrag(e, node.id)}
               onAddChild={(type) => addChild(node.id, type)}
               onToggleCollapse={() => patchNode(node.id, { collapsed: !node.collapsed })}
               onDelete={() => deleteNode(node.id)}

@@ -16,8 +16,6 @@ export const createInitialData = (): MindmapData => ({
       parentId: null,
       type: 'knoten',
       titel: 'Tennismehl',
-      x: 0,
-      y: 0,
       collapsed: false,
     },
   },

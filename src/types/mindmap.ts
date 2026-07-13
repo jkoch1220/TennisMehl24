@@ -1,4 +1,4 @@
-// Typen für das Mindmap-Planungstool
+// Typen für das Mindmap-/Organigramm-Planungstool
 
 export type MindmapNodeType = 'knoten' | 'task';
 
@@ -7,9 +7,6 @@ export interface MindmapNode {
   parentId: string | null; // null = Wurzelknoten ("Tennismehl")
   type: MindmapNodeType;
   titel: string;
-  // Freie Position auf der Zeichenfläche (Canvas-Koordinaten, unskaliert)
-  x: number;
-  y: number;
   // Eingeklappt = alle Nachfahren ausgeblendet
   collapsed: boolean;
   // Nur für type === 'task':
