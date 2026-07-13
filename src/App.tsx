@@ -72,6 +72,9 @@ const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht
 const MosaikMigration = lazyWithRetry(() => import('./components/Migration/MosaikMigration'));
 const DuplikatMergeTool = lazyWithRetry(() => import('./components/Duplikate/DuplikatMergeTool'));
 
+// Mindmap-Planungstool
+const Mindmap = lazyWithRetry(() => import('./components/Mindmap/Mindmap'));
+
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
@@ -280,6 +283,11 @@ function AuthenticatedContent() {
                   <Route path="/duplikate" element={
                     <ProtectedRoute toolId="duplikate">
                       <DuplikatMergeTool />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/mindmap" element={
+                    <ProtectedRoute toolId="mindmap">
+                      <Mindmap />
                     </ProtectedRoute>
                   } />
 

@@ -29,6 +29,7 @@ import {
   ShoppingCart,
   Landmark,
   Combine,
+  Network,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -304,6 +305,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/mosaik-migration',
     icon: Combine,
     color: 'from-amber-600 to-red-700',
+  },
+  {
+    id: 'mindmap',
+    name: 'Mindmap',
+    description: 'Visuelle Planung: Themen als Knoten gliedern, Tasks mit Fälligkeit und Zuständigkeit',
+    href: '/mindmap',
+    icon: Network,
+    color: 'from-teal-500 to-emerald-600',
   },
 ];
 
