@@ -260,18 +260,18 @@ const SpeditionskostenRechner = () => {
   }, [zielPLZ]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 md:p-8">
           <div className="flex items-center gap-3 mb-8">
-            <Calculator className="w-10 h-10 text-red-600" />
+            <Calculator className="w-10 h-10 text-green-600" />
             <h1 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-slate-100">
               Speditionskosten-Rechner
             </h1>
           </div>
 
           {/* Lieferart Auswahl */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-700/50">
+          <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl border-2 border-emerald-200 dark:border-emerald-700/50">
             <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
               Lieferart wählen
             </label>
@@ -280,8 +280,8 @@ const SpeditionskostenRechner = () => {
                 onClick={() => setLieferart('spedition')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'spedition'
-                    ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
+                    ? 'bg-emerald-500 text-white shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -291,8 +291,8 @@ const SpeditionskostenRechner = () => {
                 onClick={() => setLieferart('eigenlieferung')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'eigenlieferung'
-                    ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
+                    ? 'bg-emerald-500 text-white shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -302,8 +302,8 @@ const SpeditionskostenRechner = () => {
                 onClick={() => setLieferart('fremdlieferung')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   lieferart === 'fremdlieferung'
-                    ? 'bg-blue-500 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-blue-100 dark:hover:bg-slate-600'
+                    ? 'bg-emerald-500 text-white shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-emerald-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Truck className="w-6 h-6 mx-auto mb-2" />
@@ -314,15 +314,15 @@ const SpeditionskostenRechner = () => {
 
           {/* Spedition Einstellungen (Diesel-Zuschlag & Nebengebühren) */}
           {lieferart === 'spedition' && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl border-2 border-indigo-200 dark:border-indigo-700/50">
+            <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl border-2 border-emerald-200 dark:border-emerald-700/50">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100 flex items-center gap-2">
-                  <Fuel className="w-5 h-5 text-indigo-600" />
+                  <Fuel className="w-5 h-5 text-emerald-600" />
                   Raben Spedition - Diesel-Zuschlag
                 </h2>
                 <button
                   onClick={() => setShowNebengebuehren(!showNebengebuehren)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm"
                 >
                   <Info className="w-4 h-4" />
                   {showNebengebuehren ? 'Nebengebühren ausblenden' : 'Nebengebühren anzeigen'}
@@ -337,7 +337,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={speditionDieselPreisCent}
                     onChange={(value) => setSpeditionDieselPreisCent(value)}
-                    className="w-full p-2 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-lg focus:border-indigo-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-emerald-200 dark:border-emerald-700/50 rounded-lg focus:border-emerald-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={100}
                     max={300}
@@ -351,7 +351,7 @@ const SpeditionskostenRechner = () => {
                   <p className="text-sm text-gray-600 dark:text-slate-400">
                     Aktueller Zuschlag:
                   </p>
-                  <p className="text-2xl font-bold text-indigo-600">
+                  <p className="text-2xl font-bold text-emerald-600">
                     {berechneDieselzuschlag(speditionDieselPreisCent).toFixed(2)} %
                   </p>
                 </div>
@@ -367,12 +367,12 @@ const SpeditionskostenRechner = () => {
               </div>
 
               <p className="text-xs text-gray-500 dark:text-slate-400">
-                Quelle: <a href="https://en2x.de/service/statistiken/verbraucherpreise/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">en2x.de</a> - Update monatlich (Durchschnitt Vorvormonat)
+                Quelle: <a href="https://en2x.de/service/statistiken/verbraucherpreise/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">en2x.de</a> - Update monatlich (Durchschnitt Vorvormonat)
               </p>
 
               {/* Nebengebühren Tabelle */}
               {showNebengebuehren && (
-                <div className="mt-4 bg-white dark:bg-slate-800 rounded-lg p-4 border border-indigo-200 dark:border-indigo-700/50">
+                <div className="mt-4 bg-white dark:bg-slate-800 rounded-lg p-4 border border-emerald-200 dark:border-emerald-700/50">
                   <h3 className="text-md font-semibold text-gray-800 dark:text-slate-100 mb-3">
                     Nebengebühren Raben Spedition (ab 16.01.2026)
                   </h3>
@@ -404,7 +404,7 @@ const SpeditionskostenRechner = () => {
           )}
 
           {/* Warenart Auswahl */}
-          <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border-2 border-yellow-200 dark:border-yellow-700/50">
+          <div className="mb-6 p-4 bg-gradient-to-r from-lime-50 to-green-50 dark:from-lime-900/20 dark:to-green-900/20 rounded-xl border-2 border-lime-200 dark:border-lime-700/50">
             <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
               Warenart wählen
             </label>
@@ -413,8 +413,8 @@ const SpeditionskostenRechner = () => {
                 onClick={() => setWarenart('sackware')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   warenart === 'sackware'
-                    ? 'bg-yellow-500 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-yellow-100 dark:hover:bg-slate-600'
+                    ? 'bg-lime-500 text-white shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-lime-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <Package className="w-6 h-6 mx-auto mb-2" />
@@ -424,8 +424,8 @@ const SpeditionskostenRechner = () => {
                 onClick={() => setWarenart('schuettware')}
                 className={`p-4 rounded-lg font-semibold transition-all ${
                   warenart === 'schuettware'
-                    ? 'bg-yellow-500 text-white shadow-lg scale-105'
-                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-yellow-100 dark:hover:bg-slate-600'
+                    ? 'bg-lime-500 text-white shadow-lg scale-105'
+                    : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-lime-100 dark:hover:bg-slate-600'
                 }`}
               >
                 <TrendingUp className="w-6 h-6 mx-auto mb-2" />
@@ -436,15 +436,15 @@ const SpeditionskostenRechner = () => {
 
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             {/* Paletten/Menge */}
-            <div className="bg-orange-50 dark:bg-orange-900/20 p-6 rounded-xl border border-orange-200 dark:border-orange-700/50">
+            <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-xl border border-green-200 dark:border-green-700/50">
               <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
-                <Package className="w-5 h-5 text-orange-600" />
+                <Package className="w-5 h-5 text-green-600" />
                 Anzahl Paletten
               </label>
               <select
                 value={paletten}
                 onChange={handlePalettenChange}
-                className="w-full p-3 border-2 border-orange-200 dark:border-orange-700/50 rounded-lg text-lg focus:border-orange-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
+                className="w-full p-3 border-2 border-green-200 dark:border-green-700/50 rounded-lg text-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value={1}>1 Palette</option>
                 <option value={2}>2 Paletten</option>
@@ -458,9 +458,9 @@ const SpeditionskostenRechner = () => {
             </div>
 
             {/* Ziel-PLZ */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-700/50">
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-xl border border-emerald-200 dark:border-emerald-700/50">
               <label className="flex items-center gap-2 text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
-                <MapPin className="w-5 h-5 text-blue-600" />
+                <MapPin className="w-5 h-5 text-emerald-600" />
                 Ziel-Postleitzahl
               </label>
               <input
@@ -469,7 +469,7 @@ const SpeditionskostenRechner = () => {
                 onChange={handleZielPLZChange}
                 placeholder="z.B. 10115"
                 maxLength={5}
-                className="w-full p-3 border-2 border-blue-200 dark:border-blue-700/50 rounded-lg text-lg focus:border-blue-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
+                className="w-full p-3 border-2 border-emerald-200 dark:border-emerald-700/50 rounded-lg text-lg focus:border-emerald-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               />
               {zone && (
                 <p className="text-sm text-gray-600 dark:text-slate-400 mt-2">Zone: {zone}</p>
@@ -480,14 +480,14 @@ const SpeditionskostenRechner = () => {
             </div>
 
             {/* Kundentyp */}
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-xl border border-purple-200 dark:border-purple-700/50">
+            <div className="bg-teal-50 dark:bg-teal-900/20 p-6 rounded-xl border border-teal-200 dark:border-teal-700/50">
               <label className="block text-lg font-semibold text-gray-700 dark:text-slate-400 mb-3">
                 Kundentyp
               </label>
               <select
                 value={aufschlagTyp}
                 onChange={handleAufschlagTypChange}
-                className="w-full p-3 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg text-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
+                className="w-full p-3 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg text-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="endkunde">Endkunde (25% W+G)</option>
                 <option value="grosskunde">Großkunde (12% W+G)</option>
@@ -500,7 +500,7 @@ const SpeditionskostenRechner = () => {
 
           {/* Fremdlieferung Stammdaten */}
           {lieferart === 'fremdlieferung' && (
-            <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-700/50">
+            <div className="mb-6 p-6 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 rounded-xl border-2 border-teal-200 dark:border-teal-700/50">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 flex items-center gap-2">
                   <Settings className="w-6 h-6" />
@@ -508,7 +508,7 @@ const SpeditionskostenRechner = () => {
                 </h2>
                 <button
                   onClick={() => setShowLieferantenVerwaltung(!showLieferantenVerwaltung)}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm"
                 >
                   <Users className="w-4 h-4" />
                   {showLieferantenVerwaltung ? 'Verwaltung ausblenden' : 'Lieferanten verwalten'}
@@ -526,7 +526,7 @@ const SpeditionskostenRechner = () => {
                     onChange={(e) => {
                       setAusgewaehlterLieferantId(e.target.value || null);
                     }}
-                    className="flex-1 p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
+                    className="flex-1 p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                   >
                     <option value="">-- Bitte wählen --</option>
                     {lieferanten.map((lieferant) => (
@@ -537,7 +537,7 @@ const SpeditionskostenRechner = () => {
                   </select>
                 </div>
                 {ausgewaehlterLieferantId && (
-                  <div className="mt-2 p-3 bg-white dark:bg-slate-800 rounded-lg border border-purple-200">
+                  <div className="mt-2 p-3 bg-white dark:bg-slate-800 rounded-lg border border-teal-200">
                     <p className="text-sm text-gray-600 dark:text-slate-400">
                       <strong>Ausgewählt:</strong> {lieferanten.find(l => l.id === ausgewaehlterLieferantId)?.name} 
                       {' - '}
@@ -559,7 +559,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.stundenlohn}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, stundenlohn: value }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.5}
                     min={0}
                   />
@@ -575,7 +575,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.durchschnittsgeschwindigkeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, durchschnittsgeschwindigkeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
@@ -588,7 +588,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.beladungszeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, beladungszeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
@@ -601,7 +601,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.abladungszeit}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, abladungszeit: value }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={0}
                   />
@@ -617,7 +617,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.anzahlAbladestellen}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, anzahlAbladestellen: Math.max(1, Math.round(value)) }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={1}
                     min={1}
                   />
@@ -633,7 +633,7 @@ const SpeditionskostenRechner = () => {
                   <NumberInput
                     value={fremdlieferungStammdaten.lkwLadungInTonnen}
                     onChange={(value) => setFremdlieferungStammdaten(prev => ({ ...prev, lkwLadungInTonnen: value }))}
-                    className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
+                    className="w-full p-2 border-2 border-teal-200 dark:border-teal-700/50 rounded-lg focus:border-teal-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0.1}
                   />
@@ -787,7 +787,7 @@ const SpeditionskostenRechner = () => {
           {/* Ergebnisse */}
           {isLoading && (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
               <p className="mt-4 text-gray-600 dark:text-slate-400">Berechne Route...</p>
             </div>
           )}
@@ -796,7 +796,7 @@ const SpeditionskostenRechner = () => {
             <div className="space-y-6">
               {/* Fremdlieferung Route Details */}
               {lieferart === 'fremdlieferung' && ergebnis.fremdlieferung && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700/50">
+                <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 rounded-xl p-6 border-2 border-teal-200 dark:border-teal-700/50">
                   <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                     <Truck className="w-6 h-6" />
                     Routenberechnung Fremdlieferung
@@ -808,7 +808,7 @@ const SpeditionskostenRechner = () => {
                         <MapPin className="w-4 h-4" />
                         Distanz
                       </p>
-                      <p className="text-2xl font-bold text-purple-600">
+                      <p className="text-2xl font-bold text-teal-600">
                         {ergebnis.fremdlieferung.route.distanz.toFixed(1)} km
                       </p>
                       {ergebnis.fremdlieferung.route.hinwegDistanz !== undefined && ergebnis.fremdlieferung.route.rueckwegDistanz !== undefined && (
@@ -824,7 +824,7 @@ const SpeditionskostenRechner = () => {
                         <Clock className="w-4 h-4" />
                         Fahrtzeit
                       </p>
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p className="text-2xl font-bold text-emerald-600">
                         {formatZeit(ergebnis.fremdlieferung.route.fahrzeit)}
                       </p>
                       {ergebnis.fremdlieferung.route.hinwegFahrzeit !== undefined && ergebnis.fremdlieferung.route.rueckwegFahrzeit !== undefined && (
@@ -864,7 +864,7 @@ const SpeditionskostenRechner = () => {
                   </div>
                   
                   {/* Kosten pro Lieferung - Unten rechts */}
-                  <div className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-lg text-white">
+                  <div className="mt-4 bg-gradient-to-r from-teal-600 to-emerald-600 p-6 rounded-lg text-white">
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-sm opacity-90 mb-1">
@@ -923,7 +923,7 @@ const SpeditionskostenRechner = () => {
                         <Clock className="w-4 h-4" />
                         Fahrtzeit
                       </p>
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p className="text-2xl font-bold text-emerald-600">
                         {formatZeit(ergebnis.eigenlieferung.route.fahrzeit)}
                       </p>
                       {ergebnis.eigenlieferung.route.hinwegFahrzeit !== undefined && ergebnis.eigenlieferung.route.rueckwegFahrzeit !== undefined && (
@@ -945,7 +945,7 @@ const SpeditionskostenRechner = () => {
                         <Fuel className="w-4 h-4" />
                         Dieselverbrauch
                       </p>
-                      <p className="text-2xl font-bold text-orange-600">
+                      <p className="text-2xl font-bold text-green-600">
                         {ergebnis.eigenlieferung.route.dieselverbrauch.toFixed(2)} L
                       </p>
                     </div>
@@ -966,7 +966,7 @@ const SpeditionskostenRechner = () => {
                       <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                         Verschleißkosten
                       </p>
-                      <p className="text-2xl font-bold text-orange-600">
+                      <p className="text-2xl font-bold text-green-600">
                         {ergebnis.eigenlieferung.route.verschleisskosten.toFixed(2)} €
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
@@ -976,7 +976,7 @@ const SpeditionskostenRechner = () => {
                   </div>
                   
                   {/* Kosten pro Lieferung - Unten rechts */}
-                  <div className="mt-4 bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-lg text-white">
+                  <div className="mt-4 bg-gradient-to-r from-emerald-600 to-emerald-600 p-6 rounded-lg text-white">
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-sm opacity-90 mb-1">
@@ -1017,7 +1017,7 @@ const SpeditionskostenRechner = () => {
                     <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Herstellungskosten
                     </p>
-                    <p className="text-2xl font-bold text-orange-600">
+                    <p className="text-2xl font-bold text-green-600">
                       {ergebnis.herstellungskostenGesamt.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">
@@ -1028,7 +1028,7 @@ const SpeditionskostenRechner = () => {
                     <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Werkspreis ab Werk
                     </p>
-                    <p className="text-2xl font-bold text-blue-600">
+                    <p className="text-2xl font-bold text-emerald-600">
                       {ergebnis.werkspreis.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">
@@ -1042,14 +1042,14 @@ const SpeditionskostenRechner = () => {
                     <p className="text-xs text-gray-600 dark:text-slate-400 mb-1">
                       Transportkosten
                     </p>
-                    <p className="text-2xl font-bold text-purple-600">
+                    <p className="text-2xl font-bold text-teal-600">
                       {ergebnis.transportkosten.toFixed(2)} €
                     </p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">
                       {lieferart === 'spedition' ? `Zone ${zone}` : lieferart === 'eigenlieferung' ? 'Eigenlieferung' : 'Fremdlieferung'}
                     </p>
                     {lieferart === 'spedition' && ergebnis.dieselzuschlag !== undefined && ergebnis.dieselzuschlag > 0 && (
-                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                         inkl. Diesel-Zuschlag: {ergebnis.dieselzuschlag.toFixed(2)} € ({ergebnis.dieselzuschlagProzent?.toFixed(2)}%)
                       </p>
                     )}
@@ -1096,7 +1096,7 @@ const SpeditionskostenRechner = () => {
           )}
 
           {!ergebnis && !isLoading && zielPLZ && zielPLZ.length >= 5 && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-700/50 rounded-xl p-6 text-center">
+            <div className="bg-lime-50 dark:bg-lime-900/20 border-2 border-lime-200 dark:border-lime-700/50 rounded-xl p-6 text-center">
               <p className="text-gray-700 dark:text-slate-400">
                 PLZ nicht gefunden. Bitte geben Sie eine gültige deutsche PLZ ein.
               </p>
@@ -1104,7 +1104,7 @@ const SpeditionskostenRechner = () => {
           )}
 
           {!zielPLZ && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl p-6 text-center">
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-200 dark:border-emerald-700/50 rounded-xl p-6 text-center">
               <p className="text-gray-700 dark:text-slate-400">
                 Bitte geben Sie eine Ziel-PLZ ein, um die Lieferkosten zu berechnen.
               </p>

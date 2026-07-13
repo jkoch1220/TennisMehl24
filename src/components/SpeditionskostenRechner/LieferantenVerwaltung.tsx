@@ -107,7 +107,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
     return (
       <div className="bg-white dark:bg-dark-surface rounded-xl p-6 border-2 border-gray-200 dark:border-dark-border">
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600 dark:text-dark-textMuted">Lade Lieferanten...</p>
         </div>
       </div>
@@ -124,7 +124,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
         {!isCreating && (
           <button
             onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Neuer Lieferant
@@ -134,7 +134,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
 
       {/* Erstellungsformular */}
       {isCreating && (
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+        <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-200">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text mb-4">Neuer Lieferant</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div>
@@ -145,7 +145,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                 placeholder="Max Mustermann"
               />
             </div>
@@ -157,7 +157,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                 type="text"
                 value={formData.firma}
                 onChange={(e) => setFormData({ ...formData, firma: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                 placeholder="Transport GmbH"
               />
             </div>
@@ -168,7 +168,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
               <NumberInput
                 value={formData.stundenlohn}
                 onChange={(value) => setFormData({ ...formData, stundenlohn: value })}
-                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                 step={0.5}
                 min={0}
               />
@@ -181,7 +181,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                 type="text"
                 value={formData.lkw}
                 onChange={(e) => setFormData({ ...formData, lkw: e.target.value })}
-                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                 placeholder="7,5t LKW"
               />
             </div>
@@ -192,7 +192,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
               <NumberInput
                 value={formData.lieferVolumen}
                 onChange={(value) => setFormData({ ...formData, lieferVolumen: value })}
-                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                 step={0.1}
                 min={0.1}
               />
@@ -232,7 +232,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
               key={lieferant.id}
               className={`p-4 rounded-lg border-2 ${
                 isEditing === lieferant.id
-                  ? 'bg-blue-50 border-blue-300'
+                  ? 'bg-green-50 border-green-300'
                   : 'bg-gray-50 border-gray-200'
               }`}
             >
@@ -249,7 +249,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -260,7 +260,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                         type="text"
                         value={formData.firma}
                         onChange={(e) => setFormData({ ...formData, firma: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -270,7 +270,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                       <NumberInput
                         value={formData.stundenlohn}
                         onChange={(value) => setFormData({ ...formData, stundenlohn: value })}
-                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                         step={0.5}
                         min={0}
                       />
@@ -283,7 +283,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                         type="text"
                         value={formData.lkw}
                         onChange={(e) => setFormData({ ...formData, lkw: e.target.value })}
-                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                       />
                     </div>
                     <div>
@@ -293,7 +293,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                       <NumberInput
                         value={formData.lieferVolumen}
                         onChange={(value) => setFormData({ ...formData, lieferVolumen: value })}
-                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-blue-400 focus:outline-none"
+                        className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-green-400 focus:outline-none"
                         step={0.1}
                         min={0.1}
                       />
@@ -347,7 +347,7 @@ const LieferantenVerwaltung = ({ onLieferantSaved }: LieferantenVerwaltungProps)
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleEdit(lieferant)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                       title="Bearbeiten"
                     >
                       <Edit className="w-5 h-5" />
