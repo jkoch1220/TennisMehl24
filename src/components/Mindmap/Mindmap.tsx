@@ -16,14 +16,16 @@ import {
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
 import {
-  getChildren,
+  cardHeight,
   getDescendantIds,
+  getKnotenChildren,
+  getTasks,
   getVisibleNodes,
   layoutTree,
-  nodeHeight,
   NODE_WIDTH,
 } from './mindmapUtils';
 import MindmapNodeCard from './MindmapNodeCard';
+import TaskModal from './TaskModal';
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2;
@@ -31,6 +33,7 @@ const MAX_SCALE = 2;
 const Mindmap = () => {
   const [data, setData] = useState<MindmapData>(() => loadMindmap());
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [taskModalId, setTaskModalId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ lastX: number; lastY: number } | null>(null);
@@ -156,7 +159,9 @@ const Mindmap = () => {
         type,
         titel: type === 'task' ? 'Neuer Task' : 'Neuer Knoten',
         collapsed: false,
-        ...(type === 'task' ? { faelligAm: '', zustaendig: '', erledigt: false } : {}),
+        ...(type === 'task'
+          ? { beschreibung: '', faelligAm: '', zustaendig: '', erledigt: false }
+          : {}),
       };
       return {
         ...d,
@@ -168,7 +173,12 @@ const Mindmap = () => {
         },
       };
     });
-    setEditingId(id);
+    // Knoten: Titel direkt inline editieren; Task: Detail-Modal öffnen
+    if (type === 'task') {
+      setTaskModalId(id);
+    } else {
+      setEditingId(id);
+    }
   };
 
   const deleteNode = (id: string) => {
@@ -184,13 +194,15 @@ const Mindmap = () => {
       return { ...d, nodes };
     });
     setEditingId((current) => (current === id ? null : current));
+    setTaskModalId((current) => (current === id ? null : current));
   };
 
-  // Global-Toggle: solange irgendein Knoten mit Kindern offen ist → alles zuklappen
+  // Global-Toggle: solange irgendein Knoten mit Unterknoten offen ist → alles zuklappen
+  // (Tasks zählen nicht — sie hängen als Liste in der Karte und klappen nicht)
   const hatKinder = useMemo(() => {
     const parents = new Set<string>();
     for (const n of Object.values(data.nodes)) {
-      if (n.parentId) parents.add(n.parentId);
+      if (n.parentId && n.type === 'knoten') parents.add(n.parentId);
     }
     return parents;
   }, [data.nodes]);
@@ -251,6 +263,7 @@ const Mindmap = () => {
 
   const zustaendige = useMemo(() => getCachedUsersList(), []);
 
+  // Nur Knoten sind Baum-Elemente; Tasks werden als Liste in ihrer Karte gerendert
   const visibleNodes = getVisibleNodes(data.nodes).filter((n) => layout[n.id]);
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
   const { x: vx, y: vy, scale } = data.viewport;
@@ -259,11 +272,10 @@ const Mindmap = () => {
   const edges = visibleNodes
     .filter((n) => n.parentId && visibleIds.has(n.parentId))
     .map((n) => {
-      const parent = data.nodes[n.parentId!];
-      const p = layout[parent.id];
+      const p = layout[n.parentId!];
       const c = layout[n.id];
       const x1 = p.x + NODE_WIDTH / 2;
-      const y1 = p.y + nodeHeight(parent);
+      const y1 = p.y + cardHeight(data.nodes, n.parentId!);
       const x2 = c.x + NODE_WIDTH / 2;
       const y2 = c.y;
       const midY = (y1 + y2) / 2;
@@ -272,6 +284,8 @@ const Mindmap = () => {
         d: `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`,
       };
     });
+
+  const modalTask = taskModalId ? data.nodes[taskModalId] : null;
 
   return (
     <div className="p-4 sm:p-6">
@@ -369,16 +383,20 @@ const Mindmap = () => {
               key={node.id}
               node={node}
               pos={layout[node.id]}
+              tasks={getTasks(data.nodes, node.id)}
               isRoot={node.id === ROOT_NODE_ID}
-              childCount={getChildren(data.nodes, node.id).length}
+              childCount={getKnotenChildren(data.nodes, node.id).length}
               isEditing={editingId === node.id}
               onAddChild={(type) => addChild(node.id, type)}
               onToggleCollapse={() => patchNode(node.id, { collapsed: !node.collapsed })}
               onDelete={() => deleteNode(node.id)}
               onChangeTitel={(titel) => patchNode(node.id, { titel })}
-              onUpdateTask={(fields) => patchNode(node.id, fields)}
               onStartEdit={() => setEditingId(node.id)}
               onStopEdit={() => setEditingId(null)}
+              onOpenTask={(taskId) => setTaskModalId(taskId)}
+              onToggleTaskErledigt={(task) =>
+                patchNode(task.id, { erledigt: !task.erledigt })
+              }
             />
           ))}
         </div>
@@ -390,6 +408,19 @@ const Mindmap = () => {
           ))}
         </datalist>
       </div>
+
+      {/* Task-Detail-Modal */}
+      {modalTask && (
+        <TaskModal
+          task={modalTask}
+          knotenTitel={
+            (modalTask.parentId && data.nodes[modalTask.parentId]?.titel) || ''
+          }
+          onPatch={(fields) => patchNode(modalTask.id, fields)}
+          onDelete={() => deleteNode(modalTask.id)}
+          onClose={() => setTaskModalId(null)}
+        />
+      )}
     </div>
   );
 };

@@ -1,22 +1,44 @@
 import { format } from 'date-fns';
 import { MindmapNode } from '../../types/mindmap';
 
-// Feste Kartenmaße, damit das Organigramm-Layout ohne DOM-Messung berechenbar ist
-export const NODE_WIDTH = 224;
-export const KNOTEN_HEIGHT = 40;
-export const TASK_HEIGHT = 96;
+// Feste Kartenmaße, damit das Organigramm-Layout ohne DOM-Messung berechenbar ist.
+// Tasks werden als Listenzeilen IN der Eltern-Karte gerendert, nicht als eigene
+// Karten im Baum — die Kartenhöhe wächst deshalb mit der Anzahl der Tasks.
+export const NODE_WIDTH = 240;
+export const HEADER_HEIGHT = 40; // Titelzeile (px-2 py-2 + Border)
+export const TASK_ROW_HEIGHT = 30; // eine Task-Zeile in der Liste
+export const TASK_LIST_PAD = 8; // vertikales Padding der Taskliste
 
 // Abstände im Organigramm
 const H_GAP = 32; // horizontal zwischen Geschwister-Teilbäumen
 const V_GAP = 56; // vertikal zwischen den Ebenen
 
-export const nodeHeight = (node: MindmapNode): number =>
-  node.type === 'task' ? TASK_HEIGHT : KNOTEN_HEIGHT;
-
 export const getChildren = (
   nodes: Record<string, MindmapNode>,
   parentId: string
 ): MindmapNode[] => Object.values(nodes).filter((n) => n.parentId === parentId);
+
+export const getKnotenChildren = (
+  nodes: Record<string, MindmapNode>,
+  parentId: string
+): MindmapNode[] =>
+  getChildren(nodes, parentId).filter((n) => n.type === 'knoten');
+
+export const getTasks = (
+  nodes: Record<string, MindmapNode>,
+  parentId: string
+): MindmapNode[] => getChildren(nodes, parentId).filter((n) => n.type === 'task');
+
+export const cardHeight = (
+  nodes: Record<string, MindmapNode>,
+  id: string
+): number => {
+  const taskCount = getTasks(nodes, id).length;
+  return (
+    HEADER_HEIGHT +
+    (taskCount > 0 ? TASK_LIST_PAD + taskCount * TASK_ROW_HEIGHT : 0)
+  );
+};
 
 export const getDescendantIds = (
   nodes: Record<string, MindmapNode>,
@@ -62,9 +84,9 @@ export interface LayoutPos {
 }
 
 /**
- * Klassisches Organigramm-Layout (top-down): Root oben, Kinder als Gruppe
- * mittig unter dem Eltern-Knoten. Eingeklappte Teilbäume nehmen keinen
- * Platz ein; das Layout wird bei jeder Änderung komplett neu berechnet.
+ * Klassisches Organigramm-Layout (top-down): Root oben, Kind-Knoten als Gruppe
+ * mittig unter dem Eltern-Knoten. Nur Knoten (keine Tasks) sind Baum-Elemente;
+ * eingeklappte Teilbäume nehmen keinen Platz ein.
  */
 export const layoutTree = (
   nodes: Record<string, MindmapNode>,
@@ -74,7 +96,7 @@ export const layoutTree = (
   if (!nodes[rootId]) return pos;
 
   const visibleChildren = (node: MindmapNode): MindmapNode[] =>
-    node.collapsed ? [] : getChildren(nodes, node.id);
+    node.collapsed ? [] : getKnotenChildren(nodes, node.id);
 
   const widthCache = new Map<string, number>();
   const subtreeWidth = (id: string): number => {
@@ -98,7 +120,7 @@ export const layoutTree = (
     pos[id] = { x: left + subtreeWidth(id) / 2 - NODE_WIDTH / 2, y };
     let childLeft = left;
     for (const kid of visibleChildren(node)) {
-      place(kid.id, childLeft, y + nodeHeight(node) + V_GAP);
+      place(kid.id, childLeft, y + cardHeight(nodes, id) + V_GAP);
       childLeft += subtreeWidth(kid.id) + H_GAP;
     }
   };

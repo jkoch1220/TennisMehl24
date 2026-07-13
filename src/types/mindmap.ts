@@ -10,6 +10,7 @@ export interface MindmapNode {
   // Eingeklappt = alle Nachfahren ausgeblendet
   collapsed: boolean;
   // Nur für type === 'task':
+  beschreibung?: string;
   faelligAm?: string; // ISO-Datum (yyyy-MM-dd), leer = kein Datum
   zustaendig?: string;
   erledigt?: boolean;

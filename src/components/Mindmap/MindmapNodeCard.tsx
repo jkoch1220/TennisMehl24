@@ -9,14 +9,20 @@ import {
   ListTodo,
   Plus,
   Trash2,
-  UserRound,
 } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { MindmapNode, MindmapNodeType } from '../../types/mindmap';
-import { istTaskUeberfaellig, LayoutPos, NODE_WIDTH } from './mindmapUtils';
+import {
+  istTaskUeberfaellig,
+  LayoutPos,
+  NODE_WIDTH,
+  TASK_ROW_HEIGHT,
+} from './mindmapUtils';
 
 interface MindmapNodeCardProps {
   node: MindmapNode;
   pos: LayoutPos;
+  tasks: MindmapNode[];
   isRoot: boolean;
   childCount: number;
   isEditing: boolean;
@@ -24,16 +30,16 @@ interface MindmapNodeCardProps {
   onToggleCollapse: () => void;
   onDelete: () => void;
   onChangeTitel: (titel: string) => void;
-  onUpdateTask: (
-    fields: Partial<Pick<MindmapNode, 'faelligAm' | 'zustaendig' | 'erledigt'>>
-  ) => void;
   onStartEdit: () => void;
   onStopEdit: () => void;
+  onOpenTask: (taskId: string) => void;
+  onToggleTaskErledigt: (task: MindmapNode) => void;
 }
 
 const MindmapNodeCard = ({
   node,
   pos,
+  tasks,
   isRoot,
   childCount,
   isEditing,
@@ -41,9 +47,10 @@ const MindmapNodeCard = ({
   onToggleCollapse,
   onDelete,
   onChangeTitel,
-  onUpdateTask,
   onStartEdit,
   onStopEdit,
+  onOpenTask,
+  onToggleTaskErledigt,
 }: MindmapNodeCardProps) => {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [titelDraft, setTitelDraft] = useState(node.titel);
@@ -65,29 +72,18 @@ const MindmapNodeCard = ({
     onStopEdit();
   };
 
-  const isTask = node.type === 'task';
-  const ueberfaellig = istTaskUeberfaellig(node);
-
-  const cardClasses = isRoot
-    ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
-    : isTask
-      ? `bg-white dark:bg-dark-surface border-l-4 ${
-          ueberfaellig
-            ? 'border-l-red-500 border-red-200 dark:border-red-900'
-            : node.erledigt
-              ? 'border-l-green-500 border-gray-200 dark:border-dark-border'
-              : 'border-l-amber-500 border-gray-200 dark:border-dark-border'
-        } shadow-md`
-      : 'bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md';
-
   return (
     <div
-      className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${cardClasses}`}
+      className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${
+        isRoot
+          ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
+          : 'bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
+      }`}
       style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
       {/* Titelzeile */}
-      <div className="flex items-center gap-1 px-2 py-2">
-        {childCount > 0 ? (
+      <div className="flex h-10 items-center gap-1 px-2">
+        {childCount > 0 && (
           <button
             onClick={onToggleCollapse}
             title={node.collapsed ? 'Aufklappen' : 'Zuklappen'}
@@ -103,20 +99,6 @@ const MindmapNodeCard = ({
               <ChevronDown className="w-4 h-4" />
             )}
           </button>
-        ) : (
-          isTask && (
-            <button
-              onClick={() => onUpdateTask({ erledigt: !node.erledigt })}
-              title={node.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'}
-              className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-surfaceHover"
-            >
-              {node.erledigt ? (
-                <CircleCheck className="w-4 h-4 text-green-500" />
-              ) : (
-                <Circle className="w-4 h-4" />
-              )}
-            </button>
-          )
         )}
 
         {isEditing ? (
@@ -137,18 +119,14 @@ const MindmapNodeCard = ({
             onDoubleClick={onStartEdit}
             title="Doppelklick zum Umbenennen"
             className={`min-w-0 flex-1 truncate text-sm font-semibold ${
-              isRoot
-                ? 'text-white'
-                : node.erledigt
-                  ? 'text-gray-400 dark:text-dark-textSubtle line-through'
-                  : 'text-gray-900 dark:text-dark-text'
+              isRoot ? 'text-white' : 'text-gray-900 dark:text-dark-text'
             }`}
           >
             {node.titel}
           </span>
         )}
 
-        {/* Anzahl versteckter Kinder bei eingeklapptem Knoten */}
+        {/* Anzahl versteckter Unterknoten bei eingeklapptem Knoten */}
         {node.collapsed && childCount > 0 && (
           <span
             className={`shrink-0 rounded-full px-1.5 text-xs font-medium ${
@@ -163,55 +141,57 @@ const MindmapNodeCard = ({
 
         {/* Aktionen (bei Hover) */}
         <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
-          {!isTask && (
-            <div className="relative">
-              <button
-                onClick={() => setAddMenuOpen((open) => !open)}
-                title="Unterknoten oder Task hinzufügen"
-                className={`rounded p-0.5 ${
-                  isRoot
-                    ? 'hover:bg-white/20'
-                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-surfaceHover'
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              {addMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setAddMenuOpen(false)}
-                  />
-                  <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-dark-border dark:bg-dark-elevated">
-                    <button
-                      onClick={() => {
-                        setAddMenuOpen(false);
-                        onAddChild('knoten');
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
-                    >
-                      <FolderTree className="w-4 h-4 text-blue-500" />
-                      Unterknoten
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAddMenuOpen(false);
-                        onAddChild('task');
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
-                    >
-                      <ListTodo className="w-4 h-4 text-amber-500" />
-                      Task
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          <div className="relative">
+            <button
+              onClick={() => setAddMenuOpen((open) => !open)}
+              title="Unterknoten oder Task hinzufügen"
+              className={`rounded p-0.5 ${
+                isRoot
+                  ? 'hover:bg-white/20'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-surfaceHover'
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            {addMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setAddMenuOpen(false)}
+                />
+                <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-dark-border dark:bg-dark-elevated">
+                  <button
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      onAddChild('knoten');
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                  >
+                    <FolderTree className="w-4 h-4 text-blue-500" />
+                    Unterknoten
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      onAddChild('task');
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                  >
+                    <ListTodo className="w-4 h-4 text-amber-500" />
+                    Task
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           {!isRoot && (
             <button
               onClick={onDelete}
-              title={childCount > 0 ? 'Knoten inkl. Unterknoten löschen' : 'Löschen'}
+              title={
+                childCount > 0 || tasks.length > 0
+                  ? 'Knoten inkl. Unterknoten und Tasks löschen'
+                  : 'Löschen'
+              }
               className="rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
             >
               <Trash2 className="w-4 h-4" />
@@ -220,37 +200,79 @@ const MindmapNodeCard = ({
         </div>
       </div>
 
-      {/* Task-Felder: Fälligkeit + Zuständigkeit */}
-      {isTask && (
-        <div className="space-y-1 border-t border-gray-100 px-2 py-1.5 dark:border-dark-border">
-          <label className="flex items-center gap-1.5">
-            <CalendarDays
-              className={`w-3.5 h-3.5 shrink-0 ${
-                ueberfaellig ? 'text-red-500' : 'text-gray-400 dark:text-dark-textSubtle'
-              }`}
-            />
-            <input
-              type="date"
-              value={node.faelligAm ?? ''}
-              onChange={(e) => onUpdateTask({ faelligAm: e.target.value })}
-              className={`w-full rounded border-0 bg-transparent p-0 text-xs focus:outline-none focus:ring-1 focus:ring-red-500 ${
-                ueberfaellig
-                  ? 'font-semibold text-red-600 dark:text-dark-accentRed'
-                  : 'text-gray-600 dark:text-dark-textMuted'
-              }`}
-            />
-          </label>
-          <label className="flex items-center gap-1.5">
-            <UserRound className="w-3.5 h-3.5 shrink-0 text-gray-400 dark:text-dark-textSubtle" />
-            <input
-              type="text"
-              list="mindmap-zustaendige"
-              value={node.zustaendig ?? ''}
-              onChange={(e) => onUpdateTask({ zustaendig: e.target.value })}
-              placeholder="Zuständig…"
-              className="w-full rounded border-0 bg-transparent p-0 text-xs text-gray-600 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-red-500 dark:text-dark-textMuted dark:placeholder:text-dark-textSubtle"
-            />
-          </label>
+      {/* Task-Liste: Klick auf eine Zeile öffnet das Detail-Modal */}
+      {tasks.length > 0 && (
+        <div
+          className={`border-t py-1 ${
+            isRoot
+              ? 'border-white/20'
+              : 'border-gray-100 dark:border-dark-border'
+          }`}
+        >
+          {tasks.map((task) => {
+            const ueberfaellig = istTaskUeberfaellig(task);
+            return (
+              <button
+                key={task.id}
+                onClick={() => onOpenTask(task.id)}
+                title="Task öffnen"
+                style={{ height: TASK_ROW_HEIGHT }}
+                className={`flex w-full items-center gap-1.5 px-2 text-left ${
+                  isRoot
+                    ? 'hover:bg-white/15'
+                    : 'hover:bg-gray-50 dark:hover:bg-dark-surfaceHover'
+                }`}
+              >
+                <span
+                  role="checkbox"
+                  aria-checked={!!task.erledigt}
+                  title={
+                    task.erledigt ? 'Als offen markieren' : 'Als erledigt markieren'
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleTaskErledigt(task);
+                  }}
+                  className="shrink-0"
+                >
+                  {task.erledigt ? (
+                    <CircleCheck className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Circle
+                      className={`w-4 h-4 ${
+                        isRoot ? 'text-white/60' : 'text-gray-300 dark:text-dark-textSubtle'
+                      }`}
+                    />
+                  )}
+                </span>
+                <span
+                  className={`min-w-0 flex-1 truncate text-xs ${
+                    task.erledigt
+                      ? 'text-gray-400 line-through dark:text-dark-textSubtle'
+                      : isRoot
+                        ? 'text-white'
+                        : 'text-gray-700 dark:text-dark-text'
+                  }`}
+                >
+                  {task.titel}
+                </span>
+                {task.faelligAm && (
+                  <span
+                    className={`flex shrink-0 items-center gap-0.5 text-[10px] font-medium ${
+                      ueberfaellig
+                        ? 'text-red-600 dark:text-dark-accentRed'
+                        : isRoot
+                          ? 'text-white/70'
+                          : 'text-gray-400 dark:text-dark-textMuted'
+                    }`}
+                  >
+                    <CalendarDays className="w-3 h-3" />
+                    {format(parseISO(task.faelligAm), 'dd.MM.')}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
