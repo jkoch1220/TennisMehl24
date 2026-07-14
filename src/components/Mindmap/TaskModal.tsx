@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   CircleCheck,
   Circle,
+  ExternalLink,
   ListTodo,
   Trash2,
   UserRound,
@@ -28,6 +30,7 @@ interface TaskModalProps {
  * übernommen (Persistenz debounced im Mindmap-Container).
  */
 const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalProps) => {
+  const navigate = useNavigate();
   const [titelDraft, setTitelDraft] = useState(task.titel);
   const titelRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +92,13 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
               className="w-full border-0 bg-transparent p-0 text-lg font-bold text-gray-900 focus:outline-none focus:ring-0 dark:text-dark-text"
             />
           </div>
+          <button
+            onClick={() => navigate(`/tasks/${task.id}`)}
+            title="Vollansicht öffnen (Bilder, Subtasks, Zeiterfassung)"
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-surfaceHover"
+          >
+            <ExternalLink className="h-5 w-5" />
+          </button>
           <button
             onClick={onClose}
             title="Schließen"

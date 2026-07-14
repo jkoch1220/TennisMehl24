@@ -110,6 +110,8 @@ export const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
 
 // Mindmap-Planungstool (ein Dokument pro Knoten/Task, geteilt für alle User)
 export const MINDMAP_NODES_COLLECTION_ID = 'mindmap_nodes';
+export const MINDMAP_SUBTASKS_COLLECTION_ID = 'mindmap_subtasks';
+export const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
@@ -211,6 +213,7 @@ export const PROJEKT_ANHAENGE_BUCKET_ID = 'projekt-anhaenge'; // Für Dispo: PDF
 export const KONKURRENTEN_DATEIEN_BUCKET_ID = 'konkurrenten-dateien'; // Für Konkurrenten: Bilder, Dokumente
 export const PLATZBAUER_DATEIEN_BUCKET_ID = 'platzbauer-dateien'; // Für Platzbauer: Angebote, ABs, Rechnungen, Lieferscheine
 export const SHOP_PRODUKTBILDER_BUCKET_ID = 'shop-produktbilder'; // Für Shop: Produktbilder
+export const MINDMAP_BILDER_BUCKET_ID = 'mindmap-bilder'; // Für Mindmap: Task-Bilder
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';

@@ -5,14 +5,25 @@
  * per Realtime-Subscription rein. Nur die Ansicht (Pan/Zoom) bleibt pro
  * Browser im localStorage.
  */
-import { Query } from 'appwrite';
+import { ID, Query } from 'appwrite';
 import {
   client,
   databases,
+  storage,
+  APPWRITE_ENDPOINT,
+  PROJECT_ID,
   DATABASE_ID,
   MINDMAP_NODES_COLLECTION_ID,
+  MINDMAP_SUBTASKS_COLLECTION_ID,
+  MINDMAP_ZEITEN_COLLECTION_ID,
+  MINDMAP_BILDER_BUCKET_ID,
 } from '../config/appwrite';
-import { MindmapNode, MindmapViewport } from '../types/mindmap';
+import {
+  MindmapNode,
+  MindmapSubtask,
+  MindmapViewport,
+  MindmapZeiteintrag,
+} from '../types/mindmap';
 
 export const ROOT_NODE_ID = 'root';
 
@@ -39,6 +50,9 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
   faelligAm: (doc.faelligAm as string) || '',
   zustaendig: (doc.zustaendig as string) || '',
   erledigt: !!doc.erledigt,
+  geschaetztMinuten:
+    typeof doc.geschaetztMinuten === 'number' ? doc.geschaetztMinuten : 0,
+  bilderIds: Array.isArray(doc.bilderIds) ? (doc.bilderIds as string[]) : [],
 });
 
 const toDocumentData = (node: MindmapNode) => ({
@@ -51,6 +65,8 @@ const toDocumentData = (node: MindmapNode) => ({
   faelligAm: node.faelligAm ?? '',
   zustaendig: node.zustaendig ?? '',
   erledigt: !!node.erledigt,
+  geschaetztMinuten: node.geschaetztMinuten ?? 0,
+  bilderIds: node.bilderIds ?? [],
 });
 
 /**
@@ -164,6 +180,147 @@ export const subscribeMindmap = (
       onChange('upsert', node);
     }
   });
+};
+
+// --- Subtasks (Checkliste pro Task) ---
+
+const mapSubtask = (doc: Record<string, unknown>): MindmapSubtask => ({
+  id: doc.$id as string,
+  taskId: (doc.taskId as string) || '',
+  titel: (doc.titel as string) || '',
+  erledigt: !!doc.erledigt,
+  sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
+});
+
+export const listSubtasks = async (taskId: string): Promise<MindmapSubtask[]> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    MINDMAP_SUBTASKS_COLLECTION_ID,
+    [Query.equal('taskId', taskId), Query.limit(100)]
+  );
+  return response.documents
+    .map((doc) => mapSubtask(doc as unknown as Record<string, unknown>))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+};
+
+export const createSubtask = async (
+  taskId: string,
+  titel: string,
+  sortOrder: number
+): Promise<MindmapSubtask> => {
+  const doc = await databases.createDocument(
+    DATABASE_ID,
+    MINDMAP_SUBTASKS_COLLECTION_ID,
+    ID.unique(),
+    { taskId, titel, erledigt: false, sortOrder }
+  );
+  return mapSubtask(doc as unknown as Record<string, unknown>);
+};
+
+export const updateSubtask = async (subtask: MindmapSubtask): Promise<void> => {
+  await databases.updateDocument(
+    DATABASE_ID,
+    MINDMAP_SUBTASKS_COLLECTION_ID,
+    subtask.id,
+    {
+      titel: subtask.titel,
+      erledigt: subtask.erledigt,
+      sortOrder: subtask.sortOrder,
+    }
+  );
+};
+
+export const deleteSubtask = async (id: string): Promise<void> => {
+  await databases.deleteDocument(DATABASE_ID, MINDMAP_SUBTASKS_COLLECTION_ID, id);
+};
+
+// --- Zeiterfassung (Einträge pro Task) ---
+
+const mapZeiteintrag = (doc: Record<string, unknown>): MindmapZeiteintrag => ({
+  id: doc.$id as string,
+  taskId: (doc.taskId as string) || '',
+  person: (doc.person as string) || '',
+  beschreibung: (doc.beschreibung as string) || '',
+  datum: (doc.datum as string) || '',
+  minuten: typeof doc.minuten === 'number' ? doc.minuten : 0,
+});
+
+export const listZeiteintraege = async (
+  taskId: string
+): Promise<MindmapZeiteintrag[]> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    MINDMAP_ZEITEN_COLLECTION_ID,
+    [Query.equal('taskId', taskId), Query.limit(200)]
+  );
+  return response.documents
+    .map((doc) => mapZeiteintrag(doc as unknown as Record<string, unknown>))
+    .sort((a, b) => b.datum.localeCompare(a.datum) || b.id.localeCompare(a.id));
+};
+
+export const createZeiteintrag = async (
+  eintrag: Omit<MindmapZeiteintrag, 'id'>
+): Promise<MindmapZeiteintrag> => {
+  const doc = await databases.createDocument(
+    DATABASE_ID,
+    MINDMAP_ZEITEN_COLLECTION_ID,
+    ID.unique(),
+    eintrag
+  );
+  return mapZeiteintrag(doc as unknown as Record<string, unknown>);
+};
+
+export const deleteZeiteintrag = async (id: string): Promise<void> => {
+  await databases.deleteDocument(DATABASE_ID, MINDMAP_ZEITEN_COLLECTION_ID, id);
+};
+
+// --- Task-Bilder (Appwrite Storage) ---
+
+export const uploadTaskBild = async (file: File): Promise<string> => {
+  const erlaubt = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+  if (!erlaubt.includes(file.type)) {
+    throw new Error('Nur PNG, JPEG, GIF oder WebP erlaubt');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('Datei zu groß (max. 10 MB)');
+  }
+  const result = await storage.createFile(MINDMAP_BILDER_BUCKET_ID, ID.unique(), file);
+  return result.$id;
+};
+
+export const getTaskBildUrl = (fileId: string, preview = false): string => {
+  const base = `${APPWRITE_ENDPOINT}/storage/buckets/${MINDMAP_BILDER_BUCKET_ID}/files/${fileId}`;
+  return preview
+    ? `${base}/preview?width=400&project=${PROJECT_ID}`
+    : `${base}/view?project=${PROJECT_ID}`;
+};
+
+export const deleteTaskBild = async (fileId: string): Promise<void> => {
+  await storage.deleteFile(MINDMAP_BILDER_BUCKET_ID, fileId);
+};
+
+/**
+ * Aufräumen beim Löschen von Tasks: Subtasks, Zeiteinträge und Bilder der
+ * betroffenen Tasks entfernen (fire-and-forget vom Aufrufer).
+ */
+export const deleteTaskAnhaenge = async (tasks: MindmapNode[]): Promise<void> => {
+  for (const task of tasks) {
+    try {
+      const [subtasks, zeiten] = await Promise.all([
+        listSubtasks(task.id),
+        listZeiteintraege(task.id),
+      ]);
+      await Promise.all([
+        ...subtasks.map((s) => deleteSubtask(s.id)),
+        ...zeiten.map((z) => deleteZeiteintrag(z.id)),
+        ...(task.bilderIds ?? []).map((fileId) =>
+          deleteTaskBild(fileId).catch(() => undefined)
+        ),
+      ]);
+    } catch (error) {
+      console.warn(`⚠️ Anhänge von Task "${task.titel}" nicht aufgeräumt:`, error);
+    }
+  }
 };
 
 // --- Ansicht (Pan/Zoom) bleibt pro Browser lokal ---

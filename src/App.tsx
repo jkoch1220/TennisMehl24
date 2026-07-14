@@ -72,8 +72,10 @@ const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht
 const MosaikMigration = lazyWithRetry(() => import('./components/Migration/MosaikMigration'));
 const DuplikatMergeTool = lazyWithRetry(() => import('./components/Duplikate/DuplikatMergeTool'));
 
-// Mindmap-Planungstool
+// Mindmap-Planungstool + Task-Verwaltung
 const Mindmap = lazyWithRetry(() => import('./components/Mindmap/Mindmap'));
+const TaskVerwaltung = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskVerwaltung'));
+const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
 
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
@@ -288,6 +290,16 @@ function AuthenticatedContent() {
                   <Route path="/mindmap" element={
                     <ProtectedRoute toolId="mindmap">
                       <Mindmap />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/tasks" element={
+                    <ProtectedRoute toolId="task-verwaltung">
+                      <TaskVerwaltung />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/tasks/:taskId" element={
+                    <ProtectedRoute toolId="task-verwaltung">
+                      <TaskDetail />
                     </ProtectedRoute>
                   } />
 

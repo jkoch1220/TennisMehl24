@@ -30,6 +30,7 @@ import {
   Landmark,
   Combine,
   Network,
+  ListTodo,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -313,6 +314,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/mindmap',
     icon: Network,
     color: 'from-teal-500 to-emerald-600',
+  },
+  {
+    id: 'task-verwaltung',
+    name: 'Task-Verwaltung',
+    description: 'Alle Tasks aus der Mindmap: Beschreibung, Bilder, Subtasks und Zeiterfassung',
+    href: '/tasks',
+    icon: ListTodo,
+    color: 'from-amber-500 to-orange-600',
   },
 ];
 
