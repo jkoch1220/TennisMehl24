@@ -1,13 +1,75 @@
 import { format } from 'date-fns';
 import { MindmapNode } from '../../types/mindmap';
 
-// Feste Kartenmaße, damit das Organigramm-Layout ohne DOM-Messung berechenbar ist.
-// Tasks werden als Listenzeilen IN der Eltern-Karte gerendert, nicht als eigene
-// Karten im Baum — die Kartenhöhe wächst deshalb mit der Anzahl der Tasks.
+// Feste Kartenbreite, damit das Organigramm-Layout ohne DOM-Messung berechenbar
+// ist. Tasks werden als Listenzeilen IN der Eltern-Karte gerendert; die
+// Kartenhöhe wächst mit der Anzahl der Tasks UND mit umbrechenden Titelzeilen.
 export const NODE_WIDTH = 240;
-export const HEADER_HEIGHT = 40; // Titelzeile (px-2 py-2 + Border)
+export const TITLE_LINE_HEIGHT = 18; // muss zum leading des Titel-Spans passen
 export const TASK_ROW_HEIGHT = 30; // eine Task-Zeile in der Liste
 export const TASK_LIST_PAD = 8; // vertikales Padding der Taskliste
+
+// Titel-Umbruch ohne DOM: Text per Canvas messen und den CSS-Umbruch simulieren
+let messContext: CanvasRenderingContext2D | null = null;
+const getMessContext = (): CanvasRenderingContext2D | null => {
+  if (!messContext) {
+    messContext = document.createElement('canvas').getContext('2d');
+    if (messContext) {
+      // text-sm font-semibold im Tailwind-Default-Font-Stack
+      messContext.font =
+        '600 14px ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    }
+  }
+  return messContext;
+};
+
+/** Anzahl der Zeilen, die der Titel bei gegebener Breite belegt (mit Puffer) */
+export const titelZeilen = (titel: string, verfuegbareBreite: number): number => {
+  const ctx = getMessContext();
+  if (!ctx || !titel) return 1;
+  const breite = Math.max(60, verfuegbareBreite);
+  let zeilen = 1;
+  let aktuelleBreite = 0;
+  const leerzeichen = ctx.measureText(' ').width;
+  for (const wort of titel.split(/\s+/)) {
+    // 8 % Puffer gegen Font-Abweichungen zwischen Canvas und DOM — lieber eine
+    // Zeile zu viel einplanen als Karten im Layout überlappen lassen
+    const wortBreite = ctx.measureText(wort).width * 1.08;
+    if (wortBreite > breite) {
+      // Überlanges Wort bricht mitten im Wort um (break-words)
+      const rest = breite - aktuelleBreite;
+      const uebrig = wortBreite - Math.max(0, rest);
+      zeilen += Math.ceil(uebrig / breite);
+      aktuelleBreite = uebrig % breite || breite;
+      continue;
+    }
+    const benoetigt = aktuelleBreite === 0 ? wortBreite : aktuelleBreite + leerzeichen + wortBreite;
+    if (benoetigt > breite) {
+      zeilen += 1;
+      aktuelleBreite = wortBreite;
+    } else {
+      aktuelleBreite = benoetigt;
+    }
+  }
+  return Math.min(zeilen, 12);
+};
+
+/** Höhe der Titelzeile einer Karte (wächst mit umbrechendem Titel) */
+export const headerHeight = (
+  nodes: Record<string, MindmapNode>,
+  node: MindmapNode
+): number => {
+  const hatChevron = getKnotenChildren(nodes, node.id).length > 0;
+  // px-2 (16) + Hover-Aktionen (~46) + optional Chevron/Entscheidungs-Icon
+  const verfuegbar =
+    NODE_WIDTH -
+    16 -
+    46 -
+    (hatChevron ? 21 : 0) -
+    (node.type === 'entscheidung' ? 20 : 0);
+  const zeilen = titelZeilen(node.titel, verfuegbar);
+  return Math.max(40, 22 + zeilen * TITLE_LINE_HEIGHT);
+};
 
 // Abstände im Organigramm
 const H_GAP = 32; // horizontal zwischen Geschwister-Teilbäumen
@@ -47,9 +109,11 @@ export const cardHeight = (
   nodes: Record<string, MindmapNode>,
   id: string
 ): number => {
+  const node = nodes[id];
+  if (!node) return 40;
   const taskCount = getTasks(nodes, id).length;
   return (
-    HEADER_HEIGHT +
+    headerHeight(nodes, node) +
     (taskCount > 0 ? TASK_LIST_PAD + taskCount * TASK_ROW_HEIGHT : 0)
   );
 };

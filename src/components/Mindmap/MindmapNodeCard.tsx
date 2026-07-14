@@ -94,10 +94,10 @@ const MindmapNodeCard = ({
       } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''}`}
       style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
-      {/* Titelzeile */}
-      <div className="flex h-10 items-center gap-1 px-2">
+      {/* Titelzeile (wächst mit umbrechendem Titel mit) */}
+      <div className="flex min-h-10 items-start gap-1 px-2 py-[11px]">
         {istEntscheidung && (
-          <Split className="h-4 w-4 shrink-0 rotate-90 text-amber-500" />
+          <Split className="mt-px h-4 w-4 shrink-0 rotate-90 text-amber-500" />
         )}
         {childCount > 0 && (
           <button
@@ -134,7 +134,7 @@ const MindmapNodeCard = ({
           <span
             onDoubleClick={onStartEdit}
             title="Doppelklick zum Umbenennen"
-            className={`min-w-0 flex-1 truncate text-sm font-semibold ${
+            className={`min-w-0 flex-1 break-words text-sm font-semibold leading-[18px] ${
               isRoot ? 'text-white' : 'text-gray-900 dark:text-dark-text'
             }`}
           >
