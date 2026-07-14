@@ -13,10 +13,17 @@ export const TASK_LIST_PAD = 8; // vertikales Padding der Taskliste
 const H_GAP = 32; // horizontal zwischen Geschwister-Teilbäumen
 const V_GAP = 56; // vertikal zwischen den Ebenen
 
+// Stabile Geschwister-Reihenfolge: sortOrder, bei Gleichstand die ID
+const bySortOrder = (a: MindmapNode, b: MindmapNode): number =>
+  (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id.localeCompare(b.id);
+
 export const getChildren = (
   nodes: Record<string, MindmapNode>,
   parentId: string
-): MindmapNode[] => Object.values(nodes).filter((n) => n.parentId === parentId);
+): MindmapNode[] =>
+  Object.values(nodes)
+    .filter((n) => n.parentId === parentId)
+    .sort(bySortOrder);
 
 export const getKnotenChildren = (
   nodes: Record<string, MindmapNode>,

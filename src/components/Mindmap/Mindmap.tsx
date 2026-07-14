@@ -43,9 +43,19 @@ const Mindmap = () => {
   const [viewport, setViewport] = useState<MindmapViewport>(() => loadViewport());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [taskModalId, setTaskModalId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ lastX: number; lastY: number } | null>(null);
+  // Umsortieren per Drag: gestartet erst ab kleinem Schwellwert, damit
+  // Klicks und Doppelklicks auf der Karte normal funktionieren
+  const reorderState = useRef<{
+    id: string;
+    parentId: string;
+    pointerStartX: number;
+    started: boolean;
+    changed: boolean;
+  } | null>(null);
   // Noch nicht rausgeschriebene lokale Änderungen (Node-ID → Debounce-Timer).
   // Solange ein Write aussteht, überschreiben Realtime-Events diesen Node nicht.
   const pendingWrites = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -56,6 +66,8 @@ const Mindmap = () => {
 
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
 
   // Initial laden + Realtime-Subscription für Änderungen anderer User
   useEffect(() => {
@@ -108,6 +120,8 @@ const Mindmap = () => {
 
   // Organigramm-Layout: Positionen werden komplett aus der Hierarchie berechnet
   const layout = useMemo(() => layoutTree(nodes, ROOT_NODE_ID), [nodes]);
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
 
   // Root nach dem ersten Laden mittig oben platzieren
   useEffect(() => {
@@ -126,9 +140,70 @@ const Mindmap = () => {
     });
   }, [loading]);
 
-  // Pan über globale Pointer-Events
+  /** Debounced Write-Through: lokalen Stand nach kurzer Ruhe nach Appwrite schreiben */
+  const scheduleUpsert = (id: string) => {
+    const pending = pendingWrites.current;
+    const existing = pending.get(id);
+    if (existing) clearTimeout(existing);
+    pending.set(
+      id,
+      setTimeout(() => {
+        pending.delete(id);
+        const node = nodesRef.current[id];
+        if (!node) return;
+        updateMindmapNode(node).catch((error) => {
+          console.error('❌ Mindmap-Knoten nicht gespeichert:', error);
+          toast.error(`„${node.titel}" konnte nicht gespeichert werden`);
+        });
+      }, WRITE_DEBOUNCE_MS)
+    );
+  };
+
+  // Pan + Umsortieren über globale Pointer-Events
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
+      // Karte horizontal ziehen → Geschwister-Reihenfolge ändern (rastet ein)
+      const drag = reorderState.current;
+      if (drag) {
+        e.preventDefault();
+        if (!drag.started) {
+          if (Math.abs(e.clientX - drag.pointerStartX) < 6) return;
+          drag.started = true;
+          setDraggingId(drag.id);
+        }
+        const el = containerRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const v = viewportRef.current;
+        // Cursor-Position in Canvas-Koordinaten
+        const canvasX = (e.clientX - rect.left - v.x) / v.scale;
+        const siblings = getKnotenChildren(nodesRef.current, drag.parentId);
+        const currentIndex = siblings.findIndex((s) => s.id === drag.id);
+        if (currentIndex === -1) return;
+        // Ziel-Slot = Anzahl fremder Slot-Mitten links vom Cursor
+        let targetIndex = 0;
+        for (const sibling of siblings) {
+          if (sibling.id === drag.id) continue;
+          const slot = layoutRef.current[sibling.id];
+          if (slot && canvasX > slot.x + NODE_WIDTH / 2) targetIndex++;
+        }
+        if (targetIndex !== currentIndex) {
+          const reordered = siblings.filter((s) => s.id !== drag.id);
+          reordered.splice(targetIndex, 0, siblings[currentIndex]);
+          setNodes((prev) => {
+            const next = { ...prev };
+            reordered.forEach((s, i) => {
+              if ((next[s.id]?.sortOrder ?? 0) !== i) {
+                next[s.id] = { ...next[s.id], sortOrder: i };
+              }
+            });
+            return next;
+          });
+          drag.changed = true;
+        }
+        return;
+      }
+
       const st = panState.current;
       if (!st) return;
       e.preventDefault();
@@ -139,6 +214,17 @@ const Mindmap = () => {
       setViewport((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
     };
     const onUp = () => {
+      const drag = reorderState.current;
+      if (drag) {
+        reorderState.current = null;
+        setDraggingId(null);
+        if (drag.started && drag.changed) {
+          // Neue Reihenfolge aller Geschwister persistieren
+          getKnotenChildren(nodesRef.current, drag.parentId).forEach((s) =>
+            scheduleUpsert(s.id)
+          );
+        }
+      }
       panState.current = null;
     };
     window.addEventListener('pointermove', onMove);
@@ -147,6 +233,7 @@ const Mindmap = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Scrollen = Ansicht verschieben, Pinch bzw. Ctrl/Cmd+Scrollen = Zoom auf den Cursor
@@ -177,25 +264,6 @@ const Mindmap = () => {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  /** Debounced Write-Through: lokalen Stand nach kurzer Ruhe nach Appwrite schreiben */
-  const scheduleUpsert = (id: string) => {
-    const pending = pendingWrites.current;
-    const existing = pending.get(id);
-    if (existing) clearTimeout(existing);
-    pending.set(
-      id,
-      setTimeout(() => {
-        pending.delete(id);
-        const node = nodesRef.current[id];
-        if (!node) return;
-        updateMindmapNode(node).catch((error) => {
-          console.error('❌ Mindmap-Knoten nicht gespeichert:', error);
-          toast.error(`„${node.titel}" konnte nicht gespeichert werden`);
-        });
-      }, WRITE_DEBOUNCE_MS)
-    );
-  };
-
   const patchNode = (id: string, patch: Partial<MindmapNode>) => {
     setNodes((prev) =>
       prev[id] ? { ...prev, [id]: { ...prev[id], ...patch } } : prev
@@ -207,12 +275,19 @@ const Mindmap = () => {
     const parent = nodes[parentId];
     if (!parent) return;
     const id = crypto.randomUUID();
+    // Neue Kinder hinten anstellen
+    const siblings =
+      type === 'task' ? getTasks(nodes, parentId) : getKnotenChildren(nodes, parentId);
+    const sortOrder = siblings.length
+      ? Math.max(...siblings.map((s) => s.sortOrder ?? 0)) + 1
+      : 0;
     const newNode: MindmapNode = {
       id,
       parentId,
       type,
       titel: type === 'task' ? 'Neuer Task' : 'Neuer Knoten',
       collapsed: false,
+      sortOrder,
       ...(type === 'task'
         ? { beschreibung: '', faelligAm: '', zustaendig: '', erledigt: false }
         : {}),
@@ -317,6 +392,22 @@ const Mindmap = () => {
     panState.current = { lastX: e.clientX, lastY: e.clientY };
   };
 
+  const beginReorder = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    // Root hat keine Geschwister; Buttons/Inputs bleiben normale Klickziele
+    if (id === ROOT_NODE_ID) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, textarea, label, [role="checkbox"]')) return;
+    const node = nodes[id];
+    if (!node?.parentId) return;
+    reorderState.current = {
+      id,
+      parentId: node.parentId,
+      pointerStartX: e.clientX,
+      started: false,
+      changed: false,
+    };
+  };
+
   const zustaendige = useMemo(() => getCachedUsersList(), []);
 
   // Nur Knoten sind Baum-Elemente; Tasks werden als Liste in ihrer Karte gerendert
@@ -356,9 +447,9 @@ const Mindmap = () => {
               Mindmap
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
-              Geteilt mit dem ganzen Team · Doppelklick: umbenennen ·
-              Scrollen/Fläche ziehen: Ansicht bewegen · Pinch oder Ctrl+Scrollen:
-              zoomen
+              Geteilt mit dem ganzen Team · Doppelklick: umbenennen · Karte
+              seitlich ziehen: Reihenfolge tauschen · Scrollen/Fläche ziehen:
+              Ansicht bewegen · Pinch oder Ctrl+Scrollen: zoomen
             </p>
           </div>
         </div>
@@ -461,6 +552,8 @@ const Mindmap = () => {
                 isRoot={node.id === ROOT_NODE_ID}
                 childCount={getKnotenChildren(nodes, node.id).length}
                 isEditing={editingId === node.id}
+                isDragging={draggingId === node.id}
+                onPointerDown={(e) => beginReorder(e, node.id)}
                 onAddChild={(type) => addChild(node.id, type)}
                 onToggleCollapse={() =>
                   patchNode(node.id, { collapsed: !node.collapsed })

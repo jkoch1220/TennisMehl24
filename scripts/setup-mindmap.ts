@@ -85,6 +85,22 @@ async function ensureBooleanAttribute(collectionId: string, key: string) {
   }
 }
 
+async function ensureIntegerAttribute(collectionId: string, key: string) {
+  try {
+    await databases.getAttribute(DATABASE_ID, collectionId, key);
+    console.log(`✅ Attribut ${key} existiert bereits`);
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 404) {
+      console.log(`📝 Erstelle Integer-Attribut ${key}...`);
+      await databases.createIntegerAttribute(DATABASE_ID, collectionId, key, false);
+      console.log(`✅ Attribut ${key} erstellt`);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    } else {
+      throw error;
+    }
+  }
+}
+
 async function main() {
   console.log('🚀 Setup Mindmap-Collection...\n');
 
@@ -99,6 +115,7 @@ async function main() {
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'faelligAm', 10, false);
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'zustaendig', 128, false);
   await ensureBooleanAttribute(MINDMAP_NODES_COLLECTION_ID, 'erledigt');
+  await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'sortOrder');
 
   console.log('\n✅ Mindmap-Setup abgeschlossen');
 }

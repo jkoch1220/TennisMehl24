@@ -26,6 +26,8 @@ interface MindmapNodeCardProps {
   isRoot: boolean;
   childCount: number;
   isEditing: boolean;
+  isDragging: boolean;
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onAddChild: (type: MindmapNodeType) => void;
   onToggleCollapse: () => void;
   onDelete: () => void;
@@ -43,6 +45,8 @@ const MindmapNodeCard = ({
   isRoot,
   childCount,
   isEditing,
+  isDragging,
+  onPointerDown,
   onAddChild,
   onToggleCollapse,
   onDelete,
@@ -74,11 +78,12 @@ const MindmapNodeCard = ({
 
   return (
     <div
+      onPointerDown={onPointerDown}
       className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${
         isRoot
           ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
-          : 'bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
-      }`}
+          : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
+      } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''}`}
       style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
       {/* Titelzeile */}

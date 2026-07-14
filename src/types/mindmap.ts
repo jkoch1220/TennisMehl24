@@ -9,6 +9,8 @@ export interface MindmapNode {
   titel: string;
   // Eingeklappt = alle Nachfahren ausgeblendet
   collapsed: boolean;
+  // Position unter den Geschwistern (0-basiert, per Drag umsortierbar)
+  sortOrder?: number;
   // Nur für type === 'task':
   beschreibung?: string;
   faelligAm?: string; // ISO-Datum (yyyy-MM-dd), leer = kein Datum
