@@ -4,6 +4,7 @@ import {
   ChevronsUpDown,
   Maximize2,
   Network,
+  Trash2,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ const Mindmap = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [taskModalId, setTaskModalId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ lastX: number; lastY: number } | null>(null);
@@ -316,6 +318,12 @@ const Mindmap = () => {
     }
   };
 
+  /** Löschen immer mit Sicherheitsabfrage — erst der Dialog, dann deleteNode */
+  const requestDelete = (id: string) => {
+    if (id === ROOT_NODE_ID) return;
+    setConfirmDeleteId(id);
+  };
+
   const deleteNode = (id: string) => {
     if (id === ROOT_NODE_ID) return;
     const doomed = [id, ...getDescendantIds(nodesRef.current, id)];
@@ -433,6 +441,10 @@ const Mindmap = () => {
     });
 
   const modalTask = taskModalId ? nodes[taskModalId] : null;
+  const confirmNode = confirmDeleteId ? nodes[confirmDeleteId] : null;
+  const confirmDescendants = confirmNode
+    ? getDescendantIds(nodes, confirmNode.id).length
+    : 0;
 
   return (
     <div className="p-4 sm:p-6">
@@ -558,7 +570,7 @@ const Mindmap = () => {
                 onToggleCollapse={() =>
                   patchNode(node.id, { collapsed: !node.collapsed })
                 }
-                onDelete={() => deleteNode(node.id)}
+                onDelete={() => requestDelete(node.id)}
                 onChangeTitel={(titel) => patchNode(node.id, { titel })}
                 onStartEdit={() => setEditingId(node.id)}
                 onStopEdit={() => setEditingId(null)}
@@ -587,9 +599,64 @@ const Mindmap = () => {
             (modalTask.parentId && nodes[modalTask.parentId]?.titel) || ''
           }
           onPatch={(fields) => patchNode(modalTask.id, fields)}
-          onDelete={() => deleteNode(modalTask.id)}
+          onDelete={() => requestDelete(modalTask.id)}
           onClose={() => setTaskModalId(null)}
         />
+      )}
+
+      {/* Sicherheitsabfrage vor dem Löschen */}
+      {confirmNode && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-dark-surface"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
+                <Trash2 className="h-5 w-5 text-red-600 dark:text-dark-accentRed" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-900 dark:text-dark-text">
+                  {confirmNode.type === 'task' ? 'Task löschen?' : 'Knoten löschen?'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-dark-textMuted">
+                  „{confirmNode.titel}"
+                  {confirmDescendants > 0 && (
+                    <>
+                      {' '}
+                      inkl.{' '}
+                      <span className="font-semibold text-red-600 dark:text-dark-accentRed">
+                        {confirmDescendants} Unterelement
+                        {confirmDescendants === 1 ? '' : 'en'}
+                      </span>
+                    </>
+                  )}{' '}
+                  wird unwiderruflich gelöscht — für das ganze Team.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  deleteNode(confirmNode.id);
+                  setConfirmDeleteId(null);
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Endgültig löschen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
