@@ -1,12 +1,24 @@
-// Typen für das Mindmap-/Organigramm-Planungstool
+// Typen für das Planungstool (Organigramm- und Prozess-Boards)
 
-export type MindmapNodeType = 'knoten' | 'task';
+export type MindmapBoardTyp = 'organigramm' | 'prozess';
+
+export interface MindmapBoard {
+  id: string;
+  name: string;
+  typ: MindmapBoardTyp;
+}
+
+// 'knoten' = Gliederung/Schritt, 'entscheidung' = Verzweigung im Prozess
+export type MindmapNodeType = 'knoten' | 'task' | 'entscheidung';
 
 export interface MindmapNode {
   id: string;
-  parentId: string | null; // null = Wurzelknoten ("Tennismehl")
+  boardId: string;
+  parentId: string | null; // null = Wurzelknoten des Boards
   type: MindmapNodeType;
   titel: string;
+  // Beschriftung der Kante vom Eltern-Knoten (z. B. "Ja"/"Nein" nach Entscheidungen)
+  edgeLabel?: string;
   // Eingeklappt = alle Nachfahren ausgeblendet
   collapsed: boolean;
   // Position unter den Geschwistern (0-basiert, per Drag umsortierbar)

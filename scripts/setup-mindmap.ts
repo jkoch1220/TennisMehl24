@@ -28,9 +28,12 @@ const storage = new Storage(client);
 
 const DATABASE_ID = 'tennismehl24_db';
 const MINDMAP_NODES_COLLECTION_ID = 'mindmap_nodes';
+const MINDMAP_BOARDS_COLLECTION_ID = 'mindmap_boards';
 const MINDMAP_SUBTASKS_COLLECTION_ID = 'mindmap_subtasks';
 const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 const MINDMAP_BILDER_BUCKET_ID = 'mindmap-bilder';
+// Standard-Board für die Migration bestehender Knoten
+const DEFAULT_BOARD_ID = 'tennismehl';
 
 async function ensureCollection(collectionId: string, name: string) {
   try {
@@ -197,8 +200,50 @@ async function main() {
   await ensureStringAttribute(MINDMAP_ZEITEN_COLLECTION_ID, 'datum', 10, false);
   await ensureIntegerAttribute(MINDMAP_ZEITEN_COLLECTION_ID, 'minuten');
 
+  // Boards (mehrere Diagramme: Organigramm oder Prozess)
+  await ensureCollection(MINDMAP_BOARDS_COLLECTION_ID, 'Planungs-Boards');
+  await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'name', 256, true);
+  await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'typ', 16, true);
+
+  // Board-Zuordnung + Kantenbeschriftung (Prozess-Diagramme) auf den Nodes
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'boardId', 64, false);
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'edgeLabel', 64, false);
+
   // Storage-Bucket für Task-Bilder
   await ensureBucket();
+
+  // Migration: Standard-Board anlegen und bestehende Knoten zuordnen
+  try {
+    await databases.getDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, DEFAULT_BOARD_ID);
+    console.log('✅ Standard-Board existiert bereits');
+  } catch (error: unknown) {
+    if ((error as { code?: number }).code === 404) {
+      await databases.createDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, DEFAULT_BOARD_ID, {
+        name: 'Tennismehl',
+        typ: 'organigramm',
+      });
+      console.log('✅ Standard-Board "Tennismehl" angelegt');
+    } else {
+      throw error;
+    }
+  }
+
+  const { Query } = await import('node-appwrite');
+  for (;;) {
+    const ohneBoard = await databases.listDocuments(
+      DATABASE_ID,
+      MINDMAP_NODES_COLLECTION_ID,
+      [Query.isNull('boardId'), Query.limit(100)]
+    );
+    if (ohneBoard.documents.length === 0) break;
+    console.log(`📦 Ordne ${ohneBoard.documents.length} Knoten dem Standard-Board zu...`);
+    for (const doc of ohneBoard.documents) {
+      await databases.updateDocument(DATABASE_ID, MINDMAP_NODES_COLLECTION_ID, doc.$id, {
+        boardId: DEFAULT_BOARD_ID,
+      });
+    }
+  }
+  console.log('✅ Alle Knoten haben ein Board');
 
   console.log('\n✅ Mindmap-Setup abgeschlossen');
 }

@@ -34,7 +34,7 @@ import {
   getTaskBildUrl,
   listSubtasks,
   listZeiteintraege,
-  loadMindmapNodes,
+  loadAllMindmapNodes,
   updateMindmapNode,
   updateSubtask,
   uploadTaskBild,
@@ -95,7 +95,7 @@ const TaskDetail = () => {
   useEffect(() => {
     if (!taskId) return;
     let cancelled = false;
-    Promise.all([loadMindmapNodes(), listSubtasks(taskId), listZeiteintraege(taskId)])
+    Promise.all([loadAllMindmapNodes(), listSubtasks(taskId), listZeiteintraege(taskId)])
       .then(([loadedNodes, loadedSubtasks, loadedZeiten]) => {
         if (cancelled) return;
         setNodes(loadedNodes);
@@ -356,11 +356,11 @@ const TaskDetail = () => {
           }`}
         />
         <Link
-          to="/mindmap"
+          to={task.boardId ? `/planung/${task.boardId}` : '/planung'}
           className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-text dark:hover:bg-dark-surfaceHover"
         >
           <Network className="h-4 w-4" />
-          Zur Mindmap
+          Zum Board
         </Link>
       </div>
 

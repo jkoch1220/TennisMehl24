@@ -25,11 +25,18 @@ export const getChildren = (
     .filter((n) => n.parentId === parentId)
     .sort(bySortOrder);
 
+// Baum-Kinder = alles außer Tasks (Knoten/Schritte und Entscheidungen)
 export const getKnotenChildren = (
   nodes: Record<string, MindmapNode>,
   parentId: string
 ): MindmapNode[] =>
-  getChildren(nodes, parentId).filter((n) => n.type === 'knoten');
+  getChildren(nodes, parentId).filter((n) => n.type !== 'task');
+
+/** Wurzelknoten eines Boards (parentId === null) */
+export const findRoot = (
+  nodes: Record<string, MindmapNode>
+): MindmapNode | undefined =>
+  Object.values(nodes).find((n) => n.parentId === null);
 
 export const getTasks = (
   nodes: Record<string, MindmapNode>,

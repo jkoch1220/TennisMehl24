@@ -309,9 +309,9 @@ export const ALL_TOOLS: ToolConfig[] = [
   },
   {
     id: 'mindmap',
-    name: 'Mindmap',
-    description: 'Visuelle Planung: Themen als Knoten gliedern, Tasks mit Fälligkeit und Zuständigkeit',
-    href: '/mindmap',
+    name: 'Planung',
+    description: 'Organigramm- und Prozess-Boards: Strukturen gliedern, Abläufe mit Entscheidungen definieren',
+    href: '/planung',
     icon: Network,
     color: 'from-teal-500 to-emerald-600',
   },

@@ -8,7 +8,9 @@ import {
   FolderTree,
   ListTodo,
   Plus,
+  Split,
   Trash2,
+  Workflow,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { MindmapNode, MindmapNodeType } from '../../types/mindmap';
@@ -24,6 +26,7 @@ interface MindmapNodeCardProps {
   pos: LayoutPos;
   tasks: MindmapNode[];
   isRoot: boolean;
+  istProzess: boolean;
   childCount: number;
   isEditing: boolean;
   isDragging: boolean;
@@ -43,6 +46,7 @@ const MindmapNodeCard = ({
   pos,
   tasks,
   isRoot,
+  istProzess,
   childCount,
   isEditing,
   isDragging,
@@ -76,18 +80,25 @@ const MindmapNodeCard = ({
     onStopEdit();
   };
 
+  const istEntscheidung = node.type === 'entscheidung';
+
   return (
     <div
       onPointerDown={onPointerDown}
       className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${
         isRoot
           ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
-          : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
+          : istEntscheidung
+            ? 'cursor-grab active:cursor-grabbing bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-600 shadow-md'
+            : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
       } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''}`}
       style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
       {/* Titelzeile */}
       <div className="flex h-10 items-center gap-1 px-2">
+        {istEntscheidung && (
+          <Split className="h-4 w-4 shrink-0 rotate-90 text-amber-500" />
+        )}
         {childCount > 0 && (
           <button
             onClick={onToggleCollapse}
@@ -172,9 +183,30 @@ const MindmapNodeCard = ({
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
                   >
-                    <FolderTree className="w-4 h-4 text-blue-500" />
-                    Unterknoten
+                    {istProzess ? (
+                      <>
+                        <Workflow className="w-4 h-4 text-blue-500" />
+                        Schritt
+                      </>
+                    ) : (
+                      <>
+                        <FolderTree className="w-4 h-4 text-blue-500" />
+                        Unterknoten
+                      </>
+                    )}
                   </button>
+                  {istProzess && (
+                    <button
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        onAddChild('entscheidung');
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                    >
+                      <Split className="w-4 h-4 rotate-90 text-amber-500" />
+                      Entscheidung
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setAddMenuOpen(false);

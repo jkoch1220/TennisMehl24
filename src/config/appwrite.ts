@@ -110,6 +110,7 @@ export const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
 
 // Mindmap-Planungstool (ein Dokument pro Knoten/Task, geteilt für alle User)
 export const MINDMAP_NODES_COLLECTION_ID = 'mindmap_nodes';
+export const MINDMAP_BOARDS_COLLECTION_ID = 'mindmap_boards';
 export const MINDMAP_SUBTASKS_COLLECTION_ID = 'mindmap_subtasks';
 export const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 

@@ -14,7 +14,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { MindmapNode } from '../../types/mindmap';
 import {
-  loadMindmapNodes,
+  loadAllMindmapNodes,
   subscribeMindmap,
   updateMindmapNode,
 } from '../../services/mindmapService';
@@ -45,7 +45,7 @@ const TaskVerwaltung = () => {
 
   useEffect(() => {
     let cancelled = false;
-    loadMindmapNodes()
+    loadAllMindmapNodes()
       .then((loaded) => {
         if (cancelled) return;
         setNodes(loaded);
@@ -153,8 +153,8 @@ const TaskVerwaltung = () => {
             Task-Verwaltung
           </h1>
           <p className="text-xs text-gray-500 dark:text-dark-textMuted">
-            Alle Tasks aus der Mindmap — mit Details, Bildern, Subtasks und
-            Zeiterfassung
+            Alle Tasks aus allen Planungs-Boards — mit Details, Bildern, Subtasks
+            und Zeiterfassung
           </p>
         </div>
       </div>
@@ -205,11 +205,11 @@ const TaskVerwaltung = () => {
               : 'Keine Tasks für diesen Filter.'}
           </p>
           <Link
-            to="/mindmap"
+            to="/planung"
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:underline dark:text-dark-accentRed"
           >
             <Network className="h-4 w-4" />
-            Zur Mindmap
+            Zur Planung
           </Link>
         </div>
       ) : (

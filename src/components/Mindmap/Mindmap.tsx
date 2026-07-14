@@ -1,21 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import {
+  ArrowLeft,
   ChevronsDownUp,
   ChevronsUpDown,
   Maximize2,
   Network,
   Trash2,
+  Workflow,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { MindmapNode, MindmapNodeType, MindmapViewport } from '../../types/mindmap';
+import {
+  MindmapBoard,
+  MindmapNode,
+  MindmapNodeType,
+  MindmapViewport,
+} from '../../types/mindmap';
 import {
   createMindmapNode,
   deleteMindmapNodes,
-  loadMindmapNodes,
+  deleteTaskAnhaenge,
+  getBoard,
+  loadBoardNodes,
   loadViewport,
-  ROOT_NODE_ID,
   saveViewport,
   subscribeMindmap,
   updateMindmapNode,
@@ -23,6 +32,7 @@ import {
 import { getCachedUsersList } from '../../services/userCacheService';
 import {
   cardHeight,
+  findRoot,
   getDescendantIds,
   getKnotenChildren,
   getTasks,
@@ -38,11 +48,19 @@ const MAX_SCALE = 2;
 // Textänderungen werden gebündelt rausgeschrieben (nicht pro Tastendruck)
 const WRITE_DEBOUNCE_MS = 600;
 
-const Mindmap = () => {
+interface BoardAnsichtProps {
+  boardId: string;
+}
+
+const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
+  const [board, setBoard] = useState<MindmapBoard | null>(null);
   const [nodes, setNodes] = useState<Record<string, MindmapNode>>({});
   const [loading, setLoading] = useState(true);
-  const [viewport, setViewport] = useState<MindmapViewport>(() => loadViewport());
+  const [viewport, setViewport] = useState<MindmapViewport>(() =>
+    loadViewport(boardId)
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [taskModalId, setTaskModalId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -71,24 +89,42 @@ const Mindmap = () => {
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
 
+  const istProzess = board?.typ === 'prozess';
+
   // Initial laden + Realtime-Subscription für Änderungen anderer User
   useEffect(() => {
     let cancelled = false;
-    loadMindmapNodes()
-      .then((loaded) => {
+    Promise.all([getBoard(boardId), loadBoardNodes(boardId)])
+      .then(async ([loadedBoard, loadedNodes]) => {
         if (cancelled) return;
-        setNodes(loaded);
+        // Falls das Board (noch) keinen Wurzelknoten hat, einen anlegen
+        if (loadedBoard && !findRoot(loadedNodes)) {
+          const root: MindmapNode = {
+            id: crypto.randomUUID(),
+            boardId,
+            parentId: null,
+            type: 'knoten',
+            titel: loadedBoard.name,
+            collapsed: false,
+            sortOrder: 0,
+          };
+          await createMindmapNode(root).catch(() => undefined);
+          loadedNodes[root.id] = root;
+        }
+        setBoard(loadedBoard);
+        setNodes(loadedNodes);
         setLoading(false);
       })
       .catch((error) => {
-        console.error('❌ Mindmap konnte nicht geladen werden:', error);
+        console.error('❌ Board konnte nicht geladen werden:', error);
         if (!cancelled) {
-          toast.error('Mindmap konnte nicht geladen werden');
+          toast.error('Board konnte nicht geladen werden');
           setLoading(false);
         }
       });
 
     const unsubscribe = subscribeMindmap((event, node) => {
+      if (node.boardId !== boardId) return;
       if (event === 'delete') {
         setNodes((prev) => {
           if (!prev[node.id]) return prev;
@@ -112,35 +148,34 @@ const Mindmap = () => {
       pending.forEach((timeout) => clearTimeout(timeout));
       pending.clear();
     };
-  }, []);
+  }, [boardId]);
 
-  // Ansicht (Pan/Zoom) bleibt pro Browser lokal
+  // Ansicht (Pan/Zoom) bleibt pro Browser und Board lokal
   useEffect(() => {
-    const timeout = setTimeout(() => saveViewport(viewport), 300);
+    const timeout = setTimeout(() => saveViewport(boardId, viewport), 300);
     return () => clearTimeout(timeout);
-  }, [viewport]);
+  }, [boardId, viewport]);
+
+  const rootId = useMemo(() => findRoot(nodes)?.id ?? '', [nodes]);
 
   // Organigramm-Layout: Positionen werden komplett aus der Hierarchie berechnet
-  const layout = useMemo(() => layoutTree(nodes, ROOT_NODE_ID), [nodes]);
+  const layout = useMemo(() => layoutTree(nodes, rootId), [nodes, rootId]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
 
   // Root nach dem ersten Laden mittig oben platzieren
   useEffect(() => {
-    if (loading) return;
+    if (loading || !rootId) return;
     const el = containerRef.current;
     if (!el || !isFresh.current) return;
     isFresh.current = false;
-    const rootPos = layoutTree(nodesRef.current, ROOT_NODE_ID)[ROOT_NODE_ID] ?? {
-      x: 0,
-      y: 0,
-    };
+    const rootPos = layoutRef.current[rootId] ?? { x: 0, y: 0 };
     setViewport({
       x: el.clientWidth / 2 - NODE_WIDTH / 2 - rootPos.x,
       y: 48 - rootPos.y,
       scale: 1,
     });
-  }, [loading]);
+  }, [loading, rootId]);
 
   /** Debounced Write-Through: lokalen Stand nach kurzer Ruhe nach Appwrite schreiben */
   const scheduleUpsert = (id: string) => {
@@ -154,7 +189,7 @@ const Mindmap = () => {
         const node = nodesRef.current[id];
         if (!node) return;
         updateMindmapNode(node).catch((error) => {
-          console.error('❌ Mindmap-Knoten nicht gespeichert:', error);
+          console.error('❌ Knoten nicht gespeichert:', error);
           toast.error(`„${node.titel}" konnte nicht gespeichert werden`);
         });
       }, WRITE_DEBOUNCE_MS)
@@ -283,11 +318,30 @@ const Mindmap = () => {
     const sortOrder = siblings.length
       ? Math.max(...siblings.map((s) => s.sortOrder ?? 0)) + 1
       : 0;
+    // Nach Entscheidungen die Kanten mit Ja/Nein vorbelegen
+    const edgeLabel =
+      type !== 'task' && parent.type === 'entscheidung'
+        ? siblings.length === 0
+          ? 'Ja'
+          : siblings.length === 1
+            ? 'Nein'
+            : ''
+        : '';
+    const titel =
+      type === 'task'
+        ? 'Neuer Task'
+        : type === 'entscheidung'
+          ? 'Entscheidung?'
+          : istProzess
+            ? 'Neuer Schritt'
+            : 'Neuer Knoten';
     const newNode: MindmapNode = {
       id,
+      boardId,
       parentId,
       type,
-      titel: type === 'task' ? 'Neuer Task' : 'Neuer Knoten',
+      titel,
+      edgeLabel,
       collapsed: false,
       sortOrder,
       ...(type === 'task'
@@ -302,7 +356,7 @@ const Mindmap = () => {
     }));
     if (parent.collapsed) scheduleUpsert(parentId);
     createMindmapNode(newNode).catch((error) => {
-      console.error('❌ Mindmap-Knoten nicht angelegt:', error);
+      console.error('❌ Knoten nicht angelegt:', error);
       toast.error('Konnte nicht angelegt werden');
       setNodes((prev) => {
         const next = { ...prev };
@@ -320,18 +374,24 @@ const Mindmap = () => {
 
   /** Löschen immer mit Sicherheitsabfrage — erst der Dialog, dann deleteNode */
   const requestDelete = (id: string) => {
-    if (id === ROOT_NODE_ID) return;
+    if (nodes[id]?.parentId === null) return; // Root ist nicht löschbar
     setConfirmDeleteId(id);
   };
 
   const deleteNode = (id: string) => {
-    if (id === ROOT_NODE_ID) return;
+    const node = nodesRef.current[id];
+    if (!node || node.parentId === null) return;
     const doomed = [id, ...getDescendantIds(nodesRef.current, id)];
     const doomedSet = new Set(doomed);
+    // Anhänge betroffener Tasks (Subtasks, Zeiten, Bilder) mit aufräumen
+    const tasks = doomed
+      .map((doomedId) => nodesRef.current[doomedId])
+      .filter((n): n is MindmapNode => !!n && n.type === 'task');
     setNodes((prev) =>
       Object.fromEntries(Object.entries(prev).filter(([k]) => !doomedSet.has(k)))
     );
     deleteMindmapNodes(doomed);
+    deleteTaskAnhaenge(tasks).catch(() => undefined);
     if (doomed.length > 1) {
       toast.info(`${doomed.length} Knoten gelöscht`);
     }
@@ -344,7 +404,7 @@ const Mindmap = () => {
   const hatKinder = useMemo(() => {
     const parents = new Set<string>();
     for (const n of Object.values(nodes)) {
-      if (n.parentId && n.type === 'knoten') parents.add(n.parentId);
+      if (n.parentId && n.type !== 'task') parents.add(n.parentId);
     }
     return parents;
   }, [nodes]);
@@ -384,7 +444,7 @@ const Mindmap = () => {
   const resetView = () => {
     const el = containerRef.current;
     if (!el) return;
-    const rootPos = layout[ROOT_NODE_ID] ?? { x: 0, y: 0 };
+    const rootPos = layout[rootId] ?? { x: 0, y: 0 };
     setViewport({
       x: el.clientWidth / 2 - NODE_WIDTH / 2 - rootPos.x,
       y: 48 - rootPos.y,
@@ -397,16 +457,16 @@ const Mindmap = () => {
     if (e.target !== e.currentTarget) return;
     e.preventDefault();
     setEditingId(null);
+    setEditingEdgeId(null);
     panState.current = { lastX: e.clientX, lastY: e.clientY };
   };
 
   const beginReorder = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
     // Root hat keine Geschwister; Buttons/Inputs bleiben normale Klickziele
-    if (id === ROOT_NODE_ID) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('input, button, textarea, label, [role="checkbox"]')) return;
     const node = nodes[id];
     if (!node?.parentId) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, textarea, label, [role="checkbox"]')) return;
     reorderState.current = {
       id,
       parentId: node.parentId,
@@ -423,7 +483,7 @@ const Mindmap = () => {
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
   const { x: vx, y: vy, scale } = viewport;
 
-  // Orthogonale Organigramm-Kanten: Eltern-Unterkante → Kind-Oberkante
+  // Orthogonale Kanten: Eltern-Unterkante → Kind-Oberkante
   const edges = visibleNodes
     .filter((n) => n.parentId && visibleIds.has(n.parentId))
     .map((n) => {
@@ -434,9 +494,14 @@ const Mindmap = () => {
       const x2 = c.x + NODE_WIDTH / 2;
       const y2 = c.y;
       const midY = (y1 + y2) / 2;
+      const parentIstEntscheidung = nodes[n.parentId!]?.type === 'entscheidung';
       return {
-        id: n.id,
+        node: n,
         d: `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`,
+        labelX: x2,
+        labelY: (midY + y2) / 2,
+        // Nach Entscheidungen ist die Kante immer beschriftbar ("Ja"/"Nein"/…)
+        zeigeLabel: parentIstEntscheidung || !!n.edgeLabel,
       };
     });
 
@@ -446,22 +511,35 @@ const Mindmap = () => {
     ? getDescendantIds(nodes, confirmNode.id).length
     : 0;
 
+  const BoardIcon = istProzess ? Workflow : Network;
+
   return (
     <div className="p-4 sm:p-6">
       {/* Kopfzeile mit Aktionen */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-red-600 to-orange-600 shadow-md">
-            <Network className="h-5 w-5 text-white" />
+          <Link
+            to="/planung"
+            title="Zur Board-Übersicht"
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-textMuted dark:hover:bg-dark-surfaceHover"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r shadow-md ${
+              istProzess ? 'from-blue-500 to-cyan-600' : 'from-teal-500 to-emerald-600'
+            }`}
+          >
+            <BoardIcon className="h-5 w-5 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-              Mindmap
+              {board?.name ?? 'Board'}
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
-              Geteilt mit dem ganzen Team · Doppelklick: umbenennen · Karte
-              seitlich ziehen: Reihenfolge tauschen · Scrollen/Fläche ziehen:
-              Ansicht bewegen · Pinch oder Ctrl+Scrollen: zoomen
+              {istProzess
+                ? 'Prozess-Diagramm · Kanten nach Entscheidungen beschriften (Ja/Nein) · geteilt mit dem Team'
+                : 'Organigramm · Doppelklick: umbenennen · Karte seitlich ziehen: Reihenfolge tauschen · geteilt mit dem Team'}
             </p>
           </div>
         </div>
@@ -528,7 +606,7 @@ const Mindmap = () => {
             <div className="text-center">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-b-2 border-red-600"></div>
               <p className="mt-3 text-sm text-gray-500 dark:text-dark-textMuted">
-                Lade Mindmap…
+                Lade Board…
               </p>
             </div>
           </div>
@@ -547,7 +625,7 @@ const Mindmap = () => {
             >
               {edges.map((edge) => (
                 <path
-                  key={edge.id}
+                  key={edge.node.id}
                   d={edge.d}
                   fill="none"
                   strokeWidth={2}
@@ -555,13 +633,56 @@ const Mindmap = () => {
                 />
               ))}
             </svg>
+
+            {/* Kantenbeschriftungen (Ja/Nein nach Entscheidungen) */}
+            {edges
+              .filter((edge) => edge.zeigeLabel)
+              .map((edge) => (
+                <div
+                  key={`label-${edge.node.id}`}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 transition-[left,top] duration-200"
+                  style={{ left: edge.labelX, top: edge.labelY }}
+                >
+                  {editingEdgeId === edge.node.id ? (
+                    <input
+                      autoFocus
+                      defaultValue={edge.node.edgeLabel ?? ''}
+                      onBlur={(e) => {
+                        patchNode(edge.node.id, { edgeLabel: e.target.value.trim() });
+                        setEditingEdgeId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingEdgeId(null);
+                      }}
+                      className="w-20 rounded-full border border-amber-400 bg-white px-2 py-0.5 text-center text-xs font-semibold text-gray-900 focus:outline-none dark:bg-dark-input dark:text-dark-text"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setEditingEdgeId(edge.node.id)}
+                      title="Kantenbeschriftung ändern"
+                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold shadow-sm ${
+                        edge.node.edgeLabel?.toLowerCase() === 'ja'
+                          ? 'border-green-300 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/40 dark:text-dark-accentGreen'
+                          : edge.node.edgeLabel?.toLowerCase() === 'nein'
+                            ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/40 dark:text-dark-accentRed'
+                            : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/40 dark:text-dark-accentOrange'
+                      }`}
+                    >
+                      {edge.node.edgeLabel || '?'}
+                    </button>
+                  )}
+                </div>
+              ))}
+
             {visibleNodes.map((node) => (
               <MindmapNodeCard
                 key={node.id}
                 node={node}
                 pos={layout[node.id]}
                 tasks={getTasks(nodes, node.id)}
-                isRoot={node.id === ROOT_NODE_ID}
+                isRoot={node.parentId === null}
+                istProzess={istProzess}
                 childCount={getKnotenChildren(nodes, node.id).length}
                 isEditing={editingId === node.id}
                 isDragging={draggingId === node.id}
@@ -660,6 +781,13 @@ const Mindmap = () => {
       )}
     </div>
   );
+};
+
+/** Route-Wrapper: kompletter Remount beim Board-Wechsel */
+const Mindmap = () => {
+  const { boardId } = useParams<{ boardId: string }>();
+  if (!boardId) return null;
+  return <BoardAnsicht key={boardId} boardId={boardId} />;
 };
 
 export default Mindmap;

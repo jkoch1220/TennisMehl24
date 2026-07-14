@@ -1,5 +1,5 @@
 import { useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -72,7 +72,8 @@ const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht
 const MosaikMigration = lazyWithRetry(() => import('./components/Migration/MosaikMigration'));
 const DuplikatMergeTool = lazyWithRetry(() => import('./components/Duplikate/DuplikatMergeTool'));
 
-// Mindmap-Planungstool + Task-Verwaltung
+// Planung (Organigramm-/Prozess-Boards) + Task-Verwaltung
+const BoardUebersicht = lazyWithRetry(() => import('./components/Mindmap/BoardUebersicht'));
 const Mindmap = lazyWithRetry(() => import('./components/Mindmap/Mindmap'));
 const TaskVerwaltung = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskVerwaltung'));
 const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
@@ -287,11 +288,18 @@ function AuthenticatedContent() {
                       <DuplikatMergeTool />
                     </ProtectedRoute>
                   } />
-                  <Route path="/mindmap" element={
+                  <Route path="/planung" element={
+                    <ProtectedRoute toolId="mindmap">
+                      <BoardUebersicht />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/planung/:boardId" element={
                     <ProtectedRoute toolId="mindmap">
                       <Mindmap />
                     </ProtectedRoute>
                   } />
+                  {/* Alte Route weiterleiten */}
+                  <Route path="/mindmap" element={<Navigate to="/planung" replace />} />
                   <Route path="/tasks" element={
                     <ProtectedRoute toolId="task-verwaltung">
                       <TaskVerwaltung />

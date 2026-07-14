@@ -1,9 +1,9 @@
 /**
- * Mindmap Service
- * Knoten/Tasks liegen geteilt in Appwrite (ein Dokument pro Node, Dokument-ID
- * = Node-ID), damit alle User denselben Stand sehen. Änderungen anderer kommen
- * per Realtime-Subscription rein. Nur die Ansicht (Pan/Zoom) bleibt pro
- * Browser im localStorage.
+ * Planungs-Service (Mindmap/Organigramm + Prozess-Boards)
+ * Boards und Knoten/Tasks liegen geteilt in Appwrite (Dokument-ID = Node-ID),
+ * damit alle User denselben Stand sehen. Änderungen anderer kommen per
+ * Realtime-Subscription rein. Nur die Ansicht (Pan/Zoom) bleibt pro Browser
+ * im localStorage.
  */
 import { ID, Query } from 'appwrite';
 import {
@@ -14,36 +14,30 @@ import {
   PROJECT_ID,
   DATABASE_ID,
   MINDMAP_NODES_COLLECTION_ID,
+  MINDMAP_BOARDS_COLLECTION_ID,
   MINDMAP_SUBTASKS_COLLECTION_ID,
   MINDMAP_ZEITEN_COLLECTION_ID,
   MINDMAP_BILDER_BUCKET_ID,
 } from '../config/appwrite';
 import {
+  MindmapBoard,
+  MindmapBoardTyp,
   MindmapNode,
   MindmapSubtask,
   MindmapViewport,
   MindmapZeiteintrag,
 } from '../types/mindmap';
 
-export const ROOT_NODE_ID = 'root';
-
-const VIEWPORT_STORAGE_KEY = 'tm_mindmap_viewport_v1';
-// Alter Schlüssel der reinen localStorage-Phase — wird einmalig migriert
-const LEGACY_STORAGE_KEY = 'tm_mindmap_v1';
-
-const ROOT_NODE: MindmapNode = {
-  id: ROOT_NODE_ID,
-  parentId: null,
-  type: 'knoten',
-  titel: 'Tennismehl',
-  collapsed: false,
-};
+const VIEWPORT_STORAGE_KEY = 'tm_mindmap_viewport_v2';
 
 const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
   id: doc.$id as string,
+  boardId: (doc.boardId as string) || '',
   parentId: (doc.parentId as string) || null,
-  type: doc.type === 'task' ? 'task' : 'knoten',
+  type:
+    doc.type === 'task' ? 'task' : doc.type === 'entscheidung' ? 'entscheidung' : 'knoten',
   titel: (doc.titel as string) || '',
+  edgeLabel: (doc.edgeLabel as string) || '',
   collapsed: !!doc.collapsed,
   sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
   beschreibung: (doc.beschreibung as string) || '',
@@ -56,9 +50,11 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
 });
 
 const toDocumentData = (node: MindmapNode) => ({
+  boardId: node.boardId,
   parentId: node.parentId ?? '',
   type: node.type,
   titel: node.titel,
+  edgeLabel: node.edgeLabel ?? '',
   collapsed: !!node.collapsed,
   sortOrder: node.sortOrder ?? 0,
   beschreibung: node.beschreibung ?? '',
@@ -69,21 +65,18 @@ const toDocumentData = (node: MindmapNode) => ({
   bilderIds: node.bilderIds ?? [],
 });
 
-/**
- * Alle Nodes laden (paginiert). Stellt sicher, dass der Root-Knoten existiert,
- * und migriert beim allerersten Lauf die alten localStorage-Daten.
- */
-export const loadMindmapNodes = async (): Promise<Record<string, MindmapNode>> => {
+const listAlleDokumente = async (
+  queries: string[]
+): Promise<Record<string, MindmapNode>> => {
   const nodes: Record<string, MindmapNode> = {};
   let cursor: string | undefined;
-
   for (;;) {
-    const queries = [Query.limit(100)];
-    if (cursor) queries.push(Query.cursorAfter(cursor));
+    const seite = [...queries, Query.limit(100)];
+    if (cursor) seite.push(Query.cursorAfter(cursor));
     const response = await databases.listDocuments(
       DATABASE_ID,
       MINDMAP_NODES_COLLECTION_ID,
-      queries
+      seite
     );
     for (const doc of response.documents) {
       const node = mapDocument(doc as unknown as Record<string, unknown>);
@@ -92,48 +85,16 @@ export const loadMindmapNodes = async (): Promise<Record<string, MindmapNode>> =
     if (response.documents.length < 100) break;
     cursor = response.documents[response.documents.length - 1].$id;
   }
-
-  // Einmalige Migration: alte lokale Map hochladen, wenn die Collection leer ist
-  if (Object.keys(nodes).length === 0) {
-    const migrated = await migrateLegacyLocalStorage();
-    Object.assign(nodes, migrated);
-  }
-
-  // Root sicherstellen
-  if (!nodes[ROOT_NODE_ID]) {
-    await createMindmapNode(ROOT_NODE);
-    nodes[ROOT_NODE_ID] = ROOT_NODE;
-  }
-
   return nodes;
 };
 
-const migrateLegacyLocalStorage = async (): Promise<Record<string, MindmapNode>> => {
-  const migrated: Record<string, MindmapNode> = {};
-  try {
-    const stored = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (!stored) return migrated;
-    const legacy = JSON.parse(stored) as { nodes?: Record<string, MindmapNode> };
-    const legacyNodes = Object.values(legacy?.nodes ?? {});
-    if (legacyNodes.length === 0) return migrated;
+/** Alle Nodes eines Boards laden */
+export const loadBoardNodes = (boardId: string): Promise<Record<string, MindmapNode>> =>
+  listAlleDokumente([Query.equal('boardId', boardId)]);
 
-    console.log(`📦 Migriere ${legacyNodes.length} Mindmap-Knoten aus localStorage → Appwrite...`);
-    for (const node of legacyNodes) {
-      try {
-        await createMindmapNode(node);
-        migrated[node.id] = node;
-      } catch (error) {
-        // z. B. 409, wenn ein anderer Browser parallel migriert hat
-        console.warn(`⚠️ Knoten "${node.titel}" nicht migriert:`, error);
-      }
-    }
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-    console.log('✅ Mindmap-Migration abgeschlossen');
-  } catch (error) {
-    console.warn('⚠️ Mindmap-Migration fehlgeschlagen:', error);
-  }
-  return migrated;
-};
+/** Alle Nodes über alle Boards (für die Task-Verwaltung) */
+export const loadAllMindmapNodes = (): Promise<Record<string, MindmapNode>> =>
+  listAlleDokumente([]);
 
 export const createMindmapNode = async (node: MindmapNode): Promise<void> => {
   await databases.createDocument(
@@ -164,8 +125,8 @@ export const deleteMindmapNodes = async (ids: string[]): Promise<void> => {
 };
 
 /**
- * Realtime-Subscription auf die Mindmap-Collection. Liefert die Unsubscribe-
- * Funktion zurück.
+ * Realtime-Subscription auf die Node-Collection. Liefert die Unsubscribe-
+ * Funktion zurück; der Aufrufer filtert nach boardId.
  */
 export const subscribeMindmap = (
   onChange: (event: 'upsert' | 'delete', node: MindmapNode) => void
@@ -180,6 +141,83 @@ export const subscribeMindmap = (
       onChange('upsert', node);
     }
   });
+};
+
+// --- Boards ---
+
+const mapBoard = (doc: Record<string, unknown>): MindmapBoard => ({
+  id: doc.$id as string,
+  name: (doc.name as string) || '',
+  typ: doc.typ === 'prozess' ? 'prozess' : 'organigramm',
+});
+
+export const listBoards = async (): Promise<MindmapBoard[]> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    MINDMAP_BOARDS_COLLECTION_ID,
+    [Query.limit(100)]
+  );
+  return response.documents
+    .map((doc) => mapBoard(doc as unknown as Record<string, unknown>))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+export const getBoard = async (boardId: string): Promise<MindmapBoard | null> => {
+  try {
+    const doc = await databases.getDocument(
+      DATABASE_ID,
+      MINDMAP_BOARDS_COLLECTION_ID,
+      boardId
+    );
+    return mapBoard(doc as unknown as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+};
+
+/** Board anlegen inkl. Wurzelknoten */
+export const createBoard = async (
+  name: string,
+  typ: MindmapBoardTyp
+): Promise<MindmapBoard> => {
+  const doc = await databases.createDocument(
+    DATABASE_ID,
+    MINDMAP_BOARDS_COLLECTION_ID,
+    ID.unique(),
+    { name, typ }
+  );
+  const board = mapBoard(doc as unknown as Record<string, unknown>);
+  await createMindmapNode({
+    id: crypto.randomUUID(),
+    boardId: board.id,
+    parentId: null,
+    type: 'knoten',
+    titel: typ === 'prozess' ? `Start: ${name}` : name,
+    collapsed: false,
+    sortOrder: 0,
+  });
+  return board;
+};
+
+export const updateBoard = async (board: MindmapBoard): Promise<void> => {
+  await databases.updateDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, board.id, {
+    name: board.name,
+    typ: board.typ,
+  });
+};
+
+/** Board inkl. aller Knoten, Tasks und Task-Anhänge löschen */
+export const deleteBoard = async (boardId: string): Promise<void> => {
+  const nodes = await loadBoardNodes(boardId);
+  const tasks = Object.values(nodes).filter((n) => n.type === 'task');
+  await deleteTaskAnhaenge(tasks);
+  await deleteMindmapNodes(Object.keys(nodes));
+  await databases.deleteDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, boardId);
+};
+
+export const subscribeBoards = (onChange: () => void): (() => void) => {
+  const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_BOARDS_COLLECTION_ID}.documents`;
+  return client.subscribe(channel, () => onChange());
 };
 
 // --- Subtasks (Checkliste pro Task) ---
@@ -323,25 +361,28 @@ export const deleteTaskAnhaenge = async (tasks: MindmapNode[]): Promise<void> =>
   }
 };
 
-// --- Ansicht (Pan/Zoom) bleibt pro Browser lokal ---
+// --- Ansicht (Pan/Zoom) bleibt pro Browser und Board lokal ---
 
-export const loadViewport = (): MindmapViewport => {
+export const loadViewport = (boardId: string): MindmapViewport => {
   try {
-    const stored = localStorage.getItem(VIEWPORT_STORAGE_KEY);
+    const stored = localStorage.getItem(`${VIEWPORT_STORAGE_KEY}_${boardId}`);
     if (stored) {
       const viewport = JSON.parse(stored) as MindmapViewport;
       if (typeof viewport?.scale === 'number') return viewport;
     }
   } catch (error) {
-    console.warn('⚠️ Mindmap-Ansicht konnte nicht geladen werden:', error);
+    console.warn('⚠️ Board-Ansicht konnte nicht geladen werden:', error);
   }
   return { x: 0, y: 0, scale: 1 };
 };
 
-export const saveViewport = (viewport: MindmapViewport): void => {
+export const saveViewport = (boardId: string, viewport: MindmapViewport): void => {
   try {
-    localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport));
+    localStorage.setItem(
+      `${VIEWPORT_STORAGE_KEY}_${boardId}`,
+      JSON.stringify(viewport)
+    );
   } catch (error) {
-    console.warn('⚠️ Mindmap-Ansicht konnte nicht gespeichert werden:', error);
+    console.warn('⚠️ Board-Ansicht konnte nicht gespeichert werden:', error);
   }
 };
