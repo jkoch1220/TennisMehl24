@@ -21,6 +21,7 @@
     "setup:logistikpartner": "npx tsx scripts/setup-logistikpartner.ts",
     "setup:schichtplanung": "node scripts/setup-schichtplanung.js",
     "setup:mosaik-migration": "npx tsx scripts/setup-mosaik-migration.ts",
+    "setup:mindmap": "npx tsx scripts/setup-mindmap.ts",
     "setup:notifications": "node scripts/setup-notifications.mjs",
     "cleanup:mosaik-staging": "npx tsx scripts/cleanup-mosaik-staging.ts",
     "fix:wiki-content": "node scripts/fix-wiki-content-size.js"

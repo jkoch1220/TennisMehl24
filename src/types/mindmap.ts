@@ -21,9 +21,3 @@ export interface MindmapViewport {
   y: number;
   scale: number;
 }
-
-export interface MindmapData {
-  version: 1;
-  nodes: Record<string, MindmapNode>;
-  viewport: MindmapViewport;
-}
