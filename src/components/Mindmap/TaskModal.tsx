@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  CalendarClock,
   CalendarDays,
   CircleCheck,
   Circle,
@@ -11,14 +12,17 @@ import {
   X,
 } from 'lucide-react';
 import { MindmapNode } from '../../types/mindmap';
-import { istTaskUeberfaellig } from './mindmapUtils';
+import { istReviewFaellig, istTaskUeberfaellig } from './mindmapUtils';
 
 interface TaskModalProps {
   task: MindmapNode;
   knotenTitel: string; // Titel des Eltern-Knotens (Kontext im Modal-Kopf)
   onPatch: (
     fields: Partial<
-      Pick<MindmapNode, 'titel' | 'beschreibung' | 'faelligAm' | 'zustaendig' | 'erledigt'>
+      Pick<
+        MindmapNode,
+        'titel' | 'beschreibung' | 'faelligAm' | 'reviewAm' | 'zustaendig' | 'erledigt'
+      >
     >
   ) => void;
   onDelete: () => void;
@@ -55,6 +59,7 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
   };
 
   const ueberfaellig = istTaskUeberfaellig(task);
+  const reviewFaellig = istReviewFaellig(task);
 
   const inputClasses =
     'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-dark-border dark:bg-dark-input dark:text-dark-text';
@@ -152,6 +157,23 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
                 value={task.zustaendig ?? ''}
                 onChange={(e) => onPatch({ zustaendig: e.target.value })}
                 placeholder="Wer kümmert sich?"
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-dark-textMuted">
+                <CalendarClock className="h-3.5 w-3.5" />
+                Review-Datum
+                {reviewFaellig && (
+                  <span className="font-semibold text-amber-600 dark:text-dark-accentOrange">
+                    · Review fällig
+                  </span>
+                )}
+              </label>
+              <input
+                type="date"
+                value={task.reviewAm ?? ''}
+                onChange={(e) => onPatch({ reviewAm: e.target.value })}
                 className={inputClasses}
               />
             </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  CalendarClock,
   CalendarDays,
   ChevronRight,
   Circle,
@@ -18,9 +19,9 @@ import {
   subscribeMindmap,
   updateMindmapNode,
 } from '../../services/mindmapService';
-import { istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
+import { istReviewFaellig, istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
 
-type StatusFilter = 'alle' | 'offen' | 'ueberfaellig' | 'erledigt';
+type StatusFilter = 'alle' | 'offen' | 'ueberfaellig' | 'review' | 'erledigt';
 
 /** Pfad vom Task hoch bis zum Root, z. B. "Tennismehl › Instandhaltung › Radlader" */
 const knotenPfad = (
@@ -98,6 +99,7 @@ const TaskVerwaltung = () => {
     if (status === 'offen' && task.erledigt) return false;
     if (status === 'erledigt' && !task.erledigt) return false;
     if (status === 'ueberfaellig' && !istTaskUeberfaellig(task)) return false;
+    if (status === 'review' && !istReviewFaellig(task)) return false;
     if (zustaendigFilter !== 'alle' && task.zustaendig !== zustaendigFilter)
       return false;
     if (suche) {
@@ -115,6 +117,7 @@ const TaskVerwaltung = () => {
 
   const offen = alleTasks.filter((t) => !t.task.erledigt).length;
   const ueberfaellig = alleTasks.filter((t) => istTaskUeberfaellig(t.task)).length;
+  const reviewFaellig = alleTasks.filter((t) => istReviewFaellig(t.task)).length;
 
   const toggleErledigt = (task: MindmapNode) => {
     const updated = { ...task, erledigt: !task.erledigt };
@@ -164,6 +167,7 @@ const TaskVerwaltung = () => {
         {filterButton('alle', 'Alle', alleTasks.length)}
         {filterButton('offen', 'Offen', offen)}
         {filterButton('ueberfaellig', 'Überfällig', ueberfaellig)}
+        {filterButton('review', 'Review fällig', reviewFaellig)}
         {filterButton('erledigt', 'Erledigt', alleTasks.length - offen)}
         <div className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
@@ -252,6 +256,19 @@ const TaskVerwaltung = () => {
                   <span className="hidden shrink-0 items-center gap-1 text-xs text-gray-500 sm:flex dark:text-dark-textMuted">
                     <UserRound className="h-3.5 w-3.5" />
                     {task.zustaendig}
+                  </span>
+                )}
+                {task.reviewAm && (
+                  <span
+                    title="Review-Datum"
+                    className={`hidden shrink-0 items-center gap-1 text-xs font-medium sm:flex ${
+                      istReviewFaellig(task)
+                        ? 'text-amber-600 dark:text-dark-accentOrange'
+                        : 'text-gray-400 dark:text-dark-textSubtle'
+                    }`}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {format(parseISO(task.reviewAm), 'dd.MM.yyyy')}
                   </span>
                 )}
                 {task.faelligAm && (

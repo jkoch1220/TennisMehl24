@@ -26,6 +26,7 @@ export interface MindmapNode {
   // Nur für type === 'task':
   beschreibung?: string;
   faelligAm?: string; // ISO-Datum (yyyy-MM-dd), leer = kein Datum
+  reviewAm?: string; // Review-/Wiedervorlage-Datum (yyyy-MM-dd)
   zustaendig?: string;
   erledigt?: boolean;
   geschaetztMinuten?: number; // geschätzter Aufwand für die Zeitmessung

@@ -178,6 +178,7 @@ async function main() {
   await ensureBooleanAttribute(MINDMAP_NODES_COLLECTION_ID, 'collapsed');
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'beschreibung', 10000, false);
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'faelligAm', 10, false);
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'reviewAm', 10, false);
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'zustaendig', 128, false);
   await ensureBooleanAttribute(MINDMAP_NODES_COLLECTION_ID, 'erledigt');
   await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'sortOrder');

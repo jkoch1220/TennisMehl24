@@ -148,3 +148,10 @@ export const istTaskUeberfaellig = (node: MindmapNode): boolean =>
   !node.erledigt &&
   !!node.faelligAm &&
   node.faelligAm < format(new Date(), 'yyyy-MM-dd');
+
+/** Review fällig = Review-Datum erreicht/überschritten und Task noch offen */
+export const istReviewFaellig = (node: MindmapNode): boolean =>
+  node.type === 'task' &&
+  !node.erledigt &&
+  !!node.reviewAm &&
+  node.reviewAm <= format(new Date(), 'yyyy-MM-dd');

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  CalendarClock,
   CalendarDays,
   Circle,
   CircleCheck,
@@ -40,7 +41,7 @@ import {
   uploadTaskBild,
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
-import { istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
+import { istReviewFaellig, istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
 
 const TIMER_STORAGE_KEY = 'tm_task_timer';
 
@@ -313,6 +314,7 @@ const TaskDetail = () => {
   const toggleTaskErledigt = () => patchTask({ erledigt: !taskRef.current?.erledigt });
 
   const ueberfaellig = istTaskUeberfaellig(task);
+  const reviewFaellig = istReviewFaellig(task);
   const erledigteSubtasks = subtasks.filter((s) => s.erledigt).length;
   const geschaetzt = task.geschaetztMinuten ?? 0;
   const fortschritt =
@@ -535,6 +537,26 @@ const TaskDetail = () => {
                   onChange={(e) => patchTask({ faelligAm: e.target.value })}
                   className={inputClasses}
                 />
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-dark-textMuted">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Review-Datum
+                  {reviewFaellig && (
+                    <span className="font-semibold text-amber-600 dark:text-dark-accentOrange">
+                      · Review fällig
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="date"
+                  value={task.reviewAm ?? ''}
+                  onChange={(e) => patchTask({ reviewAm: e.target.value })}
+                  className={inputClasses}
+                />
+                <p className="mt-1 text-xs text-gray-400 dark:text-dark-textSubtle">
+                  Wann soll auf den Task draufgeschaut werden?
+                </p>
               </div>
               <div>
                 <label className="mb-1 flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-dark-textMuted">

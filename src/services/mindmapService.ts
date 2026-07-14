@@ -42,6 +42,7 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
   sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
   beschreibung: (doc.beschreibung as string) || '',
   faelligAm: (doc.faelligAm as string) || '',
+  reviewAm: (doc.reviewAm as string) || '',
   zustaendig: (doc.zustaendig as string) || '',
   erledigt: !!doc.erledigt,
   geschaetztMinuten:
@@ -59,6 +60,7 @@ const toDocumentData = (node: MindmapNode) => ({
   sortOrder: node.sortOrder ?? 0,
   beschreibung: node.beschreibung ?? '',
   faelligAm: node.faelligAm ?? '',
+  reviewAm: node.reviewAm ?? '',
   zustaendig: node.zustaendig ?? '',
   erledigt: !!node.erledigt,
   geschaetztMinuten: node.geschaetztMinuten ?? 0,
