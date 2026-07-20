@@ -6,6 +6,7 @@ import {
   ChevronsUpDown,
   Maximize2,
   Network,
+  Plus,
   Trash2,
   Workflow,
   ZoomIn,
@@ -64,17 +65,23 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   const [taskModalId, setTaskModalId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Verbinden-Modus: Quelle gewählt, nächster Karten-Klick setzt das Ziel
+  const [connectFromId, setConnectFromId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ lastX: number; lastY: number } | null>(null);
-  // Umsortieren per Drag: gestartet erst ab kleinem Schwellwert, damit
-  // Klicks und Doppelklicks auf der Karte normal funktionieren
+  // Karten-Drag: seitlich = Geschwister-Reihenfolge, nach unten = Abstand zum
+  // Eltern-Knoten. Gestartet erst ab kleinem Schwellwert, damit Klicks und
+  // Doppelklicks auf der Karte normal funktionieren.
   const reorderState = useRef<{
     id: string;
     parentId: string;
     pointerStartX: number;
+    pointerStartY: number;
+    startAbstand: number;
     started: boolean;
     changed: boolean;
+    abstandChanged: boolean;
   } | null>(null);
   // Noch nicht rausgeschriebene lokale Änderungen (Node-ID → Debounce-Timer).
   // Solange ein Write aussteht, überschreiben Realtime-Events diesen Node nicht.
@@ -199,12 +206,17 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // Pan + Umsortieren über globale Pointer-Events
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Karte horizontal ziehen → Geschwister-Reihenfolge ändern (rastet ein)
+      // Karte ziehen: seitlich = Reihenfolge, nach unten = Abstand zum Parent
       const drag = reorderState.current;
       if (drag) {
         e.preventDefault();
         if (!drag.started) {
-          if (Math.abs(e.clientX - drag.pointerStartX) < 6) return;
+          if (
+            Math.abs(e.clientX - drag.pointerStartX) < 6 &&
+            Math.abs(e.clientY - drag.pointerStartY) < 6
+          ) {
+            return;
+          }
           drag.started = true;
           setDraggingId(drag.id);
         }
@@ -212,6 +224,22 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
         if (!el) return;
         const rect = el.getBoundingClientRect();
         const v = viewportRef.current;
+
+        // Vertikal: zusätzlichen Abstand zum Eltern-Knoten einstellen
+        const dyCanvas = (e.clientY - drag.pointerStartY) / v.scale;
+        const neuAbstand = Math.min(
+          600,
+          Math.max(0, Math.round(drag.startAbstand + dyCanvas))
+        );
+        if (neuAbstand !== (nodesRef.current[drag.id]?.abstandOben ?? 0)) {
+          setNodes((prev) =>
+            prev[drag.id]
+              ? { ...prev, [drag.id]: { ...prev[drag.id], abstandOben: neuAbstand } }
+              : prev
+          );
+          drag.abstandChanged = true;
+        }
+
         // Cursor-Position in Canvas-Koordinaten
         const canvasX = (e.clientX - rect.left - v.x) / v.scale;
         const siblings = getKnotenChildren(nodesRef.current, drag.parentId);
@@ -260,6 +288,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           getKnotenChildren(nodesRef.current, drag.parentId).forEach((s) =>
             scheduleUpsert(s.id)
           );
+        } else if (drag.started && drag.abstandChanged) {
+          scheduleUpsert(drag.id);
         }
       }
       panState.current = null;
@@ -387,9 +417,32 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     const tasks = doomed
       .map((doomedId) => nodesRef.current[doomedId])
       .filter((n): n is MindmapNode => !!n && n.type === 'task');
+    // Freie Verbindungen, die auf gelöschte Knoten zeigen, mit entfernen
+    const mitToterVerbindung = Object.values(nodesRef.current)
+      .filter(
+        (n) =>
+          !doomedSet.has(n.id) &&
+          n.verbindungen?.some((z) => doomedSet.has(z))
+      )
+      .map((n) => n.id);
     setNodes((prev) =>
-      Object.fromEntries(Object.entries(prev).filter(([k]) => !doomedSet.has(k)))
+      Object.fromEntries(
+        Object.entries(prev)
+          .filter(([k]) => !doomedSet.has(k))
+          .map(([k, n]) =>
+            n.verbindungen?.some((z) => doomedSet.has(z))
+              ? [
+                  k,
+                  {
+                    ...n,
+                    verbindungen: n.verbindungen.filter((z) => !doomedSet.has(z)),
+                  },
+                ]
+              : [k, n]
+          )
+      )
     );
+    mitToterVerbindung.forEach(scheduleUpsert);
     deleteMindmapNodes(doomed);
     deleteTaskAnhaenge(tasks).catch(() => undefined);
     if (doomed.length > 1) {
@@ -456,8 +509,14 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     // Nur auf freier Fläche pannen, nicht auf Karten
     if (e.target !== e.currentTarget) return;
     e.preventDefault();
+    // Offenes Bearbeitungsfeld per Blur speichern (nicht verwerfen) —
+    // preventDefault unterbindet den natürlichen Fokuswechsel
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setEditingId(null);
     setEditingEdgeId(null);
+    setConnectFromId(null);
     panState.current = { lastX: e.clientX, lastY: e.clientY };
   };
 
@@ -471,9 +530,78 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       id,
       parentId: node.parentId,
       pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+      startAbstand: node.abstandOben ?? 0,
       started: false,
       changed: false,
+      abstandChanged: false,
     };
+  };
+
+  /** Neuen Knoten auf der Kante zwischen Parent und Kind einfügen */
+  const insertBetween = (childId: string) => {
+    const child = nodesRef.current[childId];
+    if (!child?.parentId) return;
+    const id = crypto.randomUUID();
+    const neu: MindmapNode = {
+      id,
+      boardId,
+      parentId: child.parentId,
+      type: 'knoten',
+      titel: istProzess ? 'Neuer Schritt' : 'Neuer Knoten',
+      // Der neue Knoten übernimmt Platz und Kantenbeschriftung des Kindes
+      edgeLabel: child.edgeLabel ?? '',
+      collapsed: false,
+      sortOrder: child.sortOrder ?? 0,
+    };
+    setNodes((prev) => ({
+      ...prev,
+      [id]: neu,
+      [childId]: { ...prev[childId], parentId: id, edgeLabel: '', sortOrder: 0 },
+    }));
+    createMindmapNode(neu).catch((error) => {
+      console.error('❌ Knoten nicht angelegt:', error);
+      toast.error('Konnte nicht angelegt werden');
+      setNodes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        if (next[childId]) {
+          next[childId] = {
+            ...next[childId],
+            parentId: child.parentId,
+            edgeLabel: child.edgeLabel ?? '',
+            sortOrder: child.sortOrder ?? 0,
+          };
+        }
+        return next;
+      });
+    });
+    scheduleUpsert(childId);
+    setEditingId(id);
+  };
+
+  /** Verbinden-Modus abschließen: Klick auf die Ziel-Karte */
+  const completeConnect = (targetId: string) => {
+    const fromId = connectFromId;
+    setConnectFromId(null);
+    if (!fromId || fromId === targetId) return;
+    const from = nodesRef.current[fromId];
+    if (!from) return;
+    const vorhandene = from.verbindungen ?? [];
+    if (vorhandene.includes(targetId)) {
+      toast.info('Verbindung existiert bereits');
+      return;
+    }
+    patchNode(fromId, { verbindungen: [...vorhandene, targetId] });
+  };
+
+  const removeVerbindung = (fromId: string, targetId: string) => {
+    const from = nodesRef.current[fromId];
+    if (!from) return;
+    patchNode(fromId, {
+      verbindungen: (from.verbindungen ?? []).filter((z) => z !== targetId),
+    });
+    toast.success('Verbindung entfernt');
   };
 
   const zustaendige = useMemo(() => getCachedUsersList(), []);
@@ -500,10 +628,35 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
         d: `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`,
         labelX: x2,
         labelY: (midY + y2) / 2,
+        // Plus-Button zum Dazwischen-Einfügen auf dem oberen Kantenstück
+        insertX: x1,
+        insertY: (y1 + midY) / 2,
         // Nach Entscheidungen ist die Kante immer beschriftbar ("Ja"/"Nein"/…)
         zeigeLabel: parentIstEntscheidung || !!n.edgeLabel,
       };
     });
+
+  // Freie Verbindungen (z. B. Rücksprünge): rechts an den Karten vorbeigeführt,
+  // jede Verbindung auf einer eigenen "Spur", damit sich Linien nicht überdecken
+  let verbindungsSpur = 0;
+  const freieVerbindungen = visibleNodes.flatMap((n) =>
+    (n.verbindungen ?? [])
+      .filter((zielId) => zielId !== n.id && visibleIds.has(zielId) && layout[zielId])
+      .map((zielId) => {
+        const s = layout[n.id];
+        const t = layout[zielId];
+        const sy = s.y + cardHeight(nodes, n.id) / 2;
+        const ty = t.y + cardHeight(nodes, zielId) / 2;
+        const laneX =
+          Math.max(s.x, t.x) + NODE_WIDTH + 28 + (verbindungsSpur++ % 8) * 14;
+        return {
+          vonId: n.id,
+          zielId,
+          d: `M ${s.x + NODE_WIDTH} ${sy} H ${laneX} V ${ty} H ${t.x + NODE_WIDTH + 6}`,
+          titel: `${n.titel} → ${nodes[zielId]?.titel ?? ''}`,
+        };
+      })
+  );
 
   const modalTask = taskModalId ? nodes[taskModalId] : null;
   const confirmNode = confirmDeleteId ? nodes[confirmDeleteId] : null;
@@ -519,7 +672,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
-            to="/planung"
+            to="/geschaeftsprozesse"
             title="Zur Board-Übersicht"
             className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-textMuted dark:hover:bg-dark-surfaceHover"
           >
@@ -538,8 +691,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
               {istProzess
-                ? 'Prozess-Diagramm · Kanten nach Entscheidungen beschriften (Ja/Nein) · geteilt mit dem Team'
-                : 'Organigramm · Doppelklick: umbenennen · Karte seitlich ziehen: Reihenfolge tauschen · geteilt mit dem Team'}
+                ? 'Prozess-Diagramm · Plus auf der Kante: Schritt dazwischen · Ketten-Symbol: Schritte frei verbinden · Karte nach unten ziehen: Abstand · geteilt mit dem Team'
+                : 'Organigramm · Doppelklick: umbenennen · Karte seitlich ziehen: Reihenfolge · nach unten ziehen: Abstand · geteilt mit dem Team'}
             </p>
           </div>
         </div>
@@ -623,6 +776,22 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
               height="1"
               className="pointer-events-none absolute overflow-visible"
             >
+              <defs>
+                <marker
+                  id="verbindung-pfeil"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto"
+                >
+                  <path
+                    d="M 0 0 L 10 5 L 0 10 z"
+                    className="fill-blue-400 dark:fill-blue-500"
+                  />
+                </marker>
+              </defs>
               {edges.map((edge) => (
                 <path
                   key={edge.node.id}
@@ -632,7 +801,47 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                   className="stroke-gray-300 transition-[d] duration-200 dark:stroke-dark-border"
                 />
               ))}
+              {/* Freie Verbindungen (Rücksprünge) mit Pfeil, Klick entfernt sie */}
+              {freieVerbindungen.map((v) => (
+                <g key={`verbindung-${v.vonId}-${v.zielId}`}>
+                  <path
+                    d={v.d}
+                    fill="none"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    markerEnd="url(#verbindung-pfeil)"
+                    className="stroke-blue-400 transition-[d] duration-200 dark:stroke-blue-500"
+                  />
+                  <path
+                    d={v.d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={14}
+                    style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                    onClick={() => removeVerbindung(v.vonId, v.zielId)}
+                  >
+                    <title>{`Verbindung „${v.titel}" entfernen (Klick)`}</title>
+                  </path>
+                </g>
+              ))}
             </svg>
+
+            {/* Plus-Buttons auf den Kanten: Schritt dazwischen einfügen */}
+            {edges.map((edge) => (
+              <button
+                key={`insert-${edge.node.id}`}
+                onClick={() => insertBetween(edge.node.id)}
+                title={
+                  istProzess
+                    ? 'Schritt dazwischen einfügen'
+                    : 'Knoten dazwischen einfügen'
+                }
+                className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-400 opacity-40 shadow-sm transition-[left,top,opacity,transform] duration-200 hover:scale-125 hover:border-blue-400 hover:text-blue-600 hover:opacity-100 dark:border-dark-border dark:bg-dark-surface dark:text-dark-textMuted"
+                style={{ left: edge.insertX, top: edge.insertY }}
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            ))}
 
             {/* Kantenbeschriftungen (Ja/Nein nach Entscheidungen) */}
             {edges
@@ -686,8 +895,18 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 childCount={getKnotenChildren(nodes, node.id).length}
                 isEditing={editingId === node.id}
                 isDragging={draggingId === node.id}
-                onPointerDown={(e) => beginReorder(e, node.id)}
+                isConnectSource={connectFromId === node.id}
+                onPointerDown={(e) => {
+                  if (connectFromId) {
+                    completeConnect(node.id);
+                  } else {
+                    beginReorder(e, node.id);
+                  }
+                }}
                 onAddChild={(type) => addChild(node.id, type)}
+                onStartConnect={
+                  istProzess ? () => setConnectFromId(node.id) : undefined
+                }
                 onToggleCollapse={() =>
                   patchNode(node.id, { collapsed: !node.collapsed })
                 }
@@ -701,6 +920,14 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 }
               />
             ))}
+          </div>
+        )}
+
+        {/* Hinweis im Verbinden-Modus */}
+        {connectFromId && (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-20 max-w-[90%] -translate-x-1/2 truncate rounded-full bg-blue-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
+            Ziel-Karte anklicken, um „{nodes[connectFromId]?.titel}" zu verbinden
+            — Klick ins Leere bricht ab
           </div>
         )}
 

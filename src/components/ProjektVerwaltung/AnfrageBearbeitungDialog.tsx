@@ -66,6 +66,12 @@ import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { searchEmailsByAddress, Email } from '../../services/emailService';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
+import {
+  berechneGesamtZuschlag,
+  erstelleDieselZuschlagPosition,
+  istDieselZuschlagPosition,
+} from '../../utils/dieselZuschlag';
+import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
 
 // Konstanten
 const FREMDLIEFERUNG_STUNDENLOHN = 108;
@@ -74,6 +80,48 @@ const ABLADUNGSZEIT_MINUTEN = 30;
 const START_PLZ = '97828';
 const DEFAULT_ABSENDER_EMAIL = 'anfrage@tennismehl.com';
 const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
+
+/**
+ * Ergänzt die Dieselpreis-Pauschale (Dieselpreiszuschlag gemäß AGB §5) als Position
+ * im Angebot. Der Zuschlag wird aus den zuschlagsfähigen Positionen (TM-ZM Schüttgut/
+ * Sackware in Tonnen) und dem tagesaktuellen Dieselpreis berechnet.
+ *
+ * Idempotent: eine bereits vorhandene Dieselzuschlag-Position wird zuvor entfernt.
+ * Fällt kein Zuschlag an (Dieselpreis unter Basis oder keine zuschlagsfähigen
+ * Positionen), werden die Positionen unverändert zurückgegeben.
+ */
+async function ergaenzeDieselPauschale(
+  basisPositionen: Position[],
+  plz: string,
+  datum: string
+): Promise<Position[]> {
+  // Bestehende Dieselzuschlag-Position entfernen (Doppelberechnung vermeiden)
+  const ohneDiesel = basisPositionen.filter((p) => !istDieselZuschlagPosition(p));
+
+  try {
+    const preisErgebnis = await holeDieselPreisFuerDatum(datum, plz || START_PLZ);
+    const ergebnis = berechneGesamtZuschlag(ohneDiesel, preisErgebnis.preis, datum);
+
+    if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
+      return ohneDiesel;
+    }
+
+    const dieselPosition = erstelleDieselZuschlagPosition(ergebnis);
+
+    // Vor der Frachtkostenpauschale (TM-FP) einsortieren, sonst ans Ende anhängen
+    const fpIndex = ohneDiesel.findIndex((p) => p.artikelnummer === 'TM-FP');
+    const neuePositionen = [...ohneDiesel];
+    if (fpIndex !== -1) {
+      neuePositionen.splice(fpIndex, 0, dieselPosition);
+    } else {
+      neuePositionen.push(dieselPosition);
+    }
+    return neuePositionen;
+  } catch (error) {
+    console.error('Fehler beim Ergänzen der Dieselpreis-Pauschale:', error);
+    return ohneDiesel;
+  }
+}
 
 interface BearbeitbareDaten {
   kundenname: string;
@@ -509,7 +557,13 @@ const AnfrageBearbeitungDialog = ({
           plz: editedData.plz,
           preisProTonneInklLieferung: editedData.preisProTonne,
         });
-        setAllePositionen(positionenErgebnis.positionen);
+        const heute = new Date().toISOString().split('T')[0];
+        const mitDiesel = await ergaenzeDieselPauschale(
+          positionenErgebnis.positionen,
+          editedData.plz,
+          heute
+        );
+        setAllePositionen(mitDiesel);
       } catch (error) {
         console.error('Fehler beim Generieren der Positionen:', error);
       } finally {
@@ -564,7 +618,13 @@ const AnfrageBearbeitungDialog = ({
         plz: editedData.plz,
         preisProTonneInklLieferung: editedData.preisProTonne,
       });
-      setAllePositionen(positionenErgebnis.positionen);
+      const heute = new Date().toISOString().split('T')[0];
+      const mitDiesel = await ergaenzeDieselPauschale(
+        positionenErgebnis.positionen,
+        editedData.plz,
+        heute
+      );
+      setAllePositionen(mitDiesel);
     } catch (error) {
       console.error('Fehler beim Generieren der Positionen:', error);
       alert('Fehler beim Generieren der Positionen');

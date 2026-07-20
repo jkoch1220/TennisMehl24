@@ -309,9 +309,9 @@ export const ALL_TOOLS: ToolConfig[] = [
   },
   {
     id: 'mindmap',
-    name: 'Planung',
+    name: 'Geschäftsprozesse',
     description: 'Organigramm- und Prozess-Boards: Strukturen gliedern, Abläufe mit Entscheidungen definieren',
-    href: '/planung',
+    href: '/geschaeftsprozesse',
     icon: Network,
     color: 'from-teal-500 to-emerald-600',
   },

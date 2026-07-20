@@ -32,6 +32,13 @@ export interface EmailAccount {
   password?: string; // Nur serverseitig verfügbar
 }
 
+// Inline-Bild für E-Mails (z.B. Signatur-Logos), wird als cid:-Anhang eingebettet
+export interface EmailInlineImage {
+  cid: string;            // Content-ID, im HTML referenziert als src="cid:<cid>"
+  base64: string;         // Bilddaten als Base64
+  contentType: string;    // z.B. image/png
+}
+
 // Request für E-Mail-Versand
 export interface EmailSendRequest {
   to: string;
@@ -42,6 +49,7 @@ export interface EmailSendRequest {
   textBody?: string;      // Plain-Text Fallback
   pdfBase64?: string;     // PDF als Base64-String
   pdfFilename?: string;   // Dateiname für PDF-Anhang
+  inlineImages?: EmailInlineImage[]; // Eingebettete Bilder (Signatur-Logos etc.)
   testMode?: boolean;     // Wenn true, sendet an Test-Adresse
 }
 

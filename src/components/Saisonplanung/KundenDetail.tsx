@@ -13,6 +13,7 @@ import { Adresse } from '../../types/dispo';
 import { Projekt, NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface KundenDetailProps {
   kunde: SaisonKundeMitDaten;
@@ -215,7 +216,13 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
               {kunde.kunde.lieferadresse.plz} {kunde.kunde.lieferadresse.ort}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <OpenInNewTabButton
+              to={`/saisonplanung?kunde=${kunde.kunde.id}`}
+              title="Kunde in neuem Tab öffnen"
+              appearOnGroupHover={false}
+              iconClassName="w-5 h-5"
+            />
             <button
               onClick={onEdit}
               className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
@@ -603,7 +610,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   <div
                     key={(projekt as any).$id || projekt.id}
                     onClick={() => handleProjektClick(projekt)}
-                    className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md dark:shadow-dark-md hover:border-green-300 transition-all cursor-pointer"
+                    className="group border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md dark:shadow-dark-md hover:border-green-300 transition-all cursor-pointer"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -684,6 +691,7 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                           </div>
                         )}
                       </div>
+                      <OpenInNewTabButton to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`} />
                     </div>
                   </div>
                 ))}

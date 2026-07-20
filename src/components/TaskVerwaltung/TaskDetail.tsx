@@ -41,6 +41,7 @@ import {
   uploadTaskBild,
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
+import AutoGrowTextarea from '../Mindmap/AutoGrowTextarea';
 import { istReviewFaellig, istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
 
 const TIMER_STORAGE_KEY = 'tm_task_timer';
@@ -358,7 +359,7 @@ const TaskDetail = () => {
           }`}
         />
         <Link
-          to={task.boardId ? `/planung/${task.boardId}` : '/planung'}
+          to={task.boardId ? `/geschaeftsprozesse/${task.boardId}` : '/geschaeftsprozesse'}
           className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-text dark:hover:bg-dark-surfaceHover"
         >
           <Network className="h-4 w-4" />
@@ -374,12 +375,11 @@ const TaskDetail = () => {
             <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-dark-text">
               Beschreibung
             </h2>
-            <textarea
+            <AutoGrowTextarea
               value={task.beschreibung ?? ''}
               onChange={(e) => patchTask({ beschreibung: e.target.value })}
-              rows={6}
               placeholder="Beschreibe vollumfänglich, worum es bei diesem Task geht…"
-              className={`${inputClasses} resize-y`}
+              className={`${inputClasses} min-h-36`}
             />
           </section>
 

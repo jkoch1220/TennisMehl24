@@ -17,7 +17,7 @@ import {
   Printer,
   Truck,
   Receipt,
-  ExternalLink,
+  ArrowRight,
   Search,
   SortAsc,
   SortDesc,
@@ -25,6 +25,7 @@ import {
 import { Projekt } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { useNavigate } from 'react-router-dom';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 // Checklisten-Status Typen
 type ChecklistenStatus = 'abgestimmt' | 'gedruckt' | 'geliefert' | 'abgerechnet';
@@ -584,8 +585,12 @@ const DispoCheckliste = ({ projekte }: DispoChecklisteProps) => {
                           className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 hover:text-orange-500 transition-colors"
                           title="Projekt öffnen"
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <ArrowRight className="w-4 h-4" />
                         </button>
+                        <OpenInNewTabButton
+                          to={`/projektabwicklung/${projektId}`}
+                          appearOnGroupHover={false}
+                        />
                       </td>
                     </tr>
                   );

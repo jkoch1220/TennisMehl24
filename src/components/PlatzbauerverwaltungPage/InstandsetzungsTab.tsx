@@ -17,7 +17,7 @@ import {
   RefreshCw,
   ChevronRight,
   AlertCircle,
-  ExternalLink,
+  ArrowRight,
 } from 'lucide-react';
 import {
   Instandsetzungsauftrag,
@@ -31,6 +31,7 @@ import {
 import InstandsetzungsauftragFormular from './InstandsetzungsauftragFormular';
 import InstandsetzungsauftragDetail from './InstandsetzungsauftragDetail';
 import { useNavigate } from 'react-router-dom';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface InstandsetzungsTabProps {
   platzbauerId: string;
@@ -318,16 +319,24 @@ const InstandsetzungsTab = ({
                     </span>
                   )}
                   {projekt && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleProjektOeffnen(projekt.$id || projekt.id);
-                      }}
-                      className="p-1 text-gray-400 hover:text-amber-500 transition-colors"
-                      title="Projekt öffnen"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleProjektOeffnen(projekt.$id || projekt.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-amber-500 transition-colors"
+                        title="Projekt öffnen"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                      <OpenInNewTabButton
+                        to={`/projektabwicklung/${projekt.$id || projekt.id}`}
+                        appearOnGroupHover={false}
+                        className="p-1"
+                        iconClassName="w-3.5 h-3.5"
+                      />
+                    </div>
                   )}
                 </div>
               ))}

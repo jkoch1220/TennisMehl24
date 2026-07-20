@@ -22,6 +22,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import PlatzbauerlVereine from './PlatzbauerlVereine';
 import InstandsetzungsTab from './InstandsetzungsTab';
 import KundenFormular from '../Saisonplanung/KundenFormular';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface PlatzbauerlDetailPopupProps {
   platzbauerId: string;
@@ -549,6 +550,7 @@ const ProjekteTab = ({
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[projekt.status]}`}>
                   {statusLabels[projekt.status]}
                 </span>
+                <OpenInNewTabButton to={`/platzbauer-projektabwicklung/${projekt.id}`} />
                 <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-amber-500" />
               </div>
             </div>

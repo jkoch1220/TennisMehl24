@@ -190,6 +190,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
   const [rechnungSending, setRechnungSending] = useState(false);
   const [rechnungEmailText, setRechnungEmailText] = useState('');
   const [rechnungSignatur, setRechnungSignatur] = useState('');
+  const [rechnungBetrag, setRechnungBetrag] = useState('');
+  const [rechnungBetragTyp, setRechnungBetragTyp] = useState<'netto' | 'brutto'>('netto');
 
   // Alle bestellten Projekte (Status >= auftragsbestaetigung)
   const bestellteProjekte = useMemo(() => {
@@ -701,8 +703,31 @@ Mit sportlichen Grüßen`;
   }, [draggedProjektId, bestellungen]);
 
   // === RECHNUNGS-FUNKTIONEN ===
+  // Parst deutsche Betragseingaben ("1.234,56" oder "1234,56" oder "1234.56")
+  const parseBetrag = (eingabe: string): number => {
+    const bereinigt = eingabe.trim().replace(/\s|€/g, '');
+    const normalisiert = bereinigt.includes(',')
+      ? bereinigt.replace(/\./g, '').replace(',', '.')
+      : bereinigt;
+    const wert = parseFloat(normalisiert);
+    return isNaN(wert) ? 0 : wert;
+  };
+
+  const MWST_SATZ = 0.19;
+
+  // Abgeleitete Beträge aus der Modal-Eingabe
+  const rechnungBetragWert = parseBetrag(rechnungBetrag);
+  const rechnungNetto = Math.round((rechnungBetragTyp === 'brutto' ? rechnungBetragWert / (1 + MWST_SATZ) : rechnungBetragWert) * 100) / 100;
+  const rechnungBrutto = Math.round((rechnungBetragTyp === 'brutto' ? rechnungBetragWert : rechnungBetragWert * (1 + MWST_SATZ)) * 100) / 100;
+  const rechnungMwst = Math.round((rechnungBrutto - rechnungNetto) * 100) / 100;
+
+  const formatEuro = (wert: number) =>
+    wert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+
   const openRechnungModal = async (bestellung: HydrocourtBestellung) => {
     setRechnungBestellung(bestellung);
+    setRechnungBetrag((bestellung.position.gesamtpreis || 0).toFixed(2).replace('.', ','));
+    setRechnungBetragTyp('netto');
 
     // Standard-Email-Text laden
     const emailTemplate = await generiereStandardEmail('rechnung', '', bestellung.aktuellerKundenname || bestellung.projekt.kundenname || '');
@@ -722,6 +747,11 @@ Vielen Dank für Ihren Auftrag!`);
     const kundenEmail = rechnungBestellung.projekt.kundenEmail;
     if (!kundenEmail) {
       alert('Keine Kunden-E-Mail-Adresse vorhanden');
+      return;
+    }
+
+    if (rechnungNetto <= 0) {
+      alert('Bitte einen gültigen Rechnungsbetrag eingeben');
       return;
     }
 
@@ -773,7 +803,7 @@ Vielen Dank für Ihren Auftrag!`);
         rechnungsdatum: heute,
         leistungsdatum: rechnungBestellung.lieferdatum || heute,
 
-        // Positionen
+        // Positionen (Betrag ggf. im Modal angepasst — rechnungNetto ist immer der Nettowert)
         positionen: [{
           id: crypto.randomUUID(),
           artikelnummer: rechnungBestellung.position.artikelnummer || 'TM-HYC',
@@ -781,8 +811,8 @@ Vielen Dank für Ihren Auftrag!`);
           beschreibung: rechnungBestellung.position.beschreibung || '',
           menge: rechnungBestellung.position.menge || 1,
           einheit: rechnungBestellung.position.einheit || 't',
-          einzelpreis: rechnungBestellung.position.einzelpreis || 0,
-          gesamtpreis: rechnungBestellung.position.gesamtpreis || 0,
+          einzelpreis: Math.round((rechnungNetto / (rechnungBestellung.position.menge || 1)) * 100) / 100,
+          gesamtpreis: rechnungNetto,
         }],
 
         // Zahlungsbedingungen
@@ -1156,6 +1186,10 @@ Vielen Dank für Ihren Auftrag!`);
             {/* Preis anzeigen */}
             <div className="text-sm font-semibold text-gray-900 dark:text-white">
               {((bestellung.position.gesamtpreis || 0) * 1.19).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">brutto</span>
+              <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+                {(bestellung.position.gesamtpreis || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} netto
+              </span>
             </div>
             {/* Als bezahlt markieren */}
             <button
@@ -1164,6 +1198,14 @@ Vielen Dank für Ihren Auftrag!`);
             >
               <CheckCircle2 className="w-3 h-3" />
               Als bezahlt markieren
+            </button>
+            {/* Rechnung erneut senden (z.B. bei korrigiertem Betrag) */}
+            <button
+              onClick={() => openRechnungModal(bestellung)}
+              className="w-full px-2 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors flex items-center justify-center gap-1"
+            >
+              <Receipt className="w-3 h-3" />
+              Rechnung erneut senden
             </button>
           </div>
         )}
@@ -1575,6 +1617,7 @@ Vielen Dank für Ihren Auftrag!`);
                           <th className="px-4 py-3 text-left font-semibold">Lieferdatum</th>
                           <th className="px-4 py-3 text-right font-semibold">Menge</th>
                           <th className="px-4 py-3 text-left font-semibold">Hydrocourt-Status</th>
+                          <th className="px-4 py-3 text-right font-semibold">Aktion</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -1653,6 +1696,20 @@ Vielen Dank für Ihren Auftrag!`);
                                   <HcIcon className="w-3.5 h-3.5" />
                                   {hcConfig.label}
                                 </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                {(hcStatus === 'versendet' || hcStatus === 'rechnungsstellung') && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openRechnungModal(bestellung);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                                  >
+                                    <Receipt className="w-3 h-3" />
+                                    {hcStatus === 'rechnungsstellung' ? 'Rechnung erneut senden' : 'Rechnung senden'}
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1918,7 +1975,7 @@ Vielen Dank für Ihren Auftrag!`);
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Nettobetrag:</span>
+                    <span className="text-gray-500 dark:text-gray-400">AB-Betrag (netto):</span>
                     <span className="ml-2 font-medium text-gray-900 dark:text-white">
                       {rechnungBestellung.position.gesamtpreis.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                     </span>
@@ -1930,6 +1987,67 @@ Vielen Dank für Ihren Auftrag!`);
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Rechnungsbetrag anpassen */}
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Rechnungsbetrag</h4>
+                  <div className="flex rounded-lg overflow-hidden border border-emerald-300 dark:border-emerald-700 text-xs font-medium">
+                    <button
+                      onClick={() => setRechnungBetragTyp('netto')}
+                      className={`px-3 py-1.5 transition-colors ${
+                        rechnungBetragTyp === 'netto'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      Netto
+                    </button>
+                    <button
+                      onClick={() => setRechnungBetragTyp('brutto')}
+                      className={`px-3 py-1.5 transition-colors ${
+                        rechnungBetragTyp === 'brutto'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-emerald-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      Brutto
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={rechnungBetrag}
+                    onChange={(e) => setRechnungBetrag(e.target.value)}
+                    className="w-40 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-semibold text-right focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="0,00"
+                  />
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">
+                    € {rechnungBetragTyp === 'netto' ? 'netto' : 'brutto'}
+                  </span>
+                  {rechnungNetto !== rechnungBestellung.position.gesamtpreis && (
+                    <button
+                      onClick={() => {
+                        setRechnungBetrag((rechnungBestellung.position.gesamtpreis || 0).toFixed(2).replace('.', ','));
+                        setRechnungBetragTyp('netto');
+                      }}
+                      className="ml-auto text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                    >
+                      Auf AB-Betrag zurücksetzen
+                    </button>
+                  )}
+                </div>
+                <div className="mt-3 text-sm text-gray-700 dark:text-gray-300 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>Netto: <strong>{formatEuro(rechnungNetto)}</strong></span>
+                  <span>MwSt. (19 %): <strong>{formatEuro(rechnungMwst)}</strong></span>
+                  <span>Brutto: <strong>{formatEuro(rechnungBrutto)}</strong></span>
+                </div>
+                {rechnungNetto <= 0 && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400">Bitte einen gültigen Betrag eingeben.</p>
+                )}
               </div>
 
               {/* Empfänger */}
@@ -1970,9 +2088,10 @@ Vielen Dank für Ihren Auftrag!`);
               {rechnungSignatur && (
                 <div className="bg-gray-50 dark:bg-slate-900/50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Signatur:</p>
-                  <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
-                    {rechnungSignatur}
-                  </div>
+                  <div
+                    className="text-sm text-gray-700 dark:text-gray-300 [&_img]:max-h-[60px] [&_img]:w-auto"
+                    dangerouslySetInnerHTML={{ __html: rechnungSignatur }}
+                  />
                 </div>
               )}
             </div>
@@ -1991,7 +2110,7 @@ Vielen Dank für Ihren Auftrag!`);
               </button>
               <button
                 onClick={handleSendRechnung}
-                disabled={rechnungSending || !rechnungBestellung.projekt.kundenEmail}
+                disabled={rechnungSending || !rechnungBestellung.projekt.kundenEmail || rechnungNetto <= 0}
                 className={`px-6 py-2 text-white rounded-lg transition-colors flex items-center gap-2 font-medium disabled:opacity-50 ${
                   testModus ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}

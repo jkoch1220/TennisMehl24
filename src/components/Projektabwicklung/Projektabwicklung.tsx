@@ -12,6 +12,7 @@ import AuftragsbestaetigungTab from './AuftragsbestaetigungTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
 import KundenDetailPopup from '../Shared/KundenDetailPopup';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import KundenAdressenEditor from './KundenAdressenEditor';
 import ProjektChat from './ProjektChat';
 import ProjektSplitBanner from './ProjektSplitBanner';
@@ -289,17 +290,24 @@ const Projektabwicklung = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => navigate(`/projektabwicklung/${projekt.quellProjektId}`)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                projekt.teilprojektTyp === 'universal'
-                  ? 'bg-orange-200 hover:bg-orange-300 dark:bg-orange-800 dark:hover:bg-orange-700 text-orange-900 dark:text-orange-100'
-                  : 'bg-cyan-200 hover:bg-cyan-300 dark:bg-cyan-800 dark:hover:bg-cyan-700 text-cyan-900 dark:text-cyan-100'
-              }`}
-            >
-              <ExternalLink className="w-4 h-4" />
-              Zum Originalprojekt
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigate(`/projektabwicklung/${projekt.quellProjektId}`)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  projekt.teilprojektTyp === 'universal'
+                    ? 'bg-orange-200 hover:bg-orange-300 dark:bg-orange-800 dark:hover:bg-orange-700 text-orange-900 dark:text-orange-100'
+                    : 'bg-cyan-200 hover:bg-cyan-300 dark:bg-cyan-800 dark:hover:bg-cyan-700 text-cyan-900 dark:text-cyan-100'
+                }`}
+              >
+                <ExternalLink className="w-4 h-4" />
+                Zum Originalprojekt
+              </button>
+              <OpenInNewTabButton
+                to={`/projektabwicklung/${projekt.quellProjektId}`}
+                title="Originalprojekt in neuem Tab öffnen"
+                appearOnGroupHover={false}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -312,13 +320,19 @@ const Projektabwicklung = () => {
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Teilprojekte:</span>
             <div className="flex items-center gap-2 flex-wrap">
               {projekt.teilprojektIds.map((tpId) => (
-                <button
-                  key={tpId}
-                  onClick={() => navigate(`/projektabwicklung/${tpId}`)}
-                  className="px-3 py-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
-                >
-                  Teilprojekt öffnen →
-                </button>
+                <div key={tpId} className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => navigate(`/projektabwicklung/${tpId}`)}
+                    className="px-3 py-1 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Teilprojekt öffnen →
+                  </button>
+                  <OpenInNewTabButton
+                    to={`/projektabwicklung/${tpId}`}
+                    title="Teilprojekt in neuem Tab öffnen"
+                    appearOnGroupHover={false}
+                  />
+                </div>
               ))}
             </div>
           </div>

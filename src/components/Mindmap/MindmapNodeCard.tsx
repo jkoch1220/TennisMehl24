@@ -6,6 +6,7 @@ import {
   Circle,
   CircleCheck,
   FolderTree,
+  Link2,
   ListTodo,
   Plus,
   Split,
@@ -13,6 +14,7 @@ import {
   Workflow,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { MindmapNode, MindmapNodeType } from '../../types/mindmap';
 import {
   istTaskUeberfaellig,
@@ -30,8 +32,12 @@ interface MindmapNodeCardProps {
   childCount: number;
   isEditing: boolean;
   isDragging: boolean;
+  // Quelle im Verbinden-Modus (freie Verbindung zu anderem Knoten)
+  isConnectSource?: boolean;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onAddChild: (type: MindmapNodeType) => void;
+  // Verbinden-Modus starten (nur auf Prozess-Boards gesetzt)
+  onStartConnect?: () => void;
   onToggleCollapse: () => void;
   onDelete: () => void;
   onChangeTitel: (titel: string) => void;
@@ -50,8 +56,10 @@ const MindmapNodeCard = ({
   childCount,
   isEditing,
   isDragging,
+  isConnectSource,
   onPointerDown,
   onAddChild,
+  onStartConnect,
   onToggleCollapse,
   onDelete,
   onChangeTitel,
@@ -62,7 +70,7 @@ const MindmapNodeCard = ({
 }: MindmapNodeCardProps) => {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [titelDraft, setTitelDraft] = useState(node.titel);
-  const titelInputRef = useRef<HTMLInputElement>(null);
+  const titelInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (isEditing) {
@@ -91,7 +99,9 @@ const MindmapNodeCard = ({
           : istEntscheidung
             ? 'cursor-grab active:cursor-grabbing bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-600 shadow-md'
             : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
-      } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''}`}
+      } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''} ${
+        isConnectSource ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''
+      }`}
       style={{ left: pos.x, top: pos.y, width: NODE_WIDTH }}
     >
       {/* Titelzeile (wächst mit umbrechendem Titel mit) */}
@@ -118,17 +128,20 @@ const MindmapNodeCard = ({
         )}
 
         {isEditing ? (
-          <input
+          <AutoGrowTextarea
             ref={titelInputRef}
             autoFocus
             value={titelDraft}
             onChange={(e) => setTitelDraft(e.target.value)}
             onBlur={commitTitel}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commitTitel();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                commitTitel();
+              }
               if (e.key === 'Escape') onStopEdit();
             }}
-            className="min-w-0 flex-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-input px-1 py-0.5 text-sm font-semibold text-gray-900 dark:text-dark-text focus:outline-none focus:ring-1 focus:ring-red-500"
+            className="min-w-0 flex-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-input px-1 py-0.5 text-sm font-semibold leading-[18px] text-gray-900 dark:text-dark-text focus:outline-none focus:ring-1 focus:ring-red-500"
           />
         ) : (
           <span
@@ -157,6 +170,19 @@ const MindmapNodeCard = ({
 
         {/* Aktionen (bei Hover) */}
         <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
+          {onStartConnect && (
+            <button
+              onClick={onStartConnect}
+              title="Verbindung zu anderem Schritt ziehen (danach Ziel anklicken)"
+              className={`rounded p-0.5 ${
+                isRoot
+                  ? 'hover:bg-white/20'
+                  : 'text-gray-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30'
+              }`}
+            >
+              <Link2 className="w-4 h-4" />
+            </button>
+          )}
           <div className="relative">
             <button
               onClick={() => setAddMenuOpen((open) => !open)}

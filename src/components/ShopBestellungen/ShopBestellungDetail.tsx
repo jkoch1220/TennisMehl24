@@ -19,7 +19,7 @@ import {
   FolderPlus,
   RefreshCw,
   Mail,
-  ExternalLink,
+  ArrowRight,
   Banknote,
   AlertCircle,
 } from 'lucide-react';
@@ -40,6 +40,7 @@ import {
 import { UniversalArtikel } from '../../types/universaArtikel';
 import { Projekt } from '../../types/projekt';
 import AktivitaetsTimeline from './AktivitaetsTimeline';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface ShopBestellungDetailProps {
   bestellung: ShopBestellung;
@@ -375,13 +376,19 @@ const ShopBestellungDetail = ({
                 {/* Universal-Artikel: Projekt existiert oder neu erstellen */}
                 {universalPositionen.length > 0 && (
                   existierendeProjekte.universal ? (
-                    <button
-                      onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.universal!.id || existierendeProjekte.universal!.$id}`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Universal-Projekt öffnen
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.universal!.id || existierendeProjekte.universal!.$id}`)}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                        Universal-Projekt öffnen
+                      </button>
+                      <OpenInNewTabButton
+                        to={`/projektabwicklung/${existierendeProjekte.universal!.id || existierendeProjekte.universal!.$id}`}
+                        appearOnGroupHover={false}
+                      />
+                    </div>
                   ) : (
                     <button
                       onClick={() => handleProjektErstellen('universal')}
@@ -401,13 +408,19 @@ const ShopBestellungDetail = ({
                 {/* Eigene Produkte: Projekt existiert oder neu erstellen */}
                 {eigenePositionen.length > 0 && (
                   existierendeProjekte.eigen ? (
-                    <button
-                      onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.eigen!.id || existierendeProjekte.eigen!.$id}`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Eigenes Projekt öffnen
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => navigate(`/projektabwicklung/${existierendeProjekte.eigen!.id || existierendeProjekte.eigen!.$id}`)}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                      >
+                        <ArrowRight className="w-4 h-4" />
+                        Eigenes Projekt öffnen
+                      </button>
+                      <OpenInNewTabButton
+                        to={`/projektabwicklung/${existierendeProjekte.eigen!.id || existierendeProjekte.eigen!.$id}`}
+                        appearOnGroupHover={false}
+                      />
+                    </div>
                   ) : (
                     <button
                       onClick={() => handleProjektErstellen('eigen')}

@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { MindmapNode } from '../../types/mindmap';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { istReviewFaellig, istTaskUeberfaellig } from './mindmapUtils';
 
 interface TaskModalProps {
@@ -36,27 +37,33 @@ interface TaskModalProps {
 const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalProps) => {
   const navigate = useNavigate();
   const [titelDraft, setTitelDraft] = useState(task.titel);
-  const titelRef = useRef<HTMLInputElement>(null);
+  const titelRef = useRef<HTMLTextAreaElement>(null);
 
   // Bei Wechsel auf einen anderen Task den Draft neu initialisieren
   useEffect(() => {
     setTitelDraft(task.titel);
   }, [task.id, task.titel]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const commitTitel = () => {
     const titel = titelDraft.trim();
     if (titel && titel !== task.titel) onPatch({ titel });
     else setTitelDraft(task.titel);
   };
+
+  // Beim Schließen (Backdrop, X, Escape) offene Titel-Änderung mitspeichern
+  const handleCloseRef = useRef(() => {});
+  handleCloseRef.current = () => {
+    commitTitel();
+    onClose();
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const ueberfaellig = istTaskUeberfaellig(task);
   const reviewFaellig = istReviewFaellig(task);
@@ -67,7 +74,7 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
+      onClick={() => handleCloseRef.current()}
     >
       <div
         className="w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-dark-surface"
@@ -82,13 +89,14 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
             <p className="text-xs text-gray-400 dark:text-dark-textSubtle">
               Task in „{knotenTitel}"
             </p>
-            <input
+            <AutoGrowTextarea
               ref={titelRef}
               value={titelDraft}
               onChange={(e) => setTitelDraft(e.target.value)}
               onBlur={commitTitel}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
                   commitTitel();
                   titelRef.current?.blur();
                 }
@@ -119,12 +127,11 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
             <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-textMuted">
               Beschreibung
             </label>
-            <textarea
+            <AutoGrowTextarea
               value={task.beschreibung ?? ''}
               onChange={(e) => onPatch({ beschreibung: e.target.value })}
-              rows={4}
               placeholder="Worum geht es bei diesem Task?"
-              className={`${inputClasses} resize-y`}
+              className={`${inputClasses} min-h-24 max-h-[45vh] overflow-y-auto`}
             />
           </div>
 

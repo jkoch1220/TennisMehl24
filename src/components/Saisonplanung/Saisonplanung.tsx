@@ -12,6 +12,7 @@ import { projektService } from '../../services/projektService';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import KundenFormular from './KundenFormular';
 import KundenDetail from './KundenDetail';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import BeziehungsUebersicht from './BeziehungsUebersicht.tsx';
 
 const Saisonplanung = () => {
@@ -772,6 +773,12 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200" onClick={(e) => e.stopPropagation()}>
+          <OpenInNewTabButton
+            to={`/saisonplanung?kunde=${kunde.kunde.id}`}
+            title="Kunde in neuem Tab öffnen"
+            appearOnGroupHover={false}
+            className="p-2"
+          />
           <button
             onClick={onEdit}
             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"

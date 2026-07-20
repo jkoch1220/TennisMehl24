@@ -55,6 +55,7 @@ import HydrocourtView from './HydrocourtView';
 import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 
 // Hook für Mobile-Erkennung
@@ -1317,6 +1318,11 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
                 {projekt.teilprojektIds.length}
               </span>
             )}
+            <OpenInNewTabButton
+              to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`}
+              className="p-0.5"
+              iconClassName="w-3.5 h-3.5"
+            />
           </div>
         </div>
       </div>
@@ -1394,6 +1400,12 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
 
         {/* Action Buttons */}
         <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <OpenInNewTabButton
+            to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`}
+            appearOnGroupHover={false}
+            className="p-1"
+            iconClassName="w-3.5 h-3.5"
+          />
           <button
             onClick={(e) => onEdit(e, projekt)}
             className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded transition-colors"
@@ -1523,12 +1535,13 @@ const AngebotListeView = ({ projekte, onProjektClick }: AngebotListeViewProps) =
               <th className="px-4 py-3 text-left font-semibold">Status</th>
               <th className="px-4 py-3 text-right font-semibold">Menge</th>
               <th className="px-4 py-3 text-right font-semibold">Preis/t</th>
+              <th className="px-2 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {projekte.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   Keine Angebote gefunden
                 </td>
               </tr>
@@ -1539,7 +1552,7 @@ const AngebotListeView = ({ projekte, onProjektClick }: AngebotListeViewProps) =
                   <tr
                     key={(projekt as any).$id || projekt.id}
                     onClick={() => onProjektClick(projekt)}
-                    className="hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                    className="group hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3">
                       <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">
@@ -1579,6 +1592,11 @@ const AngebotListeView = ({ projekte, onProjektClick }: AngebotListeViewProps) =
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
                       {projekt.preisProTonne ? `${projekt.preisProTonne.toFixed(2)} €` : '-'}
+                    </td>
+                    <td className="px-2 py-3 text-right">
+                      <OpenInNewTabButton
+                        to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`}
+                      />
                     </td>
                   </tr>
                 );

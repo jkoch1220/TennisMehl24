@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { MindmapNode } from '../../types/mindmap';
+import { MindmapBoard, MindmapGeraet, MindmapNode } from '../../types/mindmap';
 
 // Feste Kartenbreite, damit das Organigramm-Layout ohne DOM-Messung berechenbar
 // ist. Tasks werden als Listenzeilen IN der Eltern-Karte gerendert; die
@@ -198,7 +198,12 @@ export const layoutTree = (
     pos[id] = { x: left + subtreeWidth(id) / 2 - NODE_WIDTH / 2, y };
     let childLeft = left;
     for (const kid of visibleChildren(node)) {
-      place(kid.id, childLeft, y + cardHeight(nodes, id) + V_GAP);
+      // abstandOben = zusätzlicher, per Drag eingestellter Abstand zum Eltern-Knoten
+      place(
+        kid.id,
+        childLeft,
+        y + cardHeight(nodes, id) + V_GAP + (kid.abstandOben ?? 0)
+      );
       childLeft += subtreeWidth(kid.id) + H_GAP;
     }
   };
@@ -212,6 +217,29 @@ export const istTaskUeberfaellig = (node: MindmapNode): boolean =>
   !node.erledigt &&
   !!node.faelligAm &&
   node.faelligAm < format(new Date(), 'yyyy-MM-dd');
+
+export interface ProzessFaelligkeit {
+  geraet: MindmapGeraet;
+  restStunden: number; // negativ = überfällig
+  faellig: boolean;
+}
+
+/**
+ * Wartungs-Fälligkeit eines Prozess-Boards nach Betriebsstunden.
+ * null = keine Wartungsplanung konfiguriert.
+ */
+export const prozessFaelligkeit = (
+  board: MindmapBoard,
+  geraete: MindmapGeraet[]
+): ProzessFaelligkeit | null => {
+  if (board.typ !== 'prozess' || !board.geraetId || !board.faelligBeiStunden) {
+    return null;
+  }
+  const geraet = geraete.find((g) => g.id === board.geraetId);
+  if (!geraet) return null;
+  const restStunden = board.faelligBeiStunden - geraet.betriebsstunden;
+  return { geraet, restStunden, faellig: restStunden <= 0 };
+};
 
 /** Review fällig = Review-Datum erreicht/überschritten und Task noch offen */
 export const istReviewFaellig = (node: MindmapNode): boolean =>

@@ -14,6 +14,7 @@ import {
 import { PBVKanbanDaten, PlatzbauerProjekt, PBVFilter } from '../../types/platzbauer';
 import { ProjektStatus } from '../../types/projekt';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface PlatzbauerlKanbanProps {
   saisonjahr: number;
@@ -218,7 +219,7 @@ const ProjektCard = ({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`p-3 bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 cursor-pointer transition-all ${
+      className={`group p-3 bg-white dark:bg-dark-surface rounded-lg border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 cursor-pointer transition-all ${
         isDragging ? 'opacity-50 scale-95' : ''
       }`}
     >
@@ -234,6 +235,10 @@ const ProjektCard = ({
             </span>
           )}
         </div>
+        <OpenInNewTabButton
+          to={`/platzbauer-projektabwicklung/${projekt.id}`}
+          className="-mt-1 -mr-1 flex-shrink-0"
+        />
       </div>
 
       {/* Stats */}

@@ -3,7 +3,7 @@
  *
  * Berechnet den Dieselpreiszuschlag gemäß AGB §5:
  * - Zuschlag auf Schüttgut-Tonnen (TM-ZM-02, TM-ZM-03) sowie
- *   Palettenware/BigBag-Tonnen (TM-ZM-02St, TM-ZM-03St, TM-ZM-BIG-02, TM-ZM-BIG-03)
+ *   Palettenware/BigBag-Tonnen (TM-ZM-02St, TM-ZM-03St, TM-ZM-02BB, TM-ZM-03BB)
  * - Formel: Math.floor((tagesDieselPreis - basisPreis) / 0.05) * 0.45 €/t
  * - Zuschlag nur wenn tagesDieselPreis > basisPreis
  */
@@ -61,14 +61,22 @@ const FALLBACK_STAFFEL: DieselZuschlagConfig = {
  * Artikelnummern die für den Dieselzuschlag relevant sind
  * - Loses Schüttgut mit eigener Lieferung per LKW (TM-ZM-02, TM-ZM-03)
  * - Palettenware/Sackware per Spedition (TM-ZM-02St, TM-ZM-03St)
- * - BigBag per Spedition (TM-ZM-BIG-02, TM-ZM-BIG-03)
+ * - BigBag per Spedition (TM-ZM-02BB, TM-ZM-03BB)
  * Alle Artikel werden in Tonnen abgerechnet, daher greift der €/t-Zuschlag einheitlich.
+ *
+ * HINWEIS: BigBag-Positionen werden vom anfrageVerarbeitungService mit den
+ * Nummern TM-ZM-02BB/TM-ZM-03BB erzeugt (= Nummern im Appwrite-Artikelstamm).
+ * Die Legacy-Varianten TM-ZM-BIG-02/03 bleiben zur Sicherheit gelistet, falls
+ * Altdaten mit dieser Schreibweise existieren.
  */
 const ZUSCHLAGSFAEHIGE_ARTIKEL = [
   'TM-ZM-02',
   'TM-ZM-03',
   'TM-ZM-02St',
   'TM-ZM-03St',
+  'TM-ZM-02BB',
+  'TM-ZM-03BB',
+  // Legacy-Schreibweise (kommt in erzeugten Positionen nicht vor, nur Altdaten)
   'TM-ZM-BIG-02',
   'TM-ZM-BIG-03',
 ];

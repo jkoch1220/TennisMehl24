@@ -15,7 +15,7 @@ import {
   CheckCircle,
   AlertCircle,
   FileText,
-  ExternalLink,
+  ArrowRight,
   MapPin,
   Scale,
   Check,
@@ -30,6 +30,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { NeuesProjekt, Projekt } from '../../types/projekt';
 import { TENNISMEHL_ARTIKEL } from '../../constants/artikelPreise';
 import ExcelJS from 'exceljs';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 // Quick-Edit Typen
 type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | 'lieferwoche' | null;
@@ -1135,19 +1136,26 @@ const PlatzbauerlVereine = ({
                     {isLoadingProjekte ? (
                       <Loader2 className="w-4 h-4 text-gray-400 animate-spin mx-auto" />
                     ) : hatProjekt ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const projektId = (existingProjekt as any).$id || existingProjekt?.id;
-                          navigate(`/projektabwicklung/${projektId}`);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
-                        title="Zum Projekt wechseln"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Öffnen</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const projektId = (existingProjekt as any).$id || existingProjekt?.id;
+                            navigate(`/projektabwicklung/${projektId}`);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                          title="Zum Projekt wechseln"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Öffnen</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                        <OpenInNewTabButton
+                          to={`/projektabwicklung/${(existingProjekt as any).$id || existingProjekt?.id}`}
+                          appearOnGroupHover={false}
+                          iconClassName="w-3.5 h-3.5"
+                        />
+                      </div>
                     ) : (
                       <span className="text-gray-400 text-xs">-</span>
                     )}

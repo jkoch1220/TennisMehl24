@@ -40,6 +40,7 @@ import { tourenService } from '../../services/tourenService';
 import { claudeRouteOptimizer } from '../../services/claudeRouteOptimizer';
 import { tourenPdfService } from '../../services/tourenPdfService';
 import TourenHilfe from './TourenHilfe';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 // Belieferungsart Labels
 const BELIEFERUNGSART_LABELS: Record<Belieferungsart, string> = {
@@ -606,6 +607,10 @@ const TourenPlanungTab = ({ onNavigateToProjekt: _onNavigateToProjekt }: Props) 
                               <span className="font-bold text-gray-900 dark:text-white">
                                 {stop.kundenname}
                               </span>
+                              <OpenInNewTabButton
+                                to={`/projektabwicklung/${stop.projektId}`}
+                                appearOnGroupHover={false}
+                              />
                               <span className={`px-2 py-0.5 text-xs rounded-full ${BELIEFERUNGSART_COLORS[stop.belieferungsart]}`}>
                                 {BELIEFERUNGSART_LABELS[stop.belieferungsart]}
                               </span>

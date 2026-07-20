@@ -129,7 +129,7 @@ const BoardUebersicht = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-              Planung
+              Geschäftsprozesse
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
               Organigramme für Strukturen, Prozess-Diagramme für Abläufe — geteilt
@@ -164,7 +164,7 @@ const BoardUebersicht = () => {
                 key={board.id}
                 className="group relative rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-dark-border dark:bg-dark-surface"
               >
-                <Link to={`/planung/${board.id}`} className="block">
+                <Link to={`/geschaeftsprozesse/${board.id}`} className="block">
                   <div
                     className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r ${info.farbe} shadow-md`}
                   >

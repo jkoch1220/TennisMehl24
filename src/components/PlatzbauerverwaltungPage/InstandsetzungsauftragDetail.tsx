@@ -13,7 +13,7 @@ import {
   Calendar,
   MapPin,
   Trash2,
-  ExternalLink,
+  ArrowRight,
   User,
   Phone,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ import {
   InstandsetzungsauftragPdfDaten,
 } from '../../services/instandsetzungsauftragPdfService';
 import { useNavigate } from 'react-router-dom';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface InstandsetzungsauftragDetailProps {
   auftrag: Instandsetzungsauftrag;
@@ -341,13 +342,19 @@ const InstandsetzungsauftragDetail = ({
                   </td>
                   <td className="p-3">
                     {pos.projektId ? (
-                      <button
-                        onClick={() => handleProjektOeffnen(pos.projektId!)}
-                        className="p-1.5 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
-                        title="Projekt öffnen"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleProjektOeffnen(pos.projektId!)}
+                          className="p-1.5 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-colors"
+                          title="Projekt öffnen"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <OpenInNewTabButton
+                          to={`/projektabwicklung/${pos.projektId}`}
+                          appearOnGroupHover={false}
+                        />
+                      </div>
                     ) : (
                       <span className="text-gray-400 text-xs">-</span>
                     )}

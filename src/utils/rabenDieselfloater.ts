@@ -49,10 +49,18 @@ export function istRabenDieselfloaterPosition(position: Position): boolean {
  * Artikelnummern, deren €/t-Dieselzuschlag (TM-DZ) entfällt, wenn der
  * Raben-Dieselfloater (TM-DZ-R) aktiv ist. Palettenware + BigBag wird von
  * Raben-Spedition transportiert und dort über den Floater abgerechnet.
+ *
+ * WICHTIG: BigBag-Positionen tragen die Nummern TM-ZM-02BB/TM-ZM-03BB
+ * (so vom anfrageVerarbeitungService erzeugt). Muss mit ZUSCHLAGSFAEHIGE_ARTIKEL
+ * in dieselZuschlag.ts konsistent bleiben, sonst wird BigBag doppelt belastet
+ * (€/t-Zuschlag UND %-Floater). Legacy-Varianten TM-ZM-BIG-02/03 nur für Altdaten.
  */
 export const RABEN_SPEDITION_ARTIKELNUMMERN = [
   'TM-ZM-02St',
   'TM-ZM-03St',
+  'TM-ZM-02BB',
+  'TM-ZM-03BB',
+  // Legacy-Schreibweise (kommt in erzeugten Positionen nicht vor, nur Altdaten)
   'TM-ZM-BIG-02',
   'TM-ZM-BIG-03',
 ];

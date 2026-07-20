@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle, X, Tr
 import { useNavigate } from 'react-router-dom';
 import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL } from '../../types/debitor';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface DebitorenListeProps {
   debitoren: DebitorView[];
@@ -226,7 +227,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
               return (
                 <tr
                   key={debitor.projektId}
-                  className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors ${
+                  className={`group hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors ${
                     istAusgewaehlt ? 'bg-green-50/50 dark:bg-green-900/10' : ''
                   }`}
                   onClick={() => onOpenDetail(debitor)}
@@ -338,6 +339,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                       >
                         <ExternalLink className="w-4 h-4" />
                       </button>
+                      <OpenInNewTabButton to={`/projektabwicklung/${debitor.projektId}`} />
                     </div>
                   </td>
                 </tr>

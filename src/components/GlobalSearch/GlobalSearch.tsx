@@ -57,8 +57,12 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
 
   // Ergebnis auswählen
   const handleSelect = useCallback(
-    (result: SearchResult) => {
+    (result: SearchResult, e?: React.MouseEvent) => {
       addToHistory(query);
+      if (e && (e.metaKey || e.ctrlKey || e.button === 1)) {
+        window.open(result.href, '_blank', 'noopener');
+        return;
+      }
       onClose();
       setQuery('');
       navigate(result.href);
@@ -173,7 +177,10 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
                     <button
                       key={result.id}
                       data-search-item
-                      onClick={() => handleSelect(result)}
+                      onClick={(e) => handleSelect(result, e)}
+                      onAuxClick={(e) => {
+                        if (e.button === 1) handleSelect(result, e);
+                      }}
                       onMouseEnter={() => setSelectedIndex(globalIndex)}
                       className={`w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 text-left transition-colors ${
                         isSelected

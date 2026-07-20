@@ -29,6 +29,8 @@ const storage = new Storage(client);
 const DATABASE_ID = 'tennismehl24_db';
 const MINDMAP_NODES_COLLECTION_ID = 'mindmap_nodes';
 const MINDMAP_BOARDS_COLLECTION_ID = 'mindmap_boards';
+const MINDMAP_GERAETE_COLLECTION_ID = 'mindmap_geraete';
+const MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID = 'mindmap_durchfuehrungen';
 const MINDMAP_SUBTASKS_COLLECTION_ID = 'mindmap_subtasks';
 const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 const MINDMAP_BILDER_BUCKET_ID = 'mindmap-bilder';
@@ -205,10 +207,47 @@ async function main() {
   await ensureCollection(MINDMAP_BOARDS_COLLECTION_ID, 'Planungs-Boards');
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'name', 256, true);
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'typ', 16, true);
+  // Wartungsplanung für Prozess-Boards (Fälligkeit nach Betriebsstunden)
+  await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'zustaendig', 128, false);
+  await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'geraetId', 64, false);
+  await ensureIntegerAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'intervallStunden');
+  await ensureIntegerAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'faelligBeiStunden');
 
-  // Board-Zuordnung + Kantenbeschriftung (Prozess-Diagramme) auf den Nodes
+  // Board-Zuordnung + Kantenbeschriftung + Prozessverweise auf den Nodes
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'boardId', 64, false);
   await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'edgeLabel', 64, false);
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'linkedBoardId', 64, false);
+  // Freie Verbindungen (Rücksprünge im Prozess-Diagramm) + einstellbarer Abstand
+  await ensureStringArrayAttribute(MINDMAP_NODES_COLLECTION_ID, 'verbindungen', 64);
+  await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'abstandOben');
+
+  // Geräte mit Betriebsstunden (z. B. Radlader)
+  await ensureCollection(MINDMAP_GERAETE_COLLECTION_ID, 'Geräte & Betriebsstunden');
+  await ensureStringAttribute(MINDMAP_GERAETE_COLLECTION_ID, 'name', 256, true);
+  await ensureIntegerAttribute(MINDMAP_GERAETE_COLLECTION_ID, 'betriebsstunden');
+  await ensureStringAttribute(MINDMAP_GERAETE_COLLECTION_ID, 'aktualisiertAm', 10, false);
+
+  // Dokumentierte Durchführungen eines Prozesses
+  await ensureCollection(
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    'Prozess-Durchführungen'
+  );
+  await ensureStringAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'boardId', 64, true);
+  await ensureStringAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'geraetId', 64, false);
+  await ensureStringAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'datum', 10, false);
+  await ensureStringAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'person', 128, false);
+  await ensureStringAttribute(
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    'notizen',
+    10000,
+    false
+  );
+  await ensureIntegerAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'minuten');
+  await ensureIntegerAttribute(
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    'stundenBeiDurchfuehrung'
+  );
+  await ensureStringArrayAttribute(MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID, 'bilderIds', 64);
 
   // Storage-Bucket für Task-Bilder
   await ensureBucket();

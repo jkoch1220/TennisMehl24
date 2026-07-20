@@ -209,11 +209,11 @@ const TaskVerwaltung = () => {
               : 'Keine Tasks für diesen Filter.'}
           </p>
           <Link
-            to="/planung"
+            to="/geschaeftsprozesse"
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-600 hover:underline dark:text-dark-accentRed"
           >
             <Network className="h-4 w-4" />
-            Zur Planung
+            Zu den Geschäftsprozessen
           </Link>
         </div>
       ) : (

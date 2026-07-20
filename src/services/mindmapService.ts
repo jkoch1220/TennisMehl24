@@ -15,6 +15,8 @@ import {
   DATABASE_ID,
   MINDMAP_NODES_COLLECTION_ID,
   MINDMAP_BOARDS_COLLECTION_ID,
+  MINDMAP_GERAETE_COLLECTION_ID,
+  MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
   MINDMAP_SUBTASKS_COLLECTION_ID,
   MINDMAP_ZEITEN_COLLECTION_ID,
   MINDMAP_BILDER_BUCKET_ID,
@@ -22,6 +24,8 @@ import {
 import {
   MindmapBoard,
   MindmapBoardTyp,
+  MindmapDurchfuehrung,
+  MindmapGeraet,
   MindmapNode,
   MindmapSubtask,
   MindmapViewport,
@@ -35,11 +39,20 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
   boardId: (doc.boardId as string) || '',
   parentId: (doc.parentId as string) || null,
   type:
-    doc.type === 'task' ? 'task' : doc.type === 'entscheidung' ? 'entscheidung' : 'knoten',
+    doc.type === 'task'
+      ? 'task'
+      : doc.type === 'entscheidung'
+        ? 'entscheidung'
+        : doc.type === 'prozess'
+          ? 'prozess'
+          : 'knoten',
   titel: (doc.titel as string) || '',
   edgeLabel: (doc.edgeLabel as string) || '',
+  linkedBoardId: (doc.linkedBoardId as string) || '',
   collapsed: !!doc.collapsed,
   sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
+  verbindungen: Array.isArray(doc.verbindungen) ? (doc.verbindungen as string[]) : [],
+  abstandOben: typeof doc.abstandOben === 'number' ? doc.abstandOben : 0,
   beschreibung: (doc.beschreibung as string) || '',
   faelligAm: (doc.faelligAm as string) || '',
   reviewAm: (doc.reviewAm as string) || '',
@@ -56,8 +69,11 @@ const toDocumentData = (node: MindmapNode) => ({
   type: node.type,
   titel: node.titel,
   edgeLabel: node.edgeLabel ?? '',
+  linkedBoardId: node.linkedBoardId ?? '',
   collapsed: !!node.collapsed,
   sortOrder: node.sortOrder ?? 0,
+  verbindungen: node.verbindungen ?? [],
+  abstandOben: node.abstandOben ?? 0,
   beschreibung: node.beschreibung ?? '',
   faelligAm: node.faelligAm ?? '',
   reviewAm: node.reviewAm ?? '',
@@ -151,6 +167,12 @@ const mapBoard = (doc: Record<string, unknown>): MindmapBoard => ({
   id: doc.$id as string,
   name: (doc.name as string) || '',
   typ: doc.typ === 'prozess' ? 'prozess' : 'organigramm',
+  zustaendig: (doc.zustaendig as string) || '',
+  geraetId: (doc.geraetId as string) || '',
+  intervallStunden:
+    typeof doc.intervallStunden === 'number' ? doc.intervallStunden : 0,
+  faelligBeiStunden:
+    typeof doc.faelligBeiStunden === 'number' ? doc.faelligBeiStunden : 0,
 });
 
 export const listBoards = async (): Promise<MindmapBoard[]> => {
@@ -205,14 +227,24 @@ export const updateBoard = async (board: MindmapBoard): Promise<void> => {
   await databases.updateDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, board.id, {
     name: board.name,
     typ: board.typ,
+    zustaendig: board.zustaendig ?? '',
+    geraetId: board.geraetId ?? '',
+    intervallStunden: board.intervallStunden ?? 0,
+    faelligBeiStunden: board.faelligBeiStunden ?? 0,
   });
 };
 
-/** Board inkl. aller Knoten, Tasks und Task-Anhänge löschen */
+/** Board inkl. aller Knoten, Tasks, Task-Anhänge und Durchführungen löschen */
 export const deleteBoard = async (boardId: string): Promise<void> => {
   const nodes = await loadBoardNodes(boardId);
   const tasks = Object.values(nodes).filter((n) => n.type === 'task');
   await deleteTaskAnhaenge(tasks);
+  const durchfuehrungen = await listDurchfuehrungen(boardId).catch(
+    () => [] as MindmapDurchfuehrung[]
+  );
+  await Promise.all(
+    durchfuehrungen.map((d) => deleteDurchfuehrung(d).catch(() => undefined))
+  );
   await deleteMindmapNodes(Object.keys(nodes));
   await databases.deleteDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, boardId);
 };
@@ -220,6 +252,118 @@ export const deleteBoard = async (boardId: string): Promise<void> => {
 export const subscribeBoards = (onChange: () => void): (() => void) => {
   const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_BOARDS_COLLECTION_ID}.documents`;
   return client.subscribe(channel, () => onChange());
+};
+
+// --- Geräte mit Betriebsstunden (z. B. Radlader) ---
+
+const mapGeraet = (doc: Record<string, unknown>): MindmapGeraet => ({
+  id: doc.$id as string,
+  name: (doc.name as string) || '',
+  betriebsstunden:
+    typeof doc.betriebsstunden === 'number' ? doc.betriebsstunden : 0,
+  aktualisiertAm: (doc.aktualisiertAm as string) || '',
+});
+
+export const listGeraete = async (): Promise<MindmapGeraet[]> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    MINDMAP_GERAETE_COLLECTION_ID,
+    [Query.limit(100)]
+  );
+  return response.documents
+    .map((doc) => mapGeraet(doc as unknown as Record<string, unknown>))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+export const createGeraet = async (
+  name: string,
+  betriebsstunden: number,
+  aktualisiertAm: string
+): Promise<MindmapGeraet> => {
+  const doc = await databases.createDocument(
+    DATABASE_ID,
+    MINDMAP_GERAETE_COLLECTION_ID,
+    ID.unique(),
+    { name, betriebsstunden, aktualisiertAm }
+  );
+  return mapGeraet(doc as unknown as Record<string, unknown>);
+};
+
+export const updateGeraet = async (geraet: MindmapGeraet): Promise<void> => {
+  await databases.updateDocument(
+    DATABASE_ID,
+    MINDMAP_GERAETE_COLLECTION_ID,
+    geraet.id,
+    {
+      name: geraet.name,
+      betriebsstunden: geraet.betriebsstunden,
+      aktualisiertAm: geraet.aktualisiertAm,
+    }
+  );
+};
+
+export const deleteGeraet = async (id: string): Promise<void> => {
+  await databases.deleteDocument(DATABASE_ID, MINDMAP_GERAETE_COLLECTION_ID, id);
+};
+
+export const subscribeGeraete = (onChange: () => void): (() => void) => {
+  const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_GERAETE_COLLECTION_ID}.documents`;
+  return client.subscribe(channel, () => onChange());
+};
+
+// --- Dokumentierte Durchführungen eines Prozesses ---
+
+const mapDurchfuehrung = (doc: Record<string, unknown>): MindmapDurchfuehrung => ({
+  id: doc.$id as string,
+  boardId: (doc.boardId as string) || '',
+  geraetId: (doc.geraetId as string) || '',
+  datum: (doc.datum as string) || '',
+  person: (doc.person as string) || '',
+  notizen: (doc.notizen as string) || '',
+  minuten: typeof doc.minuten === 'number' ? doc.minuten : 0,
+  stundenBeiDurchfuehrung:
+    typeof doc.stundenBeiDurchfuehrung === 'number' ? doc.stundenBeiDurchfuehrung : 0,
+  bilderIds: Array.isArray(doc.bilderIds) ? (doc.bilderIds as string[]) : [],
+});
+
+export const listDurchfuehrungen = async (
+  boardId: string
+): Promise<MindmapDurchfuehrung[]> => {
+  const response = await databases.listDocuments(
+    DATABASE_ID,
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    [Query.equal('boardId', boardId), Query.limit(200)]
+  );
+  return response.documents
+    .map((doc) => mapDurchfuehrung(doc as unknown as Record<string, unknown>))
+    .sort((a, b) => b.datum.localeCompare(a.datum) || b.id.localeCompare(a.id));
+};
+
+export const createDurchfuehrung = async (
+  durchfuehrung: Omit<MindmapDurchfuehrung, 'id'>
+): Promise<MindmapDurchfuehrung> => {
+  const doc = await databases.createDocument(
+    DATABASE_ID,
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    ID.unique(),
+    durchfuehrung
+  );
+  return mapDurchfuehrung(doc as unknown as Record<string, unknown>);
+};
+
+export const deleteDurchfuehrung = async (
+  durchfuehrung: MindmapDurchfuehrung
+): Promise<void> => {
+  await Promise.all(
+    (durchfuehrung.bilderIds ?? []).map((fileId) =>
+      deleteTaskBild(fileId).catch(() => undefined)
+    )
+  );
+  await databases.deleteDocument(
+    DATABASE_ID,
+    MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID,
+    durchfuehrung.id
+  );
 };
 
 // --- Subtasks (Checkliste pro Task) ---

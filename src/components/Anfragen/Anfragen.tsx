@@ -23,7 +23,7 @@ import {
   Zap,
   History,
   Clock,
-  ExternalLink
+  ArrowRight
 } from 'lucide-react';
 import { anfragenService } from '../../services/anfragenService';
 import { Anfrage, AnfrageStatus } from '../../types/anfragen';
@@ -36,6 +36,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
 import { useAuth } from '../../contexts/AuthContext';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 const Anfragen = () => {
   const navigate = useNavigate();
@@ -850,6 +851,11 @@ const AnfrageDetailDialog = ({
                   <Eye className="w-4 h-4" />
                   Angebot öffnen
                 </button>
+                <OpenInNewTabButton
+                  to={`/projektabwicklung/${anfrage.angebotId}`}
+                  appearOnGroupHover={false}
+                  className="self-center"
+                />
                 <button
                   onClick={onAngebotVersendet}
                   className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
@@ -1297,8 +1303,12 @@ const EmailVerlauf = ({ searchQuery, navigate }: EmailVerlaufProps) => {
                       className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                       title="Projekt öffnen"
                     >
-                      <ExternalLink className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4" />
                     </button>
+                    <OpenInNewTabButton
+                      to={`/projektabwicklung/${protokoll.projektId}`}
+                      appearOnGroupHover={false}
+                    />
                   </td>
                 </tr>
               ))}

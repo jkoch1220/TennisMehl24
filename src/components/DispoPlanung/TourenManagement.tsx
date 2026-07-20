@@ -18,7 +18,7 @@ import {
   Check,
   Boxes,
   PackageCheck,
-  ExternalLink,
+  ArrowRight,
   Printer,
   CheckCircle2,
   FileText,
@@ -30,6 +30,7 @@ import { tourenService } from '../../services/tourenService';
 import { projektService } from '../../services/projektService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
 import AlleLieferscheineModal from './AlleLieferscheineModal';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface TourenManagementProps {
   projekte: Projekt[];
@@ -1634,8 +1635,14 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
                                       title="Projekt öffnen"
                                     >
                                       {stop.kundenname}
-                                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </button>
+                                    <OpenInNewTabButton
+                                      to={`/projektabwicklung/${stop.projektId}`}
+                                      appearOnGroupHover={false}
+                                      className="p-1"
+                                      iconClassName="w-3 h-3"
+                                    />
                                     {istSpeditionsware && (
                                       <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 flex items-center gap-0.5">
                                         <Boxes className="w-3 h-3" />

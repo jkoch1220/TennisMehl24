@@ -42,6 +42,7 @@ import {
 import { projektService } from '../../services/projektService';
 import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentService';
 import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
+import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -391,6 +392,10 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
               <ExternalLink className="w-4 h-4" />
               Zum Projekt
             </button>
+            <OpenInNewTabButton
+              to={`/projektabwicklung/${debitor.projektId}`}
+              appearOnGroupHover={false}
+            />
             <button
               onClick={handleDeleteDebitor}
               disabled={loading || (debitor.zahlungen || []).some((z) => z.betrag > 0)}
