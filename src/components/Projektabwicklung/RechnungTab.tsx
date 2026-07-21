@@ -2431,7 +2431,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                       </div>
 
                       {/* Artikel-Tabelle */}
-                      <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
+                      <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-x-auto max-h-96 overflow-y-auto">
                         {gefilterteArtikel.length === 0 ? (
                           <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                             Keine Artikel gefunden
@@ -2519,7 +2519,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                   </div>
 
                   {/* Universal-Artikel-Tabelle */}
-                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-x-auto max-h-96 overflow-y-auto">
                     {universalLaden ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />

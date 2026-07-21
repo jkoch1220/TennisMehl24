@@ -1423,7 +1423,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                   </div>
 
                   {/* Artikel-Tabelle */}
-                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden max-h-96 overflow-y-auto">
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-x-auto max-h-96 overflow-y-auto">
                     {gefilterteArtikel.length === 0 ? (
                       <div className="p-4 text-center text-gray-600 dark:text-dark-textMuted text-sm">
                         Keine Artikel gefunden
@@ -1442,7 +1442,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {gefilterteArtikel.map((art) => (
-                            <tr key={art.$id} className="hover:bg-purple-50 transition-colors">
+                            <tr
+                              key={art.$id}
+                              className="hover:bg-purple-50 transition-colors cursor-pointer"
+                              onClick={() => addPositionAusArtikel(art.$id!)}
+                            >
                               <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</td>
                               <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text">{art.bezeichnung}</td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted">
@@ -1450,14 +1454,17 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900 dark:text-dark-text text-center">{art.einheit}</td>
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
-                                {art.einzelpreis !== undefined && art.einzelpreis !== null 
-                                  ? `${art.einzelpreis.toFixed(2)} €` 
+                                {art.einzelpreis !== undefined && art.einzelpreis !== null
+                                  ? `${art.einzelpreis.toFixed(2)} €`
                                   : <span className="text-gray-400 dark:text-gray-500 italic text-xs">auf Anfrage</span>
                                 }
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <button
-                                  onClick={() => addPositionAusArtikel(art.$id!)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addPositionAusArtikel(art.$id!);
+                                  }}
                                   className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
                                 >
                                   Hinzufügen
