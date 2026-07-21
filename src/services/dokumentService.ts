@@ -1250,17 +1250,19 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   
-  // === Liefersaison-Hinweis ===
-  summenY += 8;
-  summenY = await ensureSpace(doc, summenY, 8, stammdaten);
+  // === Liefersaison-Hinweis (undefined = anzeigen, für bestehende Dokumente) ===
+  if (daten.liefersaisonAnzeigen !== false) {
+    summenY += 8;
+    summenY = await ensureSpace(doc, summenY, 8, stammdaten);
 
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'italic');
-  const liefersaisonText = getLiefersaisonText(stammdaten);
-  doc.text(liefersaisonText, 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'italic');
+    const liefersaisonText = getLiefersaisonText(stammdaten);
+    doc.text(liefersaisonText, 25, summenY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+  }
 
   // === Lieferbedingungen ===
   summenY += 6;

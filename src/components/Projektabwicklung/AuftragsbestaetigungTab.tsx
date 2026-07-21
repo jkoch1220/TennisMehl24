@@ -1719,6 +1719,26 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           </div>
         </div>
 
+        {/* Liefersaison */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Liefersaison</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={auftragsbestaetigungsDaten.liefersaisonAnzeigen !== false}
+                onChange={(e) => handleInputChange('liefersaisonAnzeigen', e.target.checked)}
+                disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+                className="w-4 h-4 text-orange-600 border-gray-300 dark:border-slate-700 rounded focus:ring-orange-500 disabled:opacity-50"
+              />
+              <span className="text-sm text-gray-600 dark:text-dark-textMuted">Liefersaison auf AB anzeigen</span>
+            </label>
+          </div>
+          <p className="text-sm text-gray-500 dark:text-dark-textMuted">
+            Wenn aktiviert, wird der Liefersaison-Hinweis (z.B. "Liefersaison voraussichtlich 02.03. - 17.04.2026") auf der Auftragsbestätigung gedruckt.
+          </p>
+        </div>
+
         {/* Dieselpreiszuschlag */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-start gap-3 mb-3">
