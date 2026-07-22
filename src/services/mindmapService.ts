@@ -173,6 +173,8 @@ const mapBoard = (doc: Record<string, unknown>): MindmapBoard => ({
   id: doc.$id as string,
   name: (doc.name as string) || '',
   typ: doc.typ === 'prozess' ? 'prozess' : 'organigramm',
+  beschreibung: (doc.beschreibung as string) || '',
+  bilderIds: Array.isArray(doc.bilderIds) ? (doc.bilderIds as string[]) : [],
   zustaendig: (doc.zustaendig as string) || '',
   geraetId: (doc.geraetId as string) || '',
   intervallStunden:
@@ -233,6 +235,8 @@ export const updateBoard = async (board: MindmapBoard): Promise<void> => {
   await databases.updateDocument(DATABASE_ID, MINDMAP_BOARDS_COLLECTION_ID, board.id, {
     name: board.name,
     typ: board.typ,
+    beschreibung: board.beschreibung ?? '',
+    bilderIds: board.bilderIds ?? [],
     zustaendig: board.zustaendig ?? '',
     geraetId: board.geraetId ?? '',
     intervallStunden: board.intervallStunden ?? 0,

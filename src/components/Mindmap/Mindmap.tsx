@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ChevronsDownUp,
   ChevronsUpDown,
+  Info,
   Maximize2,
   Network,
   Plus,
@@ -21,6 +22,7 @@ import {
   MindmapViewport,
 } from '../../types/mindmap';
 import {
+  createBoard,
   createMindmapNode,
   deleteMindmapNodes,
   deleteTaskAnhaenge,
@@ -29,6 +31,7 @@ import {
   loadViewport,
   saveViewport,
   subscribeMindmap,
+  updateBoard,
   updateMindmapNode,
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
@@ -40,12 +43,16 @@ import {
   getNotizen,
   getTasks,
   getVisibleNodes,
+  headerHeight,
   LayoutPos,
   layoutTree,
   NODE_WIDTH,
   NOTIZ_WIDTH,
   notizHeight,
+  TASK_LIST_PAD,
+  TASK_ROW_HEIGHT,
 } from './mindmapUtils';
+import BoardInfoModal from './BoardInfoModal';
 import MindmapNodeCard from './MindmapNodeCard';
 import NotizCard from './NotizCard';
 import TaskModal from './TaskModal';
@@ -60,6 +67,7 @@ interface BoardAnsichtProps {
 }
 
 const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
+  const navigate = useNavigate();
   const [board, setBoard] = useState<MindmapBoard | null>(null);
   const [nodes, setNodes] = useState<Record<string, MindmapNode>>({});
   const [loading, setLoading] = useState(true);
@@ -73,6 +81,10 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Verbinden-Modus: Quelle gewählt, nächster Karten-Klick setzt das Ziel
   const [connectFromId, setConnectFromId] = useState<string | null>(null);
+  // Notiz-Verbinden-Modus: Notiz gewählt, nächster Klick auf Schritt/Task verbindet
+  const [noteConnectFromId, setNoteConnectFromId] = useState<string | null>(null);
+  // Übersichtsseite des Boards (Beschreibung + Bilder)
+  const [boardInfoOpen, setBoardInfoOpen] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const panState = useRef<{ lastX: number; lastY: number } | null>(null);
@@ -113,6 +125,9 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   nodesRef.current = nodes;
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const boardWriteTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const istProzess = board?.typ === 'prozess';
 
@@ -461,6 +476,58 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     }
   };
 
+  /** Board-Felder (Beschreibung, Bilder) lokal patchen + debounced speichern */
+  const patchBoard = (fields: Partial<MindmapBoard>) => {
+    setBoard((prev) => (prev ? { ...prev, ...fields } : prev));
+    if (boardWriteTimeout.current) clearTimeout(boardWriteTimeout.current);
+    boardWriteTimeout.current = setTimeout(() => {
+      const aktuelles = boardRef.current;
+      if (!aktuelles) return;
+      updateBoard(aktuelles).catch((error) => {
+        console.error('❌ Board nicht gespeichert:', error);
+        toast.error('Board-Übersicht konnte nicht gespeichert werden');
+      });
+    }, WRITE_DEBOUNCE_MS);
+  };
+
+  /**
+   * Schritt als Unterprozess kapseln: legt ein eigenes Prozess-Board mit dem
+   * Titel des Schritts an (erscheint automatisch in der Board-Übersicht) und
+   * verwandelt den Schritt in einen orangen Verweis, der das Board öffnet.
+   */
+  const makeUnterprozess = async (nodeId: string) => {
+    const node = nodesRef.current[nodeId];
+    if (!node || node.type !== 'knoten') return;
+    try {
+      const neuesBoard = await createBoard(node.titel, 'prozess');
+      patchNode(nodeId, { type: 'prozess', linkedBoardId: neuesBoard.id });
+      toast.success(`Unterprozess „${node.titel}" angelegt — Klick auf das Pfeil-Symbol öffnet ihn`);
+    } catch (error) {
+      console.error('❌ Unterprozess nicht angelegt:', error);
+      toast.error('Unterprozess konnte nicht angelegt werden');
+    }
+  };
+
+  /** Notiz-Verbinden abschließen: Klick auf Schritt-Karte oder Task-Zeile */
+  const completeNoteConnect = (targetId: string) => {
+    const noteId = noteConnectFromId;
+    setNoteConnectFromId(null);
+    if (!noteId || noteId === targetId) return;
+    const note = nodesRef.current[noteId];
+    const target = nodesRef.current[targetId];
+    if (!note || !target) return;
+    if (target.type === 'notiz') {
+      toast.info('Notizen lassen sich nur mit Schritten oder Tasks verbinden');
+      return;
+    }
+    const vorhandene = note.verbindungen ?? [];
+    if (vorhandene.includes(targetId)) {
+      toast.info('Verbindung existiert bereits');
+      return;
+    }
+    patchNode(noteId, { verbindungen: [...vorhandene, targetId] });
+  };
+
   /** Standalone-Notiz frei auf der Fläche anlegen (mittig im sichtbaren Bereich) */
   const addStandaloneNotiz = () => {
     const el = containerRef.current;
@@ -607,6 +674,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     setEditingId(null);
     setEditingEdgeId(null);
     setConnectFromId(null);
+    setNoteConnectFromId(null);
     panState.current = { lastX: e.clientX, lastY: e.clientY };
   };
 
@@ -759,26 +827,99 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   }
   notizPosRef.current = notizPos;
 
-  // Seitliche Verbindungslinie von der Notiz zur nächstgelegenen Ankerkante
-  const notizConnectors = notizen
-    .filter((n) => n.parentId && layout[n.parentId])
-    .map((n) => {
-      const a = layout[n.parentId!];
-      const aH = cardHeight(nodes, n.parentId!);
-      const p = notizPos[n.id];
-      const nH = notizHeight(n.titel);
-      let x1: number, y1: number, x2: number, y2: number;
-      if (p.x >= a.x + NODE_WIDTH) {
-        x1 = a.x + NODE_WIDTH; y1 = a.y + aH / 2; x2 = p.x; y2 = p.y + nH / 2;
-      } else if (p.x + NOTIZ_WIDTH <= a.x) {
-        x1 = a.x; y1 = a.y + aH / 2; x2 = p.x + NOTIZ_WIDTH; y2 = p.y + nH / 2;
-      } else if (p.y >= a.y + aH) {
-        x1 = a.x + NODE_WIDTH / 2; y1 = a.y + aH; x2 = p.x + NOTIZ_WIDTH / 2; y2 = p.y;
-      } else {
-        x1 = a.x + NODE_WIDTH / 2; y1 = a.y; x2 = p.x + NOTIZ_WIDTH / 2; y2 = p.y + nH;
+  // Kürzeste seitliche Verbindung zwischen zwei Rechtecken (nächste Kanten)
+  type Rect = { x: number; y: number; w: number; h: number };
+  const kantePunkte = (n: Rect, z: Rect) => {
+    if (n.x >= z.x + z.w) {
+      return { x1: n.x, y1: n.y + n.h / 2, x2: z.x + z.w, y2: z.y + z.h / 2 };
+    }
+    if (n.x + n.w <= z.x) {
+      return { x1: n.x + n.w, y1: n.y + n.h / 2, x2: z.x, y2: z.y + z.h / 2 };
+    }
+    if (n.y >= z.y + z.h) {
+      return { x1: n.x + n.w / 2, y1: n.y, x2: z.x + z.w / 2, y2: z.y + z.h };
+    }
+    return { x1: n.x + n.w / 2, y1: n.y + n.h, x2: z.x + z.w / 2, y2: z.y };
+  };
+
+  // Notiz-Linien: Anker (angeheftete Notizen) + freie Verbindungen zu
+  // Schritten und einzelnen Task-Zeilen; letztere per Klick entfernbar
+  const notizLinien: Array<{
+    key: string;
+    notizId: string;
+    zielId: string;
+    entfernbar: boolean;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  }> = [];
+  for (const notiz of notizen) {
+    const p = notizPos[notiz.id];
+    if (!p) continue;
+    const nRect: Rect = {
+      x: p.x,
+      y: p.y,
+      w: NOTIZ_WIDTH,
+      h: notizHeight(notiz.titel),
+    };
+    if (notiz.parentId && layout[notiz.parentId]) {
+      notizLinien.push({
+        key: `anker-${notiz.id}`,
+        notizId: notiz.id,
+        zielId: notiz.parentId,
+        entfernbar: false,
+        ...kantePunkte(nRect, {
+          x: layout[notiz.parentId].x,
+          y: layout[notiz.parentId].y,
+          w: NODE_WIDTH,
+          h: cardHeight(nodes, notiz.parentId),
+        }),
+      });
+    }
+    for (const zielId of notiz.verbindungen ?? []) {
+      const ziel = nodes[zielId];
+      if (!ziel) continue;
+      if (ziel.type === 'task') {
+        // Ziel ist eine Task-Zeile in ihrer Eltern-Karte
+        const pid = ziel.parentId;
+        if (!pid || !nodes[pid] || !layout[pid]) continue;
+        const idx = getTasks(nodes, pid).findIndex((t) => t.id === zielId);
+        if (idx < 0) continue;
+        const a = layout[pid];
+        const rowTop =
+          a.y +
+          headerHeight(nodes, nodes[pid]) +
+          TASK_LIST_PAD / 2 +
+          idx * TASK_ROW_HEIGHT;
+        notizLinien.push({
+          key: `vb-${notiz.id}-${zielId}`,
+          notizId: notiz.id,
+          zielId,
+          entfernbar: true,
+          ...kantePunkte(nRect, {
+            x: a.x,
+            y: rowTop,
+            w: NODE_WIDTH,
+            h: TASK_ROW_HEIGHT,
+          }),
+        });
+      } else if (layout[zielId]) {
+        notizLinien.push({
+          key: `vb-${notiz.id}-${zielId}`,
+          notizId: notiz.id,
+          zielId,
+          entfernbar: true,
+          ...kantePunkte(nRect, {
+            x: layout[zielId].x,
+            y: layout[zielId].y,
+            w: NODE_WIDTH,
+            h: cardHeight(nodes, zielId),
+          }),
+        });
       }
-      return { id: n.id, x1, y1, x2, y2 };
-    });
+    }
+  }
   const { x: vx, y: vy, scale } = viewport;
 
   // Orthogonale Kanten: Eltern-Unterkante → Kind-Oberkante
@@ -867,6 +1008,14 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setBoardInfoOpen(true)}
+            title="Übersicht: Beschreibung und Bilder zu diesem Prozess"
+            className="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 shadow-sm hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-900/30 dark:text-dark-accentOrange dark:hover:bg-orange-900/50"
+          >
+            <Info className="h-4 w-4" />
+            Übersicht
+          </button>
           <button
             onClick={addStandaloneNotiz}
             title="Freie Notiz-Blase auf der Fläche anlegen"
@@ -979,18 +1128,33 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                   className="stroke-gray-300 transition-[d] duration-200 dark:stroke-dark-border"
                 />
               ))}
-              {/* Seitliche Verbindungen der Notiz-Blasen zu ihren Ankern */}
-              {notizConnectors.map((c) => (
-                <line
-                  key={`notiz-line-${c.id}`}
-                  x1={c.x1}
-                  y1={c.y1}
-                  x2={c.x2}
-                  y2={c.y2}
-                  strokeWidth={1.5}
-                  strokeDasharray="3 4"
-                  className="stroke-amber-400 transition-all duration-200 dark:stroke-amber-600"
-                />
+              {/* Seitliche Notiz-Verbindungen (Anker + Schritte/Tasks) */}
+              {notizLinien.map((c) => (
+                <g key={c.key}>
+                  <line
+                    x1={c.x1}
+                    y1={c.y1}
+                    x2={c.x2}
+                    y2={c.y2}
+                    strokeWidth={1.5}
+                    strokeDasharray="3 4"
+                    className="stroke-amber-400 transition-all duration-200 dark:stroke-amber-600"
+                  />
+                  {c.entfernbar && (
+                    <line
+                      x1={c.x1}
+                      y1={c.y1}
+                      x2={c.x2}
+                      y2={c.y2}
+                      stroke="transparent"
+                      strokeWidth={14}
+                      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                      onClick={() => removeVerbindung(c.notizId, c.zielId)}
+                    >
+                      <title>Notiz-Verbindung entfernen (Klick)</title>
+                    </line>
+                  )}
+                </g>
               ))}
               {/* Freie Verbindungen (Rücksprünge) mit Pfeil, Klick entfernt sie */}
               {freieVerbindungen.map((v) => (
@@ -1088,8 +1252,14 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 isDragging={draggingId === node.id}
                 isConnectSource={connectFromId === node.id}
                 onPointerDown={(e) => {
-                  if (connectFromId) {
-                    completeConnect(node.id);
+                  const target = e.target as HTMLElement;
+                  const aufBedienElement = !!target.closest(
+                    'input, button, textarea, label, [role="checkbox"]'
+                  );
+                  if (noteConnectFromId) {
+                    if (!aufBedienElement) completeNoteConnect(node.id);
+                  } else if (connectFromId) {
+                    if (!aufBedienElement) completeConnect(node.id);
                   } else {
                     beginReorder(e, node.id);
                   }
@@ -1098,6 +1268,16 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 onStartConnect={
                   istProzess ? () => setConnectFromId(node.id) : undefined
                 }
+                onMakeUnterprozess={
+                  istProzess && node.type === 'knoten' && node.parentId !== null
+                    ? () => makeUnterprozess(node.id)
+                    : undefined
+                }
+                onOpenLinkedBoard={
+                  node.type === 'prozess' && node.linkedBoardId
+                    ? () => navigate(`/geschaeftsprozesse/${node.linkedBoardId}`)
+                    : undefined
+                }
                 onToggleCollapse={() =>
                   patchNode(node.id, { collapsed: !node.collapsed })
                 }
@@ -1105,7 +1285,14 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 onChangeTitel={(titel) => patchNode(node.id, { titel })}
                 onStartEdit={() => setEditingId(node.id)}
                 onStopEdit={() => setEditingId(null)}
-                onOpenTask={(taskId) => setTaskModalId(taskId)}
+                onOpenTask={(taskId) => {
+                  // Im Notiz-Verbinden-Modus verbindet der Klick statt zu öffnen
+                  if (noteConnectFromId) {
+                    completeNoteConnect(taskId);
+                  } else {
+                    setTaskModalId(taskId);
+                  }
+                }}
                 onToggleTaskErledigt={(task) =>
                   patchNode(task.id, { erledigt: !task.erledigt })
                 }
@@ -1120,10 +1307,12 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 pos={notizPos[notiz.id]}
                 isEditing={editingId === notiz.id}
                 isDragging={draggingId === notiz.id}
+                isConnectSource={noteConnectFromId === notiz.id}
                 onPointerDown={(e) => beginNoteDrag(e, notiz.id)}
                 onChangeTitel={(titel) => patchNode(notiz.id, { titel })}
                 onStartEdit={() => setEditingId(notiz.id)}
                 onStopEdit={() => setEditingId(null)}
+                onStartConnect={() => setNoteConnectFromId(notiz.id)}
                 onDelete={() => requestDelete(notiz.id)}
               />
             ))}
@@ -1137,6 +1326,12 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
             — Klick ins Leere bricht ab
           </div>
         )}
+        {noteConnectFromId && (
+          <div className="pointer-events-none absolute left-1/2 top-3 z-20 max-w-[90%] -translate-x-1/2 truncate rounded-full bg-amber-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg">
+            Schritt oder Task anklicken, um die Notiz zu verbinden — Klick ins
+            Leere bricht ab
+          </div>
+        )}
 
         {/* Vorschläge für Zuständigkeit aus dem User-Cache */}
         <datalist id="mindmap-zustaendige">
@@ -1145,6 +1340,15 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           ))}
         </datalist>
       </div>
+
+      {/* Board-Übersicht: Beschreibung + Bilder */}
+      {boardInfoOpen && board && (
+        <BoardInfoModal
+          board={board}
+          onPatch={patchBoard}
+          onClose={() => setBoardInfoOpen(false)}
+        />
+      )}
 
       {/* Task-Detail-Modal */}
       {modalTask && (

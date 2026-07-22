@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Boxes,
   CalendarDays,
   ChevronDown,
   ChevronRight,
   Circle,
   CircleCheck,
+  ExternalLink,
   FolderTree,
   Link2,
   ListTodo,
   Plus,
   Split,
-  StickyNote,
   Trash2,
   Workflow,
 } from 'lucide-react';
@@ -39,6 +40,10 @@ interface MindmapNodeCardProps {
   onAddChild: (type: MindmapNodeType) => void;
   // Verbinden-Modus starten (nur auf Prozess-Boards gesetzt)
   onStartConnect?: () => void;
+  // Schritt als Unterprozess kapseln (nur Prozess-Boards, normale Schritte)
+  onMakeUnterprozess?: () => void;
+  // Nur für type === 'prozess': das verlinkte Unterprozess-Board öffnen
+  onOpenLinkedBoard?: () => void;
   onToggleCollapse: () => void;
   onDelete: () => void;
   onChangeTitel: (titel: string) => void;
@@ -61,6 +66,8 @@ const MindmapNodeCard = ({
   onPointerDown,
   onAddChild,
   onStartConnect,
+  onMakeUnterprozess,
+  onOpenLinkedBoard,
   onToggleCollapse,
   onDelete,
   onChangeTitel,
@@ -90,6 +97,8 @@ const MindmapNodeCard = ({
   };
 
   const istEntscheidung = node.type === 'entscheidung';
+  // Unterprozess-Verweis: orange gekapselt, öffnet das verlinkte Board
+  const istUnterprozess = node.type === 'prozess';
 
   return (
     <div
@@ -99,7 +108,9 @@ const MindmapNodeCard = ({
           ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
           : istEntscheidung
             ? 'cursor-grab active:cursor-grabbing bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-600 shadow-md'
-            : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
+            : istUnterprozess
+              ? 'cursor-grab active:cursor-grabbing bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-400 dark:border-orange-600 shadow-md'
+              : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
       } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''} ${
         isConnectSource ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''
       }`}
@@ -109,6 +120,9 @@ const MindmapNodeCard = ({
       <div className="flex min-h-10 items-start gap-1 px-2 py-[11px]">
         {istEntscheidung && (
           <Split className="mt-px h-4 w-4 shrink-0 rotate-90 text-amber-500" />
+        )}
+        {istUnterprozess && (
+          <Workflow className="mt-px h-4 w-4 shrink-0 text-orange-500" />
         )}
         {childCount > 0 && (
           <button
@@ -169,8 +183,32 @@ const MindmapNodeCard = ({
           </span>
         )}
 
+        {/* Unterprozess öffnen (immer sichtbar) */}
+        {istUnterprozess && onOpenLinkedBoard && (
+          <button
+            onClick={onOpenLinkedBoard}
+            title="Unterprozess öffnen"
+            className="shrink-0 rounded p-0.5 text-orange-500 hover:bg-orange-100 hover:text-orange-700 dark:hover:bg-orange-900/40"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Aktionen (bei Hover) */}
         <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
+          {onMakeUnterprozess && (
+            <button
+              onClick={onMakeUnterprozess}
+              title="Als Unterprozess kapseln (legt ein eigenes Prozess-Board an)"
+              className={`rounded p-0.5 ${
+                isRoot
+                  ? 'hover:bg-white/20'
+                  : 'text-gray-400 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/30'
+              }`}
+            >
+              <Boxes className="w-4 h-4" />
+            </button>
+          )}
           {onStartConnect && (
             <button
               onClick={onStartConnect}
@@ -241,18 +279,8 @@ const MindmapNodeCard = ({
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
                   >
-                    <ListTodo className="w-4 h-4 text-amber-500" />
+                    <ListTodo className="w-4 h-4 text-blue-500" />
                     Task
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAddMenuOpen(false);
-                      onAddChild('notiz');
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
-                  >
-                    <StickyNote className="w-4 h-4 text-yellow-500" />
-                    Notiz
                   </button>
                 </div>
               </>
@@ -274,13 +302,13 @@ const MindmapNodeCard = ({
         </div>
       </div>
 
-      {/* Task-Liste: Klick auf eine Zeile öffnet das Detail-Modal */}
+      {/* Task-Liste (blau codiert): Klick auf eine Zeile öffnet das Detail-Modal */}
       {tasks.length > 0 && (
         <div
           className={`border-t py-1 ${
             isRoot
-              ? 'border-white/20'
-              : 'border-gray-100 dark:border-dark-border'
+              ? 'border-white/20 bg-white/10'
+              : 'border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-900/15'
           }`}
         >
           {tasks.map((task) => {
@@ -294,7 +322,7 @@ const MindmapNodeCard = ({
                 className={`flex w-full items-center gap-1.5 px-2 text-left ${
                   isRoot
                     ? 'hover:bg-white/15'
-                    : 'hover:bg-gray-50 dark:hover:bg-dark-surfaceHover'
+                    : 'hover:bg-blue-100/70 dark:hover:bg-blue-900/30'
                 }`}
               >
                 <span
@@ -314,7 +342,7 @@ const MindmapNodeCard = ({
                   ) : (
                     <Circle
                       className={`w-4 h-4 ${
-                        isRoot ? 'text-white/60' : 'text-gray-300 dark:text-dark-textSubtle'
+                        isRoot ? 'text-white/60' : 'text-blue-400 dark:text-blue-500'
                       }`}
                     />
                   )}

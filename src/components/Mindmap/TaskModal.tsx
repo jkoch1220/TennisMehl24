@@ -82,8 +82,8 @@ const TaskModal = ({ task, knotenTitel, onPatch, onDelete, onClose }: TaskModalP
       >
         {/* Kopf */}
         <div className="flex items-start gap-3 border-b border-gray-100 p-5 dark:border-dark-border">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
-            <ListTodo className="h-5 w-5 text-amber-600 dark:text-dark-accentOrange" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/40">
+            <ListTodo className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs text-gray-400 dark:text-dark-textSubtle">

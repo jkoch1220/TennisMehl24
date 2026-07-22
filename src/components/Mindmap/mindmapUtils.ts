@@ -60,13 +60,15 @@ export const headerHeight = (
   node: MindmapNode
 ): number => {
   const hatChevron = getKnotenChildren(nodes, node.id).length > 0;
-  // px-2 (16) + Hover-Aktionen (~46) + optional Chevron/Entscheidungs-Icon
+  // px-2 (16) + Hover-Aktionen (~46) + optional Chevron/Typ-Icon;
+  // Unterprozess: Icon (20) + permanent sichtbarer Öffnen-Button (24)
   const verfuegbar =
     NODE_WIDTH -
     16 -
     46 -
     (hatChevron ? 21 : 0) -
-    (node.type === 'entscheidung' ? 20 : 0);
+    (node.type === 'entscheidung' ? 20 : 0) -
+    (node.type === 'prozess' ? 44 : 0);
   const zeilen = titelZeilen(node.titel, verfuegbar);
   return Math.max(40, 22 + zeilen * TITLE_LINE_HEIGHT);
 };

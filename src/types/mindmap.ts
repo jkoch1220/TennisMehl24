@@ -6,6 +6,9 @@ export interface MindmapBoard {
   id: string;
   name: string;
   typ: MindmapBoardTyp;
+  // Übersichtsseite: Beschreibung + Bilder (wie bei Tasks)
+  beschreibung?: string;
+  bilderIds?: string[]; // Datei-IDs im Bucket mindmap-bilder
   // Wartungsplanung (nur Prozess-Boards): Fälligkeit nach Betriebsstunden
   zustaendig?: string;
   geraetId?: string; // verknüpftes Gerät (mindmap_geraete)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { StickyNote, Trash2 } from 'lucide-react';
+import { Link2, StickyNote, Trash2 } from 'lucide-react';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { MindmapNode } from '../../types/mindmap';
 import { LayoutPos, NOTIZ_WIDTH } from './mindmapUtils';
@@ -9,10 +9,14 @@ interface NotizCardProps {
   pos: LayoutPos;
   isEditing: boolean;
   isDragging: boolean;
+  // Diese Notiz ist gerade Quelle im Verbinden-Modus
+  isConnectSource?: boolean;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   onChangeTitel: (titel: string) => void;
   onStartEdit: () => void;
   onStopEdit: () => void;
+  // Verbinden-Modus starten: nächster Klick auf Schritt/Task setzt das Ziel
+  onStartConnect: () => void;
   onDelete: () => void;
 }
 
@@ -26,10 +30,12 @@ const NotizCard = ({
   pos,
   isEditing,
   isDragging,
+  isConnectSource,
   onPointerDown,
   onChangeTitel,
   onStartEdit,
   onStopEdit,
+  onStartConnect,
   onDelete,
 }: NotizCardProps) => {
   const [draft, setDraft] = useState(notiz.titel);
@@ -60,7 +66,7 @@ const NotizCard = ({
         isDragging
           ? 'z-10 cursor-grabbing shadow-2xl ring-2 ring-amber-400'
           : 'cursor-grab'
-      }`}
+      } ${isConnectSource ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''}`}
       style={{ left: pos.x, top: pos.y, width: NOTIZ_WIDTH }}
     >
       <div className="flex items-start gap-1.5">
@@ -87,6 +93,13 @@ const NotizCard = ({
             {notiz.titel}
           </span>
         )}
+        <button
+          onClick={onStartConnect}
+          title="Mit Schritt oder Task verbinden (danach Ziel anklicken)"
+          className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition-opacity hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100 dark:hover:bg-blue-900/30"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={onDelete}
           title="Notiz löschen"

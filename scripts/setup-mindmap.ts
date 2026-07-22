@@ -207,6 +207,9 @@ async function main() {
   await ensureCollection(MINDMAP_BOARDS_COLLECTION_ID, 'Planungs-Boards');
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'name', 256, true);
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'typ', 16, true);
+  // Übersichtsseite pro Board: Beschreibung + Bilder (wie bei Tasks)
+  await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'beschreibung', 10000, false);
+  await ensureStringArrayAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'bilderIds', 64);
   // Wartungsplanung für Prozess-Boards (Fälligkeit nach Betriebsstunden)
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'zustaendig', 128, false);
   await ensureStringAttribute(MINDMAP_BOARDS_COLLECTION_ID, 'geraetId', 64, false);
