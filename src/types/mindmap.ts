@@ -35,8 +35,9 @@ export interface MindmapDurchfuehrung {
 }
 
 // 'knoten' = Gliederung/Schritt, 'entscheidung' = Verzweigung,
-// 'prozess' = Verweis auf ein anderes Prozess-Board (linkedBoardId)
-export type MindmapNodeType = 'knoten' | 'task' | 'entscheidung' | 'prozess';
+// 'prozess' = Verweis auf ein anderes Prozess-Board (linkedBoardId),
+// 'notiz' = Notiz-Blase (frei auf der Fläche oder seitlich an einem Knoten)
+export type MindmapNodeType = 'knoten' | 'task' | 'entscheidung' | 'prozess' | 'notiz';
 
 export interface MindmapNode {
   id: string;
@@ -56,6 +57,10 @@ export interface MindmapNode {
   verbindungen?: string[];
   // Zusätzlicher vertikaler Abstand zum Eltern-Knoten (per Drag nach unten)
   abstandOben?: number;
+  // Nur für type === 'notiz': Position (angehängt = Offset zum Anker-Knoten,
+  // standalone = absolute Canvas-Koordinaten). 0/0 = automatische Platzierung.
+  posX?: number;
+  posY?: number;
   // Nur für type === 'task':
   beschreibung?: string;
   faelligAm?: string; // ISO-Datum (yyyy-MM-dd), leer = kein Datum

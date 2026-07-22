@@ -45,7 +45,9 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
         ? 'entscheidung'
         : doc.type === 'prozess'
           ? 'prozess'
-          : 'knoten',
+          : doc.type === 'notiz'
+            ? 'notiz'
+            : 'knoten',
   titel: (doc.titel as string) || '',
   edgeLabel: (doc.edgeLabel as string) || '',
   linkedBoardId: (doc.linkedBoardId as string) || '',
@@ -53,6 +55,8 @@ const mapDocument = (doc: Record<string, unknown>): MindmapNode => ({
   sortOrder: typeof doc.sortOrder === 'number' ? doc.sortOrder : 0,
   verbindungen: Array.isArray(doc.verbindungen) ? (doc.verbindungen as string[]) : [],
   abstandOben: typeof doc.abstandOben === 'number' ? doc.abstandOben : 0,
+  posX: typeof doc.posX === 'number' ? doc.posX : 0,
+  posY: typeof doc.posY === 'number' ? doc.posY : 0,
   beschreibung: (doc.beschreibung as string) || '',
   faelligAm: (doc.faelligAm as string) || '',
   reviewAm: (doc.reviewAm as string) || '',
@@ -74,6 +78,8 @@ const toDocumentData = (node: MindmapNode) => ({
   sortOrder: node.sortOrder ?? 0,
   verbindungen: node.verbindungen ?? [],
   abstandOben: node.abstandOben ?? 0,
+  posX: Math.round(node.posX ?? 0),
+  posY: Math.round(node.posY ?? 0),
   beschreibung: node.beschreibung ?? '',
   faelligAm: node.faelligAm ?? '',
   reviewAm: node.reviewAm ?? '',

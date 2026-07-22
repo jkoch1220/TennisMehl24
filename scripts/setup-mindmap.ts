@@ -220,6 +220,9 @@ async function main() {
   // Freie Verbindungen (Rücksprünge im Prozess-Diagramm) + einstellbarer Abstand
   await ensureStringArrayAttribute(MINDMAP_NODES_COLLECTION_ID, 'verbindungen', 64);
   await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'abstandOben');
+  // Notiz-Blasen: Position (Offset zum Anker bzw. absolute Canvas-Koordinaten)
+  await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'posX');
+  await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'posY');
 
   // Geräte mit Betriebsstunden (z. B. Radlader)
   await ensureCollection(MINDMAP_GERAETE_COLLECTION_ID, 'Geräte & Betriebsstunden');

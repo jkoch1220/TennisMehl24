@@ -10,6 +10,7 @@ import {
   ListTodo,
   Plus,
   Split,
+  StickyNote,
   Trash2,
   Workflow,
 } from 'lucide-react';
@@ -242,6 +243,16 @@ const MindmapNodeCard = ({
                   >
                     <ListTodo className="w-4 h-4 text-amber-500" />
                     Task
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      onAddChild('notiz');
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                  >
+                    <StickyNote className="w-4 h-4 text-yellow-500" />
+                    Notiz
                   </button>
                 </div>
               </>

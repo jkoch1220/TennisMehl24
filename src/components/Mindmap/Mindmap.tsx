@@ -7,6 +7,7 @@ import {
   Maximize2,
   Network,
   Plus,
+  StickyNote,
   Trash2,
   Workflow,
   ZoomIn,
@@ -36,12 +37,17 @@ import {
   findRoot,
   getDescendantIds,
   getKnotenChildren,
+  getNotizen,
   getTasks,
   getVisibleNodes,
+  LayoutPos,
   layoutTree,
   NODE_WIDTH,
+  NOTIZ_WIDTH,
+  notizHeight,
 } from './mindmapUtils';
 import MindmapNodeCard from './MindmapNodeCard';
+import NotizCard from './NotizCard';
 import TaskModal from './TaskModal';
 
 const MIN_SCALE = 0.25;
@@ -83,6 +89,18 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     changed: boolean;
     abstandChanged: boolean;
   } | null>(null);
+  // Notiz-Blasen frei verschieben (Offset zum Anker bzw. absolute Position)
+  const noteDragState = useRef<{
+    id: string;
+    pointerStartX: number;
+    pointerStartY: number;
+    // Effektiver Startwert (bei automatischer Platzierung der berechnete Offset)
+    origX: number;
+    origY: number;
+    started: boolean;
+  } | null>(null);
+  // Zuletzt gerenderte absolute Notiz-Positionen (für den Drag-Start)
+  const notizPosRef = useRef<Record<string, LayoutPos>>({});
   // Noch nicht rausgeschriebene lokale Änderungen (Node-ID → Debounce-Timer).
   // Solange ein Write aussteht, überschreiben Realtime-Events diesen Node nicht.
   const pendingWrites = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -206,6 +224,35 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // Pan + Umsortieren über globale Pointer-Events
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
+      // Notiz-Blase frei verschieben
+      const noteDrag = noteDragState.current;
+      if (noteDrag) {
+        e.preventDefault();
+        if (!noteDrag.started) {
+          if (
+            Math.abs(e.clientX - noteDrag.pointerStartX) < 4 &&
+            Math.abs(e.clientY - noteDrag.pointerStartY) < 4
+          ) {
+            return;
+          }
+          noteDrag.started = true;
+          setDraggingId(noteDrag.id);
+        }
+        const v = viewportRef.current;
+        const posX = Math.round(
+          noteDrag.origX + (e.clientX - noteDrag.pointerStartX) / v.scale
+        );
+        const posY = Math.round(
+          noteDrag.origY + (e.clientY - noteDrag.pointerStartY) / v.scale
+        );
+        setNodes((prev) =>
+          prev[noteDrag.id]
+            ? { ...prev, [noteDrag.id]: { ...prev[noteDrag.id], posX, posY } }
+            : prev
+        );
+        return;
+      }
+
       // Karte ziehen: seitlich = Reihenfolge, nach unten = Abstand zum Parent
       const drag = reorderState.current;
       if (drag) {
@@ -279,6 +326,12 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       setViewport((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
     };
     const onUp = () => {
+      const noteDrag = noteDragState.current;
+      if (noteDrag) {
+        noteDragState.current = null;
+        setDraggingId(null);
+        if (noteDrag.started) scheduleUpsert(noteDrag.id);
+      }
       const drag = reorderState.current;
       if (drag) {
         reorderState.current = null;
@@ -344,13 +397,17 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     const id = crypto.randomUUID();
     // Neue Kinder hinten anstellen
     const siblings =
-      type === 'task' ? getTasks(nodes, parentId) : getKnotenChildren(nodes, parentId);
+      type === 'task'
+        ? getTasks(nodes, parentId)
+        : type === 'notiz'
+          ? getNotizen(nodes, parentId)
+          : getKnotenChildren(nodes, parentId);
     const sortOrder = siblings.length
       ? Math.max(...siblings.map((s) => s.sortOrder ?? 0)) + 1
       : 0;
-    // Nach Entscheidungen die Kanten mit Ja/Nein vorbelegen
+    // Nach Entscheidungen die Kanten mit Ja/Nein vorbelegen (Notizen haben keine Kante)
     const edgeLabel =
-      type !== 'task' && parent.type === 'entscheidung'
+      type !== 'task' && type !== 'notiz' && parent.type === 'entscheidung'
         ? siblings.length === 0
           ? 'Ja'
           : siblings.length === 1
@@ -360,11 +417,13 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     const titel =
       type === 'task'
         ? 'Neuer Task'
-        : type === 'entscheidung'
-          ? 'Entscheidung?'
-          : istProzess
-            ? 'Neuer Schritt'
-            : 'Neuer Knoten';
+        : type === 'notiz'
+          ? 'Neue Notiz'
+          : type === 'entscheidung'
+            ? 'Entscheidung?'
+            : istProzess
+              ? 'Neuer Schritt'
+              : 'Neuer Knoten';
     const newNode: MindmapNode = {
       id,
       boardId,
@@ -394,7 +453,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
         return next;
       });
     });
-    // Knoten: Titel direkt inline editieren; Task: Detail-Modal öffnen
+    // Knoten/Notiz: Titel direkt inline editieren; Task: Detail-Modal öffnen
     if (type === 'task') {
       setTaskModalId(id);
     } else {
@@ -402,15 +461,46 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     }
   };
 
+  /** Standalone-Notiz frei auf der Fläche anlegen (mittig im sichtbaren Bereich) */
+  const addStandaloneNotiz = () => {
+    const el = containerRef.current;
+    const v = viewportRef.current;
+    const id = crypto.randomUUID();
+    const neu: MindmapNode = {
+      id,
+      boardId,
+      parentId: null,
+      type: 'notiz',
+      titel: 'Neue Notiz',
+      collapsed: false,
+      sortOrder: 0,
+      posX: Math.round(((el?.clientWidth ?? 800) / 2 - v.x) / v.scale - NOTIZ_WIDTH / 2),
+      posY: Math.round((((el?.clientHeight ?? 600) / 3) - v.y) / v.scale),
+    };
+    setNodes((prev) => ({ ...prev, [id]: neu }));
+    createMindmapNode(neu).catch((error) => {
+      console.error('❌ Notiz nicht angelegt:', error);
+      toast.error('Notiz konnte nicht angelegt werden');
+      setNodes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    });
+    setEditingId(id);
+  };
+
   /** Löschen immer mit Sicherheitsabfrage — erst der Dialog, dann deleteNode */
   const requestDelete = (id: string) => {
-    if (nodes[id]?.parentId === null) return; // Root ist nicht löschbar
+    const node = nodes[id];
+    // Root ist nicht löschbar; Standalone-Notizen (parentId null) schon
+    if (!node || (node.parentId === null && node.type !== 'notiz')) return;
     setConfirmDeleteId(id);
   };
 
   const deleteNode = (id: string) => {
     const node = nodesRef.current[id];
-    if (!node || node.parentId === null) return;
+    if (!node || (node.parentId === null && node.type !== 'notiz')) return;
     const doomed = [id, ...getDescendantIds(nodesRef.current, id)];
     const doomedSet = new Set(doomed);
     // Anhänge betroffener Tasks (Subtasks, Zeiten, Bilder) mit aufräumen
@@ -538,6 +628,27 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     };
   };
 
+  const beginNoteDrag = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, textarea, label')) return;
+    const notiz = nodesRef.current[id];
+    if (!notiz) return;
+    // Angehängte Notiz: Offset zum Anker; standalone: absolute Position.
+    // Bei automatischer Platzierung (posX/posY 0/0) den gerenderten Wert übernehmen.
+    const abs = notizPosRef.current[id];
+    const anchor = notiz.parentId ? layoutRef.current[notiz.parentId] : null;
+    const origX = abs ? abs.x - (anchor?.x ?? 0) : notiz.posX ?? 0;
+    const origY = abs ? abs.y - (anchor?.y ?? 0) : notiz.posY ?? 0;
+    noteDragState.current = {
+      id,
+      pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+      origX,
+      origY,
+      started: false,
+    };
+  };
+
   /** Neuen Knoten auf der Kante zwischen Parent und Kind einfügen */
   const insertBetween = (childId: string) => {
     const child = nodesRef.current[childId];
@@ -609,6 +720,65 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // Nur Knoten sind Baum-Elemente; Tasks werden als Liste in ihrer Karte gerendert
   const visibleNodes = getVisibleNodes(nodes).filter((n) => layout[n.id]);
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
+
+  // Notiz-Blasen: sichtbar, solange ihr Anker sichtbar ist (auch bei
+  // eingeklapptem Anker — wie die Task-Liste); standalone immer sichtbar
+  const notizen = Object.values(nodes)
+    .filter(
+      (n) =>
+        n.type === 'notiz' && (n.parentId === null || layout[n.parentId])
+    )
+    .sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id.localeCompare(b.id)
+    );
+  const notizPos: Record<string, LayoutPos> = {};
+  {
+    // Automatische Platzierung: rechts neben dem Anker, mehrere untereinander
+    const autoIndex = new Map<string, number>();
+    for (const notiz of notizen) {
+      const auto = !notiz.posX && !notiz.posY;
+      if (notiz.parentId) {
+        const anchor = layout[notiz.parentId];
+        if (auto) {
+          const i = autoIndex.get(notiz.parentId) ?? 0;
+          autoIndex.set(notiz.parentId, i + 1);
+          notizPos[notiz.id] = {
+            x: anchor.x + NODE_WIDTH + 56,
+            y: anchor.y + i * 96,
+          };
+        } else {
+          notizPos[notiz.id] = {
+            x: anchor.x + (notiz.posX ?? 0),
+            y: anchor.y + (notiz.posY ?? 0),
+          };
+        }
+      } else {
+        notizPos[notiz.id] = { x: notiz.posX ?? 0, y: notiz.posY ?? 0 };
+      }
+    }
+  }
+  notizPosRef.current = notizPos;
+
+  // Seitliche Verbindungslinie von der Notiz zur nächstgelegenen Ankerkante
+  const notizConnectors = notizen
+    .filter((n) => n.parentId && layout[n.parentId])
+    .map((n) => {
+      const a = layout[n.parentId!];
+      const aH = cardHeight(nodes, n.parentId!);
+      const p = notizPos[n.id];
+      const nH = notizHeight(n.titel);
+      let x1: number, y1: number, x2: number, y2: number;
+      if (p.x >= a.x + NODE_WIDTH) {
+        x1 = a.x + NODE_WIDTH; y1 = a.y + aH / 2; x2 = p.x; y2 = p.y + nH / 2;
+      } else if (p.x + NOTIZ_WIDTH <= a.x) {
+        x1 = a.x; y1 = a.y + aH / 2; x2 = p.x + NOTIZ_WIDTH; y2 = p.y + nH / 2;
+      } else if (p.y >= a.y + aH) {
+        x1 = a.x + NODE_WIDTH / 2; y1 = a.y + aH; x2 = p.x + NOTIZ_WIDTH / 2; y2 = p.y;
+      } else {
+        x1 = a.x + NODE_WIDTH / 2; y1 = a.y; x2 = p.x + NOTIZ_WIDTH / 2; y2 = p.y + nH;
+      }
+      return { id: n.id, x1, y1, x2, y2 };
+    });
   const { x: vx, y: vy, scale } = viewport;
 
   // Orthogonale Kanten: Eltern-Unterkante → Kind-Oberkante
@@ -691,12 +861,20 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
             </h1>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted">
               {istProzess
-                ? 'Prozess-Diagramm · Plus auf der Kante: Schritt dazwischen · Ketten-Symbol: Schritte frei verbinden · Karte nach unten ziehen: Abstand · geteilt mit dem Team'
-                : 'Organigramm · Doppelklick: umbenennen · Karte seitlich ziehen: Reihenfolge · nach unten ziehen: Abstand · geteilt mit dem Team'}
+                ? 'Prozess-Diagramm · Plus auf der Kante: Schritt dazwischen · Ketten-Symbol: verbinden · Notizen über das Plus-Menü oder den Notiz-Button · geteilt mit dem Team'
+                : 'Organigramm · Doppelklick: umbenennen · Karte ziehen: Reihenfolge/Abstand · Notizen über das Plus-Menü · geteilt mit dem Team'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={addStandaloneNotiz}
+            title="Freie Notiz-Blase auf der Fläche anlegen"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 shadow-sm hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-dark-accentOrange dark:hover:bg-amber-900/50"
+          >
+            <StickyNote className="h-4 w-4" />
+            Notiz
+          </button>
           <button
             onClick={toggleAll}
             className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-text dark:hover:bg-dark-surfaceHover"
@@ -799,6 +977,19 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                   fill="none"
                   strokeWidth={2}
                   className="stroke-gray-300 transition-[d] duration-200 dark:stroke-dark-border"
+                />
+              ))}
+              {/* Seitliche Verbindungen der Notiz-Blasen zu ihren Ankern */}
+              {notizConnectors.map((c) => (
+                <line
+                  key={`notiz-line-${c.id}`}
+                  x1={c.x1}
+                  y1={c.y1}
+                  x2={c.x2}
+                  y2={c.y2}
+                  strokeWidth={1.5}
+                  strokeDasharray="3 4"
+                  className="stroke-amber-400 transition-all duration-200 dark:stroke-amber-600"
                 />
               ))}
               {/* Freie Verbindungen (Rücksprünge) mit Pfeil, Klick entfernt sie */}
@@ -920,6 +1111,22 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 }
               />
             ))}
+
+            {/* Notiz-Blasen (frei oder seitlich am Knoten) */}
+            {notizen.map((notiz) => (
+              <NotizCard
+                key={notiz.id}
+                notiz={notiz}
+                pos={notizPos[notiz.id]}
+                isEditing={editingId === notiz.id}
+                isDragging={draggingId === notiz.id}
+                onPointerDown={(e) => beginNoteDrag(e, notiz.id)}
+                onChangeTitel={(titel) => patchNode(notiz.id, { titel })}
+                onStartEdit={() => setEditingId(notiz.id)}
+                onStopEdit={() => setEditingId(null)}
+                onDelete={() => requestDelete(notiz.id)}
+              />
+            ))}
           </div>
         )}
 
@@ -968,7 +1175,11 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 dark:text-dark-text">
-                  {confirmNode.type === 'task' ? 'Task löschen?' : 'Knoten löschen?'}
+                  {confirmNode.type === 'task'
+                    ? 'Task löschen?'
+                    : confirmNode.type === 'notiz'
+                      ? 'Notiz löschen?'
+                      : 'Knoten löschen?'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-dark-textMuted">
                   „{confirmNode.titel}"

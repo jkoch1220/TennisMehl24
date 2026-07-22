@@ -87,18 +87,30 @@ export const getChildren = (
     .filter((n) => n.parentId === parentId)
     .sort(bySortOrder);
 
-// Baum-Kinder = alles außer Tasks (Knoten/Schritte und Entscheidungen)
+// Baum-Kinder = Knoten/Schritte und Entscheidungen (keine Tasks, keine Notizen —
+// Tasks hängen als Liste in der Karte, Notizen schweben frei daneben)
 export const getKnotenChildren = (
   nodes: Record<string, MindmapNode>,
   parentId: string
 ): MindmapNode[] =>
-  getChildren(nodes, parentId).filter((n) => n.type !== 'task');
+  getChildren(nodes, parentId).filter(
+    (n) => n.type !== 'task' && n.type !== 'notiz'
+  );
 
-/** Wurzelknoten eines Boards (parentId === null) */
+/** Notiz-Blasen, die an einem Knoten hängen */
+export const getNotizen = (
+  nodes: Record<string, MindmapNode>,
+  parentId: string
+): MindmapNode[] => getChildren(nodes, parentId).filter((n) => n.type === 'notiz');
+
+/**
+ * Wurzelknoten eines Boards (parentId === null). Standalone-Notizen haben
+ * ebenfalls parentId null und dürfen hier nicht mitzählen.
+ */
 export const findRoot = (
   nodes: Record<string, MindmapNode>
 ): MindmapNode | undefined =>
-  Object.values(nodes).find((n) => n.parentId === null);
+  Object.values(nodes).find((n) => n.parentId === null && n.type !== 'notiz');
 
 export const getTasks = (
   nodes: Record<string, MindmapNode>,
@@ -210,6 +222,14 @@ export const layoutTree = (
 
   place(rootId, 0, 0);
   return pos;
+};
+
+// Notiz-Blasen: feste Breite, Höhe wächst mit dem Text (für die Verbindungslinie)
+export const NOTIZ_WIDTH = 200;
+export const notizHeight = (titel: string): number => {
+  // 13px-Font ist etwas schmaler als die 14px-Messung — als Näherung ausreichend
+  const zeilen = titelZeilen(titel, NOTIZ_WIDTH - 24);
+  return 20 + zeilen * TITLE_LINE_HEIGHT;
 };
 
 export const istTaskUeberfaellig = (node: MindmapNode): boolean =>
