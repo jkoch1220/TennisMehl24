@@ -116,6 +116,11 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // Noch nicht rausgeschriebene lokale Änderungen (Node-ID → Debounce-Timer).
   // Solange ein Write aussteht, überschreiben Realtime-Events diesen Node nicht.
   const pendingWrites = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Nachgeladene Unterprozess-Boards (deren Schritte inline dargestellt werden)
+  const geladeneBoardIds = useRef(new Set<string>([boardId]));
+  const ladendeBoardIds = useRef(new Set<string>());
+  // Verweise, deren Alt-Kinder bereits ins verlinkte Board umgezogen wurden
+  const migrierteVerweise = useRef(new Set<string>());
   // Ansicht noch nie benutzt → Root nach dem Laden zentrieren
   const isFresh = useRef(
     viewport.x === 0 && viewport.y === 0 && viewport.scale === 1
@@ -134,6 +139,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // Initial laden + Realtime-Subscription für Änderungen anderer User
   useEffect(() => {
     let cancelled = false;
+    geladeneBoardIds.current = new Set([boardId]);
+    ladendeBoardIds.current.clear();
     Promise.all([getBoard(boardId), loadBoardNodes(boardId)])
       .then(async ([loadedBoard, loadedNodes]) => {
         if (cancelled) return;
@@ -164,7 +171,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       });
 
     const unsubscribe = subscribeMindmap((event, node) => {
-      if (node.boardId !== boardId) return;
+      // Auch Änderungen in eingebundenen Unterprozess-Boards übernehmen
+      if (!geladeneBoardIds.current.has(node.boardId)) return;
       if (event === 'delete') {
         setNodes((prev) => {
           if (!prev[node.id]) return prev;
@@ -196,10 +204,118 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     return () => clearTimeout(timeout);
   }, [boardId, viewport]);
 
-  const rootId = useMemo(() => findRoot(nodes)?.id ?? '', [nodes]);
+  // Unterprozess-Boards nachladen, deren Schritte inline eingeblendet werden.
+  // Läuft erneut, wenn neue Verweise auftauchen (auch verschachtelt) —
+  // geladeneBoardIds schützt vor Doppel-Laden und Zyklen.
+  useEffect(() => {
+    const fehlend = Object.values(nodes)
+      .filter(
+        (n) =>
+          n.type === 'prozess' &&
+          n.linkedBoardId &&
+          !geladeneBoardIds.current.has(n.linkedBoardId) &&
+          !ladendeBoardIds.current.has(n.linkedBoardId)
+      )
+      .map((n) => n.linkedBoardId as string);
+    if (fehlend.length === 0) return;
+    fehlend.forEach((id) => ladendeBoardIds.current.add(id));
+    Promise.all(
+      fehlend.map((id) =>
+        loadBoardNodes(id).catch(() => ({}) as Record<string, MindmapNode>)
+      )
+    ).then((ergebnisse) => {
+      const geladen: Record<string, MindmapNode> = {};
+      ergebnisse.forEach((r) => Object.assign(geladen, r));
+      fehlend.forEach((id) => {
+        ladendeBoardIds.current.delete(id);
+        geladeneBoardIds.current.add(id);
+      });
+      // Lokale (evtl. neuere) Stände nicht überschreiben
+      setNodes((prev) => ({ ...geladen, ...prev }));
+    });
+  }, [nodes]);
+
+  // Selbstheilung für ältere Unterprozess-Verweise: Schritte, die noch als
+  // direkte Kinder des Verweises im Eltern-Board hängen, ziehen automatisch
+  // in das verlinkte Board um (angeheftete Notizen am Verweis bleiben).
+  useEffect(() => {
+    for (const p of Object.values(nodes)) {
+      if (p.type !== 'prozess' || !p.linkedBoardId) continue;
+      if (migrierteVerweise.current.has(p.id)) continue;
+      const kinder = Object.values(nodes).filter(
+        (k) => k.parentId === p.id && k.type !== 'notiz'
+      );
+      if (kinder.length === 0) continue;
+      const linkedRoot = Object.values(nodes).find(
+        (r) =>
+          r.boardId === p.linkedBoardId &&
+          r.parentId === null &&
+          r.type !== 'notiz'
+      );
+      if (!linkedRoot) continue; // verlinktes Board noch nicht geladen
+      migrierteVerweise.current.add(p.id);
+      const umzug = getDescendantIds(nodes, p.id)
+        .map((dId) => nodes[dId])
+        .filter(
+          (d): d is MindmapNode =>
+            !!d && !(d.type === 'notiz' && d.parentId === p.id)
+        )
+        .map((d) => ({
+          ...d,
+          boardId: p.linkedBoardId as string,
+          parentId: d.parentId === p.id ? linkedRoot.id : d.parentId,
+        }));
+      setNodes((prev) => {
+        const next = { ...prev };
+        for (const m of umzug) next[m.id] = m;
+        return next;
+      });
+      umzug.forEach((m) => scheduleUpsert(m.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes]);
+
+  // Root dieses Boards (der State enthält auch Nodes verlinkter Boards)
+  const rootId = useMemo(
+    () =>
+      Object.values(nodes).find(
+        (n) => n.parentId === null && n.boardId === boardId && n.type !== 'notiz'
+      )?.id ?? '',
+    [nodes, boardId]
+  );
+
+  /**
+   * Sicht für Layout/Rendering: Unterprozess-Verweise erben die Schritte des
+   * verlinkten Boards — dessen Root verschwindet, seine Kinder hängen unter
+   * dem Verweis. Die Original-Nodes (echte parentId/boardId) bleiben für alle
+   * Writes unangetastet; ein-/ausklappen läuft über collapsed des Verweises.
+   */
+  const viewNodes = useMemo(() => {
+    const view = { ...nodes };
+    const bereitsEingebunden = new Set<string>();
+    for (const n of Object.values(nodes)) {
+      if (n.type !== 'prozess' || !n.linkedBoardId) continue;
+      if (bereitsEingebunden.has(n.linkedBoardId)) continue;
+      const linkedRoot = Object.values(nodes).find(
+        (r) =>
+          r.boardId === n.linkedBoardId &&
+          r.parentId === null &&
+          r.type !== 'notiz'
+      );
+      if (!linkedRoot) continue;
+      bereitsEingebunden.add(n.linkedBoardId);
+      delete view[linkedRoot.id];
+      for (const kind of Object.values(nodes)) {
+        if (kind.parentId === linkedRoot.id) {
+          view[kind.id] = { ...kind, parentId: n.id };
+        }
+      }
+    }
+    return view;
+  }, [nodes]);
 
   // Organigramm-Layout: Positionen werden komplett aus der Hierarchie berechnet
-  const layout = useMemo(() => layoutTree(nodes, rootId), [nodes, rootId]);
+  const layout = useMemo(() => layoutTree(viewNodes, rootId), [viewNodes, rootId]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
 
@@ -407,16 +523,28 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   };
 
   const addChild = (parentId: string, type: MindmapNodeType) => {
-    const parent = nodes[parentId];
+    let parent = nodes[parentId];
     if (!parent) return;
+    // Beim Unterprozess-Verweis landen neue Kinder im verlinkten Board
+    // (unter dessen Root), damit beide Ansichten dieselben Schritte zeigen
+    if (parent.type === 'prozess' && parent.linkedBoardId) {
+      const linkedRoot = Object.values(nodes).find(
+        (r) =>
+          r.boardId === parent.linkedBoardId &&
+          r.parentId === null &&
+          r.type !== 'notiz'
+      );
+      if (linkedRoot) parent = linkedRoot;
+    }
+    const echteParentId = parent.id;
     const id = crypto.randomUUID();
     // Neue Kinder hinten anstellen
     const siblings =
       type === 'task'
-        ? getTasks(nodes, parentId)
+        ? getTasks(nodes, echteParentId)
         : type === 'notiz'
-          ? getNotizen(nodes, parentId)
-          : getKnotenChildren(nodes, parentId);
+          ? getNotizen(nodes, echteParentId)
+          : getKnotenChildren(nodes, echteParentId);
     const sortOrder = siblings.length
       ? Math.max(...siblings.map((s) => s.sortOrder ?? 0)) + 1
       : 0;
@@ -441,8 +569,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
               : 'Neuer Knoten';
     const newNode: MindmapNode = {
       id,
-      boardId,
-      parentId,
+      boardId: parent.boardId,
+      parentId: echteParentId,
       type,
       titel,
       edgeLabel,
@@ -454,11 +582,11 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     };
     setNodes((prev) => ({
       ...prev,
-      // Eltern aufklappen, damit das neue Kind sofort sichtbar ist
+      // Eltern (bzw. angeklickten Verweis) aufklappen: neues Kind sofort sichtbar
       [parentId]: { ...prev[parentId], collapsed: false },
       [id]: newNode,
     }));
-    if (parent.collapsed) scheduleUpsert(parentId);
+    if (nodes[parentId]?.collapsed) scheduleUpsert(parentId);
     createMindmapNode(newNode).catch((error) => {
       console.error('❌ Knoten nicht angelegt:', error);
       toast.error('Konnte nicht angelegt werden');
@@ -493,15 +621,49 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   /**
    * Schritt als Unterprozess kapseln: legt ein eigenes Prozess-Board mit dem
    * Titel des Schritts an (erscheint automatisch in der Board-Übersicht) und
-   * verwandelt den Schritt in einen orangen Verweis, der das Board öffnet.
+   * verwandelt den Schritt in einen orangen Verweis. Bereits vorhandene
+   * Unterschritte/Tasks ziehen in das neue Board um — sie bleiben hier über
+   * die eingebundene Ansicht sichtbar und ein-/ausklappbar.
    */
   const makeUnterprozess = async (nodeId: string) => {
     const node = nodesRef.current[nodeId];
     if (!node || node.type !== 'knoten') return;
     try {
       const neuesBoard = await createBoard(node.titel, 'prozess');
+      const boardNodes = await loadBoardNodes(neuesBoard.id);
+      const neueRoot = Object.values(boardNodes).find(
+        (n) => n.parentId === null && n.type !== 'notiz'
+      );
+      // Bestehende Nachfahren des Schritts ins neue Board umziehen
+      // (direkte Kinder hängen künftig unter dessen Root)
+      const umzug: MindmapNode[] = neueRoot
+        ? getDescendantIds(nodesRef.current, nodeId)
+            .map((dId) => nodesRef.current[dId])
+            // Direkt angeheftete Notizen bleiben beim Verweis im Eltern-Board
+            .filter(
+              (d): d is MindmapNode =>
+                !!d && !(d.type === 'notiz' && d.parentId === nodeId)
+            )
+            .map((d) => ({
+              ...d,
+              boardId: neuesBoard.id,
+              parentId: d.parentId === nodeId ? neueRoot.id : d.parentId,
+            }))
+        : [];
+      migrierteVerweise.current.add(nodeId);
+      geladeneBoardIds.current.add(neuesBoard.id);
+      setNodes((prev) => {
+        const next = { ...prev, ...boardNodes };
+        for (const m of umzug) next[m.id] = m;
+        return next;
+      });
+      umzug.forEach((m) => scheduleUpsert(m.id));
       patchNode(nodeId, { type: 'prozess', linkedBoardId: neuesBoard.id });
-      toast.success(`Unterprozess „${node.titel}" angelegt — Klick auf das Pfeil-Symbol öffnet ihn`);
+      toast.success(
+        umzug.length > 0
+          ? `Unterprozess „${node.titel}" angelegt — ${umzug.length} Schritt(e)/Task(s) umgezogen`
+          : `Unterprozess „${node.titel}" angelegt — Klick auf das Pfeil-Symbol öffnet ihn`
+      );
     } catch (error) {
       console.error('❌ Unterprozess nicht angelegt:', error);
       toast.error('Unterprozess konnte nicht angelegt werden');
@@ -613,11 +775,13 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   // (Tasks zählen nicht — sie hängen als Liste in der Karte und klappen nicht)
   const hatKinder = useMemo(() => {
     const parents = new Set<string>();
-    for (const n of Object.values(nodes)) {
-      if (n.parentId && n.type !== 'task') parents.add(n.parentId);
+    for (const n of Object.values(viewNodes)) {
+      if (n.parentId && n.type !== 'task' && n.type !== 'notiz') {
+        parents.add(n.parentId);
+      }
     }
     return parents;
-  }, [nodes]);
+  }, [viewNodes]);
 
   const anyExpanded = Object.values(nodes).some(
     (n) => hatKinder.has(n.id) && !n.collapsed
@@ -724,7 +888,9 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     const id = crypto.randomUUID();
     const neu: MindmapNode = {
       id,
-      boardId,
+      // Beim Einfügen auf einer Kante im eingebundenen Unterprozess muss der
+      // neue Schritt in dessen Board landen
+      boardId: child.boardId,
       parentId: child.parentId,
       type: 'knoten',
       titel: istProzess ? 'Neuer Schritt' : 'Neuer Knoten',
@@ -786,15 +952,16 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   const zustaendige = useMemo(() => getCachedUsersList(), []);
 
   // Nur Knoten sind Baum-Elemente; Tasks werden als Liste in ihrer Karte gerendert
-  const visibleNodes = getVisibleNodes(nodes).filter((n) => layout[n.id]);
+  const visibleNodes = getVisibleNodes(viewNodes).filter((n) => layout[n.id]);
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
 
   // Notiz-Blasen: sichtbar, solange ihr Anker sichtbar ist (auch bei
-  // eingeklapptem Anker — wie die Task-Liste); standalone immer sichtbar
+  // eingeklapptem Anker — wie die Task-Liste); standalone nur vom eigenen Board
   const notizen = Object.values(nodes)
     .filter(
       (n) =>
-        n.type === 'notiz' && (n.parentId === null || layout[n.parentId])
+        n.type === 'notiz' &&
+        (n.parentId === null ? n.boardId === boardId : !!layout[n.parentId])
     )
     .sort(
       (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id.localeCompare(b.id)
@@ -873,23 +1040,23 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           x: layout[notiz.parentId].x,
           y: layout[notiz.parentId].y,
           w: NODE_WIDTH,
-          h: cardHeight(nodes, notiz.parentId),
+          h: cardHeight(viewNodes, notiz.parentId),
         }),
       });
     }
     for (const zielId of notiz.verbindungen ?? []) {
-      const ziel = nodes[zielId];
+      const ziel = viewNodes[zielId];
       if (!ziel) continue;
       if (ziel.type === 'task') {
         // Ziel ist eine Task-Zeile in ihrer Eltern-Karte
         const pid = ziel.parentId;
-        if (!pid || !nodes[pid] || !layout[pid]) continue;
-        const idx = getTasks(nodes, pid).findIndex((t) => t.id === zielId);
+        if (!pid || !viewNodes[pid] || !layout[pid]) continue;
+        const idx = getTasks(viewNodes, pid).findIndex((t) => t.id === zielId);
         if (idx < 0) continue;
         const a = layout[pid];
         const rowTop =
           a.y +
-          headerHeight(nodes, nodes[pid]) +
+          headerHeight(viewNodes, viewNodes[pid]) +
           TASK_LIST_PAD / 2 +
           idx * TASK_ROW_HEIGHT;
         notizLinien.push({
@@ -914,7 +1081,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
             x: layout[zielId].x,
             y: layout[zielId].y,
             w: NODE_WIDTH,
-            h: cardHeight(nodes, zielId),
+            h: cardHeight(viewNodes, zielId),
           }),
         });
       }
@@ -929,7 +1096,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       const p = layout[n.parentId!];
       const c = layout[n.id];
       const x1 = p.x + NODE_WIDTH / 2;
-      const y1 = p.y + cardHeight(nodes, n.parentId!);
+      const y1 = p.y + cardHeight(viewNodes, n.parentId!);
       const x2 = c.x + NODE_WIDTH / 2;
       const y2 = c.y;
       const midY = (y1 + y2) / 2;
@@ -956,8 +1123,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
       .map((zielId) => {
         const s = layout[n.id];
         const t = layout[zielId];
-        const sy = s.y + cardHeight(nodes, n.id) / 2;
-        const ty = t.y + cardHeight(nodes, zielId) / 2;
+        const sy = s.y + cardHeight(viewNodes, n.id) / 2;
+        const ty = t.y + cardHeight(viewNodes, zielId) / 2;
         const laneX =
           Math.max(s.x, t.x) + NODE_WIDTH + 28 + (verbindungsSpur++ % 8) * 14;
         return {
@@ -1244,10 +1411,10 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 key={node.id}
                 node={node}
                 pos={layout[node.id]}
-                tasks={getTasks(nodes, node.id)}
+                tasks={getTasks(viewNodes, node.id)}
                 isRoot={node.parentId === null}
                 istProzess={istProzess}
-                childCount={getKnotenChildren(nodes, node.id).length}
+                childCount={getKnotenChildren(viewNodes, node.id).length}
                 isEditing={editingId === node.id}
                 isDragging={draggingId === node.id}
                 isConnectSource={connectFromId === node.id}
