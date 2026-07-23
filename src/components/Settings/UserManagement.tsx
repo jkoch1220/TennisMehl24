@@ -1,331 +1,388 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Check, X, Trash2, RefreshCw, User as UserIcon, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  KeyRound,
+  Loader2,
+  MinusCircle,
+  PlusCircle,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ALL_TOOLS } from '../../constants/tools';
-import { 
-  getUserPermissions, 
-  setUserPermissions,
+import { Role, PermissionMap } from '../../types/permissions';
+import { loadAllRoles } from '../../services/rolesService';
+import {
+  loadUserPermissions,
+  setUserAccess,
   loadAllPermissions,
 } from '../../services/permissionsService';
-import { 
-  getCachedUsersList,
-  type CachedUser
-} from '../../services/userCacheService';
+import {
+  listUsers,
+  createUser,
+  resetUserPassword,
+  DirectoryUser,
+} from '../../services/userDirectoryService';
+import { auditService } from '../../services/auditService';
+import { ONBOARDING_PASSWORD_INPUT } from '../../constants/onboarding';
+import PermissionMatrix from './PermissionMatrix';
 
-const UserManagement: React.FC = () => {
-  const { user, isAdmin: currentUserIsAdmin, refreshPermissions } = useAuth();
-  const [allUsers, setAllUsers] = useState<CachedUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
-  const [allToolsEnabled, setAllToolsEnabled] = useState(true);
-  const [saved, setSaved] = useState(false);
-  const [loading, setLoading] = useState(false);
+/**
+ * Admin-only Benutzerverwaltung (D2/D5): User anlegen (Einmalpasswort),
+ * mehrere Rollen zuweisen, individuelle Zusatz-/Entzugs-Rechte, Passwort-Reset.
+ */
+const UserManagement = () => {
+  const { user, isAdmin, refreshPermissions } = useAuth();
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [selectedUser, setSelectedUser] = useState<DirectoryUser | null>(null);
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [allowOverride, setAllowOverride] = useState<PermissionMap>({});
+  const [denyOverride, setDenyOverride] = useState<PermissionMap>({});
+  const [legacyAllowedTools, setLegacyAllowedTools] = useState<string[] | null>(null);
+  const [showAllow, setShowAllow] = useState(false);
+  const [showDeny, setShowDeny] = useState(false);
+  const [neuName, setNeuName] = useState('');
+  const [neuUsername, setNeuUsername] = useState('');
+  const [zeigeNeuForm, setZeigeNeuForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [meldung, setMeldung] = useState('');
 
-  // Lade User aus Cache
-  useEffect(() => {
-    loadUsers();
-  }, [user]);
-
-  const loadUsers = () => {
-    const users = getCachedUsersList();
-    // Filtere den aktuellen User aus (man kann sich selbst nicht bearbeiten)
-    const filtered = users.filter(u => u.$id !== user?.$id);
-    setAllUsers(filtered);
-  };
-
-  // Berechtigungen für ausgewählten User laden (async)
-  useEffect(() => {
-    if (selectedUser) {
-      loadPermissionsForUser(selectedUser);
-    }
-  }, [selectedUser]);
-
-  const loadPermissionsForUser = async (userId: string) => {
+  const ladeDaten = async () => {
     setLoading(true);
     try {
-      const permissions = await getUserPermissions(userId);
-      console.log('📋 Lade Permissions für User:', userId, permissions);
-      
-      if (permissions.allowedTools === null) {
-        // null = alle Tools erlaubt (noch keine Einschränkungen)
-        setAllToolsEnabled(true);
-        setSelectedTools(new Set(ALL_TOOLS.map(t => t.id)));
-      } else if (permissions.allowedTools.length === 0) {
-        // Leeres Array = keine Tools erlaubt
-        setAllToolsEnabled(false);
-        setSelectedTools(new Set());
-      } else {
-        // Spezifische Tools erlaubt
-        setAllToolsEnabled(false);
-        setSelectedTools(new Set(permissions.allowedTools));
-      }
-      setSaved(false);
+      const [userListe, rollenListe] = await Promise.all([listUsers(), loadAllRoles()]);
+      setUsers(userListe);
+      setRoles(rollenListe);
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Permissions:', error);
+      console.error('❌ Fehler beim Laden der Benutzerverwaltung:', error);
+      setMeldung('❌ User-Liste nicht verfügbar (Netlify Function erreichbar?)');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!currentUserIsAdmin) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-700">
-          Nur Administratoren haben Zugriff auf die Benutzerverwaltung.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    ladeDaten();
+  }, []);
 
-  const handleToggleTool = (toolId: string) => {
-    const newSelected = new Set(selectedTools);
-    if (newSelected.has(toolId)) {
-      newSelected.delete(toolId);
-    } else {
-      newSelected.add(toolId);
-    }
-    setSelectedTools(newSelected);
-    setAllToolsEnabled(false);
-    setSaved(false);
-  };
-
-  const handleToggleAllTools = () => {
-    if (allToolsEnabled) {
-      setSelectedTools(new Set());
-      setAllToolsEnabled(false);
-    } else {
-      setSelectedTools(new Set(ALL_TOOLS.map(t => t.id)));
-      setAllToolsEnabled(true);
-    }
-    setSaved(false);
-  };
-
-  const handleSave = async () => {
-    if (!selectedUser || !user) return;
-
-    setSaving(true);
+  const waehleUser = async (u: DirectoryUser) => {
+    setSelectedUser(u);
+    setDetailLoading(true);
+    setMeldung('');
+    setShowAllow(false);
+    setShowDeny(false);
     try {
-      // null = alle erlaubt, sonst spezifische Tools
-      const allowedTools = allToolsEnabled ? null : Array.from(selectedTools);
-      console.log('💾 Speichere Permissions:', { user: selectedUser, allowedTools });
-      
-      const success = await setUserPermissions(user, selectedUser, allowedTools);
-      
-      if (success) {
-        setSaved(true);
-        // Permissions Cache neu laden damit alle Änderungen reflektiert werden
-        await loadAllPermissions();
-        if (refreshPermissions) {
-          await refreshPermissions();
-        }
-        setTimeout(() => setSaved(false), 3000);
-      }
+      const perms = await loadUserPermissions(u.id);
+      setRoleIds(perms.roleIds);
+      setAllowOverride(perms.allowOverride ?? {});
+      setDenyOverride(perms.denyOverride ?? {});
+      setLegacyAllowedTools(perms.allowedTools);
+      setShowAllow(Object.keys(perms.allowOverride ?? {}).length > 0);
+      setShowDeny(Object.keys(perms.denyOverride ?? {}).length > 0);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const toggleRolle = (roleId: string) => {
+    setRoleIds((prev) =>
+      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
+    );
+  };
+
+  const speichern = async () => {
+    if (!selectedUser || !user) return;
+    setSaving(true);
+    setMeldung('');
+    const ok = await setUserAccess(user, selectedUser.id, selectedUser.name, {
+      roleIds,
+      allowOverride: Object.keys(allowOverride).length > 0 ? allowOverride : null,
+      denyOverride: Object.keys(denyOverride).length > 0 ? denyOverride : null,
+    });
+    if (ok) {
+      await loadAllPermissions();
+      await refreshPermissions();
+      setMeldung('✅ Gespeichert — gilt ab dem nächsten Laden beim User');
+      setTimeout(() => setMeldung(''), 4000);
+    } else {
+      setMeldung('❌ Speichern fehlgeschlagen');
+    }
+    setSaving(false);
+  };
+
+  const userAnlegen = async () => {
+    if (!neuName.trim() || !neuUsername.trim() || !user) return;
+    setSaving(true);
+    setMeldung('');
+    try {
+      const created = await createUser(neuUsername.trim(), neuName.trim());
+      auditService.log(user, {
+        action: 'user_create',
+        entityType: 'user',
+        entityId: created.id,
+        summary: `User "${created.name}" angelegt (startet mit Einmalpasswort)`,
+      });
+      setNeuName('');
+      setNeuUsername('');
+      setZeigeNeuForm(false);
+      await ladeDaten();
+      const neu = { id: created.id, name: created.name, email: created.email };
+      await waehleUser(neu);
+      setMeldung(`✅ "${created.name}" angelegt — Login mit Einmalpasswort ${ONBOARDING_PASSWORD_INPUT}. Jetzt Rollen zuweisen!`);
     } catch (error) {
-      console.error('❌ Fehler beim Speichern:', error);
+      setMeldung(`❌ ${(error as Error).message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRemoveUser = async (userId: string) => {
-    const userToRemove = allUsers.find(u => u.$id === userId);
-    if (confirm(`Berechtigungen für "${userToRemove?.name || userId}" wirklich zurücksetzen? (Alle Tools werden erlaubt)`)) {
-      setSaving(true);
-      try {
-        if (user) {
-          await setUserPermissions(user, userId, null);
-          await loadAllPermissions();
-          if (refreshPermissions) {
-            await refreshPermissions();
-          }
-        }
-        if (selectedUser === userId) {
-          setSelectedUser(null);
-        }
-      } catch (error) {
-        console.error('❌ Fehler beim Zurücksetzen:', error);
-      } finally {
-        setSaving(false);
-      }
+  const passwortZuruecksetzen = async () => {
+    if (!selectedUser || !user) return;
+    if (
+      !confirm(
+        `Passwort von "${selectedUser.name}" auf das Einmalpasswort ${ONBOARDING_PASSWORD_INPUT} zurücksetzen? Beim nächsten Login muss ein neues Passwort gesetzt werden.`
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await resetUserPassword(selectedUser.id);
+      auditService.log(user, {
+        action: 'password_change',
+        entityType: 'user',
+        entityId: selectedUser.id,
+        summary: `Passwort von ${selectedUser.name} auf Einmalpasswort zurückgesetzt`,
+      });
+      setMeldung(`✅ Passwort zurückgesetzt — ${selectedUser.name} meldet sich mit ${ONBOARDING_PASSWORD_INPUT} an`);
+      setTimeout(() => setMeldung(''), 5000);
+    } catch (error) {
+      setMeldung(`❌ ${(error as Error).message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
+  if (!isAdmin) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-700">Nur Administratoren haben Zugriff auf die Benutzerverwaltung.</p>
+      </div>
+    );
+  }
+
+  const hatLegacy = roleIds.length === 0 && Array.isArray(legacyAllowedTools);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2 mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2 mb-1">
           <Users className="w-5 h-5" />
           Benutzerverwaltung
         </h3>
-        <p className="text-sm text-gray-600 dark:text-dark-textMuted mb-4">
-          Legen Sie fest, welche Tools andere Benutzer sehen dürfen. 
-          Admins haben immer Zugriff auf alle Tools.
+        <p className="text-sm text-gray-600 dark:text-dark-textMuted">
+          User anlegen, Rollen zuweisen und individuelle Ausnahmen festlegen.
+          Admins (Label) haben immer alle Rechte.
         </p>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-green-800 font-medium">
-            ✅ Berechtigungen werden zentral in Appwrite gespeichert und gelten für alle Geräte.
-          </p>
-        </div>
       </div>
 
-      {/* User Auswahl */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted">
-            Benutzer auswählen
-          </label>
-          <button
-            onClick={loadUsers}
-            className="text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-700 dark:text-dark-textMuted font-medium flex items-center gap-1"
-            title="Liste aktualisieren"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Aktualisieren
-          </button>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <UserIcon className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm text-blue-800 font-medium mb-1">
-                Automatisch erkannt
-              </p>
-              <p className="text-xs text-blue-700">
-                User werden automatisch beim Login erfasst und hier angezeigt.
-                Wenn ein User fehlt, muss er sich einmal einloggen.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <select
-            value={selectedUser || ''}
-            onChange={(e) => setSelectedUser(e.target.value || null)}
-            className="flex-1 p-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
-            disabled={saving}
-          >
-            <option value="">-- Benutzer wählen --</option>
-            {allUsers.map((u) => (
-              <option key={u.$id} value={u.$id}>
-                {u.name} ({u.email}) {u.labels.includes('admin') ? '👑 Admin' : ''}
-              </option>
+      ) : (
+        <>
+          {/* User-Liste + Neu-Button */}
+          <div className="flex flex-wrap gap-2">
+            {users.map((u) => (
+              <button
+                key={u.id}
+                onClick={() => waehleUser(u)}
+                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  selectedUser?.id === u.id
+                    ? 'border-red-500 bg-red-50 text-red-700'
+                    : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-textMuted hover:border-gray-400'
+                }`}
+              >
+                {u.name}
+                {u.id === user?.$id && <span className="text-xs text-gray-400"> (du)</span>}
+              </button>
             ))}
-          </select>
-          {selectedUser && (
             <button
-              onClick={() => handleRemoveUser(selectedUser)}
-              disabled={saving}
-              className="p-3 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
-              title="Berechtigungen zurücksetzen"
+              onClick={() => setZeigeNeuForm(!zeigeNeuForm)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium flex items-center gap-1 transition-colors ${
+                zeigeNeuForm
+                  ? 'border-red-500 bg-red-50 text-red-700'
+                  : 'border-dashed border-gray-400 text-gray-600 dark:text-dark-textMuted hover:border-gray-500'
+              }`}
             >
-              <Trash2 className="w-5 h-5" />
+              <UserPlus className="w-4 h-4" />
+              Neuer User
             </button>
-          )}
-        </div>
-
-        {allUsers.length === 0 && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800 mb-2 font-medium">
-              Noch keine anderen User erfasst
-            </p>
-            <p className="text-xs text-yellow-700">
-              User werden automatisch beim ersten Login erfasst. 
-              Bitten Sie andere User, sich einmal einzuloggen, dann erscheinen sie hier.
-            </p>
           </div>
-        )}
-      </div>
 
-      {/* Tool-Berechtigungen */}
-      {selectedUser && (
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400 dark:text-gray-500" />
-              <span className="ml-2 text-gray-600 dark:text-dark-textMuted">Lade Berechtigungen...</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-gray-900 dark:text-dark-text">Tool-Berechtigungen</h4>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={allToolsEnabled}
-                    onChange={handleToggleAllTools}
-                    disabled={saving}
-                    className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700 dark:text-dark-textMuted">
-                    Alle Tools erlauben
-                  </span>
-                </label>
-              </div>
-
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {ALL_TOOLS.map((tool) => {
-                  const Icon = tool.icon;
-                  const isSelected = selectedTools.has(tool.id);
-                  const isDisabled = allToolsEnabled || saving;
-                  
-                  return (
-                    <label
-                      key={tool.id}
-                      className={`flex items-center justify-between gap-4 bg-white hover:bg-gray-50 transition-colors rounded-lg px-4 py-3 cursor-pointer ${
-                        isDisabled ? 'opacity-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className={`p-2 rounded-lg bg-gradient-to-br ${tool.color} text-white`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-dark-text">{tool.name}</div>
-                          <div className="text-xs text-gray-600 dark:text-dark-textMuted">{tool.description}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isSelected ? (
-                          <Check className="w-5 h-5 text-green-600" />
-                        ) : (
-                          <X className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                        )}
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleTool(tool.id)}
-                          disabled={isDisabled}
-                          className="w-4 h-4 text-red-600 border-gray-300 dark:border-dark-border rounded focus:ring-red-500"
-                        />
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-dark-border">
+          {/* Neuer User */}
+          {zeigeNeuForm && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-3">
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  {saved && (
-                    <span className="text-sm text-green-600 font-medium">
-                      ✓ In Appwrite gespeichert
-                    </span>
-                  )}
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                    Anzeigename
+                  </label>
+                  <input
+                    type="text"
+                    value={neuName}
+                    onChange={(e) => setNeuName(e.target.value)}
+                    disabled={saving}
+                    className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg text-sm focus:border-red-500 focus:outline-none"
+                    placeholder="z.B. Max Mustermann"
+                  />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
+                    Benutzername (für den Login)
+                  </label>
+                  <input
+                    type="text"
+                    value={neuUsername}
+                    onChange={(e) => setNeuUsername(e.target.value.toLowerCase())}
+                    disabled={saving}
+                    className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg text-sm focus:border-red-500 focus:outline-none"
+                    placeholder="z.B. max"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500 dark:text-dark-textMuted">
+                  Der neue User startet mit dem Einmalpasswort {ONBOARDING_PASSWORD_INPUT} und muss es
+                  beim ersten Login ändern.
+                </p>
                 <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all shadow-md dark:shadow-dark-md disabled:opacity-50 flex items-center gap-2"
+                  onClick={userAnlegen}
+                  disabled={saving || !neuName.trim() || !neuUsername.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {saving ? 'Speichere...' : 'Änderungen speichern'}
+                  Anlegen
                 </button>
               </div>
-            </>
+            </div>
           )}
-        </div>
+
+          {/* User-Detail */}
+          {selectedUser && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4">
+              {detailLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 dark:text-dark-text">{selectedUser.name}</h4>
+                      <p className="text-xs text-gray-500 dark:text-dark-textMuted">{selectedUser.email}</p>
+                    </div>
+                    <button
+                      onClick={passwortZuruecksetzen}
+                      disabled={saving}
+                      className="px-3 py-2 text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      Passwort auf {ONBOARDING_PASSWORD_INPUT} zurücksetzen
+                    </button>
+                  </div>
+
+                  {hatLegacy && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                      Dieser User nutzt noch die alte Tool-Freigabe ({legacyAllowedTools?.length ?? 0} Tools).
+                      Sobald du Rollen zuweist und speicherst, gilt nur noch das Rollen-System.
+                    </div>
+                  )}
+                  {roleIds.length === 0 && !hatLegacy && legacyAllowedTools === null && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                      ⚠️ Noch keine Rollen zugewiesen — der User sieht übergangsweise alle Tools
+                      (Altverhalten). Bitte Rollen zuweisen.
+                    </div>
+                  )}
+
+                  {/* Rollen */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                      Rollen (mehrere möglich, Rechte addieren sich)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {roles.map((role) => (
+                        <label
+                          key={role.$id}
+                          className={`px-3 py-1.5 rounded-lg border text-sm cursor-pointer flex items-center gap-2 transition-colors ${
+                            roleIds.includes(role.$id)
+                              ? 'border-green-500 bg-green-50 text-green-800'
+                              : 'border-gray-300 dark:border-dark-border text-gray-600 dark:text-dark-textMuted'
+                          }`}
+                          title={role.description}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={roleIds.includes(role.$id)}
+                            onChange={() => toggleRolle(role.$id)}
+                            disabled={saving}
+                            className="w-4 h-4 text-green-600 border-gray-300 rounded"
+                          />
+                          {role.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Overrides */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowAllow(!showAllow)}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-dark-textMuted"
+                    >
+                      {showAllow ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <PlusCircle className="w-4 h-4 text-green-600" />
+                      Zusätzlich erlauben ({Object.keys(allowOverride).length})
+                    </button>
+                    {showAllow && (
+                      <PermissionMatrix value={allowOverride} onChange={setAllowOverride} mode="grant" disabled={saving} />
+                    )}
+
+                    <button
+                      onClick={() => setShowDeny(!showDeny)}
+                      className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-dark-textMuted"
+                    >
+                      {showDeny ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      <MinusCircle className="w-4 h-4 text-red-600" />
+                      Explizit entziehen ({Object.keys(denyOverride).length})
+                    </button>
+                    {showDeny && (
+                      <PermissionMatrix value={denyOverride} onChange={setDenyOverride} mode="deny" disabled={saving} />
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
+                    <span className="text-sm font-medium">{meldung}</span>
+                    <button
+                      onClick={speichern}
+                      disabled={saving}
+                      className="px-5 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-sm font-semibold hover:from-red-700 hover:to-orange-700 transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {saving ? 'Speichere…' : 'Änderungen speichern'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {!selectedUser && meldung && <p className="text-sm font-medium">{meldung}</p>}
+        </>
       )}
     </div>
   );

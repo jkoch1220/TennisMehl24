@@ -5,6 +5,7 @@ import { ToolConfig, ALL_TOOLS } from '../constants/tools';
 import { PermissionAction, PermissionMap } from '../types/permissions';
 import { resolveEffectivePermissions, parsePermissionMap } from './permissionResolution';
 import { ensureRolesLoaded, getRolePermissionMaps, clearRolesCache } from './rolesService';
+import { auditService } from './auditService';
 
 // Tool-Berechtigungen für User
 export interface UserPermissions {
@@ -239,6 +240,90 @@ export const setUserPermissions = async (
     return true;
   } catch (error) {
     console.error('❌ Fehler beim Speichern der Permissions:', (error as Error).message);
+    return false;
+  }
+};
+
+/**
+ * Rollen-Zuweisung + Overrides für einen User speichern (nur Admin).
+ * Das Legacy-Feld allowedTools bleibt unangetastet (D2).
+ */
+export const setUserAccess = async (
+  currentUser: User | null,
+  targetUserId: string,
+  targetUserName: string,
+  access: {
+    roleIds: string[];
+    allowOverride: PermissionMap | null;
+    denyOverride: PermissionMap | null;
+  }
+): Promise<boolean> => {
+  if (!currentUser || !isAdmin(currentUser)) {
+    console.error('❌ Nur Admins dürfen Rollen-Zuweisungen ändern');
+    return false;
+  }
+
+  try {
+    const existing = await databases.listDocuments(
+      DATABASE_ID,
+      USER_PERMISSIONS_COLLECTION_ID,
+      [Query.equal('userId', targetUserId), Query.limit(1)]
+    );
+
+    const data = {
+      userId: targetUserId,
+      roleIds: access.roleIds,
+      allowOverride:
+        access.allowOverride && Object.keys(access.allowOverride).length > 0
+          ? JSON.stringify(access.allowOverride)
+          : null,
+      denyOverride:
+        access.denyOverride && Object.keys(access.denyOverride).length > 0
+          ? JSON.stringify(access.denyOverride)
+          : null,
+      updatedBy: currentUser.$id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    let docId: string;
+    if (existing.documents.length > 0) {
+      docId = existing.documents[0].$id;
+      await databases.updateDocument(DATABASE_ID, USER_PERMISSIONS_COLLECTION_ID, docId, data);
+    } else {
+      const created = await databases.createDocument(
+        DATABASE_ID,
+        USER_PERMISSIONS_COLLECTION_ID,
+        ID.unique(),
+        data
+      );
+      docId = created.$id;
+    }
+
+    permissionsCache[targetUserId] = {
+      ...getUserPermissionsFromCache(targetUserId),
+      $id: docId,
+      userId: targetUserId,
+      roleIds: access.roleIds,
+      allowOverride: access.allowOverride,
+      denyOverride: access.denyOverride,
+      updatedBy: currentUser.$id,
+      updatedAt: data.updatedAt,
+    };
+    delete effectiveCache[targetUserId];
+
+    auditService.log(currentUser, {
+      action: 'permission_change',
+      entityType: 'user',
+      entityId: targetUserId,
+      summary: `Rechte von ${targetUserName} geändert (${access.roleIds.length} Rolle(n)${
+        data.allowOverride ? ', mit Zusatz-Rechten' : ''
+      }${data.denyOverride ? ', mit entzogenen Rechten' : ''})`,
+    });
+
+    console.log('✅ Rollen-Zuweisung gespeichert für User:', targetUserId);
+    return true;
+  } catch (error) {
+    console.error('❌ Fehler beim Speichern der Rollen-Zuweisung:', (error as Error).message);
     return false;
   }
 };

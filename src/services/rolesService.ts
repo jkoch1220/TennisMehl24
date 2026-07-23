@@ -3,6 +3,7 @@ import { databases, DATABASE_ID, ROLES_COLLECTION_ID } from '../config/appwrite'
 import { PermissionMap, Role } from '../types/permissions';
 import { parsePermissionMap } from './permissionResolution';
 import { User, isAdmin } from './authService';
+import { auditService } from './auditService';
 
 // Session-Cache (Rollen ändern sich selten; refresh über loadAllRoles)
 let rolesCache: Record<string, Role> = {};
@@ -104,6 +105,12 @@ export const createRole = async (currentUser: User | null, input: RoleInput): Pr
     });
     const role = parseRoleDocument(doc as unknown as Record<string, unknown>);
     rolesCache[role.$id] = role;
+    auditService.log(currentUser, {
+      action: 'role_change',
+      entityType: 'role',
+      entityId: role.$id,
+      summary: `Rolle "${role.name}" angelegt`,
+    });
     return role;
   } catch (error) {
     console.error('❌ Fehler beim Anlegen der Rolle:', error);
@@ -130,6 +137,12 @@ export const updateRole = async (
     const doc = await databases.updateDocument(DATABASE_ID, ROLES_COLLECTION_ID, roleId, data);
     const role = parseRoleDocument(doc as unknown as Record<string, unknown>);
     rolesCache[role.$id] = role;
+    auditService.log(currentUser, {
+      action: 'role_change',
+      entityType: 'role',
+      entityId: role.$id,
+      summary: `Rolle "${role.name}" bearbeitet`,
+    });
     return role;
   } catch (error) {
     console.error('❌ Fehler beim Ändern der Rolle:', error);
@@ -147,8 +160,15 @@ export const deleteRole = async (currentUser: User | null, roleId: string): Prom
     return false;
   }
   try {
+    const name = rolesCache[roleId]?.name ?? roleId;
     await databases.deleteDocument(DATABASE_ID, ROLES_COLLECTION_ID, roleId);
     delete rolesCache[roleId];
+    auditService.log(currentUser, {
+      action: 'role_change',
+      entityType: 'role',
+      entityId: roleId,
+      summary: `Rolle "${name}" gelöscht`,
+    });
     return true;
   } catch (error) {
     console.error('❌ Fehler beim Löschen der Rolle:', error);
