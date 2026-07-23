@@ -13,7 +13,7 @@ dotenv.config();
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 
 const DATABASE_ID = 'tennismehl24_db';
 const WIKI_FILES_COLLECTION_ID = 'wiki_files';

@@ -108,6 +108,11 @@ export const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
 // Archiv der Kunden-Merges (Wiederherstellung nach Duplikat-Zusammenführung)
 export const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
 
+// Rollenbasierte Benutzerverwaltung + zentrales Audit-Log
+export const ROLES_COLLECTION_ID = 'roles';
+export const AUDIT_LOG_COLLECTION_ID = 'audit_log';
+export const AUDIT_LOG_ARCHIV_COLLECTION_ID = 'audit_log_archiv';
+
 // Mindmap-Planungstool (ein Dokument pro Knoten/Task, geteilt für alle User)
 export const MINDMAP_NODES_COLLECTION_ID = 'mindmap_nodes';
 export const MINDMAP_BOARDS_COLLECTION_ID = 'mindmap_boards';

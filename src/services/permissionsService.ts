@@ -1,13 +1,19 @@
 import { Query, ID } from 'appwrite';
 import { databases, DATABASE_ID, USER_PERMISSIONS_COLLECTION_ID } from '../config/appwrite';
 import { User, isAdmin } from './authService';
-import { ToolConfig } from '../constants/tools';
+import { ToolConfig, ALL_TOOLS } from '../constants/tools';
+import { PermissionAction, PermissionMap } from '../types/permissions';
+import { resolveEffectivePermissions, parsePermissionMap } from './permissionResolution';
+import { ensureRolesLoaded, getRolePermissionMaps, clearRolesCache } from './rolesService';
 
 // Tool-Berechtigungen für User
 export interface UserPermissions {
   $id?: string;
   userId: string;
-  allowedTools: string[] | null; // null = alle erlaubt, leeres Array = keine Tools
+  allowedTools: string[] | null; // Legacy: null = alle erlaubt, leeres Array = keine Tools
+  roleIds: string[];
+  allowOverride: PermissionMap | null;
+  denyOverride: PermissionMap | null;
   updatedBy?: string;
   updatedAt?: string;
 }
@@ -18,11 +24,34 @@ let permissionsCache: Record<string, UserPermissions> = {};
 // Flag ob Permissions bereits geladen wurden
 let cacheLoaded = false;
 
+// Cache der aufgelösten effektiven Rechte pro User (invalidiert bei jedem Neuladen)
+let effectiveCache: Record<string, PermissionMap> = {};
+
+const DEFAULT_PERMISSIONS = (userId: string): UserPermissions => ({
+  userId,
+  allowedTools: null,
+  roleIds: [],
+  allowOverride: null,
+  denyOverride: null,
+});
+
+const parsePermissionsDocument = (doc: Record<string, unknown>): UserPermissions => ({
+  $id: doc.$id as string,
+  userId: doc.userId as string,
+  allowedTools: (doc.allowedTools as string[] | null) || null,
+  roleIds: Array.isArray(doc.roleIds) ? (doc.roleIds as string[]) : [],
+  allowOverride: parsePermissionMap(doc.allowOverride as string | null),
+  denyOverride: parsePermissionMap(doc.denyOverride as string | null),
+  updatedBy: doc.updatedBy as string | undefined,
+  updatedAt: doc.updatedAt as string | undefined,
+});
+
 /**
- * Alle User-Permissions aus Appwrite laden
+ * Alle User-Permissions aus Appwrite laden (inkl. Rollen)
  */
 export const loadAllPermissions = async (): Promise<Record<string, UserPermissions>> => {
   try {
+    await ensureRolesLoaded();
     const response = await databases.listDocuments(
       DATABASE_ID,
       USER_PERMISSIONS_COLLECTION_ID,
@@ -31,32 +60,29 @@ export const loadAllPermissions = async (): Promise<Record<string, UserPermissio
 
     const permissions: Record<string, UserPermissions> = {};
     for (const doc of response.documents) {
-      permissions[doc.userId] = {
-        $id: doc.$id,
-        userId: doc.userId,
-        allowedTools: doc.allowedTools || null,
-        updatedBy: doc.updatedBy,
-        updatedAt: doc.updatedAt,
-      };
+      const parsed = parsePermissionsDocument(doc as unknown as Record<string, unknown>);
+      permissions[parsed.userId] = parsed;
     }
 
     // Cache aktualisieren
     permissionsCache = permissions;
+    effectiveCache = {};
     cacheLoaded = true;
     console.log('✅ Permissions aus Appwrite geladen:', Object.keys(permissions).length, 'Einträge');
     return permissions;
-  } catch (error: any) {
-    console.error('❌ Fehler beim Laden der Permissions:', error.message);
+  } catch (error) {
+    console.error('❌ Fehler beim Laden der Permissions:', (error as Error).message);
     // Bei Fehler leeren Cache zurückgeben
     return {};
   }
 };
 
 /**
- * Permissions für einen bestimmten User aus Appwrite laden
+ * Permissions für einen bestimmten User aus Appwrite laden (inkl. Rollen)
  */
 export const loadUserPermissions = async (userId: string): Promise<UserPermissions> => {
   try {
+    await ensureRolesLoaded();
     const response = await databases.listDocuments(
       DATABASE_ID,
       USER_PERMISSIONS_COLLECTION_ID,
@@ -64,24 +90,20 @@ export const loadUserPermissions = async (userId: string): Promise<UserPermissio
     );
 
     if (response.documents.length > 0) {
-      const doc = response.documents[0];
-      const permissions: UserPermissions = {
-        $id: doc.$id,
-        userId: doc.userId,
-        allowedTools: doc.allowedTools || null,
-        updatedBy: doc.updatedBy,
-        updatedAt: doc.updatedAt,
-      };
+      const permissions = parsePermissionsDocument(
+        response.documents[0] as unknown as Record<string, unknown>
+      );
       // Cache aktualisieren
       permissionsCache[userId] = permissions;
+      delete effectiveCache[userId];
       return permissions;
     }
 
-    // Keine Permissions gefunden = alle erlaubt
-    return { userId, allowedTools: null };
-  } catch (error: any) {
-    console.error('❌ Fehler beim Laden der User-Permissions:', error.message);
-    return { userId, allowedTools: null };
+    // Keine Permissions gefunden = Legacy-Standard (alle erlaubt)
+    return DEFAULT_PERMISSIONS(userId);
+  } catch (error) {
+    console.error('❌ Fehler beim Laden der User-Permissions:', (error as Error).message);
+    return DEFAULT_PERMISSIONS(userId);
   }
 };
 
@@ -90,7 +112,7 @@ export const loadUserPermissions = async (userId: string): Promise<UserPermissio
  * Für schnellen Zugriff nachdem einmal geladen wurde
  */
 export const getUserPermissionsFromCache = (userId: string): UserPermissions => {
-  return permissionsCache[userId] || { userId, allowedTools: null };
+  return permissionsCache[userId] || DEFAULT_PERMISSIONS(userId);
 };
 
 /**
@@ -98,7 +120,59 @@ export const getUserPermissionsFromCache = (userId: string): UserPermissions => 
  */
 export const clearPermissionsCache = (): void => {
   permissionsCache = {};
+  effectiveCache = {};
   cacheLoaded = false;
+  clearRolesCache();
+};
+
+/**
+ * Effektive Rechte eines Users (synchron aus Cache, memoisiert).
+ * Formel: (Vereinigung Rollen) ∪ allowOverride − denyOverride;
+ * ohne Rollen greift das Legacy-Feld allowedTools.
+ */
+export const getEffectivePermissions = (userId: string): PermissionMap => {
+  if (effectiveCache[userId]) return effectiveCache[userId];
+
+  const perms = getUserPermissionsFromCache(userId);
+  // Fail-closed: Hat der User Rollen, konnten sie aber nicht geladen/aufgelöst
+  // werden, darf er NICHT in den Legacy-Fallback "alles erlaubt" rutschen —
+  // eine leere Rollen-Map erzwingt den Rollen-Pfad (→ nur Overrides gelten).
+  const roleMaps = getRolePermissionMaps(perms.roleIds);
+  const rolePermissions = perms.roleIds.length > 0 && roleMaps.length === 0 ? [{}] : roleMaps;
+  const effective = resolveEffectivePermissions({
+    rolePermissions,
+    allowOverride: perms.allowOverride,
+    denyOverride: perms.denyOverride,
+    legacyAllowedTools: perms.allowedTools,
+    allToolIds: ALL_TOOLS.map((t) => t.id),
+  });
+  effectiveCache[userId] = effective;
+  return effective;
+};
+
+/**
+ * Zentrale Rechte-Prüfung: darf der User die Aktion in diesem Tool ausführen?
+ * Admin (Label) umgeht alle Prüfungen (D8).
+ */
+export const can = (user: User | null, toolId: string, action: PermissionAction): boolean => {
+  if (!user) return false;
+  if (isAdmin(user)) return true;
+
+  const entry = getEffectivePermissions(user.$id)[toolId];
+  return !!entry && entry.enabled && entry.actions.includes(action);
+};
+
+/**
+ * Ist ein sensibles Feld für den User in diesem Tool verborgen?
+ * Sicherheits-Default: kein Zugriff aufs Tool → Feld verborgen.
+ */
+export const isFieldHidden = (user: User | null, toolId: string, fieldKey: string): boolean => {
+  if (!user) return true;
+  if (isAdmin(user)) return false;
+
+  const entry = getEffectivePermissions(user.$id)[toolId];
+  if (!entry || !entry.enabled) return true;
+  return entry.hiddenFields?.includes(fieldKey) ?? false;
 };
 
 /**
@@ -154,15 +228,17 @@ export const setUserPermissions = async (
       console.log('✅ Permissions erstellt für User:', targetUserId);
     }
 
-    // Cache aktualisieren
+    // Cache aktualisieren (neue Rollen-Felder aus dem bisherigen Cache erhalten)
     permissionsCache[targetUserId] = {
+      ...getUserPermissionsFromCache(targetUserId),
       ...data,
       $id: existing.documents[0]?.$id,
     };
+    delete effectiveCache[targetUserId];
 
     return true;
-  } catch (error: any) {
-    console.error('❌ Fehler beim Speichern der Permissions:', error.message);
+  } catch (error) {
+    console.error('❌ Fehler beim Speichern der Permissions:', (error as Error).message);
     return false;
   }
 };
@@ -180,26 +256,11 @@ export const getUserPermissions = async (userId: string): Promise<UserPermission
 };
 
 /**
- * Prüfen ob User ein bestimmtes Tool sehen darf (synchron mit Cache)
+ * Prüfen ob User ein bestimmtes Tool sehen darf (synchron mit Cache).
+ * Intern = can(user, toolId, 'view').
  */
-export const canAccessTool = (user: User | null, toolId: string): boolean => {
-  if (!user) return false;
-
-  // Admin darf alles sehen
-  if (isAdmin(user)) return true;
-
-  // User-spezifische Berechtigungen aus Cache
-  const permissions = getUserPermissionsFromCache(user.$id);
-
-  // null = alle Tools erlaubt (noch keine Einschränkungen gesetzt)
-  if (permissions.allowedTools === null) return true;
-
-  // Leeres Array = keine Tools erlaubt
-  if (permissions.allowedTools.length === 0) return false;
-
-  // Ansonsten nur die erlaubten Tools
-  return permissions.allowedTools.includes(toolId);
-};
+export const canAccessTool = (user: User | null, toolId: string): boolean =>
+  can(user, toolId, 'view');
 
 /**
  * Alle erlaubten Tools für einen User filtern (synchron mit Cache)
@@ -210,25 +271,5 @@ export const filterAllowedTools = (user: User | null, allTools: ToolConfig[]): T
   // Admin sieht alles
   if (isAdmin(user)) return allTools;
 
-  // User-spezifische Berechtigungen aus Cache
-  const permissions = getUserPermissionsFromCache(user.$id);
-
-  console.log('🔍 Filter Tools für User:', user.name, 'ID:', user.$id, 'Permissions:', permissions);
-
-  // null = alle Tools erlaubt (noch keine Einschränkungen gesetzt)
-  if (permissions.allowedTools === null) {
-    console.log('  → Alle Tools erlaubt (keine Einschränkungen in Appwrite)');
-    return allTools;
-  }
-
-  // Leeres Array = keine Tools erlaubt
-  if (permissions.allowedTools.length === 0) {
-    console.log('  → Keine Tools erlaubt');
-    return [];
-  }
-
-  // Nur erlaubte Tools zurückgeben
-  const filtered = allTools.filter(tool => permissions.allowedTools!.includes(tool.id));
-  console.log('  → Erlaubte Tools:', filtered.map(t => t.name).join(', '));
-  return filtered;
+  return allTools.filter((tool) => can(user, tool.id, 'view'));
 };

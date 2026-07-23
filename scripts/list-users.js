@@ -11,7 +11,7 @@ import 'dotenv/config';
 const client = new Client()
   .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
   .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
-  .setKey(process.env.VITE_APPWRITE_API_KEY);
+  .setKey(process.env.APPWRITE_API_KEY);
 
 const users = new Users(client);
 
@@ -52,7 +52,7 @@ async function listUsers() {
     
     if (error.code === 401) {
       console.log('\n⚠️  API Key ungültig oder nicht gesetzt!');
-      console.log('Prüfen Sie VITE_APPWRITE_API_KEY in Ihrer .env Datei.');
+      console.log('Prüfen Sie APPWRITE_API_KEY in Ihrer .env Datei.');
     }
   }
 }

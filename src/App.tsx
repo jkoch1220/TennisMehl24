@@ -1,13 +1,14 @@
-import { useEffect, Suspense } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import Layout from './components/Layout';
 import Login from './components/Login';
+import ForcePasswordChange from './components/ForcePasswordChange';
+import { mustChangePassword } from './services/authService';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
-import { setupAppwriteFields } from './utils/appwriteSetup';
 import OfflineBanner from './components/OfflineBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'sonner';
@@ -338,14 +339,6 @@ function AuthenticatedContent() {
 function AppContent() {
   const { user, loading } = useAuth();
 
-  useEffect(() => {
-    // Appwrite Auto-Setup (läuft einmal pro Tab, wenn API Key verfügbar)
-    if (import.meta.env.VITE_APPWRITE_API_KEY && typeof window !== 'undefined' && !sessionStorage.getItem('appwrite_setup_run')) {
-      sessionStorage.setItem('appwrite_setup_run', 'true');
-      setupAppwriteFields().catch(console.error);
-    }
-  }, []);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 dark:from-dark-bg dark:via-dark-bg dark:to-dark-surface flex items-center justify-center transition-colors duration-300">
@@ -359,6 +352,11 @@ function AppContent() {
 
   if (!user) {
     return <Login />;
+  }
+
+  // Erstlogin mit Einmalpasswort: App bleibt blockiert, bis ein eigenes Passwort gesetzt ist (D5)
+  if (mustChangePassword(user)) {
+    return <ForcePasswordChange />;
   }
 
   return (

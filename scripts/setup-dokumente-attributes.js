@@ -18,7 +18,7 @@ config();
 // Konfiguration - Werte aus src/config/appwrite.ts
 const ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
 const PROJECT_ID = process.env.VITE_APPWRITE_PROJECT_ID || 'tennismehl24';
-const API_KEY = process.env.APPWRITE_API_KEY || process.env.VITE_APPWRITE_API_KEY;
+const API_KEY = process.env.APPWRITE_API_KEY || process.env.APPWRITE_API_KEY;
 const DATABASE_ID = 'tennismehl24_db';  // Hardcoded aus appwrite.ts
 const COLLECTION_ID = 'bestellabwicklung_dokumente';  // Hardcoded aus appwrite.ts
 
@@ -31,7 +31,7 @@ console.log(`   API Key: ${API_KEY ? '***' + API_KEY.slice(-8) : 'FEHLT!'}\n`);
 
 if (!API_KEY) {
   console.error('❌ API Key fehlt!');
-  console.log('Setze APPWRITE_API_KEY oder VITE_APPWRITE_API_KEY in der .env');
+  console.log('Setze APPWRITE_API_KEY oder APPWRITE_API_KEY in der .env');
   process.exit(1);
 }
 

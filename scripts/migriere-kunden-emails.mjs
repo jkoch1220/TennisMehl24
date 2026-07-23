@@ -25,7 +25,7 @@ for (const line of readFileSync('.env', 'utf8').split('\n')) {
 }
 const ENDPOINT = env.VITE_APPWRITE_ENDPOINT;
 const PROJECT = env.VITE_APPWRITE_PROJECT_ID;
-const API_KEY = env.VITE_APPWRITE_API_KEY;
+const API_KEY = env.APPWRITE_API_KEY;
 const DB = 'tennismehl24_db';
 const COLLECTION = 'saison_kunden';
 const DATA_DIR = '../migration/data';

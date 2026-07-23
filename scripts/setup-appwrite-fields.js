@@ -4,7 +4,7 @@
  * Führe dieses Script einmalig aus mit:
  * npm run setup:appwrite
  * 
- * Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, VITE_APPWRITE_API_KEY
+ * Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, APPWRITE_API_KEY
  * 
  * Für Netlify: Setze diese als Umgebungsvariablen im Dashboard
  */
@@ -16,7 +16,7 @@ dotenv.config();
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 
 if (!endpoint || !projectId) {
   console.error('❌ VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein!');
@@ -24,7 +24,7 @@ if (!endpoint || !projectId) {
 }
 
 if (!apiKey) {
-  console.error('❌ VITE_APPWRITE_API_KEY ist nicht gesetzt!');
+  console.error('❌ APPWRITE_API_KEY ist nicht gesetzt!');
   console.log('Bitte erstelle einen API Key in Appwrite mit folgenden Berechtigungen:');
   console.log('- databases.read');
   console.log('- databases.write');

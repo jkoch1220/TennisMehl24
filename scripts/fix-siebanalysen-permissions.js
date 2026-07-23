@@ -7,7 +7,7 @@ import 'dotenv/config';
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 const databaseId = 'tennismehl24_db';
 const collectionId = 'siebanalysen';
 
@@ -16,7 +16,7 @@ async function fixPermissions() {
     console.error('❌ Umgebungsvariablen fehlen!');
     console.error('VITE_APPWRITE_ENDPOINT:', endpoint);
     console.error('VITE_APPWRITE_PROJECT_ID:', projectId);
-    console.error('VITE_APPWRITE_API_KEY:', apiKey ? '***' : 'fehlt');
+    console.error('APPWRITE_API_KEY:', apiKey ? '***' : 'fehlt');
     process.exit(1);
   }
 

@@ -7,12 +7,12 @@ import 'dotenv/config';
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 const databaseId = 'tennismehl24_db';
 const collectionId = 'touren';
 
 if (!endpoint || !projectId || !apiKey) {
-  console.error('❌ Fehler: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID und VITE_APPWRITE_API_KEY müssen in .env gesetzt sein');
+  console.error('❌ Fehler: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID und APPWRITE_API_KEY müssen in .env gesetzt sein');
   process.exit(1);
 }
 

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { User, login as loginService, logout as logoutService, checkSession, isAdmin } from '../services/authService';
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
+import { auditService } from '../services/auditService';
 
 // Auth-Initialisierung Timeout (5 Sekunden)
 const AUTH_INIT_TIMEOUT = 5000;
@@ -122,33 +123,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Login - memoisiert um unnötige Re-Renders zu vermeiden
   const login = useCallback(async (username: string, password: string) => {
-    try {
-      const loggedInUser = await loginService(username, password);
-      setUser(loggedInUser);
-      // User im Cache speichern
-      cacheUser({
-        $id: loggedInUser.$id,
-        name: loggedInUser.name,
-        email: loggedInUser.email,
-        labels: loggedInUser.labels,
-      });
-      // Permissions laden
-      await loadPermissionsForUser(loggedInUser);
-    } catch (error) {
-      throw error;
-    }
+    const loggedInUser = await loginService(username, password);
+    setUser(loggedInUser);
+    auditService.log(loggedInUser, {
+      action: 'login',
+      entityType: 'user',
+      entityId: loggedInUser.$id,
+      summary: `${loggedInUser.name} hat sich angemeldet`,
+    });
+    // User im Cache speichern
+    cacheUser({
+      $id: loggedInUser.$id,
+      name: loggedInUser.name,
+      email: loggedInUser.email,
+      labels: loggedInUser.labels,
+    });
+    // Permissions laden
+    await loadPermissionsForUser(loggedInUser);
   }, []);
 
   // Logout - memoisiert
   const logout = useCallback(async () => {
-    try {
-      await logoutService();
-      setUser(null);
-      // Permissions Cache leeren
-      clearPermissionsCache();
-    } catch (error) {
-      throw error;
-    }
+    await logoutService();
+    setUser(null);
+    // Permissions Cache leeren
+    clearPermissionsCache();
   }, []);
 
   // User neu laden (z.B. nach Änderungen) - memoisiert

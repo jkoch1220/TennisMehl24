@@ -16,7 +16,7 @@ dotenv.config();
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 
 if (!endpoint || !projectId) {
   console.error('❌ VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein!');
@@ -24,7 +24,7 @@ if (!endpoint || !projectId) {
 }
 
 if (!apiKey) {
-  console.error('❌ VITE_APPWRITE_API_KEY ist nicht gesetzt!');
+  console.error('❌ APPWRITE_API_KEY ist nicht gesetzt!');
   process.exit(1);
 }
 

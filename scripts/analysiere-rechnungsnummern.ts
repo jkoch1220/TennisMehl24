@@ -18,10 +18,10 @@ dotenv.config();
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 
 if (!endpoint || !projectId || !apiKey) {
-  console.error('❌ Umgebungsvariablen VITE_APPWRITE_ENDPOINT / VITE_APPWRITE_PROJECT_ID / VITE_APPWRITE_API_KEY fehlen!');
+  console.error('❌ Umgebungsvariablen VITE_APPWRITE_ENDPOINT / VITE_APPWRITE_PROJECT_ID / APPWRITE_API_KEY fehlen!');
   process.exit(1);
 }
 

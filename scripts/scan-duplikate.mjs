@@ -15,7 +15,7 @@ for (const line of readFileSync('.env', 'utf8').split('\n')) {
 const client = new Client()
   .setEndpoint(env.VITE_APPWRITE_ENDPOINT)
   .setProject(env.VITE_APPWRITE_PROJECT_ID)
-  .setKey(env.VITE_APPWRITE_API_KEY);
+  .setKey(env.APPWRITE_API_KEY);
 const db = new Databases(client);
 const DB = 'tennismehl24_db';
 const COLLECTION = 'saison_kunden';

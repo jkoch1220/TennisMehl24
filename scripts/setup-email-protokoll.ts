@@ -4,7 +4,7 @@
  * Führe dieses Script aus mit:
  * npx tsx scripts/setup-email-protokoll.ts
  *
- * Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, VITE_APPWRITE_API_KEY
+ * Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, APPWRITE_API_KEY
  */
 
 import dotenv from 'dotenv';
@@ -15,11 +15,11 @@ dotenv.config();
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 
 if (!endpoint || !projectId || !apiKey) {
   console.error('❌ Umgebungsvariablen fehlen!');
-  console.error('Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, VITE_APPWRITE_API_KEY');
+  console.error('Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, APPWRITE_API_KEY');
   process.exit(1);
 }
 

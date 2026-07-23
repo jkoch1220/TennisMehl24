@@ -64,7 +64,7 @@ function initClient() {
   client
     .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
     .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '')
-    .setKey(process.env.VITE_APPWRITE_API_KEY || '');
+    .setKey(process.env.APPWRITE_API_KEY || '');
   databases = new Databases(client);
 }
 

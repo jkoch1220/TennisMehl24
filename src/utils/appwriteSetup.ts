@@ -75,7 +75,12 @@ import {
 // Verwende die REST API direkt für Management-Operationen
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
+// SICHERHEIT: Der Admin-API-Key darf NIE über import.meta.env gelesen werden —
+// Vite inlined ihn sonst ins ausgelieferte Bundle. Das In-App-Auto-Setup ist
+// deshalb stillgelegt (kein Aufruf mehr aus App.tsx). Schema-Änderungen laufen
+// über Node-Skripte in scripts/ (dort: process.env.APPWRITE_API_KEY).
+// Ein Node-Runner kann den Key vor dem Import über globalThis.APPWRITE_SETUP_KEY setzen.
+const apiKey = (globalThis as { APPWRITE_SETUP_KEY?: string }).APPWRITE_SETUP_KEY;
 
 const APPWRITE_SETUP_VERSION = '43'; // Massen-Angebote: projekte.erzeugungsBatchId + Collection angebots_laeufe
 
@@ -940,7 +945,7 @@ export async function setupAppwriteFields() {
   }
 
   if (!apiKey) {
-    console.warn('⚠️ VITE_APPWRITE_API_KEY nicht gesetzt - Felder müssen manuell erstellt werden');
+    console.warn('⚠️ Kein Setup-Key gesetzt — Schema-Änderungen laufen über Skripte in scripts/ (APPWRITE_API_KEY)');
     return;
   }
 

@@ -9,7 +9,7 @@ import 'dotenv/config';
 
 const endpoint = process.env.VITE_APPWRITE_ENDPOINT;
 const projectId = process.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = process.env.VITE_APPWRITE_API_KEY;
+const apiKey = process.env.APPWRITE_API_KEY;
 const databaseId = process.env.VITE_APPWRITE_DATABASE_ID || 'tennismehl24_db';
 
 const STAMMDATEN_COLLECTION_ID = 'stammdaten';
@@ -17,7 +17,7 @@ const MAHNWESEN_DOKUMENTE_COLLECTION_ID = 'mahnwesen_dokumente';
 
 if (!endpoint || !projectId || !apiKey) {
   console.error('❌ Fehler: Umgebungsvariablen nicht gesetzt!');
-  console.error('Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, VITE_APPWRITE_API_KEY');
+  console.error('Benötigt: VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID, APPWRITE_API_KEY');
   process.exit(1);
 }
 

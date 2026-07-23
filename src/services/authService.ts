@@ -1,5 +1,6 @@
 import { Account, Models } from 'appwrite';
 import { client } from '../config/appwrite';
+import { mapOnboardingPassword } from '../constants/onboarding';
 
 export const account = new Account(client);
 
@@ -22,13 +23,13 @@ const usernameToEmail = (username: string): string => {
 export const login = async (username: string, password: string): Promise<User> => {
   try {
     const email = usernameToEmail(username);
-    await account.createEmailPasswordSession(email, password);
+    await account.createEmailPasswordSession(email, mapOnboardingPassword(password));
     const user = await account.get() as User;
     console.log('✅ Login erfolgreich:', user.name, user.labels);
     return user;
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Login Fehler:', error);
-    throw new Error(error.message || 'Login fehlgeschlagen');
+    throw new Error((error as Error).message || 'Login fehlgeschlagen');
   }
 };
 
@@ -37,9 +38,9 @@ export const logout = async (): Promise<void> => {
   try {
     await account.deleteSession('current');
     console.log('✅ Logout erfolgreich');
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Logout Fehler:', error);
-    throw new Error(error.message || 'Logout fehlgeschlagen');
+    throw new Error((error as Error).message || 'Logout fehlgeschlagen');
   }
 };
 
@@ -67,12 +68,25 @@ export const isAuthenticated = async (): Promise<boolean> => {
 // Passwort ändern (für eingeloggten User)
 export const changePassword = async (oldPassword: string, newPassword: string): Promise<void> => {
   try {
-    await account.updatePassword(newPassword, oldPassword);
+    await account.updatePassword(newPassword, mapOnboardingPassword(oldPassword));
     console.log('✅ Passwort erfolgreich geändert');
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Passwort-Änderung Fehler:', error);
-    throw new Error(error.message || 'Passwort-Änderung fehlgeschlagen');
+    throw new Error((error as Error).message || 'Passwort-Änderung fehlgeschlagen');
   }
+};
+
+// Muss der User sein Passwort noch ändern? (Flag in Appwrite-Prefs, D5)
+export const mustChangePassword = (user: User | null): boolean =>
+  (user?.prefs as Record<string, unknown> | undefined)?.mustChangePassword === true;
+
+// Flag nach erfolgreichem Wechsel entfernen.
+// WICHTIG: updatePrefs ersetzt das GESAMTE Prefs-Objekt — bestehende Prefs mergen!
+export const clearMustChangePasswordFlag = async (user: User): Promise<void> => {
+  const prefs = { ...(user.prefs ?? {}) } as Record<string, unknown>;
+  delete prefs.mustChangePassword;
+  await account.updatePrefs(prefs);
+  console.log('✅ mustChangePassword-Flag entfernt');
 };
 
 // Prüfen ob User Admin ist

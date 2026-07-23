@@ -13,7 +13,7 @@ dotenv.config();
 
 const ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT;
 const PROJECT_ID = process.env.VITE_APPWRITE_PROJECT_ID;
-const API_KEY = process.env.APPWRITE_API_KEY || process.env.VITE_APPWRITE_API_KEY;
+const API_KEY = process.env.APPWRITE_API_KEY || process.env.APPWRITE_API_KEY;
 const DATABASE_ID = 'tennismehl24_db';
 const COLLECTION_ID = 'user_permissions';
 

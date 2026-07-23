@@ -19,10 +19,8 @@ const generateUnsubscribeToken = (): string => {
   return token;
 };
 
-// REST API für öffentliche Operationen (ohne Auth)
-const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
-const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-const apiKey = import.meta.env.VITE_APPWRITE_API_KEY;
+// Öffentliche Operationen (Abmeldelink ohne Login) laufen über eine Netlify
+// Function — der Admin-API-Key darf nie im Browser-Bundle landen.
 
 export const newsletterService = {
   // ========== CRUD OPERATIONS ==========
@@ -83,40 +81,6 @@ export const newsletterService = {
       return null;
     } catch (error) {
       console.error('Fehler beim Suchen per Email:', error);
-      return null;
-    }
-  },
-
-  // Subscriber per Token finden (für Abmeldelinks - ÖFFENTLICH)
-  async findByToken(token: string): Promise<NewsletterSubscriber | null> {
-    if (!apiKey) {
-      console.error('API Key nicht verfügbar für Token-Suche');
-      return null;
-    }
-
-    try {
-      const response = await fetch(
-        `${endpoint}/databases/${DATABASE_ID}/collections/${NEWSLETTER_COLLECTION_ID}/documents?queries[]=${encodeURIComponent(JSON.stringify(Query.equal('unsubscribeToken', token)))}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Appwrite-Project': projectId,
-            'X-Appwrite-Key': apiKey,
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.documents && data.documents.length > 0) {
-        return this.parseDocument(data.documents[0]);
-      }
-      return null;
-    } catch (error) {
-      console.error('Fehler beim Suchen per Token:', error);
       return null;
     }
   },
@@ -189,45 +153,20 @@ export const newsletterService = {
 
   // ========== ABMELDE-FUNKTIONEN ==========
 
-  // Abmelden per Token (ÖFFENTLICH - ohne Login)
+  // Abmelden per Token (ÖFFENTLICH - ohne Login, läuft serverseitig über Netlify Function)
   async unsubscribeByToken(token: string): Promise<{ success: boolean; email?: string; error?: string }> {
-    if (!apiKey) {
-      return { success: false, error: 'Konfigurationsfehler' };
-    }
-
     try {
-      // Subscriber finden
-      const subscriber = await this.findByToken(token);
-      if (!subscriber) {
-        return { success: false, error: 'Ungültiger Abmeldelink' };
-      }
+      const response = await fetch('/.netlify/functions/newsletter-unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
 
-      if (subscriber.status === 'unsubscribed') {
-        return { success: true, email: subscriber.email }; // Bereits abgemeldet
-      }
-
-      // Status auf "unsubscribed" setzen via API Key
-      const response = await fetch(
-        `${endpoint}/databases/${DATABASE_ID}/collections/${NEWSLETTER_COLLECTION_ID}/documents/${subscriber.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Appwrite-Project': projectId,
-            'X-Appwrite-Key': apiKey,
-          },
-          body: JSON.stringify({
-            status: 'unsubscribed',
-            unsubscribedAt: new Date().toISOString(),
-          }),
-        }
-      );
-
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        return { success: false, error: data.error || 'Ungültiger Abmeldelink' };
       }
-
-      return { success: true, email: subscriber.email };
+      return { success: data.success === true, email: data.email, error: data.error };
     } catch (error) {
       console.error('Fehler beim Abmelden:', error);
       return { success: false, error: 'Technischer Fehler' };
