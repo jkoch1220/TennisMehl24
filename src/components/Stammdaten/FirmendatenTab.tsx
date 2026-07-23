@@ -3,8 +3,12 @@ import { Save, Building2, MapPin, Phone, User, Briefcase, CreditCard, FileText, 
 import { Stammdaten, StammdatenInput } from '../../types/stammdaten';
 import { ladeStammdaten, speichereStammdaten, initialisiereStammdaten } from '../../services/stammdatenService';
 import { generiereBriefpapierPDF } from '../../services/dokumentService';
+import { useCan } from '../../hooks/useCan';
 
 const FirmendatenTab = () => {
+  const { can, isFieldHidden } = useCan();
+  const zeigeBankdaten = !isFieldHidden('stammdaten', 'bankdaten');
+  const darfBearbeiten = can('stammdaten', 'edit');
   const [stammdaten, setStammdaten] = useState<Stammdaten | null>(null);
   const [loading, setLoading] = useState(true);
   const [speichert, setSpeichert] = useState(false);
@@ -218,6 +222,7 @@ const FirmendatenTab = () => {
               <Download className="h-4 w-4" />
               Briefpapier PDF
             </button>
+            {darfBearbeiten && (
             <button
               onClick={handleSpeichern}
               disabled={speichert}
@@ -226,6 +231,7 @@ const FirmendatenTab = () => {
               <Save className="h-4 w-4" />
               {speichert ? 'Speichert...' : 'Speichern'}
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -452,7 +458,8 @@ const FirmendatenTab = () => {
             </div>
           </div>
 
-          {/* Bankdaten */}
+          {/* Bankdaten — sensibel (D9), je nach Rolle ausgeblendet */}
+          {zeigeBankdaten && (
           <div>
             <div className="flex items-center gap-2 mb-4">
               <CreditCard className="h-5 w-5 text-red-600" />
@@ -497,6 +504,7 @@ const FirmendatenTab = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Werk/Verkauf (optional) */}
           <div>

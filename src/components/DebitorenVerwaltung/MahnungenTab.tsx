@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useCan } from '../../hooks/useCan';
 import {
   AlertTriangle,
   Mail,
@@ -113,6 +114,7 @@ interface PreviewState {
  * gruppiert nach Mahnstufe.
  */
 const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) => {
+  const { can } = useCan();
   // Sicherheit zuerst: Testmodus ist Default-AN, echter Versand erst nach bewusstem Umschalten.
   const [testModus, setTestModus] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -198,11 +200,19 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
       .map((e) => ({ debitor: e.debitor, typ: e.typ as MahnwesenDokumentTyp }));
 
   const handleSendOne = (entry: FaelligEntry) => {
+    if (!can('debitoren', 'edit')) {
+      alert('Keine Berechtigung zum Versenden von Mahnungen');
+      return;
+    }
     if (!entry.typ) return;
     setVersandEntries(toEntries([entry]));
   };
 
   const handleSendSelected = () => {
+    if (!can('debitoren', 'edit')) {
+      alert('Keine Berechtigung zum Versenden von Mahnungen');
+      return;
+    }
     const entries = toEntries(versendbareEntries.filter((e) => selected.has(e.debitor.projektId)));
     if (entries.length === 0) return;
     setVersandEntries(entries);

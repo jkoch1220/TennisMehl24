@@ -14,6 +14,7 @@ import { Projekt, ProjektStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import * as XLSX from 'xlsx';
+import { useCan } from '../../hooks/useCan';
 
 // Props
 interface ExportsViewProps {
@@ -51,6 +52,7 @@ interface ABExportDaten {
 }
 
 const ExportsView = ({ projekteGruppiert, onProjektClick }: ExportsViewProps) => {
+  const { can } = useCan();
   const [loading, setLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState<string | null>(null);
 
@@ -290,7 +292,8 @@ const ExportsView = ({ projekteGruppiert, onProjektClick }: ExportsViewProps) =>
               </div>
               <button
                 onClick={exportAlleABs}
-                disabled={loading || kpis.anzahlABs === 0}
+                disabled={loading || kpis.anzahlABs === 0 || !can('projekt-verwaltung', 'export')}
+                title={!can('projekt-verwaltung', 'export') ? 'Keine Export-Berechtigung' : undefined}
                 className="w-full px-4 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
               >
                 {loading ? (

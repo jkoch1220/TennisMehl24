@@ -7,17 +7,21 @@ import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 import SaisonEinstellungenTab from './SaisonEinstellungenTab';
 import KontaktExportTab from './KontaktExportTab';
+import { useCan } from '../../hooks/useCan';
 
 type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison' | 'kontaktExport';
 
 const Stammdaten = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('firmendaten');
+  const { isFieldHidden } = useCan();
+  // Firmendaten-Tab (inkl. Bankdaten) ist sensibel (D9) — je nach Rolle komplett ausgeblendet
+  const zeigeFirmendaten = !isFieldHidden('stammdaten', 'firmendaten');
+  const [activeTab, setActiveTab] = useState<TabId>(zeigeFirmendaten ? 'firmendaten' : 'artikel');
 
-  const tabs = [
-    { 
-      id: 'firmendaten' as TabId, 
-      label: 'Firmendaten', 
-      icon: Building2, 
+  const alleTabs = [
+    {
+      id: 'firmendaten' as TabId,
+      label: 'Firmendaten',
+      icon: Building2,
       color: 'from-blue-600 to-cyan-600',
       description: 'Firmenname, Kontakt, Bankdaten, etc.'
     },
@@ -65,6 +69,8 @@ const Stammdaten = () => {
     },
   ];
 
+  const tabs = alleTabs.filter((tab) => tab.id !== 'firmendaten' || zeigeFirmendaten);
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -111,7 +117,7 @@ const Stammdaten = () => {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'firmendaten' && <FirmendatenTab />}
+        {activeTab === 'firmendaten' && zeigeFirmendaten && <FirmendatenTab />}
         {activeTab === 'artikel' && <ArtikelVerwaltungTab />}
         {activeTab === 'universaArtikel' && <UniversalArtikelTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}

@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
+import { useCan } from '../../hooks/useCan';
 import NumericInput from '../Shared/NumericInput';
 import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/projektabwicklung';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
@@ -91,6 +92,8 @@ interface RechnungTabProps {
 }
 
 const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabProps) => {
+  const { isFieldHidden } = useCan();
+  const fieldHidden = (key: string) => isFieldHidden('projekt-verwaltung', key);
   // Geladener Kunde (Fallback wenn nicht von Props übergeben)
   const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
 
@@ -2536,7 +2539,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                             <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Art.-Nr.</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Bezeichnung</th>
                             <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">VE</th>
-                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">GH-Preis</th>
+                            {!fieldHidden('grosshaendlerPreisNetto') && <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">GH-Preis</th>}
                             <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">Katalog Brutto</th>
                             <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">Aktion</th>
                           </tr>
@@ -2564,9 +2567,11 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                                 )}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-center">{art.verpackungseinheit}</td>
+                              {!fieldHidden('grosshaendlerPreisNetto') && (
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-right">
                                 {art.grosshaendlerPreisNetto.toFixed(2)} €
                               </td>
+                              )}
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
                                 {art.katalogPreisBrutto.toFixed(2)} €
                               </td>

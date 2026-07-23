@@ -44,6 +44,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { DATABASE_ID } from '../../config/appwrite';
 import { loadAllDocuments } from '../../utils/appwritePagination';
 import { Query } from 'appwrite';
+import { useCan } from '../../hooks/useCan';
 
 // Universal-Bestellung Interface
 interface UniversalBestellung {
@@ -186,6 +187,10 @@ const istUniversalPosition = (position: Position): boolean => {
 };
 
 const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps) => {
+  const { can, isFieldHidden } = useCan();
+  // Sensible Felder (D9): EK und DB1/Marge werden je nach Rolle gar nicht gerendert/exportiert
+  const zeigeEK = !isFieldHidden('projekt-verwaltung', 'einkaufspreis');
+  const zeigeDB1 = !isFieldHidden('projekt-verwaltung', 'db1');
   const [bestellungen, setBestellungen] = useState<UniversalBestellung[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupBy, setGroupBy] = useState<GroupBy>('kanban');
@@ -1085,7 +1090,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
     setShowBulkModal(true);
   };
 
-  // CSV Export
+  // CSV Export — EK/DB1-Spalten nur, wenn die Rolle sie sehen darf (D9)
   const exportCSV = useCallback(() => {
     const headers = [
       'AB-Nr.',
@@ -1097,10 +1102,9 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
       'Menge',
       'Einheit',
       'VK (Netto)',
-      'EK (Netto)',
+      ...(zeigeEK ? ['EK (Netto)'] : []),
       'Gesamtpreis',
-      'DB1',
-      'DB1 %',
+      ...(zeigeDB1 ? ['DB1', 'DB1 %'] : []),
       'Lieferdatum',
       'Liefer-KW',
       'Status',
@@ -1125,10 +1129,11 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         menge.toString().replace('.', ','),
         b.position.einheit || '',
         vk.toFixed(2).replace('.', ','),
-        ek.toFixed(2).replace('.', ','),
+        ...(zeigeEK ? [ek.toFixed(2).replace('.', ',')] : []),
         b.position.gesamtpreis?.toFixed(2).replace('.', ',') || '',
-        db1.toFixed(2).replace('.', ','),
-        db1Prozent.toFixed(1).replace('.', ',') + '%',
+        ...(zeigeDB1
+          ? [db1.toFixed(2).replace('.', ','), db1Prozent.toFixed(1).replace('.', ',') + '%']
+          : []),
         b.lieferdatum ? new Date(b.lieferdatum).toLocaleDateString('de-DE') : '',
         b.lieferKW ? `KW ${b.lieferKW}${b.lieferKWJahr ? '/' + b.lieferKWJahr : ''}` : '',
         getStatusConfig(b.projekt.status).label,
@@ -1146,7 +1151,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
     link.download = `Universal_Bestellungen_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [bestellungen]);
+  }, [bestellungen, zeigeEK, zeigeDB1]);
 
   // Toggle Gruppe
   const toggleGroup = (groupKey: string) => {
@@ -1293,6 +1298,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               {summen.gesamtEK.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
             </div>
           </div>
+          {zeigeDB1 && (
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
             <div className="flex items-center gap-2 text-amber-100 text-sm mb-1">
               <Layers className="w-4 h-4" />
@@ -1307,6 +1313,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 
@@ -1414,7 +1421,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
             </button>
           )}
 
-          {/* Export Button */}
+          {/* Export Button — nur mit Export-Recht */}
+          {can('projekt-verwaltung', 'export') && (
           <button
             onClick={exportCSV}
             disabled={bestellungen.length === 0}
@@ -1423,6 +1431,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
             <Download className="w-5 h-5" />
             CSV Export
           </button>
+          )}
         </div>
       </div>
 
@@ -1522,14 +1531,17 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                                 {gruppe.gesamtWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </span>
                             </div>
-                            {/* Wir zahlen an Universal (EK) */}
+                            {/* Wir zahlen an Universal (EK) — sensibel */}
+                            {zeigeEK && (
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-gray-500 dark:text-gray-400">An Universal:</span>
                               <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
                                 {gruppe.gesamtEK.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </span>
                             </div>
-                            {/* Marge (DB1) */}
+                            )}
+                            {/* Marge (DB1) — sensibel */}
+                            {zeigeDB1 && (
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-gray-500 dark:text-gray-400">Marge:</span>
                               <span className={`text-xs font-bold ${gruppe.db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -1541,6 +1553,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                                 )}
                               </span>
                             </div>
+                            )}
                           </div>
 
                           {/* Status-Wechsel Buttons */}
@@ -1841,8 +1854,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                               <th className="px-4 py-2 text-left font-semibold">Artikel</th>
                               <th className="px-4 py-2 text-right font-semibold">Menge</th>
                               <th className="px-4 py-2 text-right font-semibold">VK</th>
-                              <th className="px-4 py-2 text-right font-semibold">EK</th>
-                              <th className="px-4 py-2 text-right font-semibold">DB1</th>
+                              {zeigeEK && <th className="px-4 py-2 text-right font-semibold">EK</th>}
+                              {zeigeDB1 && <th className="px-4 py-2 text-right font-semibold">DB1</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
@@ -1877,14 +1890,18 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                                   <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white">
                                     {vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                                   </td>
+                                  {zeigeEK && (
                                   <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">
                                     {ek.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                                   </td>
+                                  )}
+                                  {zeigeDB1 && (
                                   <td className="px-4 py-2 text-right">
                                     <span className={`font-semibold ${db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                       {db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                                     </span>
                                   </td>
+                                  )}
                                 </tr>
                               );
                             })}
@@ -1897,14 +1914,18 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                               <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
                                 {gruppe.gesamtWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </td>
+                              {zeigeEK && (
                               <td className="px-4 py-2 text-right text-gray-600 dark:text-gray-400">
                                 {gruppe.gesamtEK.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </td>
+                              )}
+                              {zeigeDB1 && (
                               <td className="px-4 py-2 text-right">
                                 <span className={`${gruppe.db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                   {gruppe.db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                                 </span>
                               </td>
+                              )}
                             </tr>
                           </tfoot>
                         </table>
@@ -1946,9 +1967,11 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    {zeigeDB1 && (
                     <span className="font-medium">
                       DB1: {gruppenDB1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                     </span>
+                    )}
                     <span className="font-semibold text-gray-900 dark:text-white">
                       {gruppenWert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                     </span>
@@ -1966,8 +1989,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                           <th className="px-4 py-3 text-left font-semibold">Artikel</th>
                           <th className="px-4 py-3 text-right font-semibold">Menge</th>
                           <th className="px-4 py-3 text-right font-semibold">VK</th>
-                          <th className="px-4 py-3 text-right font-semibold">EK</th>
-                          <th className="px-4 py-3 text-right font-semibold">DB1</th>
+                          {zeigeEK && <th className="px-4 py-3 text-right font-semibold">EK</th>}
+                          {zeigeDB1 && <th className="px-4 py-3 text-right font-semibold">DB1</th>}
                           <th className="px-4 py-3 text-left font-semibold">Lieferdatum</th>
                           <th className="px-4 py-3 text-left font-semibold">Status</th>
                         </tr>
@@ -2033,9 +2056,12 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                               <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
                                 {vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </td>
+                              {zeigeEK && (
                               <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
                                 {ek.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
                               </td>
+                              )}
+                              {zeigeDB1 && (
                               <td className="px-4 py-3 text-right">
                                 <div className={`font-semibold ${db1 >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                   {db1.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
@@ -2044,6 +2070,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                                   {db1Prozent.toFixed(1)}%
                                 </div>
                               </td>
+                              )}
                               <td className="px-4 py-3">
                                 {bestellung.lieferKW ? (
                                   <div className="flex items-center gap-1.5">

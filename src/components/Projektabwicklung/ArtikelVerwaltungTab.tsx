@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Save, X, Search, ArrowUpDown } from 'lucide-react';
 import { Artikel, ArtikelInput } from '../../types/artikel';
+import { useCan } from '../../hooks/useCan';
 import {
   getAlleArtikel,
   erstelleArtikel,
@@ -12,6 +13,8 @@ import {
 type SortField = 'artikelnummer' | 'bezeichnung' | 'einzelpreis';
 
 const ArtikelVerwaltungTab = () => {
+  const { isFieldHidden } = useCan();
+  const zeigeEK = !isFieldHidden('projekt-verwaltung', 'einkaufspreis');
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [loading, setLoading] = useState(true);
   const [bearbeitungsModus, setBearbeitungsModus] = useState<string | null>(null);
@@ -265,6 +268,7 @@ const ArtikelVerwaltungTab = () => {
               />
             </div>
 
+            {zeigeEK && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Einkaufspreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(intern, für DB1)</span>
@@ -278,6 +282,7 @@ const ArtikelVerwaltungTab = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
@@ -361,9 +366,11 @@ const ArtikelVerwaltungTab = () => {
                       {sortField === 'einzelpreis' && <ArrowUpDown className="h-3 w-3" />}
                     </button>
                   </th>
+                  {zeigeEK && (
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                     EK-Preis
                   </th>
+                  )}
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                     Aktionen
                   </th>
@@ -394,6 +401,7 @@ const ArtikelVerwaltungTab = () => {
                         }
                       </span>
                     </td>
+                    {zeigeEK && (
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                         {art.einkaufspreis !== undefined && art.einkaufspreis !== null
@@ -402,6 +410,7 @@ const ArtikelVerwaltungTab = () => {
                         }
                       </span>
                     </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button

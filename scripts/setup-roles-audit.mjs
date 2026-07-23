@@ -63,13 +63,13 @@ const PROJEKT_HIDDEN_FIELDS = ['einkaufspreis', 'grosshaendlerPreisNetto', 'db1'
 const produktionsleitungPermissions = () => {
   const voll = ['produktion', 'schichtplanung', 'instandhaltung', 'dispo-planung', 'qualitaetssicherung', 'kalender', 'wiki', 'task-verwaltung'];
   const perms = fullAccess(voll.filter((id) => ALL_TOOL_IDS.includes(id)));
-  perms['dashboard'] = { enabled: true, actions: ['view'] };
+  perms['dashboard'] = { enabled: true, actions: ['view'], hiddenFields: ['db1'] };
   perms['projekt-verwaltung'] = { enabled: true, actions: ['view'], hiddenFields: [...PROJEKT_HIDDEN_FIELDS] };
   return perms;
 };
 
 const mitarbeiterPermissions = () => ({
-  dashboard: { enabled: true, actions: ['view'] },
+  dashboard: { enabled: true, actions: ['view'], hiddenFields: ['db1'] },
   wiki: { enabled: true, actions: ['view', 'create', 'edit'] },
   kalender: { enabled: true, actions: ['view', 'create', 'edit'] },
   'task-verwaltung': { enabled: true, actions: ['view', 'create', 'edit'] },

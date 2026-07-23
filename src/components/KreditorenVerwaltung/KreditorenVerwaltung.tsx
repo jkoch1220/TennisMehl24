@@ -4,6 +4,7 @@ import { OffeneRechnung, KreditorenStatistik, Unternehmen } from '../../types/kr
 import { kreditorService } from '../../services/kreditorService';
 import { aktivitaetService } from '../../services/aktivitaetService';
 import RechnungsFormular from './RechnungsFormular';
+import { useCan } from '../../hooks/useCan';
 import RechnungsListe from './RechnungsListe';
 import RechnungsDetail from './RechnungsDetail';
 import FaelligkeitsTimeline from './FaelligkeitsTimeline';
@@ -14,6 +15,7 @@ import StatusKorrektur from './StatusKorrektur';
 import DatenReparatur from './DatenReparatur';
 
 const KreditorenVerwaltung = () => {
+  const { can } = useCan();
   const [rechnungen, setRechnungen] = useState<OffeneRechnung[]>([]);
   const [statistik, setStatistik] = useState<KreditorenStatistik | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,7 @@ const KreditorenVerwaltung = () => {
   };
 
   const handleEdit = (rechnung: OffeneRechnung) => {
+    if (!can('kreditoren', 'edit')) return;
     setSelectedRechnung(rechnung);
     setShowFormular(true);
     setShowDetail(false);
@@ -123,6 +126,10 @@ const KreditorenVerwaltung = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!can('kreditoren', 'delete')) {
+      alert('Keine Berechtigung zum Löschen von Rechnungen');
+      return;
+    }
     try {
       // Erst alle Aktivitäten löschen
       await aktivitaetService.deleteAktivitaetenFuerRechnung(id);
@@ -228,6 +235,7 @@ const KreditorenVerwaltung = () => {
               <Wrench className="w-5 h-5" />
               Daten-Reparatur
             </button>
+            {can('kreditoren', 'create') && (
             <button
               onClick={() => {
                 setSelectedRechnung(null);
@@ -238,6 +246,7 @@ const KreditorenVerwaltung = () => {
               <Plus className="w-5 h-5" />
               Neue Rechnung
             </button>
+            )}
           </div>
         </div>
 

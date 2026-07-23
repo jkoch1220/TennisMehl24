@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCan } from '../../hooks/useCan';
 import {
   X,
   User,
@@ -52,6 +53,7 @@ interface DebitorDetailProps {
 }
 
 const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: DebitorDetailProps) => {
+  const { can } = useCan();
   const navigate = useNavigate();
   const [showZahlungFormular, setShowZahlungFormular] = useState(false);
   const [showAktivitaetFormular, setShowAktivitaetFormular] = useState(false);
@@ -237,6 +239,10 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
   // Mahnwesen-Dokument erstellen
   const handleErstelleMahnwesenDokument = async (typ: MahnwesenDokumentTyp) => {
+    if (!can('debitoren', 'create')) {
+      alert('Keine Berechtigung zum Erstellen von Mahnungen');
+      return;
+    }
     if (!kundenAdresse.strasse || !kundenAdresse.plzOrt) {
       alert('Kundenadresse fehlt. Bitte prüfen Sie die Projektdaten.');
       return;
@@ -320,6 +326,10 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
   // Debitor löschen (nur Metadaten — Projekt bleibt erhalten)
   const handleDeleteDebitor = async () => {
+    if (!can('debitoren', 'delete')) {
+      alert('Keine Berechtigung zum Löschen von Debitoren');
+      return;
+    }
     const hatEchteZahlungen = (debitor.zahlungen || []).some((z) => z.betrag > 0);
     if (hatEchteZahlungen) {
       alert(

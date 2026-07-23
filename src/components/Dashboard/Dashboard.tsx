@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { dashboardService } from '../../services/dashboardService';
 import type { LagerBestand, DashboardStats } from '../../types/dashboard';
+import { useCan } from '../../hooks/useCan';
 import OilBulletinChart from './OilBulletinChart';
 import ShopEinnahmenChart from './ShopEinnahmenChart';
 
@@ -258,6 +259,7 @@ const formatEuro = (betrag: number): string => {
 };
 
 const Dashboard = () => {
+  const { isFieldHidden } = useCan();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [bearbeitenModus, setBearbeitenModus] = useState(false);
@@ -662,7 +664,8 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Projekt-Statistiken: Gewinn (DB1) */}
+          {/* Projekt-Statistiken: Gewinn (DB1) — sensibel, wird je nach Rolle nicht gerendert */}
+          {!isFieldHidden('dashboard', 'db1') && (
           <div className="mb-6 sm:mb-10">
             <h3 className="text-sm sm:text-lg font-bold text-gray-600 dark:text-dark-textMuted mb-3 sm:mb-4 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -695,6 +698,7 @@ const Dashboard = () => {
               />
             </div>
           </div>
+          )}
 
           {/* Anfragen */}
           <div className="mb-6 sm:mb-10">

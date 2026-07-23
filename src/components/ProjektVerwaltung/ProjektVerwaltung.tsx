@@ -46,6 +46,7 @@ import { getAktuelleSaison, berechneAktuelleSaison } from '../../services/nummer
 import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
 import { StammdatenInput } from '../../types/stammdaten';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCan } from '../../hooks/useCan';
 import { useNavigate } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
@@ -246,6 +247,7 @@ const ProjektVerwaltung = () => {
   const saisonManuellGewaehlt = useRef(false);
   const [showNeueSaisonModal, setShowNeueSaisonModal] = useState(false);
   const { isAdmin } = useAuth();
+  const { can: canDo } = useCan();
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [verlorenProjekt, setVerlorenProjekt] = useState<Projekt | null>(null);
@@ -570,6 +572,11 @@ const ProjektVerwaltung = () => {
   // Delete-Handler
   const handleDelete = async (e: React.MouseEvent, projekt: Projekt) => {
     e.stopPropagation();
+
+    if (!canDo('projekt-verwaltung', 'delete')) {
+      alert('Keine Berechtigung zum Löschen von Projekten');
+      return;
+    }
 
     const bestaetigung = window.confirm(
       `Möchtest du das Projekt "${projekt.kundenname}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`

@@ -20,7 +20,9 @@ export const KNOWN_SENSITIVE_FIELDS: Record<string, SensitiveFieldDef[]> = {
   stammdaten: [
     { key: 'bankdaten', label: 'Bankdaten' },
     { key: 'firmendaten', label: 'Firmendaten' },
+    { key: 'grosshaendlerPreisNetto', label: 'Großhändler-Preis (Netto)' },
   ],
+  dashboard: [{ key: 'db1', label: 'Gewinn / DB1-Kennzahlen' }],
 };
 
 export const getSensitiveFields = (toolId: string): SensitiveFieldDef[] =>

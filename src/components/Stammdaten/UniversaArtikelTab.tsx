@@ -11,10 +11,13 @@ import {
   loescheUniversalArtikel,
 } from '../../services/universaArtikelService';
 import UniversalArtikelDialog from './UniversalArtikelDialog';
+import { useCan } from '../../hooks/useCan';
 
 type SortField = 'artikelnummer' | 'bezeichnung' | 'katalogPreisBrutto';
 
 const UniversalArtikelTab = () => {
+  const { isFieldHidden } = useCan();
+  const zeigeGH = !isFieldHidden('stammdaten', 'grosshaendlerPreisNetto');
   const [artikel, setArtikel] = useState<UniversalArtikel[]>([]);
   const [loading, setLoading] = useState(true);
   const [suchtext, setSuchtext] = useState('');
@@ -604,9 +607,11 @@ const UniversalArtikelTab = () => {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         VE
                       </th>
+                      {zeigeGH && (
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         GH-Preis
                       </th>
+                      )}
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                         Katalog Netto
                       </th>
@@ -648,11 +653,13 @@ const UniversalArtikelTab = () => {
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className="text-sm text-gray-600 dark:text-dark-textMuted">{art.verpackungseinheit}</span>
                         </td>
+                        {zeigeGH && (
                         <td className="px-4 py-3 whitespace-nowrap text-right">
                           <span className="text-sm text-gray-900 dark:text-dark-text">
                             {art.grosshaendlerPreisNetto.toFixed(2)} €
                           </span>
                         </td>
+                        )}
                         <td className="px-4 py-3 whitespace-nowrap text-right">
                           <span className="text-sm text-gray-600 dark:text-dark-textMuted">
                             {art.katalogPreisNetto.toFixed(2)} €

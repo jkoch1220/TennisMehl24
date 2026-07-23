@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
+import { useCan } from '../../hooks/useCan';
 import NumericInput from '../Shared/NumericInput';
 import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereAngebotPDF } from '../../services/dokumentService';
@@ -84,6 +85,9 @@ interface AngebotTabProps {
 }
 
 const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabProps) => {
+  const { isFieldHidden } = useCan();
+  // Sensible Felder (D9) — Tool-Kontext ist die Projekt-Verwaltung
+  const fieldHidden = (key: string) => isFieldHidden('projekt-verwaltung', key);
   const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
     'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
     'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
@@ -2269,7 +2273,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                             <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Art.-Nr.</th>
                             <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 dark:text-orange-300">Bezeichnung</th>
                             <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">VE</th>
-                            <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">GH-Preis</th>
+                            {!fieldHidden('grosshaendlerPreisNetto') && <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">GH-Preis</th>}
                             <th className="px-4 py-2 text-right text-xs font-semibold text-gray-700 dark:text-orange-300">Katalog Brutto</th>
                             <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 dark:text-orange-300">Aktion</th>
                           </tr>
@@ -2297,9 +2301,11 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                                 )}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-center">{art.verpackungseinheit}</td>
+                              {!fieldHidden('grosshaendlerPreisNetto') && (
                               <td className="px-4 py-3 text-sm text-gray-600 dark:text-dark-textMuted text-right">
                                 {art.grosshaendlerPreisNetto.toFixed(2)} €
                               </td>
+                              )}
                               <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-dark-text text-right">
                                 {art.katalogPreisBrutto.toFixed(2)} €
                               </td>
@@ -3153,8 +3159,8 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               </div>
             )}
 
-            {/* DB1-Anzeige (INTERN - nicht im PDF) */}
-            {db1Berechnung.positionenMitEK > 0 && (
+            {/* DB1-Anzeige (INTERN - nicht im PDF) — sensibel, je nach Rolle ausgeblendet */}
+            {!fieldHidden('db1') && db1Berechnung.positionenMitEK > 0 && (
               <div className="border-t-2 border-dashed border-amber-300 dark:border-amber-700 pt-3 mt-3">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-xs font-bold bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded">

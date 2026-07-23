@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useCan } from '../../hooks/useCan';
 import {
   RefreshCw,
   TrendingUp,
@@ -51,6 +52,7 @@ const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
 ]);
 
 const DebitorenVerwaltung = () => {
+  const { can } = useCan();
   const [debitoren, setDebitoren] = useState<DebitorView[]>([]);
   const [statistik, setStatistik] = useState<DebitorenStatistik | null>(null);
   const [loading, setLoading] = useState(true);
@@ -252,6 +254,10 @@ const DebitorenVerwaltung = () => {
   // Mehrere Debitor-Metadaten auf einmal löschen (Projekte bleiben erhalten)
   const handleDeleteBulk = async (debitorenToDelete: DebitorView[]) => {
     if (debitorenToDelete.length === 0) return;
+    if (!can('debitoren', 'delete')) {
+      alert('Keine Berechtigung zum Löschen von Debitoren');
+      return;
+    }
 
     const fehler: { projektId: string; error: unknown }[] = [];
     for (const d of debitorenToDelete) {
