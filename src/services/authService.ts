@@ -9,6 +9,37 @@ export interface User extends Models.User<Models.Preferences> {
   labels: string[];
 }
 
+/**
+ * Kachel-Login (SSR-Muster): Die Netlify Function löst die E-Mail serverseitig
+ * auf und erstellt die Session — der Browser bekommt nur das Session-Secret.
+ * Das Secret muss selbst persistiert werden (localStorage, wie der SDK-eigene
+ * cookieFallback), damit die Session einen Reload überlebt.
+ */
+const SESSION_SECRET_KEY = 'tm_session_secret';
+
+// Beim App-Start eine ggf. gespeicherte Kachel-Session wiederherstellen
+const gespeichertesSecret = localStorage.getItem(SESSION_SECRET_KEY);
+if (gespeichertesSecret) {
+  client.setSession(gespeichertesSecret);
+}
+
+export const loginMitKachel = async (userId: string, password: string): Promise<User> => {
+  const response = await fetch('/.netlify/functions/admin-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'login', userId, password: mapOnboardingPassword(password) }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.secret) {
+    throw new Error((data.error as string) || 'Anmeldung fehlgeschlagen');
+  }
+  client.setSession(data.secret);
+  localStorage.setItem(SESSION_SECRET_KEY, data.secret);
+  const user = (await account.get()) as User;
+  console.log('✅ Login erfolgreich (Kachel):', user.name, user.labels);
+  return user;
+};
+
 // Username zu Email konvertieren (Appwrite benötigt Email-Format)
 const usernameToEmail = (username: string): string => {
   // Wenn bereits Email-Format, direkt verwenden
@@ -41,6 +72,10 @@ export const logout = async (): Promise<void> => {
   } catch (error) {
     console.error('❌ Logout Fehler:', error);
     throw new Error((error as Error).message || 'Logout fehlgeschlagen');
+  } finally {
+    // Kachel-Session-Secret immer verwerfen, auch wenn deleteSession scheitert
+    localStorage.removeItem(SESSION_SECRET_KEY);
+    client.setSession('');
   }
 };
 
@@ -50,7 +85,12 @@ export const getCurrentUser = async (): Promise<User | null> => {
     const user = await account.get() as User;
     return user;
   } catch (error) {
-    // Kein User eingeloggt
+    // Kein User eingeloggt — ein evtl. abgelaufenes Kachel-Session-Secret
+    // verwerfen, damit es Folge-Logins nicht stört
+    if (localStorage.getItem(SESSION_SECRET_KEY)) {
+      localStorage.removeItem(SESSION_SECRET_KEY);
+      client.setSession('');
+    }
     return null;
   }
 };

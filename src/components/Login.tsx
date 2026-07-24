@@ -35,7 +35,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginKachel } = useAuth();
 
   useEffect(() => {
     listUsers()
@@ -52,9 +52,14 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Kachel-Modus: Login mit der internen E-Mail des gewählten Users
-      const loginName = selectedUser ? selectedUser.email : username;
-      await login(loginName, password);
+      if (selectedUser) {
+        // Kachel-Modus: Session kommt von der Netlify Function (SSR-Muster),
+        // die E-Mail des Users bleibt serverseitig
+        await loginKachel(selectedUser.id, password);
+      } else {
+        // Manuell: Benutzername (Alt-Accounts) oder voll eingegebene E-Mail
+        await login(username, password);
+      }
     } catch (err) {
       setError((err as Error).message || 'Login fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.');
       setPassword('');
@@ -139,7 +144,7 @@ const Login = () => {
             ) : (
               <div>
                 <label htmlFor="username" className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
-                  Benutzername
+                  E-Mail oder Benutzername
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -151,7 +156,7 @@ const Login = () => {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
-                    placeholder="Benutzername eingeben"
+                    placeholder="E-Mail-Adresse eingeben"
                     autoFocus
                     disabled={isLoading}
                     required

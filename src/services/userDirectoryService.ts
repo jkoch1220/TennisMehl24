@@ -3,13 +3,17 @@ import { account } from './authService';
 /**
  * Zugriff auf die Netlify Function admin-users:
  *  - listUsers() ist öffentlich (für den "Wer bist du?"-Screen vor dem Login)
- *  - create/reset laufen mit Session-JWT und werden serverseitig auf Admin geprüft
+ *    und liefert bewusst KEINE E-Mail-Adressen (nur id + name).
+ *  - listUsersMitEmail() sendet das Session-JWT mit — nur verifizierte Admins
+ *    bekommen die E-Mail-Adressen zurück (Benutzerverwaltung).
+ *  - create/reset laufen mit Session-JWT und werden serverseitig auf Admin geprüft.
  */
 
 export interface DirectoryUser {
   id: string;
   name: string;
-  email: string;
+  /** Nur gefüllt, wenn die Liste als Admin (mit JWT) abgerufen wurde. */
+  email?: string;
 }
 
 const FUNCTION_URL = '/.netlify/functions/admin-users';
@@ -42,8 +46,13 @@ const adminRequest = async (payload: Record<string, unknown>): Promise<Record<st
   return data;
 };
 
-export const createUser = async (username: string, name: string): Promise<DirectoryUser> => {
-  const data = await adminRequest({ action: 'create', username, name });
+export const listUsersMitEmail = async (): Promise<DirectoryUser[]> => {
+  const data = await adminRequest({ action: 'list' });
+  return Array.isArray(data.users) ? (data.users as DirectoryUser[]) : [];
+};
+
+export const createUser = async (email: string, name: string): Promise<DirectoryUser> => {
+  const data = await adminRequest({ action: 'create', email, name });
   return data.user as unknown as DirectoryUser;
 };
 

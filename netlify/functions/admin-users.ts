@@ -5,8 +5,15 @@ import { Client, Users, Account, ID } from 'node-appwrite';
  * User-Verwaltung mit Server-API-Key (der Key bleibt ausschließlich hier).
  *
  * Aktionen:
- *  - list            (öffentlich, pre-Login): aktive User für den "Wer bist du?"-Screen
- *  - create          (nur Admin, JWT-verifiziert): neuen User mit Einmalpasswort anlegen
+ *  - list            (öffentlich, pre-Login): aktive User für den "Wer bist du?"-Screen.
+ *                    Liefert NUR id + name — E-Mail-Adressen sind privat und gehen
+ *                    nur an verifizierte Admins (JWT optional mitgesendet).
+ *  - login           (öffentlich): Kachel-Login nach dem Appwrite-SSR-Muster.
+ *                    Die E-Mail wird serverseitig aufgelöst, die Session mit dem
+ *                    Admin-Client erstellt und nur das Session-Secret zurückgegeben —
+ *                    so verlässt keine E-Mail-Adresse den Server.
+ *  - create          (nur Admin, JWT-verifiziert): neuen User mit echter E-Mail +
+ *                    Einmalpasswort anlegen
  *  - reset-password  (nur Admin, JWT-verifiziert): User auf Einmalpasswort zurücksetzen
  *
  * Admin-Verifikation: Client sendet sein Appwrite-Session-JWT im Header
@@ -16,6 +23,8 @@ import { Client, Users, Account, ID } from 'node-appwrite';
 // In Sync mit src/constants/onboarding.ts halten (Appwrite-Minimum: 8 Zeichen;
 // die Login-UI bildet die Eingabe "1220" auf diesen Wert ab).
 const ONBOARDING_PASSWORD_ACTUAL = 'TM-Start-1220!';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const jsonResponse = (statusCode: number, body: Record<string, unknown>) => ({
   statusCode,
@@ -67,7 +76,13 @@ export const handler: Handler = async (event: HandlerEvent) => {
   }
   const { apiKey, endpoint, projectId } = config;
 
-  let body: { action?: string; username?: string; name?: string; userId?: string } = {};
+  let body: {
+    action?: string;
+    email?: string;
+    name?: string;
+    userId?: string;
+    password?: string;
+  } = {};
   try {
     body = JSON.parse(event.body || '{}');
   } catch {
@@ -81,12 +96,34 @@ export const handler: Handler = async (event: HandlerEvent) => {
     switch (body.action) {
       // ---------------------------------------------------------- öffentlich
       case 'list': {
+        // E-Mail nur für verifizierte Admins (UserManagement) — nie pre-Login.
+        const istAdmin = (await verifyAdmin(event, endpoint, projectId)).ok;
         const result = await users.list();
         const active = result.users
           .filter((u) => u.status === true)
-          .map((u) => ({ id: u.$id, name: u.name, email: u.email }))
+          .map((u) => (istAdmin ? { id: u.$id, name: u.name, email: u.email } : { id: u.$id, name: u.name }))
           .sort((a, b) => a.name.localeCompare(b.name, 'de'));
         return jsonResponse(200, { users: active });
+      }
+
+      case 'login': {
+        if (!body.userId || !body.password) {
+          return jsonResponse(400, { error: 'userId und password erforderlich' });
+        }
+        try {
+          const target = await users.get(body.userId);
+          if (target.status !== true) throw new Error('inaktiv');
+          // SSR-Muster: Session mit dem Admin-Client erstellen → Response enthält
+          // das Session-Secret, das der Browser per client.setSession() übernimmt.
+          const session = await new Account(client).createEmailPasswordSession(
+            target.email,
+            body.password
+          );
+          return jsonResponse(200, { secret: session.secret });
+        } catch {
+          // Neutral halten: keine Unterscheidung unbekannter User / falsches Passwort
+          return jsonResponse(401, { error: 'Anmeldung fehlgeschlagen' });
+        }
       }
 
       // ---------------------------------------------------------- nur Admin
@@ -94,15 +131,16 @@ export const handler: Handler = async (event: HandlerEvent) => {
         const auth = await verifyAdmin(event, endpoint, projectId);
         if (!auth.ok) return jsonResponse(403, { error: auth.error });
 
-        const username = (body.username || '').trim().toLowerCase();
+        const email = (body.email || '').trim().toLowerCase();
         const name = (body.name || '').trim();
-        if (!/^[a-z0-9._-]{2,50}$/.test(username) || !name) {
-          return jsonResponse(400, { error: 'Ungültiger Benutzername oder Anzeigename' });
+        if (!EMAIL_REGEX.test(email) || email.endsWith('@tennismehl.local')) {
+          return jsonResponse(400, { error: 'Bitte eine echte E-Mail-Adresse angeben' });
         }
+        if (!name) return jsonResponse(400, { error: 'Anzeigename fehlt' });
 
         const created = await users.create(
           ID.unique(),
-          `${username}@tennismehl.local`,
+          email,
           undefined,
           ONBOARDING_PASSWORD_ACTUAL,
           name
@@ -132,7 +170,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
   } catch (error) {
     const e = error as { code?: number; message?: string };
     console.error('admin-users Fehler:', e.message);
-    if (e.code === 409) return jsonResponse(409, { error: 'Benutzername existiert bereits' });
+    if (e.code === 409) return jsonResponse(409, { error: 'E-Mail-Adresse wird bereits verwendet' });
     return jsonResponse(500, { error: 'Aktion fehlgeschlagen' });
   }
 };

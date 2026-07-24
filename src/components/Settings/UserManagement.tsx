@@ -18,7 +18,7 @@ import {
   loadAllPermissions,
 } from '../../services/permissionsService';
 import {
-  listUsers,
+  listUsersMitEmail,
   createUser,
   resetUserPassword,
   DirectoryUser,
@@ -43,7 +43,7 @@ const UserManagement = () => {
   const [showAllow, setShowAllow] = useState(false);
   const [showDeny, setShowDeny] = useState(false);
   const [neuName, setNeuName] = useState('');
-  const [neuUsername, setNeuUsername] = useState('');
+  const [neuEmail, setNeuEmail] = useState('');
   const [zeigeNeuForm, setZeigeNeuForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -53,7 +53,7 @@ const UserManagement = () => {
   const ladeDaten = async () => {
     setLoading(true);
     try {
-      const [userListe, rollenListe] = await Promise.all([listUsers(), loadAllRoles()]);
+      const [userListe, rollenListe] = await Promise.all([listUsersMitEmail(), loadAllRoles()]);
       setUsers(userListe);
       setRoles(rollenListe);
     } catch (error) {
@@ -113,12 +113,14 @@ const UserManagement = () => {
     setSaving(false);
   };
 
+  const emailGueltig = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(neuEmail.trim());
+
   const userAnlegen = async () => {
-    if (!neuName.trim() || !neuUsername.trim() || !user) return;
+    if (!neuName.trim() || !emailGueltig || !user) return;
     setSaving(true);
     setMeldung('');
     try {
-      const created = await createUser(neuUsername.trim(), neuName.trim());
+      const created = await createUser(neuEmail.trim().toLowerCase(), neuName.trim());
       auditService.log(user, {
         action: 'user_create',
         entityType: 'user',
@@ -126,7 +128,7 @@ const UserManagement = () => {
         summary: `User "${created.name}" angelegt (startet mit Einmalpasswort)`,
       });
       setNeuName('');
-      setNeuUsername('');
+      setNeuEmail('');
       setZeigeNeuForm(false);
       await ladeDaten();
       const neu = { id: created.id, name: created.name, email: created.email };
@@ -243,16 +245,19 @@ const UserManagement = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-dark-textMuted mb-1">
-                    Benutzername (für den Login)
+                    E-Mail-Adresse (Pflicht, für Login & Passwort-Zurücksetzen)
                   </label>
                   <input
-                    type="text"
-                    value={neuUsername}
-                    onChange={(e) => setNeuUsername(e.target.value.toLowerCase())}
+                    type="email"
+                    value={neuEmail}
+                    onChange={(e) => setNeuEmail(e.target.value)}
                     disabled={saving}
                     className="w-full p-2 border-2 border-gray-300 dark:border-dark-border rounded-lg text-sm focus:border-red-500 focus:outline-none"
-                    placeholder="z.B. max"
+                    placeholder="z.B. max@gmail.com"
                   />
+                  {neuEmail.trim() !== '' && !emailGueltig && (
+                    <p className="text-xs text-red-600 mt-1">Bitte eine gültige E-Mail-Adresse eingeben.</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -262,7 +267,7 @@ const UserManagement = () => {
                 </p>
                 <button
                   onClick={userAnlegen}
-                  disabled={saving || !neuName.trim() || !neuUsername.trim()}
+                  disabled={saving || !neuName.trim() || !emailGueltig}
                   className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center gap-2"
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}

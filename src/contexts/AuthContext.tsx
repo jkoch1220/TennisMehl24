@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
-import { User, login as loginService, logout as logoutService, checkSession, isAdmin } from '../services/authService';
+import { User, login as loginService, loginMitKachel, logout as logoutService, checkSession, isAdmin } from '../services/authService';
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
 import { auditService } from '../services/auditService';
@@ -33,6 +33,8 @@ interface AuthContextType {
   loading: boolean;
   permissionsLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  /** Kachel-Login: E-Mail bleibt serverseitig, Session kommt per Secret (SSR-Muster) */
+  loginKachel: (userId: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   refreshUser: () => Promise<void>;
@@ -121,9 +123,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initAuth();
   }, []);
 
-  // Login - memoisiert um unnötige Re-Renders zu vermeiden
-  const login = useCallback(async (username: string, password: string) => {
-    const loggedInUser = await loginService(username, password);
+  // Gemeinsame Nach-Login-Schritte (Audit, Cache, Permissions)
+  const nachLogin = useCallback(async (loggedInUser: User) => {
     setUser(loggedInUser);
     auditService.log(loggedInUser, {
       action: 'login',
@@ -141,6 +142,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Permissions laden
     await loadPermissionsForUser(loggedInUser);
   }, []);
+
+  // Login - memoisiert um unnötige Re-Renders zu vermeiden
+  const login = useCallback(async (username: string, password: string) => {
+    const loggedInUser = await loginService(username, password);
+    await nachLogin(loggedInUser);
+  }, [nachLogin]);
+
+  // Kachel-Login über die Netlify Function (keine E-Mail im Client nötig)
+  const loginKachel = useCallback(async (userId: string, password: string) => {
+    const loggedInUser = await loginMitKachel(userId, password);
+    await nachLogin(loggedInUser);
+  }, [nachLogin]);
 
   // Logout - memoisiert
   const logout = useCallback(async () => {
@@ -179,11 +192,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading,
     permissionsLoading,
     login,
+    loginKachel,
     logout,
     isAdmin: isAdminValue,
     refreshUser,
     refreshPermissions,
-  }), [user, loading, permissionsLoading, login, logout, isAdminValue, refreshUser, refreshPermissions]);
+  }), [user, loading, permissionsLoading, login, loginKachel, logout, isAdminValue, refreshUser, refreshPermissions]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

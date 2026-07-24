@@ -14,6 +14,13 @@
 import { Client, Users, ID } from 'node-appwrite';
 import 'dotenv/config';
 
+// DEPRECATED: legt Fake-E-Mails (@tennismehl.local) an — seit der Umstellung auf
+// echte Account-E-Mails (Recovery-Support) User nur noch über die
+// Benutzerverwaltung im Portal anlegen.
+console.error('❌ DEPRECATED: scripts/setup-users.js legt @tennismehl.local-Accounts an.');
+console.error('   Neue User bitte über Einstellungen → Benutzerverwaltung anlegen (echte E-Mail).');
+process.exit(1);
+
 const client = new Client()
   .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
   .setProject(process.env.VITE_APPWRITE_PROJECT_ID)
