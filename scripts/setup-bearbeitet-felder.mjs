@@ -15,7 +15,7 @@
  * Aufruf:  node scripts/setup-bearbeitet-felder.mjs [--dry-run]
  */
 import { readFileSync } from 'fs';
-import { Client, Databases } from 'node-appwrite';
+import { Client, Databases, Query } from 'node-appwrite';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -48,7 +48,9 @@ const FELDER = [
 ];
 
 async function ensureStringAttr(coll, key, size) {
-  const attrs = await db.listAttributes(DB, coll);
+  // WICHTIG: listAttributes paginiert (Default 25) — ohne Limit übersieht der
+  // Idempotenz-Check Attribute bei Collections wie stammdaten (44 Attribute)
+  const attrs = await db.listAttributes(DB, coll, [Query.limit(500)]);
   if (attrs.attributes.some((a) => a.key === key)) {
     console.log(`OK  ${coll}.${key} existiert`);
     return false;
@@ -63,7 +65,7 @@ async function ensureStringAttr(coll, key, size) {
 }
 
 async function ensureFulltextIndex(coll, key, attribute) {
-  const indexes = await db.listIndexes(DB, coll);
+  const indexes = await db.listIndexes(DB, coll, [Query.limit(500)]);
   if (indexes.indexes.some((i) => i.key === key)) {
     console.log(`OK  Index ${coll}.${key} existiert`);
     return;
