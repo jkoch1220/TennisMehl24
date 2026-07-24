@@ -226,6 +226,9 @@ async function main() {
   // Notiz-Blasen: Position (Offset zum Anker bzw. absolute Canvas-Koordinaten)
   await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'posX');
   await ensureIntegerAttribute(MINDMAP_NODES_COLLECTION_ID, 'posY');
+  // Prozessschritte: Werkzeug- (links, blau) und Material-Blasen (rechts, gelb)
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'werkzeuge', 2000, false);
+  await ensureStringAttribute(MINDMAP_NODES_COLLECTION_ID, 'materialien', 2000, false);
 
   // Geräte mit Betriebsstunden (z. B. Radlader)
   await ensureCollection(MINDMAP_GERAETE_COLLECTION_ID, 'Geräte & Betriebsstunden');

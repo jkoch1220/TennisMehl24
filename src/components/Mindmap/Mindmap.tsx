@@ -51,11 +51,14 @@ import {
   notizHeight,
   TASK_LIST_PAD,
   TASK_ROW_HEIGHT,
+  ZUBEHOER_WIDTH,
 } from './mindmapUtils';
 import BoardInfoModal from './BoardInfoModal';
 import MindmapNodeCard from './MindmapNodeCard';
 import NotizCard from './NotizCard';
+import SchrittModal from './SchrittModal';
 import TaskModal from './TaskModal';
+import ZubehoerBlase from './ZubehoerBlase';
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2;
@@ -77,6 +80,8 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
   const [taskModalId, setTaskModalId] = useState<string | null>(null);
+  // Detail-Popup für Schritte/Entscheidungen/Unterprozesse
+  const [schrittModalId, setSchrittModalId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Verbinden-Modus: Quelle gewählt, nächster Karten-Klick setzt das Ziel
@@ -181,6 +186,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           return next;
         });
         setTaskModalId((current) => (current === node.id ? null : current));
+        setSchrittModalId((current) => (current === node.id ? null : current));
         setEditingId((current) => (current === node.id ? null : current));
       } else {
         // Eigene, noch ausstehende Änderungen nicht mit dem Echo überschreiben
@@ -769,6 +775,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     }
     setEditingId((current) => (doomedSet.has(current ?? '') ? null : current));
     setTaskModalId((current) => (doomedSet.has(current ?? '') ? null : current));
+    setSchrittModalId((current) => (doomedSet.has(current ?? '') ? null : current));
   };
 
   // Global-Toggle: solange irgendein Knoten mit Unterknoten offen ist → alles zuklappen
@@ -955,6 +962,32 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   const visibleNodes = getVisibleNodes(viewNodes).filter((n) => layout[n.id]);
   const visibleIds = new Set(visibleNodes.map((n) => n.id));
 
+  // Werkzeug- (links, blau) und Material-Blasen (rechts, gelb) an den Schritten
+  const zubehoerBlasen = visibleNodes.flatMap((n) => {
+    if (n.type === 'task' || n.type === 'notiz') return [];
+    const p = layout[n.id];
+    const blasen: Array<{
+      node: MindmapNode;
+      art: 'werkzeuge' | 'materialien';
+      pos: LayoutPos;
+    }> = [];
+    if (n.werkzeuge?.trim()) {
+      blasen.push({
+        node: n,
+        art: 'werkzeuge',
+        pos: { x: p.x - ZUBEHOER_WIDTH - 24, y: p.y },
+      });
+    }
+    if (n.materialien?.trim()) {
+      blasen.push({
+        node: n,
+        art: 'materialien',
+        pos: { x: p.x + NODE_WIDTH + 24, y: p.y },
+      });
+    }
+    return blasen;
+  });
+
   // Notiz-Blasen: sichtbar, solange ihr Anker sichtbar ist (auch bei
   // eingeklapptem Anker — wie die Task-Liste); standalone nur vom eigenen Board
   const notizen = Object.values(nodes)
@@ -1137,6 +1170,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
   );
 
   const modalTask = taskModalId ? nodes[taskModalId] : null;
+  const modalSchritt = schrittModalId ? nodes[schrittModalId] : null;
   const confirmNode = confirmDeleteId ? nodes[confirmDeleteId] : null;
   const confirmDescendants = confirmNode
     ? getDescendantIds(nodes, confirmNode.id).length
@@ -1186,7 +1220,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           <button
             onClick={addStandaloneNotiz}
             title="Freie Notiz-Blase auf der Fläche anlegen"
-            className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 shadow-sm hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-dark-accentOrange dark:hover:bg-amber-900/50"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-dark-border dark:bg-dark-surface dark:text-dark-text dark:hover:bg-dark-surfaceHover"
           >
             <StickyNote className="h-4 w-4" />
             Notiz
@@ -1305,7 +1339,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                     y2={c.y2}
                     strokeWidth={1.5}
                     strokeDasharray="3 4"
-                    className="stroke-amber-400 transition-all duration-200 dark:stroke-amber-600"
+                    className="stroke-gray-400 transition-all duration-200 dark:stroke-gray-500"
                   />
                   {c.entfernbar && (
                     <line
@@ -1323,6 +1357,26 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                   )}
                 </g>
               ))}
+              {/* Kurze Anbindung der Werkzeug-/Material-Blasen an ihre Karte */}
+              {zubehoerBlasen.map((b) => {
+                const karte = layout[b.node.id];
+                const y = b.pos.y + 16;
+                return (
+                  <line
+                    key={`zubehoer-${b.node.id}-${b.art}`}
+                    x1={b.art === 'werkzeuge' ? b.pos.x + ZUBEHOER_WIDTH : karte.x + NODE_WIDTH}
+                    y1={y}
+                    x2={b.art === 'werkzeuge' ? karte.x : b.pos.x}
+                    y2={y}
+                    strokeWidth={1.5}
+                    className={`transition-all duration-200 ${
+                      b.art === 'werkzeuge'
+                        ? 'stroke-blue-400 dark:stroke-blue-600'
+                        : 'stroke-amber-400 dark:stroke-amber-600'
+                    }`}
+                  />
+                );
+              })}
               {/* Freie Verbindungen (Rücksprünge) mit Pfeil, Klick entfernt sie */}
               {freieVerbindungen.map((v) => (
                 <g key={`verbindung-${v.vonId}-${v.zielId}`}>
@@ -1445,6 +1499,7 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                     ? () => navigate(`/geschaeftsprozesse/${node.linkedBoardId}`)
                     : undefined
                 }
+                onOpenDetails={() => setSchrittModalId(node.id)}
                 onToggleCollapse={() =>
                   patchNode(node.id, { collapsed: !node.collapsed })
                 }
@@ -1462,6 +1517,22 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                 }}
                 onToggleTaskErledigt={(task) =>
                   patchNode(task.id, { erledigt: !task.erledigt })
+                }
+              />
+            ))}
+
+            {/* Werkzeug- (blau, links) und Material-Blasen (gelb, rechts) */}
+            {zubehoerBlasen.map((b) => (
+              <ZubehoerBlase
+                key={`blase-${b.node.id}-${b.art}`}
+                art={b.art}
+                text={(b.art === 'werkzeuge' ? b.node.werkzeuge : b.node.materialien) ?? ''}
+                pos={b.pos}
+                onChange={(text) =>
+                  patchNode(
+                    b.node.id,
+                    b.art === 'werkzeuge' ? { werkzeuge: text } : { materialien: text }
+                  )
                 }
               />
             ))}
@@ -1514,6 +1585,25 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
           board={board}
           onPatch={patchBoard}
           onClose={() => setBoardInfoOpen(false)}
+        />
+      )}
+
+      {/* Detail-Popup für Schritte, Entscheidungen und Unterprozesse */}
+      {modalSchritt && (
+        <SchrittModal
+          node={modalSchritt}
+          parentTitel={
+            (modalSchritt.parentId && nodes[modalSchritt.parentId]?.titel) || ''
+          }
+          istProzess={istProzess}
+          onPatch={(fields) => patchNode(modalSchritt.id, fields)}
+          onDelete={() => requestDelete(modalSchritt.id)}
+          onClose={() => setSchrittModalId(null)}
+          onOpenLinkedBoard={
+            modalSchritt.type === 'prozess' && modalSchritt.linkedBoardId
+              ? () => navigate(`/geschaeftsprozesse/${modalSchritt.linkedBoardId}`)
+              : undefined
+          }
         />
       )}
 

@@ -7,6 +7,7 @@ import {
   Circle,
   CircleCheck,
   ExternalLink,
+  FileText,
   FolderTree,
   Link2,
   ListTodo,
@@ -44,6 +45,8 @@ interface MindmapNodeCardProps {
   onMakeUnterprozess?: () => void;
   // Nur für type === 'prozess': das verlinkte Unterprozess-Board öffnen
   onOpenLinkedBoard?: () => void;
+  // Detail-Popup öffnen (Beschreibung, Werkzeuge, Material)
+  onOpenDetails: () => void;
   onToggleCollapse: () => void;
   onDelete: () => void;
   onChangeTitel: (titel: string) => void;
@@ -68,6 +71,7 @@ const MindmapNodeCard = ({
   onStartConnect,
   onMakeUnterprozess,
   onOpenLinkedBoard,
+  onOpenDetails,
   onToggleCollapse,
   onDelete,
   onChangeTitel,
@@ -105,12 +109,12 @@ const MindmapNodeCard = ({
       onPointerDown={onPointerDown}
       className={`group absolute select-none rounded-xl border transition-[left,top] duration-200 ${
         isRoot
-          ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white border-transparent shadow-lg'
+          ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white border-transparent shadow-lg'
           : istEntscheidung
             ? 'cursor-grab active:cursor-grabbing bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-600 shadow-md'
             : istUnterprozess
               ? 'cursor-grab active:cursor-grabbing bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-400 dark:border-orange-600 shadow-md'
-              : 'cursor-grab active:cursor-grabbing bg-white dark:bg-dark-surface border-gray-200 dark:border-dark-border shadow-md'
+              : 'cursor-grab active:cursor-grabbing bg-gray-100 dark:bg-dark-elevated border-gray-300 dark:border-dark-border shadow-md'
       } ${isDragging ? 'z-10 shadow-2xl ring-2 ring-red-400 dark:ring-dark-accentOrange' : ''} ${
         isConnectSource ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''
       }`}
@@ -170,6 +174,19 @@ const MindmapNodeCard = ({
           </span>
         )}
 
+        {/* Hinweis: dieser Schritt hat eine Beschreibung (Klick öffnet Details) */}
+        {!isEditing && !!node.beschreibung?.trim() && (
+          <button
+            onClick={onOpenDetails}
+            title="Beschreibung vorhanden — Details öffnen"
+            className={`mt-px shrink-0 rounded p-0.5 ${
+              isRoot ? 'text-white/70 hover:bg-white/20' : 'text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-surfaceHover'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+          </button>
+        )}
+
         {/* Anzahl versteckter Unterknoten bei eingeklapptem Knoten */}
         {node.collapsed && childCount > 0 && (
           <span
@@ -196,6 +213,17 @@ const MindmapNodeCard = ({
 
         {/* Aktionen (bei Hover) */}
         <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
+          <button
+            onClick={onOpenDetails}
+            title="Details öffnen: Beschreibung, Werkzeuge, Material"
+            className={`rounded p-0.5 ${
+              isRoot
+                ? 'hover:bg-white/20'
+                : 'text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-dark-surfaceHover'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+          </button>
           {onMakeUnterprozess && (
             <button
               onClick={onMakeUnterprozess}

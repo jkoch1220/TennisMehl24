@@ -62,15 +62,15 @@ const NotizCard = ({
       onPointerDown={onPointerDown}
       onDoubleClick={onStartEdit}
       title={isEditing ? undefined : 'Doppelklick: bearbeiten · Ziehen: verschieben'}
-      className={`group absolute select-none rounded-lg border border-amber-300 bg-amber-100/95 p-2 shadow-md transition-[left,top] duration-200 dark:border-amber-700 dark:bg-amber-900/40 ${
+      className={`group absolute select-none rounded-lg border border-gray-300 bg-white/95 p-2 shadow-md transition-[left,top] duration-200 dark:border-dark-border dark:bg-dark-surface ${
         isDragging
-          ? 'z-10 cursor-grabbing shadow-2xl ring-2 ring-amber-400'
+          ? 'z-10 cursor-grabbing shadow-2xl ring-2 ring-gray-400'
           : 'cursor-grab'
       } ${isConnectSource ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''}`}
       style={{ left: pos.x, top: pos.y, width: NOTIZ_WIDTH }}
     >
       <div className="flex items-start gap-1.5">
-        <StickyNote className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-dark-accentOrange" />
+        <StickyNote className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-dark-textMuted" />
         {isEditing ? (
           <AutoGrowTextarea
             ref={textRef}
@@ -86,7 +86,7 @@ const NotizCard = ({
               if (e.key === 'Escape') onStopEdit();
             }}
             placeholder="Notiz…"
-            className="min-w-0 flex-1 rounded border border-amber-300 bg-white/70 px-1 py-0.5 text-[13px] leading-[18px] text-gray-900 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-amber-700 dark:bg-dark-input dark:text-dark-text"
+            className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-1 py-0.5 text-[13px] leading-[18px] text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:border-dark-border dark:bg-dark-input dark:text-dark-text"
           />
         ) : (
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[13px] leading-[18px] text-gray-800 dark:text-dark-text">
@@ -96,14 +96,14 @@ const NotizCard = ({
         <button
           onClick={onStartConnect}
           title="Mit Schritt oder Task verbinden (danach Ziel anklicken)"
-          className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition-opacity hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100 dark:hover:bg-blue-900/30"
+          className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-blue-50 hover:text-blue-600 group-hover:opacity-100 dark:hover:bg-blue-900/30"
         >
           <Link2 className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={onDelete}
           title="Notiz löschen"
-          className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-900/30"
+          className="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-900/30"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

@@ -64,8 +64,13 @@ export interface MindmapNode {
   // standalone = absolute Canvas-Koordinaten). 0/0 = automatische Platzierung.
   posX?: number;
   posY?: number;
-  // Nur für type === 'task':
+  // Prozessschritte: benötigte Werkzeuge (Blase links, blau) und Materialien
+  // (Blase rechts, gelb) — ein Eintrag pro Zeile
+  werkzeuge?: string;
+  materialien?: string;
+  // Beschreibung: bei Tasks UND Schritten/Unterprozessen (Detail-Popup)
   beschreibung?: string;
+  // Nur für type === 'task':
   faelligAm?: string; // ISO-Datum (yyyy-MM-dd), leer = kein Datum
   reviewAm?: string; // Review-/Wiedervorlage-Datum (yyyy-MM-dd)
   zustaendig?: string;
