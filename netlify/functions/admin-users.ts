@@ -8,10 +8,12 @@ import { Client, Users, Account, Databases, ID } from 'node-appwrite';
  *  - list            (öffentlich, pre-Login): aktive User für den "Wer bist du?"-Screen.
  *                    Liefert NUR id + name — E-Mail-Adressen sind privat und gehen
  *                    nur an verifizierte Admins (JWT optional mitgesendet).
- *  - login           (öffentlich): Kachel-Login nach dem Appwrite-SSR-Muster.
- *                    Die E-Mail wird serverseitig aufgelöst, die Session mit dem
- *                    Admin-Client erstellt und nur das Session-Secret zurückgegeben —
- *                    so verlässt keine E-Mail-Adresse den Server.
+ *  - login           (öffentlich): Kachel-Login per Custom-Token-Flow.
+ *                    Passwort wird serverseitig gegen Appwrite verifiziert
+ *                    (E-Mail bleibt auf dem Server), dann bekommt der Client ein
+ *                    kurzlebiges Login-Token für account.createSession() — die
+ *                    Session verwaltet danach das Web-SDK selbst (Cookie/Fallback),
+ *                    wie beim klassischen Login.
  *  - complete-recovery (öffentlich): schließt den "Passwort vergessen?"-Flow ab.
  *                    Appwrite validiert das Recovery-Secret aus der E-Mail
  *                    (updateRecovery) — nur bei Erfolg werden mustChangePassword
@@ -118,13 +120,18 @@ export const handler: Handler = async (event: HandlerEvent) => {
         try {
           const target = await users.get(body.userId);
           if (target.status !== true) throw new Error('inaktiv');
-          // SSR-Muster: Session mit dem Admin-Client erstellen → Response enthält
-          // das Session-Secret, das der Browser per client.setSession() übernimmt.
-          const session = await new Account(client).createEmailPasswordSession(
+          // 1. Passwort verifizieren (die dabei entstehende Session sofort wieder
+          //    löschen — sie dient nur der Prüfung)
+          const pruefSession = await new Account(client).createEmailPasswordSession(
             target.email,
             body.password
           );
-          return jsonResponse(200, { secret: session.secret });
+          await users.deleteSession(target.$id, pruefSession.$id).catch(() => {});
+          // 2. Kurzlebiges Login-Token — der Browser tauscht es via
+          //    account.createSession(userId, secret) gegen eine reguläre Session,
+          //    die das Web-SDK selbst verwaltet (Cookie/Fallback)
+          const token = await users.createToken(target.$id);
+          return jsonResponse(200, { userId: target.$id, secret: token.secret });
         } catch {
           // Neutral halten: keine Unterscheidung unbekannter User / falsches Passwort
           return jsonResponse(401, { error: 'Anmeldung fehlgeschlagen' });

@@ -10,18 +10,16 @@ export interface User extends Models.User<Models.Preferences> {
 }
 
 /**
- * Kachel-Login (SSR-Muster): Die Netlify Function löst die E-Mail serverseitig
- * auf und erstellt die Session — der Browser bekommt nur das Session-Secret.
- * Das Secret muss selbst persistiert werden (localStorage, wie der SDK-eigene
- * cookieFallback), damit die Session einen Reload überlebt.
+ * Kachel-Login (Custom-Token-Flow): Die Netlify Function verifiziert das
+ * Passwort serverseitig (E-Mail bleibt auf dem Server) und liefert ein
+ * kurzlebiges Login-Token. account.createSession() tauscht es gegen eine
+ * reguläre Session, die das Web-SDK selbst persistiert (Cookie/Fallback) —
+ * derselbe bewährte Mechanismus wie beim klassischen E-Mail-Login.
  */
-const SESSION_SECRET_KEY = 'tm_session_secret';
 
-// Beim App-Start eine ggf. gespeicherte Kachel-Session wiederherstellen
-const gespeichertesSecret = localStorage.getItem(SESSION_SECRET_KEY);
-if (gespeichertesSecret) {
-  client.setSession(gespeichertesSecret);
-}
+// Altlast des früheren SSR-Ansatzes aufräumen (manuell gepinnte Session-Header
+// kollidierten auf manchen Rechnern mit altem SDK-State)
+localStorage.removeItem('tm_session_secret');
 
 export const loginMitKachel = async (userId: string, password: string): Promise<User> => {
   const response = await fetch('/.netlify/functions/admin-users', {
@@ -30,11 +28,10 @@ export const loginMitKachel = async (userId: string, password: string): Promise<
     body: JSON.stringify({ action: 'login', userId, password: mapOnboardingPassword(password) }),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.secret) {
+  if (!response.ok || !data.secret || !data.userId) {
     throw new Error((data.error as string) || 'Anmeldung fehlgeschlagen');
   }
-  client.setSession(data.secret);
-  localStorage.setItem(SESSION_SECRET_KEY, data.secret);
+  await account.createSession(data.userId, data.secret);
   const user = (await account.get()) as User;
   console.log('✅ Login erfolgreich (Kachel):', user.name, user.labels);
   return user;
@@ -72,10 +69,6 @@ export const logout = async (): Promise<void> => {
   } catch (error) {
     console.error('❌ Logout Fehler:', error);
     throw new Error((error as Error).message || 'Logout fehlgeschlagen');
-  } finally {
-    // Kachel-Session-Secret immer verwerfen, auch wenn deleteSession scheitert
-    localStorage.removeItem(SESSION_SECRET_KEY);
-    client.setSession('');
   }
 };
 
@@ -85,12 +78,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
     const user = await account.get() as User;
     return user;
   } catch (error) {
-    // Kein User eingeloggt — ein evtl. abgelaufenes Kachel-Session-Secret
-    // verwerfen, damit es Folge-Logins nicht stört
-    if (localStorage.getItem(SESSION_SECRET_KEY)) {
-      localStorage.removeItem(SESSION_SECRET_KEY);
-      client.setSession('');
-    }
+    // Kein User eingeloggt
     return null;
   }
 };
