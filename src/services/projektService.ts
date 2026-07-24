@@ -8,6 +8,7 @@ import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { AuftragsbestaetigungsDaten, Position } from '../types/projektabwicklung';
+import { auditService, bearbeiterStempel, erstellerStempel } from './auditService';
 
 // Optionen für Projekt-Erstellung
 export interface CreateProjektOptions {
@@ -40,6 +41,9 @@ const PROJEKT_TOP_LEVEL_FELDER = [
   'rechnungsdatum',
   'rechnungVersendetAm',
   'erzeugungsBatchId',
+  'bearbeitetVon',
+  'bearbeitetVonName',
+  'bearbeitetAm',
 ] as const;
 
 // Top-Level-Felder, die erst mit Schema-Version 39 (siehe appwriteSetup.ts) angelegt werden.
@@ -403,6 +407,9 @@ class ProjektService {
         dokument.erzeugungsBatchId = neuesProjekt.erzeugungsBatchId;
       }
 
+      // Bearbeiter-Stempel (Felder via scripts/setup-bearbeitet-felder.mjs)
+      Object.assign(dokument, erstellerStempel());
+
       let response;
       try {
         response = await databases.createDocument(
@@ -413,16 +420,24 @@ class ProjektService {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (dokument.erzeugungsBatchId && /Unknown attribute/i.test(message)) {
+        if (/Unknown attribute/i.test(message)) {
           console.warn(
-            'Schema-Migration ausstehend: projekte.erzeugungsBatchId existiert noch nicht (npm run setup:appwrite für v43). Batch-ID bleibt nur in `data`.'
+            'Schema-Migration ausstehend (Unknown attribute) — erneuter Versuch ohne optionale Top-Level-Felder:',
+            message
           );
-          const { erzeugungsBatchId: _entfernt, ...ohneFeld } = dokument;
+          const {
+            erzeugungsBatchId: _b,
+            erstelltVon: _e,
+            bearbeitetVon: _bv,
+            bearbeitetVonName: _bn,
+            bearbeitetAm: _ba,
+            ...ohneOptionale
+          } = dokument;
           response = await databases.createDocument(
             DATABASE_ID,
             this.collectionId,
             dokumentId,
-            ohneFeld
+            ohneOptionale
           );
         } else {
           throw error;
@@ -483,6 +498,13 @@ class ProjektService {
           // Projekt wurde trotzdem erstellt, nur Zuordnung fehlgeschlagen
         }
       }
+
+      auditService.logAktion({
+        action: 'create',
+        entityType: 'projekt',
+        entityId: erstelltesProjekt.$id || erstelltesProjekt.id,
+        summary: `Projekt "${erstelltesProjekt.projektName}" (${erstelltesProjekt.kundenname}) angelegt`,
+      });
 
       return erstelltesProjekt;
     } catch (error) {
@@ -545,10 +567,31 @@ class ProjektService {
         );
       }
 
+      Object.assign(dokument, bearbeiterStempel());
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, dokument);
 
       // Cache invalidieren nach Update
       this.invalidateCache();
+
+      // Rein technische Updates (Geocoding/Kartenansicht) nicht ins Audit-Log fluten
+      const technischeFelder = new Set(['koordinaten', 'koordinatenQuelle', 'adresseUnbekannt']);
+      const nurTechnisch = Object.keys(updates).every((k) => technischeFelder.has(k));
+      if (!nurTechnisch) {
+        const changes: Record<string, { alt: unknown; neu: unknown }> = {};
+        if (updates.status !== undefined && updates.status !== aktuell.status) {
+          changes.status = { alt: aktuell.status, neu: updates.status };
+        }
+        if (updates.rechnungsnummer !== undefined && updates.rechnungsnummer !== aktuell.rechnungsnummer) {
+          changes.rechnungsnummer = { alt: aktuell.rechnungsnummer, neu: updates.rechnungsnummer };
+        }
+        auditService.logAktion({
+          action: 'update',
+          entityType: 'projekt',
+          entityId: projektId,
+          summary: `Projekt "${aktuell.projektName}" (${aktuell.kundenname}) bearbeitet`,
+          changes: Object.keys(changes).length > 0 ? changes : undefined,
+        });
+      }
 
       return parseProjektDocument(response);
     } catch (error) {
@@ -568,8 +611,16 @@ class ProjektService {
         status: 'bezahlt',
         bezahltAm: bezahltAm ?? jetzt,
         geaendertAm: jetzt,
+        ...bearbeiterStempel(),
       });
       this.invalidateCache();
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'projekt',
+        entityId: projektId,
+        summary: `Projekt "${(response as { projektName?: string }).projektName ?? projektId}" als bezahlt markiert`,
+        changes: { status: { alt: 'rechnung', neu: 'bezahlt' } },
+      });
       return parseProjektDocument(response);
     } catch (error) {
       handleServiceError(error, 'Markieren des Projekts als bezahlt');
@@ -596,8 +647,16 @@ class ProjektService {
         rechnungsnummer,
         rechnungsdatum,
         geaendertAm: new Date().toISOString(),
+        ...bearbeiterStempel(),
       });
       this.invalidateCache();
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'projekt',
+        entityId: projektId,
+        summary: `Rechnung ${rechnungsnummer} auf Projekt "${(response as { projektName?: string }).projektName ?? projektId}" gesetzt`,
+        changes: { rechnungsnummer: { alt: '', neu: rechnungsnummer }, status: { alt: '', neu: 'rechnung' } },
+      });
       return parseProjektDocument(response);
     } catch (error) {
       handleServiceError(error, 'Setzen der Rechnungsdaten');
@@ -613,8 +672,15 @@ class ProjektService {
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
         rechnungVersendetAm: versendetAm ?? new Date().toISOString(),
         geaendertAm: new Date().toISOString(),
+        ...bearbeiterStempel(),
       });
       this.invalidateCache();
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'projekt',
+        entityId: projektId,
+        summary: `Rechnung von Projekt "${(response as { projektName?: string }).projektName ?? projektId}" als versendet markiert`,
+      });
       return parseProjektDocument(response);
     } catch (error) {
       handleServiceError(error, 'Markieren der Rechnung als versendet');
@@ -651,15 +717,19 @@ class ProjektService {
         );
       }
 
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        this.collectionId,
-        projektId,
-        dokument
-      );
+      Object.assign(dokument, bearbeiterStempel());
+      const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, dokument);
 
       // Cache invalidieren nach Status-Update
       this.invalidateCache();
+
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'projekt',
+        entityId: projektId,
+        summary: `Status von Projekt "${aktuell.projektName}" (${aktuell.kundenname}) geändert: ${aktuell.status} → ${neuerStatus}`,
+        changes: { status: { alt: aktuell.status, neu: neuerStatus } },
+      });
 
       return parseProjektDocument(response as unknown as Record<string, unknown>);
     } catch (error) {
@@ -676,6 +746,12 @@ class ProjektService {
       await databases.deleteDocument(DATABASE_ID, this.collectionId, documentId);
       // Cache invalidieren nach Löschen
       this.invalidateCache();
+      auditService.logAktion({
+        action: 'delete',
+        entityType: 'projekt',
+        entityId: documentId,
+        summary: `Projekt "${projekt.projektName}" (${projekt.kundenname}) gelöscht`,
+      });
     } catch (error) {
       handleServiceError(error, 'Löschen des Projekts');
     }

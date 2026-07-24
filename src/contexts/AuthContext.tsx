@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { User, login as loginService, loginMitKachel, logout as logoutService, checkSession, isAdmin } from '../services/authService';
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
-import { auditService } from '../services/auditService';
+import { auditService, setAuditUser } from '../services/auditService';
 
 // Auth-Initialisierung Timeout (5 Sekunden)
 const AUTH_INIT_TIMEOUT = 5000;
@@ -51,6 +51,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+  // Aktuellen User für Audit-Einträge aus Fachservices registrieren (deckt
+  // Login, Session-Restore, Refresh und Logout ab)
+  useEffect(() => {
+    setAuditUser(user);
+  }, [user]);
 
   // Permissions für aktuellen User laden
   const loadPermissionsForUser = async (currentUser: User) => {

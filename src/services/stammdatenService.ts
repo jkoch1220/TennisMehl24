@@ -6,6 +6,7 @@
 import { databases } from '../config/appwrite';
 import { DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID } from '../config/appwrite';
 import { Stammdaten, StammdatenInput } from '../types/stammdaten';
+import { auditService, bearbeiterStempel } from './auditService';
 
 // ===== STAMMDATEN CACHE =====
 // Stammdaten ändern sich sehr selten, daher 5 Minuten Cache
@@ -74,17 +75,37 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
     // Cache invalidieren VOR dem Speichern
     invalidateStammdatenCache();
 
+    // Bearbeiter-Stempel; Fallback ohne Stempel, solange die Attribute noch
+    // nicht per scripts/setup-bearbeitet-felder.mjs angelegt sind
+    const schreibe = async (payload: Record<string, unknown>) => {
+      try {
+        return await databases.updateDocument(
+          DATABASE_ID,
+          STAMMDATEN_COLLECTION_ID,
+          STAMMDATEN_DOCUMENT_ID,
+          payload
+        );
+      } catch (error) {
+        if (error instanceof Error && /Unknown attribute/i.test(error.message)) {
+          const { bearbeitetVon: _v, bearbeitetVonName: _n, bearbeitetAm: _a, ...ohneStempel } = payload;
+          return await databases.updateDocument(
+            DATABASE_ID,
+            STAMMDATEN_COLLECTION_ID,
+            STAMMDATEN_DOCUMENT_ID,
+            ohneStempel
+          );
+        }
+        throw error;
+      }
+    };
+
     try {
       // Versuche erst Update (häufigster Fall)
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        STAMMDATEN_COLLECTION_ID,
-        STAMMDATEN_DOCUMENT_ID,
-        {
-          ...daten,
-          aktualisiertAm: jetzt,
-        }
-      );
+      const response = await schreibe({
+        ...daten,
+        aktualisiertAm: jetzt,
+        ...bearbeiterStempel(),
+      });
       const stammdaten = response as unknown as Stammdaten;
 
       // Cache mit neuen Daten aktualisieren
@@ -92,6 +113,13 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
         data: stammdaten,
         timestamp: Date.now(),
       };
+
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'stammdaten',
+        entityId: STAMMDATEN_DOCUMENT_ID,
+        summary: 'Stammdaten bearbeitet',
+      });
 
       return stammdaten;
     } catch (updateError: any) {
@@ -114,6 +142,13 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
           data: stammdaten,
           timestamp: Date.now(),
         };
+
+        auditService.logAktion({
+          action: 'create',
+          entityType: 'stammdaten',
+          entityId: STAMMDATEN_DOCUMENT_ID,
+          summary: 'Stammdaten angelegt',
+        });
 
         return stammdaten;
       }

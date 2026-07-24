@@ -32,6 +32,7 @@ import {
 } from './emailSendService';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
+import { auditService } from './auditService';
 import { debitorService } from './debitorService';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -682,6 +683,13 @@ export const speichereMahnwesenDokument = async (
 
     console.log(`✅ ${typLabel} ${daten.dokumentNummer} gespeichert`);
 
+    auditService.logAktion({
+      action: 'create',
+      entityType: 'mahnwesen',
+      entityId: dokument.$id,
+      summary: `${typLabel} ${daten.dokumentNummer} für "${daten.kundenname}" erstellt (${(daten.gesamtforderung || daten.offenerBetrag).toFixed(2)} €)`,
+    });
+
     return dokument as unknown as GespeichertesMahnwesenDokument;
   } catch (error) {
     console.error('Fehler beim Speichern des Mahnwesen-Dokuments:', error);
@@ -794,6 +802,13 @@ export const regeneriereMahnwesenDokument = async (
     );
 
     console.log(`✅ ${typLabel} ${daten.dokumentNummer} neu generiert`);
+
+    auditService.logAktion({
+      action: 'update',
+      entityType: 'mahnwesen',
+      entityId: dokumentId,
+      summary: `${typLabel} ${daten.dokumentNummer} für "${daten.kundenname}" neu generiert`,
+    });
 
     return aktualisiertesDokument as unknown as GespeichertesMahnwesenDokument;
   } catch (error) {
@@ -1059,6 +1074,12 @@ export const sendeMahnungPerEmail = async (
 
     // Nur bei echtem Versand: Mahnstufe hochsetzen.
     if (!testModus) {
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'mahnwesen',
+        entityId: gespeichert.$id,
+        summary: `${typLabel} ${daten.dokumentNummer} per E-Mail an ${empfaenger} versendet`,
+      });
       const neueMahnstufe = mahnTypZuMahnstufe(dokumentTyp);
       if (neueMahnstufe > debitor.mahnstufe) {
         await debitorService.markiereMahnungVersendet(

@@ -233,6 +233,11 @@ export interface Projekt {
   erstelltAm: string;
   geaendertAm: string;
   erstelltVon?: string;
+
+  // "Zuletzt bearbeitet von" (Top-Level, scripts/setup-bearbeitet-felder.mjs)
+  bearbeitetVon?: string;
+  bearbeitetVonName?: string;
+  bearbeitetAm?: string;
 }
 
 export type NeuesProjekt = Omit<Projekt, 'id' | 'erstelltAm' | 'geaendertAm'> & {

@@ -4,6 +4,7 @@ import { Stammdaten, StammdatenInput } from '../../types/stammdaten';
 import { ladeStammdaten, speichereStammdaten, initialisiereStammdaten } from '../../services/stammdatenService';
 import { generiereBriefpapierPDF } from '../../services/dokumentService';
 import { useCan } from '../../hooks/useCan';
+import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
 
 const FirmendatenTab = () => {
   const { can, isFieldHidden } = useCan();
@@ -203,6 +204,11 @@ const FirmendatenTab = () => {
             <p className="text-gray-600 dark:text-dark-textMuted text-sm">
               Zentrale Verwaltung aller Firmenstammdaten für Dokumente und Rechnungen
             </p>
+            <BearbeitetVonHinweis
+              bearbeitetVonName={stammdaten?.bearbeitetVonName}
+              bearbeitetAm={stammdaten?.bearbeitetAm}
+              className="mt-2"
+            />
           </div>
           <div className="flex gap-3">
             {!stammdaten && (

@@ -27,7 +27,65 @@ import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLiefers
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import { saisonplanungService } from './saisonplanungService';
 import { debitorService } from './debitorService';
+import { auditService, erstellerStempel } from './auditService';
 import jsPDF from 'jspdf';
+
+// === AUDIT-CHOKEPOINT ===
+// Alle Dokument-Speicherpfade (Angebot, AB, Lieferschein, Rechnung, Proforma,
+// Storno) erzeugen ihre DB-Einträge über diesen Wrapper — eine Stelle, ein
+// lückenloses Audit-Log. Entwürfe (speichereEntwurf) laufen bewusst NICHT
+// hierüber (debounced Auto-Save würde das Log fluten).
+const DOKUMENT_TYP_LABELS: Record<string, string> = {
+  angebot: 'Angebot',
+  auftragsbestaetigung: 'Auftragsbestätigung',
+  lieferschein: 'Lieferschein',
+  rechnung: 'Rechnung',
+  proformarechnung: 'Proforma-Rechnung',
+  stornorechnung: 'Storno-Rechnung',
+};
+
+const erstelleDokumentEintragMitAudit = async (payload: Record<string, unknown>) => {
+  // Bearbeiter-Stempel (Attribute via scripts/setup-bearbeitet-felder.mjs);
+  // Fallback ohne Stempel, solange das Schema sie noch nicht kennt
+  const mitStempel = { ...payload, ...erstellerStempel() };
+  let dokument;
+  try {
+    dokument = await databases.createDocument(
+      DATABASE_ID,
+      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+      ID.unique(),
+      mitStempel
+    );
+  } catch (error) {
+    if (error instanceof Error && /Unknown attribute/i.test(error.message)) {
+      dokument = await databases.createDocument(
+        DATABASE_ID,
+        BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
+        ID.unique(),
+        payload
+      );
+    } else {
+      throw error;
+    }
+  }
+  try {
+    const daten = typeof payload.daten === 'string' ? JSON.parse(payload.daten) : {};
+    const label = DOKUMENT_TYP_LABELS[payload.dokumentTyp as string] ?? String(payload.dokumentTyp);
+    const betrag =
+      typeof payload.bruttobetrag === 'number' ? ` (${payload.bruttobetrag.toFixed(2)} € brutto)` : '';
+    auditService.logAktion({
+      action: 'create',
+      entityType: 'dokument',
+      entityId: dokument.$id,
+      summary: `${label} ${payload.dokumentNummer ?? ''} für "${daten.kundenname ?? 'unbekannt'}" gespeichert${betrag}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+    });
+  } catch {
+    // Audit darf den Geschäftsvorgang nie blockieren
+  }
+  return dokument;
+};
 
 // Helper: Zahlungsziel-String zu Tagen parsen
 // z.B. "14 Tage", "30 Tage netto", "Vorkasse" → Zahl der Tage
@@ -151,6 +209,14 @@ export const loescheDokumenteFuerProjekt = async (projektId: string): Promise<nu
       console.warn('Dokument-Datensatz konnte nicht gelöscht werden:', error);
     }
   }
+  if (geloescht > 0) {
+    auditService.logAktion({
+      action: 'delete',
+      entityType: 'dokument',
+      entityId: projektId,
+      summary: `${geloescht} Dokument(e) von Projekt ${projektId} gelöscht (Rollback)`,
+    });
+  }
   return geloescht;
 };
 
@@ -238,10 +304,7 @@ export const speichereAngebot = async (
     const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
 
     // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'angebot',
@@ -299,10 +362,7 @@ export const aktualisiereAngebot = async (
     const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
     
     // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId: altesDokument.projektId,
         dokumentTyp: 'angebot',
@@ -359,10 +419,7 @@ export const speichereAuftragsbestaetigung = async (
 
     // Dokument-Eintrag in DB erstellen (mit Versionierung)
     console.log(`📝 Erstelle AB-Version ${neueVersion} für Projekt ${projektId}...`);
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'auftragsbestaetigung',
@@ -495,10 +552,7 @@ export const aktualisiereAuftragsbestaetigung = async (
 
     // NEUES Dokument erstellen (nicht überschreiben!) - mit Versionsnummer
     console.log(`📝 Erstelle neue AB-Version ${neueVersion} für Projekt ${projektId}...`);
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'auftragsbestaetigung',
@@ -575,10 +629,7 @@ export const speichereLieferschein = async (
     );
 
     // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'lieferschein',
@@ -674,10 +725,7 @@ export const aktualisereLieferschein = async (
     const projektId = altesDokument.projektId as string;
 
     // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'lieferschein',
@@ -797,10 +845,7 @@ export const speichereRechnung = async (
     ) / 100;
 
     // Dokument-Eintrag in DB erstellen (FINAL!)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'rechnung',
@@ -945,10 +990,7 @@ export const speichereProformaRechnung = async (
     const summen = berechneRechnungsSummen(daten.positionen);
 
     // Dokument-Eintrag in DB erstellen (NICHT FINAL - kann mehrfach erstellt werden)
-    const dokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const dokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'proformarechnung',
@@ -1042,10 +1084,7 @@ export const speichereStornoRechnung = async (
     // dokumentNummer ist ab Schema-Version 40 eine reguläre RE-Nummer (kein STORNO-Prefix mehr),
     // gezogen aus dem rechnungZaehler — Stornos und Rechnungen teilen einen Nummernkreis.
     // stornoVonRechnungsnummer denormalisiert die Original-Rechnungsnummer für Lookups in der UI.
-    const stornoDokument = await databases.createDocument(
-      DATABASE_ID,
-      BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
-      ID.unique(),
+    const stornoDokument = await erstelleDokumentEintragMitAudit(
       {
         projektId,
         dokumentTyp: 'stornorechnung',
@@ -1073,6 +1112,14 @@ export const speichereStornoRechnung = async (
         stornoGrund
       }
     );
+
+    auditService.logAktion({
+      action: 'update',
+      entityType: 'dokument',
+      entityId: originalRechnung.$id!,
+      summary: `Rechnung ${originalDaten.rechnungsnummer} storniert (Storno ${stornoRechnungsnummer}, Grund: ${stornoGrund})`,
+      changes: { rechnungsStatus: { alt: 'aktiv', neu: 'storniert' } },
+    });
     
     return {
       stornoRechnung: stornoDokument as unknown as GespeichertesDokument,

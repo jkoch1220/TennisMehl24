@@ -43,6 +43,7 @@ import {
   ANGEBOTS_LAEUFE_COLLECTION_ID,
   PROJECT_ID,
 } from '../config/appwrite';
+import { auditService } from './auditService';
 
 // Standard-Menge (Tonnen) für PLZ-Kalkulation, wenn keine Referenzmenge vorliegt.
 export const STANDARD_MENGE_DEFAULT = 10;
@@ -483,6 +484,12 @@ async function schreibeProtokoll(
       rueckgaengigGemacht: false,
       data: JSON.stringify(ergebnis).slice(0, 99000),
     });
+    auditService.logAktion({
+      action: 'create',
+      entityType: 'angebots_lauf',
+      entityId: batchId,
+      summary: `Massen-Angebots-Lauf ${saisonjahr}: ${ergebnis.erzeugt.length} erzeugt, ${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler`,
+    });
   } catch (error) {
     console.warn('Angebots-Lauf konnte nicht protokolliert werden:', error);
   }
@@ -589,6 +596,13 @@ async function markiereLaufRueckgaengig(batchId: string): Promise<void> {
         rueckgaengigGemacht: true,
       });
     }
+    auditService.logAktion({
+      action: 'update',
+      entityType: 'angebots_lauf',
+      entityId: batchId,
+      summary: `Massen-Angebots-Lauf ${batchId} rückgängig gemacht`,
+      changes: { rueckgaengigGemacht: { alt: false, neu: true } },
+    });
   } catch (error) {
     console.warn('Lauf konnte nicht als rückgängig markiert werden:', error);
   }

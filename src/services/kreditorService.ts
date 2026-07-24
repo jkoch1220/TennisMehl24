@@ -15,6 +15,7 @@ import {
   Unternehmen
 } from '../types/kreditor';
 import { ID } from 'appwrite';
+import { auditService, bearbeiterStempel } from './auditService';
 
 export const kreditorService = {
   // ========== KREDITOREN VERWALTUNG ==========
@@ -51,6 +52,7 @@ export const kreditorService = {
     const jetzt = new Date().toISOString();
     const neuerKreditor: Kreditor = {
       ...kreditor,
+      ...bearbeiterStempel(),
       id: ID.unique(),
       erstelltAm: kreditor.erstelltAm || jetzt,
     };
@@ -64,7 +66,14 @@ export const kreditorService = {
           data: JSON.stringify(neuerKreditor),
         }
       );
-      
+
+      auditService.logAktion({
+        action: 'create',
+        entityType: 'kreditor',
+        entityId: neuerKreditor.id,
+        summary: `Kreditor "${neuerKreditor.name}" angelegt`,
+      });
+
       return this.parseKreditorDocument(document);
     } catch (error) {
       console.error('Fehler beim Erstellen des Kreditors:', error);
@@ -83,6 +92,7 @@ export const kreditorService = {
       const aktualisiert: Kreditor = {
         ...aktuell,
         ...kreditor,
+        ...bearbeiterStempel(),
         id,
       };
 
@@ -94,7 +104,14 @@ export const kreditorService = {
           data: JSON.stringify(aktualisiert),
         }
       );
-      
+
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'kreditor',
+        entityId: id,
+        summary: `Kreditor "${aktualisiert.name}" bearbeitet`,
+      });
+
       return this.parseKreditorDocument(document);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Kreditors:', error);
@@ -105,11 +122,18 @@ export const kreditorService = {
   // Lösche Kreditor
   async deleteKreditor(id: string): Promise<void> {
     try {
+      const kreditor = await this.loadKreditor(id);
       await databases.deleteDocument(
         DATABASE_ID,
         KREDITOREN_COLLECTION_ID,
         id
       );
+      auditService.logAktion({
+        action: 'delete',
+        entityType: 'kreditor',
+        entityId: id,
+        summary: `Kreditor "${kreditor?.name ?? id}" gelöscht`,
+      });
     } catch (error) {
       console.error('Fehler beim Löschen des Kreditors:', error);
       throw error;
@@ -150,6 +174,7 @@ export const kreditorService = {
     const jetzt = new Date().toISOString();
     const neueRechnung: OffeneRechnung = {
       ...rechnung,
+      ...bearbeiterStempel(),
       id: ID.unique(),
       erstelltAm: rechnung.erstelltAm || jetzt,
       geaendertAm: rechnung.geaendertAm || jetzt,
@@ -164,7 +189,14 @@ export const kreditorService = {
           data: JSON.stringify(neueRechnung),
         }
       );
-      
+
+      auditService.logAktion({
+        action: 'create',
+        entityType: 'kreditor_rechnung',
+        entityId: neueRechnung.id,
+        summary: `Kreditoren-Rechnung ${neueRechnung.rechnungsnummer || '(ohne Nummer)'} von "${neueRechnung.kreditorName}" erfasst (${neueRechnung.summe.toFixed(2)} €)`,
+      });
+
       return this.parseRechnungsDocument(document);
     } catch (error) {
       console.error('Fehler beim Erstellen der Rechnung:', error);
@@ -183,6 +215,7 @@ export const kreditorService = {
       const aktualisiert: OffeneRechnung = {
         ...aktuell,
         ...rechnung,
+        ...bearbeiterStempel(),
         id,
         geaendertAm: new Date().toISOString(),
       };
@@ -195,7 +228,26 @@ export const kreditorService = {
           data: JSON.stringify(aktualisiert),
         }
       );
-      
+
+      // Kritische Felder (Betrag/Status) alt→neu protokollieren
+      const changes: Record<string, { alt: unknown; neu: unknown }> = {};
+      if (rechnung.summe !== undefined && rechnung.summe !== aktuell.summe) {
+        changes.summe = { alt: aktuell.summe, neu: rechnung.summe };
+      }
+      if (rechnung.status !== undefined && rechnung.status !== aktuell.status) {
+        changes.status = { alt: aktuell.status, neu: rechnung.status };
+      }
+      if (rechnung.mahnstufe !== undefined && rechnung.mahnstufe !== aktuell.mahnstufe) {
+        changes.mahnstufe = { alt: aktuell.mahnstufe, neu: rechnung.mahnstufe };
+      }
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'kreditor_rechnung',
+        entityId: id,
+        summary: `Kreditoren-Rechnung ${aktualisiert.rechnungsnummer || id} von "${aktualisiert.kreditorName}" bearbeitet`,
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+      });
+
       return this.parseRechnungsDocument(document);
     } catch (error) {
       console.error('Fehler beim Aktualisieren der Rechnung:', error);
@@ -206,11 +258,18 @@ export const kreditorService = {
   // Lösche Rechnung
   async deleteRechnung(id: string): Promise<void> {
     try {
+      const rechnung = await this.loadRechnung(id);
       await databases.deleteDocument(
         DATABASE_ID,
         OFFENE_RECHNUNGEN_COLLECTION_ID,
         id
       );
+      auditService.logAktion({
+        action: 'delete',
+        entityType: 'kreditor_rechnung',
+        entityId: id,
+        summary: `Kreditoren-Rechnung ${rechnung?.rechnungsnummer || id} von "${rechnung?.kreditorName ?? 'unbekannt'}" gelöscht`,
+      });
     } catch (error) {
       console.error('Fehler beim Löschen der Rechnung:', error);
       throw error;

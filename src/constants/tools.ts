@@ -31,6 +31,7 @@ import {
   Combine,
   Network,
   ListTodo,
+  ScrollText,
 } from 'lucide-react';
 
 export interface ToolConfig {
@@ -322,6 +323,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/tasks',
     icon: ListTodo,
     color: 'from-amber-500 to-orange-600',
+  },
+  {
+    id: 'audit-log',
+    name: 'Audit-Log',
+    description: 'Wer hat was wann geändert — zentrales Änderungsprotokoll (Admin, D13)',
+    href: '/audit-log',
+    icon: ScrollText,
+    color: 'from-slate-500 to-gray-700',
   },
 ];
 

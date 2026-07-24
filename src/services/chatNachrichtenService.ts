@@ -6,6 +6,7 @@ import {
 } from '../config/appwrite';
 import { ChatNachricht, NeueChatNachricht } from '../types/chatNachricht';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { auditService } from './auditService';
 
 function parseNachrichtDocument(doc: Models.Document): ChatNachricht {
   const anyDoc = doc as any;
@@ -85,6 +86,12 @@ export const chatNachrichtenService = {
       entry.id,
       toPayload(entry)
     );
+    auditService.logAktion({
+      action: 'create',
+      entityType: 'chat',
+      entityId: entry.id,
+      summary: `Chat-Nachricht in Projekt ${entry.projektId} gesendet`,
+    });
     return parseNachrichtDocument(doc);
   },
 
@@ -92,7 +99,23 @@ export const chatNachrichtenService = {
    * Löscht eine Chat-Nachricht
    */
   async remove(id: string): Promise<void> {
+    // Für den Audit-Eintrag vor dem Löschen den Kontext holen (best effort)
+    let projektId = '';
+    try {
+      const doc = await databases.getDocument(DATABASE_ID, CHAT_NACHRICHTEN_COLLECTION_ID, id);
+      projektId = parseNachrichtDocument(doc).projektId;
+    } catch {
+      // Kontext nicht verfügbar — Löschung trotzdem protokollieren
+    }
     await databases.deleteDocument(DATABASE_ID, CHAT_NACHRICHTEN_COLLECTION_ID, id);
+    auditService.logAktion({
+      action: 'delete',
+      entityType: 'chat',
+      entityId: id,
+      summary: projektId
+        ? `Chat-Nachricht in Projekt ${projektId} gelöscht`
+        : 'Chat-Nachricht gelöscht',
+    });
   },
 
   /**

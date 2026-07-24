@@ -44,6 +44,7 @@ import { projektService } from '../../services/projektService';
 import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentService';
 import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -393,6 +394,11 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
               {debitor.rechnungsnummer} • Saison {debitor.saisonjahr}
             </p>
+            <BearbeitetVonHinweis
+              bearbeitetVonName={debitor.bearbeitetVonName}
+              bearbeitetAm={debitor.bearbeitetAm}
+              className="mt-1"
+            />
           </div>
           <div className="flex items-center gap-3">
             <button

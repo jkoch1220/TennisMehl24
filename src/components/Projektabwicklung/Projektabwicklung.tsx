@@ -17,6 +17,7 @@ import KundenAdressenEditor from './KundenAdressenEditor';
 import ProjektChat from './ProjektChat';
 import ProjektSplitBanner from './ProjektSplitBanner';
 import ProjektSplitModal from './ProjektSplitModal';
+import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
 
 // Status-Konfiguration für das Kanban-Board
 const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string }> = {
@@ -197,6 +198,11 @@ const Projektabwicklung = () => {
             <p className="text-gray-600 dark:text-dark-textMuted mt-1">
               {kunde?.name || projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
+            <BearbeitetVonHinweis
+              bearbeitetVonName={projekt.bearbeitetVonName}
+              bearbeitetAm={projekt.bearbeitetAm}
+              className="mt-1"
+            />
           </div>
         </div>
 

@@ -84,6 +84,7 @@ const PlanungBoardRedirect = () => {
 };
 const TaskVerwaltung = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskVerwaltung'));
 const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
+const AuditLogTool = lazyWithRetry(() => import('./components/AuditLog/AuditLogTool'));
 
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
@@ -318,6 +319,12 @@ function AuthenticatedContent() {
                   <Route path="/tasks/:taskId" element={
                     <ProtectedRoute toolId="task-verwaltung">
                       <TaskDetail />
+                    </ProtectedRoute>
+                  } />
+                  {/* Audit-Log (D13): Preset nur Admin-Rolle; Collection-Read zusätzlich nur Label admin */}
+                  <Route path="/audit-log" element={
+                    <ProtectedRoute toolId="audit-log">
+                      <AuditLogTool />
                     </ProtectedRoute>
                   } />
 

@@ -88,6 +88,11 @@ export interface DebitorMetadaten {
   gesperrt?: boolean;
   sperrgrund?: string;
 
+  // "Zuletzt bearbeitet von" (Bearbeiter-Stempel, liegt im data-JSON)
+  bearbeitetVon?: string;
+  bearbeitetVonName?: string;
+  bearbeitetAm?: string;
+
   // Timestamps
   erstelltAm: string;
   geaendertAm: string;
@@ -148,6 +153,8 @@ export interface DebitorView {
   gesperrt?: boolean;
   sperrgrund?: string;
   letzteMahnungAm?: string;
+  bearbeitetVonName?: string;
+  bearbeitetAm?: string;
 
   // Berechnete Felder
   offenerBetrag: number;

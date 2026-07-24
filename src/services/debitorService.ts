@@ -23,6 +23,7 @@ import {
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
+import { auditService, bearbeiterStempel } from './auditService';
 import { SaisonKunde } from '../types/saisonplanung';
 
 // Interface für geparste Rechnungsdaten aus Projekt
@@ -341,6 +342,7 @@ class DebitorService {
       const aktualisiert: DebitorMetadaten = {
         ...metadaten,
         ...updates,
+        ...bearbeiterStempel(),
         geaendertAm: new Date().toISOString(),
       };
 
@@ -396,6 +398,34 @@ class DebitorService {
       };
 
       await databases.updateDocument(DATABASE_ID, this.collectionId, metadaten.id, dokument);
+
+      // Audit: alle Debitor-Aktionen (Zahlung, Mahnung, Statuswechsel) laufen
+      // durch diese Methode — Summary aus der Art der Änderung ableiten
+      const alteZahlungen = (metadaten.zahlungen || []).length;
+      const neueZahlungen = updates.zahlungen ? updates.zahlungen.length : alteZahlungen;
+      let aktionsText = 'bearbeitet';
+      if (neueZahlungen > alteZahlungen) {
+        const letzte = updates.zahlungen![updates.zahlungen!.length - 1];
+        aktionsText = `Zahlung erfasst (${letzte.betrag.toFixed(2)} €)`;
+      } else if (neueZahlungen < alteZahlungen) {
+        aktionsText = 'Zahlung gelöscht';
+      } else if (updates.mahnstufe !== undefined && updates.mahnstufe !== metadaten.mahnstufe) {
+        aktionsText = `Mahnstufe ${updates.mahnstufe} gesetzt`;
+      }
+      const changes: Record<string, { alt: unknown; neu: unknown }> = {};
+      if (updates.status !== undefined && updates.status !== metadaten.status) {
+        changes.status = { alt: metadaten.status, neu: updates.status };
+      }
+      if (updates.mahnstufe !== undefined && updates.mahnstufe !== metadaten.mahnstufe) {
+        changes.mahnstufe = { alt: metadaten.mahnstufe, neu: updates.mahnstufe };
+      }
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'debitor',
+        entityId: metadaten.id,
+        summary: `Debitor (Projekt ${projektId}): ${aktionsText}`,
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+      });
 
       return aktualisiert;
     } catch (error) {
@@ -744,6 +774,12 @@ class DebitorService {
         return;
       }
       await databases.deleteDocument(DATABASE_ID, this.collectionId, metadaten.id);
+      auditService.logAktion({
+        action: 'delete',
+        entityType: 'debitor',
+        entityId: metadaten.id,
+        summary: `Debitor-Metadaten zu Projekt ${projektId} gelöscht`,
+      });
     } catch (error) {
       handleServiceError(error, 'Löschen des Debitors');
     }
@@ -1113,6 +1149,8 @@ class DebitorService {
       zahlungen,
       aktivitaeten: metadaten?.aktivitaeten || [],
       notizen: metadaten?.notizen,
+      bearbeitetVonName: metadaten?.bearbeitetVonName,
+      bearbeitetAm: metadaten?.bearbeitetAm,
       gesperrt: metadaten?.gesperrt,
       sperrgrund: metadaten?.sperrgrund,
       letzteMahnungAm: metadaten?.letzteMahnungAm,

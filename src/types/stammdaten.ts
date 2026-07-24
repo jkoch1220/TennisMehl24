@@ -65,6 +65,11 @@ export interface Stammdaten {
   // Metadaten
   erstelltAm?: string;
   aktualisiertAm?: string;
+
+  // "Zuletzt bearbeitet von" (scripts/setup-bearbeitet-felder.mjs)
+  bearbeitetVon?: string;
+  bearbeitetVonName?: string;
+  bearbeitetAm?: string;
 }
 
 export interface StammdatenInput {
