@@ -778,6 +778,63 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
     setSchrittModalId((current) => (doomedSet.has(current ?? '') ? null : current));
   };
 
+  /**
+   * Nur den Knoten selbst löschen: alle direkten Kinder (Schritte, Tasks,
+   * Notizen) rücken zum Eltern-Knoten auf. Baum-Kinder übernehmen dabei die
+   * Position des gelöschten Knotens in der Geschwisterreihe; Kinder ohne
+   * Kantenbeschriftung erben die des gelöschten Knotens (z. B. „Ja"/„Nein").
+   */
+  const deleteNodeOnly = (id: string) => {
+    const node = nodesRef.current[id];
+    if (!node || node.parentId === null) return;
+    const parentId = node.parentId;
+    const kinder = Object.values(nodesRef.current).filter((k) => k.parentId === id);
+    const mitToterVerbindung = Object.values(nodesRef.current)
+      .filter((n) => n.id !== id && n.verbindungen?.includes(id))
+      .map((n) => n.id);
+    // Neue Geschwisterreihe: die Baum-Kinder ersetzen den Knoten an seiner Stelle
+    const baumKinder = getKnotenChildren(nodesRef.current, id);
+    const neueReihe = getKnotenChildren(nodesRef.current, parentId).flatMap((g) =>
+      g.id === id ? baumKinder : [g]
+    );
+    setNodes((prev) => {
+      const next = { ...prev };
+      for (const kind of kinder) {
+        if (!next[kind.id]) continue;
+        next[kind.id] = {
+          ...next[kind.id],
+          parentId,
+          edgeLabel: next[kind.id].edgeLabel || node.edgeLabel || '',
+        };
+      }
+      neueReihe.forEach((g, i) => {
+        if (next[g.id]) next[g.id] = { ...next[g.id], sortOrder: i };
+      });
+      for (const mId of mitToterVerbindung) {
+        if (!next[mId]) continue;
+        next[mId] = {
+          ...next[mId],
+          verbindungen: (next[mId].verbindungen ?? []).filter((z) => z !== id),
+        };
+      }
+      delete next[id];
+      return next;
+    });
+    kinder.forEach((k) => scheduleUpsert(k.id));
+    neueReihe.forEach((g) => scheduleUpsert(g.id));
+    mitToterVerbindung.forEach(scheduleUpsert);
+    deleteMindmapNodes([id]);
+    if (node.type === 'task') deleteTaskAnhaenge([node]).catch(() => undefined);
+    toast.info(
+      `„${node.titel}" gelöscht — ${kinder.length} Unterelement${
+        kinder.length === 1 ? '' : 'e'
+      } aufgerückt`
+    );
+    setEditingId((current) => (current === id ? null : current));
+    setTaskModalId((current) => (current === id ? null : current));
+    setSchrittModalId((current) => (current === id ? null : current));
+  };
+
   // Global-Toggle: solange irgendein Knoten mit Unterknoten offen ist → alles zuklappen
   // (Tasks zählen nicht — sie hängen als Liste in der Karte und klappen nicht)
   const hatKinder = useMemo(() => {
@@ -1643,38 +1700,86 @@ const BoardAnsicht = ({ boardId }: BoardAnsichtProps) => {
                       : 'Knoten löschen?'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-dark-textMuted">
-                  „{confirmNode.titel}"
-                  {confirmDescendants > 0 && (
+                  {confirmDescendants > 0 ? (
                     <>
-                      {' '}
-                      inkl.{' '}
+                      An „{confirmNode.titel}" hängen{' '}
                       <span className="font-semibold text-red-600 dark:text-dark-accentRed">
                         {confirmDescendants} Unterelement
-                        {confirmDescendants === 1 ? '' : 'en'}
+                        {confirmDescendants === 1 ? '' : 'e'}
                       </span>
+                      . Wie soll gelöscht werden? Die Änderung gilt für das
+                      ganze Team.
                     </>
-                  )}{' '}
-                  wird unwiderruflich gelöscht — für das ganze Team.
+                  ) : (
+                    <>
+                      „{confirmNode.titel}" wird unwiderruflich gelöscht — für
+                      das ganze Team.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
-              >
-                Abbrechen
-              </button>
-              <button
-                onClick={() => {
-                  deleteNode(confirmNode.id);
-                  setConfirmDeleteId(null);
-                }}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
-              >
-                Endgültig löschen
-              </button>
-            </div>
+            {confirmDescendants > 0 ? (
+              <>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      deleteNodeOnly(confirmNode.id);
+                      setConfirmDeleteId(null);
+                    }}
+                    className="w-full rounded-lg border-2 border-red-200 px-4 py-2.5 text-left hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20"
+                  >
+                    <span className="block text-sm font-semibold text-red-600 dark:text-dark-accentRed">
+                      Nur diesen Knoten löschen
+                    </span>
+                    <span className="block text-xs text-gray-500 dark:text-dark-textMuted">
+                      Unterelemente rücken zum übergeordneten Knoten auf
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteNode(confirmNode.id);
+                      setConfirmDeleteId(null);
+                    }}
+                    className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-left hover:bg-red-700"
+                  >
+                    <span className="block text-sm font-semibold text-white">
+                      Alles löschen
+                    </span>
+                    <span className="block text-xs text-red-100">
+                      Gesamter Teilbaum inkl. {confirmDescendants} Unterelement
+                      {confirmDescendants === 1 ? '' : 'en'} wird entfernt
+                    </span>
+                  </button>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-dark-text dark:hover:bg-dark-surfaceHover"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={() => {
+                    deleteNode(confirmNode.id);
+                    setConfirmDeleteId(null);
+                  }}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                >
+                  Endgültig löschen
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
