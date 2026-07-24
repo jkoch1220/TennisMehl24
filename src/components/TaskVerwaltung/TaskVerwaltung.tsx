@@ -37,7 +37,12 @@ const knotenPfad = (
   return teile.join(' › ');
 };
 
-const TaskVerwaltung = () => {
+interface TaskVerwaltungProps {
+  /** Eingebettet unter der Board-Übersicht (/geschaeftsprozesse): kompakter Kopf, kein eigener Seitenrahmen */
+  embedded?: boolean;
+}
+
+const TaskVerwaltung = ({ embedded = false }: TaskVerwaltungProps) => {
   const [nodes, setNodes] = useState<Record<string, MindmapNode>>({});
   const [loading, setLoading] = useState(true);
   const [suche, setSuche] = useState('');
@@ -145,16 +150,26 @@ const TaskVerwaltung = () => {
   );
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+    <div className={embedded ? '' : 'mx-auto max-w-5xl p-4 sm:p-6'}>
       {/* Kopfzeile */}
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-md">
-          <ListTodo className="h-5 w-5 text-white" />
+        <div
+          className={`flex items-center justify-center rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-md ${
+            embedded ? 'h-8 w-8' : 'h-10 w-10'
+          }`}
+        >
+          <ListTodo className={`text-white ${embedded ? 'h-4 w-4' : 'h-5 w-5'}`} />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-            Task-Verwaltung
-          </h1>
+          {embedded ? (
+            <h2 className="text-lg font-bold text-gray-900 dark:text-dark-text">
+              Task-Übersicht
+            </h2>
+          ) : (
+            <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">
+              Task-Verwaltung
+            </h1>
+          )}
           <p className="text-xs text-gray-500 dark:text-dark-textMuted">
             Alle Tasks aus allen Planungs-Boards — mit Details, Bildern, Subtasks
             und Zeiterfassung

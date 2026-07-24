@@ -30,7 +30,6 @@ import {
   Landmark,
   Combine,
   Network,
-  ListTodo,
   ScrollText,
 } from 'lucide-react';
 
@@ -310,19 +309,11 @@ export const ALL_TOOLS: ToolConfig[] = [
   },
   {
     id: 'mindmap',
-    name: 'Geschäftsprozesse',
-    description: 'Organigramm- und Prozess-Boards: Strukturen gliedern, Abläufe mit Entscheidungen definieren',
+    name: 'Geschäftsprozesse & Tasks',
+    description: 'Organigramm- und Prozess-Boards mit Task-Übersicht: Strukturen, Abläufe, Subtasks und Zeiterfassung',
     href: '/geschaeftsprozesse',
     icon: Network,
     color: 'from-teal-500 to-emerald-600',
-  },
-  {
-    id: 'task-verwaltung',
-    name: 'Task-Verwaltung',
-    description: 'Alle Tasks aus der Mindmap: Beschreibung, Bilder, Subtasks und Zeiterfassung',
-    href: '/tasks',
-    icon: ListTodo,
-    color: 'from-amber-500 to-orange-600',
   },
   {
     id: 'audit-log',

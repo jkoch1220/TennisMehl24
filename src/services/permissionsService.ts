@@ -152,6 +152,15 @@ export const getEffectivePermissions = (userId: string): PermissionMap => {
 };
 
 /**
+ * Tool-Merges: Rechte auf die alte Tool-ID zählen weiter für das gemergte Tool.
+ * 'task-verwaltung' ist in 'mindmap' (Geschäftsprozesse & Tasks) aufgegangen;
+ * gespeicherte Rollen/Overrides in Appwrite können die alte ID noch enthalten.
+ */
+const TOOL_ALIASES: Record<string, string[]> = {
+  mindmap: ['task-verwaltung'],
+};
+
+/**
  * Zentrale Rechte-Prüfung: darf der User die Aktion in diesem Tool ausführen?
  * Admin (Label) umgeht alle Prüfungen (D8).
  */
@@ -159,8 +168,11 @@ export const can = (user: User | null, toolId: string, action: PermissionAction)
   if (!user) return false;
   if (isAdmin(user)) return true;
 
-  const entry = getEffectivePermissions(user.$id)[toolId];
-  return !!entry && entry.enabled && entry.actions.includes(action);
+  const effective = getEffectivePermissions(user.$id);
+  return [toolId, ...(TOOL_ALIASES[toolId] ?? [])].some((id) => {
+    const entry = effective[id];
+    return !!entry && entry.enabled && entry.actions.includes(action);
+  });
 };
 
 /**

@@ -82,7 +82,6 @@ const PlanungBoardRedirect = () => {
   const { boardId } = useParams();
   return <Navigate to={`/geschaeftsprozesse/${boardId}`} replace />;
 };
-const TaskVerwaltung = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskVerwaltung'));
 const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
 const AuditLogTool = lazyWithRetry(() => import('./components/AuditLog/AuditLogTool'));
 
@@ -311,13 +310,10 @@ function AuthenticatedContent() {
                   <Route path="/mindmap" element={<Navigate to="/geschaeftsprozesse" replace />} />
                   <Route path="/planung" element={<Navigate to="/geschaeftsprozesse" replace />} />
                   <Route path="/planung/:boardId" element={<PlanungBoardRedirect />} />
-                  <Route path="/tasks" element={
-                    <ProtectedRoute toolId="task-verwaltung">
-                      <TaskVerwaltung />
-                    </ProtectedRoute>
-                  } />
+                  {/* Task-Verwaltung ist in Geschäftsprozesse aufgegangen */}
+                  <Route path="/tasks" element={<Navigate to="/geschaeftsprozesse" replace />} />
                   <Route path="/tasks/:taskId" element={
-                    <ProtectedRoute toolId="task-verwaltung">
+                    <ProtectedRoute toolId="mindmap">
                       <TaskDetail />
                     </ProtectedRoute>
                   } />

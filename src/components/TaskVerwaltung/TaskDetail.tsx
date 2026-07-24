@@ -302,11 +302,11 @@ const TaskDetail = () => {
           Task nicht gefunden — vielleicht wurde er gelöscht.
         </p>
         <button
-          onClick={() => navigate('/tasks')}
+          onClick={() => navigate('/geschaeftsprozesse')}
           className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-red-600 to-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-md"
         >
           <ArrowLeft className="h-4 w-4" />
-          Zur Task-Verwaltung
+          Zur Task-Übersicht
         </button>
       </div>
     );
@@ -328,8 +328,8 @@ const TaskDetail = () => {
     <div className="mx-auto max-w-5xl p-4 sm:p-6">
       {/* Breadcrumb + Kopf */}
       <div className="mb-1 flex items-center gap-2 text-xs text-gray-400 dark:text-dark-textSubtle">
-        <Link to="/tasks" className="hover:text-red-600 hover:underline">
-          Task-Verwaltung
+        <Link to="/geschaeftsprozesse" className="hover:text-red-600 hover:underline">
+          Geschäftsprozesse & Tasks
         </Link>
         {pfad.map((k) => (
           <span key={k.id} className="flex items-center gap-2">

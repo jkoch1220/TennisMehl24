@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LayoutGrid,
-  ListTodo,
   Network,
   Pencil,
   Plus,
@@ -20,6 +19,7 @@ import {
   subscribeBoards,
   updateBoard,
 } from '../../services/mindmapService';
+import TaskVerwaltung from '../TaskVerwaltung/TaskVerwaltung';
 
 const BoardUebersicht = () => {
   const [boards, setBoards] = useState<MindmapBoard[]>([]);
@@ -348,15 +348,9 @@ const BoardUebersicht = () => {
         </div>
       )}
 
-      {/* Querverweis Task-Verwaltung */}
-      <div className="mt-8 text-center">
-        <Link
-          to="/tasks"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 hover:underline dark:text-dark-textMuted"
-        >
-          <ListTodo className="h-4 w-4" />
-          Alle Tasks in der Task-Verwaltung ansehen
-        </Link>
+      {/* Task-Übersicht — gemergtes Tool, direkt unter den Boards */}
+      <div className="mt-10 border-t border-gray-200 pt-8 dark:border-dark-border">
+        <TaskVerwaltung embedded />
       </div>
     </div>
   );
