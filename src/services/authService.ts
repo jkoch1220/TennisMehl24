@@ -129,6 +129,15 @@ export const clearMustChangePasswordFlag = async (user: User): Promise<void> => 
   console.log('✅ mustChangePassword-Flag entfernt');
 };
 
+/**
+ * "Passwort vergessen?": Appwrite mailt einen Recovery-Link an die Account-E-Mail.
+ * Der Aufrufer zeigt IMMER dieselbe neutrale Meldung — auch bei Fehlern —
+ * damit nicht erratbar ist, welche E-Mail-Adressen ein Konto haben.
+ */
+export const passwortVergessenAnfordern = async (email: string): Promise<void> => {
+  await account.createRecovery(email, `${window.location.origin}/passwort-zuruecksetzen`);
+};
+
 // Prüfen ob User Admin ist
 export const isAdmin = (user: User | null): boolean => {
   return user?.labels?.includes('admin') || false;

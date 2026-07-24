@@ -88,6 +88,7 @@ const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskD
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
+const PasswortZuruecksetzen = lazyWithRetry(() => import('./pages/PasswortZuruecksetzen'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -389,6 +390,9 @@ function App() {
 
                 {/* ÖFFENTLICHE Route für Produktions-Erfassung (mit einfachem Passwort) */}
                 <Route path="/produktion-erfassen" element={<PublicProduktion />} />
+
+                {/* ÖFFENTLICHE Route für Passwort-Recovery (Link aus der Appwrite-E-Mail) */}
+                <Route path="/passwort-zuruecksetzen" element={<PasswortZuruecksetzen />} />
 
                 {/* Alle anderen Routes benötigen Authentifizierung */}
                 <Route path="/*" element={<AppContent />} />

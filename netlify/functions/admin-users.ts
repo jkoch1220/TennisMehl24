@@ -1,5 +1,5 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
-import { Client, Users, Account, ID } from 'node-appwrite';
+import { Client, Users, Account, Databases, ID } from 'node-appwrite';
 
 /**
  * User-Verwaltung mit Server-API-Key (der Key bleibt ausschließlich hier).
@@ -12,6 +12,10 @@ import { Client, Users, Account, ID } from 'node-appwrite';
  *                    Die E-Mail wird serverseitig aufgelöst, die Session mit dem
  *                    Admin-Client erstellt und nur das Session-Secret zurückgegeben —
  *                    so verlässt keine E-Mail-Adresse den Server.
+ *  - complete-recovery (öffentlich): schließt den "Passwort vergessen?"-Flow ab.
+ *                    Appwrite validiert das Recovery-Secret aus der E-Mail
+ *                    (updateRecovery) — nur bei Erfolg werden mustChangePassword
+ *                    gelöscht und der Audit-Eintrag geschrieben.
  *  - create          (nur Admin, JWT-verifiziert): neuen User mit echter E-Mail +
  *                    Einmalpasswort anlegen
  *  - reset-password  (nur Admin, JWT-verifiziert): User auf Einmalpasswort zurücksetzen
@@ -82,6 +86,7 @@ export const handler: Handler = async (event: HandlerEvent) => {
     name?: string;
     userId?: string;
     password?: string;
+    secret?: string;
   } = {};
   try {
     body = JSON.parse(event.body || '{}');
@@ -124,6 +129,47 @@ export const handler: Handler = async (event: HandlerEvent) => {
           // Neutral halten: keine Unterscheidung unbekannter User / falsches Passwort
           return jsonResponse(401, { error: 'Anmeldung fehlgeschlagen' });
         }
+      }
+
+      case 'complete-recovery': {
+        const { userId, secret, password } = body;
+        if (!userId || !secret || !password) {
+          return jsonResponse(400, { error: 'Ungültige Anfrage' });
+        }
+        if (password.length < 8 || password === ONBOARDING_PASSWORD_ACTUAL) {
+          return jsonResponse(400, { error: 'Passwort ungültig (mindestens 8 Zeichen)' });
+        }
+        try {
+          // Appwrite prüft hier das Recovery-Secret aus der E-Mail — ohne
+          // gültiges Secret gibt es keinen Schreibzugriff auf diesen Account.
+          await new Account(client).updateRecovery(userId, secret, password);
+        } catch {
+          return jsonResponse(401, { error: 'Link ungültig oder abgelaufen. Bitte neu anfordern.' });
+        }
+
+        // Zwangswechsel-Flag löschen (Prefs-Merge!) + Audit — beides darf den
+        // erfolgreichen Reset nicht mehr scheitern lassen
+        try {
+          const target = await users.get(userId);
+          const prefs = { ...(target.prefs as Record<string, unknown>) };
+          if (prefs.mustChangePassword) {
+            delete prefs.mustChangePassword;
+            await users.updatePrefs(userId, prefs);
+          }
+          await new Databases(client).createDocument('tennismehl24_db', 'audit_log', ID.unique(), {
+            timestamp: new Date().toISOString(),
+            userId: target.$id,
+            userName: target.name,
+            action: 'password_change',
+            entityType: 'user',
+            entityId: target.$id,
+            summary: `${target.name} hat das Passwort per Recovery-Link zurückgesetzt`,
+            changes: '',
+          });
+        } catch (nachlaufFehler) {
+          console.warn('complete-recovery Nachlauf fehlgeschlagen:', (nachlaufFehler as Error).message);
+        }
+        return jsonResponse(200, { success: true });
       }
 
       // ---------------------------------------------------------- nur Admin

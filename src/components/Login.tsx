@@ -1,7 +1,8 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Lock, AlertCircle, ArrowLeft, User as UserIcon, KeyRound } from 'lucide-react';
+import { Lock, AlertCircle, ArrowLeft, User as UserIcon, KeyRound, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { listUsers, DirectoryUser } from '../services/userDirectoryService';
+import { passwortVergessenAnfordern } from '../services/authService';
 
 /**
  * "Wer bist du?"-Login (D6): zeigt alle aktiven User dynamisch als Kacheln.
@@ -35,6 +36,11 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // "Passwort vergessen?"-Flow: fragt die E-Mail ab und zeigt IMMER dieselbe
+  // neutrale Meldung (keine User-Enumeration)
+  const [vergessenModus, setVergessenModus] = useState(false);
+  const [vergessenEmail, setVergessenEmail] = useState('');
+  const [vergessenGesendet, setVergessenGesendet] = useState(false);
   const { login, loginKachel } = useAuth();
 
   useEffect(() => {
@@ -68,8 +74,28 @@ const Login = () => {
     }
   };
 
-  const zeigeKacheln = !manuellerModus && !listeFehlgeschlagen && !selectedUser;
-  const zeigeFormular = manuellerModus || listeFehlgeschlagen || !!selectedUser;
+  const handleVergessen = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await passwortVergessenAnfordern(vergessenEmail.trim());
+    } catch {
+      // Bewusst verschluckt: Meldung ist unabhängig vom Ergebnis identisch
+    } finally {
+      setVergessenGesendet(true);
+      setIsLoading(false);
+    }
+  };
+
+  const vergessenSchliessen = () => {
+    setVergessenModus(false);
+    setVergessenEmail('');
+    setVergessenGesendet(false);
+    setError('');
+  };
+
+  const zeigeKacheln = !manuellerModus && !listeFehlgeschlagen && !selectedUser && !vergessenModus;
+  const zeigeFormular = !vergessenModus && (manuellerModus || listeFehlgeschlagen || !!selectedUser);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50 flex items-center justify-center p-4">
@@ -82,7 +108,13 @@ const Login = () => {
             TennisMehl24
           </h1>
           <p className="text-gray-600 dark:text-dark-textMuted">
-            {zeigeKacheln ? 'Wer bist du?' : selectedUser ? `Hallo ${selectedUser.name}!` : 'Bitte melden Sie sich an'}
+            {zeigeKacheln
+              ? 'Wer bist du?'
+              : vergessenModus
+                ? 'Passwort vergessen'
+                : selectedUser
+                  ? `Hallo ${selectedUser.name}!`
+                  : 'Bitte melden Sie sich an'}
           </p>
         </div>
 
@@ -122,6 +154,57 @@ const Login = () => {
                 Manuelle Anmeldung
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Passwort vergessen: E-Mail abfragen, immer neutrale Bestätigung */}
+        {vergessenModus && (
+          <div className="space-y-6">
+            <button
+              type="button"
+              onClick={vergessenSchliessen}
+              className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-textMuted hover:text-gray-800"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Zurück zur Anmeldung
+            </button>
+            {vergessenGesendet ? (
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 text-sm text-green-800">
+                Falls ein Konto mit dieser E-Mail-Adresse existiert, wurde soeben eine E-Mail mit
+                einem Link zum Zurücksetzen versendet. Bitte auch den Spam-Ordner prüfen.
+              </div>
+            ) : (
+              <form onSubmit={handleVergessen} className="space-y-4">
+                <div>
+                  <label htmlFor="vergessen-email" className="block text-sm font-semibold text-gray-700 dark:text-dark-textMuted mb-2">
+                    E-Mail-Adresse deines Kontos
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <input
+                      id="vergessen-email"
+                      type="email"
+                      value={vergessenEmail}
+                      onChange={(e) => setVergessenEmail(e.target.value)}
+                      className="w-full pl-10 pr-3 py-3 border-2 border-gray-300 dark:border-dark-border rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+                      placeholder="E-Mail-Adresse eingeben"
+                      autoFocus
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading || !vergessenEmail.trim()}
+                  className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg font-semibold hover:from-red-700 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg dark:shadow-dark-lg"
+                >
+                  {isLoading ? 'Wird gesendet...' : 'Link zum Zurücksetzen anfordern'}
+                </button>
+              </form>
+            )}
           </div>
         )}
 
@@ -201,6 +284,16 @@ const Login = () => {
             >
               {isLoading ? 'Wird angemeldet...' : 'Anmelden'}
             </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setVergessenModus(true)}
+                className="text-xs text-gray-500 dark:text-dark-textMuted hover:text-gray-700 underline"
+              >
+                Passwort vergessen?
+              </button>
+            </div>
 
             {manuellerModus && !listeFehlgeschlagen && (
               <div className="text-center">
