@@ -258,6 +258,17 @@ export interface FuzzySearchResult<T> {
   };
 }
 
+// Rangfolge der Match-Typen: exakte Treffer müssen IMMER vor Fuzzy-Treffern
+// landen, unabhängig vom Feldgewicht
+const MATCH_TYPE_RANK: Record<string, number> = {
+  exact: 4,
+  substring: 3.5,
+  prefix: 3,
+  contains: 2,
+  fuzzy: 1,
+  none: 0,
+};
+
 export interface FuzzySearchOptions {
   /** Minimaler Score für einen Match (0-1) */
   minScore?: number;
@@ -309,7 +320,8 @@ export function fuzzySearch<T>(
     }));
   }
 
-  const results: FuzzySearchResult<T>[] = [];
+  const normalizedSearch = normalizeText(searchText);
+  const results: (FuzzySearchResult<T> & { tier: number })[] = [];
 
   for (const item of items) {
     const fields = getSearchableFields(item);
@@ -317,25 +329,26 @@ export function fuzzySearch<T>(
     const matchedFields: string[] = [];
     const matchTypes: string[] = [];
     const wordMatches = new Map<string, number>(); // Bester Score pro Suchwort
+    const wordRanks = new Map<string, number>();   // Bester Match-Typ-Rang pro Suchwort
 
     for (const { field, value, weight = 1 } of fields) {
       if (!value) continue;
 
       const targetWords = extractWords(value);
+      const normalizedValue = normalizeText(value);
+      // Kommt der gesamte Suchtext als Substring im Feld vor?
+      const isSubstring = normalizedValue.includes(normalizedSearch);
 
       for (const searchWord of searchWords) {
-        let bestMatchForWord = wordMatches.get(searchWord) || 0;
-
         for (const targetWord of targetWords) {
           const result = matchWord(searchWord, targetWord, fuzzyThreshold);
 
           if (result.matched) {
             const weightedScore = result.score * weight;
+            const rank = MATCH_TYPE_RANK[result.matchType];
 
-            if (weightedScore > bestMatchForWord) {
-              bestMatchForWord = weightedScore;
-              wordMatches.set(searchWord, bestMatchForWord);
-
+            if (weightedScore > (wordMatches.get(searchWord) || 0)) {
+              wordMatches.set(searchWord, weightedScore);
               if (!matchedFields.includes(field)) {
                 matchedFields.push(field);
               }
@@ -343,13 +356,13 @@ export function fuzzySearch<T>(
                 matchTypes.push(result.matchType);
               }
             }
+            if (rank > (wordRanks.get(searchWord) || 0)) {
+              wordRanks.set(searchWord, rank);
+            }
           }
         }
 
-        // Prüfe auch ob der gesamte Suchtext als Substring im Feld vorkommt
-        const normalizedValue = normalizeText(value);
-        const normalizedSearch = normalizeText(searchText);
-        if (normalizedValue.includes(normalizedSearch)) {
+        if (isSubstring) {
           const substringScore = 0.95 * weight;
           if (substringScore > (wordMatches.get(searchWord) || 0)) {
             wordMatches.set(searchWord, substringScore);
@@ -359,6 +372,9 @@ export function fuzzySearch<T>(
             if (!matchTypes.includes('substring')) {
               matchTypes.push('substring');
             }
+          }
+          if (MATCH_TYPE_RANK.substring > (wordRanks.get(searchWord) || 0)) {
+            wordRanks.set(searchWord, MATCH_TYPE_RANK.substring);
           }
         }
       }
@@ -389,24 +405,34 @@ export function fuzzySearch<T>(
       totalScore = (sumScores / wordMatches.size) * (0.5 + 0.5 * coverage);
     }
 
-    // Bonus für mehr gematchte Felder
+    // Bonus für mehr gematchte Felder — KEIN Deckel bei 1, sonst sind exakte
+    // und unscharfe Treffer auf hoch gewichteten Feldern nicht unterscheidbar
     const fieldBonus = Math.min(matchedFields.length * 0.02, 0.1);
-    totalScore = Math.min(totalScore + fieldBonus, 1);
+    totalScore += fieldBonus;
+
+    // Tier = schwächster Match-Typ über alle Suchwörter: ein Item, bei dem
+    // jedes Suchwort exakt/als Präfix trifft, steht über jedem Fuzzy-Treffer
+    let tier = Infinity;
+    wordRanks.forEach(rank => {
+      if (rank < tier) tier = rank;
+    });
+    if (tier === Infinity) tier = 0;
 
     if (totalScore >= minScore) {
       results.push({
         item,
         score: totalScore,
+        tier,
         matchDetails: { matchedFields, matchTypes },
       });
     }
   }
 
-  // Sortiere nach Score (absteigend)
-  results.sort((a, b) => b.score - a.score);
+  // Sortiere: erst nach Match-Qualität (exakt > Präfix > Fuzzy), dann nach Score
+  results.sort((a, b) => (b.tier - a.tier) || (b.score - a.score));
 
   // Begrenze Ergebnisse
-  return results.slice(0, maxResults);
+  return results.slice(0, maxResults).map(({ tier: _tier, ...rest }) => rest);
 }
 
 // ============ CONVENIENCE FUNKTIONEN ============
