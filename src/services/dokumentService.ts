@@ -24,6 +24,21 @@ import {
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
 
+// === BLOCKÜBERSCHRIFTEN (Lieferbedingungen, Zahlungsbedingungen, Klauseln, ...) ===
+/**
+ * Einheitlicher Stil für alle Textblock-Überschriften unter der Positionstabelle:
+ * fett, dezentes Grau. Setzt danach direkt den Stil für den Fließtext (9pt, schwarz).
+ */
+const addBlockUeberschrift = (doc: jsPDF, titel: string, y: number): void => {
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(105, 105, 105);
+  doc.text(titel, 25, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
+};
+
 // === VERTRAGSKLAUSELN (z.B. erschwerte Zufahrt, Mengenanpassung) ===
 /**
  * Rendert die aktivierten Vertragsklauseln als Textblöcke (gleicher Stil wie
@@ -42,14 +57,12 @@ const addVertragsklauseln = async (
 
     summenY += 6;
     const klauselLines = doc.splitTextToSize(klausel.text, 160);
-    const klauselHeight = getTextHeight(klauselLines) + 4;
+    const klauselHeight = getTextHeight(klauselLines) + 5;
 
     summenY = await ensureSpace(doc, summenY, klauselHeight, stammdaten);
 
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`${klausel.titel}:`, 25, summenY);
-    summenY += 4;
+    addBlockUeberschrift(doc, klausel.titel, summenY);
+    summenY += 5;
     doc.text(klauselLines, 25, summenY);
     summenY += getTextHeight(klauselLines);
   }
@@ -57,11 +70,14 @@ const addVertragsklauseln = async (
   return summenY;
 };
 
-// === AGB-ANHANG (Kleintext auf der/den letzten Seite(n)) ===
+// === AGB-ANHANG (Kleintext auf der letzten Seite) ===
 /**
  * Hängt die AGB als zweispaltigen Kleintext-Anhang an das Dokument an.
- * Beginnt immer auf einer neuen Seite; Footer wird von der abschließenden
- * Footer-Schleife des jeweiligen Generators gesetzt.
+ * Beginnt auf einer neuen Seite OHNE Logo/Briefkopf, damit die volle Höhe zur
+ * Verfügung steht. Die Schriftgröße wird adaptiv gewählt, sodass die AGB nach
+ * Möglichkeit exakt auf eine Seite passen; nur wenn selbst die kompakteste
+ * Stufe nicht reicht, wird eine Folgeseite begonnen. Der Footer kommt von der
+ * abschließenden Footer-Schleife des jeweiligen Generators.
  */
 const addAgbAnhang = async (doc: jsPDF, stammdaten: Stammdaten): Promise<void> => {
   const abschnitte = getAgbAbschnitte(stammdaten);
@@ -69,72 +85,114 @@ const addAgbAnhang = async (doc: jsPDF, stammdaten: Stammdaten): Promise<void> =
 
   const spaltenX = [25, 110]; // 2 Spalten à 80mm, 5mm Spaltenabstand
   const spaltenBreite = 80;
-  const zeilenHoehe = 2.5;
   const maxY = getMaxContentY(doc);
+  const kopfHoehe = 14; // Titel + Untertitel + Trennlinie
+  const startYErsteSeite = 20 + kopfHoehe;
 
+  // Größenstufen von komfortabel bis kompakt — die erste, die auf eine Seite passt, gewinnt
+  interface AgbLayout {
+    titelPt: number;
+    textPt: number;
+    zeilenHoehe: number;
+    absatzAbstand: number;
+    abschnittAbstand: number;
+  }
+  const stufen: AgbLayout[] = [
+    { titelPt: 6.5, textPt: 6, zeilenHoehe: 2.5, absatzAbstand: 1, abschnittAbstand: 1.5 },
+    { titelPt: 6.25, textPt: 5.75, zeilenHoehe: 2.35, absatzAbstand: 0.9, abschnittAbstand: 1.2 },
+    { titelPt: 6, textPt: 5.5, zeilenHoehe: 2.2, absatzAbstand: 0.8, abschnittAbstand: 1 },
+  ];
+
+  // Gesamthöhe des Textflusses (ohne Spaltenumbruch-Verschnitt) für eine Stufe
+  const messeGesamtHoehe = (layout: AgbLayout): number => {
+    let hoehe = 0;
+    for (const abschnitt of abschnitte) {
+      doc.setFontSize(layout.titelPt);
+      doc.setFont('helvetica', 'bold');
+      hoehe += doc.splitTextToSize(abschnitt.titel, spaltenBreite).length * layout.zeilenHoehe + 0.5;
+      doc.setFontSize(layout.textPt);
+      doc.setFont('helvetica', 'normal');
+      for (const absatz of abschnitt.absaetze) {
+        hoehe += doc.splitTextToSize(absatz, spaltenBreite).length * layout.zeilenHoehe + layout.absatzAbstand;
+      }
+      hoehe += layout.abschnittAbstand;
+    }
+    return hoehe;
+  };
+
+  // 10mm Puffer je Seite für Verschnitt durch Titel-Zusammenhalt beim Spaltenwechsel
+  const kapazitaetEineSeite = (maxY - startYErsteSeite) * 2 - 10;
+  const layout =
+    stufen.find((stufe) => messeGesamtHoehe(stufe) <= kapazitaetEineSeite) ?? stufen[stufen.length - 1];
+
+  // === Seite beginnen: bewusst ohne Logo/Briefkopf ===
   doc.addPage();
-  await addDIN5008Header(doc, stammdaten);
-
-  // Überschrift nur auf der ersten AGB-Seite
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text('Allgemeine Geschäftsbedingungen', 25, 45);
+  doc.text('Allgemeine Geschäftsbedingungen', 25, 22);
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text(`${stammdaten.firmenname} – Bestandteil dieses Dokuments`, 25, 49);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`${stammdaten.firmenname} – Bestandteil dieses Dokuments`, 25, 26.5);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.4);
+  doc.line(25, 30, 190, 30);
   doc.setTextColor(0, 0, 0);
 
   let spalte = 0;
-  let startY = 55;
+  let startY = startYErsteSeite;
   let y = startY;
 
-  const naechsteSpalte = async () => {
+  const naechsteSpalte = () => {
     if (spalte === 0) {
       spalte = 1;
       y = startY;
     } else {
+      // Fallback: Folgeseite (ebenfalls ohne Logo), falls eine Seite doch nicht reicht
       doc.addPage();
-      await addFollowPageHeader(doc, stammdaten);
       spalte = 0;
-      startY = 45;
+      startY = 20;
       y = startY;
     }
   };
 
   for (const abschnitt of abschnitte) {
     // Abschnittstitel nicht allein am Spaltenende stehen lassen
-    if (y + zeilenHoehe * 4 > maxY) {
-      await naechsteSpalte();
+    if (y + layout.zeilenHoehe * 4 > maxY) {
+      naechsteSpalte();
     }
 
-    doc.setFontSize(6.5);
+    doc.setFontSize(layout.titelPt);
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(105, 105, 105);
     const titelLines: string[] = doc.splitTextToSize(abschnitt.titel, spaltenBreite);
     for (const line of titelLines) {
-      if (y + zeilenHoehe > maxY) await naechsteSpalte();
-      doc.setFontSize(6.5);
+      if (y + layout.zeilenHoehe > maxY) naechsteSpalte();
+      doc.setFontSize(layout.titelPt);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(105, 105, 105);
       doc.text(line, spaltenX[spalte], y);
-      y += zeilenHoehe;
+      y += layout.zeilenHoehe;
     }
     y += 0.5;
 
-    doc.setFontSize(6);
+    doc.setFontSize(layout.textPt);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
     for (const absatz of abschnitt.absaetze) {
       const absatzLines: string[] = doc.splitTextToSize(absatz, spaltenBreite);
       for (const line of absatzLines) {
-        if (y + zeilenHoehe > maxY) await naechsteSpalte();
-        doc.setFontSize(6);
+        if (y + layout.zeilenHoehe > maxY) naechsteSpalte();
+        doc.setFontSize(layout.textPt);
         doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
         doc.text(line, spaltenX[spalte], y);
-        y += zeilenHoehe;
+        y += layout.zeilenHoehe;
       }
-      y += 1; // Absatzabstand
+      y += layout.absatzAbstand;
     }
-    y += 1.5; // Abschnittsabstand
+    y += layout.abschnittAbstand;
   }
 
   doc.setFontSize(10);
@@ -837,12 +895,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
 
   // Jetzt rendern - alles bleibt zusammen
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Lieferbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  addBlockUeberschrift(doc, 'Lieferbedingungen', summenY);
 
   summenY += 5;
   if (daten.lieferzeit) {
@@ -875,11 +928,7 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY = await ensureSpace(doc, summenY, zahlungsbedingungenBlockHeight, stammdaten);
 
     // Jetzt rendern - alles bleibt zusammen
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Zahlungsbedingungen:', 25, summenY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    addBlockUeberschrift(doc, 'Zahlungsbedingungen', summenY);
 
     summenY += 5;
     doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
@@ -905,15 +954,13 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY += 6;
 
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
 
     // Prüfe Platz für Bemerkung
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
 
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Bemerkung:', 25, summenY);
-    summenY += 4;
+    addBlockUeberschrift(doc, 'Bemerkung', summenY);
+    summenY += 5;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
@@ -923,15 +970,13 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY += 6;
 
     const dieselLines = doc.splitTextToSize(daten.dieselpreiszuschlagText, 160);
-    const dieselHeight = getTextHeight(dieselLines) + 4;
+    const dieselHeight = getTextHeight(dieselLines) + 5;
 
     // Prüfe Platz für Dieselpreiszuschlag
     summenY = await ensureSpace(doc, summenY, dieselHeight, stammdaten);
 
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Dieselpreiszuschlag:', 25, summenY);
-    summenY += 4;
+    addBlockUeberschrift(doc, 'Dieselpreiszuschlag', summenY);
+    summenY += 5;
     doc.text(dieselLines, 25, summenY);
     summenY += (dieselLines.length * 4);
   }
@@ -1435,12 +1480,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
 
   // Jetzt rendern - alles bleibt zusammen
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Lieferbedingungen:', 25, summenY);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  addBlockUeberschrift(doc, 'Lieferbedingungen', summenY);
 
   summenY += 5;
   if (daten.lieferzeit) {
@@ -1503,11 +1543,7 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY = await ensureSpace(doc, summenY, zahlungsbedingungenBlockHeight, stammdaten);
 
     // Jetzt rendern - alles bleibt zusammen
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Zahlungsbedingungen:', 25, summenY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    addBlockUeberschrift(doc, 'Zahlungsbedingungen', summenY);
 
     summenY += 5;
     doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
@@ -1533,15 +1569,13 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY += 6;
 
     const bemerkungLines = doc.splitTextToSize(daten.bemerkung, 160);
-    const bemerkungHeight = getTextHeight(bemerkungLines) + 4;
+    const bemerkungHeight = getTextHeight(bemerkungLines) + 5;
 
     // Prüfe Platz für Bemerkung
     summenY = await ensureSpace(doc, summenY, bemerkungHeight, stammdaten);
 
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Bemerkung:', 25, summenY);
-    summenY += 4;
+    addBlockUeberschrift(doc, 'Bemerkung', summenY);
+    summenY += 5;
     doc.text(bemerkungLines, 25, summenY);
     summenY += (bemerkungLines.length * 4);
   }
@@ -1551,15 +1585,13 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY += 6;
 
     const dieselLines = doc.splitTextToSize(daten.dieselpreiszuschlagText, 160);
-    const dieselHeight = getTextHeight(dieselLines) + 4;
+    const dieselHeight = getTextHeight(dieselLines) + 5;
 
     // Prüfe Platz für Dieselpreiszuschlag
     summenY = await ensureSpace(doc, summenY, dieselHeight, stammdaten);
 
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Dieselpreiszuschlag:', 25, summenY);
-    summenY += 4;
+    addBlockUeberschrift(doc, 'Dieselpreiszuschlag', summenY);
+    summenY += 5;
     doc.text(dieselLines, 25, summenY);
     summenY += (dieselLines.length * 4);
   }
