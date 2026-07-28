@@ -84,6 +84,7 @@ const PlanungBoardRedirect = () => {
 };
 const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
 const AuditLogTool = lazyWithRetry(() => import('./components/AuditLog/AuditLogTool'));
+const AdminChangelog = lazyWithRetry(() => import('./components/Admin/AdminChangelog').then(m => ({ default: m.AdminChangelog })));
 
 // Öffentliche Seiten
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
@@ -322,6 +323,13 @@ function AuthenticatedContent() {
                   <Route path="/audit-log" element={
                     <ProtectedRoute toolId="audit-log">
                       <AuditLogTool />
+                    </ProtectedRoute>
+                  } />
+
+                  {/* Admin Changelog (Julian only): Arbeitsnachweis für Reviews */}
+                  <Route path="/admin/mein-fortschritt" element={
+                    <ProtectedRoute toolId="admin-changelog">
+                      <AdminChangelog />
                     </ProtectedRoute>
                   } />
 

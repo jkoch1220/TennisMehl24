@@ -121,6 +121,9 @@ export const MINDMAP_DURCHFUEHRUNGEN_COLLECTION_ID = 'mindmap_durchfuehrungen';
 export const MINDMAP_SUBTASKS_COLLECTION_ID = 'mindmap_subtasks';
 export const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 
+// Admin Changelog (privat für Julian - Arbeitsnachweis für Reviews)
+export const ADMIN_CHANGELOG_COLLECTION_ID = 'admin_changelog';
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -210,6 +213,8 @@ export const COLLECTIONS = {
   KUNDEN_MERGE_ARCHIV: KUNDEN_MERGE_ARCHIV_COLLECTION_ID,
   // Mindmap-Planungstool
   MINDMAP_NODES: MINDMAP_NODES_COLLECTION_ID,
+  // Admin Changelog
+  ADMIN_CHANGELOG: ADMIN_CHANGELOG_COLLECTION_ID,
 };
 
 // Storage Bucket IDs
