@@ -249,29 +249,6 @@ export interface PBVStatistik {
   lieferscheineOffen: number;
 }
 
-// ==================== KANBAN TYPES ====================
-
-// Kanban-Spalte für PBV
-export interface PBVKanbanSpalte {
-  id: ProjektStatus;
-  label: string;
-  color: string;
-  bgColor: string;
-  projekte: PlatzbauerProjekt[];
-}
-
-// Kanban-Board Daten
-export interface PBVKanbanDaten {
-  spalten: PBVKanbanSpalte[];
-  statistik: {
-    gesamt: number;
-    nachTyp: {
-      saisonprojekt: number;
-      nachtrag: number;
-    };
-  };
-}
-
 // ==================== DOKUMENT TYPES ====================
 
 // Dokumenttyp für Platzbauer

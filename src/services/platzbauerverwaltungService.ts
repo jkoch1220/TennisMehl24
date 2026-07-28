@@ -13,8 +13,6 @@ import {
   PlatzbauerPosition,
   PBVFilter,
   PBVStatistik,
-  PBVKanbanDaten,
-  PBVKanbanSpalte,
 } from '../types/platzbauer';
 import { ProjektStatus, Projekt } from '../types/projekt';
 import { SaisonKunde, SaisonKundeMitDaten } from '../types/saisonplanung';
@@ -122,17 +120,6 @@ function toPayload<T>(
   }
   return payload;
 }
-
-// Kanban-Status-Definitionen
-const KANBAN_STATUS: Array<{ id: ProjektStatus; label: string; color: string; bgColor: string }> = [
-  { id: 'angebot', label: 'Angebot', color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
-  { id: 'angebot_versendet', label: 'Angebot versendet', color: 'text-indigo-600', bgColor: 'bg-indigo-50 border-indigo-200' },
-  { id: 'auftragsbestaetigung', label: 'Auftragsbestätigung', color: 'text-purple-600', bgColor: 'bg-purple-50 border-purple-200' },
-  { id: 'lieferschein', label: 'Lieferschein', color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-200' },
-  { id: 'rechnung', label: 'Rechnung', color: 'text-amber-600', bgColor: 'bg-amber-50 border-amber-200' },
-  { id: 'bezahlt', label: 'Bezahlt', color: 'text-green-600', bgColor: 'bg-green-50 border-green-200' },
-  { id: 'verloren', label: 'Verloren', color: 'text-gray-600', bgColor: 'bg-gray-50 border-gray-200' },
-];
 
 class PlatzbauerverwaltungService {
   // ==================== PLATZBAUER LADEN ====================
@@ -769,32 +756,6 @@ class PlatzbauerverwaltungService {
 
     // Ordne zu
     return this.ordneVereinsprojektZu(vereinsProjekt.id, zielProjekt.id);
-  }
-
-  // ==================== KANBAN ====================
-
-  /**
-   * Kanban-Board Daten laden
-   */
-  async loadKanbanDaten(saisonjahr: number, filter?: PBVFilter): Promise<PBVKanbanDaten> {
-    const projekte = await this.loadPlatzbauerprojekte(saisonjahr, filter);
-
-    // Gruppiere nach Status
-    const spalten: PBVKanbanSpalte[] = KANBAN_STATUS.map(status => ({
-      ...status,
-      projekte: projekte.filter(p => p.status === status.id),
-    }));
-
-    // Statistik
-    const statistik = {
-      gesamt: projekte.length,
-      nachTyp: {
-        saisonprojekt: projekte.filter(p => p.typ === 'saisonprojekt').length,
-        nachtrag: projekte.filter(p => p.typ === 'nachtrag').length,
-      },
-    };
-
-    return { spalten, statistik };
   }
 
   // ==================== STATISTIK ====================

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users,
-  LayoutGrid,
   BarChart3,
   RefreshCw,
   Search,
@@ -12,11 +11,10 @@ import {
 import { PlatzbauermitVereinen, PBVStatistik } from '../../types/platzbauer';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerlListe from './PlatzbauerlListe';
-import PlatzbauerlKanban from './PlatzbauerlKanban';
 import PlatzbauerlStatistik from './PlatzbauerlStatistik';
 import PlatzbauerlDetailPopup from './PlatzbauerlDetailPopup';
 
-type ViewMode = 'liste' | 'kanban' | 'statistik';
+type ViewMode = 'liste' | 'statistik';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -75,9 +73,11 @@ const PlatzbauerverwaltungPage = () => {
   }, [setSearchParams]);
 
   // State
-  const [viewMode, setViewModeState] = useState<ViewMode>(() =>
-    loadSetting(STORAGE_KEYS.viewMode, 'liste')
-  );
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    // Gespeicherte Werte validieren (z.B. entferntes 'kanban' aus alten Sessions)
+    const stored = loadSetting<string>(STORAGE_KEYS.viewMode, 'liste');
+    return stored === 'statistik' ? 'statistik' : 'liste';
+  });
   const [saisonjahr, setSaisonjahrState] = useState(() =>
     loadSetting(STORAGE_KEYS.saisonjahr, new Date().getFullYear())
   );
@@ -227,17 +227,6 @@ const PlatzbauerverwaltungPage = () => {
               <span className="hidden md:inline">Liste</span>
             </button>
             <button
-              onClick={() => setViewMode('kanban')}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-white dark:bg-dark-bg text-amber-600 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="hidden md:inline">Kanban</span>
-            </button>
-            <button
               onClick={() => setViewMode('statistik')}
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
                 viewMode === 'statistik'
@@ -263,12 +252,6 @@ const PlatzbauerverwaltungPage = () => {
           platzbauer={gefiltertePlatzbauer}
           onSelectPlatzbauer={setSelectedPlatzbauerId}
           saisonjahr={saisonjahr}
-          onRefresh={loadData}
-        />
-      ) : viewMode === 'kanban' ? (
-        <PlatzbauerlKanban
-          saisonjahr={saisonjahr}
-          filter={{ suche }}
           onRefresh={loadData}
         />
       ) : (
