@@ -31,3 +31,9 @@
   to = "/index.html"
   status = 200
 
+# Suchmaschinen-Schutz: Portal soll nicht indexiert werden
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
