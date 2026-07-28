@@ -82,6 +82,7 @@ interface BestaetigungsRequest {
   projektId?: string;
   token?: string;
   fotoBase64?: string; // JPEG, Pflicht (Data-URL oder roher Base64-String)
+  fahrerName?: string; // Name des Fahrers (von der Seite als Pflichtfeld erhoben)
   unterschriftBase64?: string; // PNG, optional
   unterzeichnerName?: string; // optional
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
@@ -335,12 +336,13 @@ const generiereLiefernachweisPdf = (options: {
   daten: ProjektDaten;
   positionen: PositionOhnePreis[];
   zeitstempel: string;
+  fahrerName?: string;
   unterzeichnerName?: string;
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
   fotoJpegBytes: Uint8Array;
   unterschriftPngBytes?: Uint8Array;
 }): Uint8Array => {
-  const { daten, positionen, zeitstempel, unterzeichnerName, geo } = options;
+  const { daten, positionen, zeitstempel, fahrerName, unterzeichnerName, geo } = options;
   const doc = new jsPDF();
   const links = 20;
   let y = 20;
@@ -371,6 +373,7 @@ const generiereLiefernachweisPdf = (options: {
   zeile('Lieferadresse', lieferadresseText(daten));
   zeile('Lieferschein-Nr.', daten.lieferscheinnummer || '');
   zeile('Bestätigt am', formatDatumZeit(zeitstempel));
+  zeile('Fahrer', fahrerName || '');
   zeile('Unterzeichner', unterzeichnerName || '');
   if (typeof geo?.lat === 'number' && typeof geo?.lng === 'number') {
     const genauigkeit =
@@ -595,6 +598,7 @@ const handler: Handler = async (event: HandlerEvent) => {
               : {}),
           }
         : undefined;
+    const fahrerName = request.fahrerName?.trim() || undefined;
     const unterzeichnerName = request.unterzeichnerName?.trim() || undefined;
     const fotoBytes = Uint8Array.from(Buffer.from(fotoBase64, 'base64'));
     const unterschriftBytes = unterschriftBase64
@@ -608,6 +612,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         daten,
         positionen: extrahierePositionen(daten),
         zeitstempel,
+        fahrerName,
         unterzeichnerName,
         geo,
         fotoJpegBytes: fotoBytes,
@@ -653,6 +658,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       daten,
       positionen,
       zeitstempel,
+      fahrerName,
       unterzeichnerName,
       geo,
       fotoJpegBytes: fotoBytes,
@@ -680,6 +686,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       lieferadresse: lieferadresseText(daten),
       lieferscheinnummer: daten.lieferscheinnummer || '',
       bestaetigtAm: zeitstempel,
+      fahrerName: fahrerName || null,
       unterzeichnerName: unterzeichnerName || null,
       geo: geo || null,
       positionen, // ohne Preise
@@ -708,6 +715,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         liefernachweis: {
           fotoDateiId: fotoDatei?.$id,
           unterschriftDateiId: unterschriftDatei?.$id,
+          fahrerName,
           unterzeichnerName,
           geo,
           dokumentId: archivEintrag.$id,

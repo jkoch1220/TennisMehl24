@@ -37,15 +37,24 @@ export const istLiefernachweisTokenAbgelaufen = (erstelltAm?: string): boolean =
   return Date.now() > ablauf;
 };
 
+/**
+ * Öffentliche Basis-URL des Portals für nach außen gehende Links (QR-Codes).
+ * Konfigurierbar über VITE_PORTAL_PUBLIC_URL (z. B. https://tennismehl-portal.online),
+ * damit gedruckte QR-Codes nie auf netlify.app- oder localhost-Adressen zeigen.
+ */
+export const getPortalPublicUrl = (): string => {
+  const konfiguriert = import.meta.env.VITE_PORTAL_PUBLIC_URL as string | undefined;
+  return (konfiguriert || window.location.origin).replace(/\/+$/, '');
+};
+
 /** Baut den öffentlichen Bestätigungs-Link für den QR-Code */
 export const baueLiefernachweisUrl = (
   projektId: string,
   token: string,
   testModus?: boolean
 ): string => {
-  const origin = window.location.origin;
   const testParam = testModus ? '&test=1' : '';
-  return `${origin}/liefernachweis/${projektId}?token=${token}${testParam}`;
+  return `${getPortalPublicUrl()}/liefernachweis/${projektId}?token=${token}${testParam}`;
 };
 
 /**

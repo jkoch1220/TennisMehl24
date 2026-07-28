@@ -216,6 +216,7 @@ const Liefernachweis = () => {
   const [zeigeUnterschrift, setZeigeUnterschrift] = useState(false);
   const [unterschriftDataUrl, setUnterschriftDataUrl] = useState<string | null>(null);
   const [unterzeichnerName, setUnterzeichnerName] = useState('');
+  const [fahrerName, setFahrerName] = useState('');
 
   const [ergebnis, setErgebnis] = useState<{
     bereitsBestaetigt?: boolean;
@@ -301,7 +302,7 @@ const Liefernachweis = () => {
 
   // Bestätigung absenden
   const sendeBestaetigung = async () => {
-    if (!projektId || !fotoDataUrl) return;
+    if (!projektId || !fotoDataUrl || !fahrerName.trim()) return;
     setStatus('senden');
     setFehlerText('');
     try {
@@ -313,6 +314,7 @@ const Liefernachweis = () => {
           projektId,
           token,
           fotoBase64: fotoDataUrl,
+          fahrerName: fahrerName.trim(),
           unterschriftBase64: unterschriftDataUrl || undefined,
           unterzeichnerName: unterzeichnerName.trim() || undefined,
           geo,
@@ -442,13 +444,33 @@ const Liefernachweis = () => {
               )}
             </div>
 
+            {/* Fahrer-Name (Pflicht): wer bestätigt die Lieferung? */}
+            <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
+              <label
+                htmlFor="fahrerName"
+                className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+              >
+                <Truck className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                Ihr Name (Fahrer)
+              </label>
+              <input
+                id="fahrerName"
+                type="text"
+                value={fahrerName}
+                onChange={(e) => setFahrerName(e.target.value)}
+                placeholder="Vor- und Nachname"
+                autoComplete="name"
+                className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
+              />
+            </div>
+
             {fehlerText && (
               <p className="text-sm font-medium text-red-600 dark:text-red-400">{fehlerText}</p>
             )}
 
             <button
               onClick={() => fotoInputRef.current?.click()}
-              disabled={fotoVerarbeitet}
+              disabled={fotoVerarbeitet || !fahrerName.trim()}
               className="w-full rounded-2xl bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white text-2xl font-bold py-6 shadow-lg transition-colors"
             >
               {fotoVerarbeitet ? (
@@ -461,7 +483,9 @@ const Liefernachweis = () => {
               )}
             </button>
             <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
-              Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.
+              {fahrerName.trim()
+                ? 'Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.'
+                : 'Bitte zuerst Ihren Namen eintragen, dann Foto aufnehmen — fertig.'}
             </p>
           </div>
         )}
