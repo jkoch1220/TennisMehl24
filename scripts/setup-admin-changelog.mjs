@@ -90,9 +90,7 @@ async function run() {
               COLLECTION_ID,
               attr.name,
               attr.size,
-              false, // required=false
-              '', // default
-              true // array=false
+              false // required=false (kein default value)
             );
             console.log(`  ✅ ${attr.name} erstellt`);
             await sleep(500);
