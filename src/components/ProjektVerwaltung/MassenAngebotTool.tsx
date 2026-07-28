@@ -150,9 +150,15 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [loading, setLoading] = useState(false);
   const [geladen, setGeladen] = useState(false);
   const [fehlerMeldung, setFehlerMeldung] = useState<string | null>(null);
+  // Fortschritt des Dry-Runs („Lade Vorjahres-Projekte… 40 %")
+  const [dryRunFortschritt, setDryRunFortschritt] = useState<{
+    schritt: string;
+    prozent: number;
+  } | null>(null);
 
   const [testModus, setTestModus] = useState(true);
   const [filter, setFilter] = useState<FilterTyp>('alle');
+  const [suchText, setSuchText] = useState('');
 
   const [anpassungsTyp, setAnpassungsTyp] = useState<'prozent' | 'fix'>('prozent');
   const [anpassungsWert, setAnpassungsWert] = useState('');
@@ -188,6 +194,11 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [rollbackLaeuft, setRollbackLaeuft] = useState(false);
 
   const [versandKandidaten, setVersandKandidaten] = useState<VersandKandidat[] | null>(null);
+  // Batch, zu dem die aktuell geladene Versand-Liste gehört (überlebt auch den
+  // Weg über das Protokoll nach einem Seiten-Reload).
+  const [versandBatchId, setVersandBatchId] = useState<string | null>(null);
+  // batchId, deren Versand-Liste gerade aus dem Protokoll geladen wird
+  const [versandListeLaedt, setVersandListeLaedt] = useState<string | null>(null);
   const [versandBestaetigung, setVersandBestaetigung] = useState(false);
   const [versand, setVersand] = useState<{ done: number; total: number; aktuell: string } | null>(null);
   const [versandErgebnis, setVersandErgebnis] = useState<{
@@ -207,8 +218,11 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const ladeKandidaten = useCallback(async () => {
     setLoading(true);
     setFehlerMeldung(null);
+    setDryRunFortschritt({ schritt: 'Starte Berechnung…', prozent: 0 });
     try {
-      const liste = await massenAngebotService.sammleKandidaten(saisonjahr);
+      const liste = await massenAngebotService.sammleKandidaten(saisonjahr, (schritt, prozent) =>
+        setDryRunFortschritt({ schritt, prozent })
+      );
       setKandidaten(liste);
       setGeladen(true);
       await ladeLaeufe();
@@ -217,6 +231,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setFehlerMeldung(error instanceof Error ? error.message : 'Unbekannter Fehler');
     } finally {
       setLoading(false);
+      setDryRunFortschritt(null);
     }
   }, [saisonjahr, ladeLaeufe]);
 
@@ -230,19 +245,31 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   );
 
   const gefiltert = useMemo(() => {
+    let liste: MassenAngebotKandidat[];
     switch (filter) {
       case 'vorjahr':
-        return kandidaten.filter((k) => k.quelle === 'vorjahr');
+        liste = kandidaten.filter((k) => k.quelle === 'vorjahr');
+        break;
       case 'neukunden':
-        return kandidaten.filter((k) => k.quelle === 'plz_kalkulation' || k.quelle === 'mosaik');
+        liste = kandidaten.filter((k) => k.quelle === 'plz_kalkulation' || k.quelle === 'mosaik');
+        break;
       case 'fehler':
-        return kandidaten.filter((k) => k.status === 'fehler');
+        liste = kandidaten.filter((k) => k.status === 'fehler');
+        break;
       case 'manuell':
-        return kandidaten.filter((k) => k.status === 'manuell' || k.status === 'existiert');
+        liste = kandidaten.filter((k) => k.status === 'manuell' || k.status === 'existiert');
+        break;
       default:
-        return kandidaten;
+        liste = kandidaten;
     }
-  }, [kandidaten, filter]);
+    const suche = suchText.trim().toLowerCase();
+    if (!suche) return liste;
+    return liste.filter(
+      (k) =>
+        k.kundenname.toLowerCase().includes(suche) ||
+        (k.kundennummer || '').toLowerCase().includes(suche)
+    );
+  }, [kandidaten, filter, suchText]);
 
   const ausgewaehlteNeu = useMemo(
     () => kandidaten.filter((k) => k.status === 'neu' && k.ausgewaehlt),
@@ -252,6 +279,17 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const handleToggle = useCallback((kundeId: string) => {
     setKandidaten((prev) =>
       prev.map((k) => (k.kundeId === kundeId && k.status === 'neu' ? { ...k, ausgewaehlt: !k.ausgewaehlt } : k))
+    );
+  }, []);
+
+  // Alle ab-/auswählen — wirkt nur auf die aktuell gefilterte Ansicht
+  const handleAlleAuswaehlen = useCallback((ausgewaehlt: boolean, sichtbareIds?: Set<string>) => {
+    setKandidaten((prev) =>
+      prev.map((k) =>
+        k.status === 'neu' && (!sichtbareIds || sichtbareIds.has(k.kundeId))
+          ? { ...k, ausgewaehlt }
+          : k
+      )
     );
   }, []);
 
@@ -289,6 +327,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       await ladeKandidaten();
       const vk = await massenAngebotService.ladeVersandKandidaten(res.batchId);
       setVersandKandidaten(vk);
+      setVersandBatchId(res.batchId);
     } catch (error) {
       console.error('Fehler bei der Erzeugung:', error);
       setFehlerMeldung(error instanceof Error ? error.message : 'Erzeugung fehlgeschlagen');
@@ -309,6 +348,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       );
       setErgebnis(null);
       setVersandKandidaten(null);
+      setVersandBatchId(null);
       await ladeKandidaten();
     } catch (error) {
       console.error('Rollback fehlgeschlagen:', error);
@@ -339,8 +379,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         setVersand({ done, total, aktuell })
       );
       setVersandErgebnis(res);
-      if (!testModus && ergebnis) {
-        const vk = await massenAngebotService.ladeVersandKandidaten(ergebnis.batchId);
+      if (!testModus && versandBatchId) {
+        const vk = await massenAngebotService.ladeVersandKandidaten(versandBatchId);
         setVersandKandidaten(vk);
       }
     } catch (error) {
@@ -349,7 +389,27 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     } finally {
       setVersand(null);
     }
-  }, [versandKandidaten, testModus, versandAuswahl, versandAuswahlTest, ergebnis]);
+  }, [versandKandidaten, testModus, versandAuswahl, versandAuswahlTest, versandBatchId]);
+
+  // Versand-Liste eines früheren Laufs aus dem Protokoll öffnen — damit der
+  // Versand-Schritt auch nach einem Seiten-Reload wieder erreichbar ist.
+  const oeffneVersandListe = useCallback(async (batchId: string) => {
+    setVersandListeLaedt(batchId);
+    setFehlerMeldung(null);
+    try {
+      const vk = await massenAngebotService.ladeVersandKandidaten(batchId);
+      setVersandKandidaten(vk);
+      setVersandBatchId(batchId);
+      setVersandErgebnis(null);
+    } catch (error) {
+      console.error('Versand-Liste konnte nicht geladen werden:', error);
+      setFehlerMeldung(
+        error instanceof Error ? error.message : 'Versand-Liste konnte nicht geladen werden'
+      );
+    } finally {
+      setVersandListeLaedt(null);
+    }
+  }, []);
 
   if (!isAdmin) {
     return (
@@ -428,6 +488,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       )}
 
+      {/* Fortschritt Dry-Run (Vorschau-Berechnung) */}
+      {loading && dryRunFortschritt && (
+        <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-gray-700 dark:text-slate-300 mb-2">
+            <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+            {dryRunFortschritt.schritt} {dryRunFortschritt.prozent} %
+          </div>
+          <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-600 transition-all"
+              style={{ width: `${dryRunFortschritt.prozent}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Schritt 1: Vorschau berechnen */}
       {!geladen ? (
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-8 text-center">
@@ -460,6 +536,21 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
               </span>
               <span className="text-gray-400">·</span>
               <span className="text-gray-500">{zusammenfassung.gesamt} gesamt</span>
+              <span className="text-gray-400">·</span>
+              <button
+                onClick={() => handleAlleAuswaehlen(true, new Set(gefiltert.map((k) => k.kundeId)))}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 text-xs font-medium"
+                title="Wählt alle Kandidaten der aktuellen (gefilterten) Ansicht aus"
+              >
+                Alle auswählen
+              </button>
+              <button
+                onClick={() => handleAlleAuswaehlen(false, new Set(gefiltert.map((k) => k.kundeId)))}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 text-xs font-medium"
+                title="Wählt alle Kandidaten der aktuellen (gefilterten) Ansicht ab — z. B. um danach gezielt nur einen Kunden anzuhaken"
+              >
+                Alle abwählen
+              </button>
               <button
                 onClick={ladeKandidaten}
                 disabled={loading}
@@ -504,8 +595,15 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                 </span>
               )}
 
-              {/* Filter */}
+              {/* Suche + Filter */}
               <div className="ml-auto flex items-center gap-2">
+                <input
+                  type="text"
+                  value={suchText}
+                  onChange={(e) => setSuchText(e.target.value)}
+                  placeholder="Kunde / Kundennr. suchen…"
+                  className="w-52 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-slate-100"
+                />
                 <FilterIcon className="w-4 h-4 text-gray-400" />
                 <select
                   value={filter}
@@ -643,6 +741,41 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       )}
 
+      {/* Versand-Liste eines früheren Laufs (aus dem Protokoll geöffnet) */}
+      {versandKandidaten && !ergebnis && (
+        <div className="bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2 font-semibold text-purple-700 dark:text-purple-400">
+            <Mail className="w-5 h-5" /> Versand-Liste
+            {versandBatchId && <code className="text-xs font-normal">{versandBatchId}</code>}
+          </div>
+          {versandKandidaten.length === 0 ? (
+            <div className="text-sm text-gray-600 dark:text-slate-400">
+              Keine unversendeten Angebote in diesem Lauf — alles bereits versendet oder gelöscht.
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-700 dark:text-slate-300">
+                {versandKandidaten.length} Angebot{versandKandidaten.length === 1 ? '' : 'e'} noch
+                nicht versendet
+                {versandKandidaten.some((v) => v.emailFehlt) && (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {' '}
+                    ({versandKandidaten.filter((v) => v.emailFehlt).length} ohne E-Mail-Adresse)
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => setVersandBestaetigung(true)}
+                disabled={!!versand || versandAnzahl === 0}
+                className="ml-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg inline-flex items-center gap-2 disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" /> {versandAnzahl} Angebote versenden
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Fortschritt / Ergebnis Versand */}
       {versand && (
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
@@ -707,6 +840,21 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                   <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">rückgängig</span>
                 )}
                 {lauf.benutzer && <span className="ml-auto text-xs text-gray-400">{lauf.benutzer}</span>}
+                {!lauf.rueckgaengigGemacht && lauf.anzahlErzeugt > 0 && lauf.batchId && (
+                  <button
+                    onClick={() => void oeffneVersandListe(lauf.batchId)}
+                    disabled={versandListeLaedt !== null || !!versand}
+                    className={`${lauf.benutzer ? '' : 'ml-auto '}px-2.5 py-1 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-950/40 inline-flex items-center gap-1.5 disabled:opacity-50`}
+                    title="Lädt die noch unversendeten Angebote dieses Laufs (z.B. nach einem Seiten-Reload)"
+                  >
+                    {versandListeLaedt === lauf.batchId ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="w-3.5 h-3.5" />
+                    )}
+                    Versand-Liste öffnen
+                  </button>
+                )}
               </div>
             ))}
           </div>

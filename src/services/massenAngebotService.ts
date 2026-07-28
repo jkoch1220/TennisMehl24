@@ -12,8 +12,8 @@
 //   4. sonst: manuell prüfen (nicht automatisch erzeugen)
 
 import { ID, Query } from 'appwrite';
-import { SaisonKunde } from '../types/saisonplanung';
-import { Position, AngebotsDaten } from '../types/projektabwicklung';
+import { SaisonKunde, SaisonDaten } from '../types/saisonplanung';
+import { Position, AngebotsDaten, GespeichertesDokument } from '../types/projektabwicklung';
 import { getKlauselVorlagen, initialisiereDokumentKlauseln } from '../constants/vertragsklauseln';
 import {
   MassenAngebotKandidat,
@@ -43,7 +43,11 @@ import {
   DATABASE_ID,
   ANGEBOTS_LAEUFE_COLLECTION_ID,
   PROJECT_ID,
+  PROJEKTE_COLLECTION_ID,
+  SAISON_DATEN_COLLECTION_ID,
+  BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
 } from '../config/appwrite';
+import { loadAllDocuments } from '../utils/appwritePagination';
 import { auditService } from './auditService';
 
 // Standard-Menge (Tonnen) für PLZ-Kalkulation, wenn keine Referenzmenge vorliegt.
@@ -178,22 +182,122 @@ function basisKandidat(kunde: SaisonKunde): MassenAngebotKandidat {
   };
 }
 
-// Bestimmt für EINEN Kunden Quelle + Angebotsentwurf. Schreibt nichts.
-async function bestimmeKandidat(
+// ===== BULK-DATENBESCHAFFUNG FÜR DEN DRY-RUN =====
+// Statt 2–4 Queries PRO Kunde (N+1, bei ~2300 Kunden mehrere tausend Requests)
+// werden alle benötigten Daten vorab in wenigen paginierten Bulk-Queries geladen
+// und als Lookup-Maps an die (unveränderte) Kandidaten-Logik übergeben.
+
+/** Fortschritts-Callback für den Dry-Run (Schrittbeschreibung + Prozent 0–100). */
+export type SammelFortschritt = (schritt: string, prozent: number) => void;
+
+// Minimale Projekt-Referenz (mehr braucht der Dry-Run nicht).
+interface ProjektRef {
+  id: string; // Appwrite-$id
+  kundeId: string;
+}
+
+// Alle vorab geladenen Daten, aus denen die Kandidaten rein in-memory bestimmt werden.
+interface KandidatenLookup {
+  zielProjekte: Map<string, ProjektRef>; // kundeId → Projekt der Zielsaison
+  vorjahrProjekte: Map<string, ProjektRef>; // kundeId → Projekt der Vorsaison
+  vorjahrAngebote: Map<string, GespeichertesDokument>; // projektId → neuestes Angebot
+  zielSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Zielsaison
+  vorjahrSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Vorsaison (Bezugsweg-Prüfung)
+}
+
+// Bezieht der Kunde über einen Platzbauer? Dann darf KEIN automatisches
+// Direkt-Angebot an den Verein gehen — der eigentliche Kunde ist der Platzbauer.
+function beziehtUeberPlatzbauer(
+  kunde: SaisonKunde,
+  vorjahrSaison: SaisonDaten | undefined
+): boolean {
+  return (
+    kunde.standardBezugsweg === 'ueber_platzbauer' ||
+    vorjahrSaison?.bezugsweg === 'ueber_platzbauer' ||
+    Boolean(vorjahrSaison?.platzbauerId)
+  );
+}
+
+// Lädt ALLE Projekte eines Saisonjahrs paginiert und mappt kundeId → Projekt.
+// Entspricht projektService.getProjektFuerKunde je Kunde (erstes Projekt zählt).
+async function ladeProjektRefsFuerSaison(saisonjahr: number): Promise<Map<string, ProjektRef>> {
+  const docs = await loadAllDocuments(DATABASE_ID, PROJEKTE_COLLECTION_ID, {
+    queries: [Query.equal('saisonjahr', saisonjahr)],
+  });
+  const map = new Map<string, ProjektRef>();
+  for (const doc of docs as unknown as Array<{ $id: string; kundeId?: string }>) {
+    if (doc.kundeId && !map.has(doc.kundeId)) {
+      map.set(doc.kundeId, { id: doc.$id, kundeId: doc.kundeId });
+    }
+  }
+  return map;
+}
+
+// Lädt die Angebots-Dokumente der übergebenen Projekte in Batches
+// (Query.equal mit bis zu 100 Werten) und behält je Projekt das NEUESTE
+// (orderDesc $createdAt → erster Treffer je projektId), identisch zu
+// ladeDokumentNachTyp(projektId, 'angebot').
+async function ladeNeuesteAngeboteFuerProjekte(
+  projektIds: string[]
+): Promise<Map<string, GespeichertesDokument>> {
+  const map = new Map<string, GespeichertesDokument>();
+  const BATCH = 100;
+  for (let i = 0; i < projektIds.length; i += BATCH) {
+    const ids = projektIds.slice(i, i + BATCH);
+    if (ids.length === 0) continue;
+    const docs = await loadAllDocuments(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, {
+      queries: [
+        Query.equal('dokumentTyp', 'angebot'),
+        Query.equal('projektId', ids),
+        Query.orderDesc('$createdAt'),
+      ],
+    });
+    for (const doc of docs as unknown as GespeichertesDokument[]) {
+      if (doc.projektId && !map.has(doc.projektId)) {
+        map.set(doc.projektId, doc);
+      }
+    }
+  }
+  return map;
+}
+
+// Lädt alle SaisonDaten der Zielsaison paginiert (kundeId → geparste Nutzdaten
+// aus dem data-JSON, analog saisonplanungService.loadAktuelleSaisonDaten).
+async function ladeSaisonDatenFuerSaison(saisonjahr: number): Promise<Map<string, SaisonDaten>> {
+  const docs = await loadAllDocuments(DATABASE_ID, SAISON_DATEN_COLLECTION_ID, {
+    queries: [Query.equal('saisonjahr', saisonjahr)],
+  });
+  const map = new Map<string, SaisonDaten>();
+  for (const doc of docs as unknown as Array<{ $id: string; kundeId?: string; data?: string }>) {
+    if (!doc.kundeId || map.has(doc.kundeId)) continue;
+    if (typeof doc.data !== 'string' || !doc.data) continue;
+    try {
+      map.set(doc.kundeId, JSON.parse(doc.data) as SaisonDaten);
+    } catch {
+      // Nicht parsebar → wie "keine SaisonDaten" behandeln (Fallback-Standardmenge)
+    }
+  }
+  return map;
+}
+
+// Bestimmt für EINEN Kunden Quelle + Angebotsentwurf — rein in-memory aus den
+// vorab geladenen Lookup-Maps. Logik UNVERÄNDERT zur früheren Query-Variante.
+function bestimmeKandidat(
   kunde: SaisonKunde,
   saisonjahr: number,
-  werkspreisProTonne: number
-): Promise<MassenAngebotKandidat> {
+  werkspreisProTonne: number,
+  lookup: KandidatenLookup
+): MassenAngebotKandidat {
   const base = basisKandidat(kunde);
 
   // Idempotenz: existiert bereits ein Projekt für die Zielsaison? → niemals doppelt anlegen.
-  const existierendes = await projektService.getProjektFuerKunde(kunde.id, saisonjahr);
+  const existierendes = lookup.zielProjekte.get(kunde.id);
   if (existierendes) {
     return {
       ...base,
       status: 'existiert',
       statusGrund: `Projekt für Saison ${saisonjahr} existiert bereits`,
-      existierendesProjektId: existierendes.$id || existierendes.id,
+      existierendesProjektId: existierendes.id,
     };
   }
 
@@ -206,10 +310,20 @@ async function bestimmeKandidat(
     };
   }
 
+  // Verein bezieht über einen Platzbauer: ausschließen — das Angebot ging im
+  // Vorjahr an den Platzbauer, ein automatisches Direkt-Angebot wäre falsch.
+  if (beziehtUeberPlatzbauer(kunde, lookup.vorjahrSaisonDaten.get(kunde.id))) {
+    return {
+      ...base,
+      status: 'manuell',
+      statusGrund: 'Bezieht über Platzbauer – kein automatisches Direkt-Angebot',
+    };
+  }
+
   // 1) Vorjahres-Angebot
-  const vorjahrProjekt = await projektService.getProjektFuerKunde(kunde.id, saisonjahr - 1);
+  const vorjahrProjekt = lookup.vorjahrProjekte.get(kunde.id);
   if (vorjahrProjekt) {
-    const dokument = await ladeDokumentNachTyp(vorjahrProjekt.$id || vorjahrProjekt.id, 'angebot');
+    const dokument = lookup.vorjahrAngebote.get(vorjahrProjekt.id);
     if (dokument) {
       const daten = ladeDokumentDaten<AngebotsDaten>(dokument);
       if (daten?.positionen?.length) {
@@ -253,7 +367,7 @@ async function bestimmeKandidat(
   const plz = ermittlePlz(kunde);
   const zone = plz ? getZoneFromPLZ(plz) : null;
   if (plz && zone) {
-    const saisonDaten = await saisonplanungService.loadAktuelleSaisonDaten(kunde.id, saisonjahr);
+    const saisonDaten = lookup.zielSaisonDaten.get(kunde.id) ?? null;
     const menge =
       saisonDaten?.referenzmenge && saisonDaten.referenzmenge > 0
         ? saisonDaten.referenzmenge
@@ -284,25 +398,67 @@ async function bestimmeKandidat(
 /**
  * Sammelt alle Kandidaten für die Zielsaison (Dry-Run – schreibt nichts).
  * Opt-out: alle aktiven Kunden sind dabei, außer automatischesAngebot === false.
+ *
+ * Performance: die gesamte Datenbeschaffung läuft in wenigen paginierten
+ * Bulk-Queries (statt 2–4 Queries pro Kunde). Optionaler Fortschritts-Callback
+ * für die UI („Lade Vorjahres-Projekte… 40 %").
  */
-async function sammleKandidaten(saisonjahr: number): Promise<MassenAngebotKandidat[]> {
+async function sammleKandidaten(
+  saisonjahr: number,
+  onFortschritt?: SammelFortschritt
+): Promise<MassenAngebotKandidat[]> {
+  const melde = (schritt: string, prozent: number) => onFortschritt?.(schritt, prozent);
+
+  melde('Lade Kundenstamm…', 5);
   const alleKunden = await saisonplanungService.loadAlleKunden();
   // Opt-out-Semantik: standardmäßig sind alle aktiven Kunden dabei; nur explizit
   // abgewählte (automatischesAngebot === false) werden ausgeschlossen.
   const berechtigte = alleKunden.filter((k) => k.aktiv && k.automatischesAngebot !== false);
 
+  melde('Lade Werkspreis…', 15);
   const werkspreisProTonne = await getArtikelPreis(STANDARD_ARTIKEL.nummer);
 
-  // Sequentiell mit kleiner Parallelität, um Appwrite nicht zu überlasten.
-  const kandidaten: MassenAngebotKandidat[] = [];
-  const BATCH = 5;
-  for (let i = 0; i < berechtigte.length; i += BATCH) {
-    const teil = berechtigte.slice(i, i + BATCH);
-    const ergebnisse = await Promise.all(
-      teil.map((kunde) => bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne))
-    );
-    kandidaten.push(...ergebnisse);
-  }
+  melde(`Lade Projekte der Saison ${saisonjahr}…`, 25);
+  const zielProjekte = await ladeProjektRefsFuerSaison(saisonjahr);
+
+  melde(`Lade Vorjahres-Projekte (${saisonjahr - 1})…`, 40);
+  const vorjahrProjekte = await ladeProjektRefsFuerSaison(saisonjahr - 1);
+
+  melde('Lade Bezugswege der Vorsaison…', 50);
+  const vorjahrSaisonDaten = await ladeSaisonDatenFuerSaison(saisonjahr - 1);
+
+  // Angebots-Dokumente nur für Vorjahres-Projekte laden, deren Kunde die
+  // Quelle „Vorjahr" überhaupt erreichen kann (kein Zielprojekt, kein
+  // Platzbauer, kein Bezug über Platzbauer).
+  const relevanteVorjahrProjektIds = berechtigte
+    .filter(
+      (k) =>
+        !zielProjekte.has(k.id) &&
+        k.typ !== 'platzbauer' &&
+        !beziehtUeberPlatzbauer(k, vorjahrSaisonDaten.get(k.id))
+    )
+    .map((k) => vorjahrProjekte.get(k.id)?.id)
+    .filter((id): id is string => Boolean(id));
+
+  melde('Lade Vorjahres-Angebote…', 60);
+  const vorjahrAngebote = await ladeNeuesteAngeboteFuerProjekte(relevanteVorjahrProjektIds);
+
+  melde('Lade Saisonplanungs-Daten…', 80);
+  const zielSaisonDaten = await ladeSaisonDatenFuerSaison(saisonjahr);
+
+  melde('Berechne Kandidaten…', 90);
+  const lookup: KandidatenLookup = {
+    zielProjekte,
+    vorjahrProjekte,
+    vorjahrAngebote,
+    zielSaisonDaten,
+    vorjahrSaisonDaten,
+  };
+  const kandidaten = berechtigte.map((kunde) =>
+    bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne, lookup)
+  );
+
+  melde('Fertig', 100);
 
   // Sortierung: zu erzeugende zuerst, dann Prüffälle, dann existierende.
   const rang: Record<MassenAngebotKandidat['status'], number> = {
