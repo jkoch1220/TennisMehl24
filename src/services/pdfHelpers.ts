@@ -189,6 +189,12 @@ export const addDIN5008Footer = (doc: jsPDF, stammdaten: Stammdaten) => {
   const totalPages = doc.getNumberOfPages();
 
   if (totalPages > 1) {
+    // Bereich weißen: addNewPage zeichnet den Footer bereits während der
+    // Generierung — kommen danach weitere Seiten hinzu (z.B. AGB-Anhang),
+    // würde sich sonst die alte Seitenzahl mit der neuen überlagern.
+    doc.setFillColor(255, 255, 255);
+    doc.rect(pageWidth / 2 - 20, footerY - 7.4, 40, 3.2, 'F');
+
     doc.setFontSize(6);
     doc.setTextColor(120, 120, 120);
     doc.setFont('helvetica', 'normal');

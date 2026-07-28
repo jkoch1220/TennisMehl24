@@ -82,7 +82,7 @@ const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 // Ein Node-Runner kann den Key vor dem Import über globalThis.APPWRITE_SETUP_KEY setzen.
 const apiKey = (globalThis as { APPWRITE_SETUP_KEY?: string }).APPWRITE_SETUP_KEY;
 
-const APPWRITE_SETUP_VERSION = '43'; // Massen-Angebote: projekte.erzeugungsBatchId + Collection angebots_laeufe
+const APPWRITE_SETUP_VERSION = '44'; // Preis-Konfiguration: stammdaten.saisonPreisanpassungProzent + halbePaletteAufschlagProzent
 
 type FieldConfig = {
   key: string;
@@ -263,6 +263,10 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'instandsetzungsDienste', type: 'string', size: 2000 }, // JSON Array der Dienste
   { key: 'instandsetzungsauftragZaehler', type: 'integer', default: 0 },
 
+  // Preis-Konfiguration (zentral, unterjährig änderbar; wirkt nur auf NEU erzeugte Angebote)
+  { key: 'saisonPreisanpassungProzent', type: 'double', default: 4 },
+  { key: 'halbePaletteAufschlagProzent', type: 'double', default: 0 },
+
   // Liefersaison für PDF-Dokumente
   { key: 'liefersaisonStartDatum', type: 'string', size: 20 },
   { key: 'liefersaisonEndDatum', type: 'string', size: 20 },
@@ -273,6 +277,10 @@ const stammdatenFields: FieldConfig[] = [
   // E-Mail-Templates + Mahnwesen-Vorlagen (JSON-Strings)
   { key: 'emailTemplates', type: 'string', size: 50000, required: false },
   { key: 'mahnwesenVorlagen', type: 'string', size: 20000, required: false },
+
+  // Vertragsklausel-Vorlagen + AGB-Anhang für Angebote/ABs (JSON-Strings)
+  { key: 'vertragsklauselVorlagen', type: 'string', size: 20000, required: false },
+  { key: 'agbAbschnitte', type: 'string', size: 50000, required: false },
 
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },
@@ -454,7 +462,7 @@ const instandsetzungsauftraegeFields: FieldConfig[] = [
 // Debitoren-Metadaten Collection (offene Forderungen von Kunden)
 const debitorenMetadatenFields: FieldConfig[] = [
   { key: 'projektId', type: 'string', size: 100, required: true },             // Verknüpfung zum Projekt (unique)
-  { key: 'status', type: 'string', size: 50, required: true },                 // Für Filter: offen, faellig, ueberfaellig, gemahnt, teilbezahlt, bezahlt
+  { key: 'status', type: 'string', size: 50, required: true },                 // Für Filter: offen, faellig, ueberfaellig, gemahnt, teilbezahlt, bezahlt, reklamiert, storniert
   { key: 'mahnstufe', type: 'integer', default: 0 },                           // 0-4
   { key: 'prioritaet', type: 'string', size: 20, default: 'normal' },          // kritisch, hoch, normal, niedrig
   { key: 'erstelltAm', type: 'string', size: 50, required: true },

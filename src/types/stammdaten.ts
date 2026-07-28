@@ -42,6 +42,12 @@ export interface Stammdaten {
   // Mahnwesen-Textvorlagen (als JSON-String gespeichert)
   mahnwesenVorlagen?: string; // JSON von MahnwesenTextVorlagen
 
+  // Vertragsklausel-Vorlagen für Angebote/ABs (JSON von KlauselVorlage[])
+  vertragsklauselVorlagen?: string;
+
+  // AGB-Abschnitte für den Kleintext-Anhang auf Angeboten/ABs (JSON von AgbAbschnitt[])
+  agbAbschnitte?: string;
+
   // Saison-Einstellungen
   // Die Saison geht von November bis April (z.B. Nov 2025 - Apr 2026 = Saison 2026)
   aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
@@ -61,6 +67,12 @@ export interface Stammdaten {
 
   // Nummernkreis-Zähler für Instandsetzungsaufträge
   instandsetzungsauftragZaehler?: number;
+
+  // Preis-Konfiguration (jederzeit, auch unterjährig, änderbar)
+  /** Globale Preisanpassung in % auf Vorjahrespreise für NEU erzeugte Saison-Angebote (Default 4). */
+  saisonPreisanpassungProzent?: number;
+  /** Aufschlag in % für angebrochene (halbe) Paletten — wird ab dem Paletten-Modul in der Kalkulation verwendet (Default 0). */
+  halbePaletteAufschlagProzent?: number;
 
   // Metadaten
   erstelltAm?: string;
@@ -94,6 +106,8 @@ export interface StammdatenInput {
   werkOrt?: string;
   emailTemplates?: string; // JSON-String mit allen E-Mail-Templates
   mahnwesenVorlagen?: string; // JSON von MahnwesenTextVorlagen
+  vertragsklauselVorlagen?: string; // JSON von KlauselVorlage[]
+  agbAbschnitte?: string; // JSON von AgbAbschnitt[]
   aktuelleSaison?: number;
   saisonStartMonat?: number;
   // Liefersaison für PDF-Dokumente
@@ -105,4 +119,7 @@ export interface StammdatenInput {
   // Instandsetzungs-Dienste
   instandsetzungsDienste?: string[];
   instandsetzungsauftragZaehler?: number;
+  // Preis-Konfiguration
+  saisonPreisanpassungProzent?: number;
+  halbePaletteAufschlagProzent?: number;
 }

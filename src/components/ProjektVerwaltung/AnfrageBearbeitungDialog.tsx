@@ -82,7 +82,7 @@ const DEFAULT_ABSENDER_EMAIL = 'anfrage@tennismehl.com';
 const TEST_EMAIL_ADDRESS = 'jtatwcook@gmail.com';
 
 /**
- * Ergänzt die Dieselpreis-Pauschale (Dieselpreiszuschlag gemäß AGB §5) als Position
+ * Ergänzt die Dieselpreis-Pauschale (Dieselpreiszuschlag gemäß AGB §4) als Position
  * im Angebot. Der Zuschlag wird aus den zuschlagsfähigen Positionen (TM-ZM Schüttgut/
  * Sackware in Tonnen) und dem tagesaktuellen Dieselpreis berechnet.
  *

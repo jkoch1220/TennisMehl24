@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck, Fuel, Tag } from 'lucide-react';
-import StatusAenderungModal from '../Shared/StatusAenderungModal';
 import {
   DndContext,
   closestCenter,
@@ -27,6 +26,7 @@ import {
   ladeDokumentNachTyp,
   speichereAuftragsbestaetigung,
   aktualisiereAuftragsbestaetigung,
+  markiereAuftragsbestaetigungVersendet,
   ladeDokumentDaten,
   getFileDownloadUrl,
   speichereEntwurf,
@@ -36,6 +36,13 @@ import {
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { ladeStammdaten } from '../../services/stammdatenService';
+import {
+  KlauselVorlage,
+  getKlauselVorlagen,
+  initialisiereDokumentKlauseln,
+} from '../../constants/vertragsklauseln';
+import VertragsklauselnKarte from './VertragsklauselnKarte';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Belieferungsart } from '../../types/projektabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
@@ -120,8 +127,40 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
     dieselpreiszuschlagAktiviert: true,
     dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+    agbAnhaengen: true,
   });
-  
+
+  // Klausel-Vorlagen aus den Stammdaten (Stammdaten → „Klauseln & AGB")
+  const [klauselVorlagen, setKlauselVorlagen] = useState<KlauselVorlage[]>([]);
+
+  useEffect(() => {
+    const ladeVorlagen = async () => {
+      try {
+        const stammdaten = await ladeStammdaten();
+        setKlauselVorlagen(getKlauselVorlagen(stammdaten));
+      } catch (error) {
+        console.error('Fehler beim Laden der Klausel-Vorlagen:', error);
+        setKlauselVorlagen(getKlauselVorlagen(null));
+      }
+    };
+    ladeVorlagen();
+  }, []);
+
+  // Klauseln initialisieren, sobald Vorlagen geladen sind und das Dokument
+  // (neu oder alt, ohne gespeicherte Klauseln) noch keine hat.
+  // Kein hatGeaendert: löst keinen Auto-Save aus.
+  useEffect(() => {
+    if (!klauselVorlagen.length) return;
+    setAuftragsbestaetigungsDaten(prev => {
+      if (prev.vertragsklauseln && prev.agbAnhaengen !== undefined) return prev;
+      return {
+        ...prev,
+        vertragsklauseln: prev.vertragsklauseln ?? initialisiereDokumentKlauseln(klauselVorlagen),
+        agbAnhaengen: prev.agbAnhaengen ?? true,
+      };
+    });
+  }, [klauselVorlagen, auftragsbestaetigungsDaten.vertragsklauseln, auftragsbestaetigungsDaten.agbAnhaengen]);
+
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
@@ -137,10 +176,6 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
-
-  // Status-Änderung Bestätigung
-  const [zeigeStatusModal, setZeigeStatusModal] = useState(false);
-  const [statusModalLaden, setStatusModalLaden] = useState(false);
 
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -347,6 +382,8 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         let initialePositionen: Position[] = [];
         let angebotsRabattProzent: number | undefined;
         let angebotsRabattBezeichnung: string | undefined;
+        let angebotsKlauseln: AuftragsbestaetigungsDaten['vertragsklauseln'];
+        let angebotsAgbAnhaengen: boolean | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'auftragsbestaetigung');
@@ -369,6 +406,12 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               angebotsRabattBezeichnung = angebotsDaten.gesamtrabattBezeichnung;
               console.log('✅ Gesamtrabatt vom Angebot übernommen:', angebotsRabattProzent, '%');
             }
+            // Vertragsklauseln + AGB-Einstellung vom Angebot übernehmen
+            if (angebotsDaten?.vertragsklauseln?.length) {
+              angebotsKlauseln = angebotsDaten.vertragsklauseln;
+              console.log('✅ Vertragsklauseln vom Angebot übernommen:', angebotsKlauseln.length);
+            }
+            angebotsAgbAnhaengen = angebotsDaten?.agbAnhaengen;
           } catch (error) {
             console.warn('Gesamtrabatt vom Angebot konnte nicht geladen werden:', error);
           }
@@ -489,6 +532,10 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           // Gesamtrabatt vom Angebot übernehmen
           gesamtrabattProzent: prev.gesamtrabattProzent ?? angebotsRabattProzent,
           gesamtrabattBezeichnung: prev.gesamtrabattBezeichnung ?? angebotsRabattBezeichnung,
+          // Vertragsklauseln + AGB-Einstellung vom Angebot übernehmen
+          // (haben Vorrang vor den Standard-Vorlagen aus den Stammdaten)
+          vertragsklauseln: angebotsKlauseln ?? prev.vertragsklauseln,
+          agbAnhaengen: angebotsAgbAnhaengen ?? prev.agbAnhaengen,
         }));
       }
     };
@@ -728,6 +775,24 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     }
   };
 
+  // Nach ERFOLGREICHEM E-Mail-Versand der AB: Status → 'lieferschein' + abVersendetAm.
+  // Testmodus-Versand löst bewusst KEINEN Statuswechsel und keinen Zeitstempel aus
+  // (gleiches Muster wie Rechnungs-Versand / Massenangebot / Mahnwesen).
+  const handleAbEmailGesendet = async ({ testModus }: { testModus: boolean; empfaenger: string }) => {
+    if (testModus || !projekt?.$id) return;
+    try {
+      await markiereAuftragsbestaetigungVersendet(projekt.$id);
+      setStatusMeldung({
+        typ: 'erfolg',
+        text: 'AB versendet — Projekt wurde zur Lieferschein-Phase verschoben.',
+      });
+      setTimeout(() => setStatusMeldung(null), 5000);
+    } catch (error) {
+      // Nur loggen — der E-Mail-Versand selbst war erfolgreich und soll nicht als Fehler erscheinen
+      console.error('Konnte AB-Versand-Status nicht setzen:', error);
+    }
+  };
+
   // PDF generieren und E-Mail-Formular öffnen
   const oeffneEmailMitAuftragsbestaetigung = async () => {
     try {
@@ -746,41 +811,20 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     }
   };
 
-  // Handler für Speichern-Button: Zeigt Modal wenn nötig
+  // Handler für Speichern-Button.
+  // STATUSWAHRHEIT: Das Speichern ändert den Projekt-Status NICHT — der Wechsel
+  // auf 'lieferschein' passiert erst beim erfolgreichen E-Mail-Versand der AB
+  // (oder manuell per Kanban-Drag bei Telefon-/Post-Fällen).
   const handleSpeichernClick = () => {
     if (!projekt?.$id) {
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
     }
-
-    // Bei Aktualisierung: Direkt speichern (Status ändert sich nicht mehr)
-    if (gespeichertesDokument && istBearbeitungsModus) {
-      speichereUndHinterlegeAuftragsbestaetigung(false);
-      return;
-    }
-
-    // Bei Neu-Erstellung: Modal zeigen für Status-Bestätigung
-    setZeigeStatusModal(true);
-  };
-
-  // Speichern MIT Status-Änderung (nach Bestätigung)
-  const handleBestaetigtMitStatusAenderung = async () => {
-    setStatusModalLaden(true);
-    await speichereUndHinterlegeAuftragsbestaetigung(false);
-    setStatusModalLaden(false);
-    setZeigeStatusModal(false);
-  };
-
-  // Speichern OHNE Status-Änderung
-  const handleBestaetigtOhneStatusAenderung = async () => {
-    setStatusModalLaden(true);
-    await speichereUndHinterlegeAuftragsbestaetigung(true);
-    setStatusModalLaden(false);
-    setZeigeStatusModal(false);
+    void speichereUndHinterlegeAuftragsbestaetigung();
   };
 
   // Speichern in Appwrite
-  const speichereUndHinterlegeAuftragsbestaetigung = async (ohneStatusAenderung: boolean) => {
+  const speichereUndHinterlegeAuftragsbestaetigung = async () => {
     if (!projekt?.$id) {
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
@@ -801,17 +845,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         );
         setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung erfolgreich aktualisiert!' });
       } else {
-        // Neu erstellen
+        // Neu erstellen — der Projekt-Status bleibt unverändert (Statuswahrheit)
         neuesDokument = await speichereAuftragsbestaetigung(
           projekt.$id,
-          auftragsbestaetigungsDaten,
-          { ohneStatusAenderung }
+          auftragsbestaetigungsDaten
         );
-        if (ohneStatusAenderung) {
-          setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung gespeichert (Status unverändert).' });
-        } else {
-          setStatusMeldung({ typ: 'erfolg', text: 'Auftragsbestätigung gespeichert! Projekt wurde zur Lieferschein-Phase verschoben.' });
-        }
+        setStatusMeldung({
+          typ: 'erfolg',
+          text: 'Auftragsbestätigung gespeichert. Der Status wechselt erst beim E-Mail-Versand der AB zur Lieferschein-Phase.',
+        });
       }
 
       console.log(`💾 AB gespeichert, Dokument-ID: ${neuesDokument.$id}, Projekt-ID: ${projekt.$id}`);
@@ -1864,6 +1906,16 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           )}
         </div>
 
+        {/* Weitere Vertragsklauseln + AGB-Anhang */}
+        <VertragsklauselnKarte
+          klauseln={auftragsbestaetigungsDaten.vertragsklauseln}
+          agbAnhaengen={auftragsbestaetigungsDaten.agbAnhaengen}
+          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+          vorlagen={klauselVorlagen}
+          onKlauselnChange={(klauseln) => handleInputChange('vertragsklauseln', klauseln)}
+          onAgbAnhaengenChange={(wert) => handleInputChange('agbAnhaengen', wert)}
+        />
+
         {/* Zahlungsbedingungen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -2177,26 +2229,13 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           kundennummer={auftragsbestaetigungsDaten.kundennummer}
           projektId={projekt?.$id}
           standardEmpfaenger={projekt?.kundenEmail}
+          onSend={handleAbEmailGesendet}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);
           }}
         />
       )}
-
-      {/* Status-Änderung Bestätigungs-Modal */}
-      <StatusAenderungModal
-        isOpen={zeigeStatusModal}
-        onClose={() => setZeigeStatusModal(false)}
-        onConfirm={handleBestaetigtMitStatusAenderung}
-        onConfirmOhneStatusAenderung={handleBestaetigtOhneStatusAenderung}
-        aktion="Auftragsbestätigung speichern"
-        vonStatus={projekt?.status || 'auftragsbestaetigung'}
-        nachStatus="lieferschein"
-        kundenname={auftragsbestaetigungsDaten.kundenname}
-        dokumentNummer={auftragsbestaetigungsDaten.auftragsbestaetigungsnummer}
-        isLoading={statusModalLaden}
-      />
     </div>
   );
 };

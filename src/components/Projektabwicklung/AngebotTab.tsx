@@ -58,6 +58,13 @@ import {
   UniversalVersandart,
 } from '../../utils/universalVersandHinweis';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { ladeStammdaten } from '../../services/stammdatenService';
+import {
+  KlauselVorlage,
+  getKlauselVorlagen,
+  initialisiereDokumentKlauseln,
+} from '../../constants/vertragsklauseln';
+import VertragsklauselnKarte from './VertragsklauselnKarte';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { SaisonKunde } from '../../types/saisonplanung';
 import DokumentVerlauf from './DokumentVerlauf';
@@ -137,7 +144,39 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
     dieselpreiszuschlagAktiviert: true,
     dieselpreiszuschlagText: 'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis des gelieferten Ziegelmehls um 0,45 € je Tonne.',
+    agbAnhaengen: true,
   });
+
+  // Klausel-Vorlagen aus den Stammdaten (Stammdaten → „Klauseln & AGB")
+  const [klauselVorlagen, setKlauselVorlagen] = useState<KlauselVorlage[]>([]);
+
+  useEffect(() => {
+    const ladeVorlagen = async () => {
+      try {
+        const stammdaten = await ladeStammdaten();
+        setKlauselVorlagen(getKlauselVorlagen(stammdaten));
+      } catch (error) {
+        console.error('Fehler beim Laden der Klausel-Vorlagen:', error);
+        setKlauselVorlagen(getKlauselVorlagen(null));
+      }
+    };
+    ladeVorlagen();
+  }, []);
+
+  // Klauseln initialisieren, sobald Vorlagen geladen sind und das Dokument
+  // (neu oder alt, ohne gespeicherte Klauseln) noch keine hat.
+  // Kein hatGeaendert: löst keinen Auto-Save aus.
+  useEffect(() => {
+    if (!klauselVorlagen.length) return;
+    setAngebotsDaten(prev => {
+      if (prev.vertragsklauseln && prev.agbAnhaengen !== undefined) return prev;
+      return {
+        ...prev,
+        vertragsklauseln: prev.vertragsklauseln ?? initialisiereDokumentKlauseln(klauselVorlagen),
+        agbAnhaengen: prev.agbAnhaengen ?? true,
+      };
+    });
+  }, [klauselVorlagen, angebotsDaten.vertragsklauseln, angebotsDaten.agbAnhaengen]);
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [universalArtikel, setUniversalArtikel] = useState<UniversalArtikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
@@ -2812,7 +2851,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 Dieselzuschlag-Klausel auf dem Angebot drucken
               </label>
               <p className="mt-1 text-xs text-gray-600 dark:text-dark-textMuted">
-                Texthinweis zur Dieselpreisregelung gemäß AGB §5 auf dem Angebot ausweisen.
+                Texthinweis zur Dieselpreisregelung gemäß AGB §4 auf dem Angebot ausweisen.
               </p>
             </div>
           </div>
@@ -2915,6 +2954,16 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             </p>
           )}
         </div>
+
+        {/* Weitere Vertragsklauseln + AGB-Anhang */}
+        <VertragsklauselnKarte
+          klauseln={angebotsDaten.vertragsklauseln}
+          agbAnhaengen={angebotsDaten.agbAnhaengen}
+          disabled={!!gespeichertesDokument && !istBearbeitungsModus}
+          vorlagen={klauselVorlagen}
+          onKlauselnChange={(klauseln) => handleInputChange('vertragsklauseln', klauseln)}
+          onAgbAnhaengenChange={(wert) => handleInputChange('agbAnhaengen', wert)}
+        />
 
         {/* Zahlungsbedingungen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">

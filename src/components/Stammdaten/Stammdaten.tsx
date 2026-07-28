@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar, Smartphone } from 'lucide-react';
+import { Building2, Package, Database, Hash, Mail, ShoppingBag, Calendar, Smartphone, ScrollText } from 'lucide-react';
 import FirmendatenTab from './FirmendatenTab';
 import ArtikelVerwaltungTab from '../Projektabwicklung/ArtikelVerwaltungTab';
 import UniversalArtikelTab from './UniversaArtikelTab';
@@ -7,9 +7,10 @@ import KundennummernTab from './KundennummernTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 import SaisonEinstellungenTab from './SaisonEinstellungenTab';
 import KontaktExportTab from './KontaktExportTab';
+import VertragsklauselnTab from './VertragsklauselnTab';
 import { useCan } from '../../hooks/useCan';
 
-type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'saison' | 'kontaktExport';
+type TabId = 'firmendaten' | 'artikel' | 'universaArtikel' | 'kundennummern' | 'emailTemplates' | 'klauseln' | 'saison' | 'kontaktExport';
 
 const Stammdaten = () => {
   const { isFieldHidden } = useCan();
@@ -52,6 +53,13 @@ const Stammdaten = () => {
       icon: Mail,
       color: 'from-purple-600 to-indigo-600',
       description: 'E-Mail-Vorlagen bearbeiten'
+    },
+    {
+      id: 'klauseln' as TabId,
+      label: 'Klauseln & AGB',
+      icon: ScrollText,
+      color: 'from-red-600 to-rose-600',
+      description: 'Vertragsklauseln & AGB-Anhang'
     },
     {
       id: 'saison' as TabId,
@@ -122,6 +130,7 @@ const Stammdaten = () => {
         {activeTab === 'universaArtikel' && <UniversalArtikelTab />}
         {activeTab === 'kundennummern' && <KundennummernTab />}
         {activeTab === 'emailTemplates' && <EmailTemplatesTab />}
+        {activeTab === 'klauseln' && <VertragsklauselnTab />}
         {activeTab === 'saison' && <SaisonEinstellungenTab />}
         {activeTab === 'kontaktExport' && <KontaktExportTab />}
       </div>
@@ -146,6 +155,10 @@ const Stammdaten = () => {
           <p>
             <strong>Kundennummern:</strong> Automatische Vergabe von eindeutigen Kundennummern für alle Kunden
             in der Kundenliste. Die Nummern beginnen bei 231 und werden fortlaufend vergeben.
+          </p>
+          <p>
+            <strong>Klauseln & AGB:</strong> Vorlagen für Vertragsklauseln (z.B. erschwerte Zufahrt, Mengenanpassung)
+            und der AGB-Text, der als Kleintext-Anhang auf Angeboten und Auftragsbestätigungen gedruckt wird.
           </p>
           <p>
             <strong>Saison:</strong> Konfiguration der aktuellen Saison für die Auftragsbestätigungsnummern.

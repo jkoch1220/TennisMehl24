@@ -67,6 +67,14 @@ export interface BaseDokument {
   bemerkung?: string;
 }
 
+// Vertragsklausel auf Angebot/AB (Snapshot der Vorlage, pro Dokument editierbar)
+export interface VertragsKlausel {
+  id: string;
+  titel: string;
+  text: string;
+  aktiviert: boolean;
+}
+
 // ANGEBOT
 export interface AngebotsDaten extends BaseDokument {
   // Angebotsinformationen
@@ -98,6 +106,12 @@ export interface AngebotsDaten extends BaseDokument {
   // Dieselpreiszuschlag
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
+
+  // Weitere Vertragsklauseln (z.B. erschwerte Zufahrt, Mengenanpassung)
+  vertragsklauseln?: VertragsKlausel[];
+
+  // AGB als Kleintext-Anhang auf der/den letzten Seite(n) drucken
+  agbAnhaengen?: boolean;
 
   // Raben-Dieselfloater (Palettenspedition)
   rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
@@ -197,6 +211,12 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Dieselpreiszuschlag
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
+
+  // Weitere Vertragsklauseln (z.B. erschwerte Zufahrt, Mengenanpassung)
+  vertragsklauseln?: VertragsKlausel[];
+
+  // AGB als Kleintext-Anhang auf der/den letzten Seite(n) drucken
+  agbAnhaengen?: boolean;
 
   // Raben-Dieselfloater (Palettenspedition)
   rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
@@ -305,7 +325,7 @@ export interface DokumentBerechnung {
   bruttobetrag: number;
 }
 
-export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung' | 'proformarechnung';
+export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung' | 'proformarechnung' | 'liefernachweis';
 
 // Status einer Rechnung im Workflow
 export type RechnungsStatus = 'aktiv' | 'storniert';

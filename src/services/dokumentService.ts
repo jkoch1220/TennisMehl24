@@ -1,14 +1,17 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten } from '../types/projektabwicklung';
+import QRCode from 'qrcode';
+import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten, VertragsKlausel } from '../types/projektabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
+import { getAgbAbschnitte } from '../constants/vertragsklauseln';
 import {
   addDIN5008Header,
   addDIN5008Footer,
   addAbsenderzeile,
   addFollowPageHeader,
   ensureSpace,
+  getMaxContentY,
   formatWaehrung,
   formatDatum,
   getTextHeight,
@@ -20,6 +23,124 @@ import {
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
+
+// === VERTRAGSKLAUSELN (z.B. erschwerte Zufahrt, Mengenanpassung) ===
+/**
+ * Rendert die aktivierten Vertragsklauseln als Textblöcke (gleicher Stil wie
+ * der Dieselpreiszuschlag-Hinweis). Gibt die neue Y-Position zurück.
+ */
+const addVertragsklauseln = async (
+  doc: jsPDF,
+  klauseln: VertragsKlausel[] | undefined,
+  summenY: number,
+  stammdaten: Stammdaten
+): Promise<number> => {
+  if (!klauseln?.length) return summenY;
+
+  for (const klausel of klauseln) {
+    if (!klausel.aktiviert || !klausel.text?.trim()) continue;
+
+    summenY += 6;
+    const klauselLines = doc.splitTextToSize(klausel.text, 160);
+    const klauselHeight = getTextHeight(klauselLines) + 4;
+
+    summenY = await ensureSpace(doc, summenY, klauselHeight, stammdaten);
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`${klausel.titel}:`, 25, summenY);
+    summenY += 4;
+    doc.text(klauselLines, 25, summenY);
+    summenY += getTextHeight(klauselLines);
+  }
+
+  return summenY;
+};
+
+// === AGB-ANHANG (Kleintext auf der/den letzten Seite(n)) ===
+/**
+ * Hängt die AGB als zweispaltigen Kleintext-Anhang an das Dokument an.
+ * Beginnt immer auf einer neuen Seite; Footer wird von der abschließenden
+ * Footer-Schleife des jeweiligen Generators gesetzt.
+ */
+const addAgbAnhang = async (doc: jsPDF, stammdaten: Stammdaten): Promise<void> => {
+  const abschnitte = getAgbAbschnitte(stammdaten);
+  if (!abschnitte.length) return;
+
+  const spaltenX = [25, 110]; // 2 Spalten à 80mm, 5mm Spaltenabstand
+  const spaltenBreite = 80;
+  const zeilenHoehe = 2.5;
+  const maxY = getMaxContentY(doc);
+
+  doc.addPage();
+  await addDIN5008Header(doc, stammdaten);
+
+  // Überschrift nur auf der ersten AGB-Seite
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Allgemeine Geschäftsbedingungen', 25, 45);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text(`${stammdaten.firmenname} – Bestandteil dieses Dokuments`, 25, 49);
+  doc.setTextColor(0, 0, 0);
+
+  let spalte = 0;
+  let startY = 55;
+  let y = startY;
+
+  const naechsteSpalte = async () => {
+    if (spalte === 0) {
+      spalte = 1;
+      y = startY;
+    } else {
+      doc.addPage();
+      await addFollowPageHeader(doc, stammdaten);
+      spalte = 0;
+      startY = 45;
+      y = startY;
+    }
+  };
+
+  for (const abschnitt of abschnitte) {
+    // Abschnittstitel nicht allein am Spaltenende stehen lassen
+    if (y + zeilenHoehe * 4 > maxY) {
+      await naechsteSpalte();
+    }
+
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    const titelLines: string[] = doc.splitTextToSize(abschnitt.titel, spaltenBreite);
+    for (const line of titelLines) {
+      if (y + zeilenHoehe > maxY) await naechsteSpalte();
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text(line, spaltenX[spalte], y);
+      y += zeilenHoehe;
+    }
+    y += 0.5;
+
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'normal');
+    for (const absatz of abschnitt.absaetze) {
+      const absatzLines: string[] = doc.splitTextToSize(absatz, spaltenBreite);
+      for (const line of absatzLines) {
+        if (y + zeilenHoehe > maxY) await naechsteSpalte();
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(line, spaltenX[spalte], y);
+        y += zeilenHoehe;
+      }
+      y += 1; // Absatzabstand
+    }
+    y += 1.5; // Abschnittsabstand
+  }
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+};
 
 // === LEERES BRIEFPAPIER ===
 /**
@@ -815,6 +936,9 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     summenY += (dieselLines.length * 4);
   }
 
+  // === Vertragsklauseln (erschwerte Zufahrt, Mengenanpassung, ...) ===
+  summenY = await addVertragsklauseln(doc, daten.vertragsklauseln, summenY, stammdaten);
+
   // === Freibleibend-Hinweis ===
   summenY += 8;
   summenY = await ensureSpace(doc, summenY, 6, stammdaten);
@@ -841,6 +965,11 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   doc.setFont('helvetica', 'bold');
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
+
+  // === AGB-Anhang (Kleintext, letzte Seite(n)) ===
+  if (daten.agbAnhaengen) {
+    await addAgbAnhang(doc, stammdaten);
+  }
 
   // Footer auf erster Seite (und allen weiteren, falls vorhanden)
   const totalPages = doc.getNumberOfPages();
@@ -1435,6 +1564,9 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     summenY += (dieselLines.length * 4);
   }
 
+  // === Vertragsklauseln (erschwerte Zufahrt, Mengenanpassung, ...) ===
+  summenY = await addVertragsklauseln(doc, daten.vertragsklauseln, summenY, stammdaten);
+
   // === Grußformel ===
   summenY += 8;
 
@@ -1451,6 +1583,11 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text(stammdaten.firmenname, 25, summenY);
   doc.setFont('helvetica', 'normal');
 
+  // === AGB-Anhang (Kleintext, letzte Seite(n)) ===
+  if (daten.agbAnhaengen) {
+    await addAgbAnhang(doc, stammdaten);
+  }
+
   // Footer auf allen Seiten
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -1461,9 +1598,20 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   return doc;
 };
 
+// === DIGITALER LIEFERNACHWEIS: QR-Code auf dem Lieferschein ===
+// Der Speditionsfahrer scannt den Code beim Abladen mit dem eigenen Smartphone
+// (keine App, kein Login) und bestätigt die Lieferung mit Foto.
+export interface LiefernachweisQrOptionen {
+  /** Öffentlicher Bestätigungs-Link: <origin>/liefernachweis/<projektId>?token=<token> */
+  url: string;
+  /** true = QR-Link im Testmodus (löst keinen Statuswechsel aus) */
+  testModus?: boolean;
+}
+
 // === LIEFERSCHEIN ===
 // einfach: true = Ohne Einleitung, ohne Abdeckung/PE Folien, ohne Empfangsbestätigung (z.B. für Universal Sport)
-export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammdaten?: Stammdaten, einfach?: boolean): Promise<jsPDF> => {
+// liefernachweis: QR-Code für die digitale Lieferbestätigung durch den Fahrer (optional)
+export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammdaten?: Stammdaten, einfach?: boolean, liefernachweis?: LiefernachweisQrOptionen): Promise<jsPDF> => {
   // Lade Stammdaten falls nicht übergeben
   if (!stammdaten) {
     stammdaten = await getStammdatenOderDefault();
@@ -1827,7 +1975,61 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       doc.line(65, signY, 125, signY); // Linie für Unterschrift
     }
   }
-  
+
+  // === DIGITALER LIEFERNACHWEIS: QR-Code für den Fahrer ===
+  if (!einfach && liefernachweis?.url) {
+    const qrGroesse = 30; // mm
+    const boxHoehe = qrGroesse + 10;
+    signY += 12;
+    signY = await ensureSpace(doc, signY, boxHoehe + 5, stammdaten);
+
+    try {
+      const qrDataUrl = await QRCode.toDataURL(liefernachweis.url, {
+        margin: 1,
+        width: 300,
+        errorCorrectionLevel: 'M',
+      });
+
+      // Rahmen um den gesamten Block (gut sichtbar für den Fahrer)
+      doc.setDrawColor(60, 60, 60);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(25, signY, 160, boxHoehe, 2, 2);
+
+      // QR-Code links im Rahmen
+      doc.addImage(qrDataUrl, 'PNG', 30, signY + 5, qrGroesse, qrGroesse);
+
+      // Hinweistext rechts neben dem QR-Code
+      const textX = 30 + qrGroesse + 8;
+      let textY = signY + 12;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text(
+        liefernachweis.testModus
+          ? '[TEST] Digitale Lieferbestätigung'
+          : 'Digitale Lieferbestätigung',
+        textX,
+        textY
+      );
+      doc.setFont('helvetica', 'normal');
+      textY += 7;
+      doc.setFontSize(10);
+      doc.text('Beim Abladen scannen und Lieferung bestätigen.', textX, textY);
+      textY += 5;
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Mit dem Smartphone – keine App, keine Anmeldung nötig.', textX, textY);
+      textY += 4;
+      doc.text('1 Foto der abgeladenen Ware genügt (unter 20 Sekunden).', textX, textY);
+      doc.setTextColor(0, 0, 0);
+
+      signY += boxHoehe;
+    } catch (qrFehler) {
+      // QR-Fehler darf die Lieferschein-Erzeugung nie blockieren (Papier-Fallback)
+      console.warn('QR-Code für Liefernachweis konnte nicht erzeugt werden:', qrFehler);
+    }
+  }
+
   // === Bemerkung ===
   if (daten.bemerkung) {
     signY += 15;

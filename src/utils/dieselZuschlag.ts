@@ -1,7 +1,7 @@
 /**
  * Dieselpreiszuschlag-Berechnung
  *
- * Berechnet den Dieselpreiszuschlag gemäß AGB §5:
+ * Berechnet den Dieselpreiszuschlag gemäß AGB §4:
  * - Zuschlag auf Schüttgut-Tonnen (TM-ZM-02, TM-ZM-03) sowie
  *   Palettenware/BigBag-Tonnen (TM-ZM-02St, TM-ZM-03St, TM-ZM-02BB, TM-ZM-03BB)
  * - Formel: Math.floor((tagesDieselPreis - basisPreis) / 0.05) * 0.45 €/t

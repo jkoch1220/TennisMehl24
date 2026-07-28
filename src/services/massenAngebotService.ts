@@ -14,6 +14,7 @@
 import { ID, Query } from 'appwrite';
 import { SaisonKunde } from '../types/saisonplanung';
 import { Position, AngebotsDaten } from '../types/projektabwicklung';
+import { getKlauselVorlagen, initialisiereDokumentKlauseln } from '../constants/vertragsklauseln';
 import {
   MassenAngebotKandidat,
   KandidatenZusammenfassung,
@@ -448,6 +449,8 @@ function baueAngebotsDaten(
     firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
     firmenTelefon: stammdaten.firmenTelefon,
     firmenEmail: stammdaten.firmenEmail,
+    vertragsklauseln: initialisiereDokumentKlauseln(getKlauselVorlagen(stammdaten)),
+    agbAnhaengen: true,
   };
 }
 
