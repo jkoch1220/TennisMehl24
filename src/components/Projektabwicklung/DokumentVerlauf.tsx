@@ -67,6 +67,12 @@ const dokumentTypConfig: Record<DokumentTyp, {
     hintergrund: 'bg-blue-50',
     border: 'border-blue-200',
     label: 'Proforma'
+  },
+  liefernachweis: {
+    farbe: 'text-emerald-700',
+    hintergrund: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    label: 'Liefernachweis'
   }
 };
 

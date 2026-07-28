@@ -19,6 +19,7 @@ import {
   DebitorFilter,
   MahnEmpfehlung,
   STANDARD_ZAHLUNGSZIEL_TAGE,
+  istForderungGeschlossen,
 } from '../types/debitor';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -66,7 +67,10 @@ const parseZahlungszielTage = (zahlungsziel: string | undefined): number | null 
 
 // Helper: Lädt das neueste AKTIVE Rechnungsdokument für ein Projekt (Fallback wenn rechnungsDaten fehlt).
 // Stornierte Rechnungen werden übersprungen, damit nach Storno+Neuerstellung die aktuelle Rechnung gefunden wird.
-const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokument | null> => {
+// `nurStornierte` = es existieren Rechnungsdokumente, aber ALLE sind storniert (→ Forderung ist erloschen).
+const ladeRechnungsDokumentInfo = async (
+  projektId: string
+): Promise<{ aktiv: RechnungsDokument | null; nurStornierte: boolean }> => {
   try {
     const response = await databases.listDocuments(
       DATABASE_ID,
@@ -80,22 +84,28 @@ const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokume
     );
     const dokumente = response.documents as unknown as RechnungsDokument[];
     const aktiveRechnung = dokumente.find((doc) => doc.rechnungsStatus !== 'storniert');
-    if (aktiveRechnung) {
-      return aktiveRechnung;
-    }
-    return null;
+    return {
+      aktiv: aktiveRechnung || null,
+      nurStornierte: !aktiveRechnung && dokumente.length > 0,
+    };
   } catch (error) {
     console.error(`Fehler beim Laden des Rechnungsdokuments für Projekt ${projektId}:`, error);
-    return null;
+    return { aktiv: null, nurStornierte: false };
   }
 };
 
-// Helper: Batch-Load via einer einzigen listDocuments-Query (IN-Filter statt N Requests)
+const ladeRechnungsDokument = async (projektId: string): Promise<RechnungsDokument | null> =>
+  (await ladeRechnungsDokumentInfo(projektId)).aktiv;
+
+// Helper: Batch-Load via einer einzigen listDocuments-Query (IN-Filter statt N Requests).
+// `nurStornierte` enthält projektIds, die Rechnungsdokumente haben, aber KEIN aktives mehr
+// (alle storniert) — deren Forderung ist erloschen.
 const ladeRechnungsDokumenteFuerProjekte = async (
   projektIds: string[]
-): Promise<Map<string, RechnungsDokument>> => {
+): Promise<{ dokumente: Map<string, RechnungsDokument>; nurStornierte: Set<string> }> => {
   const dokumenteMap = new Map<string, RechnungsDokument>();
-  if (projektIds.length === 0) return dokumenteMap;
+  const nurStornierte = new Set<string>();
+  if (projektIds.length === 0) return { dokumente: dokumenteMap, nurStornierte };
 
   // Appwrite listet alle Rechnungsdokumente für ALLE projektIds in einem Query (IN-Filter).
   // Bei vielen Projekten: in Chunks à 100 IDs aufteilen, parallel laden.
@@ -133,15 +143,20 @@ const ladeRechnungsDokumenteFuerProjekte = async (
 
   // Pro projektId nur das neueste AKTIVE Dokument (Liste ist bereits nach $createdAt DESC sortiert).
   // Stornierte Rechnungen werden übersprungen, damit nach Storno+Neuerstellung die aktuelle Rechnung gefunden wird.
+  const projekteMitDokumenten = new Set<string>();
   for (const dok of alleDokumente) {
     if (!dok.projektId) continue;
+    projekteMitDokumenten.add(dok.projektId);
     if (dok.rechnungsStatus === 'storniert') continue;
     if (!dokumenteMap.has(dok.projektId)) {
       dokumenteMap.set(dok.projektId, dok);
     }
   }
+  for (const pid of projekteMitDokumenten) {
+    if (!dokumenteMap.has(pid)) nurStornierte.add(pid);
+  }
 
-  return dokumenteMap;
+  return { dokumente: dokumenteMap, nurStornierte };
 };
 
 class DebitorService {
@@ -190,7 +205,8 @@ class DebitorService {
 
       // 3: Rechnungsdokumente in Bulk-Queries laden (1-N Calls statt N)
       const alleProjektIds = projekte.map((p) => p.$id || p.id);
-      const rechnungsDokumenteMap = await ladeRechnungsDokumenteFuerProjekte(alleProjektIds);
+      const { dokumente: rechnungsDokumenteMap, nurStornierte } =
+        await ladeRechnungsDokumenteFuerProjekte(alleProjektIds);
 
       // 4: Kombiniere Projekte mit Metadaten zu DebitorViews
       const debitoren: DebitorView[] = [];
@@ -202,7 +218,12 @@ class DebitorService {
         const projektId = projekt.$id || projekt.id;
         const metadaten = metadatenMap.get(projektId) || metadatenMap.get(projekt.id) || null;
         const rechnungsDokument = rechnungsDokumenteMap.get(projektId) || null;
-        const debitorView = this.createDebitorView(projekt, metadaten, rechnungsDokument);
+        const debitorView = this.createDebitorView(
+          projekt,
+          metadaten,
+          rechnungsDokument,
+          nurStornierte.has(projektId)
+        );
 
         if (this.matchesFilter(debitorView, filter)) {
           debitoren.push(debitorView);
@@ -239,7 +260,7 @@ class DebitorService {
       // Lade Rechnungsdokument als Fallback
       // Immer das aktuelle Rechnungsdokument laden (Source of Truth) — projekt.rechnungsnummer/rechnungsDaten
       // kann nach Storno+Neuerstellung veraltet sein und auf eine stornierte Rechnung verweisen.
-      const rechnungsDokument = await ladeRechnungsDokument(projektId);
+      const { aktiv: rechnungsDokument, nurStornierte } = await ladeRechnungsDokumentInfo(projektId);
 
       // Prüfe ob Rechnungsnummer vorhanden (im Projekt oder im Dokument)
       const hatRechnungsnummer = projekt.rechnungsnummer || rechnungsDokument?.dokumentNummer;
@@ -248,7 +269,7 @@ class DebitorService {
       }
 
       const metadaten = await this.loadMetadatenFuerProjekt(projektId);
-      const view = this.createDebitorView(projekt, metadaten, rechnungsDokument);
+      const view = this.createDebitorView(projekt, metadaten, rechnungsDokument, nurStornierte);
       await this.reichereMitPlatzbauerAn([view]);
       return view;
     } catch (error) {
@@ -757,6 +778,81 @@ class DebitorService {
     }
   }
 
+  /**
+   * Schließt eine Forderung ohne Zahlung (storniert oder reklamiert).
+   * Geschlossene Forderungen zählen in keiner Offen-/Überfällig-/Mahn-Statistik mit.
+   */
+  async schliesseForderung(
+    projektId: string,
+    grund: 'storniert' | 'reklamiert',
+    notiz?: string
+  ): Promise<DebitorView> {
+    try {
+      const metadaten = await this.getOrCreateMetadaten(projektId);
+
+      const neueAktivitaet: DebitorAktivitaet = {
+        id: ID.unique(),
+        typ: 'status_aenderung',
+        titel: grund === 'storniert' ? 'Forderung geschlossen: storniert' : 'Forderung geschlossen: reklamiert',
+        beschreibung: notiz,
+        erstelltAm: new Date().toISOString(),
+      };
+
+      const aktualisiert = await this.updateMetadaten(projektId, {
+        status: grund,
+        aktivitaeten: [...(metadaten.aktivitaeten || []), neueAktivitaet],
+      });
+
+      const projekt = await projektService.getProjekt(projektId);
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
+    } catch (error) {
+      handleServiceError(error, 'Schließen der Forderung');
+    }
+  }
+
+  /**
+   * Öffnet eine geschlossene Forderung (storniert/reklamiert) wieder — der Status wird
+   * frisch aus Zahlungen, Mahnstufe und Fälligkeit berechnet.
+   */
+  async oeffneForderungWieder(projektId: string): Promise<DebitorView> {
+    try {
+      const metadaten = await this.getOrCreateMetadaten(projektId);
+      const projekt = await projektService.getProjekt(projektId);
+      const rechnungsDokument = await ladeRechnungsDokument(projektId);
+
+      // Status frisch berechnen (gleiche Kette wie in deleteZahlung)
+      const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
+      const bezahlt = (metadaten.zahlungen || []).reduce((sum, z) => sum + z.betrag, 0);
+      let neuerStatus: DebitorStatus;
+      if (rechnungsbetrag > 0 && bezahlt >= rechnungsbetrag) {
+        neuerStatus = 'bezahlt';
+      } else if (bezahlt > 0) {
+        neuerStatus = 'teilbezahlt';
+      } else if (metadaten.mahnstufe > 0) {
+        neuerStatus = 'gemahnt';
+      } else {
+        neuerStatus = this.berechneStatusAusRechnung(projekt, metadaten.zahlungszielTage, rechnungsDokument);
+      }
+
+      const neueAktivitaet: DebitorAktivitaet = {
+        id: ID.unique(),
+        typ: 'status_aenderung',
+        titel: 'Forderung wieder geöffnet',
+        erstelltAm: new Date().toISOString(),
+      };
+
+      const aktualisiert = await this.updateMetadaten(projektId, {
+        status: neuerStatus,
+        aktivitaeten: [...(metadaten.aktivitaeten || []), neueAktivitaet],
+      });
+
+      return this.createDebitorView(projekt, aktualisiert, rechnungsDokument);
+    } catch (error) {
+      handleServiceError(error, 'Wiederöffnen der Forderung');
+    }
+  }
+
   // =====================================================
   // LÖSCHEN
   // =====================================================
@@ -813,6 +909,8 @@ class DebitorService {
         ueberfaelligAnzahl: 0,
         gemahntBetrag: 0,
         gemahntAnzahl: 0,
+        geschlossenBetrag: 0,
+        geschlossenAnzahl: 0,
         nachMahnstufe: {
           0: { anzahl: 0, betrag: 0 },
           1: { anzahl: 0, betrag: 0 },
@@ -830,6 +928,14 @@ class DebitorService {
       in7Tagen.setDate(in7Tagen.getDate() + 7);
 
       for (const debitor of debitoren) {
+        // Geschlossene Forderungen (storniert/reklamiert): eigener Zähler, sonst NIRGENDS
+        // mitzählen — weder in Forderungen/Offen noch in Überfällig/Mahnstufen/Saisonjahren.
+        if (istForderungGeschlossen(debitor.status)) {
+          statistik.geschlossenAnzahl++;
+          statistik.geschlossenBetrag += debitor.rechnungsbetrag;
+          continue;
+        }
+
         statistik.gesamtForderungen += debitor.rechnungsbetrag;
 
         // Nach Saisonjahr
@@ -975,6 +1081,9 @@ class DebitorService {
    * Robust gegenüber Altdaten: Platzbauer und Verein werden BEIDE frisch aus ihren
    * SaisonKunden (platzbauerId bzw. kundeId) geladen — unabhängig davon, was historisch
    * im denormalisierten projekt.kundenname stand. Batch: lädt alle SaisonKunden parallel.
+   *
+   * WICHTIG: Views mit `empfaengerAusRechnung` zeigen bereits den Empfänger der letzten
+   * Rechnung — der wird hier NIE überschrieben (Rechnung = Source of Truth).
    */
   private async reichereMitPlatzbauerAn(views: DebitorView[]): Promise<void> {
     const platzbauerViews = views.filter((v) => this.istPlatzbauerSchuldner(v));
@@ -1009,10 +1118,29 @@ class DebitorService {
     );
 
     // 3. Views anreichern
+    const normalisiereName = (name: string | undefined): string =>
+      (name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
     for (const v of platzbauerViews) {
       const pbId = platzbauerKundeIdByView.get(v);
       const platzbauer = pbId ? kundeById.get(pbId) : undefined;
       if (!platzbauer) continue; // ohne Platzbauer-Daten lieber unverändert lassen
+
+      // Stammt der Empfänger bereits aus der letzten Rechnung, ist die Rechnung Source of Truth:
+      // Name + Rechnungsadresse bleiben unangetastet. Die Anreicherung liefert nur noch Kontext
+      // (vereinName, Badge/E-Mail-Flag) — und zwar NUR, wenn die Rechnung tatsächlich an den
+      // Platzbauer adressiert war. Ging sie an jemand anderen (z.B. direkt an den Verein),
+      // wird das Platzbauer-Flag zurückgesetzt, damit Mahn-E-Mails dem Rechnungsempfänger folgen.
+      if (v.empfaengerAusRechnung) {
+        if (normalisiereName(v.kundenname) === normalisiereName(platzbauer.name)) {
+          const verein = v.kundeId ? kundeById.get(v.kundeId) : undefined;
+          if (verein?.name) v.vereinName = verein.name;
+          v.istPlatzbauerprojekt = true;
+        } else {
+          v.istPlatzbauerprojekt = false;
+        }
+        continue;
+      }
 
       // Verein (Lieferempfänger) als Kontext — aus kundeId-SaisonKunde, sonst bisheriger Name
       const verein = v.kundeId ? kundeById.get(v.kundeId) : undefined;
@@ -1033,13 +1161,45 @@ class DebitorService {
     }
   }
 
+  /**
+   * Liest den Rechnungsempfänger (Name, Kundennummer, Rechnungsadresse) aus dem archivierten
+   * `daten`-JSON des aktiven Rechnungsdokuments. Die Rechnung ist die Source of Truth dafür,
+   * WER Schuldner der Forderung ist — unabhängig davon, was im denormalisierten Projekt
+   * (kundenname, Lieferadresse) oder in Platzbauer-Flags steht.
+   */
+  private parseRechnungsEmpfaenger(rechnungsDokument?: RechnungsDokument | null): {
+    kundenname: string;
+    kundennummer?: string;
+    kundenstrasse?: string;
+    kundenPlzOrt?: string;
+  } | null {
+    if (!rechnungsDokument?.daten) return null;
+    try {
+      const daten = JSON.parse(rechnungsDokument.daten) as Partial<VolleRechnungsDaten>;
+      const kundenname = typeof daten.kundenname === 'string' ? daten.kundenname.trim() : '';
+      if (!kundenname) return null;
+      return {
+        kundenname,
+        kundennummer: daten.kundennummer || undefined,
+        kundenstrasse: daten.kundenstrasse || undefined,
+        kundenPlzOrt: daten.kundenPlzOrt || undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private createDebitorView(
     projekt: Projekt,
     metadaten: DebitorMetadaten | null,
-    rechnungsDokument?: RechnungsDokument | null
+    rechnungsDokument?: RechnungsDokument | null,
+    nurStornierteRechnungen?: boolean
   ): DebitorView {
     // Projekt-ID kann als $id (Appwrite) oder id (intern) vorliegen
     const projektId = projekt.$id || projekt.id;
+
+    // Schuldner = Rechnungsempfänger der letzten aktiven Rechnung (sofern archiviert)
+    const empfaenger = this.parseRechnungsEmpfaenger(rechnungsDokument);
 
     // Rechnungsbetrag: Priorität = Projekt.rechnungsDaten > Rechnungsdokument
     const rechnungsbetrag = this.parseRechnungsbetrag(projekt, rechnungsDokument);
@@ -1099,38 +1259,61 @@ class DebitorService {
       zahlungszielTage
     );
 
-    const tageUeberfaellig = this.berechneTageUeberfaellig(faelligkeitsdatum);
+    let tageUeberfaellig = this.berechneTageUeberfaellig(faelligkeitsdatum);
 
     // Status berechnen
     // Sticky-Status (bleiben erhalten, bis Zahlung/Mahnung sie auflöst):
     //   - bezahlt:    Endzustand
     //   - teilbezahlt: bis vollständig bezahlt
     //   - gemahnt:    bis Zahlung oder neue Mahnstufe
+    //   - storniert / reklamiert: manuell geschlossene Forderung (bis "wieder öffnen")
     // Alle anderen (offen, faellig, ueberfaellig) werden bei jedem Laden frisch aus dem aktuellen
     // tageUeberfaellig abgeleitet — damit eingefrorene "ueberfaellig"-Werte aus alten Metadaten
     // nicht weiterleben, wenn die Rechnung gerade erst erstellt wurde.
     let status: DebitorStatus;
     if (projekt.status === 'bezahlt') {
       status = 'bezahlt';
-    } else if (metadaten && (metadaten.status === 'bezahlt' || metadaten.status === 'teilbezahlt' || metadaten.status === 'gemahnt')) {
+    } else if (nurStornierteRechnungen) {
+      // Es gibt Rechnungsdokumente, aber KEIN aktives mehr (alle storniert):
+      // Die Forderung ist erloschen — automatisch als storniert geschlossen darstellen.
+      status = 'storniert';
+    } else if (
+      metadaten &&
+      (metadaten.status === 'bezahlt' ||
+        metadaten.status === 'teilbezahlt' ||
+        metadaten.status === 'gemahnt' ||
+        metadaten.status === 'storniert' ||
+        metadaten.status === 'reklamiert')
+    ) {
       status = metadaten.status;
     } else {
       status = this.statusAusTage(tageUeberfaellig);
     }
 
+    // Geschlossene Forderungen (storniert/reklamiert) sind nie "überfällig" — sonst würden sie
+    // in Überfällig-Filtern, Mahn-Empfehlungen und der Kritisch-Sortierung wieder auftauchen.
+    if (istForderungGeschlossen(status)) {
+      tageUeberfaellig = 0;
+    }
+
     return {
       projektId: projektId,
       kundeId: projekt.kundeId,
-      kundennummer: projekt.kundennummer,
-      kundenname: projekt.kundenname,
+      kundennummer: empfaenger?.kundennummer || projekt.kundennummer,
+      kundenname: empfaenger?.kundenname || projekt.kundenname,
       kundenEmail: projekt.kundenEmail,
       rechnungsEmail: projekt.rechnungsEmail,
-      // Empfängeradresse fürs Mahn-PDF: Lieferadresse bevorzugt, sonst Kundenadresse
-      // (gleiche Logik wie in DebitorDetail beim Einzel-Mahnungsversand).
-      kundenstrasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
-      kundenPlzOrt: projekt.lieferadresse
-        ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
-        : (projekt.kundenPlzOrt || ''),
+      // Empfängeradresse für Anzeige + Mahn-PDF: Rechnungsadresse der letzten Rechnung ist
+      // Source of Truth; nur ohne archivierte Rechnung Fallback auf Liefer-/Kundenadresse.
+      kundenstrasse: empfaenger
+        ? (empfaenger.kundenstrasse || projekt.kundenstrasse || '')
+        : (projekt.lieferadresse?.strasse || projekt.kundenstrasse || ''),
+      kundenPlzOrt: empfaenger
+        ? (empfaenger.kundenPlzOrt || projekt.kundenPlzOrt || '')
+        : (projekt.lieferadresse
+            ? `${projekt.lieferadresse.plz} ${projekt.lieferadresse.ort}`.trim()
+            : (projekt.kundenPlzOrt || '')),
+      empfaengerAusRechnung: !!empfaenger,
       ansprechpartner: projekt.ansprechpartner,
       istPlatzbauerprojekt: projekt.istPlatzbauerprojekt,
       platzbauerId: projekt.platzbauerId,
@@ -1414,7 +1597,7 @@ export const debitorService = new DebitorService();
  *   - Sonst (gerade gemahnt, noch in Wartezeit): 'keine'
  */
 export function berechneMahnEmpfehlung(debitor: DebitorView): MahnEmpfehlung {
-  if (debitor.status === 'bezahlt') return 'keine';
+  if (debitor.status === 'bezahlt' || istForderungGeschlossen(debitor.status)) return 'keine';
   if (debitor.tageUeberfaellig <= 0) return 'keine';
 
   const heute = new Date();

@@ -20,6 +20,7 @@ import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
 import { LieferscheinDaten, LieferscheinPosition, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
+import { holeLiefernachweisUrlFuerProjekt } from '../../services/liefernachweisService';
 import jsPDF from 'jspdf';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import {
@@ -631,8 +632,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
         return;
       }
 
-      // PDF generieren
-      const pdf = await generiereLieferscheinPDF(lieferscheinDaten);
+      // PDF generieren (mit QR-Code für den digitalen Liefernachweis, sofern Projekt vorhanden)
+      const liefernachweisUrl = projekt?.$id
+        ? await holeLiefernachweisUrlFuerProjekt(projekt.$id)
+        : null;
+      const pdf = await generiereLieferscheinPDF(
+        lieferscheinDaten,
+        undefined,
+        undefined,
+        liefernachweisUrl ? { url: liefernachweisUrl } : undefined
+      );
       setEmailPdf(pdf);
       setShowEmailFormular(true);
     } catch (error) {

@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Save, Calendar, Info, RefreshCw } from 'lucide-react';
-import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
+import { Save, Calendar, Info, RefreshCw, Percent } from 'lucide-react';
+import {
+  ladeStammdaten,
+  speichereStammdaten,
+  SAISON_PREISANPASSUNG_PROZENT_DEFAULT,
+  HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT,
+} from '../../services/stammdatenService';
 import { berechneAktuelleSaison, getAktuelleSaison } from '../../services/nummerierungService';
 
 const MONATE = [
@@ -18,6 +23,12 @@ const MONATE = [
   { value: 12, label: 'Dezember' },
 ];
 
+/** Parst eine Prozent-Eingabe; leer/ungültig → Fallback (pure Funktion) */
+const parseProzent = (wert: string, fallback: number): number => {
+  const zahl = wert.trim() === '' ? NaN : Number(wert);
+  return Number.isFinite(zahl) ? zahl : fallback;
+};
+
 const SaisonEinstellungenTab = () => {
   const [loading, setLoading] = useState(true);
   const [speichert, setSpeichert] = useState(false);
@@ -33,6 +44,9 @@ const SaisonEinstellungenTab = () => {
     liefersaisonStartKW: '' as string | number,
     liefersaisonEndKW: '' as string | number,
     liefersaisonJahr: '' as string | number,
+    // Preis-Konfiguration
+    saisonPreisanpassungProzent: String(SAISON_PREISANPASSUNG_PROZENT_DEFAULT),
+    halbePaletteAufschlagProzent: String(HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT),
   });
 
   useEffect(() => {
@@ -57,6 +71,13 @@ const SaisonEinstellungenTab = () => {
           liefersaisonStartKW: stammdaten.liefersaisonStartKW || '',
           liefersaisonEndKW: stammdaten.liefersaisonEndKW || '',
           liefersaisonJahr: stammdaten.liefersaisonJahr || '',
+          // Preis-Konfiguration (Fallback auf Defaults)
+          saisonPreisanpassungProzent: String(
+            stammdaten.saisonPreisanpassungProzent ?? SAISON_PREISANPASSUNG_PROZENT_DEFAULT
+          ),
+          halbePaletteAufschlagProzent: String(
+            stammdaten.halbePaletteAufschlagProzent ?? HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT
+          ),
         });
       }
 
@@ -103,6 +124,16 @@ const SaisonEinstellungenTab = () => {
         if (formData.liefersaisonJahr) {
           updateData.liefersaisonJahr = Number(formData.liefersaisonJahr);
         }
+
+        // Preis-Konfiguration: leere/ungültige Eingaben fallen auf die Defaults zurück
+        updateData.saisonPreisanpassungProzent = parseProzent(
+          formData.saisonPreisanpassungProzent,
+          SAISON_PREISANPASSUNG_PROZENT_DEFAULT
+        );
+        updateData.halbePaletteAufschlagProzent = parseProzent(
+          formData.halbePaletteAufschlagProzent,
+          HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT
+        );
 
         await speichereStammdaten(updateData as any);
         setErfolg(true);
@@ -365,6 +396,68 @@ const SaisonEinstellungenTab = () => {
               placeholder="z.B. 16"
               className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Preis-Konfiguration */}
+      <div className="bg-white dark:bg-dark-surface rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Percent className="w-6 h-6 text-purple-600" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text">Preis-Konfiguration</h3>
+        </div>
+
+        {/* Info-Box */}
+        <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-purple-800 dark:text-purple-300">
+              <p className="font-medium mb-1">Zentrale Preis-Parameter — jederzeit (auch unterjährig) änderbar.</p>
+              <p className="text-purple-700 dark:text-purple-400">
+                Änderungen wirken ausschließlich auf <strong>neu erzeugte</strong> Angebote und Kalkulationen —
+                bereits erstellte Dokumente werden nie rückwirkend angepasst.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Saison-Preisanpassung */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Saison-Preisanpassung (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.saisonPreisanpassungProzent}
+              onChange={(e) => setFormData(prev => ({ ...prev, saisonPreisanpassungProzent: e.target.value }))}
+              placeholder={`z.B. ${SAISON_PREISANPASSUNG_PROZENT_DEFAULT}`}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+              Globale Preisanpassung auf die Vorjahrespreise für neue Saison-Angebote
+              (Massen-Angebots-Tool). Wirkt nur auf neu erzeugte Angebote, nie rückwirkend.
+            </p>
+          </div>
+
+          {/* Halbe-Paletten-Aufschlag */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+              Aufschlag angebrochene (halbe) Paletten (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              value={formData.halbePaletteAufschlagProzent}
+              onChange={(e) => setFormData(prev => ({ ...prev, halbePaletteAufschlagProzent: e.target.value }))}
+              placeholder={`z.B. ${HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT}`}
+              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
+            />
+            <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+              Aufschlag für angebrochene (halbe) Paletten (wird ab dem Paletten-Modul in der
+              Kalkulation verwendet). Unterjährig änderbar, gilt nur für neue Kalkulationen.
+            </p>
           </div>
         </div>
       </div>

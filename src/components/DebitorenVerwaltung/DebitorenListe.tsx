@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, ExternalLink, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL } from '../../types/debitor';
+import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL, istForderungGeschlossen } from '../../types/debitor';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
@@ -69,7 +69,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
 
   // Selektierbare Debitoren (nicht bezahlt)
   const auswaehlbareIds = useMemo(
-    () => sortedDebitoren.filter((d) => d.status !== 'bezahlt').map((d) => d.projektId),
+    () => sortedDebitoren.filter((d) => d.status !== 'bezahlt' && !istForderungGeschlossen(d.status)).map((d) => d.projektId),
     [sortedDebitoren]
   );
 
@@ -223,7 +223,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
           <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
             {sortedDebitoren.map((debitor) => {
               const istAusgewaehlt = selectedIds.has(debitor.projektId);
-              const istSelektierbar = debitor.status !== 'bezahlt';
+              const istSelektierbar = debitor.status !== 'bezahlt' && !istForderungGeschlossen(debitor.status);
               return (
                 <tr
                   key={debitor.projektId}
@@ -314,7 +314,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                   </td>
                   <td className="px-4 py-4">
                     <div className="flex items-center gap-1">
-                      {onMarkPaid && debitor.status !== 'bezahlt' && (
+                      {onMarkPaid && debitor.status !== 'bezahlt' && !istForderungGeschlossen(debitor.status) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -353,7 +353,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
       <div className="lg:hidden divide-y divide-gray-200 dark:divide-slate-700">
         {sortedDebitoren.map((debitor) => {
           const istAusgewaehlt = selectedIds.has(debitor.projektId);
-          const istSelektierbar = debitor.status !== 'bezahlt';
+          const istSelektierbar = debitor.status !== 'bezahlt' && !istForderungGeschlossen(debitor.status);
           return (
             <div
               key={debitor.projektId}
@@ -410,7 +410,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                 </div>
               )}
 
-              {onMarkPaid && debitor.status !== 'bezahlt' && (
+              {onMarkPaid && debitor.status !== 'bezahlt' && !istForderungGeschlossen(debitor.status) && (
                 <div className="mt-3">
                   <button
                     onClick={(e) => {

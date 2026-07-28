@@ -19,6 +19,9 @@ import {
   Download,
   Eye,
   RefreshCw,
+  XCircle,
+  AlertOctagon,
+  RotateCcw,
 } from 'lucide-react';
 import {
   DebitorView,
@@ -26,6 +29,7 @@ import {
   DebitorAktivitaetsTyp,
   DEBITOR_STATUS_CONFIG,
   MAHNSTUFEN_CONFIG,
+  istForderungGeschlossen,
 } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import {
@@ -100,23 +104,32 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
         console.error('Fehler beim Laden des Rechnungs-Verlaufs:', error);
       }
 
-      // Lade Kundenadresse aus dem Projekt
-      try {
-        const projekt = await projektService.getProjekt(debitor.projektId);
-        if (projekt) {
-          // Nutze Lieferadresse wenn vorhanden, sonst Kundenadresse
-          const lieferAdresse = projekt.lieferadresse;
-          setKundenAdresse({
-            strasse: lieferAdresse?.strasse || projekt.kundenstrasse || '',
-            plzOrt: lieferAdresse ? `${lieferAdresse.plz} ${lieferAdresse.ort}` : (projekt.kundenPlzOrt || ''),
-          });
+      // Empfängeradresse für Mahn-PDFs: Die DebitorView trägt bereits die Rechnungsadresse
+      // der letzten Rechnung (bzw. Platzbauer-Adresse) — die ist Source of Truth.
+      if (debitor.kundenstrasse || debitor.kundenPlzOrt) {
+        setKundenAdresse({
+          strasse: debitor.kundenstrasse || '',
+          plzOrt: debitor.kundenPlzOrt || '',
+        });
+      } else {
+        // Fallback ohne archivierte Rechnung: Adresse aus dem Projekt laden
+        try {
+          const projekt = await projektService.getProjekt(debitor.projektId);
+          if (projekt) {
+            // Nutze Lieferadresse wenn vorhanden, sonst Kundenadresse
+            const lieferAdresse = projekt.lieferadresse;
+            setKundenAdresse({
+              strasse: lieferAdresse?.strasse || projekt.kundenstrasse || '',
+              plzOrt: lieferAdresse ? `${lieferAdresse.plz} ${lieferAdresse.ort}` : (projekt.kundenPlzOrt || ''),
+            });
+          }
+        } catch (error) {
+          console.error('Fehler beim Laden der Projektdaten:', error);
         }
-      } catch (error) {
-        console.error('Fehler beim Laden der Projektdaten:', error);
       }
     };
     loadData();
-  }, [debitor.projektId]);
+  }, [debitor.projektId, debitor.kundenstrasse, debitor.kundenPlzOrt]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -235,6 +248,44 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
       alert('Fehler beim Markieren als bezahlt');
       // Bei Fehler: richtigen Zustand vom Server holen
       onUpdate();
+    }
+  };
+
+  // Forderung ohne Zahlung schließen (storniert/reklamiert) — zählt danach nicht mehr als offen
+  const handleSchliesseForderung = async (grund: 'storniert' | 'reklamiert') => {
+    const label = grund === 'storniert' ? 'storniert' : 'reklamiert';
+    const notiz = prompt(
+      `Forderung als ${label} schließen — sie zählt dann NICHT mehr als offene Forderung.\n\nGrund/Notiz (optional):`
+    );
+    if (notiz === null) return; // Abbrechen gedrückt
+
+    setLoading(true);
+    try {
+      await debitorService.schliesseForderung(debitor.projektId, grund, notiz || undefined);
+      onUpdate();
+    } catch (error) {
+      console.error('Fehler beim Schließen der Forderung:', error);
+      alert('Fehler beim Schließen der Forderung');
+      onUpdate();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Geschlossene Forderung wieder öffnen (Status wird frisch berechnet)
+  const handleOeffneForderung = async () => {
+    if (!confirm('Forderung wieder öffnen? Sie zählt dann wieder als offene Forderung.')) return;
+
+    setLoading(true);
+    try {
+      await debitorService.oeffneForderungWieder(debitor.projektId);
+      onUpdate();
+    } catch (error) {
+      console.error('Fehler beim Wiederöffnen der Forderung:', error);
+      alert('Fehler beim Wiederöffnen der Forderung');
+      onUpdate();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -986,7 +1037,7 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
               {/* Aktionen */}
               <div className="flex flex-wrap gap-2">
-                {debitor.status !== 'bezahlt' && (
+                {debitor.status !== 'bezahlt' && !istForderungGeschlossen(debitor.status) && (
                   <>
                     <button
                       onClick={handleMarkiereAlsBezahlt}
@@ -996,7 +1047,36 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                       <CheckCircle className="w-4 h-4" />
                       Als bezahlt markieren
                     </button>
+                    <button
+                      onClick={() => handleSchliesseForderung('storniert')}
+                      disabled={loading}
+                      title="Forderung schließen: Rechnung wurde storniert — zählt nicht mehr als offen"
+                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Storniert
+                    </button>
+                    <button
+                      onClick={() => handleSchliesseForderung('reklamiert')}
+                      disabled={loading}
+                      title="Forderung schließen: Kunde hat reklamiert — zählt nicht mehr als offen"
+                      className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      <AlertOctagon className="w-4 h-4" />
+                      Reklamiert
+                    </button>
                   </>
+                )}
+                {istForderungGeschlossen(debitor.status) && (
+                  <button
+                    onClick={handleOeffneForderung}
+                    disabled={loading}
+                    title="Geschlossene Forderung wieder als offen führen"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Forderung wieder öffnen
+                  </button>
                 )}
               </div>
             </div>

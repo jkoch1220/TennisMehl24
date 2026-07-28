@@ -7,7 +7,16 @@ export type DebitorStatus =
   | 'ueberfaellig'    // > 14 Tage nach Fälligkeit
   | 'gemahnt'         // Mindestens eine Mahnung versendet
   | 'teilbezahlt'     // Teilzahlung eingegangen
-  | 'bezahlt';        // Vollständig bezahlt
+  | 'bezahlt'         // Vollständig bezahlt
+  | 'reklamiert'      // Geschlossen: Forderung reklamiert/strittig — zählt NICHT als offen
+  | 'storniert';      // Geschlossen: Rechnung storniert — zählt NICHT als offen
+
+/**
+ * Geschlossene Forderungen (storniert/reklamiert): nicht bezahlt, aber aus den offenen
+ * Forderungen herausgenommen — zählen in keiner Offen-/Überfällig-/Mahn-Statistik mit.
+ */
+export const istForderungGeschlossen = (status: DebitorStatus): boolean =>
+  status === 'storniert' || status === 'reklamiert';
 
 // Mahnstufe (0-4)
 export type DebitorMahnstufe = 0 | 1 | 2 | 3 | 4;
@@ -114,9 +123,15 @@ export interface DebitorView {
   kundenEmail?: string;
   /** Abweichende Rechnungs-/Buchhaltungs-Adresse (Vorrang vor kundenEmail beim Mahn-/Rechnungsversand) */
   rechnungsEmail?: string;
-  /** Empfängeradresse für Mahn-PDFs (Liefer- bzw. Kundenadresse) */
+  /** Empfängeradresse für Anzeige/Mahn-PDFs (Rechnungsadresse der letzten Rechnung, sonst Liefer-/Kundenadresse) */
   kundenstrasse?: string;
   kundenPlzOrt?: string;
+  /**
+   * true = kundenname/kundenstrasse/kundenPlzOrt stammen aus dem archivierten Rechnungsdokument
+   * (Rechnungsempfänger der letzten aktiven Rechnung). Die Rechnung ist dann Source of Truth für
+   * den Schuldner und darf nicht mehr aus Projekt-Flags/Stammdaten überschrieben werden.
+   */
+  empfaengerAusRechnung?: boolean;
   ansprechpartner?: string;
   /** Platzbauer-Projekt: Rechnung/Mahnung geht an den Platzbauer, NICHT an den Verein (kundeId) */
   istPlatzbauerprojekt?: boolean;
@@ -179,6 +194,10 @@ export interface DebitorenStatistik {
   gemahntBetrag: number;
   gemahntAnzahl: number;
 
+  // Geschlossene Forderungen (storniert/reklamiert) — komplett aus allen anderen Summen ausgenommen
+  geschlossenBetrag: number;
+  geschlossenAnzahl: number;
+
   // Aufschlüsselung
   nachMahnstufe: Record<DebitorMahnstufe, { anzahl: number; betrag: number }>;
   nachSaisonjahr: Record<number, { anzahl: number; betrag: number }>;
@@ -233,6 +252,8 @@ export const DEBITOR_STATUS_CONFIG: Record<DebitorStatus, { label: string; color
   gemahnt: { label: 'Gemahnt', color: 'text-orange-600', bgColor: 'bg-orange-100', icon: 'Mail' },
   teilbezahlt: { label: 'Teilbezahlt', color: 'text-purple-600', bgColor: 'bg-purple-100', icon: 'CreditCard' },
   bezahlt: { label: 'Bezahlt', color: 'text-green-600', bgColor: 'bg-green-100', icon: 'CheckCircle' },
+  reklamiert: { label: 'Reklamiert', color: 'text-pink-600', bgColor: 'bg-pink-100', icon: 'AlertOctagon' },
+  storniert: { label: 'Storniert', color: 'text-gray-500', bgColor: 'bg-gray-200', icon: 'XCircle' },
 };
 
 // Standard-Zahlungsziel in Tagen

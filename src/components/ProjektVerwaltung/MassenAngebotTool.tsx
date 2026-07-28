@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { massenAngebotService } from '../../services/massenAngebotService';
+import { getPreisKonfiguration } from '../../services/stammdatenService';
 import {
   MassenAngebotKandidat,
   AngebotsQuelle,
@@ -155,6 +156,27 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
   const [anpassungsTyp, setAnpassungsTyp] = useState<'prozent' | 'fix'>('prozent');
   const [anpassungsWert, setAnpassungsWert] = useState('');
+  // Vorbelegung aus den Stammdaten (zentrale Preis-Konfiguration); pro Lauf überschreibbar.
+  const [stammdatenPreisanpassung, setStammdatenPreisanpassung] = useState<number | null>(null);
+
+  // Globale Preisanpassung aus den Stammdaten vorbelegen (nur solange der Nutzer
+  // noch nichts eingegeben hat — der Wert bleibt pro Lauf frei überschreibbar).
+  useEffect(() => {
+    let aktiv = true;
+    void (async () => {
+      try {
+        const { saisonPreisanpassungProzent } = await getPreisKonfiguration();
+        if (!aktiv) return;
+        setStammdatenPreisanpassung(saisonPreisanpassungProzent);
+        setAnpassungsWert((prev) => (prev === '' ? String(saisonPreisanpassungProzent) : prev));
+      } catch (error) {
+        console.warn('Preis-Konfiguration konnte nicht geladen werden:', error);
+      }
+    })();
+    return () => {
+      aktiv = false;
+    };
+  }, []);
 
   const [limit, setLimit] = useState('');
   const [erzeugeBestaetigung, setErzeugeBestaetigung] = useState(false);
@@ -471,6 +493,16 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
               >
                 Anwenden
               </button>
+              {stammdatenPreisanpassung !== null && (
+                <span
+                  className="text-xs text-gray-500 dark:text-slate-400 inline-flex items-center gap-1"
+                  title="Zentrale Preis-Konfiguration: Stammdaten → Saison-Einstellungen → Preis-Konfiguration. Pro Lauf überschreibbar."
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  Vorbelegt aus Stammdaten: {stammdatenPreisanpassung >= 0 ? '+' : ''}
+                  {stammdatenPreisanpassung.toLocaleString('de-DE')} %
+                </span>
+              )}
 
               {/* Filter */}
               <div className="ml-auto flex items-center gap-2">

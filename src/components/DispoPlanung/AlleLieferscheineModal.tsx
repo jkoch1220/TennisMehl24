@@ -34,6 +34,7 @@ import { Tour } from '../../types/tour';
 import { Projekt } from '../../types/projekt';
 import { LieferscheinDaten, LieferscheinPosition, Position } from '../../types/projektabwicklung';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
+import { holeLiefernachweisUrlFuerProjekt } from '../../services/liefernachweisService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { projektService } from '../../services/projektService';
 import {
@@ -418,10 +419,25 @@ const AlleLieferscheineModal = ({
       // Lade Stammdaten einmal
       const stammdaten = await getStammdatenOderDefault();
 
+      // Digitaler Liefernachweis: QR-Token pro Projekt sichern (sequenziell, um
+      // parallele updateProjekt-Aufrufe auf dasselbe Projekt zu vermeiden)
+      const liefernachweisUrls = new Map<string, string>();
+      for (const ls of ausgewaehlteLieferscheine) {
+        if (liefernachweisUrls.has(ls.projektId)) continue;
+        const url = await holeLiefernachweisUrlFuerProjekt(ls.projektId);
+        if (url) liefernachweisUrls.set(ls.projektId, url);
+      }
+
       // Generiere alle PDFs parallel
-      const pdfPromises = ausgewaehlteLieferscheine.map(ls =>
-        generiereLieferscheinPDF(erstelleLieferscheinDaten(ls, stammdaten), stammdaten)
-      );
+      const pdfPromises = ausgewaehlteLieferscheine.map(ls => {
+        const url = liefernachweisUrls.get(ls.projektId);
+        return generiereLieferscheinPDF(
+          erstelleLieferscheinDaten(ls, stammdaten),
+          stammdaten,
+          undefined,
+          url ? { url } : undefined
+        );
+      });
 
       const jsPdfs = await Promise.all(pdfPromises);
 

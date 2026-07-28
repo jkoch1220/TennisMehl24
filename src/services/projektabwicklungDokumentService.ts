@@ -24,6 +24,7 @@ import {
 import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart, Wochentag } from '../types/projekt';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
+import { holeLiefernachweisUrlFuerProjekt } from './liefernachweisService';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import { saisonplanungService } from './saisonplanungService';
 import { debitorService } from './debitorService';
@@ -42,6 +43,7 @@ const DOKUMENT_TYP_LABELS: Record<string, string> = {
   rechnung: 'Rechnung',
   proformarechnung: 'Proforma-Rechnung',
   stornorechnung: 'Storno-Rechnung',
+  liefernachweis: 'Liefernachweis',
 };
 
 const erstelleDokumentEintragMitAudit = async (payload: Record<string, unknown>) => {
@@ -387,10 +389,18 @@ export const aktualisiereAngebot = async (
 };
 
 // === AUFTRAGSBESTÄTIGUNG ===
+/**
+ * Speichert die Auftragsbestätigung (PDF + Dokument-Eintrag) und aktualisiert die
+ * Projekt-Metadaten (AB-Nummer/-Datum, Dispo-Felder, AB-Daten-JSON).
+ *
+ * STATUSWAHRHEIT: Das Speichern ändert den Projekt-Status NICHT mehr.
+ * Der Wechsel auf 'lieferschein' passiert erst beim erfolgreichen E-Mail-Versand
+ * der AB (siehe markiereAuftragsbestaetigungVersendet) — oder manuell per
+ * Kanban-Drag (Telefon-/Post-Fälle).
+ */
 export const speichereAuftragsbestaetigung = async (
   projektId: string,
-  daten: AuftragsbestaetigungsDaten,
-  optionen?: { ohneStatusAenderung?: boolean }
+  daten: AuftragsbestaetigungsDaten
 ): Promise<GespeichertesDokument> => {
   try {
     // Prüfen ob bereits ABs existieren (für Versionierung)
@@ -434,76 +444,48 @@ export const speichereAuftragsbestaetigung = async (
     );
     console.log(`✅ AB-Version ${neueVersion} erstellt:`, dokument.$id, `projektId: ${projektId}`);
 
-    // STATUS-WECHSEL: Projekt auf "lieferschein" setzen (nur wenn nicht explizit deaktiviert)
-    // und dispoStatus auf "offen" damit es in der Dispo erscheint
-    if (!optionen?.ohneStatusAenderung) {
-      try {
-        // Lieferzeitfenster nur setzen wenn beide Werte vorhanden
-        const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
-          ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
-          : undefined;
+    // METADATEN aktualisieren — OHNE Statuswechsel (Statuswahrheit: erst beim Versand).
+    // Die Dispo-relevanten Felder werden bereits jetzt am Projekt hinterlegt, damit
+    // sie beim späteren Statuswechsel (Versand oder Kanban-Drag) sofort verfügbar sind.
+    try {
+      // Lieferzeitfenster nur setzen wenn beide Werte vorhanden
+      const lieferzeitfenster = (daten.lieferzeitVon && daten.lieferzeitBis)
+        ? { von: daten.lieferzeitVon, bis: daten.lieferzeitBis }
+        : undefined;
 
-        await projektService.updateProjekt(projektId, {
-          status: 'lieferschein',
-          dispoStatus: 'offen' as DispoStatus,
-          auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
-          auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
-          // Lieferdatum aus AB übernehmen wenn vorhanden
-          geplantesDatum: daten.lieferdatum || undefined,
-          // Lieferdatum-Typ (fix, spätestens oder spätestens KW)
-          lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
-          // KW-Felder für spätestens-KW-Modus
-          lieferKW: daten.lieferKW || undefined,
-          lieferKWJahr: daten.lieferKWJahr || undefined,
-          // Bevorzugter Wochentag
-          bevorzugterTag: daten.bevorzugterTag || undefined,
-          // Lieferzeitfenster aus AB übernehmen wenn vorhanden
-          lieferzeitfenster: lieferzeitfenster,
-          // Belieferungsart aus AB übernehmen
-          belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
-          // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
-          liefergewicht: daten.positionen?.reduce((sum, p) => {
-            const einheit = p.einheit?.toLowerCase() || '';
-            if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
-              return sum + (p.menge || 0);
-            }
-            return sum;
-          }, 0) || undefined,
-          // DISPO-Ansprechpartner aus AB übernehmen
-          dispoAnsprechpartner: daten.dispoAnsprechpartner?.name ? daten.dispoAnsprechpartner : undefined,
-          // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
-          // Der dispoMaterialParser liest projekt.auftragsbestaetigungsDaten um die Artikelpositionen zu analysieren
-          auftragsbestaetigungsDaten: JSON.stringify(daten),
-        });
-        console.log('✅ Projekt-Status auf "lieferschein" gesetzt, erscheint nun in Dispo');
-        if (daten.lieferdatum) {
-          console.log(`✅ Lieferdatum ${daten.lieferdatum} (${daten.lieferdatumTyp || 'fix'}) für Dispo übernommen`);
-        }
-        if (lieferzeitfenster) {
-          console.log(`✅ Lieferzeitfenster ${lieferzeitfenster.von}-${lieferzeitfenster.bis} für Dispo übernommen`);
-        }
-        if (daten.belieferungsart) {
-          console.log(`✅ Belieferungsart ${daten.belieferungsart} für Dispo übernommen`);
-        }
-        if (daten.dispoAnsprechpartner?.name) {
-          console.log(`✅ DISPO-Ansprechpartner ${daten.dispoAnsprechpartner.name} für Dispo übernommen`);
-        }
-      } catch (statusError) {
-        console.error('⚠️ Fehler beim Status-Wechsel (AB wurde trotzdem gespeichert):', statusError);
-      }
-    } else {
-      console.log('ℹ️ Status-Änderung übersprungen (ohneStatusAenderung=true)');
-      // Nur Metadaten aktualisieren, aber Status beibehalten
-      try {
-        await projektService.updateProjekt(projektId, {
-          auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
-          auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
-          // WICHTIG: AB-Daten JSON auch hier speichern (für Dispo-Planung!)
-          auftragsbestaetigungsDaten: JSON.stringify(daten),
-        });
-      } catch (updateError) {
-        console.error('⚠️ Fehler beim Aktualisieren der Metadaten:', updateError);
-      }
+      await projektService.updateProjekt(projektId, {
+        auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
+        auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
+        // Lieferdatum aus AB übernehmen wenn vorhanden
+        geplantesDatum: daten.lieferdatum || undefined,
+        // Lieferdatum-Typ (fix, spätestens oder spätestens KW)
+        lieferdatumTyp: (daten.lieferdatumTyp as LieferdatumTyp) || 'fix',
+        // KW-Felder für spätestens-KW-Modus
+        lieferKW: daten.lieferKW || undefined,
+        lieferKWJahr: daten.lieferKWJahr || undefined,
+        // Bevorzugter Wochentag
+        bevorzugterTag: daten.bevorzugterTag || undefined,
+        // Lieferzeitfenster aus AB übernehmen wenn vorhanden
+        lieferzeitfenster: lieferzeitfenster,
+        // Belieferungsart aus AB übernehmen
+        belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
+        // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
+        liefergewicht: daten.positionen?.reduce((sum, p) => {
+          const einheit = p.einheit?.toLowerCase() || '';
+          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
+            return sum + (p.menge || 0);
+          }
+          return sum;
+        }, 0) || undefined,
+        // DISPO-Ansprechpartner aus AB übernehmen
+        dispoAnsprechpartner: daten.dispoAnsprechpartner?.name ? daten.dispoAnsprechpartner : undefined,
+        // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
+        // Der dispoMaterialParser liest projekt.auftragsbestaetigungsDaten um die Artikelpositionen zu analysieren
+        auftragsbestaetigungsDaten: JSON.stringify(daten),
+      });
+      console.log('✅ AB-Metadaten am Projekt gespeichert (Status unverändert — wechselt erst beim Versand)');
+    } catch (updateError) {
+      console.error('⚠️ Fehler beim Aktualisieren der Projekt-Metadaten (AB wurde trotzdem gespeichert):', updateError);
     }
 
     return dokument as unknown as GespeichertesDokument;
@@ -511,6 +493,38 @@ export const speichereAuftragsbestaetigung = async (
     console.error('Fehler beim Speichern der Auftragsbestätigung:', error);
     throw error;
   }
+};
+
+/** Projekt-Status, aus denen der AB-Versand auf 'lieferschein' weiterschaltet. */
+const AB_VERSAND_VORSTATUS: ReadonlySet<Projekt['status']> = new Set([
+  'angebot',
+  'angebot_versendet',
+  'auftragsbestaetigung',
+]);
+
+/**
+ * Markiert die Auftragsbestätigung als per E-Mail versendet (Statuswahrheit).
+ *
+ * - Setzt IMMER den Zeitstempel `abVersendetAm` (letzter Versand, analog rechnungVersendetAm).
+ * - Setzt den Projekt-Status auf 'lieferschein' + dispoStatus 'offen' (→ erscheint in der
+ *   Dispo), aber nur wenn das Projekt noch nicht weiter ist (kein Downgrade bei erneutem Versand).
+ *
+ * Darf NUR nach erfolgreichem Echt-Versand aufgerufen werden — Testmodus-Versand
+ * löst weder Statuswechsel noch Zeitstempel aus (Aufrufer prüft testModus).
+ */
+export const markiereAuftragsbestaetigungVersendet = async (projektId: string): Promise<Projekt> => {
+  const projekt = await projektService.getProjekt(projektId);
+  const updates: Partial<Projekt> = { abVersendetAm: new Date().toISOString() };
+
+  if (AB_VERSAND_VORSTATUS.has(projekt.status)) {
+    updates.status = 'lieferschein';
+    updates.dispoStatus = 'offen' as DispoStatus;
+    console.log('✅ AB versendet → Projekt-Status auf "lieferschein" gesetzt, erscheint nun in Dispo');
+  } else {
+    console.log(`ℹ️ AB erneut versendet — Status "${projekt.status}" bleibt unverändert, nur abVersendetAm aktualisiert`);
+  }
+
+  return projektService.updateProjekt(projektId, updates);
 };
 
 export const aktualisiereAuftragsbestaetigung = async (
@@ -615,8 +629,16 @@ export const speichereLieferschein = async (
     const bestehendeLieferscheine = await ladeDokumenteNachTyp(projektId, 'lieferschein');
     const neueVersion = bestehendeLieferscheine.length + 1;
 
-    // PDF generieren
-    const pdf = await generiereLieferscheinPDF(daten);
+    // Digitaler Liefernachweis: Token sichern (persistiert im Projekt-data-JSON) und QR-URL bauen
+    const liefernachweisUrl = await holeLiefernachweisUrlFuerProjekt(projektId);
+
+    // PDF generieren (mit QR-Code für die Fahrer-Bestätigung, sofern Token verfügbar)
+    const pdf = await generiereLieferscheinPDF(
+      daten,
+      undefined,
+      undefined,
+      liefernachweisUrl ? { url: liefernachweisUrl } : undefined
+    );
     const blob = pdfToBlob(pdf);
     const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion, daten.lieferadresseName);
 
@@ -707,8 +729,20 @@ export const aktualisereLieferschein = async (
 
     const neueVersion = alteVersion + 1;
 
-    // Neues PDF generieren
-    const pdf = await generiereLieferscheinPDF(daten);
+    // Lade projektId vom alten Dokument (vor der PDF-Erzeugung, für den QR-Code)
+    const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
+    const projektId = altesDokument.projektId as string;
+
+    // Digitaler Liefernachweis: Token sichern und QR-URL bauen
+    const liefernachweisUrl = await holeLiefernachweisUrlFuerProjekt(projektId);
+
+    // Neues PDF generieren (mit QR-Code für die Fahrer-Bestätigung)
+    const pdf = await generiereLieferscheinPDF(
+      daten,
+      undefined,
+      undefined,
+      liefernachweisUrl ? { url: liefernachweisUrl } : undefined
+    );
     const blob = pdfToBlob(pdf);
     const dateiname = generiereLesDatname('Lieferschein', daten.kundenname, daten.lieferdatum, neueVersion, daten.lieferadresseName);
 
@@ -719,10 +753,6 @@ export const aktualisereLieferschein = async (
       ID.unique(),
       file
     );
-
-    // Lade projektId vom alten Dokument
-    const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
-    const projektId = altesDokument.projektId as string;
 
     // NEUES Dokument erstellen (ohne version-Attribut für Kompatibilität)
     const dokument = await erstelleDokumentEintragMitAudit(

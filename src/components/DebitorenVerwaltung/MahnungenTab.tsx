@@ -18,6 +18,7 @@ import {
   MahnEmpfehlung,
   MAHNSTUFEN_CONFIG,
   MAHN_EMPFEHLUNG_LABEL,
+  istForderungGeschlossen,
 } from '../../types/debitor';
 import { MahnwesenDokumentTyp, MahnwesenTextVorlagen } from '../../types/mahnwesen';
 import { TEST_EMAIL_ADDRESS } from '../../types/email';
@@ -129,7 +130,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
     return vorlagenRef.current;
   };
 
-  const offene = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt'), [debitoren]);
+  const offene = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt' && !istForderungGeschlossen(d.status)), [debitoren]);
 
   // Fällige Mahnschritte (inkl. Inkasso-Hinweis). Heute bereits versendete werden
   // NICHT mehr gelistet — sie stehen im Tab "Versendete Mahnungen". Doppelversand bleibt

@@ -54,6 +54,20 @@ export interface ProjektAnhang {
   groesse: number; // Bytes
 }
 
+// Referenzen des digitalen Liefernachweises (QR-Scan durch den Fahrer)
+export interface LiefernachweisInfo {
+  /** Datei-ID des Pflichtfotos im Bucket liefernachweis-dateien */
+  fotoDateiId?: string;
+  /** Datei-ID der optionalen Unterschrift (PNG) im Bucket liefernachweis-dateien */
+  unterschriftDateiId?: string;
+  /** Name des Unterzeichners (optional, bei Schüttgut oft niemand vor Ort) */
+  unterzeichnerName?: string;
+  /** GPS-Position beim Bestätigen (nur nach Browser-Freigabe) */
+  geo?: { lat: number; lng: number };
+  /** $id des archivierten Liefernachweis-Dokuments in bestellabwicklung_dokumente */
+  dokumentId?: string;
+}
+
 // Dispo-Notiz für interne Kommunikation
 export interface DispoNotiz {
   id: string;
@@ -96,11 +110,25 @@ export interface Projekt {
   auftragsbestaetigungId?: string;
   auftragsbestaetigungsnummer?: string;
   auftragsbestaetigungsdatum?: string;
+  /** ISO-Datum, wann die Auftragsbestätigung per E-Mail an den Kunden versendet wurde (letzter Versand) */
+  abVersendetAm?: string;
   
   lieferscheinId?: string;
   lieferscheinnummer?: string;
   lieferdatum?: string;
-  
+
+  // === DIGITALER LIEFERNACHWEIS (QR auf dem Lieferschein) ===
+  // Alle Felder liegen NUR im data-JSON des Projekts (Muster abVersendetAm) — keine Appwrite-Spalten.
+  /** Zufälliges, nicht erratbares Token für den öffentlichen QR-Link /liefernachweis/:projektId?token=... */
+  liefernachweisToken?: string;
+  /** ISO-Datum der Token-Erzeugung (Ablauf nach 30 Tagen, Prüfung in der Netlify Function) */
+  liefernachweisTokenErstelltAm?: string;
+  /** ISO-Datum, wann der Fahrer die Lieferung per QR-Scan bestätigt hat */
+  liefernachweisAm?: string;
+  /** Referenzen auf Foto/Unterschrift/Archiv-Dokument des Liefernachweises */
+  liefernachweis?: LiefernachweisInfo;
+
+
   rechnungId?: string;
   rechnungsnummer?: string;
   rechnungsdatum?: string;

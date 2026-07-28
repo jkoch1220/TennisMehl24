@@ -210,7 +210,12 @@ const EmailFormular = ({
         setErfolgsMeldung(`E-Mail erfolgreich an ${ziel} gesendet!`);
 
         if (onSend) {
-          onSend({ testModus, empfaenger: empfaenger.trim() });
+          // Server-seitig erzwungener Testmodus zählt ebenfalls als Test —
+          // Status-/Zeitstempel-Updates der Aufrufer dürfen dann nicht auslösen.
+          onSend({
+            testModus: testModus || result.testModeActive === true,
+            empfaenger: empfaenger.trim(),
+          });
         }
 
         // Nach 2 Sekunden schließen

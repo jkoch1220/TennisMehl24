@@ -75,28 +75,45 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
     // Cache invalidieren VOR dem Speichern
     invalidateStammdatenCache();
 
-    // Bearbeiter-Stempel; Fallback ohne Stempel, solange die Attribute noch
-    // nicht per scripts/setup-bearbeitet-felder.mjs angelegt sind
+    // Bearbeiter-Stempel; Fallback: solange neue Attribute (Stempel via
+    // scripts/setup-bearbeitet-felder.mjs, Preis-Konfiguration via
+    // scripts/add-stammdaten-preis-konfiguration.js bzw. appwriteSetup) noch
+    // nicht angelegt sind, werden unbekannte Attribute einzeln entfernt und
+    // der Request wiederholt (gleiches Muster wie projektService).
     const schreibe = async (payload: Record<string, unknown>) => {
-      try {
-        return await databases.updateDocument(
-          DATABASE_ID,
-          STAMMDATEN_COLLECTION_ID,
-          STAMMDATEN_DOCUMENT_ID,
-          payload
-        );
-      } catch (error) {
-        if (error instanceof Error && /Unknown attribute/i.test(error.message)) {
-          const { bearbeitetVon: _v, bearbeitetVonName: _n, bearbeitetAm: _a, ...ohneStempel } = payload;
+      let aktuellerPayload = { ...payload };
+      // Bounded Loop: pro Durchlauf wird höchstens ein unbekanntes Attribut entfernt
+      for (let versuch = 0; versuch < 6; versuch++) {
+        try {
           return await databases.updateDocument(
             DATABASE_ID,
             STAMMDATEN_COLLECTION_ID,
             STAMMDATEN_DOCUMENT_ID,
-            ohneStempel
+            aktuellerPayload
           );
+        } catch (error) {
+          if (!(error instanceof Error) || !/Unknown attribute/i.test(error.message)) {
+            throw error;
+          }
+          const match = error.message.match(/Unknown attribute:?\s*"?([A-Za-z0-9_]+)"?/i);
+          const unbekannt = match?.[1];
+          if (!unbekannt || !(unbekannt in aktuellerPayload)) {
+            // Attribut nicht identifizierbar → alter Fallback: nur Stempel entfernen
+            const { bearbeitetVon: _v, bearbeitetVonName: _n, bearbeitetAm: _a, ...ohneStempel } = aktuellerPayload;
+            return await databases.updateDocument(
+              DATABASE_ID,
+              STAMMDATEN_COLLECTION_ID,
+              STAMMDATEN_DOCUMENT_ID,
+              ohneStempel
+            );
+          }
+          console.warn(`Stammdaten: Attribut "${unbekannt}" existiert noch nicht im Schema — wird für dieses Update übersprungen.`);
+          const rest = { ...aktuellerPayload };
+          delete rest[unbekannt];
+          aktuellerPayload = rest;
         }
-        throw error;
       }
+      throw new Error('Stammdaten-Update fehlgeschlagen (zu viele unbekannte Attribute)');
     };
 
     try {
@@ -198,6 +215,43 @@ export const initialisiereStammdaten = async (): Promise<Stammdaten> => {
   };
   
   return await speichereStammdaten(defaultStammdaten);
+};
+
+// ===== PREIS-KONFIGURATION =====
+// Zentrale, jederzeit (auch unterjährig) änderbare Preis-Parameter.
+// Wirken ausschließlich auf NEU erzeugte Angebote/Kalkulationen — nie rückwirkend.
+
+/** Default: globale Preisanpassung in % auf Vorjahrespreise für neue Saison-Angebote */
+export const SAISON_PREISANPASSUNG_PROZENT_DEFAULT = 4;
+/** Default: Aufschlag in % für angebrochene (halbe) Paletten */
+export const HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT = 0;
+
+export interface PreisKonfiguration {
+  /** Globale Preisanpassung in % auf Vorjahrespreise für neue Saison-Angebote */
+  saisonPreisanpassungProzent: number;
+  /** Aufschlag in % für angebrochene (halbe) Paletten (wird ab dem Paletten-Modul in der Kalkulation verwendet) */
+  halbePaletteAufschlagProzent: number;
+}
+
+/** Pure Ableitung der Preis-Konfiguration aus (evtl. unvollständigen) Stammdaten */
+export const leitePreisKonfigurationAb = (stammdaten: Stammdaten | null): PreisKonfiguration => ({
+  saisonPreisanpassungProzent:
+    stammdaten?.saisonPreisanpassungProzent ?? SAISON_PREISANPASSUNG_PROZENT_DEFAULT,
+  halbePaletteAufschlagProzent:
+    stammdaten?.halbePaletteAufschlagProzent ?? HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT,
+});
+
+/**
+ * Lädt die Preis-Konfiguration aus den Stammdaten (mit Defaults als Fallback).
+ * Nutzt den Stammdaten-Cache — Änderungen greifen ohne Deploy/Neustart.
+ */
+export const getPreisKonfiguration = async (): Promise<PreisKonfiguration> => {
+  try {
+    return leitePreisKonfigurationAb(await ladeStammdaten());
+  } catch (error) {
+    console.warn('Preis-Konfiguration konnte nicht geladen werden, verwende Defaults:', error);
+    return leitePreisKonfigurationAb(null);
+  }
 };
 
 /**

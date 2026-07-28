@@ -9,7 +9,7 @@ import {
   Loader2,
   Info,
 } from 'lucide-react';
-import { DebitorView } from '../../types/debitor';
+import { DebitorView, istForderungGeschlossen } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import {
   parseBankImport,
@@ -39,7 +39,7 @@ const BankAbgleich = ({ debitoren, onDebitorAktualisiert, onReload }: BankAbglei
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Offene Debitoren (noch nicht bezahlt)
-  const offeneDebitoren = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt'), [debitoren]);
+  const offeneDebitoren = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt' && !istForderungGeschlossen(d.status)), [debitoren]);
 
   const kandidaten: DebitorKandidat[] = useMemo(
     () =>

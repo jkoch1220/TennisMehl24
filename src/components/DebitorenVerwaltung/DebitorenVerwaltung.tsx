@@ -16,7 +16,7 @@ import {
   Mail,
   History,
 } from 'lucide-react';
-import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus } from '../../types/debitor';
+import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus, istForderungGeschlossen } from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import DebitorenListe from './DebitorenListe';
 import DebitorDetail from './DebitorDetail';
@@ -36,6 +36,7 @@ type TabId =
   | 'rechnungsversand'
   | 'mahnhistorie'
   | 'bezahlt'
+  | 'geschlossen'
   | 'bankabgleich'
   | 'einstellungen';
 
@@ -47,6 +48,7 @@ const GUELTIGE_TABS: ReadonlySet<TabId> = new Set([
   'rechnungsversand',
   'mahnhistorie',
   'bezahlt',
+  'geschlossen',
   'bankabgleich',
   'einstellungen',
 ]);
@@ -296,16 +298,18 @@ const DebitorenVerwaltung = () => {
       );
     }
 
-    // Tab-Filter
+    // Tab-Filter — geschlossene Forderungen (storniert/reklamiert) tauchen NUR im
+    // Geschlossen-Tab auf, nie unter Offen/Überfällig.
     switch (activeTab) {
       case 'offen':
-        return filtered.filter((d) => d.status !== 'bezahlt');
+        return filtered.filter((d) => d.status !== 'bezahlt' && !istForderungGeschlossen(d.status));
       case 'ueberfaellig':
         // Bezahlte Debitoren NIE im Überfällig-Tab anzeigen, auch wenn das (alte)
         // Fälligkeitsdatum in der Vergangenheit liegt (tageUeberfaellig > 0).
         return filtered.filter(
           (d) =>
             d.status !== 'bezahlt' &&
+            !istForderungGeschlossen(d.status) &&
             (d.status === 'ueberfaellig' ||
               d.status === 'faellig' ||
               d.status === 'gemahnt' ||
@@ -313,6 +317,8 @@ const DebitorenVerwaltung = () => {
         );
       case 'bezahlt':
         return filtered.filter((d) => d.status === 'bezahlt');
+      case 'geschlossen':
+        return filtered.filter((d) => istForderungGeschlossen(d.status));
       default:
         return filtered;
     }
@@ -375,6 +381,12 @@ const DebitorenVerwaltung = () => {
       label: 'Bezahlt',
       count: statistik?.anzahlBezahlt || 0,
       color: 'green',
+    },
+    {
+      id: 'geschlossen',
+      label: 'Geschlossen',
+      count: statistik?.geschlossenAnzahl || 0,
+      color: 'gray',
     },
     {
       id: 'bankabgleich',
@@ -823,6 +835,8 @@ const StatusBadge = ({ status }: { status: DebitorStatus }) => {
     gemahnt: { label: 'Gemahnt', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
     teilbezahlt: { label: 'Teilbezahlt', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
     bezahlt: { label: 'Bezahlt', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    reklamiert: { label: 'Reklamiert', color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
+    storniert: { label: 'Storniert', color: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300' },
   };
 
   const { label, color } = config[status];
