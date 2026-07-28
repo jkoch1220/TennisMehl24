@@ -7,7 +7,6 @@ import {
   RefreshCw,
   FlaskConical,
   Play,
-  X,
   Mail,
   Loader2,
   History,
@@ -15,130 +14,101 @@ import {
   Undo2,
   Filter as FilterIcon,
   Info,
+  MousePointerClick,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { massenAngebotService } from '../../services/massenAngebotService';
 import { getPreisKonfiguration } from '../../services/stammdatenService';
 import {
   MassenAngebotKandidat,
-  AngebotsQuelle,
-  KandidatStatus,
   ErzeugungsErgebnis,
   VersandKandidat,
   AngebotsLauf,
 } from '../../types/massenAngebot';
-
-const QUELLE_LABEL: Record<AngebotsQuelle, string> = {
-  vorjahr: 'Vorjahr',
-  mosaik: 'Mosaik/Historie',
-  plz_kalkulation: 'PLZ-Kalkulation',
-  manuell: '—',
-};
-
-const STATUS_BADGE: Record<KandidatStatus, { label: string; className: string }> = {
-  neu: { label: 'neu', className: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
-  existiert: {
-    label: 'existiert bereits',
-    className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  },
-  fehler: { label: 'Fehler/prüfen', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-  manuell: {
-    label: 'manuell prüfen',
-    className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-};
+import MassenAngebotDetailPanel from './MassenAngebotDetailPanel';
+import MassenAngebotVorschlagsliste from './MassenAngebotVorschlagsliste';
+import BestaetigungsDialog from './MassenAngebotBestaetigungsDialog';
+import {
+  eur,
+  PROFIL_BADGE,
+  quelleLabel,
+  referenzKurzLabel,
+  STATUS_BADGE,
+} from './massenAngebotUi';
 
 type FilterTyp = 'alle' | 'vorjahr' | 'neukunden' | 'fehler' | 'manuell';
 
-const eur = (wert: number) =>
-  wert.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-
-// Eine Tabellenzeile (memoisiert über React-Standard-Rerender; bewusst leichtgewichtig gehalten).
-const KandidatZeile = ({
+// Eine Zeile der (schlanken) Master-Liste: Name, Nummer, Profil, Quelle,
+// Referenz, Summe, Status, E-Mail-Warnung. Klick öffnet das Detail-Panel.
+const KandidatListenZeile = ({
   kandidat,
-  editierbar,
+  aktiv,
   onToggle,
-  onMengePreis,
+  onSelect,
 }: {
   kandidat: MassenAngebotKandidat;
-  editierbar: boolean;
+  aktiv: boolean;
   onToggle: (kundeId: string) => void;
-  onMengePreis: (kundeId: string, menge: number, preis: number) => void;
+  onSelect: (kundeId: string) => void;
 }) => {
   const badge = STATUS_BADGE[kandidat.status];
+  const profil = PROFIL_BADGE[kandidat.produktprofil];
+  const referenzKurz = referenzKurzLabel(kandidat);
   return (
-    <tr className="border-b border-gray-100 dark:border-slate-700/60 hover:bg-gray-50 dark:hover:bg-slate-800/40">
-      <td className="px-3 py-2">
-        <input
-          type="checkbox"
-          checked={kandidat.ausgewaehlt}
-          disabled={kandidat.status !== 'neu'}
-          onChange={() => onToggle(kandidat.kundeId)}
-          className="h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-slate-600 disabled:opacity-40"
-        />
-      </td>
-      <td className="px-3 py-2">
-        <div className="font-medium text-gray-900 dark:text-slate-100">{kandidat.kundenname}</div>
-        {kandidat.kundennummer && (
-          <div className="text-xs text-gray-400">{kandidat.kundennummer}</div>
-        )}
-        {kandidat.statusGrund && (
-          <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{kandidat.statusGrund}</div>
-        )}
-      </td>
-      <td className="px-3 py-2 text-sm text-gray-600 dark:text-slate-400">
-        {kandidat.typ === 'platzbauer' ? 'Platzbauer' : 'Verein'}
-      </td>
-      <td className="px-3 py-2 text-sm text-gray-600 dark:text-slate-400">{QUELLE_LABEL[kandidat.quelle]}</td>
-      <td className="px-3 py-2 text-right">
-        {editierbar ? (
-          <input
-            type="number"
-            value={kandidat.menge || ''}
-            min={0}
-            step={0.5}
-            onChange={(e) => onMengePreis(kandidat.kundeId, Number(e.target.value), kandidat.preisProTonne)}
-            className="w-20 px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
-          />
-        ) : (
-          <span className="text-gray-500">{kandidat.menge ? `${kandidat.menge} t` : '—'}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right">
-        {editierbar ? (
-          <input
-            type="number"
-            value={kandidat.preisProTonne || ''}
-            min={0}
-            step={0.5}
-            onChange={(e) => onMengePreis(kandidat.kundeId, kandidat.menge, Number(e.target.value))}
-            className="w-24 px-2 py-1 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100"
-          />
-        ) : (
-          <span className="text-gray-500">{kandidat.preisProTonne ? eur(kandidat.preisProTonne) : '—'}</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-slate-100">
-        {kandidat.angebotssumme ? eur(kandidat.angebotssumme) : '—'}
-      </td>
-      <td className="px-3 py-2 text-sm">
-        {kandidat.empfaengerEmail ? (
-          <span className="text-gray-600 dark:text-slate-400">{kandidat.empfaengerEmail}</span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-medium">
-            <AlertTriangle className="w-3.5 h-3.5" /> fehlt
+    <div
+      onClick={() => onSelect(kandidat.kundeId)}
+      className={`px-3 py-2.5 flex items-center gap-3 cursor-pointer border-l-2 transition-colors ${
+        aktiv
+          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30'
+          : 'border-transparent hover:bg-gray-50 dark:hover:bg-slate-800/40'
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={kandidat.ausgewaehlt}
+        disabled={kandidat.status !== 'neu'}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => onToggle(kandidat.kundeId)}
+        className="h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-slate-600 disabled:opacity-40 flex-shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium text-gray-900 dark:text-slate-100 truncate">
+            {kandidat.kundenname}
           </span>
-        )}
-      </td>
-      <td className="px-3 py-2">
-        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badge.className}`}>
+          {kandidat.kundennummer && (
+            <span className="text-xs text-gray-400 flex-shrink-0">{kandidat.kundennummer}</span>
+          )}
+          {kandidat.emailFehlt && kandidat.status === 'neu' && (
+            <span title="Empfänger-E-Mail fehlt" className="flex-shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
+          <span
+            className={`inline-block px-1.5 py-0.5 rounded-full font-semibold ${profil.className}`}
+          >
+            {profil.label}
+          </span>
+          <span>{quelleLabel(kandidat)}</span>
+          {referenzKurz && <span className="text-gray-400">{referenzKurz}</span>}
+          {kandidat.statusGrund && (
+            <span className="text-amber-600 dark:text-amber-400">{kandidat.statusGrund}</span>
+          )}
+        </div>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <div className="font-medium text-gray-900 dark:text-slate-100 text-sm">
+          {kandidat.angebotssumme ? eur(kandidat.angebotssumme) : '—'}
+        </div>
+        <span
+          className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badge.className}`}
+        >
           {badge.label}
         </span>
-        {kandidat.fehler.length > 0 && (
-          <div className="text-xs text-red-500 mt-0.5">{kandidat.fehler.join(', ')}</div>
-        )}
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 };
 
@@ -159,6 +129,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [testModus, setTestModus] = useState(true);
   const [filter, setFilter] = useState<FilterTyp>('alle');
   const [suchText, setSuchText] = useState('');
+  // Kunde, dessen Detail-Panel rechts geöffnet ist
+  const [auswahlKundeId, setAuswahlKundeId] = useState<string | null>(null);
 
   const [anpassungsTyp, setAnpassungsTyp] = useState<'prozent' | 'fix'>('prozent');
   const [anpassungsWert, setAnpassungsWert] = useState('');
@@ -225,6 +197,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       );
       setKandidaten(liste);
       setGeladen(true);
+      setAuswahlKundeId(null);
       await ladeLaeufe();
     } catch (error) {
       console.error('Fehler beim Sammeln der Kandidaten:', error);
@@ -276,6 +249,11 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     [kandidaten]
   );
 
+  const auswahlKandidat = useMemo(
+    () => (auswahlKundeId ? kandidaten.find((k) => k.kundeId === auswahlKundeId) ?? null : null),
+    [kandidaten, auswahlKundeId]
+  );
+
   const handleToggle = useCallback((kundeId: string) => {
     setKandidaten((prev) =>
       prev.map((k) => (k.kundeId === kundeId && k.status === 'neu' ? { ...k, ausgewaehlt: !k.ausgewaehlt } : k))
@@ -293,12 +271,39 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     );
   }, []);
 
-  const handleMengePreis = useCallback((kundeId: string, menge: number, preis: number) => {
+  // ===== DETAIL-PANEL-ÄNDERUNGEN (fließen in die Erzeugung ein) =====
+
+  const handlePositionAendern = useCallback(
+    (kundeId: string, positionId: string, menge: number, preis: number) => {
+      setKandidaten((prev) =>
+        prev.map((k) =>
+          k.kundeId === kundeId
+            ? massenAngebotService.aktualisierePosition(k, positionId, menge, preis)
+            : k
+        )
+      );
+    },
+    []
+  );
+
+  const handlePositionEntfernen = useCallback((kundeId: string, positionId: string) => {
     setKandidaten((prev) =>
       prev.map((k) =>
-        k.kundeId === kundeId ? massenAngebotService.aktualisiereMengePreis(k, menge, preis) : k
+        k.kundeId === kundeId ? massenAngebotService.entfernePosition(k, positionId) : k
       )
     );
+  }, []);
+
+  const handleEmailAendern = useCallback((kundeId: string, email: string) => {
+    setKandidaten((prev) =>
+      prev.map((k) =>
+        k.kundeId === kundeId ? massenAngebotService.setzeEmpfaengerEmail(k, email) : k
+      )
+    );
+  }, []);
+
+  const handleNotizAendern = useCallback((kundeId: string, notiz: string) => {
+    setKandidaten((prev) => prev.map((k) => (k.kundeId === kundeId ? { ...k, notiz } : k)));
   }, []);
 
   const handlePreisanpassung = useCallback(() => {
@@ -435,7 +440,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
               Frühjahrs-Angebote · Saison {saisonjahr}
             </h2>
             <p className="text-sm text-gray-500 dark:text-slate-400">
-              Erzeugt Angebote für alle Kunden mit „Für automatisches Saison-Angebot".
+              Erzeugt Angebote für alle aktiven Kunden mit Kennzeichen „Massenangebots-tauglich"
+              (Opt-in).
             </p>
           </div>
         </div>
@@ -487,6 +493,12 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           <AlertTriangle className="w-4 h-4" /> {fehlerMeldung}
         </div>
       )}
+
+      {/* Schritt 0: Opt-in-Vorschlagsliste (VOR der Angebots-Vorschau) */}
+      <MassenAngebotVorschlagsliste
+        saisonjahr={saisonjahr}
+        onMarkiert={geladen ? () => void ladeKandidaten() : undefined}
+      />
 
       {/* Fortschritt Dry-Run (Vorschau-Berechnung) */}
       {loading && dryRunFortschritt && (
@@ -620,42 +632,44 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
             </div>
           </div>
 
-          {/* Vorschau-Tabelle */}
-          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto max-h-[55vh] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-slate-900/60 sticky top-0 z-10">
-                  <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
-                    <th className="px-3 py-2 w-10"></th>
-                    <th className="px-3 py-2">Kunde</th>
-                    <th className="px-3 py-2">Typ</th>
-                    <th className="px-3 py-2">Quelle</th>
-                    <th className="px-3 py-2 text-right">Menge</th>
-                    <th className="px-3 py-2 text-right">Preis/t</th>
-                    <th className="px-3 py-2 text-right">Summe</th>
-                    <th className="px-3 py-2">E-Mail</th>
-                    <th className="px-3 py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gefiltert.map((kandidat) => (
-                    <KandidatZeile
-                      key={kandidat.kundeId}
-                      kandidat={kandidat}
-                      editierbar={kandidat.status === 'neu' || kandidat.status === 'fehler'}
-                      onToggle={handleToggle}
-                      onMengePreis={handleMengePreis}
-                    />
-                  ))}
-                  {gefiltert.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="px-3 py-8 text-center text-gray-400">
-                        Keine Kandidaten für diesen Filter.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          {/* Master-Detail: Liste links, Detail-Panel rechts */}
+          <div className="flex flex-col lg:flex-row gap-4 items-start">
+            <div className="flex-1 min-w-0 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100 dark:divide-slate-700/60">
+                {gefiltert.map((kandidat) => (
+                  <KandidatListenZeile
+                    key={kandidat.kundeId}
+                    kandidat={kandidat}
+                    aktiv={kandidat.kundeId === auswahlKundeId}
+                    onToggle={handleToggle}
+                    onSelect={setAuswahlKundeId}
+                  />
+                ))}
+                {gefiltert.length === 0 && (
+                  <div className="px-3 py-8 text-center text-gray-400">
+                    Keine Kandidaten für diesen Filter.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="w-full lg:w-[420px] xl:w-[480px] flex-shrink-0 lg:sticky lg:top-4">
+              {auswahlKandidat ? (
+                <MassenAngebotDetailPanel
+                  kandidat={auswahlKandidat}
+                  onPositionAendern={handlePositionAendern}
+                  onPositionEntfernen={handlePositionEntfernen}
+                  onEmailAendern={handleEmailAendern}
+                  onNotizAendern={handleNotizAendern}
+                  onSchliessen={() => setAuswahlKundeId(null)}
+                />
+              ) : (
+                <div className="bg-white dark:bg-slate-800 border border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-6 text-center text-sm text-gray-400 dark:text-slate-500 flex flex-col items-center gap-2">
+                  <MousePointerClick className="w-6 h-6" />
+                  Kunde in der Liste anklicken, um Referenz, Positionen, E-Mail und Notiz zu
+                  bearbeiten.
+                </div>
+              )}
             </div>
           </div>
 
@@ -919,45 +933,5 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     </div>
   );
 };
-
-// Wiederverwendbarer Bestätigungsdialog mit konkreten Zahlen.
-const BestaetigungsDialog = ({
-  icon,
-  titel,
-  children,
-  onAbbrechen,
-  onBestaetigen,
-  bestaetigenLabel,
-  bestaetigenClass,
-}: {
-  icon: React.ReactNode;
-  titel: string;
-  children: React.ReactNode;
-  onAbbrechen: () => void;
-  onBestaetigen: () => void;
-  bestaetigenLabel: string;
-  bestaetigenClass: string;
-}) => (
-  <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-lg w-full p-6">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="p-2 bg-gray-100 dark:bg-slate-700 rounded-lg">{icon}</div>
-        <h3 className="text-lg font-bold text-gray-900 dark:text-dark-text">{titel}</h3>
-      </div>
-      <div className="text-sm text-gray-700 dark:text-slate-300 leading-relaxed">{children}</div>
-      <div className="flex justify-end gap-3 mt-6">
-        <button
-          onClick={onAbbrechen}
-          className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
-        >
-          <X className="w-4 h-4 inline mr-1" /> Abbrechen
-        </button>
-        <button onClick={onBestaetigen} className={`px-4 py-2 text-white rounded-lg ${bestaetigenClass}`}>
-          {bestaetigenLabel}
-        </button>
-      </div>
-    </div>
-  </div>
-);
 
 export default MassenAngebotTool;

@@ -1,12 +1,20 @@
 // Massen-Angebots-Tool für die Frühjahrsinstandsetzung.
 //
-// Dieses Modul bestimmt je berechtigtem Kunden (aktiv && automatischesAngebot) die Quelle
-// des Angebots und berechnet einen Angebotsentwurf – OHNE in die Datenbank zu schreiben
-// (Dry-Run/Vorschau). Die scharfe Erzeugung, Rollback und Protokoll bauen auf diesen
-// Kandidaten auf (siehe createBatch/rollbackBatch weiter unten).
+// Dieses Modul bestimmt je berechtigtem Kunden die Quelle des Angebots und berechnet
+// einen Angebotsentwurf – OHNE in die Datenbank zu schreiben (Dry-Run/Vorschau).
+// Die scharfe Erzeugung, Rollback und Protokoll bauen auf diesen Kandidaten auf
+// (siehe erzeugeBatch/rollbackBatch weiter unten).
+//
+// BERECHTIGUNG (Opt-in): massenangebots-tauglich ist NUR, wer aktiv ist UND explizit
+// automatischesAngebot === true gesetzt hat. undefined zählt als NICHT tauglich.
+// Die Vorschlagsliste (sammleTauglichkeitsVorschlaege/markiereAlsTauglich) hilft,
+// Vorjahres-Direktbesteller gesammelt als tauglich zu markieren.
 //
 // Quellen-Priorität pro Kunde:
-//   1. Vorjahres-Angebot (Projekt der Vorsaison → gespeichertes Angebot → Positionen kopieren)
+//   1. Vorjahres-Referenz: GRÖSSTE Bestellung der Vorsaison über ALLE Projekte des
+//      Kunden (Metrik: Schüttgut-Tonnage, bei 0 t bzw. Gleichstand Netto-Auftragswert;
+//      Datenbasis je Projekt: AB > Rechnung > Angebot) → Positionen übernehmen,
+//      Paletten-/Sackware auf halbe/ganze Paletten aufrunden
 //   2. Historie/Mosaik (tonnenLetztesJahr + zuletztGezahlterPreis am Kunden, z.B. aus Migration)
 //   3. PLZ-Preiskalkulation (echter Neukunde: Zone + Spedition + Aufschlag)
 //   4. sonst: manuell prüfen (nicht automatisch erzeugen)
@@ -19,9 +27,13 @@ import {
   MassenAngebotKandidat,
   KandidatenZusammenfassung,
   Preisanpassung,
+  Produktprofil,
+  ReferenzInfo,
   ErzeugungsErgebnis,
   AngebotsLauf,
   VersandKandidat,
+  TauglichkeitsVorschlag,
+  MarkierungsErgebnis,
 } from '../types/massenAngebot';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -34,7 +46,8 @@ import {
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { generiereAngebotPDF } from './dokumentService';
-import { getArtikelPreis, getStammdatenOderDefault } from './stammdatenService';
+import { getArtikelPreis, getStammdatenOderDefault, getPreisKonfiguration } from './stammdatenService';
+import { generiereStandardEmail } from '../utils/emailHelpers';
 import { Stammdaten } from '../types/stammdaten';
 import { getZoneFromPLZ, berechneSpeditionskosten, AUFSCHLAEGE } from '../constants/pricing';
 import { formatAdresszeile } from './pdfHelpers';
@@ -94,6 +107,216 @@ function klonePositionen(positionen: Position[]): Position[] {
     id: naechstePositionId(),
     gesamtpreis: round2((pos.menge ?? 0) * (pos.einzelpreis ?? 0)),
   }));
+}
+
+// ===== ARTIKEL-KLASSIFIKATION (Schüttgut vs. Paletten-/Sackware) =====
+// Real im Code verwendete Artikelnummern (artikelPreise.ts + anfrageVerarbeitungService.ts):
+//   Schüttgut (lose, t):            TM-ZM-02, TM-ZM-03
+//   Sackware auf Palette (t):       TM-ZM-02St, TM-ZM-03St
+//   Beiladungs-Säcke (Stk, 40 kg):  TM-ZM-02S, TM-ZM-03S
+//   BigBag (t):                     TM-ZM-02BB, TM-ZM-03BB, TM-ZM-BIG-02, TM-ZM-BIG-03
+//   Einwegpalette (Stk):            TM-PAL
+
+const SCHUETTGUT_ARTIKEL = new Set(['TM-ZM-02', 'TM-ZM-03']);
+const SACK_PALETTEN_ARTIKEL = new Set(['TM-ZM-02ST', 'TM-ZM-03ST']);
+const BEILADUNG_SACK_ARTIKEL = new Set(['TM-ZM-02S', 'TM-ZM-03S']);
+const BIGBAG_ARTIKEL = new Set(['TM-ZM-02BB', 'TM-ZM-03BB', 'TM-ZM-BIG-02', 'TM-ZM-BIG-03']);
+const PALETTEN_ZUBEHOER_ARTIKEL = new Set(['TM-PAL']);
+
+/** 25 Säcke × 40 kg = 1 t → 1 Palette ≙ 1 t, halbe Palette ≙ 0,5 t. */
+const SAECKE_PRO_PALETTE = 25;
+const SACK_GEWICHT_TONNEN = 0.04;
+
+type PositionsKlasse =
+  | 'schuettgut'
+  | 'sack_palette'
+  | 'beiladung_sack'
+  | 'bigbag'
+  | 'paletten_zubehoer'
+  | 'sonstig';
+
+function klassifizierePosition(pos: Position): PositionsKlasse {
+  const nr = (pos.artikelnummer || '').toUpperCase();
+  if (SCHUETTGUT_ARTIKEL.has(nr)) return 'schuettgut';
+  if (SACK_PALETTEN_ARTIKEL.has(nr)) return 'sack_palette';
+  if (BEILADUNG_SACK_ARTIKEL.has(nr)) return 'beiladung_sack';
+  if (BIGBAG_ARTIKEL.has(nr)) return 'bigbag';
+  if (PALETTEN_ZUBEHOER_ARTIKEL.has(nr)) return 'paletten_zubehoer';
+  if (nr.startsWith('TM-ZM')) {
+    // Unbekannte TM-ZM-Variante: über Bezeichnung/Einheit zuordnen.
+    const bez = (pos.bezeichnung || '').toLowerCase();
+    if (bez.includes('bigbag') || bez.includes('big bag')) return 'bigbag';
+    if (bez.includes('gesackt') || bez.includes('sack')) {
+      return (pos.einheit || '').toLowerCase() === 'stk' ? 'beiladung_sack' : 'sack_palette';
+    }
+    return 'schuettgut';
+  }
+  return 'sonstig';
+}
+
+function istPalettenKlasse(klasse: PositionsKlasse): boolean {
+  return (
+    klasse === 'sack_palette' ||
+    klasse === 'beiladung_sack' ||
+    klasse === 'bigbag' ||
+    klasse === 'paletten_zubehoer'
+  );
+}
+
+/** Schüttgut-Tonnage (TM-ZM-02/-03) der verrechneten Positionen. */
+function berechneSchuettgutTonnage(positionen: Position[]): number {
+  return round2(
+    positionen
+      .filter((p) => !p.istBedarfsposition && klassifizierePosition(p) === 'schuettgut')
+      .reduce((sum, p) => sum + (p.menge ?? 0), 0)
+  );
+}
+
+/** Produktprofil aus den Referenz-Positionen: schuettgut | paletten | gemischt. */
+function bestimmeProduktprofil(positionen: Position[]): Produktprofil {
+  let hatSchuettgut = false;
+  let hatPaletten = false;
+  for (const pos of positionen) {
+    if (pos.istBedarfsposition) continue;
+    const klasse = klassifizierePosition(pos);
+    if (klasse === 'schuettgut') hatSchuettgut = true;
+    else if (klasse === 'sack_palette' || klasse === 'beiladung_sack' || klasse === 'bigbag') {
+      hatPaletten = true;
+    }
+  }
+  if (hatSchuettgut && hatPaletten) return 'gemischt';
+  if (hatPaletten) return 'paletten';
+  return 'schuettgut';
+}
+
+/** Rundet Tonnen auf halbe Paletten (0,5 t) AUF. */
+function rundeAufHalbePaletten(tonnen: number): number {
+  return Math.ceil(tonnen * 2 - 1e-9) / 2;
+}
+
+// Bereitet EINE Paletten-/Sack-Position der Referenz für das neue Angebot auf:
+//  - Alt-Beiladungs-Säcke (Stk) werden auf Paletten-Sackware (t) umgestellt
+//    (€/t = €/Sack × 25) und wie Sackware behandelt.
+//  - Sackware (t) wird auf halbe/ganze Paletten aufgerundet; ein Anbruch (0,5 t)
+//    wird als eigene Position mit halbePaletteAufschlagProzent ausgewiesen
+//    (Aufschlag 0 → ohne Aufschlag, mit Hinweis „Aufschlag nicht konfiguriert").
+//  - BigBags werden auf ganze Gebinde aufgerundet, Paletten-Zubehör 1:1 übernommen.
+function bereitePalettenPositionAuf(
+  pos: Position,
+  klasse: PositionsKlasse,
+  halbePaletteAufschlagProzent: number
+): { positionen: Position[]; warnungen: string[] } {
+  const warnungen: string[] = [];
+
+  if (klasse === 'paletten_zubehoer' || klasse === 'sonstig') {
+    return { positionen: klonePositionen([pos]), warnungen };
+  }
+
+  if (klasse === 'bigbag') {
+    const menge = Math.ceil((pos.menge ?? 0) - 1e-9);
+    if (menge <= 0) return { positionen: [], warnungen };
+    if (Math.abs(menge - (pos.menge ?? 0)) > 1e-9) {
+      warnungen.push(`${pos.bezeichnung}: auf ${menge} ganze BigBags aufgerundet`);
+    }
+    return {
+      positionen: [
+        {
+          ...pos,
+          id: naechstePositionId(),
+          menge,
+          gesamtpreis: round2(menge * (pos.einzelpreis ?? 0)),
+        },
+      ],
+      warnungen,
+    };
+  }
+
+  // Sackware: auf Tonnen + €/t normalisieren
+  let tonnen = pos.menge ?? 0;
+  let preisProTonne = pos.einzelpreis ?? 0;
+  let artikelnummer = pos.artikelnummer;
+  let bezeichnung = pos.bezeichnung;
+
+  if (klasse === 'beiladung_sack') {
+    tonnen = (pos.menge ?? 0) * SACK_GEWICHT_TONNEN;
+    preisProTonne = (pos.einzelpreis ?? 0) * SAECKE_PRO_PALETTE;
+    const nr = (pos.artikelnummer || '').toUpperCase();
+    artikelnummer = nr === 'TM-ZM-03S' ? 'TM-ZM-03St' : 'TM-ZM-02St';
+    bezeichnung =
+      nr === 'TM-ZM-03S' ? 'Tennismehl 0/3 mm gesackt' : 'Tennismehl 0/2 mm gesackt';
+    warnungen.push(
+      `${pos.bezeichnung}: Alt-Beiladungs-Säcke auf Palettenware umgestellt (€/t = €/Sack × ${SAECKE_PRO_PALETTE})`
+    );
+  }
+
+  const gerundet = rundeAufHalbePaletten(tonnen);
+  if (gerundet <= 0) return { positionen: [], warnungen };
+  if (Math.abs(gerundet - tonnen) > 1e-9) {
+    warnungen.push(
+      `${pos.bezeichnung}: ${tonnen.toLocaleString('de-DE')} t auf ${gerundet.toLocaleString(
+        'de-DE'
+      )} t (halbe/ganze Paletten) aufgerundet`
+    );
+  }
+
+  const ganze = Math.floor(gerundet + 1e-9);
+  const hatAnbruch = gerundet - ganze > 0.25; // 0,5-Rest
+  const positionen: Position[] = [];
+
+  if (ganze > 0) {
+    positionen.push({
+      ...pos,
+      id: naechstePositionId(),
+      artikelnummer,
+      bezeichnung,
+      einheit: 't',
+      menge: ganze,
+      einzelpreis: round2(preisProTonne),
+      gesamtpreis: round2(ganze * preisProTonne),
+    });
+  }
+  if (hatAnbruch) {
+    const aufschlagFaktor =
+      halbePaletteAufschlagProzent > 0 ? 1 + halbePaletteAufschlagProzent / 100 : 1;
+    if (halbePaletteAufschlagProzent <= 0) {
+      warnungen.push(
+        `${bezeichnung}: halbe Palette (Anbruch) OHNE Aufschlag übernommen – Halbe-Paletten-Aufschlag ist in den Stammdaten nicht konfiguriert`
+      );
+    }
+    positionen.push({
+      ...pos,
+      id: naechstePositionId(),
+      artikelnummer,
+      bezeichnung: `${bezeichnung} – halbe Palette (Anbruch)`,
+      einheit: 't',
+      menge: 0.5,
+      einzelpreis: round2(preisProTonne * aufschlagFaktor),
+      gesamtpreis: round2(0.5 * preisProTonne * aufschlagFaktor),
+    });
+  }
+  return { positionen, warnungen };
+}
+
+// Baut die Angebots-Positionen aus den Referenz-Positionen auf:
+// Schüttgut & Sonstiges 1:1 geklont, Paletten-Block über bereitePalettenPositionAuf.
+// Gemischt = beide Blöcke in EINEM Angebot (Reihenfolge der Referenz bleibt erhalten).
+function baueAngebotsPositionenAusReferenz(
+  referenzPositionen: Position[],
+  halbePaletteAufschlagProzent: number
+): { positionen: Position[]; warnungen: string[] } {
+  const positionen: Position[] = [];
+  const warnungen: string[] = [];
+  for (const pos of referenzPositionen) {
+    const klasse = klassifizierePosition(pos);
+    if (istPalettenKlasse(klasse) && !pos.istBedarfsposition) {
+      const aufbereitet = bereitePalettenPositionAuf(pos, klasse, halbePaletteAufschlagProzent);
+      positionen.push(...aufbereitet.positionen);
+      warnungen.push(...aufbereitet.warnungen);
+    } else {
+      positionen.push(...klonePositionen([pos]));
+    }
+  }
+  return { positionen, warnungen };
 }
 
 // Die editierbare Hauptposition: erste echte (nicht-Bedarfs-)Position, bevorzugt Ziegelmehl.
@@ -169,6 +392,7 @@ function basisKandidat(kunde: SaisonKunde): MassenAngebotKandidat {
     typ: kunde.typ,
     quelle: 'manuell',
     status: 'manuell',
+    produktprofil: 'schuettgut',
     menge: 0,
     preisProTonne: 0,
     angebotssumme: 0,
@@ -194,15 +418,22 @@ export type SammelFortschritt = (schritt: string, prozent: number) => void;
 interface ProjektRef {
   id: string; // Appwrite-$id
   kundeId: string;
+  status?: string; // Projekt-Status (z.B. 'verloren' → keine Bestellung)
 }
+
+// Referenz-Dokumente eines Vorjahres-Projekts (je Typ das neueste).
+const REFERENZ_DOKUMENT_TYPEN = ['auftragsbestaetigung', 'rechnung', 'angebot'] as const;
+type ReferenzDokumentTyp = (typeof REFERENZ_DOKUMENT_TYPEN)[number];
+type ReferenzDokumente = Partial<Record<ReferenzDokumentTyp, GespeichertesDokument>>;
 
 // Alle vorab geladenen Daten, aus denen die Kandidaten rein in-memory bestimmt werden.
 interface KandidatenLookup {
-  zielProjekte: Map<string, ProjektRef>; // kundeId → Projekt der Zielsaison
-  vorjahrProjekte: Map<string, ProjektRef>; // kundeId → Projekt der Vorsaison
-  vorjahrAngebote: Map<string, GespeichertesDokument>; // projektId → neuestes Angebot
+  zielProjekte: Map<string, ProjektRef[]>; // kundeId → Projekte der Zielsaison
+  vorjahrProjekte: Map<string, ProjektRef[]>; // kundeId → ALLE Projekte der Vorsaison
+  vorjahrDokumente: Map<string, ReferenzDokumente>; // projektId → AB/Rechnung/Angebot
   zielSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Zielsaison
   vorjahrSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Vorsaison (Bezugsweg-Prüfung)
+  halbePaletteAufschlagProzent: number; // Anbruch-Aufschlag aus der Preis-Konfiguration
 }
 
 // Bezieht der Kunde über einen Platzbauer? Dann darf KEIN automatisches
@@ -218,47 +449,120 @@ function beziehtUeberPlatzbauer(
   );
 }
 
-// Lädt ALLE Projekte eines Saisonjahrs paginiert und mappt kundeId → Projekt.
-// Entspricht projektService.getProjektFuerKunde je Kunde (erstes Projekt zählt).
-async function ladeProjektRefsFuerSaison(saisonjahr: number): Promise<Map<string, ProjektRef>> {
+// Lädt ALLE Projekte eines Saisonjahrs paginiert und mappt kundeId → Projekt[].
+// WICHTIG für den Referenz-Algorithmus: ein Kunde kann MEHRERE Projekte pro
+// Saison haben — alle werden behalten (größte Bestellung entscheidet).
+async function ladeProjekteFuerSaison(saisonjahr: number): Promise<Map<string, ProjektRef[]>> {
   const docs = await loadAllDocuments(DATABASE_ID, PROJEKTE_COLLECTION_ID, {
     queries: [Query.equal('saisonjahr', saisonjahr)],
   });
-  const map = new Map<string, ProjektRef>();
-  for (const doc of docs as unknown as Array<{ $id: string; kundeId?: string }>) {
-    if (doc.kundeId && !map.has(doc.kundeId)) {
-      map.set(doc.kundeId, { id: doc.$id, kundeId: doc.kundeId });
-    }
+  const map = new Map<string, ProjektRef[]>();
+  for (const doc of docs as unknown as Array<{ $id: string; kundeId?: string; status?: string }>) {
+    if (!doc.kundeId) continue;
+    const liste = map.get(doc.kundeId) ?? [];
+    liste.push({ id: doc.$id, kundeId: doc.kundeId, status: doc.status });
+    map.set(doc.kundeId, liste);
   }
   return map;
 }
 
-// Lädt die Angebots-Dokumente der übergebenen Projekte in Batches
-// (Query.equal mit bis zu 100 Werten) und behält je Projekt das NEUESTE
-// (orderDesc $createdAt → erster Treffer je projektId), identisch zu
-// ladeDokumentNachTyp(projektId, 'angebot').
-async function ladeNeuesteAngeboteFuerProjekte(
+// Lädt AB-/Rechnungs-/Angebots-Dokumente der übergebenen Projekte in Batches
+// (Query.equal mit bis zu 100 Werten) und behält je (Projekt, Typ) das NEUESTE
+// (orderDesc $createdAt → erster Treffer), identisch zu ladeDokumentNachTyp.
+async function ladeReferenzDokumenteFuerProjekte(
   projektIds: string[]
-): Promise<Map<string, GespeichertesDokument>> {
-  const map = new Map<string, GespeichertesDokument>();
+): Promise<Map<string, ReferenzDokumente>> {
+  const map = new Map<string, ReferenzDokumente>();
   const BATCH = 100;
   for (let i = 0; i < projektIds.length; i += BATCH) {
     const ids = projektIds.slice(i, i + BATCH);
     if (ids.length === 0) continue;
     const docs = await loadAllDocuments(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, {
       queries: [
-        Query.equal('dokumentTyp', 'angebot'),
+        Query.equal('dokumentTyp', [...REFERENZ_DOKUMENT_TYPEN]),
         Query.equal('projektId', ids),
         Query.orderDesc('$createdAt'),
       ],
     });
     for (const doc of docs as unknown as GespeichertesDokument[]) {
-      if (doc.projektId && !map.has(doc.projektId)) {
-        map.set(doc.projektId, doc);
+      if (!doc.projektId) continue;
+      const typ = doc.dokumentTyp as ReferenzDokumentTyp;
+      if (!(REFERENZ_DOKUMENT_TYPEN as readonly string[]).includes(typ)) continue;
+      const eintrag = map.get(doc.projektId) ?? {};
+      if (!eintrag[typ]) {
+        eintrag[typ] = doc;
+        map.set(doc.projektId, eintrag);
       }
     }
   }
   return map;
+}
+
+// ===== REFERENZ-AUSWAHL: „größte Bestellung des Jahres" =====
+
+interface ReferenzKandidat {
+  projekt: ProjektRef;
+  typ: ReferenzDokumentTyp;
+  positionen: Position[];
+  tonnage: number; // Schüttgut-Tonnen
+  wert: number; // Netto-Auftragswert
+  bestaetigt: boolean; // AB/Rechnung (bestätigte Bestellung) vs. bloßes Angebot
+  verloren: boolean;
+}
+
+// Datenbasis je Projekt: AB > Rechnung > Angebot (bestätigte Bestellung schlägt Angebot).
+// Stornierte Rechnungen werden übersprungen.
+function extrahiereReferenz(
+  projekt: ProjektRef,
+  dokumente: ReferenzDokumente | undefined
+): ReferenzKandidat | null {
+  if (!dokumente) return null;
+  for (const typ of REFERENZ_DOKUMENT_TYPEN) {
+    const dokument = dokumente[typ];
+    if (!dokument) continue;
+    if (typ === 'rechnung' && dokument.rechnungsStatus === 'storniert') continue;
+    const daten = ladeDokumentDaten<{ positionen?: Position[] }>(dokument);
+    if (daten?.positionen?.length) {
+      return {
+        projekt,
+        typ,
+        positionen: daten.positionen,
+        tonnage: berechneSchuettgutTonnage(daten.positionen),
+        wert: berechneSumme(daten.positionen),
+        bestaetigt: typ !== 'angebot',
+        verloren: projekt.status === 'verloren',
+      };
+    }
+  }
+  return null;
+}
+
+// Wählt über ALLE Vorjahres-Projekte des Kunden die größte Bestellung:
+// primär Schüttgut-Tonnage, bei 0 t (reine Palettenkunden) bzw. Gleichstand
+// der Netto-Auftragswert. Verlorene Projekte nur als letzter Ausweg.
+function waehleGroessteBestellung(
+  projekte: ProjektRef[],
+  dokumente: Map<string, ReferenzDokumente>
+): ReferenzKandidat | null {
+  const kandidaten = projekte
+    .map((p) => extrahiereReferenz(p, dokumente.get(p.id)))
+    .filter((k): k is ReferenzKandidat => k !== null);
+  if (kandidaten.length === 0) return null;
+  const nichtVerloren = kandidaten.filter((k) => !k.verloren);
+  const pool = nichtVerloren.length > 0 ? nichtVerloren : kandidaten;
+  return [...pool].sort(
+    (a, b) =>
+      b.tonnage - a.tonnage || b.wert - a.wert || Number(b.bestaetigt) - Number(a.bestaetigt)
+  )[0];
+}
+
+// Mosaik-Referenzjahr aus der Preishistorie am Kunden (neuestes Saisonjahr),
+// soweit die Datenlage es hergibt — Mosaik speichert nur EINEN Vorjahreswert
+// (tonnenLetztesJahr/zuletztGezahlterPreis), keine Bestellungen je Jahr.
+function ermittleMosaikReferenzJahr(kunde: SaisonKunde): number | undefined {
+  const historie = kunde.preisHistorie;
+  if (!historie || historie.length === 0) return undefined;
+  return historie.reduce((max, h) => Math.max(max, h.saisonjahr), 0) || undefined;
 }
 
 // Lädt alle SaisonDaten der Zielsaison paginiert (kundeId → geparste Nutzdaten
@@ -281,7 +585,7 @@ async function ladeSaisonDatenFuerSaison(saisonjahr: number): Promise<Map<string
 }
 
 // Bestimmt für EINEN Kunden Quelle + Angebotsentwurf — rein in-memory aus den
-// vorab geladenen Lookup-Maps. Logik UNVERÄNDERT zur früheren Query-Variante.
+// vorab geladenen Lookup-Maps.
 function bestimmeKandidat(
   kunde: SaisonKunde,
   saisonjahr: number,
@@ -291,7 +595,7 @@ function bestimmeKandidat(
   const base = basisKandidat(kunde);
 
   // Idempotenz: existiert bereits ein Projekt für die Zielsaison? → niemals doppelt anlegen.
-  const existierendes = lookup.zielProjekte.get(kunde.id);
+  const existierendes = lookup.zielProjekte.get(kunde.id)?.[0];
   if (existierendes) {
     return {
       ...base,
@@ -320,29 +624,47 @@ function bestimmeKandidat(
     };
   }
 
-  // 1) Vorjahres-Angebot
-  const vorjahrProjekt = lookup.vorjahrProjekte.get(kunde.id);
-  if (vorjahrProjekt) {
-    const dokument = lookup.vorjahrAngebote.get(vorjahrProjekt.id);
-    if (dokument) {
-      const daten = ladeDokumentDaten<AngebotsDaten>(dokument);
-      if (daten?.positionen?.length) {
-        const positionen = klonePositionen(daten.positionen);
-        const primaer = findePrimaerPosition(positionen);
-        return validiere({
-          ...base,
-          quelle: 'vorjahr',
-          positionen,
-          primaerPositionId: primaer?.id,
-          menge: primaer?.menge ?? 0,
-          preisProTonne: primaer?.einzelpreis ?? 0,
-          angebotssumme: berechneSumme(positionen),
-        });
+  // 1) Vorjahres-Referenz: größte Bestellung über ALLE Projekte der Vorsaison
+  const vorjahrProjekte = lookup.vorjahrProjekte.get(kunde.id) ?? [];
+  if (vorjahrProjekte.length > 0) {
+    const referenz = waehleGroessteBestellung(vorjahrProjekte, lookup.vorjahrDokumente);
+    if (referenz) {
+      const aufgebaut = baueAngebotsPositionenAusReferenz(
+        referenz.positionen,
+        lookup.halbePaletteAufschlagProzent
+      );
+      const warnungen = [...aufgebaut.warnungen];
+      if (referenz.verloren) {
+        warnungen.push('Referenz stammt aus einem VERLORENEN Vorjahres-Projekt – bitte prüfen');
       }
+      const referenzInfo: ReferenzInfo = {
+        jahr: saisonjahr - 1,
+        typ: referenz.typ,
+        tonnage: referenz.tonnage,
+        wert: referenz.wert,
+        projektId: referenz.projekt.id,
+        anzahlVorjahresProjekte: vorjahrProjekte.length,
+        ausVerlorenemProjekt: referenz.verloren || undefined,
+      };
+      const primaer = findePrimaerPosition(aufgebaut.positionen);
+      return validiere({
+        ...base,
+        quelle: 'vorjahr',
+        produktprofil: bestimmeProduktprofil(referenz.positionen),
+        referenz: referenzInfo,
+        positionen: aufgebaut.positionen,
+        primaerPositionId: primaer?.id,
+        menge: primaer?.menge ?? 0,
+        preisProTonne: primaer?.einzelpreis ?? 0,
+        angebotssumme: berechneSumme(aufgebaut.positionen),
+        warnungen,
+      });
     }
   }
 
-  // 2) Historie/Mosaik: am Kunden gespeicherte Vorjahreswerte (z.B. aus Migration backfilled)
+  // 2) Historie/Mosaik: am Kunden gespeicherte Vorjahreswerte (z.B. aus Migration backfilled).
+  // Mosaik kennt nur EINEN aggregierten Vorjahreswert — „größte Bestellung je Jahr"
+  // ist dort nicht rekonstruierbar; das Referenzjahr wird aus der Preishistorie abgeleitet.
   if (
     kunde.tonnenLetztesJahr &&
     kunde.tonnenLetztesJahr > 0 &&
@@ -355,6 +677,13 @@ function bestimmeKandidat(
     return validiere({
       ...base,
       quelle: 'mosaik',
+      produktprofil: 'schuettgut',
+      referenz: {
+        jahr: ermittleMosaikReferenzJahr(kunde),
+        typ: 'mosaik',
+        tonnage: menge,
+        wert: round2(menge * preis),
+      },
       positionen: [position],
       primaerPositionId: position.id,
       menge,
@@ -397,7 +726,8 @@ function bestimmeKandidat(
 
 /**
  * Sammelt alle Kandidaten für die Zielsaison (Dry-Run – schreibt nichts).
- * Opt-out: alle aktiven Kunden sind dabei, außer automatischesAngebot === false.
+ * Opt-in: massenangebots-tauglich ist NUR aktiv && automatischesAngebot === true
+ * (undefined zählt als false).
  *
  * Performance: die gesamte Datenbeschaffung läuft in wenigen paginierten
  * Bulk-Queries (statt 2–4 Queries pro Kunde). Optionaler Fortschritts-Callback
@@ -411,25 +741,25 @@ async function sammleKandidaten(
 
   melde('Lade Kundenstamm…', 5);
   const alleKunden = await saisonplanungService.loadAlleKunden();
-  // Opt-out-Semantik: standardmäßig sind alle aktiven Kunden dabei; nur explizit
-  // abgewählte (automatischesAngebot === false) werden ausgeschlossen.
-  const berechtigte = alleKunden.filter((k) => k.aktiv && k.automatischesAngebot !== false);
+  // Opt-in-Semantik: nur explizit als massenangebots-tauglich markierte aktive Kunden.
+  const berechtigte = alleKunden.filter((k) => k.aktiv && k.automatischesAngebot === true);
 
-  melde('Lade Werkspreis…', 15);
+  melde('Lade Werkspreis & Preis-Konfiguration…', 15);
   const werkspreisProTonne = await getArtikelPreis(STANDARD_ARTIKEL.nummer);
+  const { halbePaletteAufschlagProzent } = await getPreisKonfiguration();
 
   melde(`Lade Projekte der Saison ${saisonjahr}…`, 25);
-  const zielProjekte = await ladeProjektRefsFuerSaison(saisonjahr);
+  const zielProjekte = await ladeProjekteFuerSaison(saisonjahr);
 
   melde(`Lade Vorjahres-Projekte (${saisonjahr - 1})…`, 40);
-  const vorjahrProjekte = await ladeProjektRefsFuerSaison(saisonjahr - 1);
+  const vorjahrProjekte = await ladeProjekteFuerSaison(saisonjahr - 1);
 
   melde('Lade Bezugswege der Vorsaison…', 50);
   const vorjahrSaisonDaten = await ladeSaisonDatenFuerSaison(saisonjahr - 1);
 
-  // Angebots-Dokumente nur für Vorjahres-Projekte laden, deren Kunde die
-  // Quelle „Vorjahr" überhaupt erreichen kann (kein Zielprojekt, kein
-  // Platzbauer, kein Bezug über Platzbauer).
+  // Referenz-Dokumente (AB/Rechnung/Angebot) nur für Vorjahres-Projekte laden,
+  // deren Kunde die Quelle „Vorjahr" überhaupt erreichen kann (kein Zielprojekt,
+  // kein Platzbauer, kein Bezug über Platzbauer). ALLE Projekte je Kunde.
   const relevanteVorjahrProjektIds = berechtigte
     .filter(
       (k) =>
@@ -437,11 +767,10 @@ async function sammleKandidaten(
         k.typ !== 'platzbauer' &&
         !beziehtUeberPlatzbauer(k, vorjahrSaisonDaten.get(k.id))
     )
-    .map((k) => vorjahrProjekte.get(k.id)?.id)
-    .filter((id): id is string => Boolean(id));
+    .flatMap((k) => (vorjahrProjekte.get(k.id) ?? []).map((p) => p.id));
 
-  melde('Lade Vorjahres-Angebote…', 60);
-  const vorjahrAngebote = await ladeNeuesteAngeboteFuerProjekte(relevanteVorjahrProjektIds);
+  melde('Lade Vorjahres-Referenzen (AB/Rechnung/Angebot)…', 60);
+  const vorjahrDokumente = await ladeReferenzDokumenteFuerProjekte(relevanteVorjahrProjektIds);
 
   melde('Lade Saisonplanungs-Daten…', 80);
   const zielSaisonDaten = await ladeSaisonDatenFuerSaison(saisonjahr);
@@ -450,9 +779,10 @@ async function sammleKandidaten(
   const lookup: KandidatenLookup = {
     zielProjekte,
     vorjahrProjekte,
-    vorjahrAngebote,
+    vorjahrDokumente,
     zielSaisonDaten,
     vorjahrSaisonDaten,
+    halbePaletteAufschlagProzent,
   };
   const kandidaten = berechtigte.map((kunde) =>
     bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne, lookup)
@@ -470,6 +800,110 @@ async function sammleKandidaten(
   return kandidaten.sort(
     (a, b) => rang[a.status] - rang[b.status] || a.kundenname.localeCompare(b.kundenname, 'de')
   );
+}
+
+// ===== OPT-IN-VORSCHLAGSLISTE =====
+
+/**
+ * Berechnet alle Kunden, die im Vorjahr DIREKT bestellt haben (mind. ein nicht
+ * verlorenes Vorjahres-Projekt, kein Platzbauer, kein Bezug über Platzbauer,
+ * E-Mail vorhanden) und noch NICHT als massenangebots-tauglich markiert sind.
+ * Reine Leseoperation — schreibt nichts.
+ */
+async function sammleTauglichkeitsVorschlaege(
+  saisonjahr: number,
+  onFortschritt?: SammelFortschritt
+): Promise<TauglichkeitsVorschlag[]> {
+  const melde = (schritt: string, prozent: number) => onFortschritt?.(schritt, prozent);
+
+  melde('Lade Kundenstamm…', 10);
+  const alleKunden = await saisonplanungService.loadAlleKunden();
+
+  melde(`Lade Vorjahres-Projekte (${saisonjahr - 1})…`, 45);
+  const vorjahrProjekte = await ladeProjekteFuerSaison(saisonjahr - 1);
+
+  melde('Lade Bezugswege der Vorsaison…', 75);
+  const vorjahrSaisonDaten = await ladeSaisonDatenFuerSaison(saisonjahr - 1);
+
+  melde('Berechne Vorschläge…', 90);
+  const BESTELL_STATUS = new Set(['auftragsbestaetigung', 'lieferschein', 'rechnung', 'bezahlt']);
+  const vorschlaege = alleKunden
+    .filter(
+      (k) =>
+        k.aktiv &&
+        k.automatischesAngebot !== true &&
+        k.typ !== 'platzbauer' &&
+        !beziehtUeberPlatzbauer(k, vorjahrSaisonDaten.get(k.id))
+    )
+    .map((kunde) => {
+      const projekte = (vorjahrProjekte.get(kunde.id) ?? []).filter(
+        (p) => p.status !== 'verloren'
+      );
+      return { kunde, projekte, email: ermittleEmpfaenger(kunde) };
+    })
+    .filter((e) => e.projekte.length > 0 && Boolean(e.email))
+    .map(
+      (e): TauglichkeitsVorschlag => ({
+        kundeId: e.kunde.id,
+        kundenname: e.kunde.name,
+        kundennummer: e.kunde.kundennummer,
+        email: e.email,
+        anzahlVorjahresProjekte: e.projekte.length,
+        hatBestellung: e.projekte.some((p) => p.status !== undefined && BESTELL_STATUS.has(p.status)),
+        ausgewaehlt: true,
+      })
+    )
+    .sort((a, b) => a.kundenname.localeCompare(b.kundenname, 'de'));
+
+  melde('Fertig', 100);
+  return vorschlaege;
+}
+
+/**
+ * Markiert die übergebenen Kunden als massenangebots-tauglich
+ * (automatischesAngebot: true) — in Batches à 5 parallelen Updates über den
+ * saisonplanungService, mit Fortschritts-Callback und Fehlersammlung
+ * (Einzelfehler brechen den Lauf NICHT ab). Bewusste Nutzer-Aktion im Tool.
+ */
+async function markiereAlsTauglich(
+  vorschlaege: Pick<TauglichkeitsVorschlag, 'kundeId' | 'kundenname'>[],
+  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void
+): Promise<MarkierungsErgebnis> {
+  const BATCH = 5;
+  let erledigt = 0;
+  let erfolgreich = 0;
+  const fehler: MarkierungsErgebnis['fehler'] = [];
+
+  for (let i = 0; i < vorschlaege.length; i += BATCH) {
+    const batch = vorschlaege.slice(i, i + BATCH);
+    const ergebnisse = await Promise.allSettled(
+      batch.map((v) =>
+        saisonplanungService.updateKunde(v.kundeId, { automatischesAngebot: true })
+      )
+    );
+    ergebnisse.forEach((res, idx) => {
+      const vorschlag = batch[idx];
+      erledigt += 1;
+      if (res.status === 'fulfilled') {
+        erfolgreich += 1;
+      } else {
+        fehler.push({
+          kundeId: vorschlag.kundeId,
+          kundenname: vorschlag.kundenname,
+          fehler: res.reason instanceof Error ? res.reason.message : String(res.reason),
+        });
+      }
+      onFortschritt?.(erledigt, vorschlaege.length, vorschlag.kundenname);
+    });
+  }
+
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'saison_kunde',
+    entityId: 'massenangebot-tauglichkeit',
+    summary: `Massenangebots-Tauglichkeit gesetzt: ${erfolgreich} Kunden markiert, ${fehler.length} Fehler`,
+  });
+  return { erfolgreich, fehler };
 }
 
 function berechneZusammenfassung(kandidaten: MassenAngebotKandidat[]): KandidatenZusammenfassung {
@@ -513,6 +947,76 @@ function aktualisiereMengePreis(
   const ausgewaehlt =
     revalidiert.status === 'fehler' ? false : warFehler ? true : kandidat.ausgewaehlt;
   return { ...revalidiert, ausgewaehlt };
+}
+
+// Re-validiert einen Kandidaten nach einer Positionsänderung aus dem Detail-Panel.
+// Primärposition/Menge/Preis/Summe werden neu abgeleitet; Auswahl-Logik wie bei
+// aktualisiereMengePreis (Fehler → abgewählt, behobener Fehler → angewählt).
+function revalidiereNachPositionsAenderung(
+  kandidat: MassenAngebotKandidat,
+  positionen: Position[]
+): MassenAngebotKandidat {
+  const primaer =
+    positionen.find((p) => p.id === kandidat.primaerPositionId) ?? findePrimaerPosition(positionen);
+  const warFehler = kandidat.status === 'fehler';
+  const revalidiert = validiere({
+    ...kandidat,
+    positionen,
+    primaerPositionId: primaer?.id,
+    menge: primaer?.menge ?? 0,
+    preisProTonne: primaer?.einzelpreis ?? 0,
+    angebotssumme: berechneSumme(positionen),
+    warnungen: kandidat.warnungen.filter((w) => !w.startsWith('Empfänger-E-Mail fehlt')),
+  });
+  const ausgewaehlt =
+    revalidiert.status === 'fehler' ? false : warFehler ? true : kandidat.ausgewaehlt;
+  return { ...revalidiert, ausgewaehlt };
+}
+
+/** Aktualisiert Menge/Einzelpreis EINER Position (Detail-Panel) und re-validiert. */
+function aktualisierePosition(
+  kandidat: MassenAngebotKandidat,
+  positionId: string,
+  menge: number,
+  einzelpreis: number
+): MassenAngebotKandidat {
+  const positionen = kandidat.positionen.map((pos) =>
+    pos.id === positionId
+      ? {
+          ...pos,
+          menge,
+          einzelpreis: round2(einzelpreis),
+          gesamtpreis: round2(menge * einzelpreis),
+        }
+      : pos
+  );
+  return revalidiereNachPositionsAenderung(kandidat, positionen);
+}
+
+/** Entfernt EINE Position (Detail-Panel) und re-validiert. */
+function entfernePosition(
+  kandidat: MassenAngebotKandidat,
+  positionId: string
+): MassenAngebotKandidat {
+  const positionen = kandidat.positionen.filter((pos) => pos.id !== positionId);
+  return revalidiereNachPositionsAenderung(kandidat, positionen);
+}
+
+/** Setzt die Empfänger-E-Mail (Detail-Panel) und aktualisiert die Versand-Warnung. */
+function setzeEmpfaengerEmail(
+  kandidat: MassenAngebotKandidat,
+  email: string
+): MassenAngebotKandidat {
+  const bereinigt = email.trim();
+  const emailFehlt = bereinigt.length === 0;
+  const warnungen = kandidat.warnungen.filter((w) => !w.startsWith('Empfänger-E-Mail fehlt'));
+  if (emailFehlt) warnungen.push('Empfänger-E-Mail fehlt – Versand nicht möglich');
+  return {
+    ...kandidat,
+    empfaengerEmail: emailFehlt ? undefined : bereinigt,
+    emailFehlt,
+    warnungen,
+  };
 }
 
 /**
@@ -703,6 +1207,10 @@ async function erzeugeBatch(
           kundenname: kandidat.kundenname,
           kundenstrasse: adresse.strasse,
           kundenPlzOrt: adresse.plzOrt,
+          // Im Detail-Panel editierte Empfänger-E-Mail + Notiz fließen ins Projekt
+          // (Versand nutzt kundenEmail bevorzugt, siehe ladeVersandKandidaten).
+          kundenEmail: kandidat.empfaengerEmail,
+          notizen: kandidat.notiz?.trim() || undefined,
           saisonjahr,
           status: 'angebot',
           automatischErzeugt: true,
@@ -847,7 +1355,9 @@ async function ladeVersandKandidaten(batchId: string): Promise<VersandKandidat[]
     .filter((p) => p.status === 'angebot')
     .map((p) => {
       const kunde = kundenMap.get(p.kundeId);
-      const email = kunde ? ermittleEmpfaenger(kunde) : undefined;
+      // Bevorzugt die im Detail-Panel editierte Adresse (am Projekt gespeichert),
+      // sonst die Stammdaten-Adresse des Kunden.
+      const email = p.kundenEmail || (kunde ? ermittleEmpfaenger(kunde) : undefined);
       return {
         projektId: p.$id || p.id,
         kundeId: p.kundeId,
@@ -884,19 +1394,40 @@ async function versendeAngebot(
   const pdf = await generiereAngebotPDF(daten, stammdaten);
   const pdfBase64 = pdfZuBase64(pdf);
 
-  const betreff = `${testModus ? '[TEST] ' : ''}Ihr Angebot zur Frühjahrsinstandsetzung – ${daten.angebotsnummer}`;
-  const text =
+  // Betreff/Text/Signatur aus der Stammdaten-E-Mail-Vorlage 'angebot'
+  // (Platzhalter {dokumentNummer}/{kundenname}/{kundennummer} werden ersetzt) —
+  // exakt wie in der Anfragen-Bearbeitung. Fallback auf den bisherigen
+  // Standardtext NUR, wenn keine Vorlage konfiguriert ist.
+  let betreff = `Ihr Angebot zur Frühjahrsinstandsetzung – ${daten.angebotsnummer}`;
+  let text =
     `Sehr geehrte Damen und Herren,\n\n` +
     `anbei erhalten Sie unser Angebot ${daten.angebotsnummer} für die diesjährige ` +
     `Frühjahrsinstandsetzung Ihrer Tennisplätze.\n\n` +
     `Bei Fragen stehen wir Ihnen gerne zur Verfügung. Über Ihren Auftrag freuen wir uns.\n\n` +
     `Mit freundlichen Grüßen\nIhr TENNISMEHL-Team`;
-  const htmlBody = wrapInEmailTemplate(text);
+  let signatur: string | undefined;
+  try {
+    const vorlage = await generiereStandardEmail(
+      'angebot',
+      daten.angebotsnummer,
+      daten.kundenname,
+      daten.kundennummer
+    );
+    if (vorlage.betreff) betreff = vorlage.betreff;
+    if (vorlage.text) text = vorlage.text;
+    signatur = vorlage.signatur;
+  } catch (error) {
+    console.warn(
+      'Keine E-Mail-Vorlage "angebot" konfiguriert – Massenangebot verwendet den Standardtext:',
+      error
+    );
+  }
+  const htmlBody = wrapInEmailTemplate(text, signatur);
 
   const result = await sendeEmailMitPdf({
     empfaenger,
     absender: ANGEBOT_ABSENDER,
-    betreff,
+    betreff: `${testModus ? '[TEST] ' : ''}${betreff}`,
     htmlBody,
     pdfBase64,
     pdfDateiname: `Angebot_${daten.angebotsnummer.replace(/\//g, '-')}.pdf`,
@@ -944,10 +1475,27 @@ async function versendeBatch(
   return { gesendet, fehler };
 }
 
+/** NUR für Unit-Tests: reine Helfer der Referenz-/Paletten-Logik. */
+export const _massenAngebotInternals = {
+  klassifizierePosition,
+  berechneSchuettgutTonnage,
+  bestimmeProduktprofil,
+  rundeAufHalbePaletten,
+  bereitePalettenPositionAuf,
+  baueAngebotsPositionenAusReferenz,
+  waehleGroessteBestellung,
+  ermittleMosaikReferenzJahr,
+};
+
 export const massenAngebotService = {
   sammleKandidaten,
+  sammleTauglichkeitsVorschlaege,
+  markiereAlsTauglich,
   berechneZusammenfassung,
   aktualisiereMengePreis,
+  aktualisierePosition,
+  entfernePosition,
+  setzeEmpfaengerEmail,
   wendePreisanpassungAn,
   baueAngebotsDaten,
   erzeugeBatch,

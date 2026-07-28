@@ -4,6 +4,29 @@ import { Position } from './projektabwicklung';
 /** Woher das Angebot eines Kunden stammt (Priorität: vorjahr > mosaik > plz_kalkulation > manuell). */
 export type AngebotsQuelle = 'vorjahr' | 'mosaik' | 'plz_kalkulation' | 'manuell';
 
+/** Produktprofil des Kandidaten, abgeleitet aus den Referenz-Positionen. */
+export type Produktprofil = 'schuettgut' | 'paletten' | 'gemischt';
+
+/** Datenbasis der Referenz („bestätigte Bestellung schlägt bloßes Angebot"). */
+export type ReferenzTyp = 'auftragsbestaetigung' | 'rechnung' | 'angebot' | 'mosaik';
+
+/** Die als Referenz gewählte „größte Bestellung des Jahres" eines Kunden. */
+export interface ReferenzInfo {
+  /** Referenz-Saisonjahr (bei Mosaik nur, wenn aus der Preishistorie ermittelbar). */
+  jahr?: number;
+  typ: ReferenzTyp;
+  /** Schüttgut-Tonnage (TM-ZM-02/-03) der Referenz-Positionen. */
+  tonnage: number;
+  /** Netto-Auftragswert der Referenz (ohne Bedarfspositionen). */
+  wert: number;
+  /** Projekt, aus dem die Referenz stammt (nur Quelle „vorjahr"). */
+  projektId?: string;
+  /** Wie viele Vorjahres-Projekte der Kunde insgesamt hatte. */
+  anzahlVorjahresProjekte?: number;
+  /** true, wenn nur ein verlorenes Projekt als Referenz verfügbar war. */
+  ausVerlorenemProjekt?: boolean;
+}
+
 /**
  * Status einer Vorschau-Zeile.
  * - neu:       wird (nach Bestätigung) erzeugt
@@ -31,6 +54,13 @@ export interface MassenAngebotKandidat {
   empfaengerEmail?: string;
   /** Empfänger fehlt → kann erzeugt, aber NICHT versendet werden. */
   emailFehlt: boolean;
+
+  /** Produktprofil aus den Referenz-Positionen (Fallback: schuettgut). */
+  produktprofil: Produktprofil;
+  /** Referenz „größte Bestellung des Jahres" (Quelle vorjahr/mosaik). */
+  referenz?: ReferenzInfo;
+  /** Freitext-Notiz aus dem Detail-Panel (wird ins Projekt übernommen). */
+  notiz?: string;
 
   positionen: Position[];
   /** id der editierbaren Primärposition innerhalb von positionen. */
@@ -88,6 +118,28 @@ export interface VersandKandidat {
   empfaengerEmail?: string;
   emailFehlt: boolean;
   ausgewaehlt: boolean;
+}
+
+/**
+ * Vorschlag für die Opt-in-Pflege: Kunde hat im Vorjahr DIREKT bestellt
+ * (eigenes Projekt, kein Platzbauer, kein Bezug über Platzbauer, E-Mail vorhanden),
+ * ist aber noch nicht als massenangebots-tauglich markiert.
+ */
+export interface TauglichkeitsVorschlag {
+  kundeId: string;
+  kundenname: string;
+  kundennummer?: string;
+  email?: string;
+  anzahlVorjahresProjekte: number;
+  /** Mindestens ein Vorjahres-Projekt hat den Status AB oder später. */
+  hatBestellung: boolean;
+  ausgewaehlt: boolean;
+}
+
+/** Ergebnis der Batch-Markierung „massenangebots-tauglich". */
+export interface MarkierungsErgebnis {
+  erfolgreich: number;
+  fehler: { kundeId: string; kundenname: string; fehler: string }[];
 }
 
 /** Ergebnis eines scharfen Erzeugungslaufs. */
