@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   X,
   Mail,
   Send,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   FileText,
   TestTube2,
@@ -14,12 +15,24 @@ import jsPDF from 'jspdf';
 import TipTapEditor from '../Shared/TipTapEditor';
 import {
   ladeEmailKonten,
+  ladeEmailProtokollFuerDokument,
+  istTestversand,
   sendeEmailMitPdf,
   pdfZuBase64,
   wrapInEmailTemplate,
 } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
-import { EmailAccount, DokumentTyp, TEST_EMAIL_ADDRESS } from '../../types/email';
+import { EmailAccount, EmailProtokoll, DokumentTyp, TEST_EMAIL_ADDRESS } from '../../types/email';
+
+// Formatiert einen ISO-Zeitstempel als deutsches Datum mit Uhrzeit
+const formatiereZeitpunkt = (iso: string): string => {
+  const datum = new Date(iso);
+  if (Number.isNaN(datum.getTime())) return iso;
+  return `${datum.toLocaleDateString('de-DE')}, ${datum.toLocaleTimeString('de-DE', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} Uhr`;
+};
 
 interface EmailFormularProps {
   pdf: jsPDF;
@@ -67,6 +80,12 @@ const EmailFormular = ({
   // PDF-Vorschau
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
+  // Doppelversand-Schutz: bisheriger Versand-Verlauf dieses Dokuments
+  // null = Verlauf (noch) nicht geladen bzw. Laden fehlgeschlagen
+  const [verlauf, setVerlauf] = useState<EmailProtokoll[] | null>(null);
+  const [verlaufFehler, setVerlaufFehler] = useState(false);
+  const [erneutSendenBestaetigt, setErneutSendenBestaetigt] = useState(false);
+
   // Dokumenttyp-Labels
   const dokumentTypLabels: Record<DokumentTyp, string> = {
     angebot: 'Angebot',
@@ -74,6 +93,45 @@ const EmailFormular = ({
     lieferschein: 'Lieferschein',
     rechnung: 'Rechnung',
   };
+
+  // "Diese Rechnung wurde…" / "Dieser Lieferschein wurde…" (korrekter Artikel)
+  const dokumentTypMitArtikel: Record<DokumentTyp, string> = {
+    angebot: 'Dieses Angebot',
+    auftragsbestaetigung: 'Diese Auftragsbestätigung',
+    lieferschein: 'Dieser Lieferschein',
+    rechnung: 'Diese Rechnung',
+  };
+
+  // Versand-Verlauf für genau dieses Dokument laden (Projekt + Typ + Nummer)
+  const ladeVerlauf = useCallback(async () => {
+    if (!projektId) {
+      // Ohne Projekt-ID kann kein Verlauf zugeordnet werden
+      setVerlauf([]);
+      setVerlaufFehler(false);
+      return;
+    }
+    const eintraege = await ladeEmailProtokollFuerDokument(projektId, dokumentTyp, dokumentNummer);
+    if (eintraege === null) {
+      setVerlaufFehler(true);
+      setVerlauf(null);
+    } else {
+      setVerlaufFehler(false);
+      setVerlauf(eintraege);
+    }
+  }, [projektId, dokumentTyp, dokumentNummer]);
+
+  useEffect(() => {
+    void ladeVerlauf();
+  }, [ladeVerlauf]);
+
+  // Echte (Nicht-Test-)Versände mit Status 'gesendet' → lösen die Warnung aus
+  const echteVersendungen = (verlauf ?? []).filter(
+    (e) => e.status === 'gesendet' && !istTestversand(e)
+  );
+  const testVersendungen = (verlauf ?? []).filter(
+    (e) => e.status === 'gesendet' && istTestversand(e)
+  );
+  const bereitsVersendet = echteVersendungen.length > 0;
 
   // E-Mail-Konten und Template laden
   useEffect(() => {
@@ -161,6 +219,19 @@ const EmailFormular = ({
 
   // E-Mail senden
   const handleSenden = async () => {
+    // Doppelklick-Schutz: läuft bereits ein Versand (oder ist er fertig), nichts tun
+    if (status === 'senden' || status === 'erfolg') {
+      return;
+    }
+
+    // Doppelversand-Schutz: bereits versendet → nur mit expliziter Bestätigung
+    if (bereitsVersendet && !erneutSendenBestaetigt) {
+      setFehlerMeldung(
+        `${dokumentTypMitArtikel[dokumentTyp]} wurde bereits versendet. Bitte bestätigen Sie den erneuten Versand über die Checkbox.`
+      );
+      return;
+    }
+
     // Validierung
     if (!empfaenger.trim()) {
       setFehlerMeldung('Bitte geben Sie eine Empfänger-Adresse ein.');
@@ -208,6 +279,12 @@ const EmailFormular = ({
           ? `Test-Adresse (${TEST_EMAIL_ADDRESS})`
           : empfaenger;
         setErfolgsMeldung(`E-Mail erfolgreich an ${ziel} gesendet!`);
+
+        // Verlauf sofort aktualisieren (der neue Protokoll-Eintrag existiert bereits)
+        // und Erneut-Senden-Bestätigung zurücksetzen — der nächste Versand braucht
+        // wieder eine explizite Bestätigung.
+        setErneutSendenBestaetigt(false);
+        void ladeVerlauf();
 
         if (onSend) {
           // Server-seitig erzwungener Testmodus zählt ebenfalls als Test —
@@ -274,6 +351,70 @@ const EmailFormular = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Doppelversand-Warnung: Dokument wurde bereits erfolgreich versendet */}
+          {bereitsVersendet && (
+            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-700 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-red-800 dark:text-red-300">
+                    ⚠ {dokumentTypMitArtikel[dokumentTyp]} wurde bereits versendet!
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-300">
+                    {echteVersendungen.map((eintrag, index) => (
+                      <li key={eintrag.$id || `${eintrag.gesendetAm}-${index}`}>
+                        am {formatiereZeitpunkt(eintrag.gesendetAm)} an{' '}
+                        <span className="font-semibold">{eintrag.empfaenger}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {testVersendungen.length > 0 && (
+                    <p className="mt-2 text-xs text-red-600/80 dark:text-red-400/80">
+                      Zusätzlich {testVersendungen.length} Testversand
+                      {testVersendungen.length === 1 ? '' : '/-versände'} (nur an die Test-Adresse,
+                      zählt nicht als Kundenversand).
+                    </p>
+                  )}
+                  <label className="mt-3 flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={erneutSendenBestaetigt}
+                      onChange={(e) => setErneutSendenBestaetigt(e.target.checked)}
+                      className="w-5 h-5 text-red-600 border-red-400 rounded focus:ring-red-500"
+                    />
+                    <span className="text-sm font-semibold text-red-800 dark:text-red-300">
+                      Ich möchte dieses Dokument bewusst ERNEUT senden
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hinweis: Testversände vorhanden, aber noch kein echter Versand */}
+          {!bereitsVersendet && testVersendungen.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+              <TestTube2 className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Bisher {testVersendungen.length} Testversand
+                {testVersendungen.length === 1 ? '' : '/-versände'} (nur Test-Adresse) — an den Kunden
+                wurde dieses Dokument noch nicht versendet.
+              </p>
+            </div>
+          )}
+
+          {/* Warnung: Verlauf konnte nicht geprüft werden */}
+          {verlaufFehler && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Der Versand-Verlauf konnte nicht geladen werden — es ist nicht sicher, ob dieses
+                Dokument bereits versendet wurde. Bitte vor dem Senden manuell im E-Mail-Verlauf des
+                Projekts prüfen.
+              </p>
+            </div>
+          )}
+
           {/* Status-Meldungen */}
           {fehlerMeldung && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start gap-3">
@@ -439,7 +580,18 @@ const EmailFormular = ({
 
             <button
               onClick={handleSenden}
-              disabled={status === 'senden' || status === 'erfolg' || !empfaenger.trim() || !betreff.trim()}
+              disabled={
+                status === 'senden' ||
+                status === 'erfolg' ||
+                !empfaenger.trim() ||
+                !betreff.trim() ||
+                (bereitsVersendet && !erneutSendenBestaetigt)
+              }
+              title={
+                bereitsVersendet && !erneutSendenBestaetigt
+                  ? 'Bereits versendet — erneuten Versand zuerst über die Checkbox bestätigen'
+                  : undefined
+              }
               className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {status === 'senden' ? (

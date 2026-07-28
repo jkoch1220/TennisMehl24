@@ -12,6 +12,7 @@ import {
   EmailAccount,
   EmailPlatzhalter,
   ProtokollDokumentTyp,
+  TEST_EMAIL_ADDRESS,
 } from '../types/email';
 import { Query } from 'appwrite';
 
@@ -55,43 +56,93 @@ export const ladeEmailKonten = async (): Promise<EmailAccount[]> => {
   }
 };
 
+// Hinweis für Netzwerk-/Proxy-Fehler (lokaler Mail-Dev-Server läuft nicht o.ä.)
+const EMAIL_SERVER_HINWEIS =
+  'E-Mail-Server nicht erreichbar. Lokal: Dev-Server mit „npm run dev:full" starten ' +
+  '(Mail-Server Port 8888) oder EMAIL_PROXY_TARGET in .env auf die Netlify-Produktion stellen.';
+
+// Versucht, einen Response-Body als JSON zu parsen. Leerer Body oder
+// HTML-Fehlerseite (z.B. Proxy-502) liefern null statt einer Exception.
+const parseJsonSicher = (text: string): Record<string, unknown> | null => {
+  if (!text || !text.trim()) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const alsString = (wert: unknown): string | undefined =>
+  typeof wert === 'string' && wert.trim() ? wert : undefined;
+
 /**
- * Sendet eine E-Mail über die Netlify Function
+ * Sendet eine E-Mail über die Netlify Function.
+ *
+ * Robust gegen nicht-JSON-Antworten (leerer Body, HTML-Fehlerseite) und
+ * Netzwerk-/Proxy-Fehler: In diesen Fällen kommt eine klare deutsche
+ * Fehlermeldung mit Handlungshinweis zurück, die im Formular angezeigt wird.
  */
 export const sendeEmail = async (request: EmailSendRequest): Promise<EmailSendResponse> => {
-  try {
-    const apiUrl = getEmailApiUrl();
+  const apiUrl = getEmailApiUrl();
 
-    const response = await fetch(apiUrl, {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(request),
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.message || data.error || 'Unbekannter Fehler',
-      };
-    }
-
-    return {
-      success: true,
-      messageId: data.messageId,
-      testModeActive: data.testModeActive,
-      actualRecipient: data.actualRecipient,
-    };
   } catch (error) {
-    console.error('Fehler beim E-Mail-Versand:', error);
+    // fetch-Exception: Server/Proxy gar nicht erreichbar (ECONNREFUSED, DNS, offline)
+    console.error('Netzwerkfehler beim E-Mail-Versand:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Netzwerkfehler',
+      error: `Netzwerkfehler beim E-Mail-Versand. ${EMAIL_SERVER_HINWEIS}`,
     };
   }
+
+  // Body IMMER als Text lesen und erst dann versuchsweise parsen —
+  // response.json() wirft bei leerem Body "Unexpected end of JSON input".
+  let bodyText = '';
+  try {
+    bodyText = await response.text();
+  } catch {
+    bodyText = '';
+  }
+  const data = parseJsonSicher(bodyText);
+
+  if (!response.ok) {
+    const serverMeldung = data ? alsString(data.message) || alsString(data.error) : undefined;
+    if (serverMeldung) {
+      return { success: false, error: serverMeldung };
+    }
+    // 500/502/504 mit leerem oder nicht-JSON-Body → typischer Proxy-/Dev-Server-Fehler
+    return {
+      success: false,
+      error: `E-Mail-Versand fehlgeschlagen (HTTP ${response.status}, keine lesbare Server-Antwort). ${EMAIL_SERVER_HINWEIS}`,
+    };
+  }
+
+  if (!data) {
+    // HTTP 200, aber kein gültiges JSON — sollte nie passieren, sauber melden statt crashen
+    return {
+      success: false,
+      error: `Unerwartete Antwort vom E-Mail-Server (kein gültiges JSON). ${EMAIL_SERVER_HINWEIS}`,
+    };
+  }
+
+  return {
+    success: true,
+    messageId: alsString(data.messageId),
+    testModeActive: data.testModeActive === true,
+    actualRecipient: alsString(data.actualRecipient),
+  };
 };
 
 /**
@@ -138,6 +189,54 @@ export const ladeEmailProtokoll = async (projektId: string): Promise<EmailProtok
     console.error('Fehler beim Laden des E-Mail-Protokolls:', error);
     return [];
   }
+};
+
+/**
+ * Lädt das E-Mail-Protokoll für EIN konkretes Dokument (Projekt + Dokumenttyp,
+ * optional eingeschränkt auf die Dokumentnummer) — Basis der Doppelversand-Warnung.
+ *
+ * Gibt bei Fehlern bewusst null zurück (nicht []), damit das Formular
+ * "Verlauf konnte nicht geprüft werden" von "noch nie versendet" unterscheiden kann.
+ */
+export const ladeEmailProtokollFuerDokument = async (
+  projektId: string,
+  dokumentTyp: ProtokollDokumentTyp,
+  dokumentNummer?: string
+): Promise<EmailProtokoll[] | null> => {
+  try {
+    const queries = [
+      Query.equal('projektId', projektId),
+      Query.equal('dokumentTyp', dokumentTyp),
+      Query.orderDesc('gesendetAm'),
+      Query.limit(100),
+    ];
+    if (dokumentNummer && dokumentNummer.trim()) {
+      queries.push(Query.equal('dokumentNummer', dokumentNummer.trim()));
+    }
+
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      EMAIL_PROTOKOLL_COLLECTION_ID,
+      queries
+    );
+    return response.documents as unknown as EmailProtokoll[];
+  } catch (error) {
+    console.error('Fehler beim Laden des Dokument-E-Mail-Protokolls:', error);
+    return null;
+  }
+};
+
+/**
+ * Erkennt Testmodus-Versände im Protokoll.
+ *
+ * Neue Einträge protokollieren im Testmodus den tatsächlichen Empfänger
+ * (Test-Adresse); ältere/fremde Einträge werden über den [TEST]-Betreff erkannt.
+ */
+export const istTestversand = (eintrag: EmailProtokoll): boolean => {
+  return (
+    eintrag.empfaenger === TEST_EMAIL_ADDRESS ||
+    (eintrag.betreff || '').includes('[TEST]')
+  );
 };
 
 /**
@@ -261,11 +360,18 @@ export const sendeEmailMitPdf = async (params: {
   // Protokollieren (außer wenn skipProtokoll=true, z.B. im Testmodus)
   if (!skipProtokoll) {
     try {
+      // Im Testmodus den TATSÄCHLICHEN Empfänger (Test-Adresse) protokollieren —
+      // so bleibt das Protokoll wahr und Testversände sind als solche erkennbar
+      // (siehe istTestversand / Doppelversand-Warnung im EmailFormular).
+      const protokollEmpfaenger =
+        (testModus || sendResult.testModeActive) && sendResult.success
+          ? sendResult.actualRecipient || TEST_EMAIL_ADDRESS
+          : empfaenger;
       await protokolliereEmail({
         projektId,
         dokumentTyp,
         dokumentNummer,
-        empfaenger,
+        empfaenger: protokollEmpfaenger,
         absender,
         betreff,
         htmlContent: htmlBody,

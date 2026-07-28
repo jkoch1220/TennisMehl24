@@ -182,6 +182,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
+  // Verhindert, dass die Vorbefüllung (Positionen vom Angebot) bereits
+  // geladene AB-Daten (finalisiert oder Entwurf) überschreibt
+  const datenBereitsVorhandenRef = useRef(false);
   
   // Artikel laden
   useEffect(() => {
@@ -207,7 +210,8 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
       
       try {
         setLadeStatus('laden');
-        
+        datenBereitsVorhandenRef.current = false; // reset für dieses Projekt
+
         // Erst prüfen ob ein finalisiertes Dokument existiert
         const dokument = await ladeDokumentNachTyp(projekt.$id, 'auftragsbestaetigung');
         
@@ -249,6 +253,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
             });
           }
           setAutoSaveStatus('gespeichert');
+          datenBereitsVorhandenRef.current = true; // gespeicherte AB geladen – ladeDaten soll nicht überschreiben
         } else {
           // Kein finalisiertes Dokument - versuche Entwurf zu laden
           const entwurf = await ladeEntwurf<AuftragsbestaetigungsDaten>(projekt.$id, 'auftragsbestaetigungsDaten');
@@ -285,6 +290,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               dieselpreiszuschlagText: entwurf.dieselpreiszuschlagText || DEFAULT_DIESELPREISZUSCHLAG_TEXT,
             });
             setAutoSaveStatus('gespeichert');
+            datenBereitsVorhandenRef.current = true; // Entwurf geladen – ladeDaten soll nicht überschreiben
           }
         }
 
@@ -371,9 +377,13 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
     const ladeDaten = async () => {
+      // Erst ausführen wenn ladeDokument fertig ist (verhindert Race-Condition beim initialen Laden)
+      if (ladeStatus !== 'bereit') return;
+      // Nicht ausführen wenn ladeDokument bereits Daten geladen hat (finalisierte AB oder Entwurf)
+      if (datenBereitsVorhandenRef.current) return;
       // Nicht überschreiben wenn bereits ein Dokument geladen wurde
       if (gespeichertesDokument) return;
-      
+
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
@@ -537,10 +547,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           vertragsklauseln: angebotsKlauseln ?? prev.vertragsklauseln,
           agbAnhaengen: angebotsAgbAnhaengen ?? prev.agbAnhaengen,
         }));
+        datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
     };
     ladeDaten();
-  }, [projekt, kundeInfo, gespeichertesDokument]);
+  }, [projekt, kundeInfo, gespeichertesDokument, ladeStatus]);
 
   const handleInputChange = (field: keyof AuftragsbestaetigungsDaten, value: any) => {
     hatGeaendert.current = true;

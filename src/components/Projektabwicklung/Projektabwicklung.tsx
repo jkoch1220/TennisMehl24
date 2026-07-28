@@ -18,6 +18,7 @@ import ProjektChat from './ProjektChat';
 import ProjektSplitBanner from './ProjektSplitBanner';
 import ProjektSplitModal from './ProjektSplitModal';
 import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
+import ProjektEmailVerlauf from '../Shared/ProjektEmailVerlauf';
 
 // Status-Konfiguration für das Kanban-Board
 const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string }> = {
@@ -91,6 +92,17 @@ const Projektabwicklung = () => {
         // Warte auf alle parallelen Loads
         await Promise.all(parallelLoads);
 
+        // Deep-Link: ?tab=rechnung etc. hat Vorrang vor dem Status-Default
+        // (z.B. aus der Liste „Bereit zur Rechnung" in der Dispo-Planung)
+        const tabParam = new URLSearchParams(window.location.search).get('tab');
+        if (
+          tabParam === 'angebot' ||
+          tabParam === 'auftragsbestaetigung' ||
+          tabParam === 'lieferschein' ||
+          tabParam === 'rechnung'
+        ) {
+          setActiveTab(tabParam);
+        } else
         // Tab basierend auf Projekt-Status setzen
         if (loadedProjekt.status === 'angebot' || loadedProjekt.status === 'angebot_versendet') {
           setActiveTab('angebot');
@@ -460,6 +472,9 @@ const Projektabwicklung = () => {
         {activeTab === 'lieferschein' && <LieferscheinTab projekt={projekt} kunde={kunde} />}
         {activeTab === 'rechnung' && <RechnungTab projekt={projekt} kunde={kunde} />}
       </div>
+
+      {/* E-Mail-Verlauf des Projekts — immer erreichbar, unabhängig vom aktiven Tab */}
+      <ProjektEmailVerlauf projektId={projekt.$id || projekt.id} />
 
       {/* Kunden-Detail-Popup */}
       {showKundenPopup && projekt.kundeId && (
