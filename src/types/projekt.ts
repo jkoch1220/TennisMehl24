@@ -68,6 +68,25 @@ export interface LiefernachweisInfo {
   dokumentId?: string;
 }
 
+// Rückmeldung des Kunden aus dem öffentlichen Datenprüfungs-Formular (AB-E-Mail)
+export interface DatenpruefungRueckmeldung {
+  /** ISO-Datum der Einreichung durch den Kunden */
+  eingereichtAm: string;
+  /** true = Kunde hat alle Daten ohne Änderungen bestätigt */
+  allesKorrekt: boolean;
+  /** Ansprechpartner für die Dispositionsplanung (wird direkt übernommen) */
+  dispoKontakt?: { name?: string; telefon?: string; email?: string };
+  /** Kunde bestätigt: Zufahrt für LKW befahrbar */
+  befahrbarkeitBestaetigt?: boolean;
+  befahrbarkeitHinweis?: string;
+  /** Freitext-Änderungswunsch zu Menge/Lieferanschrift (wird NICHT automatisch übernommen) */
+  mengeLieferanschriftHinweis?: string;
+  /** Freitext-Änderungswunsch zur Rechnungsadresse (wird NICHT automatisch übernommen) */
+  rechnungsadresseHinweis?: string;
+  /** E-Mail für den Rechnungsversand (wird direkt übernommen) */
+  rechnungsEmail?: string;
+}
+
 // Dispo-Notiz für interne Kommunikation
 export interface DispoNotiz {
   id: string;
@@ -127,6 +146,15 @@ export interface Projekt {
   liefernachweisAm?: string;
   /** Referenzen auf Foto/Unterschrift/Archiv-Dokument des Liefernachweises */
   liefernachweis?: LiefernachweisInfo;
+
+  // === DATENPRÜFUNG (Änderungsformular-Link in der AB-E-Mail) ===
+  // Alle Felder liegen NUR im data-JSON des Projekts — keine Appwrite-Spalten.
+  /** Zufälliges, nicht erratbares Token für den öffentlichen Link /daten-pruefung/:projektId?token=... */
+  datenpruefungToken?: string;
+  /** ISO-Datum der Token-Erzeugung (Ablauf nach 90 Tagen, Prüfung in der Netlify Function) */
+  datenpruefungTokenErstelltAm?: string;
+  /** Letzte Rückmeldung des Kunden aus dem Datenprüfungs-Formular */
+  datenpruefungRueckmeldung?: DatenpruefungRueckmeldung;
 
 
   rechnungId?: string;
@@ -208,6 +236,8 @@ export interface Projekt {
   dispoAnsprechpartner?: {
     name: string;
     telefon: string;
+    /** E-Mail für die Dispo-Abstimmung (aus dem Datenprüfungs-Formular) */
+    email?: string;
   };
 
   // === ENDE DISPO-FELDER ===

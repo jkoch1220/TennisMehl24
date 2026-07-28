@@ -91,6 +91,7 @@ const PublicProduktion = lazyWithRetry(() => import('./components/PublicProdukti
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
 const PasswortZuruecksetzen = lazyWithRetry(() => import('./pages/PasswortZuruecksetzen'));
 const Liefernachweis = lazyWithRetry(() => import('./pages/Liefernachweis'));
+const Datenpruefung = lazyWithRetry(() => import('./pages/Datenpruefung'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -409,6 +410,10 @@ function App() {
                 {/* ÖFFENTLICHE Route für den digitalen QR-Liefernachweis (Fahrer, ohne Login!)
                     Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify Function */}
                 <Route path="/liefernachweis/:projektId" element={<Liefernachweis />} />
+
+                {/* ÖFFENTLICHE Route für die Datenprüfung zur AB (Kunde, ohne Login!)
+                    Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify Function */}
+                <Route path="/daten-pruefung/:projektId" element={<Datenpruefung />} />
 
                 {/* Alle anderen Routes benötigen Authentifizierung */}
                 <Route path="/*" element={<AppContent />} />

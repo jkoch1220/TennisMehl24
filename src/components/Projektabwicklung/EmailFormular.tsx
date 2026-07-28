@@ -44,6 +44,8 @@ interface EmailFormularProps {
   standardEmpfaenger?: string;
   projektId?: string;
   pdfVersion?: number;
+  /** Zusätzlicher HTML-Block (z.B. AB-Datenprüfung) — wird nach dem Template-Text und vor der Signatur eingefügt, im Editor anpassbar */
+  zusatzHtml?: string;
   onClose: () => void;
   onSend?: (info: { testModus: boolean; empfaenger: string }) => void;
 }
@@ -60,6 +62,7 @@ const EmailFormular = ({
   standardEmpfaenger,
   projektId,
   pdfVersion,
+  zusatzHtml,
   onClose,
   onSend,
 }: EmailFormularProps) => {
@@ -169,6 +172,11 @@ const EmailFormular = ({
             .join('');
         }
 
+        // Zusatz-Block (z.B. AB-Datenprüfung) vor der Signatur einfügen
+        if (zusatzHtml) {
+          htmlText += '\n' + zusatzHtml;
+        }
+
         // Signatur aus Stammdaten anhängen wenn vorhanden
         if (emailDaten.signatur) {
           htmlText += '\n' + emailDaten.signatur;
@@ -196,7 +204,7 @@ const EmailFormular = ({
         URL.revokeObjectURL(pdfPreviewUrl);
       }
     };
-  }, [dokumentTyp, dokumentNummer, kundenname, kundennummer, pdf]);
+  }, [dokumentTyp, dokumentNummer, kundenname, kundennummer, pdf, zusatzHtml]);
 
   // Standard-Absender basierend auf Dokumenttyp
   const getDefaultAbsender = (typ: DokumentTyp, konten: EmailAccount[]): string => {

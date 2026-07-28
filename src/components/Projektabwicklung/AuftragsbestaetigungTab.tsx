@@ -63,6 +63,10 @@ import {
   getUniversalVersandartLabel,
   UniversalVersandart,
 } from '../../utils/universalVersandHinweis';
+import {
+  erstelleAbDatenpruefungHtml,
+  holeDatenpruefungUrlFuerProjekt,
+} from '../../services/datenpruefungService';
 
 interface AuftragsbestaetigungTabProps {
   projekt?: Projekt;
@@ -176,6 +180,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   // E-Mail-Formular
   const [showEmailFormular, setShowEmailFormular] = useState(false);
   const [emailPdf, setEmailPdf] = useState<jsPDF | null>(null);
+  const [emailZusatzHtml, setEmailZusatzHtml] = useState<string | undefined>(undefined);
 
   // Auto-Save Status
   const [autoSaveStatus, setAutoSaveStatus] = useState<'gespeichert' | 'speichern' | 'fehler' | 'idle'>('idle');
@@ -814,6 +819,18 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
       // PDF generieren
       const pdf = await generiereAuftragsbestaetigungPDF(auftragsbestaetigungsDaten);
+
+      // Datenprüfungs-Block für die E-Mail: Aufforderung zur Prüfung von
+      // Dispo-Kontakt, Menge & Lieferanschrift (inkl. Befahrbarkeit) und
+      // Rechnungsadresse/Rechnungs-E-Mail — mit Link zum Änderungsformular.
+      // Ohne gespeichertes Projekt gibt es keinen Token-Speicherort → kein Block.
+      let zusatzHtml: string | undefined;
+      if (projekt?.$id) {
+        const formularUrl = await holeDatenpruefungUrlFuerProjekt(projekt.$id);
+        zusatzHtml = erstelleAbDatenpruefungHtml(projekt, auftragsbestaetigungsDaten, formularUrl);
+      }
+      setEmailZusatzHtml(zusatzHtml);
+
       setEmailPdf(pdf);
       setShowEmailFormular(true);
     } catch (error) {
@@ -2240,10 +2257,12 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           kundennummer={auftragsbestaetigungsDaten.kundennummer}
           projektId={projekt?.$id}
           standardEmpfaenger={projekt?.kundenEmail}
+          zusatzHtml={emailZusatzHtml}
           onSend={handleAbEmailGesendet}
           onClose={() => {
             setShowEmailFormular(false);
             setEmailPdf(null);
+            setEmailZusatzHtml(undefined);
           }}
         />
       )}
