@@ -89,6 +89,7 @@ const AuditLogTool = lazyWithRetry(() => import('./components/AuditLog/AuditLogT
 const PublicProduktion = lazyWithRetry(() => import('./components/PublicProduktion/PublicProduktion'));
 const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
 const PasswortZuruecksetzen = lazyWithRetry(() => import('./pages/PasswortZuruecksetzen'));
+const Liefernachweis = lazyWithRetry(() => import('./pages/Liefernachweis'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -396,6 +397,10 @@ function App() {
 
                 {/* ÖFFENTLICHE Route für Passwort-Recovery (Link aus der Appwrite-E-Mail) */}
                 <Route path="/passwort-zuruecksetzen" element={<PasswortZuruecksetzen />} />
+
+                {/* ÖFFENTLICHE Route für den digitalen QR-Liefernachweis (Fahrer, ohne Login!)
+                    Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify Function */}
+                <Route path="/liefernachweis/:projektId" element={<Liefernachweis />} />
 
                 {/* Alle anderen Routes benötigen Authentifizierung */}
                 <Route path="/*" element={<AppContent />} />

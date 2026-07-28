@@ -1498,6 +1498,26 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     );
   }
 
+  // E-Mail-Formular-Modal — wird sowohl in der Entwurfs- als auch in der
+  // finalisierten Read-Only-Ansicht gerendert (der Versand-Button existiert in beiden)
+  const emailFormularModal = showEmailFormular && emailPdf ? (
+    <EmailFormular
+      pdf={emailPdf}
+      dateiname={`Rechnung_${rechnungsDaten.rechnungsnummer}.pdf`}
+      dokumentTyp="rechnung"
+      dokumentNummer={rechnungsDaten.rechnungsnummer}
+      kundenname={rechnungsDaten.kundenname}
+      kundennummer={rechnungsDaten.kundennummer}
+      projektId={projekt?.$id}
+      standardEmpfaenger={projekt?.rechnungsEmail || projekt?.kundenEmail}
+      onSend={handleRechnungEmailGesendet}
+      onClose={() => {
+        setShowEmailFormular(false);
+        setEmailPdf(null);
+      }}
+    />
+  ) : null;
+
   // Rechnung bereits finalisiert - Read-Only Ansicht
   if (gespeichertesDokument) {
     return (
@@ -1864,6 +1884,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             />
           </div>
         )}
+
+        {/* E-Mail-Formular (auch in der finalisierten Ansicht verfügbar) */}
+        {emailFormularModal}
       </div>
     );
   }
@@ -3405,23 +3428,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
       </div>
       
       {/* E-Mail-Formular */}
-      {showEmailFormular && emailPdf && (
-        <EmailFormular
-          pdf={emailPdf}
-          dateiname={`Rechnung_${rechnungsDaten.rechnungsnummer}.pdf`}
-          dokumentTyp="rechnung"
-          dokumentNummer={rechnungsDaten.rechnungsnummer}
-          kundenname={rechnungsDaten.kundenname}
-          kundennummer={rechnungsDaten.kundennummer}
-          projektId={projekt?.$id}
-          standardEmpfaenger={projekt?.rechnungsEmail || projekt?.kundenEmail}
-          onSend={handleRechnungEmailGesendet}
-          onClose={() => {
-            setShowEmailFormular(false);
-            setEmailPdf(null);
-          }}
-        />
-      )}
+      {emailFormularModal}
     </div>
   );
 };

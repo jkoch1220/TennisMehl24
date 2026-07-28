@@ -36,11 +36,13 @@ import {
   Boxes,
   ExternalLink,
   FileSpreadsheet,
+  Receipt,
 } from 'lucide-react';
 import TourenPlanungTab from './TourenPlanungTab';
 import DispoKartenAnsicht from './DispoKartenAnsicht';
 import TourenManagement from './TourenManagement';
 import DispoCheckliste from './DispoCheckliste';
+import BereitZurRechnung from './BereitZurRechnung';
 import {
   SchnellBuchungDialog,
   BuchungsBadge,
@@ -127,7 +129,7 @@ function getKWOptions(): { value: number; label: string; isCurrent: boolean }[] 
 }
 
 // Tab-Typen
-type DispoTab = 'auftraege' | 'touren' | 'karte' | 'checkliste';
+type DispoTab = 'auftraege' | 'touren' | 'karte' | 'checkliste' | 'rechnung';
 
 // Interface für extrahierte Lieferdaten
 interface LieferdatenInfo {
@@ -889,11 +891,22 @@ const DispoPlanung = () => {
             <CheckCircle2 className="w-4 h-4" />
             Checkliste
           </button>
+          <button
+            onClick={() => setActiveTab('rechnung')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'rechnung'
+                ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            Bereit zur Rechnung
+          </button>
         </div>
       </div>
 
-      {/* Filter-Sektion (für Aufträge und Karte, nicht für Touren und Checkliste) */}
-      {activeTab !== 'touren' && activeTab !== 'checkliste' && (
+      {/* Filter-Sektion (für Aufträge und Karte, nicht für Touren/Checkliste/Rechnung) */}
+      {activeTab !== 'touren' && activeTab !== 'checkliste' && activeTab !== 'rechnung' && (
         <>
           {/* Statistik-Karten */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -1130,7 +1143,9 @@ const DispoPlanung = () => {
       )}
 
       {/* Tab Content */}
-      {activeTab === 'checkliste' ? (
+      {activeTab === 'rechnung' ? (
+        <BereitZurRechnung />
+      ) : activeTab === 'checkliste' ? (
         <DispoCheckliste projekte={projekte} />
       ) : activeTab === 'karte' ? (
         <DispoKartenAnsicht

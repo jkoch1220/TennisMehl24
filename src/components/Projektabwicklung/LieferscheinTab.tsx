@@ -127,6 +127,9 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const hatGeaendert = useRef(false);
   const initialLaden = useRef(true);
+  // Verhindert, dass die Vorbefüllung (Positionen von der AB) bereits
+  // geladene Lieferschein-Daten (finalisiert oder Entwurf) überschreibt
+  const datenBereitsVorhandenRef = useRef(false);
   
   // Artikel-Auswahl
   const [artikel, setArtikel] = useState<Artikel[]>([]);
@@ -158,7 +161,8 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
       
       try {
         setLadeStatus('laden');
-        
+        datenBereitsVorhandenRef.current = false; // reset für dieses Projekt
+
         // Erst prüfen ob ein finalisiertes Dokument existiert
         const dokument = await ladeDokumentNachTyp(projekt.$id, 'lieferschein');
         
@@ -204,6 +208,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             });
           }
           setAutoSaveStatus('gespeichert');
+          datenBereitsVorhandenRef.current = true; // gespeicherter Lieferschein geladen – ladeDaten soll nicht überschreiben
         } else {
           // Kein finalisiertes Dokument - versuche Entwurf zu laden
           const entwurf = await ladeEntwurf<LieferscheinDaten>(projekt.$id, 'lieferscheinDaten');
@@ -244,6 +249,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
               lieferadressePlzOrt: lieferadressePlzOrt,
             });
             setAutoSaveStatus('gespeichert');
+            datenBereitsVorhandenRef.current = true; // Entwurf geladen – ladeDaten soll nicht überschreiben
           }
         }
         
@@ -316,9 +322,13 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
   // Wenn Projekt oder Kundendaten übergeben wurden, fülle das Formular vor
   useEffect(() => {
     const ladeDaten = async () => {
+      // Erst ausführen wenn ladeDokument fertig ist (verhindert Race-Condition beim initialen Laden)
+      if (ladeStatus !== 'bereit') return;
+      // Nicht ausführen wenn ladeDokument bereits Daten geladen hat (finalisierter Lieferschein oder Entwurf)
+      if (datenBereitsVorhandenRef.current) return;
       // Nicht überschreiben wenn bereits ein Dokument geladen wurde
       if (gespeichertesDokument) return;
-      
+
       const datenQuelle = projekt || kundeInfo;
       if (datenQuelle) {
         const heute = new Date();
@@ -491,10 +501,11 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           bevorzugterTag: prev.bevorzugterTag || lieferdatenAusAB?.bevorzugterTag || projekt?.bevorzugterTag,
           belieferungsart: prev.belieferungsart || lieferdatenAusAB?.belieferungsart || projekt?.belieferungsart,
         }));
+        datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
     };
     ladeDaten();
-  }, [projekt, kundeInfo, gespeichertesDokument]);
+  }, [projekt, kundeInfo, gespeichertesDokument, ladeStatus]);
 
   const handleInputChange = (field: keyof LieferscheinDaten, value: any) => {
     hatGeaendert.current = true;

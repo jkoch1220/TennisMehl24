@@ -69,6 +69,16 @@ export const sichereLiefernachweisToken = async (
     liefernachweisToken: token,
     liefernachweisTokenErstelltAm: new Date().toISOString(),
   });
+
+  // Sicherheitsnetz: Bei übergroßem data-JSON schreibt updateProjekt nur die
+  // Top-Level-Spalten — das Token wäre dann NICHT persistiert und der QR-Code
+  // würde ins Leere zeigen. In dem Fall lieber ohne QR drucken (Papier-Fallback).
+  if (aktualisiert.liefernachweisToken !== token) {
+    throw new Error(
+      'Liefernachweis-Token konnte nicht am Projekt gespeichert werden (data-Feld zu groß?)'
+    );
+  }
+
   return { projekt: aktualisiert, token };
 };
 

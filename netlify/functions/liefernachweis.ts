@@ -309,6 +309,27 @@ const formatDatumZeit = (iso: string): string => {
   });
 };
 
+/**
+ * Bild ins PDF einbetten. WICHTIG: Im Node-Build von jsPDF müssen Bilddaten als
+ * Uint8Array übergeben werden (Strings werden als Dateipfade interpretiert!).
+ * Höhe wird aus dem Seitenverhältnis berechnet (getImageProperties).
+ */
+const bettePdfBildEin = (
+  doc: jsPDF,
+  bytes: Uint8Array,
+  format: 'JPEG' | 'PNG',
+  x: number,
+  y: number,
+  maxBreite: number,
+  maxHoehe: number
+): void => {
+  const props = doc.getImageProperties(bytes);
+  const skalierung = Math.min(maxBreite / props.width, maxHoehe / props.height);
+  const breite = props.width * skalierung;
+  const hoehe = props.height * skalierung;
+  doc.addImage(bytes, format, x, y, breite, hoehe);
+};
+
 // === Liefernachweis-PDF (serverseitig mit jsPDF in Node) ===
 const generiereLiefernachweisPdf = (options: {
   daten: ProjektDaten;
@@ -316,8 +337,8 @@ const generiereLiefernachweisPdf = (options: {
   zeitstempel: string;
   unterzeichnerName?: string;
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
-  fotoJpegBase64: string;
-  unterschriftPngBase64?: string;
+  fotoJpegBytes: Uint8Array;
+  unterschriftPngBytes?: Uint8Array;
 }): Uint8Array => {
   const { daten, positionen, zeitstempel, unterzeichnerName, geo } = options;
   const doc = new jsPDF();
@@ -383,14 +404,14 @@ const generiereLiefernachweisPdf = (options: {
   doc.text('Foto der abgeladenen Ware', links, 20);
   doc.setFont('helvetica', 'normal');
   try {
-    doc.addImage(options.fotoJpegBase64, 'JPEG', links, 28, 170, 0);
+    bettePdfBildEin(doc, options.fotoJpegBytes, 'JPEG', links, 28, 170, 240);
   } catch {
     doc.setFontSize(10);
     doc.text('Foto konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 32);
   }
 
   // Unterschrift (optional)
-  if (options.unterschriftPngBase64) {
+  if (options.unterschriftPngBytes) {
     doc.addPage();
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
@@ -401,7 +422,7 @@ const generiereLiefernachweisPdf = (options: {
       doc.text(`Name: ${unterzeichnerName}`, links, 27);
     }
     try {
-      doc.addImage(options.unterschriftPngBase64, 'PNG', links, 34, 100, 0);
+      bettePdfBildEin(doc, options.unterschriftPngBytes, 'PNG', links, 34, 100, 60);
     } catch {
       doc.setFontSize(10);
       doc.text('Unterschrift konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 34);
@@ -575,6 +596,10 @@ const handler: Handler = async (event: HandlerEvent) => {
           }
         : undefined;
     const unterzeichnerName = request.unterzeichnerName?.trim() || undefined;
+    const fotoBytes = Uint8Array.from(Buffer.from(fotoBase64, 'base64'));
+    const unterschriftBytes = unterschriftBase64
+      ? Uint8Array.from(Buffer.from(unterschriftBase64, 'base64'))
+      : undefined;
 
     // ---- TESTMODUS: alles durchlaufen, aber KEIN Statuswechsel, KEINE Archivierung ----
     if (request.testModus === true) {
@@ -585,8 +610,8 @@ const handler: Handler = async (event: HandlerEvent) => {
         zeitstempel,
         unterzeichnerName,
         geo,
-        fotoJpegBase64: fotoBase64,
-        unterschriftPngBase64: unterschriftBase64,
+        fotoJpegBytes: fotoBytes,
+        unterschriftPngBytes: unterschriftBytes,
       });
       return {
         statusCode: 200,
@@ -606,7 +631,6 @@ const handler: Handler = async (event: HandlerEvent) => {
       /[<>:"/\\|?*]/g,
       ''
     );
-    const fotoBytes = Uint8Array.from(Buffer.from(fotoBase64, 'base64'));
     const fotoDatei = await ladeDateiHoch(
       LIEFERNACHWEIS_BUCKET_ID,
       `${basisname} Foto.jpg`,
@@ -614,11 +638,11 @@ const handler: Handler = async (event: HandlerEvent) => {
       'image/jpeg'
     );
     let unterschriftDatei: { $id: string } | null = null;
-    if (unterschriftBase64) {
+    if (unterschriftBytes) {
       unterschriftDatei = await ladeDateiHoch(
         LIEFERNACHWEIS_BUCKET_ID,
         `${basisname} Unterschrift.png`,
-        Uint8Array.from(Buffer.from(unterschriftBase64, 'base64')),
+        unterschriftBytes,
         'image/png'
       );
     }
@@ -631,8 +655,8 @@ const handler: Handler = async (event: HandlerEvent) => {
       zeitstempel,
       unterzeichnerName,
       geo,
-      fotoJpegBase64: fotoBase64,
-      unterschriftPngBase64: unterschriftBase64,
+      fotoJpegBytes: fotoBytes,
+      unterschriftPngBytes: unterschriftBytes,
     });
     const pdfDatei = await ladeDateiHoch(
       DOKUMENTE_BUCKET_ID,
