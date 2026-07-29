@@ -29,6 +29,45 @@ export const anfragenService = {
   },
 
   /**
+   * IDs aller Projekte, die aus einer Anfrage entstanden sind.
+   *
+   * Für die Herkunfts-Markierung im Kanban. Lädt bewusst NICHT über
+   * loadAlleAnfragen — dort hängen die kompletten E-Mail-Texte dran, hier
+   * werden nur die Verknüpfungsfelder geholt. Deckt den Altbestand ab, bei dem
+   * das Projekt selbst noch keinen `herkunft`-Marker trägt.
+   */
+  async loadProjektIdsAusAnfragen(): Promise<Set<string>> {
+    const sammle = (documents: Record<string, any>[]): Set<string> => {
+      const ids = new Set<string>();
+      documents.forEach(doc => {
+        if (doc.projektId) ids.add(doc.projektId);
+        if (doc.angebotId) ids.add(doc.angebotId);
+      });
+      return ids;
+    };
+
+    try {
+      const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
+        queries: [Query.select(['$id', 'projektId', 'angebotId'])],
+      });
+      return sammle(documents);
+    } catch (error) {
+      // `angebotId` fehlt in manchen Umgebungen im Collection-Schema (nur `projektId`
+      // ist dort definiert) — dann schlägt das select fehl statt leer zu liefern.
+      console.warn('Anfragen-Verknüpfung: Fallback ohne angebotId', error);
+      try {
+        const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
+          queries: [Query.select(['$id', 'projektId'])],
+        });
+        return sammle(documents);
+      } catch (fallbackError) {
+        console.error('Fehler beim Laden der Anfragen-Verknüpfungen:', fallbackError);
+        return new Set();
+      }
+    }
+  },
+
+  /**
    * Lade Anfragen nach Status
    */
   async loadAnfragenNachStatus(status: string): Promise<Anfrage[]> {
@@ -265,6 +304,7 @@ export const anfragenService = {
       zugeordneterKundeTyp: doc.zugeordneterKundeTyp || undefined,
       zugeordnetAm: doc.zugeordnetAm || undefined,
       zugeordnetVon: doc.zugeordnetVon || undefined,
+      projektId: doc.projektId || undefined,
       angebotId: doc.angebotId || undefined,
       angebotErstelltAm: doc.angebotErstelltAm || undefined,
       angebotVersendetAm: doc.angebotVersendetAm || undefined,

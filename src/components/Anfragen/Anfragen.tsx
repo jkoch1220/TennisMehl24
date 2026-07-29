@@ -998,6 +998,7 @@ const ProjektErstellenDialog = ({
       kundenstrasse: kunde.adresse?.strasse || '',
       kundenPlzOrt: `${kunde.adresse?.plz || ''} ${kunde.adresse?.ort || ''}`.trim(),
       saisonjahr: formData.saisonjahr,
+      herkunft: 'anfrage',
       status: 'angebot',
       angefragteMenge: formData.angefragteMenge || undefined,
       preisProTonne: formData.preisProTonne || undefined,

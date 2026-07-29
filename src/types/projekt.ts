@@ -117,6 +117,9 @@ export interface DispoNotiz {
   wichtig?: boolean;
 }
 
+// Herkunft eines Projekts: aus welchem Kanal es entstanden ist
+export type ProjektHerkunft = 'shop' | 'anfrage';
+
 // Projekt für Projektabwicklung
 export interface Projekt {
   id: string;
@@ -307,6 +310,12 @@ export interface Projekt {
   // erzeugungsBatchId ist top-level queryable (für Rollback eines kompletten Laufs).
   automatischErzeugt?: boolean;       // true = vom Massen-Angebots-Tool angelegt
   erzeugungsBatchId?: string;         // ID des Erzeugungslaufs (für Rollback)
+
+  // === HERKUNFT ===
+  // Woher stammt dieses Projekt? Wird beim Anlegen gesetzt und im Kanban farblich
+  // markiert. Nur für Projekte, die NICHT von Hand angelegt wurden; bei Altbestand
+  // ohne Marker greifen die Fallbacks in utils/projektHerkunft.ts.
+  herkunft?: ProjektHerkunft;
 
   // Timestamps
   erstelltAm: string;

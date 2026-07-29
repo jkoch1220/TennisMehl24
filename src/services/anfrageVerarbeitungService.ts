@@ -208,6 +208,7 @@ export async function verarbeiteAnfrageVollstaendig(
         kundenPlzOrt,
         kundenEmail: input.kundenDaten.email,
         saisonjahr: new Date().getFullYear(),
+        herkunft: 'anfrage',
         status: 'angebot',
         angefragteMenge: input.anfrage.analysiert?.menge,
         preisProTonne: input.preisProTonne,
@@ -570,6 +571,7 @@ export async function erstelleNurKundeUndProjekt(
         kundenPlzOrt,
         kundenEmail: input.kundenDaten.email,
         saisonjahr: new Date().getFullYear(),
+        herkunft: 'anfrage',
         status: 'angebot', // Status "angebot" (nicht versendet)
         angefragteMenge: gesamtMenge,
         preisProTonne: input.preisProTonne,

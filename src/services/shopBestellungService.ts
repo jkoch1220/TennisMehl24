@@ -579,6 +579,7 @@ class ShopBestellungService {
         land: lieferadresse.land || 'DE',
       },
       saisonjahr: new Date().getFullYear(),
+      herkunft: 'shop',
       status: 'auftragsbestaetigung', // Direkt auf AB, da Kunde bereits bestellt hat
       auftragsbestaetigungsnummer: abNummer,
       auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],

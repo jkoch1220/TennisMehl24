@@ -75,6 +75,7 @@ export interface Anfrage {
   zugeordnetVon?: string; // User-ID der Person, die zugeordnet hat
   
   // Angebot-Informationen
+  projektId?: string; // ID des aus der Anfrage erstellten Projekts
   angebotId?: string; // ID des erstellten Angebots (Projekt-ID)
   angebotErstelltAm?: string; // ISO-Datum
   angebotVersendetAm?: string; // ISO-Datum

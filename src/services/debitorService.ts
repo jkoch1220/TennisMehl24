@@ -3,6 +3,7 @@ import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { handleServiceError } from '../utils/errorHandling';
+import { istShopProjekt } from '../utils/projektHerkunft';
 import { GespeichertesDokument, RechnungsDaten as VolleRechnungsDaten } from '../types/projektabwicklung';
 
 // Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
@@ -1428,7 +1429,7 @@ class DebitorService {
    *
    * - Hydrocourt: Position mit Artikelnummer 'TM-HYC', Teilprojekt-Typ oder gesetzter Hydrocourt-Status
    * - Universal:  Position mit istUniversalArtikel / 'Universal:'-Präfix, Teilprojekt-Typ oder Universal-Status
-   * - Onlineshop: Shop-Herkunft (kundeId 'shop-…', AB-Nummer 'SHOP-…' oder Projektname 'Shop #…')
+   * - Onlineshop: Shop-Herkunft (siehe istShopProjekt in utils/projektHerkunft)
    */
   private bestimmeBestelltyp(projekt: Projekt): {
     istHydrocourt: boolean;
@@ -1456,11 +1457,7 @@ class DebitorService {
       !!projekt.universalKanbanStatus ||
       !!projekt.universalBestelltAm;
 
-    const istOnlineshop =
-      (typeof projekt.kundeId === 'string' && projekt.kundeId.startsWith('shop-')) ||
-      (typeof projekt.auftragsbestaetigungsnummer === 'string' &&
-        projekt.auftragsbestaetigungsnummer.startsWith('SHOP-')) ||
-      (typeof projekt.projektName === 'string' && projekt.projektName.startsWith('Shop #'));
+    const istOnlineshop = istShopProjekt(projekt);
 
     return { istHydrocourt, istUniversal, istOnlineshop };
   }

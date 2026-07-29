@@ -39,6 +39,8 @@ import {
   Plus,
   Calculator,
   HardHat,
+  ShoppingCart,
+  Inbox,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -60,16 +62,32 @@ import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
-import { istPlatzbauProjekt, getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
+import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
+import { getProjektHerkunft, getShopBestellnummer, ProjektHerkunftKanal } from '../../utils/projektHerkunft';
+import { anfragenService } from '../../services/anfragenService';
 
-// Optik für Projekte, die über die Platzbauer-Verwaltung laufen: warmes Beige
-// statt Weiß plus Bronze-Kante links, damit sie im Board sofort auffallen.
-const PLATZBAU_CARD_STYLE =
-  'bg-[#FAF6EC] dark:bg-amber-950/25 border-[#E4D8BE] dark:border-amber-900/50 border-l-4 border-l-[#C2A06A] dark:border-l-amber-600 hover:border-[#D5C29B] dark:hover:border-amber-800 hover:border-l-[#A8854B] dark:hover:border-l-amber-500';
+// Herkunfts-Optik im Board: Platzbauer beige, Shop blau, Anfrage grün — jeweils
+// mit farbiger Kante links. Normale Projekte bleiben weiß.
+const HERKUNFT_CARD_STYLE: Record<ProjektHerkunftKanal, string> = {
+  platzbau:
+    'bg-[#FAF6EC] dark:bg-amber-950/25 border-[#E4D8BE] dark:border-amber-900/50 border-l-4 border-l-[#C2A06A] dark:border-l-amber-600 hover:border-[#D5C29B] dark:hover:border-amber-800 hover:border-l-[#A8854B] dark:hover:border-l-amber-500',
+  shop:
+    'bg-[#EFF5FC] dark:bg-blue-950/30 border-[#CBDDF0] dark:border-blue-900/50 border-l-4 border-l-[#5B8DC8] dark:border-l-blue-500 hover:border-[#AECBE8] dark:hover:border-blue-800 hover:border-l-[#3A6FAF] dark:hover:border-l-blue-400',
+  anfrage:
+    'bg-[#EEF6F0] dark:bg-emerald-950/30 border-[#CADFD1] dark:border-emerald-900/50 border-l-4 border-l-[#5F9E77] dark:border-l-emerald-500 hover:border-[#ACCDB6] dark:hover:border-emerald-800 hover:border-l-[#3F8058] dark:hover:border-l-emerald-400',
+};
 const STANDARD_CARD_STYLE =
   'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500';
-const PLATZBAU_BADGE_STYLE =
-  'bg-[#F2E8D3] dark:bg-amber-900/40 text-[#846231] dark:text-amber-200 border-[#DDC9A2] dark:border-amber-800';
+const HERKUNFT_BADGE_STYLE: Record<ProjektHerkunftKanal, string> = {
+  platzbau: 'bg-[#F2E8D3] dark:bg-amber-900/40 text-[#846231] dark:text-amber-200 border-[#DDC9A2] dark:border-amber-800',
+  shop: 'bg-[#DFEAF7] dark:bg-blue-900/40 text-[#2F5F96] dark:text-blue-200 border-[#B9D2EB] dark:border-blue-800',
+  anfrage: 'bg-[#DCEDE2] dark:bg-emerald-900/40 text-[#356E4E] dark:text-emerald-200 border-[#B4D5C0] dark:border-emerald-800',
+};
+const HERKUNFT_ICON: Record<ProjektHerkunftKanal, React.ComponentType<any>> = {
+  platzbau: HardHat,
+  shop: ShoppingCart,
+  anfrage: Inbox,
+};
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
@@ -270,6 +288,9 @@ const ProjektVerwaltung = () => {
     loadSetting(STORAGE_KEYS.kompakteAnsicht, false)
   );
   const [kundenMap, setKundenMap] = useState<Map<string, SaisonKunde>>(new Map());
+  // Projekte, die laut Anfragen-Collection aus einer Anfrage entstanden sind
+  // (deckt Altbestand ohne `herkunft`-Marker ab)
+  const [anfrageProjektIds, setAnfrageProjektIds] = useState<Set<string>>(new Set());
 
   // Filter: Platzbauer-Projekte anzeigen
   const [showPlatzbauerprojekte, setShowPlatzbauerprojekte] = useState(false);
@@ -295,13 +316,16 @@ const ProjektVerwaltung = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Parallel: Projekte UND alle Kunden gleichzeitig laden
-      const [gruppiert, alleKunden] = await Promise.all([
+      // Parallel: Projekte, alle Kunden UND die Anfragen-Verknüpfungen laden
+      // (Letztere nur die ID-Felder — für die Herkunfts-Markierung im Board.)
+      const [gruppiert, alleKunden, projektIdsAusAnfragen] = await Promise.all([
         projektService.loadProjekteGruppiert(saisonjahr),
         saisonplanungService.loadAlleKunden(),
+        anfragenService.loadProjektIdsAusAnfragen(),
       ]);
 
       setProjekteGruppiert(gruppiert);
+      setAnfrageProjektIds(projektIdsAusAnfragen);
 
       // Erstelle Map für schnellen Zugriff (aus ALLEN Kunden, nicht einzeln!)
       const neueKundenMap = new Map<string, SaisonKunde>();
@@ -1008,6 +1032,7 @@ const ProjektVerwaltung = () => {
                 dragOverTab={dragOverTab}
                 kompakteAnsicht={kompakteAnsicht}
                 kundenMap={kundenMap}
+                anfrageProjektIds={anfrageProjektIds}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -1030,6 +1055,7 @@ const ProjektVerwaltung = () => {
               dragOverTab={dragOverTab}
               kompakteAnsicht={kompakteAnsicht}
               kundenMap={kundenMap}
+              anfrageProjektIds={anfrageProjektIds}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -1156,6 +1182,7 @@ interface KanbanSpalteProps {
   dragOverTab: ProjektStatus | null;
   kompakteAnsicht: boolean;
   kundenMap: Map<string, SaisonKunde>;
+  anfrageProjektIds: Set<string>;
   onDragOver: (e: DragEvent, tab: ProjektStatus) => void;
   onDragLeave: () => void;
   onDrop: (e: DragEvent, tab: ProjektStatus) => void;
@@ -1175,6 +1202,7 @@ const KanbanSpalte = ({
   dragOverTab,
   kompakteAnsicht,
   kundenMap,
+  anfrageProjektIds,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -1237,7 +1265,7 @@ const KanbanSpalte = ({
                 status={tab.id}
                 kompakt={kompakteAnsicht}
                 aktuellerKundenname={projekt.kundeId ? kundenMap.get(projekt.kundeId)?.name : undefined}
-                istPlatzbau={istPlatzbauProjekt(projekt)}
+                herkunft={getProjektHerkunft(projekt, anfrageProjektIds)}
                 platzbauerName={getPlatzbauerName(projekt, kundenMap)}
                 onDragStart={(e) => onDragStart(e, projekt)}
                 onDragEnd={onDragEnd}
@@ -1261,8 +1289,8 @@ interface ProjektCardProps {
   status: ProjektStatus;
   kompakt: boolean;
   aktuellerKundenname?: string;
-  /** Projekt läuft über die Platzbauer-Verwaltung → Karte wird beige markiert */
-  istPlatzbau?: boolean;
+  /** Herkunftskanal → färbt die Karte (beige/blau/grün) und zeigt ein Badge */
+  herkunft?: ProjektHerkunftKanal | null;
   platzbauerName?: string;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
@@ -1273,18 +1301,34 @@ interface ProjektCardProps {
   isVerloren?: boolean;
 }
 
-const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzbau, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
   // Extrahiere PLZ aus kundenPlzOrt
   const plzMatch = projekt.kundenPlzOrt?.match(/^(\d{5})/);
   const plz = plzMatch ? plzMatch[1] : '';
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
   // Verwende aktuellen Kundennamen aus Kundendaten, falls vorhanden
   const kundenname = aktuellerKundenname || projekt.kundenname;
-  // Platzbauer-Kürzel für die Karte; ohne auflösbaren Namen bleibt nur der Hinweis
+  // Herkunfts-Badge: beim Platzbauer das Kürzel, sonst der Kanalname
   const platzbauerKuerzel = getPlatzbauerKuerzel(platzbauerName);
-  const platzbauerTitel = platzbauerName
-    ? `Über Platzbauer: ${platzbauerName}`
-    : 'Läuft über die Platzbauer-Verwaltung';
+  const shopBestellnummer = herkunft === 'shop' ? getShopBestellnummer(projekt) : undefined;
+  const HerkunftIcon = herkunft ? HERKUNFT_ICON[herkunft] : null;
+  const herkunftLabel =
+    herkunft === 'platzbau'
+      ? platzbauerKuerzel || 'Platzbauer'
+      : herkunft === 'shop'
+      ? 'Shop'
+      : 'Anfrage';
+  const herkunftLabelKompakt = herkunft === 'platzbau' ? platzbauerKuerzel || 'PB' : herkunftLabel;
+  const herkunftTitel =
+    herkunft === 'platzbau'
+      ? platzbauerName
+        ? `Über Platzbauer: ${platzbauerName}`
+        : 'Läuft über die Platzbauer-Verwaltung'
+      : herkunft === 'shop'
+      ? shopBestellnummer
+        ? `Aus Shop-Bestellung #${shopBestellnummer}`
+        : 'Aus einer Shop-Bestellung erstellt'
+      : 'Aus einer Anfrage im Anfragenportal erstellt';
 
   if (kompakt) {
     // Kompakte Ansicht - mit vollständigem Namen
@@ -1296,7 +1340,7 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzba
         onClick={onClick}
         title={kundenname}
         className={`border rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
-          istPlatzbau ? PLATZBAU_CARD_STYLE : STANDARD_CARD_STYLE
+          herkunft ? HERKUNFT_CARD_STYLE[herkunft] : STANDARD_CARD_STYLE
         } ${isVerloren ? 'opacity-60' : ''}`}
       >
         <div className="flex items-start gap-2">
@@ -1308,14 +1352,14 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzba
             </span>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* Platzbauer-Kürzel (kompakt) */}
-            {istPlatzbau && (
+            {/* Herkunfts-Badge (kompakt) */}
+            {herkunft && HerkunftIcon && (
               <span
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-semibold border ${PLATZBAU_BADGE_STYLE}`}
-                title={platzbauerTitel}
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-semibold border ${HERKUNFT_BADGE_STYLE[herkunft]}`}
+                title={herkunftTitel}
               >
-                <HardHat className="w-3 h-3" />
-                {platzbauerKuerzel || 'PB'}
+                <HerkunftIcon className="w-3 h-3" />
+                {herkunftLabelKompakt}
               </span>
             )}
             <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -1372,7 +1416,7 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzba
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`border rounded-lg p-2.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
-        istPlatzbau ? PLATZBAU_CARD_STYLE : STANDARD_CARD_STYLE
+        herkunft ? HERKUNFT_CARD_STYLE[herkunft] : STANDARD_CARD_STYLE
       } ${isVerloren ? 'opacity-60' : ''}`}
     >
       {/* Header mit Vereinsname - PROMINENTER */}
@@ -1402,14 +1446,14 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzba
             </span>
           )}
 
-          {/* Platzbauer-Badge mit Kürzel */}
-          {istPlatzbau && (
+          {/* Herkunfts-Badge: Platzbauer-Kürzel, Shop oder Anfrage */}
+          {herkunft && HerkunftIcon && (
             <span
-              className={`inline-flex items-center gap-1 mt-1 ml-[22px] px-2 py-0.5 rounded-full text-xs font-semibold border ${PLATZBAU_BADGE_STYLE}`}
-              title={platzbauerTitel}
+              className={`inline-flex items-center gap-1 mt-1 ml-[22px] px-2 py-0.5 rounded-full text-xs font-semibold border ${HERKUNFT_BADGE_STYLE[herkunft]}`}
+              title={herkunftTitel}
             >
-              <HardHat className="w-3 h-3" />
-              {platzbauerKuerzel || 'Platzbauer'}
+              <HerkunftIcon className="w-3 h-3" />
+              {herkunftLabel}
             </span>
           )}
 
