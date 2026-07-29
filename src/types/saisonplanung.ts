@@ -51,6 +51,13 @@ export interface Ansprechpartner {
   bevorzugterKontaktweg?: 'telefon' | 'email';
   notizen?: string;
   aktiv: boolean;
+  /**
+   * Ansprechpartner für die Disposition (Terminabstimmung der Anlieferung).
+   * Wird in Lieferschein, Tourenplanung und AB-Vorbefüllung bevorzugt herangezogen.
+   * Pro Kunde ist genau einer so markiert — `setzeDispoAnsprechpartner` im
+   * saisonplanungService hält das konsistent.
+   */
+  istDispoAnsprechpartner?: boolean;
   // Erweiterte Stammdaten (z.T. aus Mosaik-Migration übernommen)
   anrede?: string;           // "Herr", "Frau", "Divers"
   namenszusatz?: string;     // "Dr.", "Prof.", "von"

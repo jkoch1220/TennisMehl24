@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink, Link2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink, Link2, PackageCheck, X } from 'lucide-react';
 import { DokumentTyp } from '../../types/projektabwicklung';
 import { ProjektStatus, TeilprojektTyp } from '../../types/projekt';
+import { client, DATABASE_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -26,6 +27,7 @@ const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string }> = {
   angebot_versendet: { label: 'Angebot versendet', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300' },
   auftragsbestaetigung: { label: 'Auftragsbestätigung', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' },
   lieferschein: { label: 'Lieferung', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+  geliefert: { label: 'Geliefert', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300' },
   rechnung: { label: 'Rechnung', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' },
   bezahlt: { label: 'Bezahlt', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' },
   verloren: { label: 'Verloren', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
@@ -110,7 +112,13 @@ const Projektabwicklung = () => {
           setActiveTab('auftragsbestaetigung');
         } else if (loadedProjekt.status === 'lieferschein') {
           setActiveTab('lieferschein');
-        } else if (loadedProjekt.status === 'rechnung') {
+        } else if (
+          loadedProjekt.status === 'geliefert' ||
+          loadedProjekt.status === 'rechnung' ||
+          loadedProjekt.status === 'bezahlt'
+        ) {
+          // Ware ist raus: der nächste Schritt ist immer die Rechnung.
+          // ('bezahlt' landete bisher mangels Zuordnung im Angebots-Tab.)
           setActiveTab('rechnung');
         }
       } catch (error) {
@@ -123,6 +131,47 @@ const Projektabwicklung = () => {
 
     loadProjekt();
   }, [projektId]);
+
+  // Live-Aktualisierung des Projekts.
+  // Ohne das blieb der Status-Badge bis zum manuellen Reload auf dem alten Wert stehen —
+  // auch nachdem ein Tab ihn längst fortgeschrieben hatte (z.B. nach dem E-Mail-Versand).
+  // Greift genauso für Änderungen von außen: der Fahrer bestätigt per QR-Scan die Lieferung,
+  // und das Projekt hier springt ohne Zutun auf 'geliefert'.
+  useEffect(() => {
+    if (!projektId) return;
+
+    const channel = `databases.${DATABASE_ID}.collections.${PROJEKTE_COLLECTION_ID}.documents.${projektId}`;
+    const unsubscribe = client.subscribe(channel, () => {
+      // Das Realtime-Payload ist das rohe Appwrite-Dokument; getProjekt() übernimmt
+      // das Parsen des data-JSON und das Mergen der Top-Level-Spalten.
+      projektService
+        .getProjekt(projektId)
+        .then(setProjekt)
+        .catch((error) => console.warn('Live-Aktualisierung des Projekts fehlgeschlagen:', error));
+    });
+
+    return () => unsubscribe();
+  }, [projektId]);
+
+  // Statuswechsel auf 'geliefert' führt zum Rechnungs-Tab — das ist der nächste Arbeitsschritt.
+  // Der Hinweis bleibt stehen, bis er weggeklickt wird: ein Tabwechsel, der einfach so passiert,
+  // muss erklärt sein.
+  const vorherigerStatus = useRef<ProjektStatus | null>(null);
+  const [lieferungBestaetigtHinweis, setLieferungBestaetigtHinweis] = useState(false);
+
+  useEffect(() => {
+    if (!projekt) return;
+    const vorher = vorherigerStatus.current;
+    vorherigerStatus.current = projekt.status;
+
+    // Erster Durchlauf nach dem Laden: nur merken. Der Tab kommt dort aus der Status-Ableitung.
+    if (vorher === null || vorher === projekt.status) return;
+
+    if (projekt.status === 'geliefert') {
+      setActiveTab('rechnung');
+      setLieferungBestaetigtHinweis(true);
+    }
+  }, [projekt]);
 
   // Handler für Adressen-Update
   const handleAdressenUpdate = () => {
@@ -354,6 +403,31 @@ const Projektabwicklung = () => {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* LIEFER-BANNER - erklärt den automatischen Sprung auf den Rechnungs-Tab */}
+      {lieferungBestaetigtHinweis && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 p-4">
+          <PackageCheck className="h-5 w-5 flex-shrink-0 text-teal-600 dark:text-teal-400 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-teal-900 dark:text-teal-200">
+              Der Fahrer hat die Lieferung bestätigt.
+            </p>
+            <p className="text-sm text-teal-800 dark:text-teal-300 mt-0.5">
+              {projekt.liefernachweisAm
+                ? `Geliefert am ${new Date(projekt.liefernachweisAm).toLocaleString('de-DE')}. `
+                : ''}
+              Der Auftrag steht jetzt auf „Geliefert" — die Rechnung kann erstellt werden.
+            </p>
+          </div>
+          <button
+            onClick={() => setLieferungBestaetigtHinweis(false)}
+            className="p-1 rounded hover:bg-teal-100 dark:hover:bg-teal-900/50 transition-colors"
+            title="Hinweis ausblenden"
+          >
+            <X className="h-4 w-4 text-teal-700 dark:text-teal-400" />
+          </button>
         </div>
       )}
 

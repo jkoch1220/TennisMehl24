@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Save, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Mail } from 'lucide-react';
+import { Save, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Mail, PenLine } from 'lucide-react';
 import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
-import { ladeEmailTemplatesNeu } from '../../utils/emailHelpers';
+import { ladeEmailTemplatesNeu, AB_VORLAGE_EINFACH } from '../../utils/emailHelpers';
 import TipTapEditor from '../Shared/TipTapEditor';
 import { DokumentTyp } from '../../types/email';
 
@@ -16,7 +16,28 @@ interface EmailTemplates {
   auftragsbestaetigung: EmailTemplate;
   lieferschein: EmailTemplate;
   rechnung: EmailTemplate;
+  /** Kurzfassung der AB für Aufträge außerhalb der Frühjahrssaison */
+  [AB_VORLAGE_EINFACH]: EmailTemplate;
+  /**
+   * Gemeinsame Signatur für alle Vorlagen. Eine Vorlage weicht nur dann ab, wenn ihr
+   * eigenes `signatur`-Feld gefüllt ist — sonst erbt sie diese hier.
+   */
+  standardSignatur?: string;
 }
+
+/** Reiter der Signatur-Pflege (kein Dokumenttyp, deshalb eigener Schlüssel) */
+const SIGNATUR_TAB = 'standardSignatur' as const;
+/** Alle pflegbaren Vorlagen — die vier Dokumenttypen plus die schlanke AB-Variante */
+type VorlagenSchluessel = DokumentTyp | typeof AB_VORLAGE_EINFACH;
+type TabSchluessel = VorlagenSchluessel | typeof SIGNATUR_TAB;
+
+const VORLAGEN_SCHLUESSEL: VorlagenSchluessel[] = [
+  'angebot',
+  'auftragsbestaetigung',
+  AB_VORLAGE_EINFACH,
+  'lieferschein',
+  'rechnung',
+];
 
 // Standard-HTML-Templates
 const getDefaultTemplates = (): EmailTemplates => ({
@@ -26,9 +47,6 @@ const getDefaultTemplates = (): EmailTemplates => ({
 <p>anbei erhalten Sie unser Angebot <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Wir freuen uns auf Ihre Rückmeldung.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: `<p>Mit freundlichen Grüßen</p>
-<p><strong>Koch Dienste</strong></p>
-<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`,
   },
   auftragsbestaetigung: {
     betreff: 'Auftragsbestätigung {dokumentNummer} - {kundenname}',
@@ -36,9 +54,6 @@ const getDefaultTemplates = (): EmailTemplates => ({
 <p>anbei erhalten Sie unsere Auftragsbestätigung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit die Bestellung.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: `<p>Mit freundlichen Grüßen</p>
-<p><strong>Koch Dienste</strong></p>
-<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`,
   },
   lieferschein: {
     betreff: 'Lieferschein {dokumentNummer} - {kundenname}',
@@ -46,9 +61,13 @@ const getDefaultTemplates = (): EmailTemplates => ({
 <p>anbei erhalten Sie unseren Lieferschein <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Bitte bestätigen Sie den Erhalt der Ware.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: `<p>Mit freundlichen Grüßen</p>
-<p><strong>Koch Dienste</strong></p>
-<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`,
+  },
+  [AB_VORLAGE_EINFACH]: {
+    betreff: 'Auftragsbestätigung {dokumentNummer} - {kundenname}',
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unsere Auftragsbestätigung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Vielen Dank für Ihren Auftrag.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
   },
   rechnung: {
     betreff: 'Rechnung {dokumentNummer} – {kundenname}',
@@ -56,9 +75,6 @@ const getDefaultTemplates = (): EmailTemplates => ({
 <p>anbei erhalten Sie Ihre Rechnung <strong>{dokumentNummer}</strong> für die Lieferung vom Tennismehl.</p>
 <p style="padding:10px 14px;background:#fff3cd;border-left:4px solid #c41e3a;font-weight:bold;">BITTE BEACHTEN SIE DIE GEÄNDERTEN KONTODATEN ZUM LETZTEN JAHR!</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: `<p>Mit freundlichen Grüßen</p>
-<p><strong>Koch Dienste</strong></p>
-<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`,
   },
 });
 
@@ -68,7 +84,7 @@ const EmailTemplatesTab = () => {
   const [erfolg, setErfolg] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [templates, setTemplates] = useState<EmailTemplates>(getDefaultTemplates());
-  const [activeTab, setActiveTab] = useState<DokumentTyp>('angebot');
+  const [activeTab, setActiveTab] = useState<TabSchluessel>(SIGNATUR_TAB);
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
@@ -101,25 +117,47 @@ const EmailTemplatesTab = () => {
     }
   };
 
-  // Migriert alte Plain-Text Templates zu HTML
-  const migrateOldTemplates = (oldTemplates: Record<string, { betreff?: string; emailContent?: string; htmlContent?: string; signatur?: string }>): EmailTemplates => {
+  // Migriert alte Plain-Text Templates zu HTML und führt die vier Signaturkopien zusammen
+  const migrateOldTemplates = (
+    oldTemplates: Record<string, unknown> & {
+      standardSignatur?: string;
+    }
+  ): EmailTemplates => {
     const defaults = getDefaultTemplates();
     const result: EmailTemplates = { ...defaults };
 
-    const dokumentTypen: DokumentTyp[] = ['angebot', 'auftragsbestaetigung', 'lieferschein', 'rechnung'];
+    const dokumentTypen = VORLAGEN_SCHLUESSEL;
+    const alt = (typ: VorlagenSchluessel) =>
+      oldTemplates[typ] as
+        | { betreff?: string; emailContent?: string; htmlContent?: string; signatur?: string }
+        | undefined;
+
+    // Gemeinsame Signatur bestimmen. Gibt es noch keine, dient die Auftragsbestätigung als
+    // Vorlage — sie ist die gepflegte Fassung (mit Logo-Maßen und Hydrocourt-Banner),
+    // während die Angebots-Kopie auf einem älteren Stand hängengeblieben war.
+    const gemeinsameSignatur = (
+      oldTemplates.standardSignatur ||
+      alt('auftragsbestaetigung')?.signatur ||
+      alt('rechnung')?.signatur ||
+      ''
+    ).trim();
+    result.standardSignatur = gemeinsameSignatur;
 
     for (const typ of dokumentTypen) {
-      const old = oldTemplates[typ];
-      if (old) {
-        result[typ] = {
-          betreff: old.betreff || defaults[typ].betreff,
-          // Nutze htmlContent wenn vorhanden, sonst konvertiere emailContent
-          htmlContent: old.htmlContent || (old.emailContent
-            ? convertPlainTextToHtml(old.emailContent)
-            : defaults[typ].htmlContent),
-          signatur: old.signatur || defaults[typ].signatur,
-        };
-      }
+      const old = alt(typ);
+      if (!old) continue;
+
+      const eigeneSignatur = (old.signatur || '').trim();
+      result[typ] = {
+        betreff: old.betreff || defaults[typ].betreff,
+        // Nutze htmlContent wenn vorhanden, sonst konvertiere emailContent
+        htmlContent: old.htmlContent || (old.emailContent
+          ? convertPlainTextToHtml(old.emailContent)
+          : defaults[typ].htmlContent),
+        // Deckungsgleich mit der gemeinsamen Signatur? Dann keine Kopie behalten —
+        // die Vorlage erbt. Nur echte Abweichungen bleiben stehen.
+        signatur: eigeneSignatur && eigeneSignatur !== gemeinsameSignatur ? eigeneSignatur : '',
+      };
     }
 
     return result;
@@ -133,7 +171,7 @@ const EmailTemplatesTab = () => {
       .join('\n');
   };
 
-  const handleBetreffChange = (dokumentTyp: DokumentTyp, wert: string) => {
+  const handleBetreffChange = (dokumentTyp: VorlagenSchluessel, wert: string) => {
     setTemplates(prev => ({
       ...prev,
       [dokumentTyp]: {
@@ -143,7 +181,7 @@ const EmailTemplatesTab = () => {
     }));
   };
 
-  const handleContentChange = (dokumentTyp: DokumentTyp, wert: string) => {
+  const handleContentChange = (dokumentTyp: VorlagenSchluessel, wert: string) => {
     setTemplates(prev => ({
       ...prev,
       [dokumentTyp]: {
@@ -153,7 +191,7 @@ const EmailTemplatesTab = () => {
     }));
   };
 
-  const handleSignaturChange = (dokumentTyp: DokumentTyp, wert: string) => {
+  const handleSignaturChange = (dokumentTyp: VorlagenSchluessel, wert: string) => {
     setTemplates(prev => ({
       ...prev,
       [dokumentTyp]: {
@@ -162,6 +200,22 @@ const EmailTemplatesTab = () => {
       },
     }));
   };
+
+  const handleStandardSignaturChange = (wert: string) => {
+    setTemplates(prev => ({ ...prev, standardSignatur: wert }));
+  };
+
+  /** Verwirft die abweichende Signatur einer Vorlage — sie erbt danach die gemeinsame. */
+  const setzeAufGemeinsameSignatur = (dokumentTyp: VorlagenSchluessel) => {
+    setTemplates(prev => ({
+      ...prev,
+      [dokumentTyp]: { ...prev[dokumentTyp], signatur: '' },
+    }));
+  };
+
+  /** Vorlagen mit eigener, von der gemeinsamen abweichender Signatur */
+  const abweichendeVorlagen = VORLAGEN_SCHLUESSEL
+    .filter(typ => (templates[typ]?.signatur || '').trim().length > 0);
 
   const handleSpeichern = async () => {
     setSpeichert(true);
@@ -216,9 +270,10 @@ const EmailTemplatesTab = () => {
     }
   };
 
-  const dokumentTypen: Array<{ key: DokumentTyp; label: string; color: string; bgColor: string }> = [
+  const dokumentTypen: Array<{ key: VorlagenSchluessel; label: string; color: string; bgColor: string }> = [
     { key: 'angebot', label: 'Angebot', color: 'blue', bgColor: 'bg-blue-500' },
-    { key: 'auftragsbestaetigung', label: 'Auftragsbestätigung', color: 'orange', bgColor: 'bg-orange-500' },
+    { key: 'auftragsbestaetigung', label: 'AB · Frühjahr', color: 'orange', bgColor: 'bg-orange-500' },
+    { key: AB_VORLAGE_EINFACH, label: 'AB · einfach', color: 'amber', bgColor: 'bg-amber-500' },
     { key: 'lieferschein', label: 'Lieferschein', color: 'green', bgColor: 'bg-green-500' },
     { key: 'rechnung', label: 'Rechnung', color: 'red', bgColor: 'bg-red-500' },
   ];
@@ -242,8 +297,11 @@ const EmailTemplatesTab = () => {
     );
   }
 
-  const currentTemplate = templates[activeTab];
-  const currentConfig = dokumentTypen.find(d => d.key === activeTab)!;
+  const istSignaturTab = activeTab === SIGNATUR_TAB;
+  const currentTemplate = istSignaturTab ? null : templates[activeTab as VorlagenSchluessel];
+  const currentConfig = istSignaturTab
+    ? { key: SIGNATUR_TAB, label: 'Signatur (gilt für alle Vorlagen)', color: 'slate', bgColor: 'bg-slate-600' }
+    : dokumentTypen.find(d => d.key === activeTab)!;
 
   return (
     <div className="space-y-6">
@@ -282,6 +340,26 @@ const EmailTemplatesTab = () => {
 
       {/* Tab-Navigation */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-slate-700 pb-2">
+        <button
+          onClick={() => setActiveTab(SIGNATUR_TAB)}
+          className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+            istSignaturTab
+              ? 'bg-slate-600 text-white'
+              : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+          }`}
+        >
+          <PenLine className="h-4 w-4" />
+          Signatur
+          {abweichendeVorlagen.length > 0 && (
+            <span
+              className="ml-1 px-1.5 py-0.5 rounded-full text-[11px] bg-amber-500 text-white"
+              title={`${abweichendeVorlagen.length} Vorlage(n) mit abweichender Signatur`}
+            >
+              {abweichendeVorlagen.length}
+            </span>
+          )}
+        </button>
+        <span className="w-px bg-gray-200 dark:bg-slate-700 mx-1" />
         {dokumentTypen.map(({ key, label, bgColor }) => (
           <button
             key={key}
@@ -312,6 +390,66 @@ const EmailTemplatesTab = () => {
           </button>
         </div>
 
+        {/* === SIGNATUR-REITER: eine Signatur für alle Vorlagen === */}
+        {istSignaturTab && (
+          <div className="p-6 space-y-6">
+            <p className="text-sm text-gray-600 dark:text-dark-textMuted">
+              Diese Signatur wird an <strong>alle</strong> E-Mails angehängt — Angebot,
+              Auftragsbestätigung, Lieferschein und Rechnung. Einmal hier pflegen genügt.
+            </p>
+
+            {showPreview ? (
+              <div className="border border-gray-300 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-800 min-h-[200px]">
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: templates.standardSignatur || '' }}
+                />
+              </div>
+            ) : (
+              <TipTapEditor
+                content={templates.standardSignatur || ''}
+                onChange={handleStandardSignaturChange}
+                placeholder="Signatur mit Kontaktdaten, Logo etc."
+                showPlaceholderButtons={false}
+                minHeight="250px"
+              />
+            )}
+
+            {/* Abweichungen sichtbar machen — sonst wundert man sich später über zwei Fassungen */}
+            {abweichendeVorlagen.length > 0 && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4">
+                <div className="flex items-start gap-2 mb-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 dark:text-amber-200">
+                      {abweichendeVorlagen.length === 1
+                        ? 'Eine Vorlage hat eine eigene Signatur'
+                        : `${abweichendeVorlagen.length} Vorlagen haben eine eigene Signatur`}
+                    </p>
+                    <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                      Sie ignorieren die gemeinsame Signatur oben. Meist ist das ein Altbestand,
+                      der beim Pflegen vergessen wurde.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {abweichendeVorlagen.map((typ) => (
+                    <button
+                      key={typ}
+                      onClick={() => setzeAufGemeinsameSignatur(typ)}
+                      className="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      title="Eigene Signatur verwerfen, gemeinsame verwenden"
+                    >
+                      {dokumentTypen.find((d) => d.key === typ)?.label}: gemeinsame verwenden
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentTemplate && (
         <div className="p-6 space-y-6">
           {/* Betreff */}
           <div>
@@ -321,7 +459,7 @@ const EmailTemplatesTab = () => {
             <input
               type="text"
               value={currentTemplate.betreff}
-              onChange={(e) => handleBetreffChange(activeTab, e.target.value)}
+              onChange={(e) => handleBetreffChange(activeTab as VorlagenSchluessel, e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -343,7 +481,7 @@ const EmailTemplatesTab = () => {
             ) : (
               <TipTapEditor
                 content={currentTemplate.htmlContent}
-                onChange={(html) => handleContentChange(activeTab, html)}
+                onChange={(html) => handleContentChange(activeTab as VorlagenSchluessel, html)}
                 placeholder="Schreiben Sie hier den E-Mail-Inhalt..."
                 showPlaceholderButtons={true}
                 minHeight="300px"
@@ -351,29 +489,75 @@ const EmailTemplatesTab = () => {
             )}
           </div>
 
-          {/* Signatur */}
+          {/* Signatur — normalerweise geerbt, Abweichung nur auf ausdrücklichen Wunsch */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
-              Signatur (wird automatisch angehängt)
+              Signatur
             </label>
-            {showPreview ? (
-              <div className="border border-gray-300 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-800 min-h-[150px]">
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: currentTemplate.signatur || '' }}
-                />
+
+            {(currentTemplate.signatur || '').trim() === '' ? (
+              <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 p-4">
+                <div className="flex items-start gap-2">
+                  <PenLine className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      Verwendet die <strong>gemeinsame Signatur</strong> aus dem Reiter „Signatur".
+                    </p>
+                    <button
+                      onClick={() => setActiveTab(SIGNATUR_TAB)}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                    >
+                      Gemeinsame Signatur bearbeiten
+                    </button>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleSignaturChange(
+                        activeTab as VorlagenSchluessel,
+                        templates.standardSignatur || '<p></p>'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                    title="Für diese Vorlage eine abweichende Signatur pflegen"
+                  >
+                    Abweichende Signatur
+                  </button>
+                </div>
               </div>
             ) : (
-              <TipTapEditor
-                content={currentTemplate.signatur || ''}
-                onChange={(html) => handleSignaturChange(activeTab, html)}
-                placeholder="Ihre Signatur mit Kontaktdaten, Logo etc."
-                showPlaceholderButtons={false}
-                minHeight="150px"
-              />
+              <>
+                <div className="flex items-center justify-between mb-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                  <span className="text-sm text-amber-900 dark:text-amber-200">
+                    Diese Vorlage weicht von der gemeinsamen Signatur ab.
+                  </span>
+                  <button
+                    onClick={() => setzeAufGemeinsameSignatur(activeTab as VorlagenSchluessel)}
+                    className="px-3 py-1 text-sm rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                  >
+                    Gemeinsame verwenden
+                  </button>
+                </div>
+                {showPreview ? (
+                  <div className="border border-gray-300 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-800 min-h-[150px]">
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: currentTemplate.signatur || '' }}
+                    />
+                  </div>
+                ) : (
+                  <TipTapEditor
+                    content={currentTemplate.signatur || ''}
+                    onChange={(html) => handleSignaturChange(activeTab as VorlagenSchluessel, html)}
+                    placeholder="Abweichende Signatur für diese Vorlage"
+                    showPlaceholderButtons={false}
+                    minHeight="150px"
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Speichern-Button */}

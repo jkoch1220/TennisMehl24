@@ -617,6 +617,84 @@ export const saisonplanungService = {
     await Promise.all(ansprechpartner.map((ap) => this.deleteAnsprechpartner(ap.id)));
   },
 
+  /**
+   * Führt einen Dispo-Kontakt in den Ansprechpartner-Stamm des Kunden über.
+   *
+   * Dispo-Kontakte wurden bis 07/2026 nur als loses `{name, telefon}`-Objekt am Kunden,
+   * am Projekt und an der AB geführt — ohne Verbindung zu den echten Ansprechpartnern.
+   * Wer einen Platzwart als Dispo-Kontakt eintrug, fand ihn in der Kundenakte nicht wieder.
+   *
+   * Verhalten:
+   * - Namensgleicher Ansprechpartner vorhanden → wird ergänzt (Telefon/E-Mail) und markiert
+   * - sonst neu angelegt
+   * - alle übrigen Ansprechpartner des Kunden verlieren die Markierung (genau einer gilt)
+   *
+   * Fehler werden geworfen; Aufrufer im UI sollten sie abfangen, damit ein
+   * fehlgeschlagener Abgleich nicht den eigentlichen Speichervorgang kippt.
+   */
+  async setzeDispoAnsprechpartner(
+    kundeId: string,
+    kontakt: { name?: string; telefon?: string; email?: string }
+  ): Promise<Ansprechpartner | null> {
+    const name = (kontakt.name || '').trim();
+    if (!kundeId || !name) return null;
+
+    const vorhandene = await this.loadAnsprechpartnerFuerKunde(kundeId);
+    const normalisiert = (wert: string) => wert.trim().toLowerCase();
+    const treffer = vorhandene.find((ap) => normalisiert(ap.name) === normalisiert(name));
+
+    const telefon = (kontakt.telefon || '').trim();
+    const email = (kontakt.email || '').trim();
+
+    let ergebnis: Ansprechpartner;
+
+    if (treffer) {
+      // Telefonnummer nur ergänzen, wenn sie noch nicht hinterlegt ist — bestehende
+      // Nummern (Mobil/Festnetz) dürfen dabei nicht verlorengehen.
+      const nummern = [...(treffer.telefonnummern || [])];
+      if (telefon && !nummern.some((t) => normalisiert(t.nummer) === normalisiert(telefon))) {
+        nummern.push({ nummer: telefon, typ: 'Dispo' });
+      }
+
+      ergebnis = await this.updateAnsprechpartner(treffer.id, {
+        telefonnummern: nummern,
+        email: email || treffer.email,
+        istDispoAnsprechpartner: true,
+        aktiv: true,
+      });
+    } else {
+      ergebnis = await this.createAnsprechpartner({
+        kundeId,
+        name,
+        rolle: 'Disposition',
+        email: email || undefined,
+        telefonnummern: telefon ? [{ nummer: telefon, typ: 'Dispo' }] : [],
+        aktiv: true,
+        istDispoAnsprechpartner: true,
+      });
+    }
+
+    // Markierung ist exklusiv: alle anderen zurücksetzen
+    const zuBereinigen = vorhandene.filter(
+      (ap) => ap.id !== ergebnis.id && ap.istDispoAnsprechpartner
+    );
+    for (const ap of zuBereinigen) {
+      try {
+        await this.updateAnsprechpartner(ap.id, { istDispoAnsprechpartner: false });
+      } catch (error) {
+        console.warn(`Dispo-Markierung bei ${ap.name} konnte nicht entfernt werden:`, error);
+      }
+    }
+
+    return ergebnis;
+  },
+
+  /** Liefert den als Dispo markierten Ansprechpartner eines Kunden (oder null) */
+  async ladeDispoAnsprechpartner(kundeId: string): Promise<Ansprechpartner | null> {
+    const alle = await this.loadAnsprechpartnerFuerKunde(kundeId);
+    return alle.find((ap) => ap.istDispoAnsprechpartner && ap.aktiv) || null;
+  },
+
   // ========== SAISON-DATEN ==========
 
   async loadSaisonDatenFuerKunde(kundeId: string): Promise<SaisonDaten[]> {

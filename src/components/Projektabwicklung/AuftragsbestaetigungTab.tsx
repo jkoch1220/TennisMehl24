@@ -46,7 +46,29 @@ import VertragsklauselnKarte from './VertragsklauselnKarte';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { Belieferungsart } from '../../types/projektabwicklung';
 import DokumentVerlauf from './DokumentVerlauf';
-import EmailFormular from './EmailFormular';
+import EmailFormular, { EmailVorlagenOption } from './EmailFormular';
+import { AB_VORLAGE_EINFACH } from '../../utils/emailHelpers';
+
+/**
+ * Zwei AB-Mailvorlagen zur Auswahl:
+ * - Standard = Frühjahrsinstandsetzung inklusive Datenprüfungs-Block (Dispo-Kontakt,
+ *   Menge, Rechnungsdaten) und Link zum Änderungsformular.
+ * - Kurzfassung für ABs außerhalb der Saison, ohne diesen Block.
+ * Beide Texte werden unter Stammdaten → E-Mail-Vorlagen gepflegt.
+ */
+const AB_EMAIL_VORLAGEN: EmailVorlagenOption[] = [
+  {
+    label: 'Frühjahrsinstandsetzung',
+    beschreibung: 'Mit Datenprüfung (Dispo-Kontakt, Menge, Rechnungsdaten) und Änderungsformular.',
+    mitZusatzHtml: true,
+  },
+  {
+    key: AB_VORLAGE_EINFACH,
+    label: 'Einfache Auftragsbestätigung',
+    beschreibung: 'Kurzfassung ohne Datenprüfungs-Block — für Aufträge außerhalb der Saison.',
+    mitZusatzHtml: false,
+  },
+];
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
@@ -111,12 +133,16 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
 
   const [auftragsbestaetigungsDaten, setAuftragsbestaetigungsDaten] = useState<AuftragsbestaetigungsDaten>({
-    firmenname: 'Koch Dienste',
-    firmenstrasse: 'Musterstraße 1',
-    firmenPlzOrt: '12345 Musterstadt',
-    firmenTelefon: '+49 123 456789',
-    firmenEmail: 'info@kochdienste.de',
-    firmenWebsite: 'www.kochdienste.de',
+    // Platzhalter bis die Stammdaten geladen sind. Das PDF liest diese Felder nicht
+    // (rechnungService/dokumentService nehmen durchgehend stammdaten.*) — trotzdem hier
+    // die echten Daten, damit eine versehentliche Anzeige nicht "Koch Dienste,
+    // Musterstraße 1" zeigt.
+    firmenname: 'Tennismehl GmbH',
+    firmenstrasse: 'Raiffeisenweg 1',
+    firmenPlzOrt: '97232 Giebelstadt',
+    firmenTelefon: '09391 9870-0',
+    firmenEmail: 'info@tennismehl.com',
+    firmenWebsite: 'www.tennismehl.com',
 
     kundenname: '',
     kundenstrasse: '',
@@ -901,6 +927,12 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           await saisonplanungService.updateKunde(projekt.kundeId, {
             dispoAnsprechpartner: auftragsbestaetigungsDaten.dispoAnsprechpartner
           });
+          // Zusätzlich als echten Ansprechpartner in der Kundenakte führen und als
+          // Dispo-Kontakt markieren — sonst existiert er nur als loses Namensfeld an der AB.
+          await saisonplanungService.setzeDispoAnsprechpartner(
+            projekt.kundeId,
+            auftragsbestaetigungsDaten.dispoAnsprechpartner
+          );
           console.log('✅ DISPO-Ansprechpartner beim Kunden gespeichert');
         } catch (error) {
           console.warn('DISPO-Ansprechpartner konnte nicht beim Kunden gespeichert werden:', error);
@@ -2258,6 +2290,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           projektId={projekt?.$id}
           standardEmpfaenger={projekt?.kundenEmail}
           zusatzHtml={emailZusatzHtml}
+          vorlagen={AB_EMAIL_VORLAGEN}
           onSend={handleAbEmailGesendet}
           onClose={() => {
             setShowEmailFormular(false);

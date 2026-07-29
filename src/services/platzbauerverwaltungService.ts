@@ -781,6 +781,7 @@ class PlatzbauerverwaltungService {
       angebot_versendet: 0,
       auftragsbestaetigung: 0,
       lieferschein: 0,
+      geliefert: 0,
       rechnung: 0,
       bezahlt: 0,
       verloren: 0,

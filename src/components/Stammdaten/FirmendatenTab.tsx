@@ -387,7 +387,7 @@ const FirmendatenTab = () => {
                         type="text"
                         value={gf}
                         onChange={(e) => handleGeschaeftsfuehrerAendern(index, e.target.value)}
-                        placeholder="z.B. Stefan Egner"
+                        placeholder="z.B. Julian Koch"
                         className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
                     </div>

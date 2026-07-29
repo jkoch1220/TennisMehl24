@@ -182,35 +182,44 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
  * Initialisiert Stammdaten mit Standardwerten (falls noch keine existieren)
  */
 export const initialisiereStammdaten = async (): Promise<Stammdaten> => {
+  // ACHTUNG: Diese Werte landen im Footer JEDES Geschäftsdokuments, sobald das
+  // Stammdaten-Dokument in Appwrite fehlt. Bis 07/2026 stand hier durchgehend die
+  // Vorgänger-Firma (Sitz Großrinderfeld, HRB 731653, Geschäftsführer Egner,
+  // Bankverbindung Sparkasse Tauberfranken) — also falsche Pflichtangaben und ein
+  // totes Konto. Stand jetzt gleichlautend mit dem Live-Dokument in Appwrite.
   const defaultStammdaten: StammdatenInput = {
     // Firmendaten
-    firmenname: 'TENNISMEHL GmbH',
-    firmenstrasse: 'Wertheimer Str. 13',
-    firmenPlz: '97959',
-    firmenOrt: 'Großrinderfeld',
-    firmenTelefon: '09391 9870-0',
+    firmenname: 'Tennismehl GmbH',
+    firmenstrasse: 'Raiffeisenweg 1',
+    firmenPlz: '97232',
+    firmenOrt: 'Giebelstadt',
+    firmenTelefon: '09391 98700',
     firmenEmail: 'info@tennismehl.com',
     firmenWebsite: 'www.tennismehl.com',
-    
+
     // Geschäftsführung
-    geschaeftsfuehrer: ['Stefan Egner'],
-    
+    geschaeftsfuehrer: ['Luca Ramos de la Rosa', 'Julian Tim Koch'],
+
     // Handelsregister
-    handelsregister: 'Würzburg HRB 731653',
-    sitzGesellschaft: 'Großrinderfeld',
-    
+    handelsregister: 'Würzburg HRB 18235',
+    sitzGesellschaft: 'Giebelstadt',
+
     // Steuerdaten
     steuernummer: '',
-    ustIdNr: 'DE 320 029 255',
-    
-    // Bankdaten
-    bankname: 'Sparkasse Tauberfranken',
-    iban: 'DE49 6735 0130 0000254019',
-    bic: 'SOLADES1TBB',
-    
+    ustIdNr: '',
+
+    // Bankdaten bewusst LEER: dieses Repo ist öffentlich, und die aktive
+    // Bankverbindung gehört nicht dauerhaft in die Git-Historie. Sie wird
+    // ausschließlich im Appwrite-Stammdatensatz gepflegt (Stammdaten → Firmendaten).
+    // Fehlt der, bleiben die Bankzeilen im Footer leer — das fällt sofort auf,
+    // während eine falsche IBAN unbemerkt auf Rechnungen landen würde.
+    bankname: '',
+    iban: '',
+    bic: '',
+
     // Werk/Verkauf
-    werkName: 'TENNISMEHL GmbH',
-    werkStrasse: 'Wertheimer Str. 3a',
+    werkName: 'Tennismehl GmbH',
+    werkStrasse: 'Wertheimer Str. 30a',
     werkPlz: '97828',
     werkOrt: 'Marktheidenfeld',
   };

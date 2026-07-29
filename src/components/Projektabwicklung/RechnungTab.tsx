@@ -143,12 +143,16 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   }, [projekt?.istPlatzbauerprojekt, projekt?.zugeordnetesPlatzbauerprojektId]);
 
   const [rechnungsDaten, setRechnungsDaten] = useState<RechnungsDaten>({
-    firmenname: 'Koch Dienste',
-    firmenstrasse: 'Musterstraße 1',
-    firmenPlzOrt: '12345 Musterstadt',
-    firmenTelefon: '+49 123 456789',
-    firmenEmail: 'info@kochdienste.de',
-    firmenWebsite: 'www.kochdienste.de',
+    // Platzhalter bis die Stammdaten geladen sind. Das PDF liest diese Felder nicht
+    // (rechnungService/dokumentService nehmen durchgehend stammdaten.*) — trotzdem hier
+    // die echten Daten, damit eine versehentliche Anzeige nicht "Koch Dienste,
+    // Musterstraße 1" zeigt.
+    firmenname: 'Tennismehl GmbH',
+    firmenstrasse: 'Raiffeisenweg 1',
+    firmenPlzOrt: '97232 Giebelstadt',
+    firmenTelefon: '09391 9870-0',
+    firmenEmail: 'info@tennismehl.com',
+    firmenWebsite: 'www.tennismehl.com',
 
     kundenname: '',
     kundenstrasse: '',

@@ -70,6 +70,7 @@ const STATUS_CONFIG: Record<ProjektStatus, { label: string; color: string; fillC
   angebot_versendet: { label: 'Angebot versendet', color: '#4f46e5', fillColor: '#6366f1', icon: Send },
   auftragsbestaetigung: { label: 'Auftragsbestätigung', color: '#ea580c', fillColor: '#f97316', icon: FileSignature },
   lieferschein: { label: 'Lieferschein', color: '#16a34a', fillColor: '#22c55e', icon: Truck },
+  geliefert: { label: 'Geliefert', color: '#0d9488', fillColor: '#14b8a6', icon: Truck },
   rechnung: { label: 'Rechnung', color: '#dc2626', fillColor: '#ef4444', icon: FileText },
   bezahlt: { label: 'Bezahlt', color: '#059669', fillColor: '#10b981', icon: CheckCircle2 },
   verloren: { label: 'Verloren', color: '#6b7280', fillColor: '#9ca3af', icon: XCircle },

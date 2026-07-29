@@ -1,6 +1,6 @@
 import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
-import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
+import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, ALLE_PROJEKT_STATUS, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { handleServiceError } from '../utils/errorHandling';
 import { saisonplanungService } from './saisonplanungService';
@@ -26,6 +26,24 @@ interface ProjektCache {
 
 const CACHE_TTL = 30000; // 30 Sekunden Cache
 let projektCache: ProjektCache | null = null;
+
+/**
+ * Sortiert Projekte in ein Fach je Status. Iteriert über ALLE_PROJEKT_STATUS, damit
+ * ein neu eingeführter Status hier automatisch ein (leeres) Fach bekommt, statt als
+ * `undefined` im Kanban zu landen.
+ */
+export const gruppiereProjekteNachStatus = (projekte: Projekt[]): Record<ProjektStatus, Projekt[]> => {
+  const gruppen = Object.fromEntries(
+    ALLE_PROJEKT_STATUS.map((status) => [status, [] as Projekt[]])
+  ) as Record<ProjektStatus, Projekt[]>;
+
+  for (const projekt of projekte) {
+    // Unbekannter Status (z.B. Altdatensatz): nicht verlieren, sondern zum Angebot legen
+    const fach = gruppen[projekt.status] ?? gruppen.angebot;
+    fach.push(projekt);
+  }
+  return gruppen;
+};
 
 // Maximalgröße für das `data`-Feld in Appwrite (Schema: 100000, aber alte Collections können noch
 // 10000 sein). Wir nutzen eine konservative Schwelle, um Sicherheitsmarge zu lassen.
@@ -180,31 +198,14 @@ class ProjektService {
   }
 
   // Projekte gruppiert nach Status laden (mit Cache!)
-  async loadProjekteGruppiert(saisonjahr?: number): Promise<{
-    angebot: Projekt[];
-    angebot_versendet: Projekt[];
-    auftragsbestaetigung: Projekt[];
-    lieferschein: Projekt[];
-    rechnung: Projekt[];
-    bezahlt: Projekt[];
-    verloren: Projekt[];
-  }> {
+  async loadProjekteGruppiert(saisonjahr?: number): Promise<Record<ProjektStatus, Projekt[]>> {
     try {
       // Cache prüfen
       const now = Date.now();
       if (projektCache &&
           projektCache.saisonjahr === saisonjahr &&
           (now - projektCache.timestamp) < CACHE_TTL) {
-        const projekte = projektCache.projekte;
-        return {
-          angebot: projekte.filter((p) => p.status === 'angebot'),
-          angebot_versendet: projekte.filter((p) => p.status === 'angebot_versendet'),
-          auftragsbestaetigung: projekte.filter((p) => p.status === 'auftragsbestaetigung'),
-          lieferschein: projekte.filter((p) => p.status === 'lieferschein'),
-          rechnung: projekte.filter((p) => p.status === 'rechnung'),
-          bezahlt: projekte.filter((p) => p.status === 'bezahlt'),
-          verloren: projekte.filter((p) => p.status === 'verloren'),
-        };
+        return gruppiereProjekteNachStatus(projektCache.projekte);
       }
 
       const queries: string[] = [Query.orderDesc('erstelltAm')];
@@ -227,15 +228,7 @@ class ProjektService {
         saisonjahr,
       };
 
-      return {
-        angebot: projekte.filter((p) => p.status === 'angebot'),
-        angebot_versendet: projekte.filter((p) => p.status === 'angebot_versendet'),
-        auftragsbestaetigung: projekte.filter((p) => p.status === 'auftragsbestaetigung'),
-        lieferschein: projekte.filter((p) => p.status === 'lieferschein'),
-        rechnung: projekte.filter((p) => p.status === 'rechnung'),
-        bezahlt: projekte.filter((p) => p.status === 'bezahlt'),
-        verloren: projekte.filter((p) => p.status === 'verloren'),
-      };
+      return gruppiereProjekteNachStatus(projekte);
     } catch (error) {
       console.error('Fehler beim Laden der gruppierten Projekte:', error);
       throw error;
@@ -1052,8 +1045,9 @@ class ProjektService {
       angebot_versendet: 1,
       auftragsbestaetigung: 2,
       lieferschein: 3,
-      rechnung: 4,
-      bezahlt: 5,
+      geliefert: 4,
+      rechnung: 5,
+      bezahlt: 6,
       verloren: -1,
     };
 

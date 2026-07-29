@@ -10,6 +10,7 @@ import {
   MapPin,
   Euro,
   Package,
+  PackageCheck,
   GripVertical,
   Layers,
   Pencil,
@@ -79,6 +80,7 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
   { id: 'angebot_versendet', label: 'Angebot versendet', icon: Send, color: 'text-indigo-600', darkColor: 'dark:text-indigo-400', bgColor: 'bg-indigo-50 border-indigo-200', darkBgColor: 'dark:bg-indigo-950/50 dark:border-indigo-800' },
   { id: 'auftragsbestaetigung', label: 'Auftragsbestätigung', icon: FileSignature, color: 'text-orange-600', darkColor: 'dark:text-orange-400', bgColor: 'bg-orange-50 border-orange-200', darkBgColor: 'dark:bg-orange-950/50 dark:border-orange-800' },
   { id: 'lieferschein', label: 'Lieferschein', icon: Truck, color: 'text-green-600', darkColor: 'dark:text-green-400', bgColor: 'bg-green-50 border-green-200', darkBgColor: 'dark:bg-green-950/50 dark:border-green-800' },
+  { id: 'geliefert', label: 'Geliefert', icon: PackageCheck, color: 'text-teal-600', darkColor: 'dark:text-teal-400', bgColor: 'bg-teal-50 border-teal-200', darkBgColor: 'dark:bg-teal-950/50 dark:border-teal-800' },
   { id: 'rechnung', label: 'Rechnung', icon: FileText, color: 'text-red-600', darkColor: 'dark:text-red-400', bgColor: 'bg-red-50 border-red-200', darkBgColor: 'dark:bg-red-950/50 dark:border-red-800' },
   { id: 'bezahlt', label: 'Bezahlt', icon: CheckCircle2, color: 'text-emerald-600', darkColor: 'dark:text-emerald-400', bgColor: 'bg-emerald-50 border-emerald-200', darkBgColor: 'dark:bg-emerald-950/50 dark:border-emerald-800' },
 ];
@@ -217,19 +219,14 @@ const NeueSaisonModal = ({
 const ProjektVerwaltung = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [projekteGruppiert, setProjekteGruppiert] = useState<{
-    angebot: Projekt[];
-    angebot_versendet: Projekt[];
-    auftragsbestaetigung: Projekt[];
-    lieferschein: Projekt[];
-    rechnung: Projekt[];
-    bezahlt: Projekt[];
-    verloren: Projekt[];
-  }>({
+  // Record<ProjektStatus, …> statt einer ausgeschriebenen Liste: ein neuer Status
+  // bricht dann sofort den Build und nicht erst still im Kanban.
+  const [projekteGruppiert, setProjekteGruppiert] = useState<Record<ProjektStatus, Projekt[]>>({
     angebot: [],
     angebot_versendet: [],
     auftragsbestaetigung: [],
     lieferschein: [],
+    geliefert: [],
     rechnung: [],
     bezahlt: [],
     verloren: [],
@@ -1511,6 +1508,7 @@ const AngebotListeView = ({ projekte, onProjektClick }: AngebotListeViewProps) =
       angebot_versendet: { label: 'Versendet', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300' },
       auftragsbestaetigung: { label: 'AB', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' },
       lieferschein: { label: 'Lieferung', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' },
+      geliefert: { label: 'Geliefert', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-300' },
       rechnung: { label: 'Rechnung', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' },
       bezahlt: { label: 'Bezahlt', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' },
       verloren: { label: 'Verloren', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },

@@ -126,6 +126,13 @@ const Datenpruefung = () => {
     void ladeAuftrag();
   }, [ladeAuftrag]);
 
+  // War beim Laden schon ein Dispo-Kontakt hinterlegt? Bezieht sich bewusst auf die
+  // Server-Antwort, nicht auf den aktuellen Eingabestand — sonst würde der Hinweis
+  // umspringen, während der Kunde tippt.
+  const dispoKontaktVorbefuellt = Boolean(
+    auftrag?.dispoKontakt.telefon?.trim() || auftrag?.dispoKontakt.email?.trim()
+  );
+
   const sendeRueckmeldung = async () => {
     if (!projektId || !auftrag) return;
 
@@ -292,6 +299,19 @@ const Datenpruefung = () => {
                 Über diese Kontaktdaten stimmen wir den Anliefertermin ab — Telefon und E-Mail sind
                 erforderlich.
               </p>
+              {/* Transparenz: der Kunde soll erkennen, was schon hinterlegt war und was fehlt —
+                  sonst weiß er nicht, ob die Felder von ihm oder von uns stammen. */}
+              {dispoKontaktVorbefuellt ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-slate-800 px-2.5 py-1 text-xs text-gray-600 dark:text-dark-textMuted">
+                  <Info className="h-3.5 w-3.5" />
+                  Aus unseren Unterlagen vorausgefüllt — bitte nur bei Abweichung ändern
+                </p>
+              ) : (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 text-xs text-amber-800 dark:text-amber-300">
+                  <Info className="h-3.5 w-3.5" />
+                  Diese Angaben fehlen uns noch
+                </p>
+              )}
               <div className="mt-4 space-y-3">
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

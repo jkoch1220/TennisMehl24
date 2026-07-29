@@ -705,11 +705,23 @@ const handler: Handler = async (event: HandlerEvent) => {
       daten: JSON.stringify(archivDaten),
     });
 
-    // ---- 3. Projekt aktualisieren: dispoStatus 'geliefert' + liefernachweisAm ----
+    // ---- 3. Projekt aktualisieren: Status 'geliefert' + dispoStatus + liefernachweisAm ----
     let statusGesetzt = true;
     try {
+      // Der Projektstatus rückt auf 'geliefert' vor — die Ware ist raus, die Rechnung steht aus.
+      // Guard gegen Rückschritt: ist bereits eine Rechnung gestellt oder bezahlt (oder das Projekt
+      // verloren), bleibt der Status stehen. Ein spät gescannter QR darf keine Rechnung entwerten.
+      const bisherigerStatus =
+        typeof dokument.status === 'string' ? dokument.status : daten.status;
+      const statusBleibtStehen =
+        bisherigerStatus === 'rechnung' ||
+        bisherigerStatus === 'bezahlt' ||
+        bisherigerStatus === 'verloren';
+      const neuerStatus = statusBleibtStehen ? bisherigerStatus : 'geliefert';
+
       const neueDaten: ProjektDaten = {
         ...daten,
+        status: neuerStatus,
         dispoStatus: 'geliefert',
         liefernachweisAm: zeitstempel,
         liefernachweis: {
@@ -724,6 +736,9 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
       await aktualisiereProjekt(projektId, {
         data: JSON.stringify(neueDaten),
+        // `status` ist zusätzlich eine echte Appwrite-Spalte (PROJEKT_TOP_LEVEL_FELDER in
+        // projektService.ts) und wird beim Lesen bevorzugt — beide Orte müssen gesetzt werden.
+        status: neuerStatus,
         geaendertAm: zeitstempel,
       });
     } catch (updateFehler) {

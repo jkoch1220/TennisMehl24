@@ -55,6 +55,7 @@ const MobileProjektCard = ({ projekt, onTap, onEdit, onDelete }: MobileProjektCa
       angebot_versendet: { label: 'Versendet', color: 'text-indigo-700 dark:text-indigo-300', bgColor: 'bg-indigo-100 dark:bg-indigo-900/50', icon: Send },
       auftragsbestaetigung: { label: 'AB', color: 'text-orange-700 dark:text-orange-300', bgColor: 'bg-orange-100 dark:bg-orange-900/50', icon: FileSignature },
       lieferschein: { label: 'Lieferung', color: 'text-green-700 dark:text-green-300', bgColor: 'bg-green-100 dark:bg-green-900/50', icon: Truck },
+      geliefert: { label: 'Geliefert', color: 'text-teal-700 dark:text-teal-300', bgColor: 'bg-teal-100 dark:bg-teal-900/50', icon: Truck },
       rechnung: { label: 'Rechnung', color: 'text-red-700 dark:text-red-300', bgColor: 'bg-red-100 dark:bg-red-900/50', icon: FileText },
       bezahlt: { label: 'Bezahlt', color: 'text-emerald-700 dark:text-emerald-300', bgColor: 'bg-emerald-100 dark:bg-emerald-900/50', icon: CheckCircle2 },
       verloren: { label: 'Verloren', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-800', icon: XCircle },
@@ -197,15 +198,7 @@ const MobileProjektCard = ({ projekt, onTap, onEdit, onDelete }: MobileProjektCa
 // MOBILE PROJEKT VIEW - Hauptkomponente
 // ==========================================
 interface MobileProjektViewProps {
-  projekteGruppiert: {
-    angebot: Projekt[];
-    angebot_versendet: Projekt[];
-    auftragsbestaetigung: Projekt[];
-    lieferschein: Projekt[];
-    rechnung: Projekt[];
-    bezahlt: Projekt[];
-    verloren: Projekt[];
-  };
+  projekteGruppiert: Record<ProjektStatus, Projekt[]>;
   suche: string;
   setSuche: (suche: string) => void;
   loading: boolean;
@@ -243,6 +236,7 @@ const MobileProjektView = ({
     projekteGruppiert.angebot_versendet.length +
     projekteGruppiert.auftragsbestaetigung.length +
     projekteGruppiert.lieferschein.length +
+    projekteGruppiert.geliefert.length +
     projekteGruppiert.rechnung.length +
     projekteGruppiert.bezahlt.length;
 
@@ -256,6 +250,7 @@ const MobileProjektView = ({
         ...projekteGruppiert.angebot_versendet,
         ...projekteGruppiert.auftragsbestaetigung,
         ...projekteGruppiert.lieferschein,
+        ...projekteGruppiert.geliefert,
         ...projekteGruppiert.rechnung,
         ...projekteGruppiert.bezahlt,
       ];

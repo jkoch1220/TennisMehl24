@@ -29,6 +29,8 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 // === Konfiguration (identisch zu src/config/appwrite.ts) ===
 const DATABASE_ID = 'tennismehl24_db';
 const PROJEKTE_COLLECTION_ID = 'projekte';
+const SAISON_KUNDEN_COLLECTION_ID = 'saison_kunden';
+const SAISON_ANSPRECHPARTNER_COLLECTION_ID = 'saison_ansprechpartner';
 
 const TOKEN_GUELTIGKEIT_TAGE = 90;
 const MAX_KURZFELD_LAENGE = 200;
@@ -59,6 +61,8 @@ interface DatenpruefungRueckmeldung {
 }
 
 interface ProjektDaten {
+  /** Verweis auf saison_kunden — nötig, um den Dispo-Kontakt aus dem Stamm nachzuladen */
+  kundeId?: string;
   kundenname?: string;
   kundennummer?: string;
   kundenstrasse?: string;
@@ -138,6 +142,81 @@ const ladeProjekt = async (projektId: string): Promise<ProjektDokument | null> =
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Projekt konnte nicht geladen werden (HTTP ${res.status})`);
   return (await res.json()) as ProjektDokument;
+};
+
+/**
+ * Dispo-Kontakt aus dem Kundenstamm nachladen.
+ *
+ * Ohne das blieben die Felder im Formular leer, sobald am Projekt selbst noch kein
+ * Dispo-Kontakt hinterlegt war — obwohl er in der Kundenakte längst steht. Genau das
+ * soll der Kunde ja bestätigen können, statt ihn neu eintippen zu müssen.
+ *
+ * Reihenfolge: als Dispo markierter Ansprechpartner → Dispo-Kontakt am Kundendokument.
+ * Fehler sind unkritisch: die Vorbefüllung fällt dann auf die Projektdaten zurück.
+ */
+const ladeDispoKontaktAusKundenstamm = async (
+  kundeId?: string
+): Promise<{ name?: string; telefon?: string; email?: string } | null> => {
+  if (!kundeId) return null;
+
+  try {
+    // 1. Als Dispo markierter Ansprechpartner
+    const apRes = await fetch(
+      `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${SAISON_ANSPRECHPARTNER_COLLECTION_ID}/documents?` +
+        `queries[]=${encodeURIComponent(JSON.stringify({ method: 'equal', attribute: 'kundeId', values: [kundeId] }))}`,
+      { headers: appwriteHeaders() }
+    );
+    if (apRes.ok) {
+      const json = (await apRes.json()) as { documents?: Array<{ data?: string }> };
+      for (const doc of json.documents || []) {
+        if (!doc.data) continue;
+        try {
+          const ap = JSON.parse(doc.data) as {
+            name?: string;
+            email?: string;
+            aktiv?: boolean;
+            istDispoAnsprechpartner?: boolean;
+            telefonnummern?: Array<{ nummer?: string }>;
+          };
+          if (ap.istDispoAnsprechpartner && ap.aktiv !== false) {
+            return {
+              name: ap.name,
+              telefon: ap.telefonnummern?.find((t) => t.nummer)?.nummer,
+              email: ap.email,
+            };
+          }
+        } catch {
+          // einzelnen defekten Datensatz überspringen
+        }
+      }
+    }
+
+    // 2. Dispo-Kontakt direkt am Kundendokument
+    const kundeRes = await fetch(
+      `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${SAISON_KUNDEN_COLLECTION_ID}/documents/${encodeURIComponent(kundeId)}`,
+      { headers: appwriteHeaders() }
+    );
+    if (kundeRes.ok) {
+      const doc = (await kundeRes.json()) as { data?: string };
+      if (doc.data) {
+        const kunde = JSON.parse(doc.data) as {
+          dispoAnsprechpartner?: { name?: string; telefon?: string; email?: string };
+          email?: string;
+        };
+        if (kunde.dispoAnsprechpartner?.name || kunde.dispoAnsprechpartner?.telefon) {
+          return {
+            name: kunde.dispoAnsprechpartner.name,
+            telefon: kunde.dispoAnsprechpartner.telefon,
+            email: kunde.dispoAnsprechpartner.email || kunde.email,
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Dispo-Kontakt aus dem Kundenstamm nicht ladbar:', error);
+  }
+
+  return null;
 };
 
 const aktualisiereProjekt = async (
@@ -370,6 +449,11 @@ const handler: Handler = async (event: HandlerEvent) => {
       }
 
       const auszug = extrahiereAbAuszug(daten);
+
+      // Vorbefüllung so vollständig wie möglich: was am Projekt fehlt, kommt aus dem
+      // Kundenstamm. Der Kunde soll im Idealfall nur noch bestätigen müssen.
+      const stammKontakt = await ladeDispoKontaktAusKundenstamm(daten.kundeId);
+
       return {
         statusCode: 200,
         headers,
@@ -379,9 +463,21 @@ const handler: Handler = async (event: HandlerEvent) => {
             kundennummer: daten.kundennummer || '',
             auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer || '',
             dispoKontakt: {
-              name: daten.dispoAnsprechpartner?.name || daten.ansprechpartner || '',
-              telefon: daten.dispoAnsprechpartner?.telefon || daten.kundenTelefon || '',
-              email: daten.dispoAnsprechpartner?.email || daten.kundenEmail || '',
+              name:
+                daten.dispoAnsprechpartner?.name ||
+                stammKontakt?.name ||
+                daten.ansprechpartner ||
+                '',
+              telefon:
+                daten.dispoAnsprechpartner?.telefon ||
+                stammKontakt?.telefon ||
+                daten.kundenTelefon ||
+                '',
+              email:
+                daten.dispoAnsprechpartner?.email ||
+                stammKontakt?.email ||
+                daten.kundenEmail ||
+                '',
             },
             positionen: auszug.positionen,
             lieferanschrift: auszug.lieferanschrift,

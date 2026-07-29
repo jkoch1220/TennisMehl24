@@ -1,5 +1,24 @@
 // Projekt-Status
-export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'bezahlt' | 'verloren';
+// 'geliefert' wird gesetzt, sobald der Fahrer die Lieferung per QR-Scan bestätigt hat
+// (netlify/functions/liefernachweis.ts). Es ist die Vorstufe zur Rechnungsstellung:
+// Ware ist raus, Rechnung steht aus.
+export type ProjektStatus = 'angebot' | 'angebot_versendet' | 'auftragsbestaetigung' | 'lieferschein' | 'geliefert' | 'rechnung' | 'bezahlt' | 'verloren';
+
+/**
+ * Alle Status in fachlicher Reihenfolge. Einzige Aufzählung im Code — wer über
+ * Status iteriert oder gruppiert, nimmt diese Liste, damit ein neuer Status nicht
+ * an einer vergessenen Stelle still unter den Tisch fällt.
+ */
+export const ALLE_PROJEKT_STATUS: ProjektStatus[] = [
+  'angebot',
+  'angebot_versendet',
+  'auftragsbestaetigung',
+  'lieferschein',
+  'geliefert',
+  'rechnung',
+  'bezahlt',
+  'verloren',
+];
 
 // Gründe für verlorene Projekte
 export type VerlorenGrund = 'duplikat' | 'preis' | 'kommunikation' | 'telefon_fehler' | 'sonstiges';
@@ -60,6 +79,8 @@ export interface LiefernachweisInfo {
   fotoDateiId?: string;
   /** Datei-ID der optionalen Unterschrift (PNG) im Bucket liefernachweis-dateien */
   unterschriftDateiId?: string;
+  /** Name des Fahrers (Pflichtfeld auf der Bestätigungsseite) */
+  fahrerName?: string;
   /** Name des Unterzeichners (optional, bei Schüttgut oft niemand vor Ort) */
   unterzeichnerName?: string;
   /** GPS-Position beim Bestätigen (nur nach Browser-Freigabe) */

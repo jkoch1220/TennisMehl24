@@ -46,8 +46,22 @@ interface EmailFormularProps {
   pdfVersion?: number;
   /** Zusätzlicher HTML-Block (z.B. AB-Datenprüfung) — wird nach dem Template-Text und vor der Signatur eingefügt, im Editor anpassbar */
   zusatzHtml?: string;
+  /**
+   * Auswählbare Vorlagen-Varianten für denselben Dokumenttyp. Erst ab zwei Einträgen
+   * erscheint die Auswahl; der erste Eintrag ist die Voreinstellung.
+   */
+  vorlagen?: EmailVorlagenOption[];
   onClose: () => void;
   onSend?: (info: { testModus: boolean; empfaenger: string }) => void;
+}
+
+export interface EmailVorlagenOption {
+  /** Schlüssel in den Stammdaten-Templates; leer = Basisvorlage des Dokumenttyps */
+  key?: string;
+  label: string;
+  beschreibung?: string;
+  /** false = der zusatzHtml-Block (z.B. Datenprüfung) wird bei dieser Variante weggelassen */
+  mitZusatzHtml?: boolean;
 }
 
 type SendeStatus = 'bereit' | 'laden' | 'senden' | 'erfolg' | 'fehler';
@@ -63,9 +77,13 @@ const EmailFormular = ({
   projektId,
   pdfVersion,
   zusatzHtml,
+  vorlagen,
   onClose,
   onSend,
 }: EmailFormularProps) => {
+  // Gewählte Vorlagen-Variante (Index in `vorlagen`); ohne Auswahl immer die erste/Basis.
+  const [vorlagenIndex, setVorlagenIndex] = useState(0);
+  const aktiveVorlage = vorlagen?.[vorlagenIndex];
   // Formular-State
   const [empfaenger, setEmpfaenger] = useState(standardEmpfaenger || '');
   const [absender, setAbsender] = useState('');
@@ -155,7 +173,8 @@ const EmailFormular = ({
           dokumentTyp,
           dokumentNummer,
           kundenname,
-          kundennummer
+          kundennummer,
+          aktiveVorlage?.key
         );
         setBetreff(emailDaten.betreff);
 
@@ -172,8 +191,10 @@ const EmailFormular = ({
             .join('');
         }
 
-        // Zusatz-Block (z.B. AB-Datenprüfung) vor der Signatur einfügen
-        if (zusatzHtml) {
+        // Zusatz-Block (z.B. AB-Datenprüfung) vor der Signatur einfügen.
+        // Varianten können ihn abwählen — die schlanke AB kommt ohne Prüf-Block aus.
+        const zusatzErwuenscht = aktiveVorlage ? aktiveVorlage.mitZusatzHtml !== false : true;
+        if (zusatzHtml && zusatzErwuenscht) {
           htmlText += '\n' + zusatzHtml;
         }
 
@@ -204,7 +225,8 @@ const EmailFormular = ({
         URL.revokeObjectURL(pdfPreviewUrl);
       }
     };
-  }, [dokumentTyp, dokumentNummer, kundenname, kundennummer, pdf, zusatzHtml]);
+    // aktiveVorlage?.key in den Dependencies: ein Vorlagenwechsel lädt Betreff und Text neu.
+  }, [dokumentTyp, dokumentNummer, kundenname, kundennummer, pdf, zusatzHtml, aktiveVorlage?.key, aktiveVorlage?.mitZusatzHtml]);
 
   // Standard-Absender basierend auf Dokumenttyp
   const getDefaultAbsender = (typ: DokumentTyp, konten: EmailAccount[]): string => {
@@ -498,6 +520,37 @@ const EmailFormular = ({
               />
             </div>
           </div>
+
+          {/* Vorlagen-Auswahl — nur bei mehr als einer Variante */}
+          {vorlagen && vorlagen.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+                Vorlage
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {vorlagen.map((vorlage, index) => (
+                  <button
+                    key={vorlage.key || 'basis'}
+                    type="button"
+                    onClick={() => setVorlagenIndex(index)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors text-left ${
+                      index === vorlagenIndex
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                    }`}
+                    title={vorlage.beschreibung}
+                  >
+                    {vorlage.label}
+                  </button>
+                ))}
+              </div>
+              {aktiveVorlage?.beschreibung && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                  {aktiveVorlage.beschreibung}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Betreff */}
           <div>

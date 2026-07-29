@@ -20,6 +20,24 @@ import { projektService } from './projektService';
 /** Gültigkeit des Tokens in Tagen (muss mit der Netlify Function übereinstimmen) */
 export const LIEFERNACHWEIS_TOKEN_GUELTIGKEIT_TAGE = 30;
 
+/**
+ * Storage-Bucket für Fotos und Unterschriften der Fahrerbestätigung.
+ * Muss mit LIEFERNACHWEIS_BUCKET_ID in netlify/functions/liefernachweis.ts und
+ * scripts/add-liefernachweis-bucket.js übereinstimmen.
+ */
+export const LIEFERNACHWEIS_BUCKET_ID = 'liefernachweis-dateien';
+
+/**
+ * Anzeige-URL einer Datei aus dem Liefernachweis-Bucket (Foto/Unterschrift).
+ * Der Bucket erlaubt `read("users")`, die URL funktioniert also nur für
+ * angemeldete Portal-Nutzer — nicht öffentlich teilbar.
+ */
+export const getLiefernachweisDateiUrl = (dateiId: string): string => {
+  const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
+  const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
+  return `${endpoint}/storage/buckets/${LIEFERNACHWEIS_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+};
+
 /** Erzeugt ein zufälliges, nicht erratbares Token (UUID + 32 Zufallsbytes hex) */
 export const generiereLiefernachweisToken = (): string => {
   const bytes = new Uint8Array(32);

@@ -5,6 +5,14 @@ import { ladeStammdaten } from '../services/stammdatenService';
 let emailTemplatesCache: Record<string, any> | null = null;
 
 /**
+ * Schlüssel der schlanken Auftragsbestätigungs-Vorlage in den Stammdaten.
+ * Die Basisvorlage `auftragsbestaetigung` ist die Frühjahrsinstandsetzungs-Mail
+ * inklusive Datenprüfungs-Block; diese hier ist die Kurzfassung für ABs außerhalb
+ * der Saison. Wird an mehreren Stellen referenziert — deshalb als Konstante.
+ */
+export const AB_VORLAGE_EINFACH = 'auftragsbestaetigung_einfach';
+
+/**
  * Lädt die E-Mail-Templates aus Appwrite (Stammdaten)
  */
 const ladeEmailTemplates = async (): Promise<Record<string, any>> => {
@@ -43,11 +51,38 @@ const ladeEmailTemplates = async (): Promise<Record<string, any>> => {
 };
 
 /**
- * Standard-Signatur für Fallback
+ * Notnagel-Signatur — greift NUR, wenn weder eine gemeinsame noch eine vorlagen-eigene
+ * Signatur in den Stammdaten steht. Die gepflegte Signatur (mit Logo und Hydrocourt-Banner)
+ * liegt in Appwrite und wird über Stammdaten → E-Mail-Vorlagen bearbeitet.
  */
-const getStandardSignatur = (): string => `<p>Mit freundlichen Grüßen</p>
-<p><strong>Koch Dienste</strong></p>
-<p style="font-size: 12px; color: #666;">TennisMehl24<br/>E-Mail: info@tennismehl.com<br/>Web: www.tennismehl24.de</p>`;
+const getStandardSignatur = (): string => `<p>Mit sportlichen Grüßen</p>
+<p>vom Team der Tennismehl GmbH</p>
+<p style="font-size: 12px; color: #666;">Tennismehl GmbH<br/>Raiffeisenweg 1, 97232 Giebelstadt<br/>T 09391 9870-0<br/>www.tennismehl.com<br/>Sitz der Gesellschaft: Giebelstadt · Handelsregister Würzburg HRB 18235</p>`;
+
+/**
+ * Ermittelt die Signatur für einen Dokumenttyp.
+ *
+ * Bis 07/2026 trug jede der vier Vorlagen ihre EIGENE Signaturkopie. Wer sie an einer
+ * Stelle korrigierte, ließ die anderen drei veralten — genau so fehlten der Angebots-
+ * signatur das Hydrocourt-Banner und die Bildmaße am Logo (ohne width/height rendern
+ * viele Mailclients es in Originalgröße). Deshalb gilt jetzt:
+ *   1. vorlagen-eigene Signatur, falls bewusst abweichend gepflegt
+ *   2. sonst die gemeinsame Signatur `standardSignatur`
+ *   3. sonst der Notnagel oben
+ */
+export const ermittleSignatur = (
+  templates: Record<string, any>,
+  template: Record<string, any>
+): string => {
+  const eigene = typeof template?.signatur === 'string' ? template.signatur.trim() : '';
+  if (eigene) return eigene;
+
+  const gemeinsame =
+    typeof templates?.standardSignatur === 'string' ? templates.standardSignatur.trim() : '';
+  if (gemeinsame) return gemeinsame;
+
+  return getStandardSignatur();
+};
 
 /**
  * Fallback-Templates falls Templates nicht aus Appwrite geladen werden können
@@ -59,7 +94,6 @@ const getFallbackTemplates = (): Record<string, any> => ({
 <p>anbei erhalten Sie unser Angebot <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Wir freuen uns auf Ihre Rückmeldung.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: getStandardSignatur(),
   },
   auftragsbestaetigung: {
     betreff: 'Auftragsbestätigung {dokumentNummer} - {kundenname}',
@@ -67,7 +101,6 @@ const getFallbackTemplates = (): Record<string, any> => ({
 <p>anbei erhalten Sie unsere Auftragsbestätigung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit die Bestellung.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: getStandardSignatur(),
   },
   lieferschein: {
     betreff: 'Lieferschein {dokumentNummer} - {kundenname}',
@@ -75,7 +108,6 @@ const getFallbackTemplates = (): Record<string, any> => ({
 <p>anbei erhalten Sie unseren Lieferschein <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
 <p>Bitte bestätigen Sie den Erhalt der Ware.</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: getStandardSignatur(),
   },
   rechnung: {
     betreff: 'Rechnung {dokumentNummer} – {kundenname}',
@@ -83,7 +115,15 @@ const getFallbackTemplates = (): Record<string, any> => ({
 <p>anbei erhalten Sie Ihre Rechnung <strong>{dokumentNummer}</strong> für die Lieferung vom Tennismehl.</p>
 <p style="padding:10px 14px;background:#fff3cd;border-left:4px solid #c41e3a;font-weight:bold;">BITTE BEACHTEN SIE DIE GEÄNDERTEN KONTODATEN ZUM LETZTEN JAHR!</p>
 <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
-    signatur: getStandardSignatur(),
+  },
+  // Schlanke AB-Variante für Aufträge außerhalb der Frühjahrsinstandsetzung —
+  // ohne den Datenprüfungs-Block, der zur Saisonabwicklung gehört.
+  [AB_VORLAGE_EINFACH]: {
+    betreff: 'Auftragsbestätigung {dokumentNummer} - {kundenname}',
+    htmlContent: `<p>Sehr geehrte Damen und Herren,</p>
+<p>anbei erhalten Sie unsere Auftragsbestätigung <strong>{dokumentNummer}</strong>{kundennummerText}.</p>
+<p>Vielen Dank für Ihren Auftrag.</p>
+<p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>`,
   },
 });
 
@@ -140,10 +180,16 @@ export const generiereStandardEmail = async (
   dokumentTyp: 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung',
   dokumentNummer: string,
   kundenname: string,
-  kundennummer?: string
+  kundennummer?: string,
+  /**
+   * Optionale Vorlagen-Variante innerhalb desselben Dokumenttyps, z.B.
+   * 'auftragsbestaetigung_einfach' für ABs außerhalb der Frühjahrssaison.
+   * Fehlt die Variante in den Stammdaten, wird auf die Basisvorlage zurückgefallen.
+   */
+  vorlagenKey?: string
 ): Promise<{ betreff: string; text: string; html?: string; signatur?: string }> => {
   const templates = await ladeEmailTemplates();
-  const template = templates[dokumentTyp];
+  const template = (vorlagenKey && templates[vorlagenKey]) || templates[dokumentTyp];
 
   if (!template) {
     throw new Error(`Kein Template für Dokumenttyp ${dokumentTyp} gefunden`);
@@ -169,10 +215,13 @@ export const generiereStandardEmail = async (
     kundennummer
   );
 
-  // Signatur auch ersetzen falls vorhanden
-  const signatur = template.signatur
-    ? ersetzePlatzhalter(template.signatur, dokumentNummer, kundenname, kundennummer)
-    : undefined;
+  // Signatur nach der Fallback-Kette bestimmen (eigene → gemeinsame → Notnagel)
+  const signatur = ersetzePlatzhalter(
+    ermittleSignatur(templates, template),
+    dokumentNummer,
+    kundenname,
+    kundennummer
+  );
 
   return {
     betreff,

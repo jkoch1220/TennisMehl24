@@ -323,6 +323,20 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         }
       }
 
+      // Dispo-Kontakt in den Ansprechpartner-Stamm überführen, damit er in der
+      // Kundenakte auftaucht und als Dispo-Ansprechpartner markiert ist.
+      // Scheitert das, ist der Kunde trotzdem gespeichert — nur die Verknüpfung fehlt.
+      if (formData.dispoAnsprechpartner?.name?.trim()) {
+        try {
+          await saisonplanungService.setzeDispoAnsprechpartner(kundeId, {
+            name: formData.dispoAnsprechpartner.name,
+            telefon: formData.dispoAnsprechpartner.telefon,
+          });
+        } catch (error) {
+          console.warn('Dispo-Ansprechpartner konnte nicht übernommen werden:', error);
+        }
+      }
+
       // Beziehungen Verein ↔ Platzbauer (nur für Vereine)
       if ((formData.typ || kunde?.kunde.typ) === 'verein') {
         const bestehendeBeziehungen = kunde?.beziehungenAlsVerein || [];
@@ -1154,6 +1168,29 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                             }}
                             className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                           />
+                          {/* Dispo-Markierung: genau einer je Kunde wird für die
+                              Terminabstimmung der Anlieferung bevorzugt herangezogen. */}
+                          <label className="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!ap.istDispoAnsprechpartner}
+                              onChange={(e) => {
+                                const updated = ansprechpartner.map((eintrag, index) => ({
+                                  ...eintrag,
+                                  // Exklusiv: beim Ankreuzen verlieren alle anderen die Markierung
+                                  istDispoAnsprechpartner: e.target.checked
+                                    ? index === apIndex
+                                    : index === apIndex
+                                      ? false
+                                      : eintrag.istDispoAnsprechpartner,
+                                }));
+                                setAnsprechpartner(updated);
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            <Truck className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                            Dispo-Ansprechpartner
+                          </label>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>

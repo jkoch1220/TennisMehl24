@@ -123,12 +123,16 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
   // Initialisiere mit leeren Daten
   const [angebotsDaten, setAngebotsDaten] = useState<AngebotsDaten>({
-    firmenname: 'Koch Dienste',
-    firmenstrasse: 'Musterstraße 1',
-    firmenPlzOrt: '12345 Musterstadt',
-    firmenTelefon: '+49 123 456789',
-    firmenEmail: 'info@kochdienste.de',
-    firmenWebsite: 'www.kochdienste.de',
+    // Platzhalter bis die Stammdaten geladen sind. Das PDF liest diese Felder nicht
+    // (rechnungService/dokumentService nehmen durchgehend stammdaten.*) — trotzdem hier
+    // die echten Daten, damit eine versehentliche Anzeige nicht "Koch Dienste,
+    // Musterstraße 1" zeigt.
+    firmenname: 'Tennismehl GmbH',
+    firmenstrasse: 'Raiffeisenweg 1',
+    firmenPlzOrt: '97232 Giebelstadt',
+    firmenTelefon: '09391 9870-0',
+    firmenEmail: 'info@tennismehl.com',
+    firmenWebsite: 'www.tennismehl.com',
     
     kundenname: '',
     kundenstrasse: '',
@@ -1282,16 +1286,28 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     }
   };
 
-  // Callback für E-Mail-Versand: Projektstatus auf "angebot_versendet" setzen
-  const handleEmailGesendet = async () => {
-    if (!projekt?.$id) {
-      console.warn('Kein Projekt vorhanden, kann Status nicht aktualisieren');
+  // Nach ERFOLGREICHEM E-Mail-Versand: Projektstatus auf "angebot_versendet" setzen.
+  // Ein Testversand geht an die Test-Adresse, nicht an den Kunden — er darf den Status
+  // deshalb NICHT fortschreiben. Bis 07/2026 nahm diese Funktion gar keine Parameter
+  // entgegen und ignorierte das {testModus}-Argument aus EmailFormular; jeder Testlauf
+  // markierte das Angebot damit fälschlich als versendet (gleiches Muster wie AB/Rechnung).
+  const handleEmailGesendet = async ({ testModus }: { testModus: boolean; empfaenger: string }) => {
+    if (testModus || !projekt?.$id) return;
+
+    // Kein Rückschritt: wird ein Angebot nachträglich noch einmal verschickt, obwohl längst
+    // eine AB oder Rechnung existiert, bliebe der Auftrag sonst wieder in der Angebotsphase
+    // hängen (gleicher Guard wie AB_VERSAND_VORSTATUS beim AB-Versand).
+    if (projekt.status !== 'angebot' && projekt.status !== 'angebot_versendet') {
+      console.info(
+        `Angebot erneut versendet, Status bleibt auf "${projekt.status}" (bereits weiter fortgeschritten).`
+      );
       return;
     }
 
     try {
       await projektService.updateProjektStatus(projekt.$id, 'angebot_versendet');
-      console.log('Projektstatus erfolgreich auf "angebot_versendet" gesetzt');
+      setStatusMeldung({ typ: 'erfolg', text: 'Angebot versendet — Status wurde aktualisiert.' });
+      setTimeout(() => setStatusMeldung(null), 5000);
     } catch (error) {
       console.error('Fehler beim Aktualisieren des Projektstatus:', error);
       // Fehler wird nur geloggt, damit der E-Mail-Versand nicht blockiert wird

@@ -38,6 +38,7 @@ import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import LiefernachweisKarte from './LiefernachweisKarte';
 import EmailFormular from './EmailFormular';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -85,12 +86,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
   const kunde = kundeFromProps || geladenerKunde;
 
   const [lieferscheinDaten, setLieferscheinDaten] = useState<LieferscheinDaten>({
-    firmenname: 'Koch Dienste',
-    firmenstrasse: 'Musterstraße 1',
-    firmenPlzOrt: '12345 Musterstadt',
-    firmenTelefon: '+49 123 456789',
-    firmenEmail: 'info@kochdienste.de',
-    firmenWebsite: 'www.kochdienste.de',
+    // Platzhalter bis die Stammdaten geladen sind. Das PDF liest diese Felder nicht
+    // (rechnungService/dokumentService nehmen durchgehend stammdaten.*) — trotzdem hier
+    // die echten Daten, damit eine versehentliche Anzeige nicht "Koch Dienste,
+    // Musterstraße 1" zeigt.
+    firmenname: 'Tennismehl GmbH',
+    firmenstrasse: 'Raiffeisenweg 1',
+    firmenPlzOrt: '97232 Giebelstadt',
+    firmenTelefon: '09391 9870-0',
+    firmenEmail: 'info@tennismehl.com',
+    firmenWebsite: 'www.tennismehl.com',
 
     kundenname: '',
     kundenstrasse: '',
@@ -408,7 +413,24 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           dispoAnsprechpartner = projekt.dispoAnsprechpartner;
           console.log('✅ DISPO-Ansprechpartner vom Projekt übernommen:', dispoAnsprechpartner.name);
         }
-        // 3. Fallback: Aus Kundenstammdaten laden
+        // 3. Fallback: als Dispo markierter Ansprechpartner aus der Kundenakte.
+        //    Steht vor dem losen dispoAnsprechpartner-Feld am Kunden, weil er gepflegt
+        //    ist (eigener Datensatz mit Telefonnummern und E-Mail) statt nur ein Namensfeld.
+        if (!dispoAnsprechpartner?.name?.trim() && projekt?.kundeId) {
+          try {
+            const markierter = await saisonplanungService.ladeDispoAnsprechpartner(projekt.kundeId);
+            if (markierter?.name?.trim()) {
+              dispoAnsprechpartner = {
+                name: markierter.name,
+                telefon: markierter.telefonnummern?.find((t) => t.nummer)?.nummer || '',
+              };
+              console.log('✅ DISPO-Ansprechpartner aus der Kundenakte geladen:', markierter.name);
+            }
+          } catch (error) {
+            console.warn('Dispo-Ansprechpartner konnte nicht geladen werden:', error);
+          }
+        }
+        // 4. Fallback: loses Dispo-Feld am Kundenstammsatz
         if (!dispoAnsprechpartner?.name?.trim() && projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
@@ -1604,9 +1626,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             )}
           </div>
           
+          {/* Rückmeldung des Fahrers aus dem QR-Scan */}
+          {projekt && (
+            <div className="mt-6">
+              <LiefernachweisKarte projekt={projekt} />
+            </div>
+          )}
+
           {/* Dateiverlauf */}
           {projekt?.$id && (
-            <div className="mt-6">
+            <div className="mt-6 space-y-6">
               <DokumentVerlauf
                 projektId={projekt.$id}
                 dokumentTyp="lieferschein"
@@ -1614,6 +1643,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                 maxAnzeige={3}
                 ladeZaehler={verlaufLadeZaehler}
               />
+              {/* Archivierter Liefernachweis (PDF mit Foto und Unterschrift) */}
+              {projekt.liefernachweisAm && (
+                <DokumentVerlauf
+                  projektId={projekt.$id}
+                  dokumentTyp="liefernachweis"
+                  titel="Liefernachweis-Verlauf"
+                  maxAnzeige={3}
+                  ladeZaehler={verlaufLadeZaehler}
+                />
+              )}
             </div>
           )}
         </div>
