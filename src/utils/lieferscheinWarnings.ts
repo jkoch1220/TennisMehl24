@@ -42,11 +42,14 @@ export interface LieferscheinWarnings {
   hatWichtig: boolean;
 }
 
-// Artikelnummern die IGNORIERT werden (kein Warning)
+// Artikelnummern die IGNORIERT werden (kein Warning).
+// GROSSGESCHRIEBEN, weil unten gegen die normalisierte Nummer verglichen wird —
+// vorher lief der Vergleich gegen die Rohnummer und griff bei abweichender
+// Schreibweise nicht. TM-ZM-03 steht bewusst NICHT hier: die 0/3-Silowarnung soll greifen.
 const IGNORIERTE_ARTIKELNUMMERN = new Set([
   'TM-ZM-02',     // Standard-Schüttgut 0/2
-  'TM-ZM-02St',   // Spedition Raben (nicht eigener LKW)
-  'TM-ZM-03St',   // Spedition Raben (nicht eigener LKW)
+  'TM-ZM-02ST',   // Spedition Raben (nicht eigener LKW)
+  'TM-ZM-03ST',   // Spedition Raben (nicht eigener LKW)
   'TM-PE',        // PE-Folie (Standardzubehör)
   'TM-FP',        // Frachtkostenpauschale
   'TM-PAL',       // Palette
@@ -70,7 +73,7 @@ const berechneSaeckeAnzahl = (menge: number, einheit: string): number => {
  */
 const istSpeditionsArtikel = (artikelnummer: string): boolean => {
   if (!artikelnummer) return false;
-  return artikelnummer.endsWith('St');
+  return artikelnummer.trim().toUpperCase().endsWith('ST');
 };
 
 /**
@@ -87,7 +90,7 @@ export const erkenneSonderPositionen = (positionen: LieferscheinPosition[]): Pos
     const artikel = (pos.artikel || '').trim();
 
     // Früher Exit: Ignorierte Artikel
-    if (IGNORIERTE_ARTIKELNUMMERN.has(pos.artikelnummer || '')) {
+    if (IGNORIERTE_ARTIKELNUMMERN.has(artNr)) {
       continue;
     }
 
@@ -130,9 +133,12 @@ export const erkenneSonderPositionen = (positionen: LieferscheinPosition[]): Pos
       continue; // Bereits gewarnt, keine weiteren Checks
     }
 
-    // === WICHTIG: BigBag (enthält "BIG") ===
-    // Matches: TM-ZM-BIG-02, TM-ZM-BIG-03
-    if (artNr.includes('BIG')) {
+    // === WICHTIG: BigBag ===
+    // Matches: TM-ZM-BIG-02/-03 (gültige Stammnummern) UND die Altnummern
+    // TM-ZM-02BB/03BB/TM-03BB, die kein "BIG" enthalten und deshalb bis 07/2026
+    // KEINE BigBag-Warnung ausgelöst haben — der Fahrer fuhr ohne Hinweis auf die
+    // benötigte Ablademöglichkeit los.
+    if (artNr.includes('BIG') || artNr.endsWith('BB')) {
       warnings.push({
         positionId: pos.id,
         artikelnummer: pos.artikelnummer || '-',

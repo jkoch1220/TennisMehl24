@@ -50,23 +50,28 @@ export function istRabenDieselfloaterPosition(position: Position): boolean {
  * Raben-Dieselfloater (TM-DZ-R) aktiv ist. Palettenware + BigBag wird von
  * Raben-Spedition transportiert und dort über den Floater abgerechnet.
  *
- * WICHTIG: BigBag-Positionen tragen die Nummern TM-ZM-02BB/TM-ZM-03BB
- * (so vom anfrageVerarbeitungService erzeugt). Muss mit ZUSCHLAGSFAEHIGE_ARTIKEL
- * in dieselZuschlag.ts konsistent bleiben, sonst wird BigBag doppelt belastet
- * (€/t-Zuschlag UND %-Floater). Legacy-Varianten TM-ZM-BIG-02/03 nur für Altdaten.
+ * WICHTIG: Die gueltigen BigBag-Nummern sind TM-ZM-BIG-02/TM-ZM-BIG-03 (Artikelstamm).
+ * Der frueher hier stehende Hinweis, BigBag trage TM-ZM-02BB/03BB, war falsch — diese
+ * Nummern hat es im Stamm nie gegeben; sie stehen nur in Altpositionen aus Angeboten
+ * vor 07/2026 und bleiben deshalb gelistet. Muss mit ZUSCHLAGSFAEHIGE_ARTIKEL in
+ * dieselZuschlag.ts konsistent bleiben, sonst wird BigBag doppelt belastet
+ * (EUR/t-Zuschlag UND %-Floater).
  */
 export const RABEN_SPEDITION_ARTIKELNUMMERN = [
   'TM-ZM-02St',
   'TM-ZM-03St',
-  'TM-ZM-02BB',
-  'TM-ZM-03BB',
-  // Legacy-Schreibweise (kommt in erzeugten Positionen nicht vor, nur Altdaten)
+  // Gueltige BigBag-Nummern (Artikelstamm)
   'TM-ZM-BIG-02',
   'TM-ZM-BIG-03',
+  // Altdaten aus Angeboten vor 07/2026 — nicht entfernen.
+  'TM-ZM-02BB',
+  'TM-ZM-03BB',
 ];
 
 export function istRabenSpeditionArtikel(position: Position): boolean {
-  return !!position.artikelnummer && RABEN_SPEDITION_ARTIKELNUMMERN.includes(position.artikelnummer);
+  if (!position.artikelnummer) return false;
+  const nr = position.artikelnummer.trim().toUpperCase();
+  return RABEN_SPEDITION_ARTIKELNUMMERN.some((a) => a.toUpperCase() === nr);
 }
 
 export function erstelleRabenDieselfloaterPosition(

@@ -127,6 +127,64 @@ const PALETTEN_ZUBEHOER_ARTIKEL = new Set(['TM-PAL']);
 const SAECKE_PRO_PALETTE = 25;
 const SACK_GEWICHT_TONNEN = 0.04;
 
+// ===== PLAUSIBILITÄTSBREMSE =====
+// Die Umrechnung von Beiladungs-Säcken auf Palettenware (Menge × 0,04 t, Preis × 25)
+// darf sich NICHT allein auf die Artikelnummer verlassen. Im Bestand stehen beide
+// Fehlerrichtungen: Sack-Nummern mit Tonnenpreisen (bis 364,25 €) und Paletten-Nummern
+// mit Sackpreisen (8,50 €). Rechnet man da blind um, entsteht aus 3 Stk à 364,25 €
+// ein Angebot über 0,5 t zu 4.553 € statt 1.092 €. Deshalb: Einheit UND Preis müssen
+// zur Artikelnummer passen, sonst geht der Kunde in die manuelle Prüfung.
+/** Plausibler Preis für EINEN 40-kg-Sack (Stammpreis 8,50 €). Darüber ist es ein Tonnenpreis. */
+const MAX_SACKPREIS_EURO = 30;
+/** Plausibler Preis für eine TONNE Sackware (Stammpreis 155,00 €). Darunter ist es ein Sackpreis. */
+const MIN_TONNENPREIS_EURO = 50;
+
+function istStueckEinheit(einheit: string | undefined): boolean {
+  const e = (einheit || '').trim().toLowerCase().replace(/\./g, '');
+  return e === 'stk' || e === 'st' || e === 'stck' || e === 'stück' || e === 'stueck';
+}
+
+const euro = (wert: number): string =>
+  wert.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Prüft, ob Einheit und Preis einer Sack-/Palettenposition zu ihrer Artikelnummer passen.
+ * Rückgabe: Klartext-Grund, wenn NICHT — dann wird die Position unverändert übernommen
+ * und der Kunde zur manuellen Prüfung ausgesteuert. `null` = plausibel.
+ */
+function pruefeSackPositionPlausibel(pos: Position, klasse: PositionsKlasse): string | null {
+  const preis = pos.einzelpreis ?? 0;
+  const bez = pos.bezeichnung || pos.artikelnummer || 'Position';
+
+  if (preis < 0) {
+    return `${bez}: negativer Einzelpreis (${euro(preis)} €) – vermutlich Gutschrift oder Storno`;
+  }
+
+  if (klasse === 'beiladung_sack') {
+    if (!istStueckEinheit(pos.einheit)) {
+      return `${bez}: Sack-Artikelnummer ${pos.artikelnummer}, aber Einheit „${pos.einheit}" (erwartet Stk)`;
+    }
+    if (preis > MAX_SACKPREIS_EURO) {
+      return `${bez}: ${euro(preis)} € ist kein Preis je 40-kg-Sack (erwartet bis ${euro(
+        MAX_SACKPREIS_EURO
+      )} €) – sieht nach einem Tonnen- oder Palettenpreis aus`;
+    }
+  }
+
+  if (klasse === 'sack_palette') {
+    if (istStueckEinheit(pos.einheit)) {
+      return `${bez}: Paletten-Artikelnummer ${pos.artikelnummer}, aber Einheit „${pos.einheit}" (erwartet t)`;
+    }
+    if (preis > 0 && preis < MIN_TONNENPREIS_EURO) {
+      return `${bez}: ${euro(preis)} €/t ist kein plausibler Tonnenpreis (erwartet ab ${euro(
+        MIN_TONNENPREIS_EURO
+      )} €) – sieht nach einem Sackpreis aus`;
+    }
+  }
+
+  return null;
+}
+
 type PositionsKlasse =
   | 'schuettgut'
   | 'sack_palette'
@@ -235,19 +293,21 @@ function baueAnbruchAufschlagPosition(anzahlAnbrueche: number, aufschlagEuro: nu
 //    baueAngebotsPositionenAusReferenz als eigene Pauschal-Position ergänzt —
 //    dafür meldet diese Funktion die Anzahl der Anbrüche zurück (`anbrueche`).
 //  - BigBags werden auf ganze Gebinde aufgerundet, Paletten-Zubehör 1:1 übernommen.
+//  - Passen Einheit/Preis nicht zur Artikelnummer, wird NICHT gerechnet: die Position
+//    geht unverändert ins Angebot und der Kunde in die manuelle Prüfung (`pruefungen`).
 function bereitePalettenPositionAuf(
   pos: Position,
   klasse: PositionsKlasse
-): { positionen: Position[]; warnungen: string[]; anbrueche: number } {
+): { positionen: Position[]; warnungen: string[]; anbrueche: number; pruefungen: string[] } {
   const warnungen: string[] = [];
 
   if (klasse === 'paletten_zubehoer' || klasse === 'sonstig') {
-    return { positionen: klonePositionen([pos]), warnungen, anbrueche: 0 };
+    return { positionen: klonePositionen([pos]), warnungen, anbrueche: 0, pruefungen: [] };
   }
 
   if (klasse === 'bigbag') {
     const menge = Math.ceil((pos.menge ?? 0) - 1e-9);
-    if (menge <= 0) return { positionen: [], warnungen, anbrueche: 0 };
+    if (menge <= 0) return { positionen: [], warnungen, anbrueche: 0, pruefungen: [] };
     if (Math.abs(menge - (pos.menge ?? 0)) > 1e-9) {
       warnungen.push(`${pos.bezeichnung}: auf ${menge} ganze BigBags aufgerundet`);
     }
@@ -262,6 +322,18 @@ function bereitePalettenPositionAuf(
       ],
       warnungen,
       anbrueche: 0,
+      pruefungen: [],
+    };
+  }
+
+  // Plausibilitätsbremse: lieber unverändert übernehmen als falsch umrechnen.
+  const unplausibel = pruefeSackPositionPlausibel(pos, klasse);
+  if (unplausibel) {
+    return {
+      positionen: klonePositionen([pos]),
+      warnungen,
+      anbrueche: 0,
+      pruefungen: [unplausibel],
     };
   }
 
@@ -284,7 +356,7 @@ function bereitePalettenPositionAuf(
   }
 
   const gerundet = rundeAufHalbePaletten(tonnen);
-  if (gerundet <= 0) return { positionen: [], warnungen, anbrueche: 0 };
+  if (gerundet <= 0) return { positionen: [], warnungen, anbrueche: 0, pruefungen: [] };
   if (Math.abs(gerundet - tonnen) > 1e-9) {
     warnungen.push(
       `${pos.bezeichnung}: ${tonnen.toLocaleString('de-DE')} t auf ${gerundet.toLocaleString(
@@ -322,7 +394,7 @@ function bereitePalettenPositionAuf(
       gesamtpreis: round2(0.5 * preisProTonne),
     });
   }
-  return { positionen, warnungen, anbrueche: hatAnbruch ? 1 : 0 };
+  return { positionen, warnungen, anbrueche: hatAnbruch ? 1 : 0, pruefungen: [] };
 }
 
 // Baut die Angebots-Positionen aus den Referenz-Positionen auf:
@@ -336,9 +408,10 @@ function bereitePalettenPositionAuf(
 function baueAngebotsPositionenAusReferenz(
   referenzPositionen: Position[],
   halbePaletteAufschlagEuro: number
-): { positionen: Position[]; warnungen: string[] } {
+): { positionen: Position[]; warnungen: string[]; pruefungen: string[] } {
   const positionen: Position[] = [];
   const warnungen: string[] = [];
+  const pruefungen: string[] = [];
   let anbrueche = 0;
   for (const pos of referenzPositionen) {
     const klasse = klassifizierePosition(pos);
@@ -346,6 +419,7 @@ function baueAngebotsPositionenAusReferenz(
       const aufbereitet = bereitePalettenPositionAuf(pos, klasse);
       positionen.push(...aufbereitet.positionen);
       warnungen.push(...aufbereitet.warnungen);
+      pruefungen.push(...aufbereitet.pruefungen);
       anbrueche += aufbereitet.anbrueche;
     } else {
       positionen.push(...klonePositionen([pos]));
@@ -362,7 +436,7 @@ function baueAngebotsPositionenAusReferenz(
     }
   }
 
-  return { positionen, warnungen };
+  return { positionen, warnungen, pruefungen };
 }
 
 // Die editierbare Hauptposition: erste echte (nicht-Bedarfs-)Position, bevorzugt Ziegelmehl.
@@ -682,6 +756,34 @@ function bestimmeKandidat(
       const warnungen = [...aufgebaut.warnungen];
       if (referenz.verloren) {
         warnungen.push('Referenz stammt aus einem VERLORENEN Vorjahres-Projekt – bitte prüfen');
+      }
+      // Einheit/Preis der Vorjahres-Position passen nicht zur Artikelnummer: hier wird
+      // NICHT geraten. Der Kunde wird ausgesteuert, die Referenz bleibt unverändert
+      // sichtbar, damit im Detail-Panel entschieden werden kann, was wirklich gemeint war.
+      if (aufgebaut.pruefungen.length > 0) {
+        const primaerUnplausibel = findePrimaerPosition(aufgebaut.positionen);
+        return {
+          ...base,
+          quelle: 'vorjahr',
+          status: 'manuell',
+          statusGrund: 'Vorjahres-Position nicht plausibel – von Hand prüfen',
+          produktprofil: bestimmeProduktprofil(referenz.positionen),
+          positionen: aufgebaut.positionen,
+          primaerPositionId: primaerUnplausibel?.id,
+          menge: primaerUnplausibel?.menge ?? 0,
+          preisProTonne: primaerUnplausibel?.einzelpreis ?? 0,
+          angebotssumme: berechneSumme(aufgebaut.positionen),
+          warnungen: [...warnungen, ...aufgebaut.pruefungen],
+          referenz: {
+            jahr: saisonjahr - 1,
+            typ: referenz.typ,
+            tonnage: referenz.tonnage,
+            wert: referenz.wert,
+            projektId: referenz.projekt.id,
+            anzahlVorjahresProjekte: vorjahrProjekte.length,
+            ausVerlorenemProjekt: referenz.verloren || undefined,
+          },
+        };
       }
       const referenzInfo: ReferenzInfo = {
         jahr: saisonjahr - 1,

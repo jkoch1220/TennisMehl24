@@ -7,6 +7,7 @@ import { databases } from '../config/appwrite';
 import { DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID } from '../config/appwrite';
 import { Stammdaten, StammdatenInput } from '../types/stammdaten';
 import { auditService, bearbeiterStempel } from './auditService';
+import { sucheArtikelNachNummer } from './artikelService';
 
 // ===== STAMMDATEN CACHE =====
 // Stammdaten ändern sich sehr selten, daher 5 Minuten Cache
@@ -295,37 +296,51 @@ export const getStammdatenOderDefault = async (): Promise<Stammdaten> => {
  * TM-PE: PE-Folie pro Stück
  */
 const ARTIKEL_PREISE_FALLBACK: Record<string, number> = {
-  'TM-ZM-02': 95.75,    // Loses Material 0-2mm (€/t)
-  'TM-ZM-03': 95.75,    // Loses Material 0-3mm (€/t)
-  'TM-ZM-02St': 145.00, // Sackware 0-2mm per Spedition (€/t, ohne Frachtkosten!)
-  'TM-ZM-03St': 145.00, // Sackware 0-3mm per Spedition (€/t, ohne Frachtkosten!)
+  'TM-ZM-02': 98.70,    // Loses Material 0-2mm (€/t)
+  'TM-ZM-03': 98.70,    // Loses Material 0-3mm (€/t)
+  'TM-ZM-02St': 155.00, // Sackware 0-2mm per Spedition (€/t, ohne Frachtkosten!)
+  'TM-ZM-03St': 155.00, // Sackware 0-3mm per Spedition (€/t, ohne Frachtkosten!)
   'TM-ZM-02S': 8.50,    // Beiladung 0-2mm (€/Sack à 40kg)
   'TM-ZM-03S': 8.50,    // Beiladung 0-3mm (€/Sack à 40kg)
-  'TM-PE': 25.00,       // PE-Folie pro Stück
+  'TM-ZM-BIG-02': 125.90, // BigBag 0-2mm (€/t)
+  'TM-ZM-BIG-03': 125.90, // BigBag 0-3mm (€/t)
+  'TM-PE': 18.20,       // PE-Folie pro Stück
   // TM-FP: Frachtkostenpauschale - Preis wird DYNAMISCH nach Tonnage berechnet!
   // Staffelung: <5.4t=59.90€, <7.4t=49.90€, <11.4t=39.90€, <15.4t=31.90€, <20t=24.90€
   // Siehe berechneMindermengenpauschale() in artikelPreise.ts
 };
 
 /**
- * Lädt den Preis für einen Artikel aus den Stammdaten/Artikel-Collection
- * Falls nicht verfügbar, wird ein Fallback-Preis verwendet
+ * Lädt den Preis für einen Artikel — PRIMÄR aus der Appwrite-Artikel-Collection,
+ * die Tabelle oben ist nur noch Notnagel, falls der Artikel dort fehlt oder
+ * Appwrite nicht erreichbar ist.
+ *
+ * Bis 07/2026 war die Appwrite-Abfrage auskommentiert („TODO: später"), sodass
+ * ausschließlich die hartkodierten Preise galten — die zu dem Zeitpunkt seit
+ * Längerem nicht mehr stimmten (95,75 statt 98,70 €/t). Preispflege gehört in die
+ * Artikelverwaltung, nicht in ein Deployment.
  *
  * @param artikelnummer - Die Artikelnummer (z.B. 'TM-PE', 'TM-ZM-02')
- * @returns Preis in EUR
+ * @returns Preis in EUR (0, wenn nirgends hinterlegt)
  */
 export const getArtikelPreis = async (artikelnummer: string): Promise<number> => {
-  // TODO: Später aus Appwrite Artikel-Collection laden
-  // const artikel = await databases.listDocuments(DATABASE_ID, 'artikel', [
-  //   Query.equal('artikelnummer', artikelnummer)
-  // ]);
-  // if (artikel.documents.length > 0) {
-  //   return artikel.documents[0].werkspreis;
-  // }
+  try {
+    const artikel = await sucheArtikelNachNummer(artikelnummer);
+    if (artikel && typeof artikel.einzelpreis === 'number' && artikel.einzelpreis > 0) {
+      return artikel.einzelpreis;
+    }
+  } catch (error) {
+    console.warn(
+      `Artikelstamm für ${artikelnummer} nicht erreichbar, nutze Fallback-Preis:`,
+      error
+    );
+  }
 
-  // Fallback auf vordefinierte Preise
   const fallbackPreis = ARTIKEL_PREISE_FALLBACK[artikelnummer];
   if (fallbackPreis !== undefined) {
+    console.warn(
+      `Kein Preis im Artikelstamm für ${artikelnummer} – Fallback ${fallbackPreis} € verwendet.`
+    );
     return fallbackPreis;
   }
 

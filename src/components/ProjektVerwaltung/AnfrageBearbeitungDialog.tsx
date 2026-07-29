@@ -330,6 +330,22 @@ const AnfrageBearbeitungDialog = ({
     if (isOpen) ladeArtikel();
   }, [isOpen]);
 
+  // Werkspreise für die Preisempfehlungen — aus dem Artikelstamm, nicht hartkodiert.
+  // Bis 07/2026 standen hier feste 95,75 / 145 / 125 €, während der Stamm längst
+  // 98,70 / 155 / 125,90 € führte: die angezeigte Empfehlung war schlicht falsch.
+  // Die Zahlen hinter `??` sind nur der Notnagel, falls ein Artikel im Stamm fehlt.
+  const werkspreisAusStamm = (artikelnummer: string, notnagel: number): number => {
+    const treffer = verfuegbareArtikel.find(
+      (a) => a.artikelnummer?.trim().toUpperCase() === artikelnummer.toUpperCase()
+    );
+    return typeof treffer?.einzelpreis === 'number' && treffer.einzelpreis > 0
+      ? treffer.einzelpreis
+      : notnagel;
+  };
+  const werkspreisLose = werkspreisAusStamm('TM-ZM-02', 98.7);
+  const werkspreisSackwareAbWerk = werkspreisAusStamm('TM-ZM-02St', 155);
+  const werkspreisBigbagAbWerk = werkspreisAusStamm('TM-ZM-BIG-02', 125.9);
+
   // Suche nach existierenden Kunden die zur Anfrage passen
   useEffect(() => {
     if (!isOpen || !anfrage || existierendeKunden.length === 0) {
@@ -489,9 +505,9 @@ const AnfrageBearbeitungDialog = ({
         };
 
         const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
-        const werkspreis = 95.75;
         const lieferkostenProTonne = tonnage > 0 ? ergebnis.lohnkosten / tonnage : 0;
-        const empfohlenerPreisProTonne = Math.round((werkspreis + lieferkostenProTonne) * 100) / 100;
+        const empfohlenerPreisProTonne =
+          Math.round((werkspreisLose + lieferkostenProTonne) * 100) / 100;
 
         setEditedData(prev => prev ? {
           ...prev,
@@ -1607,7 +1623,7 @@ const AnfrageBearbeitungDialog = ({
 
                   {/* Lieferkosten-Info & Preisberechnung */}
                   {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (() => {
-                    const werkspreis = 95.75;
+                    const werkspreis = werkspreisLose;
                     const tonnage = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0);
                     const lieferkostenGesamt = lieferkostenBerechnung.ergebnis.lohnkosten;
                     const lieferkostenProTonne = tonnage > 0 ? lieferkostenGesamt / tonnage : 0;
@@ -1679,8 +1695,8 @@ const AnfrageBearbeitungDialog = ({
                     const mengeSackware = (editedData.tonnenGesackt02 || 0) + (editedData.tonnenGesackt03 || 0);
                     const mengeBigbag = (editedData.tonnenBigbag02 || 0) + (editedData.tonnenBigbag03 || 0);
                     const mengeGesamt = mengeSackware + mengeBigbag;
-                    const werkspreisSackware = 145;
-                    const werkspreisBigbag = 125;
+                    const werkspreisSackware = werkspreisSackwareAbWerk;
+                    const werkspreisBigbag = werkspreisBigbagAbWerk;
                     const frachtProTonne = speditionskostenBerechnung.kostenProTonne || 0;
 
                     return (

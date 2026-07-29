@@ -755,8 +755,12 @@ export async function erstelleAnfragePositionen(
     sucheArtikelNachNummer('TM-ZM-03'),
     sucheArtikelNachNummer('TM-ZM-02St'),
     sucheArtikelNachNummer('TM-ZM-03St'),
-    sucheArtikelNachNummer('TM-ZM-02BB'), // BigBag 0-2mm
-    sucheArtikelNachNummer('TM-ZM-03BB'), // BigBag 0-3mm
+    // BigBag: der Appwrite-Artikelstamm führt AUSSCHLIESSLICH TM-ZM-BIG-02/-03 (je 125,90 €/t).
+    // Bis 07/2026 wurde hier TM-ZM-02BB/03BB gesucht — eine Nummer, die es dort nie gab.
+    // Der Lookup lief deshalb immer ins Leere und jedes BigBag-Angebot wurde mit dem
+    // Fallback 125,00 € statt 125,90 € kalkuliert.
+    sucheArtikelNachNummer('TM-ZM-BIG-02'), // BigBag 0-2mm
+    sucheArtikelNachNummer('TM-ZM-BIG-03'), // BigBag 0-3mm
     sucheArtikelNachNummer('TM-ZM-02S'),
     sucheArtikelNachNummer('TM-ZM-03S'),
     sucheArtikelNachNummer('TM-PE'),
@@ -768,9 +772,11 @@ export async function erstelleAnfragePositionen(
   // PREISE AUS APPWRITE ARTIKEL-COLLECTION (einzelpreis = Verkaufspreis)
   // Fallback nur wenn Artikel nicht gefunden oder kein Preis hinterlegt
   // ==========================================
-  const preisLoseMaterial = artikelLose02?.einzelpreis ?? 98.70; // Fallback 98.70€/t
-  const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 145.00; // Fallback 145€/t (NUR ABWERKSPREIS!)
-  const preisBigbagAbWerk = artikelBigbag02?.einzelpreis ?? 125.00; // Fallback 125€/t (günstiger als Sackware!)
+  // Fallbacks entsprechen dem Artikelstamm (Stand 07/2026) — sie greifen nur, wenn ein
+  // Artikel dort fehlt. Preispflege gehört in den Artikelstamm, nicht in den Code.
+  const preisLoseMaterial = artikelLose02?.einzelpreis ?? 98.70; // Stamm: 98,70 €/t
+  const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 155.00; // Stamm: 155,00 €/t (NUR ABWERKSPREIS!)
+  const preisBigbagAbWerk = artikelBigbag02?.einzelpreis ?? 125.90; // Stamm: 125,90 €/t (günstiger als Sackware!)
   const preisBeiladungProSack = artikelBeiladung02?.einzelpreis ?? 8.50; // Fallback 8.50€/Sack
   // PE-Folie und Palette: Daten direkt aus Stammdaten, KEIN Fallback
 
@@ -862,7 +868,7 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: 'TM-ZM-02BB',
+      artikelnummer: 'TM-ZM-BIG-02',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
       menge,
@@ -886,7 +892,7 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
-      artikelnummer: 'TM-ZM-03BB',
+      artikelnummer: 'TM-ZM-BIG-03',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
       menge,

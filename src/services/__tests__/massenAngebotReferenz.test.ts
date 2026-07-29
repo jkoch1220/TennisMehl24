@@ -189,6 +189,69 @@ describe('baueAngebotsPositionenAusReferenz', () => {
   });
 });
 
+describe('Plausibilitätsbremse (pruefeSackPositionPlausibel)', () => {
+  // Realfall aus dem Archiv: TM-ZM-03S, Einheit "Stk", 3 × 364,25 €.
+  // Blind umgerechnet ergäbe das 0,5 t zu 9.106,25 €/t = 4.553 € statt 1.092,75 €.
+  it('rechnet Sack-Nummern mit Tonnenpreis NICHT um, sondern meldet sie zur Prüfung', () => {
+    const pos1 = pos({
+      artikelnummer: 'TM-ZM-03S',
+      bezeichnung: 'Sackware 40kg ab Werk',
+      menge: 3,
+      einheit: 'Stk',
+      einzelpreis: 364.25,
+    });
+    const { positionen, pruefungen } = internals.bereitePalettenPositionAuf(pos1, 'beiladung_sack');
+    expect(pruefungen).toHaveLength(1);
+    expect(pruefungen[0]).toContain('kein Preis je 40-kg-Sack');
+    // Position bleibt unverändert — Menge, Einheit und Preis der Referenz stehen weiter da.
+    expect(positionen).toHaveLength(1);
+    expect(positionen[0].menge).toBe(3);
+    expect(positionen[0].einheit).toBe('Stk');
+    expect(positionen[0].einzelpreis).toBe(364.25);
+    expect(positionen[0].gesamtpreis).toBe(1092.75);
+  });
+
+  it('rechnet Sack-Nummern mit Einheit „t" NICHT um (7 solche Positionen im Bestand)', () => {
+    const p = pos({ artikelnummer: 'TM-ZM-02S', menge: 2, einheit: 't', einzelpreis: 155 });
+    const { positionen, pruefungen } = internals.bereitePalettenPositionAuf(p, 'beiladung_sack');
+    expect(pruefungen[0]).toContain('erwartet Stk');
+    expect(positionen[0].menge).toBe(2);
+    expect(positionen[0].einheit).toBe('t');
+  });
+
+  it('erkennt auch die Gegenrichtung: Paletten-Nummer mit Sackpreis', () => {
+    const p = pos({ artikelnummer: 'TM-ZM-02St', menge: 25, einheit: 'Stk', einzelpreis: 8.5 });
+    const { positionen, pruefungen } = internals.bereitePalettenPositionAuf(p, 'sack_palette');
+    expect(pruefungen[0]).toContain('erwartet t');
+    expect(positionen[0].menge).toBe(25);
+    expect(positionen[0].einzelpreis).toBe(8.5);
+  });
+
+  it('stoppt bei negativen Preisen (Gutschrift/Storno im Archiv)', () => {
+    const p = pos({ artikelnummer: 'TM-ZM-02St', menge: 1, einheit: 't', einzelpreis: -145 });
+    const { pruefungen } = internals.bereitePalettenPositionAuf(p, 'sack_palette');
+    expect(pruefungen[0]).toContain('Gutschrift oder Storno');
+  });
+
+  it('lässt echte Beiladungs-Säcke (Stk à 8,50 €) weiterhin durch', () => {
+    const p = pos({ artikelnummer: 'TM-ZM-02S', menge: 30, einheit: 'Stk', einzelpreis: 8.5 });
+    const { positionen, pruefungen } = internals.bereitePalettenPositionAuf(p, 'beiladung_sack');
+    expect(pruefungen).toHaveLength(0);
+    // 30 Säcke = 1,2 t → 1 t + 0,5 t Anbruch, €/t = 8,50 × 25 = 212,50
+    expect(positionen).toHaveLength(2);
+    expect(positionen[0].einheit).toBe('t');
+    expect(positionen[0].einzelpreis).toBe(212.5);
+  });
+
+  it('lässt echte Palettenware (t à 155 €) weiterhin durch', () => {
+    const p = pos({ artikelnummer: 'TM-ZM-02St', menge: 2, einheit: 't', einzelpreis: 155 });
+    const { positionen, pruefungen } = internals.bereitePalettenPositionAuf(p, 'sack_palette');
+    expect(pruefungen).toHaveLength(0);
+    expect(positionen).toHaveLength(1);
+    expect(positionen[0].menge).toBe(2);
+  });
+});
+
 describe('wendePreisanpassungAn', () => {
   // Der Aufschlag ist ein heute gepflegter Stammdaten-Betrag, kein Vorjahrespreis —
   // die Saison-Preisanpassung darf ihn deshalb nicht anheben (25 € dürfen nicht 26 € werden).

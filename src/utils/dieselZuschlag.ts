@@ -64,21 +64,25 @@ const FALLBACK_STAFFEL: DieselZuschlagConfig = {
  * - BigBag per Spedition (TM-ZM-02BB, TM-ZM-03BB)
  * Alle Artikel werden in Tonnen abgerechnet, daher greift der €/t-Zuschlag einheitlich.
  *
- * HINWEIS: BigBag-Positionen werden vom anfrageVerarbeitungService mit den
- * Nummern TM-ZM-02BB/TM-ZM-03BB erzeugt (= Nummern im Appwrite-Artikelstamm).
- * Die Legacy-Varianten TM-ZM-BIG-02/03 bleiben zur Sicherheit gelistet, falls
- * Altdaten mit dieser Schreibweise existieren.
+ * ACHTUNG — bis 07/2026 stand hier das GENAUE GEGENTEIL: TM-ZM-02BB/03BB seien die
+ * Stammnummern und TM-ZM-BIG-02/03 nur Legacy. Tatsaechlich fuehrt der Appwrite-
+ * Artikelstamm ausschliesslich TM-ZM-BIG-02 und TM-ZM-BIG-03 (je 125,90 EUR/t);
+ * TM-ZM-02BB/03BB hat es dort nie gegeben. Wer dem alten Kommentar folgt, loescht
+ * die produktiv genutzte Nummer. Beide Schreibweisen bleiben deshalb gelistet:
+ * BIG-* ist die gueltige, *BB steht in 22 archivierten Altpositionen.
  */
 const ZUSCHLAGSFAEHIGE_ARTIKEL = [
   'TM-ZM-02',
   'TM-ZM-03',
   'TM-ZM-02St',
   'TM-ZM-03St',
-  'TM-ZM-02BB',
-  'TM-ZM-03BB',
-  // Legacy-Schreibweise (kommt in erzeugten Positionen nicht vor, nur Altdaten)
+  // Gueltige BigBag-Nummern (Artikelstamm)
   'TM-ZM-BIG-02',
   'TM-ZM-BIG-03',
+  // Altdaten aus Angeboten vor 07/2026 — nicht entfernen, sonst verlieren diese
+  // Positionen rueckwirkend ihren Dieselzuschlag.
+  'TM-ZM-02BB',
+  'TM-ZM-03BB',
 ];
 
 /**
@@ -174,8 +178,10 @@ export function istZuschlagsfaehig(position: Position): boolean {
   // Nur Tonnen-Positionen (loses Schüttgut)
   if (position.einheit !== 't') return false;
 
-  // Nur TM-ZM-02 und TM-ZM-03
-  return ZUSCHLAGSFAEHIGE_ARTIKEL.includes(position.artikelnummer);
+  // Vergleich ohne Rücksicht auf Groß-/Kleinschreibung: die Nummer wird an mehreren
+  // Stellen von Hand eingetippt, und ein „St" vs. „ST" darf keinen Zuschlag kosten.
+  const nr = position.artikelnummer.trim().toUpperCase();
+  return ZUSCHLAGSFAEHIGE_ARTIKEL.some((a) => a.toUpperCase() === nr);
 }
 
 /**

@@ -186,6 +186,13 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   const [universalLaden, setUniversalLaden] = useState(false);
   const [ausgewaehlterIndex, setAusgewaehlterIndex] = useState<number>(0);
   const [artikelHinzugefuegt, setArtikelHinzugefuegt] = useState<string | null>(null);
+  // Artikel einer Stückliste, die im Artikelstamm fehlen. Bleibt sichtbar, bis der
+  // Nutzer sie wegklickt — ein 3-Sekunden-Toast hat bisher dazu geführt, dass
+  // unvollständige Angebote unbemerkt rausgingen (z. B. BigBag-Angebot ohne BigBag).
+  const [fehlendeStuecklistenArtikel, setFehlendeStuecklistenArtikel] = useState<{
+    stueckliste: string;
+    artikelnummern: string[];
+  } | null>(null);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const ausgewaehlteZeileRef = useRef<HTMLTableRowElement>(null);
   
@@ -1093,7 +1100,10 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     let nichtGefunden: string[] = [];
 
     for (const pos of stueckliste.positionen) {
-      const selectedArtikel = artikel.find(a => a.artikelnummer === pos.artikelnummer);
+      const gesucht = pos.artikelnummer.trim().toUpperCase();
+      const selectedArtikel = artikel.find(
+        a => (a.artikelnummer || '').trim().toUpperCase() === gesucht
+      );
 
       if (!selectedArtikel) {
         nichtGefunden.push(pos.artikelnummer);
@@ -1148,17 +1158,18 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         positionen: [...prev.positionen, ...neuePositionen]
       }));
 
-      // Feedback anzeigen
-      const anzahl = neuePositionen.length;
-      const feedback = nichtGefunden.length > 0
-        ? `${anzahl} Position(en) hinzugefügt. Nicht gefunden: ${nichtGefunden.join(', ')}`
-        : `${anzahl} Position(en) aus "${stueckliste.name}" hinzugefügt`;
-      setArtikelHinzugefuegt(feedback);
-      setTimeout(() => setArtikelHinzugefuegt(null), 3000);
-    } else if (nichtGefunden.length > 0) {
-      setArtikelHinzugefuegt(`Keine Artikel gefunden: ${nichtGefunden.join(', ')}`);
+      setArtikelHinzugefuegt(
+        `${neuePositionen.length} Position(en) aus "${stueckliste.name}" hinzugefügt`
+      );
       setTimeout(() => setArtikelHinzugefuegt(null), 3000);
     }
+
+    // Fehlende Artikel bleiben stehen, bis sie bewusst weggeklickt werden.
+    setFehlendeStuecklistenArtikel(
+      nichtGefunden.length > 0
+        ? { stueckliste: stueckliste.name, artikelnummern: nichtGefunden }
+        : null
+    );
 
     setShowQuickAdd(false);
   };
@@ -2420,6 +2431,37 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               </div>
             );
           })()}
+
+          {/* Bleibende Warnung: Stücklisten-Artikel fehlen im Artikelstamm.
+              Ohne diesen Hinweis geht ein unvollständiges Angebot raus, ohne dass es auffällt. */}
+          {fehlendeStuecklistenArtikel && (
+            <div className="mb-4 rounded-xl border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30 p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-red-800 dark:text-red-200">
+                    Angebot ist unvollständig — {fehlendeStuecklistenArtikel.artikelnummern.length}{' '}
+                    Position(en) aus „{fehlendeStuecklistenArtikel.stueckliste}" fehlen
+                  </p>
+                  <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                    Diese Artikelnummern gibt es im Artikelstamm nicht:{' '}
+                    <span className="font-mono font-medium">
+                      {fehlendeStuecklistenArtikel.artikelnummern.join(', ')}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                    Bitte die Positionen von Hand ergänzen oder die Artikel in den Stammdaten anlegen.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setFehlendeStuecklistenArtikel(null)}
+                  className="flex-shrink-0 text-sm font-medium text-red-700 dark:text-red-300 hover:underline"
+                >
+                  Verstanden
+                </button>
+              </div>
+            </div>
+          )}
 
           <DndContext
             sensors={sensors}

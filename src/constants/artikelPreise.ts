@@ -32,7 +32,7 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
     artikelnummer: 'TM-ZM-02',
     bezeichnung: 'Tennismehl 0/2 mm lose',
     einheit: 't',
-    werkspreis: 95.75, // €/t
+    werkspreis: 98.70, // €/t — Stand Artikelstamm 07/2026
     lieferart: 'lose',
     koernung: '0-2',
   },
@@ -40,7 +40,7 @@ export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
     artikelnummer: 'TM-ZM-03',
     bezeichnung: 'Tennismehl 0/3 mm lose',
     einheit: 't',
-    werkspreis: 95.75, // €/t (gleicher Preis wie 0-2)
+    werkspreis: 98.70, // €/t — Stand Artikelstamm 07/2026 (gleicher Preis wie 0-2)
     lieferart: 'lose',
     koernung: '0-3',
   },

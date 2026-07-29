@@ -2,7 +2,14 @@
  * Vordefinierte Stücklisten für Quick-Add im Angebot
  *
  * Jede Stückliste enthält Artikelnummern, die aus der Artikeldatenbank geladen werden.
- * Artikel die nicht gefunden werden, werden übersprungen.
+ * Artikel die nicht gefunden werden, werden übersprungen — sie fehlen dann im Angebot.
+ *
+ * ACHTUNG: Bis 07/2026 standen hier sieben Artikelnummern, die es im Artikelstamm
+ * NIE gegeben hat (TM-PE-FOLIE, TM-MMP, TM-BB-SAND, TM-SW-SAND, TM-ANFAHRT,
+ * TM-INST-PLATZ, TM-ZUSATZ). Folge: „BigBag Lieferung" und „Sackware Lieferung"
+ * fügten ihr Hauptprodukt gar nicht ein, „Frühjahrs-Instandsetzung" nur 2 von 6
+ * Positionen — gemeldet lediglich in einem Toast, der nach 3 Sekunden verschwand.
+ * Jede Nummer hier MUSS im Artikelstamm existieren.
  */
 
 export interface StuecklistenPosition {
@@ -27,9 +34,9 @@ export const STUECKLISTEN: Stueckliste[] = [
     beschreibung: 'Normale Schüttgut-Lieferung mit Sand, Folie und Frachtkostenpauschale',
     kategorie: 'lieferung',
     positionen: [
-      { artikelnummer: 'TM-ZM-02', mengeAusProjekt: 'angefragteMenge' }, // Tennissand 0/2
-      { artikelnummer: 'TM-PE-FOLIE', menge: 1 }, // PE Folie
-      { artikelnummer: 'TM-MMP', menge: 1 }, // Mindermengenpauschale
+      { artikelnummer: 'TM-ZM-02', mengeAusProjekt: 'angefragteMenge' }, // Tennismehl 0/2 Schüttgut
+      { artikelnummer: 'TM-PE', menge: 1 }, // PE-Folie zum Abdecken und Unterlegen
+      { artikelnummer: 'TM-FP', menge: 1 }, // Frachtkostenpauschale
     ],
   },
   {
@@ -38,7 +45,7 @@ export const STUECKLISTEN: Stueckliste[] = [
     beschreibung: 'BigBag Sand mit Palette und Fracht',
     kategorie: 'lieferung',
     positionen: [
-      { artikelnummer: 'TM-BB-SAND', mengeAusProjekt: 'angefragteMenge' }, // BigBag Sand
+      { artikelnummer: 'TM-ZM-BIG-02', mengeAusProjekt: 'angefragteMenge' }, // Tennismehl 0/2 im BigBag
       { artikelnummer: 'TM-PAL', menge: 1 }, // Palette
       { artikelnummer: 'TM-FP', menge: 1 }, // Frachtkostenpauschale
     ],
@@ -49,7 +56,7 @@ export const STUECKLISTEN: Stueckliste[] = [
     beschreibung: 'Sackware mit Palette und Fracht',
     kategorie: 'lieferung',
     positionen: [
-      { artikelnummer: 'TM-SW-SAND', mengeAusProjekt: 'angefragteMenge' }, // Sackware Sand
+      { artikelnummer: 'TM-ZM-02St', mengeAusProjekt: 'angefragteMenge' }, // Sackware 0/2, 25×40 kg
       { artikelnummer: 'TM-PAL', menge: 1 }, // Palette
       { artikelnummer: 'TM-FP', menge: 1 }, // Frachtkostenpauschale
     ],
@@ -62,11 +69,13 @@ export const STUECKLISTEN: Stueckliste[] = [
     beschreibung: 'Komplette Frühjahrs-Instandsetzung mit Anfahrt, Arbeiten, Sand und Folie',
     kategorie: 'instandsetzung',
     positionen: [
-      { artikelnummer: 'TM-ANFAHRT', menge: 1 }, // Anfahrt/Abfahrt
-      { artikelnummer: 'TM-INST-PLATZ', menge: 1 }, // Instandsetzung Platz
-      { artikelnummer: 'TM-ZUSATZ', menge: 1 }, // Zusatzarbeiten
-      { artikelnummer: 'TM-ZM-02', mengeAusProjekt: 'angefragteMenge' }, // Sand 0/2
-      { artikelnummer: 'TM-PE-FOLIE', menge: 1 }, // PE Folie
+      { artikelnummer: 'ZM-FI-A', menge: 1 }, // An- und Abfahrt der Geräte und Kolonne
+      { artikelnummer: 'ZM-FI', menge: 1 }, // Instandsetzung des Tennisplatzes
+      // OFFEN: ZM-FA (58,95 €/Std) vs. TM-ZSH (58,50 €/Std) — beide im Stamm, beide
+      // im Einsatz. ZM-FA gewinnt vorerst, weil deutlich häufiger verwendet.
+      { artikelnummer: 'ZM-FA', menge: 1 }, // Facharbeiter für Zusatzarbeiten
+      { artikelnummer: 'TM-ZM-02', mengeAusProjekt: 'angefragteMenge' }, // Tennismehl 0/2 Schüttgut
+      { artikelnummer: 'TM-PE', menge: 1 }, // PE-Folie zum Abdecken und Unterlegen
       { artikelnummer: 'TM-FP', menge: 1 }, // Frachtkostenpauschale
     ],
   },
