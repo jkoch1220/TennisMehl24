@@ -28,3 +28,6 @@ dist-ssr
 .env.local
 .env.*.local
 
+
+# Exportierte Auswertungen mit Kundendaten (duerfen NIE ins Repo)
+/*.csv

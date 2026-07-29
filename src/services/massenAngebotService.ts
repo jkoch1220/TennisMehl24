@@ -194,27 +194,60 @@ function rundeAufHalbePaletten(tonnen: number): number {
   return Math.ceil(tonnen * 2 - 1e-9) / 2;
 }
 
+/** Bezeichnung der Pauschal-Position für den Anbruch-Aufschlag (transparent auf dem PDF). */
+const ANBRUCH_AUFSCHLAG_BEZEICHNUNG = 'Aufschlag angebrochene Palette';
+const ANBRUCH_AUFSCHLAG_EINHEIT = 'Pauschale';
+
+/**
+ * Erkennt die Anbruch-Aufschlagsposition. Sie ist ein fester Euro-Betrag aus den
+ * Stammdaten und darf deshalb von keiner prozentualen Preisanpassung erfasst werden.
+ */
+function istAnbruchAufschlagPosition(pos: Position): boolean {
+  return (
+    pos.einheit === ANBRUCH_AUFSCHLAG_EINHEIT &&
+    pos.bezeichnung === ANBRUCH_AUFSCHLAG_BEZEICHNUNG
+  );
+}
+
+/**
+ * Baut die separate Pauschal-Position für den Anbruch-Aufschlag.
+ * Der Tonnenpreis der Ware bleibt unverändert — der Aufschlag steht als eigene,
+ * klar benannte Zeile im Angebot.
+ */
+function baueAnbruchAufschlagPosition(anzahlAnbrueche: number, aufschlagEuro: number): Position {
+  return {
+    id: naechstePositionId(),
+    bezeichnung: ANBRUCH_AUFSCHLAG_BEZEICHNUNG,
+    beschreibung: 'Pauschaler Aufschlag je angebrochener (halber) Palette',
+    menge: anzahlAnbrueche,
+    einheit: ANBRUCH_AUFSCHLAG_EINHEIT,
+    einzelpreis: round2(aufschlagEuro),
+    gesamtpreis: round2(anzahlAnbrueche * aufschlagEuro),
+  };
+}
+
 // Bereitet EINE Paletten-/Sack-Position der Referenz für das neue Angebot auf:
 //  - Alt-Beiladungs-Säcke (Stk) werden auf Paletten-Sackware (t) umgestellt
 //    (€/t = €/Sack × 25) und wie Sackware behandelt.
 //  - Sackware (t) wird auf halbe/ganze Paletten aufgerundet; ein Anbruch (0,5 t)
-//    wird als eigene Position mit halbePaletteAufschlagProzent ausgewiesen
-//    (Aufschlag 0 → ohne Aufschlag, mit Hinweis „Aufschlag nicht konfiguriert").
+//    wird als eigene 0,5-t-Position zum NORMALEN Tonnenpreis ausgewiesen. Der
+//    Aufschlag selbst ist ein fester Euro-Betrag und wird von
+//    baueAngebotsPositionenAusReferenz als eigene Pauschal-Position ergänzt —
+//    dafür meldet diese Funktion die Anzahl der Anbrüche zurück (`anbrueche`).
 //  - BigBags werden auf ganze Gebinde aufgerundet, Paletten-Zubehör 1:1 übernommen.
 function bereitePalettenPositionAuf(
   pos: Position,
-  klasse: PositionsKlasse,
-  halbePaletteAufschlagProzent: number
-): { positionen: Position[]; warnungen: string[] } {
+  klasse: PositionsKlasse
+): { positionen: Position[]; warnungen: string[]; anbrueche: number } {
   const warnungen: string[] = [];
 
   if (klasse === 'paletten_zubehoer' || klasse === 'sonstig') {
-    return { positionen: klonePositionen([pos]), warnungen };
+    return { positionen: klonePositionen([pos]), warnungen, anbrueche: 0 };
   }
 
   if (klasse === 'bigbag') {
     const menge = Math.ceil((pos.menge ?? 0) - 1e-9);
-    if (menge <= 0) return { positionen: [], warnungen };
+    if (menge <= 0) return { positionen: [], warnungen, anbrueche: 0 };
     if (Math.abs(menge - (pos.menge ?? 0)) > 1e-9) {
       warnungen.push(`${pos.bezeichnung}: auf ${menge} ganze BigBags aufgerundet`);
     }
@@ -228,6 +261,7 @@ function bereitePalettenPositionAuf(
         },
       ],
       warnungen,
+      anbrueche: 0,
     };
   }
 
@@ -250,7 +284,7 @@ function bereitePalettenPositionAuf(
   }
 
   const gerundet = rundeAufHalbePaletten(tonnen);
-  if (gerundet <= 0) return { positionen: [], warnungen };
+  if (gerundet <= 0) return { positionen: [], warnungen, anbrueche: 0 };
   if (Math.abs(gerundet - tonnen) > 1e-9) {
     warnungen.push(
       `${pos.bezeichnung}: ${tonnen.toLocaleString('de-DE')} t auf ${gerundet.toLocaleString(
@@ -276,13 +310,7 @@ function bereitePalettenPositionAuf(
     });
   }
   if (hatAnbruch) {
-    const aufschlagFaktor =
-      halbePaletteAufschlagProzent > 0 ? 1 + halbePaletteAufschlagProzent / 100 : 1;
-    if (halbePaletteAufschlagProzent <= 0) {
-      warnungen.push(
-        `${bezeichnung}: halbe Palette (Anbruch) OHNE Aufschlag übernommen – Halbe-Paletten-Aufschlag ist in den Stammdaten nicht konfiguriert`
-      );
-    }
+    // Anbruch zum NORMALEN Tonnenpreis — der Aufschlag ist eine eigene Pauschal-Position.
     positionen.push({
       ...pos,
       id: naechstePositionId(),
@@ -290,32 +318,50 @@ function bereitePalettenPositionAuf(
       bezeichnung: `${bezeichnung} – halbe Palette (Anbruch)`,
       einheit: 't',
       menge: 0.5,
-      einzelpreis: round2(preisProTonne * aufschlagFaktor),
-      gesamtpreis: round2(0.5 * preisProTonne * aufschlagFaktor),
+      einzelpreis: round2(preisProTonne),
+      gesamtpreis: round2(0.5 * preisProTonne),
     });
   }
-  return { positionen, warnungen };
+  return { positionen, warnungen, anbrueche: hatAnbruch ? 1 : 0 };
 }
 
 // Baut die Angebots-Positionen aus den Referenz-Positionen auf:
 // Schüttgut & Sonstiges 1:1 geklont, Paletten-Block über bereitePalettenPositionAuf.
 // Gemischt = beide Blöcke in EINEM Angebot (Reihenfolge der Referenz bleibt erhalten).
+//
+// Anbruch-Aufschlag: fester Euro-Betrag je angebrochener (halber) Palette. Er wird
+// NICHT in den Tonnenpreis eingerechnet, sondern als EINE klar benannte Pauschal-Position
+// ans Ende gehängt (menge = Anzahl der Anbrüche im Angebot). Betrag 0 → keine Position,
+// dafür eine Warnung „nicht konfiguriert".
 function baueAngebotsPositionenAusReferenz(
   referenzPositionen: Position[],
-  halbePaletteAufschlagProzent: number
+  halbePaletteAufschlagEuro: number
 ): { positionen: Position[]; warnungen: string[] } {
   const positionen: Position[] = [];
   const warnungen: string[] = [];
+  let anbrueche = 0;
   for (const pos of referenzPositionen) {
     const klasse = klassifizierePosition(pos);
     if (istPalettenKlasse(klasse) && !pos.istBedarfsposition) {
-      const aufbereitet = bereitePalettenPositionAuf(pos, klasse, halbePaletteAufschlagProzent);
+      const aufbereitet = bereitePalettenPositionAuf(pos, klasse);
       positionen.push(...aufbereitet.positionen);
       warnungen.push(...aufbereitet.warnungen);
+      anbrueche += aufbereitet.anbrueche;
     } else {
       positionen.push(...klonePositionen([pos]));
     }
   }
+
+  if (anbrueche > 0) {
+    if (halbePaletteAufschlagEuro > 0) {
+      positionen.push(baueAnbruchAufschlagPosition(anbrueche, halbePaletteAufschlagEuro));
+    } else {
+      warnungen.push(
+        `${anbrueche} angebrochene Palette(n) OHNE Aufschlag übernommen – der Aufschlag für angebrochene Paletten (€) ist in den Stammdaten nicht konfiguriert`
+      );
+    }
+  }
+
   return { positionen, warnungen };
 }
 
@@ -433,7 +479,7 @@ interface KandidatenLookup {
   vorjahrDokumente: Map<string, ReferenzDokumente>; // projektId → AB/Rechnung/Angebot
   zielSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Zielsaison
   vorjahrSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Vorsaison (Bezugsweg-Prüfung)
-  halbePaletteAufschlagProzent: number; // Anbruch-Aufschlag aus der Preis-Konfiguration
+  halbePaletteAufschlagEuro: number; // Fester Anbruch-Aufschlag (€) aus der Preis-Konfiguration
 }
 
 // Bezieht der Kunde über einen Platzbauer? Dann darf KEIN automatisches
@@ -631,7 +677,7 @@ function bestimmeKandidat(
     if (referenz) {
       const aufgebaut = baueAngebotsPositionenAusReferenz(
         referenz.positionen,
-        lookup.halbePaletteAufschlagProzent
+        lookup.halbePaletteAufschlagEuro
       );
       const warnungen = [...aufgebaut.warnungen];
       if (referenz.verloren) {
@@ -746,7 +792,7 @@ async function sammleKandidaten(
 
   melde('Lade Werkspreis & Preis-Konfiguration…', 15);
   const werkspreisProTonne = await getArtikelPreis(STANDARD_ARTIKEL.nummer);
-  const { halbePaletteAufschlagProzent } = await getPreisKonfiguration();
+  const { halbePaletteAufschlagEuro } = await getPreisKonfiguration();
 
   melde(`Lade Projekte der Saison ${saisonjahr}…`, 25);
   const zielProjekte = await ladeProjekteFuerSaison(saisonjahr);
@@ -782,7 +828,7 @@ async function sammleKandidaten(
     vorjahrDokumente,
     zielSaisonDaten,
     vorjahrSaisonDaten,
-    halbePaletteAufschlagProzent,
+    halbePaletteAufschlagEuro,
   };
   const kandidaten = berechtigte.map((kunde) =>
     bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne, lookup)
@@ -1024,6 +1070,11 @@ function setzeEmpfaengerEmail(
  * - prozent: skaliert jede verrechnete Position um (1 + X/100)
  * - fix:     setzt den €/t-Preis der Primärposition auf den fixen Wert
  * Existierende und manuelle Kandidaten bleiben unberührt.
+ *
+ * AUSNAHME: Der Anbruch-Aufschlag wird NICHT mitskaliert. Die Preisanpassung hebt
+ * Vorjahrespreise auf das neue Saisonniveau; der Aufschlag ist dagegen ein heute
+ * gepflegter Stammdaten-Betrag und steht bereits auf dem aktuellen Stand.
+ * Ohne diese Ausnahme würden aus konfigurierten 25,00 € bei +4 % stillschweigend 26,00 €.
  */
 function wendePreisanpassungAn(
   kandidaten: MassenAngebotKandidat[],
@@ -1037,10 +1088,10 @@ function wendePreisanpassungAn(
       return aktualisiereMengePreis(kandidat, kandidat.menge, anpassung.wert);
     }
 
-    // prozent: alle verrechneten Positionen skalieren
+    // prozent: alle verrechneten Positionen skalieren (außer Bedarfs- und Aufschlagsposition)
     const faktor = 1 + anpassung.wert / 100;
     const positionen = kandidat.positionen.map((pos) =>
-      pos.istBedarfsposition
+      pos.istBedarfsposition || istAnbruchAufschlagPosition(pos)
         ? pos
         : {
             ...pos,
@@ -1477,6 +1528,9 @@ async function versendeBatch(
 
 /** NUR für Unit-Tests: reine Helfer der Referenz-/Paletten-Logik. */
 export const _massenAngebotInternals = {
+  ANBRUCH_AUFSCHLAG_BEZEICHNUNG,
+  ANBRUCH_AUFSCHLAG_EINHEIT,
+  baueAnbruchAufschlagPosition,
   klassifizierePosition,
   berechneSchuettgutTonnage,
   bestimmeProduktprofil,
@@ -1485,6 +1539,9 @@ export const _massenAngebotInternals = {
   baueAngebotsPositionenAusReferenz,
   waehleGroessteBestellung,
   ermittleMosaikReferenzJahr,
+  findePrimaerPosition,
+  berechneSumme,
+  wendePreisanpassungAn,
 };
 
 export const massenAngebotService = {

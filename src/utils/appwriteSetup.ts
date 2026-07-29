@@ -82,7 +82,7 @@ const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
 // Ein Node-Runner kann den Key vor dem Import über globalThis.APPWRITE_SETUP_KEY setzen.
 const apiKey = (globalThis as { APPWRITE_SETUP_KEY?: string }).APPWRITE_SETUP_KEY;
 
-const APPWRITE_SETUP_VERSION = '44'; // Preis-Konfiguration: stammdaten.saisonPreisanpassungProzent + halbePaletteAufschlagProzent
+const APPWRITE_SETUP_VERSION = '45'; // Anbruch-Aufschlag als fester Euro-Betrag: stammdaten.halbePaletteAufschlagEuro
 
 type FieldConfig = {
   key: string;
@@ -265,7 +265,10 @@ const stammdatenFields: FieldConfig[] = [
 
   // Preis-Konfiguration (zentral, unterjährig änderbar; wirkt nur auf NEU erzeugte Angebote)
   { key: 'saisonPreisanpassungProzent', type: 'double', default: 4 },
+  // DEPRECATED: nicht mehr in der Kalkulation verwendet, nur noch für Altbestand vorhanden
   { key: 'halbePaletteAufschlagProzent', type: 'double', default: 0 },
+  // Fester Aufschlag in EURO je angebrochener (halber) Palette (eigene Pauschal-Position im Angebot)
+  { key: 'halbePaletteAufschlagEuro', type: 'double', default: 0 },
 
   // Liefersaison für PDF-Dokumente
   { key: 'liefersaisonStartDatum', type: 'string', size: 20 },

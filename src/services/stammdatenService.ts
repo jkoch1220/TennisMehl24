@@ -223,14 +223,27 @@ export const initialisiereStammdaten = async (): Promise<Stammdaten> => {
 
 /** Default: globale Preisanpassung in % auf Vorjahrespreise für neue Saison-Angebote */
 export const SAISON_PREISANPASSUNG_PROZENT_DEFAULT = 4;
-/** Default: Aufschlag in % für angebrochene (halbe) Paletten */
+/**
+ * @deprecated Der Anbruch-Aufschlag ist ein fester Euro-Betrag (siehe
+ * HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT). Nur noch für Altbestand vorhanden.
+ */
 export const HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT = 0;
+/** Default: fester Aufschlag in EURO je angebrochener (halber) Palette */
+export const HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT = 0;
 
 export interface PreisKonfiguration {
   /** Globale Preisanpassung in % auf Vorjahrespreise für neue Saison-Angebote */
   saisonPreisanpassungProzent: number;
-  /** Aufschlag in % für angebrochene (halbe) Paletten (wird ab dem Paletten-Modul in der Kalkulation verwendet) */
+  /**
+   * @deprecated Nicht mehr in der Kalkulation verwendet — ersetzt durch
+   * halbePaletteAufschlagEuro. Wird nur noch für Altbestand mitgeliefert.
+   */
   halbePaletteAufschlagProzent: number;
+  /**
+   * Fester Aufschlag in EURO je angebrochener (halber) Palette. Wird im Angebot als
+   * eigene Pauschal-Position ausgewiesen (0 = kein Aufschlag).
+   */
+  halbePaletteAufschlagEuro: number;
 }
 
 /** Pure Ableitung der Preis-Konfiguration aus (evtl. unvollständigen) Stammdaten */
@@ -239,6 +252,8 @@ export const leitePreisKonfigurationAb = (stammdaten: Stammdaten | null): PreisK
     stammdaten?.saisonPreisanpassungProzent ?? SAISON_PREISANPASSUNG_PROZENT_DEFAULT,
   halbePaletteAufschlagProzent:
     stammdaten?.halbePaletteAufschlagProzent ?? HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT,
+  halbePaletteAufschlagEuro:
+    stammdaten?.halbePaletteAufschlagEuro ?? HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT,
 });
 
 /**

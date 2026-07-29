@@ -71,8 +71,17 @@ export interface Stammdaten {
   // Preis-Konfiguration (jederzeit, auch unterjährig, änderbar)
   /** Globale Preisanpassung in % auf Vorjahrespreise für NEU erzeugte Saison-Angebote (Default 4). */
   saisonPreisanpassungProzent?: number;
-  /** Aufschlag in % für angebrochene (halbe) Paletten — wird ab dem Paletten-Modul in der Kalkulation verwendet (Default 0). */
+  /**
+   * @deprecated Seit dem Wechsel auf einen festen Euro-Betrag (Vorgabe Inhaber) NICHT mehr
+   * in der Kalkulation verwendet. Feld bleibt nur aus Rückwärtskompatibilität erhalten
+   * (Altbestand in Appwrite). Neu: {@link halbePaletteAufschlagEuro}.
+   */
   halbePaletteAufschlagProzent?: number;
+  /**
+   * Fester Aufschlag in EURO je angebrochener (halber) Palette (Default 0).
+   * Wird im Angebot als eigene Pauschal-Position ausgewiesen — wirkt nur auf NEU erzeugte Angebote.
+   */
+  halbePaletteAufschlagEuro?: number;
 
   // Metadaten
   erstelltAm?: string;
@@ -121,5 +130,7 @@ export interface StammdatenInput {
   instandsetzungsauftragZaehler?: number;
   // Preis-Konfiguration
   saisonPreisanpassungProzent?: number;
+  /** @deprecated Ersetzt durch halbePaletteAufschlagEuro — nur noch für Altbestand. */
   halbePaletteAufschlagProzent?: number;
+  halbePaletteAufschlagEuro?: number;
 }

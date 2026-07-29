@@ -4,7 +4,7 @@ import {
   ladeStammdaten,
   speichereStammdaten,
   SAISON_PREISANPASSUNG_PROZENT_DEFAULT,
-  HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT,
+  HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT,
 } from '../../services/stammdatenService';
 import { berechneAktuelleSaison, getAktuelleSaison } from '../../services/nummerierungService';
 
@@ -23,7 +23,7 @@ const MONATE = [
   { value: 12, label: 'Dezember' },
 ];
 
-/** Parst eine Prozent-Eingabe; leer/ungültig → Fallback (pure Funktion) */
+/** Parst eine Zahlen-Eingabe (Prozent oder Euro); leer/ungültig → Fallback (pure Funktion) */
 const parseProzent = (wert: string, fallback: number): number => {
   const zahl = wert.trim() === '' ? NaN : Number(wert);
   return Number.isFinite(zahl) ? zahl : fallback;
@@ -46,7 +46,7 @@ const SaisonEinstellungenTab = () => {
     liefersaisonJahr: '' as string | number,
     // Preis-Konfiguration
     saisonPreisanpassungProzent: String(SAISON_PREISANPASSUNG_PROZENT_DEFAULT),
-    halbePaletteAufschlagProzent: String(HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT),
+    halbePaletteAufschlagEuro: String(HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT),
   });
 
   useEffect(() => {
@@ -75,8 +75,8 @@ const SaisonEinstellungenTab = () => {
           saisonPreisanpassungProzent: String(
             stammdaten.saisonPreisanpassungProzent ?? SAISON_PREISANPASSUNG_PROZENT_DEFAULT
           ),
-          halbePaletteAufschlagProzent: String(
-            stammdaten.halbePaletteAufschlagProzent ?? HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT
+          halbePaletteAufschlagEuro: String(
+            stammdaten.halbePaletteAufschlagEuro ?? HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT
           ),
         });
       }
@@ -130,9 +130,9 @@ const SaisonEinstellungenTab = () => {
           formData.saisonPreisanpassungProzent,
           SAISON_PREISANPASSUNG_PROZENT_DEFAULT
         );
-        updateData.halbePaletteAufschlagProzent = parseProzent(
-          formData.halbePaletteAufschlagProzent,
-          HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT
+        updateData.halbePaletteAufschlagEuro = parseProzent(
+          formData.halbePaletteAufschlagEuro,
+          HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT
         );
 
         await speichereStammdaten(updateData as any);
@@ -441,22 +441,28 @@ const SaisonEinstellungenTab = () => {
             </p>
           </div>
 
-          {/* Halbe-Paletten-Aufschlag */}
+          {/* Halbe-Paletten-Aufschlag (fester Euro-Betrag) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
-              Aufschlag angebrochene (halbe) Paletten (%)
+              Aufschlag angebrochene Palette (€)
             </label>
-            <input
-              type="number"
-              step="0.1"
-              value={formData.halbePaletteAufschlagProzent}
-              onChange={(e) => setFormData(prev => ({ ...prev, halbePaletteAufschlagProzent: e.target.value }))}
-              placeholder={`z.B. ${HALBE_PALETTE_AUFSCHLAG_PROZENT_DEFAULT}`}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.halbePaletteAufschlagEuro}
+                onChange={(e) => setFormData(prev => ({ ...prev, halbePaletteAufschlagEuro: e.target.value }))}
+                placeholder="z.B. 25"
+                className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-dark-textMuted pointer-events-none">
+                €
+              </span>
+            </div>
             <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
-              Aufschlag für angebrochene (halbe) Paletten (wird ab dem Paletten-Modul in der
-              Kalkulation verwendet). Unterjährig änderbar, gilt nur für neue Kalkulationen.
+              Fester Betrag je angebrochener (halber) Palette. Wird als eigene Position auf dem
+              Angebot ausgewiesen; wirkt nur auf neu erzeugte Angebote. 0 € = kein Aufschlag.
             </p>
           </div>
         </div>
