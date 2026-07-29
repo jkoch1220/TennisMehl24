@@ -38,6 +38,7 @@ import {
   CalendarDays,
   Plus,
   Calculator,
+  HardHat,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -59,6 +60,16 @@ import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
+import { istPlatzbauProjekt, getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
+
+// Optik für Projekte, die über die Platzbauer-Verwaltung laufen: warmes Beige
+// statt Weiß plus Bronze-Kante links, damit sie im Board sofort auffallen.
+const PLATZBAU_CARD_STYLE =
+  'bg-[#FAF6EC] dark:bg-amber-950/25 border-[#E4D8BE] dark:border-amber-900/50 border-l-4 border-l-[#C2A06A] dark:border-l-amber-600 hover:border-[#D5C29B] dark:hover:border-amber-800 hover:border-l-[#A8854B] dark:hover:border-l-amber-500';
+const STANDARD_CARD_STYLE =
+  'bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500';
+const PLATZBAU_BADGE_STYLE =
+  'bg-[#F2E8D3] dark:bg-amber-900/40 text-[#846231] dark:text-amber-200 border-[#DDC9A2] dark:border-amber-800';
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
@@ -1226,6 +1237,8 @@ const KanbanSpalte = ({
                 status={tab.id}
                 kompakt={kompakteAnsicht}
                 aktuellerKundenname={projekt.kundeId ? kundenMap.get(projekt.kundeId)?.name : undefined}
+                istPlatzbau={istPlatzbauProjekt(projekt)}
+                platzbauerName={getPlatzbauerName(projekt, kundenMap)}
                 onDragStart={(e) => onDragStart(e, projekt)}
                 onDragEnd={onDragEnd}
                 onClick={() => onProjektClick(projekt)}
@@ -1248,6 +1261,9 @@ interface ProjektCardProps {
   status: ProjektStatus;
   kompakt: boolean;
   aktuellerKundenname?: string;
+  /** Projekt läuft über die Platzbauer-Verwaltung → Karte wird beige markiert */
+  istPlatzbau?: boolean;
+  platzbauerName?: string;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -1257,13 +1273,18 @@ interface ProjektCardProps {
   isVerloren?: boolean;
 }
 
-const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, istPlatzbau, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
   // Extrahiere PLZ aus kundenPlzOrt
   const plzMatch = projekt.kundenPlzOrt?.match(/^(\d{5})/);
   const plz = plzMatch ? plzMatch[1] : '';
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
   // Verwende aktuellen Kundennamen aus Kundendaten, falls vorhanden
   const kundenname = aktuellerKundenname || projekt.kundenname;
+  // Platzbauer-Kürzel für die Karte; ohne auflösbaren Namen bleibt nur der Hinweis
+  const platzbauerKuerzel = getPlatzbauerKuerzel(platzbauerName);
+  const platzbauerTitel = platzbauerName
+    ? `Über Platzbauer: ${platzbauerName}`
+    : 'Läuft über die Platzbauer-Verwaltung';
 
   if (kompakt) {
     // Kompakte Ansicht - mit vollständigem Namen
@@ -1274,9 +1295,9 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
         onDragEnd={onDragEnd}
         onClick={onClick}
         title={kundenname}
-        className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-500 transition-all cursor-pointer group ${
-          isVerloren ? 'opacity-60' : ''
-        }`}
+        className={`border rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
+          istPlatzbau ? PLATZBAU_CARD_STYLE : STANDARD_CARD_STYLE
+        } ${isVerloren ? 'opacity-60' : ''}`}
       >
         <div className="flex items-start gap-2">
           <GripVertical className="w-3 h-3 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted flex-shrink-0 mt-0.5" />
@@ -1287,6 +1308,16 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
             </span>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* Platzbauer-Kürzel (kompakt) */}
+            {istPlatzbau && (
+              <span
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-semibold border ${PLATZBAU_BADGE_STYLE}`}
+                title={platzbauerTitel}
+              >
+                <HardHat className="w-3 h-3" />
+                {platzbauerKuerzel || 'PB'}
+              </span>
+            )}
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {plz}
             </span>
@@ -1340,9 +1371,9 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg p-2.5 hover:shadow-md dark:hover:shadow-lg hover:border-gray-300 dark:hover:border-slate-500 transition-all cursor-pointer group ${
-        isVerloren ? 'opacity-60' : ''
-      }`}
+      className={`border rounded-lg p-2.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
+        istPlatzbau ? PLATZBAU_CARD_STYLE : STANDARD_CARD_STYLE
+      } ${isVerloren ? 'opacity-60' : ''}`}
     >
       {/* Header mit Vereinsname - PROMINENTER */}
       <div className="flex items-start gap-2 mb-1.5">
@@ -1368,6 +1399,17 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, onDragStar
           {projekt.kundennummer && (
             <span className="inline-block mt-1 ml-[22px] px-2 py-0.5 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 text-xs rounded-full border border-purple-200 dark:border-purple-800">
               Nr. {projekt.kundennummer}
+            </span>
+          )}
+
+          {/* Platzbauer-Badge mit Kürzel */}
+          {istPlatzbau && (
+            <span
+              className={`inline-flex items-center gap-1 mt-1 ml-[22px] px-2 py-0.5 rounded-full text-xs font-semibold border ${PLATZBAU_BADGE_STYLE}`}
+              title={platzbauerTitel}
+            >
+              <HardHat className="w-3 h-3" />
+              {platzbauerKuerzel || 'Platzbauer'}
             </span>
           )}
 
