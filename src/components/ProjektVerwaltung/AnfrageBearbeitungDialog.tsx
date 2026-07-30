@@ -68,7 +68,14 @@ import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { searchEmailsByAddress, Email } from '../../services/emailService';
 import AnfrageSalesLeitfaden from './AnfrageSalesLeitfaden';
+import AnfrageKlauselnKarte from './AnfrageKlauselnKarte';
 import { verschiebeInListe } from '../../utils/listeVerschieben';
+import {
+  KlauselVorlage,
+  getKlauselVorlagen,
+  initialisiereDokumentKlauseln,
+} from '../../constants/vertragsklauseln';
+import { VertragsKlausel, AngebotsDaten } from '../../types/projektabwicklung';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
 import {
   berechneGesamtZuschlag,
@@ -192,6 +199,12 @@ const AnfrageBearbeitungDialog = ({
   // Bearbeitung States
   const [editedData, setEditedData] = useState<BearbeitbareDaten | null>(null);
   const [telefonNotizen, setTelefonNotizen] = useState('');
+
+  // Klauseln + AGB-Anhang für das Angebot (wie in der Projektabwicklung).
+  // Vorlagen kommen aus Stammdaten → „Klauseln & AGB".
+  const [klauselVorlagen, setKlauselVorlagen] = useState<KlauselVorlage[]>([]);
+  const [vertragsklauseln, setVertragsklauseln] = useState<VertragsKlausel[]>([]);
+  const [agbAnhaengen, setAgbAnhaengen] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [processingNurProjekt, setProcessingNurProjekt] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -463,6 +476,9 @@ const AnfrageBearbeitungDialog = ({
       setShowArtikelSuche(false);
       // Notizen gehören zur einzelnen Anfrage — sonst landen sie im nächsten Projekt
       setTelefonNotizen('');
+      // Klausel-Auswahl auf die Vorlagen-Defaults zurücksetzen
+      setVertragsklauseln(initialisiereDokumentKlauseln(klauselVorlagen));
+      setAgbAnhaengen(true);
       setFortschrittListe([]);
       setShowFortschritt(false);
       setActiveTab('bearbeitung');
@@ -731,6 +747,8 @@ const AnfrageBearbeitungDialog = ({
         },
         positionen: allePositionen,
         ansprechpartner: editedData.ansprechpartner,
+        vertragsklauseln,
+        agbAnhaengen,
       });
 
       window.open(pdfUrl, '_blank');
@@ -761,9 +779,11 @@ const AnfrageBearbeitungDialog = ({
 
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const standardLieferbedingungen = 'Fur die Lieferung ist eine uneingeschrankte Befahrbarkeit fur LKW erforderlich.';
+      // Wortgleich mit dem echten Angebot (anfrageVerarbeitungService), damit die
+      // Test-Mail zeigt, was der Kunde tatsächlich bekommt.
+      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
 
-      const angebotsDaten = {
+      const angebotsDaten: AngebotsDaten = {
         kundenname: editedData.kundenname,
         kundenstrasse: editedData.strasse,
         kundenPlzOrt: `${editedData.plz} ${editedData.ort}`,
@@ -775,6 +795,9 @@ const AnfrageBearbeitungDialog = ({
         ansprechpartner: editedData.ansprechpartner,
         lieferbedingungenAktiviert: true,
         lieferbedingungen: standardLieferbedingungen,
+        // Klauseln + AGB wie im echten Angebot
+        vertragsklauseln,
+        agbAnhaengen,
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
         firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
@@ -850,6 +873,8 @@ const AnfrageBearbeitungDialog = ({
           absenderEmail: DEFAULT_ABSENDER_EMAIL,
           freibleibend: true,
           telefonNotizen,
+          vertragsklauseln,
+          agbAnhaengen,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -906,6 +931,8 @@ const AnfrageBearbeitungDialog = ({
           positionen: allePositionen,
           preisProTonne: editedData.preisProTonne,
           telefonNotizen,
+          vertragsklauseln,
+          agbAnhaengen,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -962,6 +989,31 @@ const AnfrageBearbeitungDialog = ({
       k.kundennummer?.toLowerCase().includes(kundenSuche.toLowerCase()) ||
       k.email?.toLowerCase().includes(kundenSuche.toLowerCase())
   );
+
+  // Klausel-Vorlagen laden (einmal pro Dialog-Instanz)
+  useEffect(() => {
+    let aktiv = true;
+    getStammdatenOderDefault()
+      .then((stammdaten) => {
+        if (aktiv) setKlauselVorlagen(getKlauselVorlagen(stammdaten));
+      })
+      .catch((error) => {
+        console.error('Fehler beim Laden der Klausel-Vorlagen:', error);
+        if (aktiv) setKlauselVorlagen(getKlauselVorlagen(null));
+      });
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+
+  // Klauseln aus den Vorlagen initialisieren, sobald diese geladen sind. Nötig,
+  // weil der Reset-Effekt beim Öffnen läuft, bevor die Vorlagen da sind.
+  useEffect(() => {
+    if (klauselVorlagen.length === 0) return;
+    setVertragsklauseln((prev) =>
+      prev.length > 0 ? prev : initialisiereDokumentKlauseln(klauselVorlagen)
+    );
+  }, [klauselVorlagen]);
 
   /**
    * Ändert eine einzelne Position. `gesamtpreis` wird immer nachgerechnet, damit
@@ -1962,6 +2014,15 @@ const AnfrageBearbeitungDialog = ({
                     </div>
                   )}
                 </div>
+
+                {/* Klauseln & AGB-Anhang (wie in der Projektabwicklung) */}
+                <AnfrageKlauselnKarte
+                  klauseln={vertragsklauseln}
+                  agbAnhaengen={agbAnhaengen}
+                  vorlagen={klauselVorlagen}
+                  onKlauselnChange={setVertragsklauseln}
+                  onAgbAnhaengenChange={setAgbAnhaengen}
+                />
 
                 {/* E-Mail Vorschau */}
                 <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl p-4 sm:p-6">

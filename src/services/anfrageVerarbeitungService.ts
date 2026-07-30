@@ -15,7 +15,7 @@ import { formatAdresszeile } from './pdfHelpers';
 import { speichereAngebot } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { anfragenService } from './anfragenService';
-import { AngebotsDaten } from '../types/projektabwicklung';
+import { AngebotsDaten, VertragsKlausel } from '../types/projektabwicklung';
 import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import {
@@ -67,6 +67,10 @@ export interface AnfrageVerarbeitungInput {
   freibleibend?: boolean;
   /** Notizen aus dem Telefonat (Sales-Leitfaden) – landen als Projekt-Notiz. */
   telefonNotizen?: string;
+  /** Im Dialog gewählte Vertragsklauseln (Zufahrt, Mengenanpassung, …). */
+  vertragsklauseln?: VertragsKlausel[];
+  /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
+  agbAnhaengen?: boolean;
 }
 
 export interface AnfrageVerarbeitungErgebnis {
@@ -282,6 +286,9 @@ export async function verarbeiteAnfrageVollstaendig(
         // Lieferbedingungen (Standard wie in Projektabwicklung)
         lieferbedingungenAktiviert: true,
         lieferbedingungen: standardLieferbedingungen,
+        // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
+        vertragsklauseln: input.vertragsklauseln,
+        agbAnhaengen: input.agbAnhaengen ?? true,
         // Stammdaten für Header/Footer
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
@@ -429,6 +436,10 @@ export interface NurProjektAnlegenInput {
   preisProTonne: number;
   /** Notizen aus dem Telefonat (Sales-Leitfaden) – landen als Projekt-Notiz. */
   telefonNotizen?: string;
+  /** Im Dialog gewählte Vertragsklauseln (Zufahrt, Mengenanpassung, …). */
+  vertragsklauseln?: VertragsKlausel[];
+  /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
+  agbAnhaengen?: boolean;
 }
 
 /**
@@ -613,6 +624,9 @@ export async function erstelleNurKundeUndProjekt(
         zahlungsziel: '14 Tage',
         lieferbedingungenAktiviert: true,
         lieferbedingungen: standardLieferbedingungen,
+        // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
+        vertragsklauseln: input.vertragsklauseln,
+        agbAnhaengen: input.agbAnhaengen ?? true,
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
         firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
@@ -1221,6 +1235,10 @@ export interface AngebotsVorschauInput {
   positionen: Position[];
   frachtkosten?: number;
   ansprechpartner?: string;
+  /** Im Dialog gewählte Vertragsklauseln (Zufahrt, Mengenanpassung, …). */
+  vertragsklauseln?: VertragsKlausel[];
+  /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
+  agbAnhaengen?: boolean;
 }
 
 export async function generiereAngebotsVorschauPDF(
@@ -1251,6 +1269,9 @@ export async function generiereAngebotsVorschauPDF(
     // Lieferbedingungen
     lieferbedingungenAktiviert: true,
     lieferbedingungen: standardLieferbedingungen,
+    // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
+    vertragsklauseln: input.vertragsklauseln,
+    agbAnhaengen: input.agbAnhaengen ?? true,
     // Stammdaten für Header/Footer
     firmenname: stammdaten.firmenname,
     firmenstrasse: stammdaten.firmenstrasse,
