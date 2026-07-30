@@ -179,6 +179,42 @@ export const speichereStammdaten = async (daten: StammdatenInput): Promise<Stamm
 };
 
 /**
+ * Speichert nur den Telefon-Leitfaden. Eigene Funktion, weil das Bearbeiten im
+ * Anfragen-Dialog passiert und dort die Firmen-Pflichtfelder von
+ * StammdatenInput nicht vorliegen.
+ */
+export const speichereSalesLeitfaden = async (leitfadenJson: string): Promise<void> => {
+  invalidateStammdatenCache();
+  try {
+    await databases.updateDocument(
+      DATABASE_ID,
+      STAMMDATEN_COLLECTION_ID,
+      STAMMDATEN_DOCUMENT_ID,
+      { salesLeitfaden: leitfadenJson, aktualisiertAm: new Date().toISOString() }
+    );
+  } catch (error: any) {
+    // Stammdaten-Dokument fehlt noch: erst anlegen, dann erneut schreiben
+    if (error?.code === 404) {
+      await initialisiereStammdaten();
+      await databases.updateDocument(
+        DATABASE_ID,
+        STAMMDATEN_COLLECTION_ID,
+        STAMMDATEN_DOCUMENT_ID,
+        { salesLeitfaden: leitfadenJson, aktualisiertAm: new Date().toISOString() }
+      );
+    } else {
+      throw error;
+    }
+  }
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'stammdaten',
+    entityId: STAMMDATEN_DOCUMENT_ID,
+    summary: 'Telefon-Leitfaden bearbeitet',
+  });
+};
+
+/**
  * Initialisiert Stammdaten mit Standardwerten (falls noch keine existieren)
  */
 export const initialisiereStammdaten = async (): Promise<Stammdaten> => {

@@ -285,6 +285,9 @@ const stammdatenFields: FieldConfig[] = [
   { key: 'vertragsklauselVorlagen', type: 'string', size: 20000, required: false },
   { key: 'agbAbschnitte', type: 'string', size: 50000, required: false },
 
+  // Telefon-Leitfaden für die Anfragenbearbeitung (JSON-String)
+  { key: 'salesLeitfaden', type: 'string', size: 50000, required: false },
+
   // Metadaten
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'aktualisiertAm', type: 'string', size: 50 },

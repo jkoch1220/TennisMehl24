@@ -228,6 +228,18 @@ const stammdatenFields = [
   // E-Mail-Templates (als JSON-String)
   { key: 'emailTemplates', type: 'string', size: 10000 },
 
+  // Telefon-Leitfaden für die Anfragenbearbeitung (als JSON-String)
+  { key: 'salesLeitfaden', type: 'string', size: 50000 },
+
+  // Vertragsklauseln + AGB-Anhang für Angebote/ABs (als JSON-Strings).
+  // Fehlten bis 07/2026 in diesem Skript, wodurch speichereStammdaten sie über
+  // den "Unknown attribute"-Fallback stillschweigend verworfen hat.
+  { key: 'vertragsklauselVorlagen', type: 'string', size: 20000 },
+  { key: 'agbAbschnitte', type: 'string', size: 50000 },
+
+  // Mahnwesen-Textvorlagen (als JSON-String)
+  { key: 'mahnwesenVorlagen', type: 'string', size: 20000 },
+
   // WICHTIG: Dokumentnummern-Zähler für Nummerierungssystem
   // Diese Felder werden verwendet, um eindeutige, fortlaufende Nummern zu generieren
   { key: 'angebotZaehler', type: 'integer', default: 0 },

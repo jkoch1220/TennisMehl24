@@ -48,6 +48,9 @@ export interface Stammdaten {
   // AGB-Abschnitte für den Kleintext-Anhang auf Angeboten/ABs (JSON von AgbAbschnitt[])
   agbAbschnitte?: string;
 
+  // Telefon-Leitfaden für die Anfragenbearbeitung (JSON von LeitfadenAbschnitt[])
+  salesLeitfaden?: string;
+
   // Saison-Einstellungen
   // Die Saison geht von November bis April (z.B. Nov 2025 - Apr 2026 = Saison 2026)
   aktuelleSaison?: number; // z.B. 2026 - kann manuell überschrieben werden
@@ -117,6 +120,7 @@ export interface StammdatenInput {
   mahnwesenVorlagen?: string; // JSON von MahnwesenTextVorlagen
   vertragsklauselVorlagen?: string; // JSON von KlauselVorlage[]
   agbAbschnitte?: string; // JSON von AgbAbschnitt[]
+  salesLeitfaden?: string; // JSON von LeitfadenAbschnitt[]
   aktuelleSaison?: number;
   saisonStartMonat?: number;
   // Liefersaison für PDF-Dokumente

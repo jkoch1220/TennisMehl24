@@ -65,6 +65,8 @@ export interface AnfrageVerarbeitungInput {
   };
   absenderEmail: string;
   freibleibend?: boolean;
+  /** Notizen aus dem Telefonat (Sales-Leitfaden) – landen als Projekt-Notiz. */
+  telefonNotizen?: string;
 }
 
 export interface AnfrageVerarbeitungErgebnis {
@@ -213,6 +215,7 @@ export async function verarbeiteAnfrageVollstaendig(
         angefragteMenge: input.anfrage.analysiert?.menge,
         preisProTonne: input.preisProTonne,
         ansprechpartner: input.kundenDaten.ansprechpartner,
+        notizen: input.telefonNotizen?.trim() || undefined,
       });
 
       projektId = projekt.id;
@@ -424,6 +427,8 @@ export interface NurProjektAnlegenInput {
   existierenderKundeId?: string;
   positionen: Position[];
   preisProTonne: number;
+  /** Notizen aus dem Telefonat (Sales-Leitfaden) – landen als Projekt-Notiz. */
+  telefonNotizen?: string;
 }
 
 /**
@@ -576,6 +581,7 @@ export async function erstelleNurKundeUndProjekt(
         angefragteMenge: gesamtMenge,
         preisProTonne: input.preisProTonne,
         ansprechpartner: input.kundenDaten.ansprechpartner,
+        notizen: input.telefonNotizen?.trim() || undefined,
       });
 
       projektId = projekt.id;

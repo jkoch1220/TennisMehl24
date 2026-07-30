@@ -35,6 +35,8 @@ import {
   MessageSquare,
   ArrowRight,
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   RefreshCw,
   FileText,
   Inbox,
@@ -65,6 +67,8 @@ import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../
 import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { searchEmailsByAddress, Email } from '../../services/emailService';
+import AnfrageSalesLeitfaden from './AnfrageSalesLeitfaden';
+import { verschiebeInListe } from '../../utils/listeVerschieben';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
 import {
   berechneGesamtZuschlag,
@@ -187,6 +191,7 @@ const AnfrageBearbeitungDialog = ({
 
   // Bearbeitung States
   const [editedData, setEditedData] = useState<BearbeitbareDaten | null>(null);
+  const [telefonNotizen, setTelefonNotizen] = useState('');
   const [processing, setProcessing] = useState(false);
   const [processingNurProjekt, setProcessingNurProjekt] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -456,6 +461,8 @@ const AnfrageBearbeitungDialog = ({
       setSelectedKundeId(null);
       setAllePositionen([]);
       setShowArtikelSuche(false);
+      // Notizen gehören zur einzelnen Anfrage — sonst landen sie im nächsten Projekt
+      setTelefonNotizen('');
       setFortschrittListe([]);
       setShowFortschritt(false);
       setActiveTab('bearbeitung');
@@ -842,6 +849,7 @@ const AnfrageBearbeitungDialog = ({
           },
           absenderEmail: DEFAULT_ABSENDER_EMAIL,
           freibleibend: true,
+          telefonNotizen,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -897,6 +905,7 @@ const AnfrageBearbeitungDialog = ({
           existierenderKundeId: selectedKundeId || undefined,
           positionen: allePositionen,
           preisProTonne: editedData.preisProTonne,
+          telefonNotizen,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -953,6 +962,20 @@ const AnfrageBearbeitungDialog = ({
       k.kundennummer?.toLowerCase().includes(kundenSuche.toLowerCase()) ||
       k.email?.toLowerCase().includes(kundenSuche.toLowerCase())
   );
+
+  /**
+   * Ändert eine einzelne Position. `gesamtpreis` wird immer nachgerechnet, damit
+   * die Summenzeile und das PDF nicht auseinanderlaufen.
+   */
+  const aenderePosition = (index: number, patch: Partial<Position>) => {
+    setAllePositionen((prev) =>
+      prev.map((p, i) => {
+        if (i !== index) return p;
+        const neu = { ...p, ...patch };
+        return { ...neu, gesamtpreis: neu.menge * neu.einzelpreis };
+      })
+    );
+  };
 
   // Artikel hinzufugen - ALLE Daten aus Stammdaten übernehmen!
   const handleArtikelHinzufuegen = (artikel: Artikel) => {
@@ -1827,13 +1850,48 @@ const AnfrageBearbeitungDialog = ({
                     <div className="space-y-2">
                       {allePositionen.map((pos, index) => (
                         <div
-                          key={index}
+                          key={pos.id || `pos-${index}`}
                           className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 group hover:border-green-300 dark:hover:border-green-700 transition-colors"
                         >
-                          {/* Bezeichnung */}
-                          <div className="font-medium text-gray-900 dark:text-white truncate mb-2">
-                            {pos.bezeichnung}
+                          {/* Bezeichnung + Reihenfolge */}
+                          <div className="flex items-start gap-2 mb-2">
+                            <input
+                              type="text"
+                              value={pos.bezeichnung}
+                              onChange={(e) => aenderePosition(index, { bezeichnung: e.target.value })}
+                              placeholder="Bezeichnung"
+                              className="flex-1 min-w-0 px-2 py-1 font-medium text-gray-900 dark:text-white bg-transparent border border-transparent rounded-lg hover:border-gray-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:border-green-500 focus:ring-2 focus:ring-green-500"
+                            />
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <button
+                                onClick={() => setAllePositionen((prev) => verschiebeInListe(prev, index, -1))}
+                                disabled={index === 0}
+                                className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                                title="Position nach oben"
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setAllePositionen((prev) => verschiebeInListe(prev, index, 1))}
+                                disabled={index === allePositionen.length - 1}
+                                className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded disabled:opacity-30 disabled:hover:bg-transparent"
+                                title="Position nach unten"
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Beschreibung (erscheint im Angebot unter der Bezeichnung) */}
+                          <textarea
+                            value={pos.beschreibung ?? ''}
+                            onChange={(e) =>
+                              aenderePosition(index, { beschreibung: e.target.value || undefined })
+                            }
+                            rows={pos.beschreibung ? 2 : 1}
+                            placeholder="Beschreibung (optional) – steht im Angebot unter der Bezeichnung"
+                            className="w-full mb-2 px-2 py-1 text-sm text-gray-600 dark:text-gray-400 bg-transparent border border-transparent rounded-lg hover:border-gray-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:border-green-500 focus:ring-2 focus:ring-green-500 resize-y"
+                          />
 
                           {/* Editierbare Felder */}
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1842,14 +1900,9 @@ const AnfrageBearbeitungDialog = ({
                               <input
                                 type="number"
                                 value={pos.menge}
-                                onChange={(e) => {
-                                  const neueMenge = parseFloat(e.target.value) || 0;
-                                  setAllePositionen(prev => prev.map((p, i) =>
-                                    i === index
-                                      ? { ...p, menge: neueMenge, gesamtpreis: neueMenge * p.einzelpreis }
-                                      : p
-                                  ));
-                                }}
+                                onChange={(e) =>
+                                  aenderePosition(index, { menge: parseFloat(e.target.value) || 0 })
+                                }
                                 className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 step="0.5"
                                 min="0"
@@ -1864,14 +1917,9 @@ const AnfrageBearbeitungDialog = ({
                               <input
                                 type="number"
                                 value={pos.einzelpreis}
-                                onChange={(e) => {
-                                  const neuerPreis = parseFloat(e.target.value) || 0;
-                                  setAllePositionen(prev => prev.map((p, i) =>
-                                    i === index
-                                      ? { ...p, einzelpreis: neuerPreis, gesamtpreis: p.menge * neuerPreis }
-                                      : p
-                                  ));
-                                }}
+                                onChange={(e) =>
+                                  aenderePosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })
+                                }
                                 className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 step="0.50"
                                 min="0"
@@ -1982,6 +2030,15 @@ const AnfrageBearbeitungDialog = ({
                         {anfrage.emailText}
                       </pre>
                     </div>
+
+                    {/* Sales-Leitfaden fürs Telefonat.
+                        key = Anfrage-ID: erzwingt einen Remount beim Anfragewechsel, damit
+                        abgehakte Fragen nicht von der vorherigen Anfrage stehen bleiben. */}
+                    <AnfrageSalesLeitfaden
+                      key={anfrage.id}
+                      notizen={telefonNotizen}
+                      onNotizenChange={setTelefonNotizen}
+                    />
                   </div>
                 </div>
               </div>
