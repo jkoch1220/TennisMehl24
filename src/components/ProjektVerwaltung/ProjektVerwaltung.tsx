@@ -30,7 +30,6 @@ import {
   Hash,
   Map as MapIcon,
   Droplets,
-  Users,
   Download,
   Tag,
   Link2,
@@ -63,7 +62,13 @@ import MassenAngebotTool from './MassenAngebotTool';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
-import { getProjektHerkunft, getShopBestellnummer, ProjektHerkunftKanal } from '../../utils/projektHerkunft';
+import {
+  getProjektHerkunft,
+  getProjektKategorien,
+  getShopBestellnummer,
+  ProjektHerkunftKanal,
+  ProjektFilterKategorie,
+} from '../../utils/projektHerkunft';
 import { anfragenService } from '../../services/anfragenService';
 
 // Herkunfts-Optik im Board: Platzbauer beige, Shop blau, Anfrage grün — jeweils
@@ -87,6 +92,25 @@ const HERKUNFT_ICON: Record<ProjektHerkunftKanal, React.ComponentType<any>> = {
   platzbau: HardHat,
   shop: ShoppingCart,
   anfrage: Inbox,
+};
+
+// Kategorie-Filter über dem Board. Reihenfolge = Reihenfolge im Dropdown.
+const KATEGORIE_REIHENFOLGE: ProjektFilterKategorie[] = [
+  'platzbau',
+  'shop',
+  'anfrage',
+  'hydrocourt',
+  'universal',
+];
+const KATEGORIE_CONFIG: Record<
+  ProjektFilterKategorie,
+  { label: string; icon: React.ComponentType<any>; iconStyle: string; aktivStyle: string }
+> = {
+  platzbau: { label: 'Platzbauer', icon: HardHat, iconStyle: 'text-amber-600 dark:text-amber-400', aktivStyle: 'bg-amber-600 text-white' },
+  shop: { label: 'Onlineshop', icon: ShoppingCart, iconStyle: 'text-blue-600 dark:text-blue-400', aktivStyle: 'bg-blue-600 text-white' },
+  anfrage: { label: 'Anfragen', icon: Inbox, iconStyle: 'text-emerald-600 dark:text-emerald-400', aktivStyle: 'bg-emerald-600 text-white' },
+  hydrocourt: { label: 'Hydrocourt', icon: Droplets, iconStyle: 'text-cyan-600 dark:text-cyan-400', aktivStyle: 'bg-cyan-600 text-white' },
+  universal: { label: 'Universal', icon: Tag, iconStyle: 'text-orange-600 dark:text-orange-400', aktivStyle: 'bg-orange-600 text-white' },
 };
 
 // Hook für Mobile-Erkennung
@@ -292,8 +316,9 @@ const ProjektVerwaltung = () => {
   // (deckt Altbestand ohne `herkunft`-Marker ab)
   const [anfrageProjektIds, setAnfrageProjektIds] = useState<Set<string>>(new Set());
 
-  // Filter: Platzbauer-Projekte anzeigen
-  const [showPlatzbauerprojekte, setShowPlatzbauerprojekte] = useState(false);
+  // Filter nach Herkunft/Typ (null = alle Projekte)
+  const [aktiveKategorie, setAktiveKategorie] = useState<ProjektFilterKategorie | null>(null);
+  const [showKategorieMenu, setShowKategorieMenu] = useState(false);
 
   // Wrapper-Funktionen die auch in Session Storage speichern
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -396,19 +421,46 @@ const ProjektVerwaltung = () => {
     []
   );
 
+  // Kategorien einmal pro Datenstand berechnen (das Ableiten parst Positions-JSON,
+  // deshalb nicht bei jedem Render pro Karte)
+  const kategorienMap = useMemo(() => {
+    const map = new Map<string, Set<ProjektFilterKategorie>>();
+    Object.values(projekteGruppiert).forEach(projekte => {
+      projekte.forEach(projekt => {
+        const key = (projekt as { $id?: string }).$id || projekt.id;
+        map.set(key, getProjektKategorien(projekt, anfrageProjektIds));
+      });
+    });
+    return map;
+  }, [projekteGruppiert, anfrageProjektIds]);
+
+  // Anzahl je Kategorie für das Filter-Dropdown
+  const kategorieZaehler = useMemo(() => {
+    const zaehler: Record<ProjektFilterKategorie, number> & { gesamt: number } = {
+      platzbau: 0,
+      shop: 0,
+      anfrage: 0,
+      hydrocourt: 0,
+      universal: 0,
+      gesamt: kategorienMap.size,
+    };
+    kategorienMap.forEach(kategorien => {
+      kategorien.forEach(kategorie => {
+        zaehler[kategorie] += 1;
+      });
+    });
+    return zaehler;
+  }, [kategorienMap]);
+
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
-    // Schritt 1: Platzbauer-Filter (je nach Toggle)
-    let gefiltert = projekte.filter(p => {
-      if (!showPlatzbauerprojekte) {
-        // Alle Projekte anzeigen (Standard)
-        return true;
-      } else {
-        // Nur Platzbauer-Projekte anzeigen (nach Klick auf Filter)
-        const istPlatzbauer = p.istPlatzbauerprojekt === true;
-        return istPlatzbauer;
-      }
-    });
+    // Schritt 1: Kategorie-Filter (Platzbauer, Shop, Anfrage, Hydrocourt, Universal)
+    let gefiltert = aktiveKategorie
+      ? projekte.filter(p => {
+          const key = (p as { $id?: string }).$id || p.id;
+          return kategorienMap.get(key)?.has(aktiveKategorie) === true;
+        })
+      : projekte;
 
     // ============================================
     // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (eigenes Feld!)
@@ -448,7 +500,7 @@ const ProjektVerwaltung = () => {
     }
 
     return gefiltert;
-  }, [suche, nummerSuche, kundenMap, showPlatzbauerprojekte]);
+  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap]);
 
   // Alle Projekte mit Angebot für die Angebotsliste
   const angebotsProjekte = useMemo(() => {
@@ -839,19 +891,81 @@ const ProjektVerwaltung = () => {
               )}
             </div>
 
-            {/* Platzbauer-Filter Toggle */}
-            <button
-              onClick={() => setShowPlatzbauerprojekte(!showPlatzbauerprojekte)}
-              className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
-                showPlatzbauerprojekte
-                  ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
-              }`}
-              title={showPlatzbauerprojekte ? 'Alle Projekte anzeigen' : 'Nur Platzbauer-Projekte anzeigen'}
-            >
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Platzbauer</span>
-            </button>
+            {/* Kategorie-Filter (Platzbauer, Shop, Anfragen, Hydrocourt, Universal) */}
+            <div className="relative">
+              <button
+                onClick={() => setShowKategorieMenu(!showKategorieMenu)}
+                className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
+                  aktiveKategorie
+                    ? `${KATEGORIE_CONFIG[aktiveKategorie].aktivStyle} border-transparent`
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Projekte nach Herkunft oder Typ filtern"
+              >
+                {(() => {
+                  const AktivIcon = aktiveKategorie ? KATEGORIE_CONFIG[aktiveKategorie].icon : Filter;
+                  return <AktivIcon className="w-4 h-4" />;
+                })()}
+                <span className="hidden sm:inline">
+                  {aktiveKategorie ? KATEGORIE_CONFIG[aktiveKategorie].label : 'Alle Projekte'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {showKategorieMenu && (
+                <>
+                  {/* Klick daneben schließt das Menü */}
+                  <div className="fixed inset-0 z-10" onClick={() => setShowKategorieMenu(false)} />
+                  <div className="absolute right-0 mt-1 z-20 w-60 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl py-1">
+                    <button
+                      onClick={() => {
+                        setAktiveKategorie(null);
+                        setShowKategorieMenu(false);
+                      }}
+                      className={`w-full px-3 py-2 flex items-center justify-between gap-2 text-sm transition-colors ${
+                        aktiveKategorie === null
+                          ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white font-semibold'
+                          : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-gray-400" />
+                        Alle Projekte
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-slate-400">{kategorieZaehler.gesamt}</span>
+                    </button>
+
+                    <div className="my-1 border-t border-gray-100 dark:border-slate-700" />
+
+                    {KATEGORIE_REIHENFOLGE.map((kategorie) => {
+                      const config = KATEGORIE_CONFIG[kategorie];
+                      const KategorieIcon = config.icon;
+                      const anzahl = kategorieZaehler[kategorie];
+                      return (
+                        <button
+                          key={kategorie}
+                          onClick={() => {
+                            setAktiveKategorie(kategorie);
+                            setShowKategorieMenu(false);
+                          }}
+                          className={`w-full px-3 py-2 flex items-center justify-between gap-2 text-sm transition-colors ${
+                            aktiveKategorie === kategorie
+                              ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white font-semibold'
+                              : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <KategorieIcon className={`w-4 h-4 ${config.iconStyle}`} />
+                            {config.label}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-slate-400">{anzahl}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Ansicht umschalten */}
             <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-x-auto max-w-full">
@@ -1021,7 +1135,8 @@ const ProjektVerwaltung = () => {
         <div className={`grid gap-3 ${showVerlorenSpalte ? 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-7' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'}`}>
           {TABS.map((tab) => {
             const projekte = filterProjekte(getProjekte(tab.id));
-            const count = getCount(tab.id);
+            // Bei aktivem Kategorie-Filter die sichtbare Anzahl zeigen, sonst die Gesamtzahl
+            const count = aktiveKategorie ? projekte.length : getCount(tab.id);
 
             return (
               <KanbanSpalte
@@ -1051,7 +1166,7 @@ const ProjektVerwaltung = () => {
             <KanbanSpalte
               tab={VERLOREN_TAB}
               projekte={filterProjekte(getProjekte('verloren'))}
-              count={gesamtVerloren}
+              count={aktiveKategorie ? filterProjekte(getProjekte('verloren')).length : gesamtVerloren}
               dragOverTab={dragOverTab}
               kompakteAnsicht={kompakteAnsicht}
               kundenMap={kundenMap}
