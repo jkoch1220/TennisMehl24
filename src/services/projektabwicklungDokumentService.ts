@@ -23,7 +23,7 @@ import {
 } from '../types/projektabwicklung';
 import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart, Wochentag } from '../types/projekt';
 import { projektService } from './projektService';
-import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF } from './dokumentService';
+import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF, berechneAngebotsSummen } from './dokumentService';
 import { holeLiefernachweisUrlFuerProjekt } from './liefernachweisService';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from './rechnungService';
 import { saisonplanungService } from './saisonplanungService';
@@ -300,10 +300,15 @@ export const speichereAngebot = async (
       file
     );
 
-    // Bruttobetrag berechnen
-    const summen = berechneRechnungsSummen(daten.positionen);
-    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    // Bruttobetrag berechnen - gleiche Steuerlogik wie PDF und Rechnung
+    // (respektiert Reverse Charge, abweichende Sätze und Gesamtrabatt)
+    const { bruttobetrag } = berechneAngebotsSummen(daten.positionen, {
+      frachtkosten: daten.frachtkosten,
+      verpackungskosten: daten.verpackungskosten,
+      gesamtrabattProzent: daten.gesamtrabattProzent,
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+    });
 
     // Dokument-Eintrag in DB erstellen (ohne version - wird erst angelegt wenn Attribut existiert)
     const dokument = await erstelleDokumentEintragMitAudit(
@@ -355,10 +360,15 @@ export const aktualisiereAngebot = async (
       file
     );
     
-    // Bruttobetrag berechnen
-    const summen = berechneRechnungsSummen(daten.positionen);
-    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const bruttobetrag = (summen.nettobetrag + frachtUndVerpackung) * 1.19;
+    // Bruttobetrag berechnen - gleiche Steuerlogik wie PDF und Rechnung
+    // (respektiert Reverse Charge, abweichende Sätze und Gesamtrabatt)
+    const { bruttobetrag } = berechneAngebotsSummen(daten.positionen, {
+      frachtkosten: daten.frachtkosten,
+      verpackungskosten: daten.verpackungskosten,
+      gesamtrabattProzent: daten.gesamtrabattProzent,
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+    });
     
     // Lade projektId vom alten Dokument
     const altesDokument = await databases.getDocument(DATABASE_ID, BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID, dokumentId);
@@ -420,12 +430,14 @@ export const speichereAuftragsbestaetigung = async (
       file
     );
 
-    // Bruttobetrag berechnen (inkl. Gesamtrabatt)
-    const summen = berechneRechnungsSummen(daten.positionen);
-    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const nettoVorRabatt = summen.nettobetrag + frachtUndVerpackung;
-    const rabattBetrag = nettoVorRabatt * ((daten.gesamtrabattProzent || 0) / 100);
-    const bruttobetrag = (nettoVorRabatt - rabattBetrag) * 1.19;
+    // Bruttobetrag berechnen (inkl. Gesamtrabatt) - gleiche Steuerlogik wie PDF und Rechnung
+    const { bruttobetrag } = berechneAngebotsSummen(daten.positionen, {
+      frachtkosten: daten.frachtkosten,
+      verpackungskosten: daten.verpackungskosten,
+      gesamtrabattProzent: daten.gesamtrabattProzent,
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+    });
 
     // Dokument-Eintrag in DB erstellen (mit Versionierung)
     console.log(`📝 Erstelle AB-Version ${neueVersion} für Projekt ${projektId}...`);
@@ -557,12 +569,14 @@ export const aktualisiereAuftragsbestaetigung = async (
       file
     );
 
-    // Bruttobetrag berechnen (inkl. Gesamtrabatt)
-    const summen = berechneRechnungsSummen(daten.positionen);
-    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-    const nettoVorRabatt = summen.nettobetrag + frachtUndVerpackung;
-    const rabattBetrag = nettoVorRabatt * ((daten.gesamtrabattProzent || 0) / 100);
-    const bruttobetrag = (nettoVorRabatt - rabattBetrag) * 1.19;
+    // Bruttobetrag berechnen (inkl. Gesamtrabatt) - gleiche Steuerlogik wie PDF und Rechnung
+    const { bruttobetrag } = berechneAngebotsSummen(daten.positionen, {
+      frachtkosten: daten.frachtkosten,
+      verpackungskosten: daten.verpackungskosten,
+      gesamtrabattProzent: daten.gesamtrabattProzent,
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+    });
 
     // NEUES Dokument erstellen (nicht überschreiben!) - mit Versionsnummer
     console.log(`📝 Erstelle neue AB-Version ${neueVersion} für Projekt ${projektId}...`);
@@ -864,8 +878,9 @@ export const speichereRechnung = async (
       file
     );
 
-    // Bruttobetrag berechnen
-    const summen = berechneRechnungsSummen(daten.positionen);
+    // Bruttobetrag berechnen - Steueroptionen der Rechnung berücksichtigen, sonst
+    // wird eine steuerfreie Rechnung in der Debitorenliste mit MwSt geführt
+    const summen = berechneRechnungsSummen(daten.positionen, daten.ohneMehrwertsteuer, daten.mehrwertsteuersatz);
 
     // Gesamtrabatt auf Bruttobetrag anwenden (falls vorhanden)
     const rabattProzent = daten.gesamtrabattProzent || 0;
@@ -1016,8 +1031,8 @@ export const speichereProformaRechnung = async (
       file
     );
 
-    // Bruttobetrag berechnen
-    const summen = berechneRechnungsSummen(daten.positionen);
+    // Bruttobetrag berechnen - Steueroptionen berücksichtigen
+    const summen = berechneRechnungsSummen(daten.positionen, daten.ohneMehrwertsteuer, daten.mehrwertsteuersatz);
 
     // Dokument-Eintrag in DB erstellen (NICHT FINAL - kann mehrfach erstellt werden)
     const dokument = await erstelleDokumentEintragMitAudit(
@@ -1107,8 +1122,13 @@ export const speichereStornoRechnung = async (
       file
     );
     
-    // Bruttobetrag berechnen (negativ!)
-    const summen = berechneRechnungsSummen(stornoPositionen);
+    // Bruttobetrag berechnen (negativ!) - Steueroptionen der Originalrechnung übernehmen,
+    // sonst storniert eine steuerfreie Rechnung einen Betrag inkl. MwSt
+    const summen = berechneRechnungsSummen(
+      stornoPositionen,
+      originalDaten.ohneMehrwertsteuer,
+      originalDaten.mehrwertsteuersatz
+    );
     
     // Storno-Dokument erstellen
     // dokumentNummer ist ab Schema-Version 40 eine reguläre RE-Nummer (kein STORNO-Prefix mehr),

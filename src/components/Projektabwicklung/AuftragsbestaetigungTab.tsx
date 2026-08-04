@@ -18,7 +18,7 @@ import {
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
 import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument, AngebotsDaten } from '../../types/projektabwicklung';
-import { generiereAuftragsbestaetigungPDF } from '../../services/dokumentService';
+import { generiereAuftragsbestaetigungPDF, berechneAngebotsSummen } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -425,6 +425,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         let angebotsRabattBezeichnung: string | undefined;
         let angebotsKlauseln: AuftragsbestaetigungsDaten['vertragsklauseln'];
         let angebotsAgbAnhaengen: boolean | undefined;
+        let angebotsOhneMwSt: boolean | undefined;
+        let angebotsMwStSatz: number | undefined;
+        let angebotsKundenUstIdNr: string | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'auftragsbestaetigung');
@@ -453,6 +456,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               console.log('✅ Vertragsklauseln vom Angebot übernommen:', angebotsKlauseln.length);
             }
             angebotsAgbAnhaengen = angebotsDaten?.agbAnhaengen;
+
+            // Steueroptionen vom Angebot übernehmen — sonst weicht die AB vom
+            // angebotenen Betrag ab, sobald das Angebot steuerfrei kalkuliert wurde
+            angebotsOhneMwSt = angebotsDaten?.ohneMehrwertsteuer;
+            angebotsMwStSatz = angebotsDaten?.mehrwertsteuersatz;
+            angebotsKundenUstIdNr = angebotsDaten?.kundenUstIdNr;
+            if (angebotsOhneMwSt || angebotsMwStSatz) {
+              console.log('✅ Steueroptionen vom Angebot übernommen:', { angebotsOhneMwSt, angebotsMwStSatz });
+            }
           } catch (error) {
             console.warn('Gesamtrabatt vom Angebot konnte nicht geladen werden:', error);
           }
@@ -577,6 +589,10 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           // (haben Vorrang vor den Standard-Vorlagen aus den Stammdaten)
           vertragsklauseln: angebotsKlauseln ?? prev.vertragsklauseln,
           agbAnhaengen: angebotsAgbAnhaengen ?? prev.agbAnhaengen,
+          // Steueroptionen vom Angebot übernehmen
+          ohneMehrwertsteuer: prev.ohneMehrwertsteuer ?? angebotsOhneMwSt,
+          mehrwertsteuersatz: prev.mehrwertsteuersatz ?? angebotsMwStSatz,
+          kundenUstIdNr: prev.kundenUstIdNr ?? angebotsKundenUstIdNr,
         }));
         datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
@@ -948,13 +964,26 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     }
   };
 
-  const berechnung = berechneDokumentSummen(auftragsbestaetigungsDaten.positionen);
-  const frachtUndVerpackung = (auftragsbestaetigungsDaten.frachtkosten || 0) + (auftragsbestaetigungsDaten.verpackungskosten || 0);
-  const gesamtrabattProzent = auftragsbestaetigungsDaten.gesamtrabattProzent || 0;
-  const nettoVorRabatt = berechnung.nettobetrag + frachtUndVerpackung;
-  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
-  const nettoNachRabatt = nettoVorRabatt - gesamtrabattBetrag;
-  const gesamtBrutto = nettoNachRabatt * 1.19;
+  // Identische Steuerlogik wie Angebot und Rechnung (Reverse Charge, abweichender
+  // Satz, Positionen mit `ohneMwSt`)
+  const berechnung = berechneDokumentSummen(
+    auftragsbestaetigungsDaten.positionen,
+    auftragsbestaetigungsDaten.ohneMehrwertsteuer,
+    auftragsbestaetigungsDaten.mehrwertsteuersatz
+  );
+  const summen = berechneAngebotsSummen(auftragsbestaetigungsDaten.positionen, {
+    frachtkosten: auftragsbestaetigungsDaten.frachtkosten,
+    verpackungskosten: auftragsbestaetigungsDaten.verpackungskosten,
+    gesamtrabattProzent: auftragsbestaetigungsDaten.gesamtrabattProzent,
+    ohneMehrwertsteuer: auftragsbestaetigungsDaten.ohneMehrwertsteuer,
+    mehrwertsteuersatz: auftragsbestaetigungsDaten.mehrwertsteuersatz,
+  });
+  const frachtUndVerpackung = summen.frachtUndVerpackung;
+  const gesamtrabattProzent = summen.gesamtrabattProzent;
+  const nettoVorRabatt = summen.nettoVorRabatt;
+  const gesamtrabattBetrag = summen.gesamtrabattBetrag;
+  const nettoNachRabatt = summen.nettoGesamt;
+  const gesamtBrutto = summen.bruttobetrag;
 
   // Zeige Lade-Indikator
   if (ladeStatus === 'laden') {
@@ -2053,6 +2082,65 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           </div>
         </div>
 
+        {/* Steueroptionen - werden aus dem Angebot übernommen, bleiben hier korrigierbar */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Steueroptionen</h2>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={auftragsbestaetigungsDaten.ohneMehrwertsteuer || false}
+                onChange={(e) => handleInputChange('ohneMehrwertsteuer', e.target.checked)}
+                className="w-5 h-5 mt-0.5 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-dark-text">Ohne Mehrwertsteuer</span>
+                <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                  Steuerfreie innergemeinschaftliche Lieferung / Reverse Charge gem. § 13b UStG
+                </p>
+              </div>
+            </label>
+
+            {!auftragsbestaetigungsDaten.ohneMehrwertsteuer && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Mehrwertsteuersatz
+                </label>
+                <select
+                  value={(auftragsbestaetigungsDaten.mehrwertsteuersatz ?? 19).toString()}
+                  onChange={(e) => handleInputChange('mehrwertsteuersatz', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent"
+                >
+                  <option value="19">19% (Deutschland)</option>
+                  <option value="20">20% (Österreich)</option>
+                  <option value="8.1">8,1% (Schweiz)</option>
+                  <option value="21">21% (Niederlande, Belgien)</option>
+                  <option value="22">22% (Italien)</option>
+                  <option value="7">7% (Deutschland ermäßigt)</option>
+                </select>
+              </div>
+            )}
+
+            {auftragsbestaetigungsDaten.ohneMehrwertsteuer && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  USt-IdNr. des Kunden (optional)
+                </label>
+                <input
+                  type="text"
+                  value={auftragsbestaetigungsDaten.kundenUstIdNr || ''}
+                  onChange={(e) => handleInputChange('kundenUstIdNr', e.target.value)}
+                  placeholder="z.B. ATU12345678"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
+                />
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  Die USt-IdNr. wird auf der Auftragsbestätigung ausgewiesen
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Gesamtrabatt */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -2190,9 +2278,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               )}
 
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 dark:text-dark-textMuted">MwSt. (19%):</span>
-                <span className="font-medium text-gray-900 dark:text-dark-text">
-                  {(nettoNachRabatt * 0.19).toFixed(2)} €
+                <span className="text-gray-600 dark:text-dark-textMuted">
+                  {auftragsbestaetigungsDaten.ohneMehrwertsteuer ? 'MwSt.:' : `MwSt. (${summen.umsatzsteuersatz}%):`}
+                </span>
+                <span className={`font-medium ${auftragsbestaetigungsDaten.ohneMehrwertsteuer ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-dark-text'}`}>
+                  {auftragsbestaetigungsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${summen.umsatzsteuer.toFixed(2)} €`}
                 </span>
               </div>
 

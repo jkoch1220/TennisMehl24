@@ -81,10 +81,16 @@ export interface AngebotsDaten extends BaseDokument {
   angebotsnummer: string;
   angebotsdatum: string;
   gueltigBis: string;
-  
+
+  // Mehrwertsteuer-Optionen (identisch zur Rechnung, damit Angebot und Rechnung
+  // denselben Betrag ausweisen und die Einstellung durchgereicht werden kann)
+  mehrwertsteuersatz?: number; // MwSt.-Satz in Prozent (Standard: 19% Deutschland)
+  ohneMehrwertsteuer?: boolean; // Angebot ohne MwSt. (Reverse Charge)
+  kundenUstIdNr?: string; // USt-IdNr. des Kunden (für Reverse Charge)
+
   // Positionen
   positionen: Position[];
-  
+
   // Zahlungsbedingungen
   zahlungsbedingungenAusblenden?: boolean; // Zahlungsbedingungen im PDF ausblenden
   zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
@@ -172,6 +178,12 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   auftragsbestaetigungsnummer: string;
   auftragsbestaetigungsdatum: string;
   kundennummerExtern?: string; // Bestellnummer/Referenznummer des Kunden
+
+  // Mehrwertsteuer-Optionen (identisch zur Rechnung — wird aus dem Angebot
+  // übernommen, damit die Kette Angebot → AB → Rechnung steuerlich konsistent bleibt)
+  mehrwertsteuersatz?: number; // MwSt.-Satz in Prozent (Standard: 19% Deutschland)
+  ohneMehrwertsteuer?: boolean; // AB ohne MwSt. (Reverse Charge)
+  kundenUstIdNr?: string; // USt-IdNr. des Kunden (für Reverse Charge)
 
   // Positionen
   positionen: Position[];

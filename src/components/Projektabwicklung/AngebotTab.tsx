@@ -19,7 +19,7 @@ import SortablePosition from './SortablePosition';
 import { useCan } from '../../hooks/useCan';
 import NumericInput from '../Shared/NumericInput';
 import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
-import { generiereAngebotPDF } from '../../services/dokumentService';
+import { generiereAngebotPDF, berechneAngebotsSummen } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
 import { getAlleArtikel } from '../../services/artikelService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -1433,14 +1433,35 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   const bedarfsPositionen = angebotsDaten.positionen.filter(pos => pos.istBedarfsposition);
 
   // Berechnung NUR für reguläre Positionen (Bedarfspositionen werden NICHT in Gesamtsumme eingerechnet)
-  const berechnung = berechneDokumentSummen(regulaerePositionen);
-  const bedarfsBerechnung = berechneDokumentSummen(bedarfsPositionen);
-  const frachtUndVerpackung = (angebotsDaten.frachtkosten || 0) + (angebotsDaten.verpackungskosten || 0);
-  const gesamtrabattProzent = angebotsDaten.gesamtrabattProzent || 0;
-  const nettoVorRabatt = berechnung.nettobetrag + frachtUndVerpackung;
-  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
-  const nettoNachRabatt = nettoVorRabatt - gesamtrabattBetrag;
-  const gesamtBrutto = nettoNachRabatt * 1.19;
+  // Identische Steuerlogik wie in der Rechnung: berechneAngebotsSummen kapselt
+  // Reverse Charge, abweichende Steuersätze und Positionen mit `ohneMwSt`.
+  const steuerOptionen = {
+    ohneMehrwertsteuer: angebotsDaten.ohneMehrwertsteuer,
+    mehrwertsteuersatz: angebotsDaten.mehrwertsteuersatz,
+  };
+  const berechnung = berechneDokumentSummen(
+    regulaerePositionen,
+    angebotsDaten.ohneMehrwertsteuer,
+    angebotsDaten.mehrwertsteuersatz
+  );
+  const summen = berechneAngebotsSummen(regulaerePositionen, {
+    frachtkosten: angebotsDaten.frachtkosten,
+    verpackungskosten: angebotsDaten.verpackungskosten,
+    gesamtrabattProzent: angebotsDaten.gesamtrabattProzent,
+    ...steuerOptionen,
+  });
+  const bedarfsSummen = berechneAngebotsSummen(bedarfsPositionen, steuerOptionen);
+  const bedarfsBerechnung = berechneDokumentSummen(
+    bedarfsPositionen,
+    angebotsDaten.ohneMehrwertsteuer,
+    angebotsDaten.mehrwertsteuersatz
+  );
+  const frachtUndVerpackung = summen.frachtUndVerpackung;
+  const gesamtrabattProzent = summen.gesamtrabattProzent;
+  const nettoVorRabatt = summen.nettoVorRabatt;
+  const gesamtrabattBetrag = summen.gesamtrabattBetrag;
+  const nettoNachRabatt = summen.nettoGesamt;
+  const gesamtBrutto = summen.bruttobetrag;
 
   // DB1-Berechnung (intern - nur für UI, nicht im PDF) - nur reguläre Positionen
   const db1Berechnung = (() => {
@@ -2491,8 +2512,23 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               <div className="space-y-4">
                 {angebotsDaten.positionen.map((position, index) => (
                   <SortablePosition key={position.id} id={position.id} accentColor={position.istBedarfsposition ? 'orange' : 'blue'}>
-                    {/* Bedarfsposition-Toggle - kompakt oben rechts */}
-                    <div className="flex justify-end mb-2">
+                    {/* Positions-Toggles - kompakt oben rechts */}
+                    <div className="flex flex-wrap justify-end gap-2 mb-2">
+                      {/* Position ist bereits Brutto (z.B. Versandkosten aus dem Universal-Katalog) */}
+                      <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg transition-colors ${
+                        position.ohneMwSt
+                          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={position.ohneMwSt || false}
+                          onChange={(e) => handlePositionChange(index, 'ohneMwSt', e.target.checked)}
+                          className="w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-600 rounded focus:ring-amber-500"
+                        />
+                        <span className="text-sm font-medium">ohne MwSt (bereits Brutto)</span>
+                      </label>
+
                       <label className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg transition-colors ${
                         position.istBedarfsposition
                           ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
@@ -2674,6 +2710,68 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 rows={5}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
+            )}
+          </div>
+        </div>
+
+        {/* Steueroptionen - identisch zur Rechnung, damit Angebot und Rechnung übereinstimmen */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text mb-4">Steueroptionen</h2>
+          <div className="space-y-4">
+            {/* Checkbox: Nettoangebot (ohne MwSt.) */}
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={angebotsDaten.ohneMehrwertsteuer || false}
+                onChange={(e) => handleInputChange('ohneMehrwertsteuer', e.target.checked)}
+                className="w-5 h-5 mt-0.5 text-amber-600 border-gray-300 dark:border-slate-700 rounded focus:ring-amber-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-dark-text">Nettoangebot (ohne Mehrwertsteuer)</span>
+                <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
+                  Steuerfreie innergemeinschaftliche Lieferung / Reverse Charge gem. § 13b UStG
+                </p>
+              </div>
+            </label>
+
+            {/* MwSt.-Satz Auswahl (nur wenn NICHT Nettoangebot) */}
+            {!angebotsDaten.ohneMehrwertsteuer && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  Mehrwertsteuersatz
+                </label>
+                <select
+                  value={(angebotsDaten.mehrwertsteuersatz ?? 19).toString()}
+                  onChange={(e) => handleInputChange('mehrwertsteuersatz', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
+                >
+                  <option value="19">19% (Deutschland)</option>
+                  <option value="20">20% (Österreich)</option>
+                  <option value="8.1">8,1% (Schweiz)</option>
+                  <option value="21">21% (Niederlande, Belgien)</option>
+                  <option value="22">22% (Italien)</option>
+                  <option value="7">7% (Deutschland ermäßigt)</option>
+                </select>
+              </div>
+            )}
+
+            {/* Reverse Charge Hinweis und USt-IdNr. (nur bei Nettoangebot) */}
+            {angebotsDaten.ohneMehrwertsteuer && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                  USt-IdNr. des Kunden (optional)
+                </label>
+                <input
+                  type="text"
+                  value={angebotsDaten.kundenUstIdNr || ''}
+                  onChange={(e) => handleInputChange('kundenUstIdNr', e.target.value)}
+                  placeholder="z.B. ATU12345678"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-transparent"
+                />
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  Die USt-IdNr. wird auf dem Angebot ausgewiesen
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -3215,9 +3313,11 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               )}
 
               <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-600 dark:text-dark-textMuted">MwSt. (19%):</span>
-                <span className="font-medium text-gray-900 dark:text-dark-text">
-                  {(nettoNachRabatt * 0.19).toFixed(2)} €
+                <span className="text-gray-600 dark:text-dark-textMuted">
+                  {angebotsDaten.ohneMehrwertsteuer ? 'MwSt.:' : `MwSt. (${summen.umsatzsteuersatz}%):`}
+                </span>
+                <span className={`font-medium ${angebotsDaten.ohneMehrwertsteuer ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-dark-text'}`}>
+                  {angebotsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${summen.umsatzsteuer.toFixed(2)} €`}
                 </span>
               </div>
 
@@ -3257,7 +3357,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500 dark:text-gray-400">Brutto:</span>
-                    <span className="font-bold text-orange-600 dark:text-orange-400">{(bedarfsBerechnung.nettobetrag * 1.19).toFixed(2)} €</span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">
+                      {angebotsDaten.ohneMehrwertsteuer ? 'steuerfrei' : `${bedarfsSummen.bruttobetrag.toFixed(2)} €`}
+                    </span>
                   </div>
                   <p className="text-xs text-orange-600 dark:text-orange-500 mt-2 italic">
                     Diese Positionen sind NICHT in der Angebotssumme enthalten und werden im PDF separat ausgewiesen.

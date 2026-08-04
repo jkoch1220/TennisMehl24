@@ -1,9 +1,10 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
-import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten, VertragsKlausel } from '../types/projektabwicklung';
+import { AngebotsDaten, AuftragsbestaetigungsDaten, LieferscheinDaten, Position, VertragsKlausel } from '../types/projektabwicklung';
 import { Stammdaten } from '../types/stammdaten';
 import { getStammdatenOderDefault } from './stammdatenService';
+import { berechneDokumentSummen } from './rechnungService';
 import { getAgbAbschnitte } from '../constants/vertragsklauseln';
 import {
   addDIN5008Header,
@@ -23,6 +24,65 @@ import {
 } from './pdfHelpers';
 
 const primaryColor: [number, number, number] = [220, 38, 38]; // red-600
+
+const runde = (betrag: number): number => Math.round(betrag * 100) / 100;
+
+/**
+ * Summen für Angebot und Auftragsbestätigung — rechnet exakt wie die Rechnung.
+ *
+ * Bis 08/2026 stand hier ein hartkodiertes `* 0.19`: Angebote konnten weder
+ * steuerfrei (Reverse Charge) noch mit abweichendem Satz erstellt werden, und
+ * Positionen mit `ohneMwSt` (bereits Brutto, z.B. Versandkosten aus dem
+ * Universal-Katalog) wurden doppelt besteuert. Ein Angebot wies dadurch einen
+ * anderen Betrag aus als die spätere Rechnung über dieselben Positionen.
+ *
+ * Basis ist jetzt `berechneDokumentSummen` aus dem rechnungService — dieselbe
+ * Funktion, die auch die Rechnung verwendet. Fracht/Verpackung kommen als
+ * regelbesteuerter Netto-Betrag obendrauf; der Gesamtrabatt reduziert Netto und
+ * Steuer proportional, ebenfalls wie im rechnungService.
+ */
+export const berechneAngebotsSummen = (
+  positionen: Position[],
+  optionen: {
+    frachtkosten?: number;
+    verpackungskosten?: number;
+    gesamtrabattProzent?: number;
+    ohneMehrwertsteuer?: boolean;
+    mehrwertsteuersatz?: number;
+  } = {}
+) => {
+  const berechnung = berechneDokumentSummen(
+    positionen,
+    optionen.ohneMehrwertsteuer,
+    optionen.mehrwertsteuersatz
+  );
+
+  const frachtUndVerpackung = runde((optionen.frachtkosten || 0) + (optionen.verpackungskosten || 0));
+  const umsatzsteuersatz = berechnung.umsatzsteuersatz;
+
+  const nettoVorRabatt = runde(berechnung.nettobetrag + frachtUndVerpackung);
+  const gesamtrabattProzent = optionen.gesamtrabattProzent || 0;
+  const rabattFaktor = gesamtrabattProzent > 0 ? gesamtrabattProzent / 100 : 0;
+  const gesamtrabattBetrag = runde(nettoVorRabatt * rabattFaktor);
+  const nettoGesamt = runde(nettoVorRabatt - gesamtrabattBetrag);
+
+  // Steuer auf Positionen (kennt Brutto-Positionen bereits) + Steuer auf Fracht
+  const steuerVorRabatt = berechnung.umsatzsteuer + frachtUndVerpackung * (umsatzsteuersatz / 100);
+  const umsatzsteuer = runde(steuerVorRabatt * (1 - rabattFaktor));
+  const bruttobetrag = runde(nettoGesamt + umsatzsteuer);
+
+  return {
+    nettoPositionen: berechnung.nettobetrag,
+    frachtUndVerpackung,
+    nettoVorRabatt,
+    gesamtrabattProzent,
+    gesamtrabattBetrag,
+    nettoGesamt,
+    umsatzsteuer,
+    umsatzsteuersatz,
+    bruttobetrag,
+  };
+};
 
 // === BLOCKÜBERSCHRIFTEN (Lieferbedingungen, Zahlungsbedingungen, Klauseln, ...) ===
 /**
@@ -668,14 +728,19 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
       }
     });
 
-    // Bedarfspositionen-Summe (optional anzeigen)
-    const bedarfsNetto = bedarfsPositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
-    const bedarfsBrutto = bedarfsNetto * 1.19;
+    // Bedarfspositionen-Summe (optional anzeigen) - gleiche Steuerlogik wie die Hauptsumme
+    const bedarfsSummen = berechneAngebotsSummen(bedarfsPositionen, {
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+    });
 
     summenY = (doc as any).lastAutoTable.finalY + 5;
     doc.setFontSize(9);
     doc.setTextColor(237, 137, 54);
-    doc.text(`Summe Bedarfspositionen: ${formatWaehrung(bedarfsNetto)} netto / ${formatWaehrung(bedarfsBrutto)} brutto`, 25, summenY);
+    const bedarfsSummenText = daten.ohneMehrwertsteuer
+      ? `Summe Bedarfspositionen: ${formatWaehrung(bedarfsSummen.nettoGesamt)} netto (steuerfrei)`
+      : `Summe Bedarfspositionen: ${formatWaehrung(bedarfsSummen.nettoGesamt)} netto / ${formatWaehrung(bedarfsSummen.bruttobetrag)} brutto`;
+    doc.text(bedarfsSummenText, 25, summenY);
     doc.setTextColor(0, 0, 0);
 
     summenY = (doc as any).lastAutoTable.finalY || summenY;
@@ -684,19 +749,20 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
   // === Summen (nur reguläre Positionen) ===
 
   // Berechnung immer durchführen (für Skonto etc.) - NUR reguläre Positionen
-  const nettobetrag = regulaerePositionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
-  const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-  const nettoVorRabatt = nettobetrag + frachtUndVerpackung;
-  const gesamtrabattProzent = daten.gesamtrabattProzent || 0;
-  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
-  const nettoGesamt = nettoVorRabatt - gesamtrabattBetrag;
-  const umsatzsteuer = nettoGesamt * 0.19;
-  const bruttobetrag = nettoGesamt + umsatzsteuer;
+  const summen = berechneAngebotsSummen(regulaerePositionen, {
+    frachtkosten: daten.frachtkosten,
+    verpackungskosten: daten.verpackungskosten,
+    gesamtrabattProzent: daten.gesamtrabattProzent,
+    ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+    mehrwertsteuersatz: daten.mehrwertsteuersatz,
+  });
+  const { frachtUndVerpackung, gesamtrabattProzent, gesamtrabattBetrag, nettoGesamt, umsatzsteuer, bruttobetrag } = summen;
+  const nettobetrag = summen.nettoPositionen;
 
   // Summen nur anzeigen wenn nicht ausgeblendet
   if (!daten.endpreisAusblenden) {
-    // Prüfe ob genug Platz für Summen-Block (ca. 35mm Höhe)
-    summenY = await ensureSpace(doc, summenY, 35, stammdaten);
+    // Prüfe ob genug Platz für Summen-Block (ca. 35mm, bei Reverse Charge zzgl. Hinweisbox)
+    summenY = await ensureSpace(doc, summenY, daten.ohneMehrwertsteuer ? 55 : 35, stammdaten);
 
     const summenX = 125;
     summenY += 6;
@@ -730,8 +796,16 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     }
 
     summenY += 6;
-    doc.text('MwSt. (19%):', summenX, summenY);
-    doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+    if (daten.ohneMehrwertsteuer) {
+      // Steuerfreies Angebot (Reverse Charge / Ausland)
+      doc.setTextColor(100, 100, 100);
+      doc.text('MwSt.:', summenX, summenY);
+      doc.text('steuerfrei', 180, summenY, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+    } else {
+      doc.text(`MwSt. (${summen.umsatzsteuersatz}%):`, summenX, summenY);
+      doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+    }
 
     // Trennlinie
     summenY += 2;
@@ -745,6 +819,29 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     doc.text('Angebotssumme:', summenX, summenY);
     doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
     doc.setFont('helvetica', 'normal');
+
+    // === Hinweis Reverse Charge / steuerfreie Lieferung (wie auf der Rechnung) ===
+    if (daten.ohneMehrwertsteuer) {
+      summenY += 10;
+      doc.setFillColor(254, 243, 199); // amber-100
+      doc.setDrawColor(245, 158, 11); // amber-500
+      doc.setLineWidth(0.5);
+      const hinweisHoehe = daten.kundenUstIdNr ? 16 : 12;
+      doc.roundedRect(25, summenY - 4, 160, hinweisHoehe, 2, 2, 'FD');
+
+      doc.setFontSize(8);
+      doc.setTextColor(146, 64, 14); // amber-800
+      doc.setFont('helvetica', 'bold');
+      doc.text('Steuerfreie innergemeinschaftliche Lieferung', 30, summenY + 1);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text('Reverse Charge - Steuerschuldnerschaft des Leistungsempfängers gem. § 13b UStG', 30, summenY + 5);
+      if (daten.kundenUstIdNr) {
+        doc.text(`USt-IdNr. des Leistungsempfängers: ${daten.kundenUstIdNr}`, 30, summenY + 9);
+      }
+      doc.setTextColor(0, 0, 0);
+      summenY += hinweisHoehe;
+    }
   } else if (daten.endpreisAlternativText) {
     // Alternativtext anzeigen (z.B. "gemäß Menge")
     summenY += 6;
@@ -1365,16 +1462,17 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   // === Summen ===
   let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
 
-  // Prüfe ob genug Platz für Summen-Block
-  summenY = await ensureSpace(doc, summenY, 35, stammdaten);
-  const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
-  const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-  const nettoVorRabatt = nettobetrag + frachtUndVerpackung;
-  const gesamtrabattProzent = daten.gesamtrabattProzent || 0;
-  const gesamtrabattBetrag = nettoVorRabatt * (gesamtrabattProzent / 100);
-  const nettoGesamt = nettoVorRabatt - gesamtrabattBetrag;
-  const umsatzsteuer = nettoGesamt * 0.19;
-  const bruttobetrag = nettoGesamt + umsatzsteuer;
+  // Prüfe ob genug Platz für Summen-Block (bei Reverse Charge zzgl. Hinweisbox)
+  summenY = await ensureSpace(doc, summenY, daten.ohneMehrwertsteuer ? 55 : 35, stammdaten);
+  const summen = berechneAngebotsSummen(daten.positionen, {
+    frachtkosten: daten.frachtkosten,
+    verpackungskosten: daten.verpackungskosten,
+    gesamtrabattProzent: daten.gesamtrabattProzent,
+    ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+    mehrwertsteuersatz: daten.mehrwertsteuersatz,
+  });
+  const { frachtUndVerpackung, gesamtrabattProzent, gesamtrabattBetrag, nettoGesamt, umsatzsteuer, bruttobetrag } = summen;
+  const nettobetrag = summen.nettoPositionen;
 
   const summenX = 125;
   summenY += 6;
@@ -1408,8 +1506,16 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   }
 
   summenY += 6;
-  doc.text('MwSt. (19%):', summenX, summenY);
-  doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+  if (daten.ohneMehrwertsteuer) {
+    // Steuerfreie Auftragsbestätigung (Reverse Charge / Ausland)
+    doc.setTextColor(100, 100, 100);
+    doc.text('MwSt.:', summenX, summenY);
+    doc.text('steuerfrei', 180, summenY, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+  } else {
+    doc.text(`MwSt. (${summen.umsatzsteuersatz}%):`, summenX, summenY);
+    doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+  }
 
   // Trennlinie
   summenY += 2;
@@ -1423,7 +1529,31 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   doc.text('Auftragssumme:', summenX, summenY);
   doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
   doc.setFont('helvetica', 'normal');
-  
+
+  // === Hinweis Reverse Charge / steuerfreie Lieferung (wie auf der Rechnung) ===
+  if (daten.ohneMehrwertsteuer) {
+    summenY += 10;
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.setDrawColor(245, 158, 11); // amber-500
+    doc.setLineWidth(0.5);
+    const hinweisHoehe = daten.kundenUstIdNr ? 16 : 12;
+    doc.roundedRect(25, summenY - 4, 160, hinweisHoehe, 2, 2, 'FD');
+
+    doc.setFontSize(8);
+    doc.setTextColor(146, 64, 14); // amber-800
+    doc.setFont('helvetica', 'bold');
+    doc.text('Steuerfreie innergemeinschaftliche Lieferung', 30, summenY + 1);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text('Reverse Charge - Steuerschuldnerschaft des Leistungsempfängers gem. § 13b UStG', 30, summenY + 5);
+    if (daten.kundenUstIdNr) {
+      doc.text(`USt-IdNr. des Leistungsempfängers: ${daten.kundenUstIdNr}`, 30, summenY + 9);
+    }
+    doc.setTextColor(0, 0, 0);
+    summenY += hinweisHoehe;
+  }
+
+
   // === Liefersaison-Hinweis (undefined = anzeigen, für bestehende Dokumente) ===
   if (daten.liefersaisonAnzeigen !== false) {
     summenY += 8;

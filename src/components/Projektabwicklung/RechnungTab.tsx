@@ -641,6 +641,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
         let initialePositionen: Position[] = [];
         let abRabattProzent: number | undefined;
         let abRabattBezeichnung: string | undefined;
+        let abOhneMwSt: boolean | undefined;
+        let abMwStSatz: number | undefined;
+        let abKundenUstIdNr: string | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'rechnung');
@@ -649,9 +652,15 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             console.log('✅ Stückliste von Auftragsbestätigung übernommen:', initialePositionen.length, 'Positionen');
           }
 
-          // Gesamtrabatt von Auftragsbestätigung übernehmen (finalisiert oder Entwurf)
+          // Gesamtrabatt + Steueroptionen von Auftragsbestätigung übernehmen (finalisiert oder Entwurf)
           try {
-            let abDaten: { gesamtrabattProzent?: number; gesamtrabattBezeichnung?: string } | null = null;
+            let abDaten: {
+              gesamtrabattProzent?: number;
+              gesamtrabattBezeichnung?: string;
+              ohneMehrwertsteuer?: boolean;
+              mehrwertsteuersatz?: number;
+              kundenUstIdNr?: string;
+            } | null = null;
             const finalisierteAB = await ladeDokumentNachTyp(projekt.$id, 'auftragsbestaetigung');
             if (finalisierteAB) {
               abDaten = ladeDokumentDaten(finalisierteAB);
@@ -662,6 +671,14 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               abRabattProzent = abDaten.gesamtrabattProzent;
               abRabattBezeichnung = abDaten.gesamtrabattBezeichnung;
               console.log('✅ Gesamtrabatt von Auftragsbestätigung übernommen:', abRabattProzent, '%');
+            }
+            // Steueroptionen mitnehmen — die Rechnung muss denselben Betrag ausweisen
+            // wie die bestätigte AB
+            abOhneMwSt = abDaten?.ohneMehrwertsteuer;
+            abMwStSatz = abDaten?.mehrwertsteuersatz;
+            abKundenUstIdNr = abDaten?.kundenUstIdNr;
+            if (abOhneMwSt || abMwStSatz) {
+              console.log('✅ Steueroptionen von Auftragsbestätigung übernommen:', { abOhneMwSt, abMwStSatz });
             }
           } catch (error) {
             console.warn('Gesamtrabatt von Auftragsbestätigung konnte nicht geladen werden:', error);
@@ -806,6 +823,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           lieferadressePlzOrt,
           gesamtrabattProzent: prev.gesamtrabattProzent ?? abRabattProzent,
           gesamtrabattBezeichnung: prev.gesamtrabattBezeichnung ?? abRabattBezeichnung,
+          // Steueroptionen von der Auftragsbestätigung übernehmen
+          ohneMehrwertsteuer: prev.ohneMehrwertsteuer ?? abOhneMwSt,
+          mehrwertsteuersatz: prev.mehrwertsteuersatz ?? abMwStSatz,
+          kundenUstIdNr: prev.kundenUstIdNr ?? abKundenUstIdNr,
         }));
         datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
