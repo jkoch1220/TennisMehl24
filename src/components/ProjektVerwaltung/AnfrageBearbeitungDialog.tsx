@@ -265,6 +265,31 @@ const AnfrageBearbeitungDialog = ({
   // Automatisch gefundene existierende Kunden
   const [gefundeneKunden, setGefundeneKunden] = useState<GefundenerKunde[]>([]);
 
+  // Hintergrund-Scroll sperren, solange der Dialog offen ist.
+  // Ohne das scrollt die Seite unter dem Overlay weiter — und der `backdrop-blur`
+  // muss dann in jedem Scroll-Frame den kompletten Hintergrund neu weichzeichnen.
+  // Genau das erzeugt das flimmernde Bild beim Scrollen.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const body = document.body;
+    const vorherOverflow = body.style.overflow;
+    const vorherPaddingRight = body.style.paddingRight;
+
+    // Scrollbalken-Breite ausgleichen, sonst springt das Layout beim Öffnen/Schließen
+    const scrollbarBreite = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarBreite > 0) {
+      const aktuellesPadding = parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+      body.style.paddingRight = `${aktuellesPadding + scrollbarBreite}px`;
+    }
+    body.style.overflow = 'hidden';
+
+    return () => {
+      body.style.overflow = vorherOverflow;
+      body.style.paddingRight = vorherPaddingRight;
+    };
+  }, [isOpen]);
+
   // Lade Kunden
   useEffect(() => {
     const ladeKunden = async () => {
@@ -1065,19 +1090,23 @@ const AnfrageBearbeitungDialog = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 transition-all duration-200 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity duration-200 ${
         isClosing ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      {/* Backdrop */}
+      {/* Backdrop — eigener Compositing-Layer, sonst zeichnet Chrome den Blur
+          bei jedem Repaint neu und das Bild zerreißt sichtbar. */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transform-gpu [backface-visibility:hidden]"
         onClick={handleClose}
       />
 
-      {/* Dialog */}
+      {/* Dialog — `svh` statt `dvh`: die dynamische Viewport-Einheit ändert sich beim
+          Scrollen mit der ein-/ausklappenden Browser-Toolbar, wodurch die Dialoghöhe
+          mitspringt. `transition-opacity`/`transform` statt `transition-all`, damit
+          nachladende Inhalte (Positionen, Preise) keine Layout-Animation auslösen. */}
       <div
-        className={`relative w-full h-[95dvh] sm:h-[95vh] max-w-[98vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+        className={`relative w-full h-[95svh] sm:h-[95vh] max-w-[98vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col transform-gpu transition-[opacity,transform] duration-200 ${
           isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
         }`}
       >
