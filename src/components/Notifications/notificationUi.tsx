@@ -1,7 +1,7 @@
 /**
  * Geteilte UI-Helfer für Benachrichtigungen (Glocke + Startseite).
  */
-import { ShoppingCart, Mail, AlertTriangle, Euro, Bell } from 'lucide-react';
+import { ShoppingCart, Mail, AlertTriangle, Euro, Bell, CalendarClock } from 'lucide-react';
 import type { NotificationTyp } from '../../types/notification';
 
 /** Icon-Komponente passend zum Benachrichtigungstyp. */
@@ -11,6 +11,8 @@ export function getTypIcon(typ: NotificationTyp, className = 'w-5 h-5') {
       return <ShoppingCart className={className} />;
     case 'anfrage':
       return <Mail className={className} />;
+    case 'rechnung_faellig':
+      return <CalendarClock className={className} />;
     case 'mahnung':
       return <AlertTriangle className={className} />;
     case 'zahlung':
@@ -27,6 +29,10 @@ export function getTypFarbe(typ: NotificationTyp): string {
       return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
     case 'anfrage':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    case 'rechnung_faellig':
+      // Bernstein statt Rot: Die Rechnung ist fällig, aber noch nicht eskaliert.
+      // Rot bleibt der Mahnung vorbehalten.
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
     case 'mahnung':
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
     case 'zahlung':
@@ -43,6 +49,8 @@ export function getTypLabel(typ: NotificationTyp): string {
       return 'Shop-Bestellung';
     case 'anfrage':
       return 'Anfrage';
+    case 'rechnung_faellig':
+      return 'Rechnung fällig';
     case 'mahnung':
       return 'Mahnung';
     case 'zahlung':

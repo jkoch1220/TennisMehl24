@@ -15,6 +15,12 @@
 export type NotificationTyp =
   | 'shop_bestellung'
   | 'anfrage'
+  /**
+   * Rechnung hat ihr Zahlungsziel gerade überschritten ("frisch fällig").
+   * Bewusst getrennt von 'mahnung': hier ist noch nichts gemahnt, die Rechnung
+   * ist nur unbezahlt über den Termin gelaufen und will geprüft werden.
+   */
+  | 'rechnung_faellig'
   | 'mahnung'
   | 'zahlung';
 

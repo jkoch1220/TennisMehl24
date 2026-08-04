@@ -106,7 +106,7 @@ const NotificationsHomeSection = () => {
               Keine neuen Benachrichtigungen
             </p>
             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-              Neue Shop-Bestellungen und Anfragen erscheinen hier automatisch.
+              Neue Shop-Bestellungen, Anfragen und überfällige Rechnungen erscheinen hier automatisch.
             </p>
           </div>
         ) : (

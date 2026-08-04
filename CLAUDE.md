@@ -283,6 +283,18 @@ VITE_BACKEND_APPWRITE=false  # Appwrite-Proxy
 | `email-send.ts` | E-Mails versenden |
 | `email-sync.ts` | Kundenanfragen aus Postfach synchronisieren |
 | `kalender-ics.ts` | Kalender-Export als ICS |
+| `notifications-generate.ts` | Scheduled (alle 5 Min): erzeugt Benachrichtigungen für neue Anfragen, Shop-Bestellungen und frisch fällige Rechnungen |
+
+**Benachrichtigungen — „Rechnung frisch fällig"**
+
+`notifications-generate.ts` meldet eine Rechnung genau dann, wenn ihr Zahlungsziel
+**1 bis 14 Tage** überschritten ist. Die Obergrenze entspricht der Systemgrenze aus
+`types/debitor.ts` (`faellig` bis 14 Tage, danach `ueberfaellig` → Mahnwesen). Altfälle
+bleiben so draußen. Nicht gemeldet werden bezahlte, teilbezahlte, bereits gemahnte sowie
+stornierte/reklamierte Forderungen. Pro Rechnung entsteht über `refTyp: 'rechnung_faellig'`
++ `refId: projektId` genau **eine** Meldung (Unique-Index), sie wiederholt sich nicht täglich.
+
+Grenzfälle prüfen (ohne Datenbank): `npx tsx scripts/test-rechnung-faellig.ts`
 
 **Frontend-Aufruf:**
 ```typescript
