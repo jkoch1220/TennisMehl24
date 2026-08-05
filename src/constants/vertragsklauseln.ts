@@ -11,6 +11,24 @@
 import { Stammdaten } from '../types/stammdaten';
 import { VertragsKlausel } from '../types/projektabwicklung';
 
+// === LIEFER- UND ZAHLUNGSBEDINGUNGEN ===
+
+/**
+ * Standard-Lieferbedingungen auf Angebot und Auftragsbestätigung.
+ *
+ * Stand bis 08/2026 an vier Stellen wortgleich hartkodiert (Anfrage-Dialog +
+ * drei Pfade im anfrageVerarbeitungService). Hier zentral, damit eine Änderung
+ * nicht wieder auseinanderläuft.
+ */
+export const STANDARD_LIEFERBEDINGUNGEN =
+  'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t ' +
+  'und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m ' +
+  'Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der ' +
+  'Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
+
+/** Standard-Zahlungsziel auf Angeboten aus Anfragen. */
+export const STANDARD_ZAHLUNGSZIEL = '14 Tage';
+
 // === KLAUSEL-VORLAGEN ===
 
 export interface KlauselVorlage {

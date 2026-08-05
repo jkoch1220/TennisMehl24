@@ -988,28 +988,37 @@ export const generiereAngebotPDF = async (daten: AngebotsDaten, stammdaten?: Sta
     lieferbedingungenBlockHeight += 2 + getTextHeight(lieferbedingungenLines);
   }
 
-  // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
-  summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
+  // Überschrift nur drucken, wenn der Block überhaupt Inhalt hat. Sonst bliebe beim
+  // Abwählen der Lieferbedingungen eine nackte Überschrift ohne Text stehen.
+  const hatLieferbedingungenInhalt =
+    Boolean(daten.lieferzeit) ||
+    Boolean(daten.lieferdatum) ||
+    lieferbedingungenLines.length > 0;
 
-  // Jetzt rendern - alles bleibt zusammen
-  addBlockUeberschrift(doc, 'Lieferbedingungen', summenY);
+  if (hatLieferbedingungenInhalt) {
+    // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
+    summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
 
-  summenY += 5;
-  if (daten.lieferzeit) {
-    doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
-    summenY += 4;
-  }
-  if (daten.lieferdatum) {
-    doc.text(`Lieferdatum: ${formatDatum(daten.lieferdatum)}`, 25, summenY);
-    summenY += 4;
+    // Jetzt rendern - alles bleibt zusammen
+    addBlockUeberschrift(doc, 'Lieferbedingungen', summenY);
+
+    summenY += 5;
+    if (daten.lieferzeit) {
+      doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
+      summenY += 4;
+    }
+    if (daten.lieferdatum) {
+      doc.text(`Lieferdatum: ${formatDatum(daten.lieferdatum)}`, 25, summenY);
+      summenY += 4;
+    }
+
+    if (lieferbedingungenLines.length > 0) {
+      summenY += 2;
+      doc.text(lieferbedingungenLines, 25, summenY);
+      summenY += getTextHeight(lieferbedingungenLines);
+    }
   }
 
-  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
-    summenY += 2;
-    doc.text(lieferbedingungenLines, 25, summenY);
-    summenY += getTextHeight(lieferbedingungenLines);
-  }
-  
   // === Zahlungsbedingungen ===
   summenY += 5;
 
@@ -1606,6 +1615,16 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     lieferbedingungenBlockHeight += 2 + getTextHeight(lieferbedingungenLines);
   }
 
+  // Überschrift nur drucken, wenn der Block überhaupt Inhalt hat. Sonst bliebe beim
+  // Abwählen der Lieferbedingungen eine nackte Überschrift ohne Text stehen.
+  const hatLieferbedingungenInhalt =
+    Boolean(daten.lieferzeit) ||
+    Boolean(daten.lieferKW) ||
+    Boolean(daten.belieferungsart) ||
+    Boolean(daten.bevorzugterTag) ||
+    lieferbedingungenLines.length > 0;
+
+  if (hatLieferbedingungenInhalt) {
   // Prüfe Platz für den GESAMTEN Block (Überschrift + Inhalt zusammen)
   summenY = await ensureSpace(doc, summenY, lieferbedingungenBlockHeight, stammdaten);
 
@@ -1652,12 +1671,13 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     }
   }
 
-  if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
+  if (lieferbedingungenLines.length > 0) {
     summenY += 2;
     doc.text(lieferbedingungenLines, 25, summenY);
     summenY += getTextHeight(lieferbedingungenLines);
   }
-  
+  }
+
   // === Zahlungsbedingungen ===
   // Nur anzeigen wenn nicht ausgeblendet
   if (!daten.zahlungsbedingungenAusblenden) {

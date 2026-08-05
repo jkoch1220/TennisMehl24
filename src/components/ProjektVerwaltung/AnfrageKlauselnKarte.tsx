@@ -1,28 +1,52 @@
-import { ScrollText, RotateCcw, FileText } from 'lucide-react';
+import { ScrollText, RotateCcw, FileText, Truck, CreditCard } from 'lucide-react';
 import { VertragsKlausel } from '../../types/projektabwicklung';
-import { KlauselVorlage } from '../../constants/vertragsklauseln';
+import {
+  KlauselVorlage,
+  STANDARD_LIEFERBEDINGUNGEN,
+  STANDARD_ZAHLUNGSZIEL,
+} from '../../constants/vertragsklauseln';
 
 interface AnfrageKlauselnKarteProps {
   klauseln: VertragsKlausel[];
   agbAnhaengen: boolean;
   vorlagen: KlauselVorlage[];
+  lieferbedingungenAktiv: boolean;
+  lieferbedingungenText: string;
+  zahlungsbedingungenAktiv: boolean;
+  zahlungsziel: string;
   onKlauselnChange: (klauseln: VertragsKlausel[]) => void;
   onAgbAnhaengenChange: (agbAnhaengen: boolean) => void;
+  onLieferbedingungenAktivChange: (aktiv: boolean) => void;
+  onLieferbedingungenTextChange: (text: string) => void;
+  onZahlungsbedingungenAktivChange: (aktiv: boolean) => void;
+  onZahlungszielChange: (zahlungsziel: string) => void;
 }
 
 /**
- * Klauseln + AGB-Anhang für das Angebot aus einer Anfrage.
+ * Klauseln, Liefer-/Zahlungsbedingungen und AGB-Anhang für das Angebot aus
+ * einer Anfrage.
  *
  * Inhaltlich dasselbe wie Projektabwicklung/VertragsklauselnKarte, aber im
  * Layout des Anfrage-Dialogs (graue Sektion, rounded-2xl, h3 mit Icon) und als
  * eine Sektion statt zwei separater Karten.
+ *
+ * Liefer- und Zahlungsbedingungen stehen bewusst oben: sie gelten immer und
+ * bilden die Basis, die einzelnen Klauseln ergänzen sie.
  */
 export default function AnfrageKlauselnKarte({
   klauseln,
   agbAnhaengen,
   vorlagen,
+  lieferbedingungenAktiv,
+  lieferbedingungenText,
+  zahlungsbedingungenAktiv,
+  zahlungsziel,
   onKlauselnChange,
   onAgbAnhaengenChange,
+  onLieferbedingungenAktivChange,
+  onLieferbedingungenTextChange,
+  onZahlungsbedingungenAktivChange,
+  onZahlungszielChange,
 }: AnfrageKlauselnKarteProps) {
   const aendereKlausel = (index: number, aenderung: Partial<VertragsKlausel>) => {
     onKlauselnChange(klauseln.map((k, i) => (i === index ? { ...k, ...aenderung } : k)));
@@ -35,7 +59,10 @@ export default function AnfrageKlauselnKarte({
     }
   };
 
-  const anzahlAktiv = klauseln.filter((k) => k.aktiviert).length;
+  const anzahlAktiv =
+    klauseln.filter((k) => k.aktiviert).length +
+    (lieferbedingungenAktiv ? 1 : 0) +
+    (zahlungsbedingungenAktiv ? 1 : 0);
 
   return (
     <div className="bg-gray-50 dark:bg-slate-800/50 rounded-2xl p-4 sm:p-6">
@@ -51,6 +78,115 @@ export default function AnfrageKlauselnKarte({
       </p>
 
       <div className="space-y-2">
+        {/* Lieferbedingungen */}
+        <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
+          <div className="flex items-start gap-3">
+            <input
+              id="anfrage-lieferbedingungen"
+              type="checkbox"
+              checked={lieferbedingungenAktiv}
+              onChange={(e) => onLieferbedingungenAktivChange(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-amber-500 flex-shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="anfrage-lieferbedingungen"
+                className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
+              >
+                <Truck className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                Lieferbedingungen
+              </label>
+              {!lieferbedingungenAktiv && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                  {lieferbedingungenText}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {lieferbedingungenAktiv && (
+            <div className="mt-2 ml-7">
+              <textarea
+                value={lieferbedingungenText}
+                onChange={(e) => onLieferbedingungenTextChange(e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-y"
+              />
+              <button
+                type="button"
+                onClick={() => onLieferbedingungenTextChange(STANDARD_LIEFERBEDINGUNGEN)}
+                disabled={lieferbedingungenText === STANDARD_LIEFERBEDINGUNGEN}
+                className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-40 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Auf Standard zurücksetzen
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Zahlungsbedingungen */}
+        <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700">
+          <div className="flex items-start gap-3">
+            <input
+              id="anfrage-zahlungsbedingungen"
+              type="checkbox"
+              checked={zahlungsbedingungenAktiv}
+              onChange={(e) => onZahlungsbedingungenAktivChange(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-amber-600 border-gray-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-amber-500 flex-shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="anfrage-zahlungsbedingungen"
+                className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                Zahlungsbedingungen
+              </label>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {zahlungsbedingungenAktiv
+                  ? 'Zahlungsziel wird im Angebot ausgewiesen.'
+                  : `Zahlungsziel: ${zahlungsziel || '—'} (wird nicht gedruckt)`}
+              </p>
+            </div>
+          </div>
+
+          {zahlungsbedingungenAktiv && (
+            <div className="mt-2 ml-7">
+              <label
+                htmlFor="anfrage-zahlungsziel"
+                className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1"
+              >
+                Zahlungsziel
+              </label>
+              <input
+                id="anfrage-zahlungsziel"
+                type="text"
+                value={zahlungsziel}
+                onChange={(e) => onZahlungszielChange(e.target.value)}
+                placeholder={STANDARD_ZAHLUNGSZIEL}
+                className="w-full sm:w-64 px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {['Vorkasse', '14 Tage', '30 Tage'].map((vorschlag) => (
+                  <button
+                    key={vorschlag}
+                    type="button"
+                    onClick={() => onZahlungszielChange(vorschlag)}
+                    className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                      zahlungsziel === vorschlag
+                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {vorschlag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {klauseln.length === 0 && (
           <p className="text-sm text-gray-400 dark:text-gray-500 italic">
             Keine Klausel-Vorlagen vorhanden. Vorlagen unter Stammdaten → „Klauseln &amp; AGB" anlegen.

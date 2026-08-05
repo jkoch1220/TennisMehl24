@@ -74,6 +74,8 @@ import {
   KlauselVorlage,
   getKlauselVorlagen,
   initialisiereDokumentKlauseln,
+  STANDARD_LIEFERBEDINGUNGEN,
+  STANDARD_ZAHLUNGSZIEL,
 } from '../../constants/vertragsklauseln';
 import { VertragsKlausel, AngebotsDaten } from '../../types/projektabwicklung';
 import { berechneSpeditionskosten, getZoneFromPLZ } from '../../constants/pricing';
@@ -205,6 +207,11 @@ const AnfrageBearbeitungDialog = ({
   const [klauselVorlagen, setKlauselVorlagen] = useState<KlauselVorlage[]>([]);
   const [vertragsklauseln, setVertragsklauseln] = useState<VertragsKlausel[]>([]);
   const [agbAnhaengen, setAgbAnhaengen] = useState(true);
+  // Liefer- und Zahlungsbedingungen sind pro Angebot abwählbar und editierbar
+  const [lieferbedingungenAktiv, setLieferbedingungenAktiv] = useState(true);
+  const [lieferbedingungenText, setLieferbedingungenText] = useState(STANDARD_LIEFERBEDINGUNGEN);
+  const [zahlungsbedingungenAktiv, setZahlungsbedingungenAktiv] = useState(true);
+  const [zahlungsziel, setZahlungsziel] = useState(STANDARD_ZAHLUNGSZIEL);
   const [processing, setProcessing] = useState(false);
   const [processingNurProjekt, setProcessingNurProjekt] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -504,6 +511,12 @@ const AnfrageBearbeitungDialog = ({
       // Klausel-Auswahl auf die Vorlagen-Defaults zurücksetzen
       setVertragsklauseln(initialisiereDokumentKlauseln(klauselVorlagen));
       setAgbAnhaengen(true);
+      // Liefer-/Zahlungsbedingungen gehören zur einzelnen Anfrage — sonst wirkt
+      // eine Abwahl in der nächsten Anfrage weiter
+      setLieferbedingungenAktiv(true);
+      setLieferbedingungenText(STANDARD_LIEFERBEDINGUNGEN);
+      setZahlungsbedingungenAktiv(true);
+      setZahlungsziel(STANDARD_ZAHLUNGSZIEL);
       setFortschrittListe([]);
       setShowFortschritt(false);
       setActiveTab('bearbeitung');
@@ -774,6 +787,10 @@ const AnfrageBearbeitungDialog = ({
         ansprechpartner: editedData.ansprechpartner,
         vertragsklauseln,
         agbAnhaengen,
+        lieferbedingungenAktiv,
+        lieferbedingungenText,
+        zahlungsbedingungenAktiv,
+        zahlungsziel,
       });
 
       window.open(pdfUrl, '_blank');
@@ -804,9 +821,6 @@ const AnfrageBearbeitungDialog = ({
 
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      // Wortgleich mit dem echten Angebot (anfrageVerarbeitungService), damit die
-      // Test-Mail zeigt, was der Kunde tatsächlich bekommt.
-      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
 
       const angebotsDaten: AngebotsDaten = {
         kundenname: editedData.kundenname,
@@ -816,10 +830,13 @@ const AnfrageBearbeitungDialog = ({
         angebotsdatum: heute,
         gueltigBis,
         positionen: allePositionen,
-        zahlungsziel: '14 Tage',
+        // Bedingungen wie im echten Angebot (anfrageVerarbeitungService), damit die
+        // Test-Mail zeigt, was der Kunde tatsächlich bekommt.
+        zahlungsziel,
+        zahlungsbedingungenAusblenden: !zahlungsbedingungenAktiv,
         ansprechpartner: editedData.ansprechpartner,
-        lieferbedingungenAktiviert: true,
-        lieferbedingungen: standardLieferbedingungen,
+        lieferbedingungenAktiviert: lieferbedingungenAktiv,
+        lieferbedingungen: lieferbedingungenText,
         // Klauseln + AGB wie im echten Angebot
         vertragsklauseln,
         agbAnhaengen,
@@ -900,6 +917,10 @@ const AnfrageBearbeitungDialog = ({
           telefonNotizen,
           vertragsklauseln,
           agbAnhaengen,
+          lieferbedingungenAktiv,
+          lieferbedingungenText,
+          zahlungsbedingungenAktiv,
+          zahlungsziel,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -958,6 +979,10 @@ const AnfrageBearbeitungDialog = ({
           telefonNotizen,
           vertragsklauseln,
           agbAnhaengen,
+          lieferbedingungenAktiv,
+          lieferbedingungenText,
+          zahlungsbedingungenAktiv,
+          zahlungsziel,
         },
         (fortschritt) => {
           setFortschrittListe((prev) => [...prev, fortschritt]);
@@ -2044,13 +2069,21 @@ const AnfrageBearbeitungDialog = ({
                   )}
                 </div>
 
-                {/* Klauseln & AGB-Anhang (wie in der Projektabwicklung) */}
+                {/* Klauseln, Liefer-/Zahlungsbedingungen & AGB-Anhang (wie in der Projektabwicklung) */}
                 <AnfrageKlauselnKarte
                   klauseln={vertragsklauseln}
                   agbAnhaengen={agbAnhaengen}
                   vorlagen={klauselVorlagen}
+                  lieferbedingungenAktiv={lieferbedingungenAktiv}
+                  lieferbedingungenText={lieferbedingungenText}
+                  zahlungsbedingungenAktiv={zahlungsbedingungenAktiv}
+                  zahlungsziel={zahlungsziel}
                   onKlauselnChange={setVertragsklauseln}
                   onAgbAnhaengenChange={setAgbAnhaengen}
+                  onLieferbedingungenAktivChange={setLieferbedingungenAktiv}
+                  onLieferbedingungenTextChange={setLieferbedingungenText}
+                  onZahlungsbedingungenAktivChange={setZahlungsbedingungenAktiv}
+                  onZahlungszielChange={setZahlungsziel}
                 />
 
                 {/* E-Mail Vorschau */}

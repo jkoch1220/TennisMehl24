@@ -16,6 +16,7 @@ import { speichereAngebot } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { anfragenService } from './anfragenService';
 import { AngebotsDaten, VertragsKlausel } from '../types/projektabwicklung';
+import { STANDARD_LIEFERBEDINGUNGEN, STANDARD_ZAHLUNGSZIEL } from '../constants/vertragsklauseln';
 import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
 import {
@@ -71,6 +72,14 @@ export interface AnfrageVerarbeitungInput {
   vertragsklauseln?: VertragsKlausel[];
   /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
   agbAnhaengen?: boolean;
+  /** Lieferbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  lieferbedingungenAktiv?: boolean;
+  /** Text der Lieferbedingungen (im Dialog editierbar). */
+  lieferbedingungenText?: string;
+  /** Zahlungsbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  zahlungsbedingungenAktiv?: boolean;
+  /** Zahlungsziel, z.B. "14 Tage" oder "Vorkasse". */
+  zahlungsziel?: string;
 }
 
 export interface AnfrageVerarbeitungErgebnis {
@@ -268,9 +277,6 @@ export async function verarbeiteAnfrageVollstaendig(
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      // Standard-Lieferbedingungen
-      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
-
       const angebotsDaten: AngebotsDaten = {
         kundenname: input.kundenDaten.name,
         kundenstrasse: input.kundenDaten.strasse,
@@ -281,11 +287,12 @@ export async function verarbeiteAnfrageVollstaendig(
         angebotsdatum: heute,
         gueltigBis,
         positionen: input.positionen,
-        zahlungsziel: '14 Tage',
+        zahlungsziel: input.zahlungsziel ?? STANDARD_ZAHLUNGSZIEL,
+        zahlungsbedingungenAusblenden: input.zahlungsbedingungenAktiv === false,
         // KEINE frachtkosten - sind bereits im Preis/Tonne der Positionen enthalten!
         // Lieferbedingungen (Standard wie in Projektabwicklung)
-        lieferbedingungenAktiviert: true,
-        lieferbedingungen: standardLieferbedingungen,
+        lieferbedingungenAktiviert: input.lieferbedingungenAktiv ?? true,
+        lieferbedingungen: input.lieferbedingungenText ?? STANDARD_LIEFERBEDINGUNGEN,
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
@@ -440,6 +447,14 @@ export interface NurProjektAnlegenInput {
   vertragsklauseln?: VertragsKlausel[];
   /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
   agbAnhaengen?: boolean;
+  /** Lieferbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  lieferbedingungenAktiv?: boolean;
+  /** Text der Lieferbedingungen (im Dialog editierbar). */
+  lieferbedingungenText?: string;
+  /** Zahlungsbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  zahlungsbedingungenAktiv?: boolean;
+  /** Zahlungsziel, z.B. "14 Tage" oder "Vorkasse". */
+  zahlungsziel?: string;
 }
 
 /**
@@ -610,8 +625,6 @@ export async function erstelleNurKundeUndProjekt(
       const heute = new Date().toISOString().split('T')[0];
       const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
-
       const angebotsDaten: AngebotsDaten = {
         kundenname: input.kundenDaten.name,
         kundenstrasse: input.kundenDaten.strasse,
@@ -621,9 +634,10 @@ export async function erstelleNurKundeUndProjekt(
         angebotsdatum: heute,
         gueltigBis,
         positionen: input.positionen,
-        zahlungsziel: '14 Tage',
-        lieferbedingungenAktiviert: true,
-        lieferbedingungen: standardLieferbedingungen,
+        zahlungsziel: input.zahlungsziel ?? STANDARD_ZAHLUNGSZIEL,
+        zahlungsbedingungenAusblenden: input.zahlungsbedingungenAktiv === false,
+        lieferbedingungenAktiviert: input.lieferbedingungenAktiv ?? true,
+        lieferbedingungen: input.lieferbedingungenText ?? STANDARD_LIEFERBEDINGUNGEN,
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
@@ -1239,6 +1253,14 @@ export interface AngebotsVorschauInput {
   vertragsklauseln?: VertragsKlausel[];
   /** AGB als Kleintext-Anhang ans Angebots-PDF hängen. */
   agbAnhaengen?: boolean;
+  /** Lieferbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  lieferbedingungenAktiv?: boolean;
+  /** Text der Lieferbedingungen (im Dialog editierbar). */
+  lieferbedingungenText?: string;
+  /** Zahlungsbedingungen im Angebot ausweisen (im Dialog abwählbar). */
+  zahlungsbedingungenAktiv?: boolean;
+  /** Zahlungsziel, z.B. "14 Tage" oder "Vorkasse". */
+  zahlungsziel?: string;
 }
 
 export async function generiereAngebotsVorschauPDF(
@@ -1251,9 +1273,6 @@ export async function generiereAngebotsVorschauPDF(
   // Vorschau-Angebotsnummer
   const vorschauNummer = `VORSCHAU-${Date.now()}`;
 
-  // Standard-Lieferbedingungen (wie in Projektabwicklung)
-  const standardLieferbedingungen = 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
-
   const angebotsDaten: AngebotsDaten = {
     kundenname: input.kundenDaten.name,
     kundenstrasse: input.kundenDaten.strasse,
@@ -1262,13 +1281,14 @@ export async function generiereAngebotsVorschauPDF(
     angebotsdatum: heute,
     gueltigBis,
     positionen: input.positionen,
-    zahlungsziel: '14 Tage',
+    zahlungsziel: input.zahlungsziel ?? STANDARD_ZAHLUNGSZIEL,
+    zahlungsbedingungenAusblenden: input.zahlungsbedingungenAktiv === false,
     frachtkosten: input.frachtkosten,
     // z. Hd. Ansprechpartner
     ansprechpartner: input.ansprechpartner,
     // Lieferbedingungen
-    lieferbedingungenAktiviert: true,
-    lieferbedingungen: standardLieferbedingungen,
+    lieferbedingungenAktiviert: input.lieferbedingungenAktiv ?? true,
+    lieferbedingungen: input.lieferbedingungenText ?? STANDARD_LIEFERBEDINGUNGEN,
     // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
     vertragsklauseln: input.vertragsklauseln,
     agbAnhaengen: input.agbAnhaengen ?? true,
