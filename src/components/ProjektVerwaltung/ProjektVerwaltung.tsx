@@ -40,6 +40,7 @@ import {
   HardHat,
   ShoppingCart,
   Inbox,
+  Workflow,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -59,6 +60,7 @@ import HydrocourtView from './HydrocourtView';
 import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
+import ProzessOverview from './ProzessOverview';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
@@ -141,11 +143,13 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
 // Verloren-Tab separat (wird versteckt angezeigt)
 const VERLOREN_TAB = { id: 'verloren' as ProjektStatus, label: 'Verloren', icon: XCircle, color: 'text-gray-500', darkColor: 'dark:text-gray-400', bgColor: 'bg-gray-100 border-gray-300', darkBgColor: 'dark:bg-gray-800/50 dark:border-gray-600' };
 
-type ViewMode = 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'exports' | 'massenangebot';
+type ViewMode = 'overview' | 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'exports' | 'massenangebot';
 
 // Session Storage Keys
+// viewMode trägt ein `_v2`-Suffix, seit die Übersicht die Startansicht ist: der alte
+// Key hätte jeden Nutzer weiter im zuletzt gewählten Tab landen lassen.
 const STORAGE_KEYS = {
-  viewMode: 'projektverwaltung_viewMode',
+  viewMode: 'projektverwaltung_viewMode_v2',
   kompakteAnsicht: 'projektverwaltung_kompakteAnsicht',
   showVerlorenSpalte: 'projektverwaltung_showVerlorenSpalte',
 };
@@ -306,7 +310,7 @@ const ProjektVerwaltung = () => {
     loadSetting(STORAGE_KEYS.showVerlorenSpalte, false)
   );
   const [viewMode, setViewModeState] = useState<ViewMode>(() =>
-    loadSetting(STORAGE_KEYS.viewMode, 'kanban')
+    loadSetting<ViewMode>(STORAGE_KEYS.viewMode, 'overview')
   );
   const [kompakteAnsicht, setKompakteAnsichtState] = useState(() =>
     loadSetting(STORAGE_KEYS.kompakteAnsicht, false)
@@ -721,6 +725,41 @@ const ProjektVerwaltung = () => {
   }
 
   // ==========================================
+  // MOBILE ANSICHT für die Prozess-Übersicht
+  // ==========================================
+  if (isMobile && viewMode === 'overview') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+        <div className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
+                <Workflow className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Übersicht</h1>
+            </div>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-lg"
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Kanban
+            </button>
+          </div>
+        </div>
+        <div className="p-4">
+          <ProzessOverview
+            projekteGruppiert={projekteGruppiert}
+            anfrageProjektIds={anfrageProjektIds}
+            saisonjahr={saisonjahr}
+            onZeigeView={setViewMode}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
   // MOBILE ANSICHT für Anfragen-Tab
   // ==========================================
   if (isMobile && viewMode === 'anfragen') {
@@ -851,6 +890,9 @@ const ProjektVerwaltung = () => {
               )}
             </div>
 
+            {/* Suche und Filter greifen nur auf Projektlisten — in der Übersicht ausgeblendet */}
+            {viewMode !== 'overview' && (
+              <>
             {/* Suche nach Vereinsname/PLZ */}
             <div className="relative flex-1 md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-textMuted" />
@@ -966,9 +1008,23 @@ const ProjektVerwaltung = () => {
                 </>
               )}
             </div>
+              </>
+            )}
 
             {/* Ansicht umschalten */}
             <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-x-auto max-w-full">
+              <button
+                onClick={() => setViewMode('overview')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'overview'
+                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Prozess-Übersicht: alle Tools von der Anfrage bis zur Rechnung"
+              >
+                <Workflow className="w-4 h-4" />
+                <span className="hidden sm:inline">Übersicht</span>
+              </button>
               <button
                 onClick={() => setViewMode('anfragen')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
@@ -1127,6 +1183,16 @@ const ProjektVerwaltung = () => {
           aktuelleSaison={aktuelleSaison}
           onClose={() => setShowNeueSaisonModal(false)}
           onErstellen={handleNeueSaisonErstellen}
+        />
+      )}
+
+      {/* Prozess-Übersicht: Startansicht, verbindet alle Tools entlang des Ablaufs */}
+      {viewMode === 'overview' && (
+        <ProzessOverview
+          projekteGruppiert={projekteGruppiert}
+          anfrageProjektIds={anfrageProjektIds}
+          saisonjahr={saisonjahr}
+          onZeigeView={setViewMode}
         />
       )}
 
