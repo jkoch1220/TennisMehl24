@@ -54,6 +54,7 @@ const dokumentZuTour = (doc: Record<string, unknown>): Tour => {
     routeDetails: JSON.parse((doc.routeDetails as string) || '{}') as TourRouteDetails,
     optimierung: JSON.parse((doc.optimierung as string) || '{}') as TourOptimierung,
     encodedPolyline: doc.encodedPolyline as string | undefined,
+    notiz: doc.notiz as string | undefined,
     status: (doc.status as TourStatus) || 'entwurf',
     erstelltAm: doc.$createdAt as string,
     geaendertAm: doc.$updatedAt as string,
@@ -93,6 +94,63 @@ export const tourenService = {
       return response.documents.map(dokumentZuTour);
     } catch (error) {
       console.error('Fehler beim Laden der Touren:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Touren eines Zeitraums laden (für die Wochenplanung).
+   *
+   * Bewusst als Bereichsabfrage statt mehrerer Einzelabfragen: `loadTourenFuerDatum`
+   * kann nur exakte Gleichheit und deckelt bei 50 Dokumenten.
+   *
+   * @param von ISO-Datum (YYYY-MM-DD), einschließlich
+   * @param bis ISO-Datum (YYYY-MM-DD), einschließlich
+   */
+  async loadTourenFuerZeitraum(von: string, bis: string): Promise<Tour[]> {
+    try {
+      const documents = await loadAllDocuments(DATABASE_ID, TOUREN_COLLECTION_ID, {
+        queries: [
+          Query.greaterThanEqual('datum', von),
+          Query.lessThanEqual('datum', bis),
+          Query.orderAsc('datum'),
+        ],
+      });
+      return documents.map(dokumentZuTour);
+    } catch (error) {
+      console.error('Fehler beim Laden der Touren für den Zeitraum:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Touren ohne Datum laden — der Backlog der Wochenplanung.
+   *
+   * `createTour` schreibt für ein fehlendes Datum den Leerstring, ältere Dokumente
+   * können aber null tragen; beide Fälle werden abgedeckt.
+   */
+  async loadTourenOhneDatum(): Promise<Tour[]> {
+    try {
+      const [leer, fehlend] = await Promise.all([
+        loadAllDocuments(DATABASE_ID, TOUREN_COLLECTION_ID, {
+          queries: [Query.equal('datum', '')],
+        }),
+        loadAllDocuments(DATABASE_ID, TOUREN_COLLECTION_ID, {
+          queries: [Query.isNull('datum')],
+        }).catch(() => []),
+      ]);
+
+      const gesehen = new Set<string>();
+      return [...leer, ...fehlend]
+        .filter((doc) => {
+          const id = doc.$id as string;
+          if (gesehen.has(id)) return false;
+          gesehen.add(id);
+          return true;
+        })
+        .map(dokumentZuTour);
+    } catch (error) {
+      console.error('Fehler beim Laden der Touren ohne Datum:', error);
       return [];
     }
   },
@@ -174,6 +232,7 @@ export const tourenService = {
       stops: JSON.stringify(tour.stops || []),
       routeDetails: JSON.stringify(tour.routeDetails || leereRouteDetails),
       encodedPolyline: tour.encodedPolyline || null,
+      notiz: tour.notiz || null,
       status: tour.status || 'entwurf',
       erstelltVon: tour.erstelltVon || null,
     };
@@ -207,6 +266,7 @@ export const tourenService = {
     if (updates.encodedPolyline !== undefined) {
       data.encodedPolyline = updates.encodedPolyline || null;
     }
+    if (updates.notiz !== undefined) data.notiz = updates.notiz || null;
     if (updates.status !== undefined) data.status = updates.status;
 
     const doc = await databases.updateDocument(
@@ -292,9 +352,12 @@ export const tourenService = {
       s.position = i + 1;
     });
 
-    // Beide Touren speichern
-    const updatedQuell = await this.updateTour(quellTourId, { stops: quellTour.stops });
+    // Reihenfolge ist bewusst gewählt: ZUERST das Ziel schreiben, dann die Quelle.
+    // Es gibt keine Transaktion über zwei Dokumente. Schlägt der zweite Schreibvorgang
+    // fehl, entsteht so eine sichtbare Dublette (Stop in beiden Touren) statt eines
+    // stillen Datenverlusts (Stop in keiner Tour).
     const updatedZiel = await this.updateTour(zielTourId, { stops: zielTour.stops });
+    const updatedQuell = await this.updateTour(quellTourId, { stops: quellTour.stops });
 
     return { quellTour: updatedQuell, zielTour: updatedZiel };
   },
@@ -309,10 +372,13 @@ export const tourenService = {
 
     touren.forEach(tour => {
       anzahlStops += tour.stops.length;
-      gesamtTonnen += tour.routeDetails.gesamtTonnen;
-      gesamtDistanzKm += tour.routeDetails.gesamtDistanzKm;
-      auslastungsSumme += tour.routeDetails.auslastungProzent;
-      offeneWarnungen += tour.optimierung.einschraenkungen.filter(e => !e.erfuellt).length;
+      gesamtTonnen += tour.routeDetails?.gesamtTonnen ?? 0;
+      gesamtDistanzKm += tour.routeDetails?.gesamtDistanzKm ?? 0;
+      auslastungsSumme += tour.routeDetails?.auslastungProzent ?? 0;
+      // optimierung wird seit dem Erreichen des Collection-Limits nicht mehr
+      // gespeichert (siehe createTour) — einschraenkungen ist daher regelmäßig
+      // undefined und muss abgesichert werden.
+      offeneWarnungen += (tour.optimierung?.einschraenkungen ?? []).filter(e => !e.erfuellt).length;
     });
 
     return {

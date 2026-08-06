@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Truck,
   Calendar,
+  CalendarRange,
   MapPin,
   Package,
   FileText,
@@ -43,6 +44,7 @@ import DispoKartenAnsicht from './DispoKartenAnsicht';
 import TourenManagement from './TourenManagement';
 import DispoCheckliste from './DispoCheckliste';
 import BereitZurRechnung from './BereitZurRechnung';
+import WochenplanungTab from './Wochenplanung/WochenplanungTab';
 import {
   SchnellBuchungDialog,
   BuchungsBadge,
@@ -64,6 +66,7 @@ import { projektService } from '../../services/projektService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { fahrzeugService } from '../../services/fahrzeugService';
 import { tourenService } from '../../services/tourenService';
+import { dispoBuchungService, projektIdVon } from '../../services/dispoBuchungService';
 import { projektAnhangService } from '../../services/projektAnhangService';
 import { kundenAktivitaetService } from '../../services/kundenAktivitaetService';
 import { KundenAktivitaet } from '../../types/kundenAktivitaet';
@@ -129,7 +132,7 @@ function getKWOptions(): { value: number; label: string; isCurrent: boolean }[] 
 }
 
 // Tab-Typen
-type DispoTab = 'auftraege' | 'touren' | 'karte' | 'checkliste' | 'rechnung';
+type DispoTab = 'auftraege' | 'wochenplanung' | 'touren' | 'karte' | 'checkliste' | 'rechnung';
 
 // Interface für extrahierte Lieferdaten
 interface LieferdatenInfo {
@@ -186,7 +189,8 @@ const DispoPlanung = () => {
   const navigate = useNavigate();
 
   // Tab-State
-  const [activeTab, setActiveTab] = useState<DispoTab>('auftraege');
+  // Die Wochenplanung ist die Startansicht der Dispo — sie löst die Excel-Planung ab.
+  const [activeTab, setActiveTab] = useState<DispoTab>('wochenplanung');
 
   // State
   const [projekte, setProjekte] = useState<Projekt[]>([]);
@@ -349,29 +353,21 @@ const DispoPlanung = () => {
     }
   };
 
-  // Buchung von Tour entfernen
+  // Buchung von Tour entfernen — läuft über dispoBuchungService, damit
+  // Aufträge-Tab und Wochenplanung denselben Schreibpfad benutzen.
   const handleBuchungEntfernen = async (projektId: string, tourId: string) => {
     setSaving(true);
     try {
-      const tour = touren.find(t => t.id === tourId);
-      if (!tour) throw new Error('Tour nicht gefunden');
-
-      // Stop entfernen
-      const neueStops = tour.stops.filter(s => s.projektId !== projektId);
-      neueStops.forEach((s, i) => { s.position = i + 1; });
-      await tourenService.updateTour(tourId, { stops: neueStops });
-
-      // Prüfen ob noch andere Buchungen existieren
-      const andereBuchungen = touren
-        .filter(t => t.id !== tourId)
-        .some(t => t.stops.some(s => s.projektId === projektId));
-
-      if (!andereBuchungen) {
-        await projektService.updateProjekt(projektId, {
-          dispoStatus: 'offen',
-        });
+      const ergebnis = await dispoBuchungService.entferneBuchung({
+        projektId,
+        tourId,
+        touren,
+      });
+      if (!ergebnis.statusGeschrieben) {
+        alert(
+          'Die Buchung wurde entfernt, der Dispo-Status des Auftrags konnte aber nicht gespeichert werden (Datensatz zu groß).'
+        );
       }
-
       await loadData();
     } catch (error) {
       console.error('Fehler beim Entfernen:', error);
@@ -390,7 +386,9 @@ const DispoPlanung = () => {
     setShowBuchungDialog(true);
   };
 
-  // BUCHUNG: Neu buchen, umbuchen, oder Menge ändern
+  // BUCHUNG: Neu buchen, umbuchen, oder Menge ändern.
+  // Die Logik liegt in dispoBuchungService, damit Aufträge-Tab und Wochenplanung
+  // denselben Schreibpfad benutzen.
   // OPTIMISTISCH: Kein loadData() - nur gezielte State-Updates für smooth UX
   const handleSchnellUmbuchen = async (
     projektId: string,
@@ -400,129 +398,29 @@ const DispoPlanung = () => {
   ) => {
     setSaving(true);
     try {
-      // Projekt-Daten holen
-      const projekt = projekte.find(p => ((p as any).$id || p.id) === projektId);
+      const projekt = projekte.find(p => projektIdVon(p) === projektId);
       if (!projekt) throw new Error('Projekt nicht gefunden');
 
-      // ROBUST: Tour aus State ODER frisch vom Service holen
-      const getTourById = async (tourId: string): Promise<Tour | null> => {
-        const fromState = touren.find(t => t.id === tourId);
-        if (fromState) return fromState;
-        try {
-          const freshTour = await tourenService.loadTour(tourId);
-          // Tour in State einfügen für spätere Verwendung
-          setTouren(prev => [...prev, freshTour]);
-          return freshTour;
-        } catch {
-          return null;
-        }
-      };
-
-      // Neuen Stop erstellen (wird in mehreren Fällen gebraucht)
-      const erstelleNeuenStop = (): TourStop => ({
-        projektId,
-        position: 0, // Wird später gesetzt
-        ankunftGeplant: '',
-        abfahrtGeplant: '',
-        kundenname: projekt.kundenname,
-        kundennummer: projekt.kundennummer,
-        adresse: {
-          strasse: projekt.lieferadresse?.strasse || projekt.kundenstrasse || '',
-          plz: projekt.lieferadresse?.plz || projekt.kundenPlzOrt?.split(' ')[0] || '',
-          ort: projekt.lieferadresse?.ort || projekt.kundenPlzOrt?.split(' ').slice(1).join(' ') || '',
-        },
+      const ergebnis = await dispoBuchungService.buche({
+        projekt,
+        touren,
+        vonTourId: vonTourId || undefined,
+        zuTourId,
         tonnen,
-        belieferungsart: projekt.belieferungsart || 'mit_haenger',
       });
 
-      let updatedTouren = [...touren];
-
-      // FALL 1: Gleiche Tour (Menge ändern)
-      if (vonTourId && vonTourId === zuTourId) {
-        const tour = await getTourById(zuTourId);
-        if (!tour) throw new Error('Tour nicht gefunden');
-
-        const neueStops = tour.stops.map(s =>
-          s.projektId === projektId ? { ...s, tonnen } : s
-        );
-        await tourenService.updateTour(zuTourId, { stops: neueStops });
-
-        // Lokales State-Update
-        updatedTouren = updatedTouren.map(t =>
-          t.id === zuTourId ? { ...t, stops: neueStops } : t
-        );
-      }
-      // FALL 2: Von einer Tour zu einer anderen (Umbuchen)
-      else if (vonTourId) {
-        const [vonTour, zuTour] = await Promise.all([
-          getTourById(vonTourId),
-          getTourById(zuTourId),
-        ]);
-        if (!vonTour || !zuTour) throw new Error('Tour nicht gefunden');
-
-        // Von alter Tour entfernen
-        const neueStopsVon = vonTour.stops.filter(s => s.projektId !== projektId);
-        neueStopsVon.forEach((s, i) => { s.position = i + 1; });
-        await tourenService.updateTour(vonTourId, { stops: neueStopsVon });
-
-        // Bei Ziel-Tour hinzufügen
-        const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
-        let neueStopsZu: TourStop[];
-        if (existierenderStop) {
-          neueStopsZu = zuTour.stops.map(s =>
-            s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
-          );
-        } else {
-          const neuerStop = erstelleNeuenStop();
-          neuerStop.position = zuTour.stops.length + 1;
-          neueStopsZu = [...zuTour.stops, neuerStop];
-        }
-        await tourenService.updateTour(zuTourId, { stops: neueStopsZu });
-
-        // Lokales State-Update für beide Touren
-        updatedTouren = updatedTouren.map(t => {
-          if (t.id === vonTourId) return { ...t, stops: neueStopsVon };
-          if (t.id === zuTourId) return { ...t, stops: neueStopsZu };
-          return t;
-        });
-      }
-      // FALL 3: Neue Buchung (kein vonTourId)
-      else {
-        const zuTour = await getTourById(zuTourId);
-        if (!zuTour) throw new Error('Ziel-Tour nicht gefunden');
-
-        const existierenderStop = zuTour.stops.find(s => s.projektId === projektId);
-        let neueStops: TourStop[];
-        if (existierenderStop) {
-          neueStops = zuTour.stops.map(s =>
-            s.projektId === projektId ? { ...s, tonnen: s.tonnen + tonnen } : s
-          );
-        } else {
-          const neuerStop = erstelleNeuenStop();
-          neuerStop.position = zuTour.stops.length + 1;
-          neueStops = [...zuTour.stops, neuerStop];
-        }
-        await tourenService.updateTour(zuTourId, { stops: neueStops });
-
-        // Lokales State-Update
-        updatedTouren = updatedTouren.map(t =>
-          t.id === zuTourId ? { ...t, stops: neueStops } : t
-        );
-      }
-
-      // Status auf geplant setzen (Backend)
-      await projektService.updateProjekt(projektId, {
-        dispoStatus: 'geplant',
-      });
-
-      // SMOOTH: Nur gezielte State-Updates, KEIN loadData()!
-      setTouren(updatedTouren);
+      setTouren(ergebnis.touren);
       setProjekte(prev => prev.map(p =>
-        ((p as any).$id || p.id) === projektId
+        projektIdVon(p) === projektId
           ? { ...p, dispoStatus: 'geplant' as DispoStatus }
           : p
       ));
 
+      if (!ergebnis.statusGeschrieben) {
+        alert(
+          'Die Buchung wurde gespeichert, der Dispo-Status des Auftrags konnte aber nicht gespeichert werden (Datensatz zu groß).'
+        );
+      }
     } catch (error) {
       console.error('Fehler beim Buchen:', error);
       throw error;
@@ -847,6 +745,17 @@ const DispoPlanung = () => {
         {/* Tab-Navigation */}
         <div className="mt-4 flex gap-2">
           <button
+            onClick={() => setActiveTab('wochenplanung')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              activeTab === 'wochenplanung'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            <CalendarRange className="w-4 h-4" />
+            Wochenplanung
+          </button>
+          <button
             onClick={() => setActiveTab('auftraege')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
               activeTab === 'auftraege'
@@ -905,8 +814,13 @@ const DispoPlanung = () => {
         </div>
       </div>
 
-      {/* Filter-Sektion (für Aufträge und Karte, nicht für Touren/Checkliste/Rechnung) */}
-      {activeTab !== 'touren' && activeTab !== 'checkliste' && activeTab !== 'rechnung' && (
+      {/* Filter-Sektion (für Aufträge und Karte).
+          Die Wochenplanung bringt eigene Filter und eine eigene Mengenbilanz mit —
+          die Leiste hier wäre dort doppelt und ohne Wirkung auf ihren Pool. */}
+      {activeTab !== 'touren' &&
+        activeTab !== 'checkliste' &&
+        activeTab !== 'rechnung' &&
+        activeTab !== 'wochenplanung' && (
         <>
           {/* Statistik-Karten */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -1145,6 +1059,16 @@ const DispoPlanung = () => {
       {/* Tab Content */}
       {activeTab === 'rechnung' ? (
         <BereitZurRechnung />
+      ) : activeTab === 'wochenplanung' ? (
+        // Bewusst die ungefilterte Liste: die Wochenplanung filtert selbst nach
+        // Kalenderwoche. Sonst würde ein zuvor im Aufträge-Tab gesetzter Filter
+        // hier unsichtbar weiterwirken.
+        <WochenplanungTab
+          projekte={projekte}
+          kundenMap={kundenMap}
+          onProjektOeffnen={(projekt) => navigate(`/projektabwicklung/${projektIdVon(projekt)}`)}
+          onTourenGeaendert={loadTouren}
+        />
       ) : activeTab === 'checkliste' ? (
         <DispoCheckliste projekte={projekte} />
       ) : activeTab === 'karte' ? (

@@ -34,6 +34,8 @@ export interface Fahrer {
   pausenregelMinuten: number; // EU: 45min nach 4.5h
   notizen?: string;
   aktiv: boolean;
+  /** Subunternehmer (z. B. Michelbau, Bäuschlein) — planbar wie eigene Fahrer. */
+  istFremdfahrer?: boolean;
   erstelltAm: string;
   geaendertAm: string;
 }
@@ -54,10 +56,38 @@ export interface TourKontakt {
   telefon: string;
 }
 
+/**
+ * Frei setzbare Statusfarbe eines Stopps — das Gegenstück zur Zellfüllung in der
+ * Excel-Dispoplanung. Bewusst am Stop und nicht am Projekt: das stops-Feld der Tour
+ * fasst 100.000 Zeichen, der data-Blob des Projekts nur 10.000 und ist bei einigen
+ * Projekten bereits nahezu ausgeschöpft.
+ */
+export type StopMarkierung =
+  | 'erledigt' // fertig geplant — das Babyblau, mit dem eine Woche abgeschlossen wird
+  | 'abgestimmt' // mit dem Kunden abgestimmt / kommuniziert
+  | 'zu_kommunizieren' // Tour geplant, Kunde noch nicht informiert
+  | 'gedruckt' // gedruckt und geplant
+  | 'vorgeladen' // Ware vorgeladen
+  | 'auf_lkw' // auf dem LKW
+  | 'ausgeliefert' // ausgeliefert, noch nicht abgerechnet
+  | 'abgerechnet'
+  | 'problem'
+  | 'freie_kapazitaet';
+
 // Einzelner Stop in einer Tour
 export interface TourStop {
   projektId: string;
   position: number; // 1-basiert
+
+  // Frei gesetzte Statusfarbe (Excel-Ersatz); nicht gesetzt = neutral
+  markierung?: StopMarkierung;
+
+  /**
+   * Freie Notiz zur Zeile — das Gegenstück zur Notiz-Spalte der Excel-Dispoplanung.
+   * Dort transportiert dieses Feld Zeitfenster, Kippstellen, Zufahrtsbeschränkungen
+   * und Ansprechpartner in einem; das bleibt bewusst so.
+   */
+  notiz?: string;
 
   // Geplante Zeiten
   ankunftGeplant: string; // ISO DateTime
@@ -86,6 +116,68 @@ export interface TourStop {
   distanzVomVorherigenKm?: number;
   fahrzeitVomVorherigenMinuten?: number;
 }
+
+/**
+ * Farb- und Textzuordnung der Stopp-Markierungen.
+ *
+ * Die Hex-Werte stammen aus der abgelösten Excel-Dispoplanung; Theme-Farben wurden
+ * über xl/theme/theme1.xml aufgelöst. Zwei Abweichungen gegenüber dem Original:
+ *  - „abgerechnet" und „Vorgeladen" trugen dort denselben Fill (#D0DFE6). Da beide
+ *    Zustände parallel vorkommen, hat „abgerechnet" hier einen dunkleren Ton.
+ *  - „mit Kunden abgestimmt" trug in der einen Legende #DCEDD5, in der anderen war
+ *    #92D050 als „Kunde komuniziert" geführt. Übernommen ist das kräftigere #92D050,
+ *    weil es im Datenbestand mit Abstand am häufigsten verwendet wurde.
+ */
+export const STOP_MARKIERUNGEN: Record<
+  StopMarkierung,
+  { label: string; hell: string; dunkel: string; text: string }
+> = {
+  // #CFECF7 ist in der Excel-Vorlage die mit Abstand häufigste Füllung (437 Zellen,
+  // auf Blatt KW15 praktisch flächendeckend) und stand in keiner Legende: die Farbe,
+  // mit der eine fertig geplante Woche abgehakt wurde.
+  erledigt: { label: 'Fertig geplant', hell: '#CFECF7', dunkel: '#1E4A5F', text: '#0B3A4A' },
+  abgestimmt: { label: 'Mit Kunde abgestimmt', hell: '#92D050', dunkel: '#4A7A1F', text: '#1A2E0A' },
+  zu_kommunizieren: {
+    label: 'Geplant, noch nicht kommuniziert',
+    hell: '#FBE3D6',
+    dunkel: '#8A4A2A',
+    text: '#5A2A10',
+  },
+  gedruckt: { label: 'Gedruckt und geplant', hell: '#4EA72E', dunkel: '#2F6B1B', text: '#FFFFFF' },
+  vorgeladen: { label: 'Vorgeladen', hell: '#D0DFE6', dunkel: '#2E5468', text: '#123040' },
+  auf_lkw: { label: 'Auf LKW', hell: '#A02B93', dunkel: '#6B1D62', text: '#FFFFFF' },
+  ausgeliefert: {
+    label: 'Ausgeliefert, nicht abgerechnet',
+    hell: '#FFC000',
+    dunkel: '#8A6800',
+    text: '#3D2E00',
+  },
+  abgerechnet: { label: 'Abgerechnet', hell: '#A8BFCC', dunkel: '#3C5866', text: '#0E2530' },
+  problem: { label: 'Problem', hell: '#FF0000', dunkel: '#9B1111', text: '#FFFFFF' },
+  freie_kapazitaet: {
+    label: 'Freie Kapazität',
+    hell: '#FFFF00',
+    dunkel: '#8A8A00',
+    text: '#333300',
+  },
+};
+
+/**
+ * Reihenfolge im Auswahlmenü — „Fertig geplant" steht oben, weil es der am
+ * häufigsten gesetzte Zustand ist.
+ */
+export const STOP_MARKIERUNG_REIHENFOLGE: StopMarkierung[] = [
+  'erledigt',
+  'abgestimmt',
+  'zu_kommunizieren',
+  'gedruckt',
+  'vorgeladen',
+  'auf_lkw',
+  'ausgeliefert',
+  'abgerechnet',
+  'problem',
+  'freie_kapazitaet',
+];
 
 // Constraint/Einschränkung für die Tour
 export interface TourConstraint {
@@ -144,6 +236,12 @@ export interface Tour {
 
   // Encoded Polyline für Kartenanzeige (von Google Routes)
   encodedPolyline?: string;
+
+  /**
+   * Freie Notiz zur Tour — in der Excel die Spalte rechts neben dem Block
+   * („tagestour", „kaum Umweg", „läd um 6:00 Uhr").
+   */
+  notiz?: string;
 
   // Status
   status: TourStatus;

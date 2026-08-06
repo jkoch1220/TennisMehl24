@@ -166,6 +166,16 @@ interface Props {
   onBuchen?: (projektId: string, tourId: string, tonnen: number) => Promise<void>;
   onNeueTour?: (name: string, lkwTyp: 'motorwagen' | 'mit_haenger', kapazitaet: number) => Promise<string>;
   onProjektUpdate?: (projekt: Projekt) => void; // Callback wenn Projekt aktualisiert wurde
+  /**
+   * Vorgegebene Touren (z. B. die einer Kalenderwoche). Ist die Prop gesetzt, lädt die
+   * Karte keine Touren selbst und blendet die eigene Zeitraum-Auswahl aus.
+   */
+  touren?: Tour[];
+  /** Von außen gesteuerte Tour-Hervorhebung; ohne die Prop bleibt die Auswahl lokal. */
+  selectedTourId?: string | null;
+  onSelectTour?: (tourId: string | null) => void;
+  /** Blendet Touren beim Öffnen direkt ein. */
+  tourenAnfangsAnzeigen?: boolean;
 }
 
 interface GeocodeCache {
@@ -390,7 +400,18 @@ const getMarkerSize = (tonnen: number): number => {
 
 // === COMPONENT ===
 
-const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onNeueTour, onProjektUpdate }: Props) => {
+const DispoKartenAnsicht = ({
+  projekte,
+  kundenMap,
+  onProjektClick,
+  onBuchen,
+  onNeueTour,
+  onProjektUpdate,
+  touren: tourenVonAussen,
+  selectedTourId,
+  onSelectTour,
+  tourenAnfangsAnzeigen,
+}: Props) => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     language: 'de',
@@ -434,12 +455,38 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
   }, []);
 
   // Tour State
-  const [touren, setTouren] = useState<Tour[]>([]);
-  const [showTouren, setShowTouren] = useState(false); // Standardmäßig ausgeblendet
+  const [selbstGeladeneTouren, setSelbstGeladeneTouren] = useState<Tour[]>([]);
+  // Werden Touren von außen vorgegeben (Wochenplanung), gelten sie; sonst lädt die Karte selbst.
+  const tourenWerdenVorgegeben = tourenVonAussen !== undefined;
+  const touren = tourenVonAussen ?? selbstGeladeneTouren;
+  const [showTouren, setShowTouren] = useState(tourenAnfangsAnzeigen ?? false);
   const [tourenDatum, setTourenDatum] = useState(new Date().toISOString().split('T')[0]);
   const [tourenFilterModus, setTourenFilterModus] = useState<'alle' | 'datum'>('alle');
   const [loadingTouren, setLoadingTouren] = useState(false);
-  const [activeTourId, setActiveTourId] = useState<string | null>(null);
+  const [lokaleTourId, setLokaleTourId] = useState<string | null>(null);
+  // Die Auswahl ist kontrolliert, sobald der Aufrufer sie steuert.
+  const activeTourId = selectedTourId !== undefined ? selectedTourId : lokaleTourId;
+  const setActiveTourId = useCallback(
+    (wert: string | null | ((vorher: string | null) => string | null)) => {
+      const neu = typeof wert === 'function' ? wert(activeTourId) : wert;
+      if (onSelectTour) onSelectTour(neu);
+      if (selectedTourId === undefined) setLokaleTourId(neu);
+    },
+    [activeTourId, onSelectTour, selectedTourId]
+  );
+
+  /**
+   * Aktualisiert die Tourenliste nach einer Buchung.
+   * Werden die Touren von außen vorgegeben, hält der Aufrufer sie aktuell — die
+   * Karte darf sie dann nicht selbst überschreiben.
+   */
+  const aktualisiereTouren = useCallback(
+    (aenderung: (vorher: Tour[]) => Tour[]) => {
+      if (tourenWerdenVorgegeben) return;
+      setSelbstGeladeneTouren(aenderung);
+    },
+    [tourenWerdenVorgegeben]
+  );
 
   // Buchungs-State
   const [buchungsModus, setBuchungsModus] = useState(false);
@@ -888,8 +935,11 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
   // === EFFECTS ===
 
-  // Touren laden (ohne abgeschlossene Touren)
+  // Touren laden (ohne abgeschlossene Touren).
+  // Entfällt, wenn der Aufrufer die Touren vorgibt — sonst würde jede eingebettete
+  // Karte zusätzlich die komplette Touren-Collection über den Draht ziehen.
   useEffect(() => {
+    if (tourenWerdenVorgegeben) return;
     let cancelled = false;
     const load = async () => {
       setLoadingTouren(true);
@@ -902,13 +952,13 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
         }
         // Abgeschlossene Touren nicht auf der Karte anzeigen
         const aktiveTouren = result.filter(t => t.status !== 'abgeschlossen');
-        if (!cancelled) setTouren(aktiveTouren);
-      } catch { if (!cancelled) setTouren([]); }
+        if (!cancelled) setSelbstGeladeneTouren(aktiveTouren);
+      } catch { if (!cancelled) setSelbstGeladeneTouren([]); }
       finally { if (!cancelled) setLoadingTouren(false); }
     };
     load();
     return () => { cancelled = true; };
-  }, [tourenDatum, tourenFilterModus]);
+  }, [tourenDatum, tourenFilterModus, tourenWerdenVorgegeben]);
 
   // Fit bounds
   const fitBounds = useCallback(() => {
@@ -2369,7 +2419,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
                                   // SMOOTH: Optimistisches lokales Update statt Reload
                                   const neueTour = await tourenService.loadTour(neueTourId);
-                                  setTouren(prev => {
+                                  aktualisiereTouren(prev => {
                                     const exists = prev.some(t => t.id === neueTourId);
                                     return exists
                                       ? prev.map(t => t.id === neueTourId ? neueTour : t)
@@ -2430,7 +2480,7 @@ const DispoKartenAnsicht = ({ projekte, kundenMap, onProjektClick, onBuchen, onN
 
                                         // SMOOTH: Optimistisches lokales Update - nur diese Tour aktualisieren
                                         const updatedTour = await tourenService.loadTour(tour.id);
-                                        setTouren(prev => prev.map(t => t.id === tour.id ? updatedTour : t));
+                                        aktualisiereTouren(prev => prev.map(t => t.id === tour.id ? updatedTour : t));
 
                                         setBuchungsModus(false);
                                         setSelectedId(null);

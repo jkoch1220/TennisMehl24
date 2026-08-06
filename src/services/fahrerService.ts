@@ -18,6 +18,7 @@ const dokumentZuFahrer = (doc: Record<string, unknown>): Fahrer => {
     pausenregelMinuten: (doc.pausenregelMinuten as number) || 45,
     notizen: doc.notizen as string | undefined,
     aktiv: doc.aktiv !== false,
+    istFremdfahrer: doc.istFremdfahrer === true,
     erstelltAm: doc.$createdAt as string,
     geaendertAm: doc.$updatedAt as string,
   };
@@ -98,6 +99,7 @@ export const fahrerService = {
         pausenregelMinuten: fahrer.pausenregelMinuten || 45,
         notizen: fahrer.notizen || null,
         aktiv: fahrer.aktiv !== false,
+        istFremdfahrer: fahrer.istFremdfahrer === true,
       }
     );
     return dokumentZuFahrer(doc);
@@ -127,6 +129,7 @@ export const fahrerService = {
     }
     if (updates.notizen !== undefined) data.notizen = updates.notizen || null;
     if (updates.aktiv !== undefined) data.aktiv = updates.aktiv;
+    if (updates.istFremdfahrer !== undefined) data.istFremdfahrer = updates.istFremdfahrer;
 
     const doc = await databases.updateDocument(
       DATABASE_ID,
