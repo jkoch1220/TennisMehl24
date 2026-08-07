@@ -127,13 +127,22 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const handleSaveProjekt = async (neuesProjekt: NeuesProjekt) => {
     setSavingProjekt(true);
     try {
-      await projektService.createProjekt(neuesProjekt);
-      
+      const erstellt = await projektService.createProjekt(neuesProjekt);
+
       // Schließe Dialog
       setShowProjektDialog(false);
-      
-      // Navigiere zur Projektverwaltung
-      navigate('/projekt-verwaltung');
+
+      // Direkt in die Abwicklung des neu angelegten Projekts springen — von hier
+      // aus geht es immer mit dem Angebot weiter, der Umweg über die
+      // Projektverwaltung war nur ein zusätzlicher Klick.
+      const projektId = (erstellt as { $id?: string })?.$id || erstellt?.id;
+      if (projektId) {
+        navigate(`/projektabwicklung/${projektId}`);
+      } else {
+        // Sollte nicht vorkommen; ohne ID bleibt nur die Übersicht
+        console.warn('Neues Projekt ohne ID erhalten – navigiere zur Projektverwaltung');
+        navigate('/projekt-verwaltung');
+      }
     } catch (error) {
       console.error('Fehler beim Erstellen des Projekts:', error);
       alert('Fehler beim Erstellen des Projekts');
