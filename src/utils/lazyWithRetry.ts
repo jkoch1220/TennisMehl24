@@ -20,6 +20,45 @@ interface LazyWithRetryOptions {
  * // Verwende:
  * const MyComponent = lazyWithRetry(() => import('./MyComponent'));
  */
+/**
+ * Zeitstempel des letzten automatischen Chunk-Reloads (sessionStorage).
+ *
+ * Absichtlich ein Zeitstempel und kein Boolean: Ein reines "schon mal gemacht"-Flag
+ * wurde nie zurückgesetzt und hat die Selbsheilung nach dem ERSTEN Reload für den
+ * Rest der Sitzung abgeschaltet. Wer lange in der App bleibt, erlebt aber mehrere
+ * Deployments — und landete ab dem zweiten auf der Fehlerseite.
+ */
+const RELOAD_ZEITSTEMPEL_KEY = 'chunk_reload_letzter';
+
+/**
+ * Mindestabstand zwischen zwei automatischen Reloads. Eine echte Endlosschleife
+ * (Chunk dauerhaft nicht ladbar) feuert sofort wieder und wird dadurch gestoppt;
+ * ein späterer Deploy liegt praktisch immer weiter zurück und heilt sich selbst.
+ */
+const RELOAD_MINDESTABSTAND_MS = 60_000;
+
+/** Darf jetzt automatisch neu geladen werden? Schützt vor Reload-Schleifen. */
+const darfNeuLaden = (): boolean => {
+  try {
+    const letzter = sessionStorage.getItem(RELOAD_ZEITSTEMPEL_KEY);
+    if (!letzter) return true;
+    const vergangen = Date.now() - Number(letzter);
+    return !Number.isFinite(vergangen) || vergangen > RELOAD_MINDESTABSTAND_MS;
+  } catch {
+    // sessionStorage kann blockiert sein (privater Modus) — dann lieber nicht reloaden
+    return false;
+  }
+};
+
+/** Merkt sich den Reload-Zeitpunkt. */
+const merkeReload = (): void => {
+  try {
+    sessionStorage.setItem(RELOAD_ZEITSTEMPEL_KEY, String(Date.now()));
+  } catch {
+    // ignorieren
+  }
+};
+
 export function lazyWithRetry<T extends ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
   options: LazyWithRetryOptions = {}
@@ -38,6 +77,12 @@ export function lazyWithRetry<T extends ComponentType<any>>(
         }
 
         const module = await importFn();
+        // Erfolgreich geladen -> die Sperre darf keinen kuenftigen Reload blockieren
+        try {
+          sessionStorage.removeItem(RELOAD_ZEITSTEMPEL_KEY);
+        } catch {
+          // ignorieren
+        }
         return module;
       } catch (error) {
         lastError = error as Error;
@@ -59,15 +104,20 @@ export function lazyWithRetry<T extends ComponentType<any>>(
         if (attempt === maxRetries) {
           console.error('[lazyWithRetry] Alle Chunk-Load-Versuche fehlgeschlagen:', error);
 
-          // In Produktion: Seite mit Cache-Busting neu laden um veraltete Chunks zu beheben
+          // In Produktion: Seite mit Cache-Busting neu laden. Ein fehlender Chunk
+          // heißt praktisch immer: seit dem Laden dieses Tabs wurde neu deployt,
+          // die alte index.html verweist auf Dateien, die es nicht mehr gibt.
           if (!import.meta.env.DEV && typeof window !== 'undefined') {
-            const currentUrl = window.location.href;
-            const separator = currentUrl.includes('?') ? '&' : '?';
-            // Nur einmal pro Session reloaden um Loop zu verhindern
-            const reloadKey = 'chunk_reload_attempted';
-            if (!sessionStorage.getItem(reloadKey)) {
-              sessionStorage.setItem(reloadKey, 'true');
+            if (darfNeuLaden()) {
+              merkeReload();
+              const currentUrl = window.location.href;
+              const separator = currentUrl.includes('?') ? '&' : '?';
               window.location.href = `${currentUrl}${separator}_cr=${Date.now()}`;
+            } else {
+              console.error(
+                '[lazyWithRetry] Reload vor weniger als 60s bereits versucht – ' +
+                  'kein weiterer automatischer Reload (Schleifenschutz).'
+              );
             }
           }
 

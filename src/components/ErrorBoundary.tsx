@@ -50,10 +50,37 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     console.error('[ErrorBoundary] Fehler abgefangen:', error, errorInfo);
   }
 
+  /**
+   * Ist der Fehler ein fehlgeschlagener Chunk-Load? Das bedeutet praktisch immer:
+   * Seit dem Öffnen dieses Tabs wurde eine neue Version deployt, die alte
+   * index.html verweist auf Dateien, die es auf dem Server nicht mehr gibt.
+   * Kein Defekt der App — ein Neuladen behebt es.
+   */
+  private istVeralteteVersion(): boolean {
+    const meldung = this.state.error?.message || '';
+    return (
+      meldung.includes('dynamically imported module') ||
+      meldung.includes('Loading chunk') ||
+      meldung.includes('Importing a module script failed') ||
+      meldung.includes('Failed to fetch dynamically imported') ||
+      this.state.error?.name === 'ChunkLoadError'
+    );
+  }
+
   handleReload = (): void => {
-    // Session-Storage Flag löschen um frischen Reload zu erlauben
-    sessionStorage.removeItem('chunk_reload_attempted');
-    window.location.reload();
+    // Reload-Sperre lösen, damit der manuelle Klick immer durchgeht
+    try {
+      sessionStorage.removeItem('chunk_reload_letzter');
+      // Altes Flag aus früheren Versionen ebenfalls entfernen
+      sessionStorage.removeItem('chunk_reload_attempted');
+    } catch {
+      // ignorieren
+    }
+    // Cache-Busting-Parameter: sonst zieht der Browser womöglich erneut die
+    // veraltete index.html aus dem Cache und der Fehler wiederholt sich
+    const url = new URL(window.location.href);
+    url.searchParams.set('_cr', String(Date.now()));
+    window.location.replace(url.toString());
   };
 
   toggleDetails = (): void => {
@@ -78,13 +105,22 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
             {/* Überschrift */}
             <h1 className="text-2xl font-bold text-gray-800 dark:text-dark-text mb-3">
-              Etwas ist schiefgelaufen
+              {this.istVeralteteVersion() ? 'Neue Version verfügbar' : 'Etwas ist schiefgelaufen'}
             </h1>
 
             {/* Beschreibung */}
             <p className="text-gray-600 dark:text-dark-textMuted mb-8 leading-relaxed">
-              Ein unerwarteter Fehler ist aufgetreten.
-              Bitte laden Sie die Seite neu, um fortzufahren.
+              {this.istVeralteteVersion() ? (
+                <>
+                  Diese Seite läuft noch mit einer älteren Programmversion, die inzwischen
+                  ersetzt wurde. Einmal neu laden genügt – Ihre Daten sind davon nicht betroffen.
+                </>
+              ) : (
+                <>
+                  Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu,
+                  um fortzufahren.
+                </>
+              )}
             </p>
 
             {/* Reload Button */}
