@@ -28,13 +28,24 @@ interface ClaudeResponse {
 }
 
 /**
- * Ruft Claude API auf - entweder über Backend (sicher) oder direkt (legacy)
+ * Ruft Claude API über das Backend auf.
+ *
+ * SECURITY: Es gibt bewusst keinen Direkt-Aufruf aus dem Browser mehr. Ein solcher
+ * Fallback bräuchte den API-Key im Client-Bundle — Vite inlined jede VITE_*-Variable
+ * zur Build-Zeit, der Key wäre damit für jeden Portal-Besucher lesbar.
  */
 async function callClaudeAPI(request: ClaudeRequest): Promise<ClaudeResponse> {
-  // SECURITY: Wenn Backend aktiviert, über Backend routen
-  if (useBackend('claude')) {
-    console.log('🔒 Claude API über Backend (sicher)...');
-    return backendFetch<ClaudeResponse>('/api/ai/chat', {
+  if (!useBackend('claude')) {
+    throw new Error(
+      'Claude AI ist nicht verfügbar: Das Backend ist deaktiviert. ' +
+      'Bitte VITE_USE_BACKEND=true und VITE_BACKEND_CLAUDE=true setzen — ' +
+      'der API-Key liegt ausschließlich im Backend.'
+    );
+  }
+
+  console.log('🔒 Claude API über Backend (sicher)...');
+  try {
+    return await backendFetch<ClaudeResponse>('/api/ai/chat', {
       method: 'POST',
       body: JSON.stringify({
         system: request.system,
@@ -43,33 +54,13 @@ async function callClaudeAPI(request: ClaudeRequest): Promise<ClaudeResponse> {
         max_tokens: request.max_tokens,
       }),
     });
+  } catch (error) {
+    throw new Error(
+      `Claude AI nicht erreichbar: Das Backend hat nicht geantwortet (${
+        error instanceof Error ? error.message : 'unbekannter Fehler'
+      }). Die Anfrage muss manuell bearbeitet werden.`
+    );
   }
-
-  // LEGACY: Direkter API-Call (API-Key im Browser sichtbar!)
-  console.warn('⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!');
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('Claude API nicht konfiguriert. Bitte VITE_USE_BACKEND=true setzen oder VITE_ANTHROPIC_API_KEY konfigurieren.');
-  }
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`);
-  }
-
-  return response.json();
 }
 
 export interface AnfrageKontext {
@@ -481,10 +472,10 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
   },
 
   /**
-   * Prüft ob Claude API verfügbar ist (Backend ODER direkter API-Key)
+   * Prüft ob Claude API verfügbar ist (nur über Backend — kein Browser-Key)
    */
   isAvailable(): boolean {
-    return useBackend('claude') || !!import.meta.env.VITE_ANTHROPIC_API_KEY;
+    return useBackend('claude');
   },
 
   /**

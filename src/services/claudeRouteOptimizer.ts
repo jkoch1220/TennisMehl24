@@ -238,61 +238,42 @@ export const claudeRouteOptimizer = {
     console.log('🤖 Sende Anfrage an Claude API...');
 
     try {
-      let textResponse: string;
-
-      // SECURITY: Backend wenn aktiviert
-      if (useBackend('claude')) {
-        console.log('🔒 Route-Optimierung über Backend (sicher)...');
-        const data = await backendFetch<{ content: Array<{ type: string; text?: string }> }>('/api/ai/chat', {
-          method: 'POST',
-          body: JSON.stringify({
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: userPrompt }],
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 4096,
-          }),
-        });
-        const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
-        if (!textContent?.text) {
-          throw new Error('Keine Textantwort von Claude erhalten');
-        }
-        textResponse = textContent.text;
-      } else {
-        // LEGACY: Direkter API-Call
-        console.warn('⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!');
-        const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-        if (!apiKey) {
-          throw new Error('Claude API nicht konfiguriert. Bitte VITE_USE_BACKEND=true setzen.');
-        }
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: userPrompt }],
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(`Claude API Fehler: ${response.status} - ${errorData.error?.message || 'Unbekannter Fehler'}`);
-        }
-
-        const data = await response.json();
-        const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
-        if (!textContent?.text) {
-          throw new Error('Keine Textantwort von Claude erhalten');
-        }
-        textResponse = textContent.text;
+      // SECURITY: Ausschließlich über das Backend. Ein Direkt-Aufruf aus dem Browser
+      // bräuchte den API-Key im Client-Bundle — Vite inlined VITE_*-Variablen zur
+      // Build-Zeit, der Key wäre damit für jeden Portal-Besucher lesbar.
+      if (!useBackend('claude')) {
+        throw new Error(
+          'KI-Tourenoptimierung ist nicht verfügbar: Das Backend ist deaktiviert. ' +
+          'Bitte VITE_USE_BACKEND=true und VITE_BACKEND_CLAUDE=true setzen — ' +
+          'der API-Key liegt ausschließlich im Backend.'
+        );
       }
+
+      console.log('🔒 Route-Optimierung über Backend (sicher)...');
+      let data: { content: Array<{ type: string; text?: string }> };
+      try {
+        data = await backendFetch<{ content: Array<{ type: string; text?: string }> }>('/api/ai/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            system: SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userPrompt }],
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4096,
+          }),
+        });
+      } catch (error) {
+        throw new Error(
+          `KI-Tourenoptimierung nicht erreichbar: Das Backend hat nicht geantwortet (${
+            error instanceof Error ? error.message : 'unbekannter Fehler'
+          }). Die Touren müssen manuell geplant werden.`
+        );
+      }
+
+      const textContent = data.content?.find((c: { type: string }) => c.type === 'text');
+      if (!textContent?.text) {
+        throw new Error('Keine Textantwort von Claude erhalten');
+      }
+      const textResponse = textContent.text;
 
       console.log('✅ Claude API Antwort erhalten');
 
@@ -315,10 +296,10 @@ export const claudeRouteOptimizer = {
   },
 
   /**
-   * Prüft ob Claude API verfügbar ist (Backend ODER direkter API-Key)
+   * Prüft ob Claude API verfügbar ist (nur über Backend — kein Browser-Key)
    */
   isAvailable(): boolean {
-    return useBackend('claude') || !!import.meta.env.VITE_ANTHROPIC_API_KEY;
+    return useBackend('claude');
   },
 
   /**

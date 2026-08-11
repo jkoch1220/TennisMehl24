@@ -318,9 +318,28 @@ fetch('/.netlify/functions/email-send', { method: 'POST', body: JSON.stringify(d
 - **Appwrite:** Direkt vom Client (mit Appwrite-eigener Auth)
 - **TankerKönig API:** Öffentliche API, direkt vom Client
 
-**Fallback-Warnung bei direktem Claude-Call:**
-```
-⚠️ Claude API direkt aufgerufen - API-Key im Browser sichtbar!
+**Kein Browser-Fallback für Claude**
+
+`claudeAnfrageService.ts` und `claudeRouteOptimizer.ts` rufen Claude ausschließlich über
+`/api/ai/chat` auf. Es gibt bewusst **keinen** Direkt-Aufruf gegen `api.anthropic.com`
+mehr: Ein solcher Fallback braucht den Key im Client-Code, und Vite inlined jede
+`VITE_*`-Variable zur Build-Zeit — der Key wäre damit für jeden Portal-Besucher im
+JS-Bundle lesbar. Ist das Backend aus oder nicht erreichbar, werfen beide Services eine
+Fehlermeldung, die die Aufrufer per `alert()` anzeigen; die KI-Funktion entfällt dann,
+statt still auf einen unsicheren Pfad zu wechseln.
+
+**Regel für neue API-Keys:** Alles, was geheim bleiben muss, bekommt **kein**
+`VITE_`-Prefix und wird nur serverseitig gelesen (Netlify Function oder VPS-Backend).
+Der Anthropic-Key heißt deshalb `ANTHROPIC_API_KEY`, nicht `VITE_ANTHROPIC_API_KEY`.
+
+**Netlify Secrets Scanning** ist in `netlify.toml` aktiv (`SECRETS_SCAN_ENABLED = "true"`).
+Nicht global abschalten — der Scan ist die letzte Instanz, die einen echten Key im
+Build-Output meldet. Für Werte, die clientseitig sein müssen, gibt es
+`SECRETS_SCAN_OMIT_KEYS`.
+
+**Prüfbefehl nach jedem Build:**
+```bash
+npm run build && grep -rl "sk-ant-" dist/
 ```
 
 ### Services mit Backend-Integration

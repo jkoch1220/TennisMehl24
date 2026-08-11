@@ -9,11 +9,28 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Secrets Scanning: Deaktiviere für Build-Output und öffentliche Werte
-# Die Werte erscheinen im Build-Output, weil Vite sie zur Build-Zeit einbettet
-# Das ist normal und erwartet. PROJECT_ID, PROJECT_NAME und ENDPOINT sind öffentlich.
+# Secrets Scanning: AKTIV. Nicht global abschalten — der Scan (inkl. Smart Detection)
+# ist die letzte Instanz, die einen echten Key im Build-Output meldet. Genau so ist
+# ein Anthropic-Key unbemerkt ins Client-Bundle geraten (Vite inlined VITE_*-Variablen
+# zur Build-Zeit).
+#
+# Ausgenommen werden nur Werte, die clientseitig sein MÜSSEN und deshalb zwangsläufig
+# im Bundle landen. Sie sind in Netlify als "Contains secret values" markiert und
+# würden den Build sonst brechen:
+#   - VITE_APPWRITE_*  → Projekt-ID/-Name/Endpoint sind öffentlich (Appwrite-eigene Auth schützt)
+#   - VITE_GOOGLE_MAPS_API_KEY, VITE_TANKERKOENIG_API_KEY, VITE_OPENROUTESERVICE_API_KEY
+#     → Browser-Keys; Schutz läuft über Referrer-/Domain-Restriktionen beim Anbieter,
+#       nicht über Geheimhaltung.
+# Serverseitige Keys (ANTHROPIC_API_KEY, APPWRITE_API_KEY, EMAIL_ACCOUNTS, …) stehen
+# bewusst NICHT auf dieser Liste und werden weiter gescannt.
+#
+# Falls der erste Deploy trotzdem an Netlifys "Smart Detection" scheitert (die erkennt
+# Key-Muster wie AIzaSy… unabhängig von den Env-Variablen), ist der Fix NICHT, den Scan
+# wieder abzuschalten, sondern der betroffene Wert gehört in
+# SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES — als Netlify-Env-Variable, nicht hier im Repo.
 [build.environment]
-  SECRETS_SCAN_ENABLED = "false"
+  SECRETS_SCAN_ENABLED = "true"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_APPWRITE_ENDPOINT,VITE_APPWRITE_PROJECT_ID,VITE_APPWRITE_PROJECT_NAME,VITE_GOOGLE_MAPS_API_KEY,VITE_TANKERKOENIG_API_KEY,VITE_OPENROUTESERVICE_API_KEY"
 
 # Proxy für Backend-API (Shop, etc.)
 # Leitet /api/* Anfragen zum externen Backend weiter

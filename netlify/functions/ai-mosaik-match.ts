@@ -17,8 +17,10 @@
  *     "konfidenz":    0.0..1.0,
  *     "begruendung":  "string" }
  *
- * API-Key kommt aus Netlify-Env. Akzeptiert `ANTHROPIC_API_KEY` oder
- * fällt auf `VITE_ANTHROPIC_API_KEY` zurück (Konsistenz mit Legacy).
+ * API-Key kommt aus der Netlify-Env als `ANTHROPIC_API_KEY` — bewusst OHNE
+ * VITE_-Prefix: Vite inlined jede VITE_*-Variable zur Build-Zeit ins
+ * Client-Bundle, ein `VITE_ANTHROPIC_API_KEY` in Netlify landet damit im
+ * ausgelieferten JavaScript.
  */
 
 import type { Handler, HandlerEvent } from '@netlify/functions';
@@ -91,11 +93,10 @@ export const handler: Handler = async (event: HandlerEvent) => {
     return jsonResponse(405, { error: 'Method Not Allowed' });
   }
 
-  const apiKey =
-    process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return jsonResponse(500, {
-      error: 'ANTHROPIC_API_KEY (oder VITE_ANTHROPIC_API_KEY) ist in Netlify nicht gesetzt.',
+      error: 'ANTHROPIC_API_KEY ist in Netlify nicht gesetzt.',
     });
   }
 
