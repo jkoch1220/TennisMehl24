@@ -143,6 +143,19 @@ const TABS: { id: ProjektStatus; label: string; icon: React.ComponentType<any>; 
 // Verloren-Tab separat (wird versteckt angezeigt)
 const VERLOREN_TAB = { id: 'verloren' as ProjektStatus, label: 'Verloren', icon: XCircle, color: 'text-gray-500', darkColor: 'dark:text-gray-400', bgColor: 'bg-gray-100 border-gray-300', darkBgColor: 'dark:bg-gray-800/50 dark:border-gray-600' };
 
+// Spaltenzahl des Kanban ab xl. Wird aus TABS abgeleitet, damit ein neuer Status
+// nicht wieder still in die zweite Zeile rutscht (so war es nach `geliefert`).
+// Als Map, weil Tailwind die Klassennamen im Quelltext sehen muss.
+const KANBAN_GRID_KLASSEN: Record<number, string> = {
+  6: 'xl:grid-cols-6',
+  7: 'xl:grid-cols-7',
+  8: 'xl:grid-cols-8',
+  9: 'xl:grid-cols-9',
+  10: 'xl:grid-cols-10',
+};
+const kanbanGridKlasse = (spalten: number): string =>
+  KANBAN_GRID_KLASSEN[spalten] ?? 'xl:grid-cols-8';
+
 type ViewMode = 'overview' | 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'exports' | 'massenangebot';
 
 // Session Storage Keys
@@ -756,6 +769,9 @@ const ProjektVerwaltung = () => {
   const gesamtVerloren = projekteGruppiert.verloren.length;
   const gesamt = gesamtAngebot + gesamtAngebotVersendet + gesamtAuftragsbestaetigung + gesamtLieferschein + gesamtRechnung + gesamtBezahlt;
 
+  // Alle Status-Spalten nebeneinander — inkl. Verloren, wenn eingeblendet
+  const kanbanSpaltenKlasse = kanbanGridKlasse(TABS.length + (showVerlorenSpalte ? 1 : 0));
+
   // Helper für Count pro Status
   const getCount = (status: ProjektStatus) => {
     switch (status) {
@@ -894,7 +910,14 @@ const ProjektVerwaltung = () => {
   // DESKTOP ANSICHT - Originales Kanban-Board
   // ==========================================
   return (
-    <div className="p-3 md:p-6 max-w-[1900px] mx-auto">
+    // Übersicht (Organigramm) und Kanban nutzen die volle Bildschirmbreite —
+    // beide brauchen jeden Pixel für ihre Spalten. Die übrigen Ansichten bleiben
+    // auf 1900px begrenzt, dort schadet zu lange Zeilenlänge der Lesbarkeit.
+    <div
+      className={`p-3 md:p-6 ${
+        viewMode === 'overview' || viewMode === 'kanban' ? 'w-full' : 'max-w-[1900px] mx-auto'
+      }`}
+    >
       {/* Header */}
       <div className="mb-4 md:mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3 md:gap-4">
@@ -1260,7 +1283,11 @@ const ProjektVerwaltung = () => {
 
       {/* Kanban Board */}
       {viewMode === 'kanban' && (
-        <div className={`grid gap-3 ${showVerlorenSpalte ? 'grid-cols-2 lg:grid-cols-4 xl:grid-cols-7' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'}`}>
+        <div
+          className={`grid gap-3 ${
+            showVerlorenSpalte ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-2 lg:grid-cols-3'
+          } ${kanbanSpaltenKlasse}`}
+        >
           {TABS.map((tab) => {
             const projekte = filterProjekte(getProjekte(tab.id));
             // Bei aktivem Kategorie-Filter die sichtbare Anzahl zeigen, sonst die Gesamtzahl
