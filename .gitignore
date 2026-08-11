@@ -31,3 +31,9 @@ dist-ssr
 
 # Exportierte Auswertungen mit Kundendaten (duerfen NIE ins Repo)
 /*.csv
+
+# Local Netlify folder
+.netlify
+
+# TypeScript-Build-Cache (lokal, gehoert nicht ins Repo)
+*.tsbuildinfo
