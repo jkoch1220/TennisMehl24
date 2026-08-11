@@ -257,20 +257,20 @@ const DokumentVerlauf = ({
               {/* Rechts: Aktionen */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 <a
-                  href={eintrag.viewUrl}
+                  href={eintrag.viewUrl || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                  title="Ansehen"
+                  className={`p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-blue-600 hover:bg-blue-50 rounded transition-colors${eintrag.viewUrl ? '' : ' opacity-30 pointer-events-none'}`}
+                  title={eintrag.viewUrl ? "Ansehen" : "Kein PDF vorhanden"}
                 >
                   <Eye className="h-4 w-4" />
                 </a>
                 <a
-                  href={eintrag.downloadUrl}
+                  href={eintrag.downloadUrl || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                  title="Herunterladen"
+                  className={`p-1.5 text-gray-500 dark:text-dark-textMuted hover:text-green-600 hover:bg-green-50 rounded transition-colors${eintrag.downloadUrl ? '' : ' opacity-30 pointer-events-none'}`}
+                  title={eintrag.downloadUrl ? "Herunterladen" : "Kein PDF vorhanden"}
                 >
                   <Download className="h-4 w-4" />
                 </a>

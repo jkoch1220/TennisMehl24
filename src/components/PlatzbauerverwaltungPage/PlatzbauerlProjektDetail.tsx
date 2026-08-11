@@ -1673,17 +1673,17 @@ const RechnungTab = ({ projekt, platzbauer, positionen, onSave, saving }: Rechnu
               </p>
               <div className="mt-4 flex gap-3">
                 <a
-                  href={verlauf[0].viewUrl}
+                  href={verlauf[0].viewUrl || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                  className={`inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors${verlauf[0].viewUrl ? '' : ' opacity-30 pointer-events-none'}`} title={verlauf[0].viewUrl ? undefined : "Kein PDF vorhanden"}
                 >
                   <Eye className="w-4 h-4" />
                   Anzeigen
                 </a>
                 <a
-                  href={verlauf[0].downloadUrl}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors"
+                  href={verlauf[0].downloadUrl || undefined}
+                  className={`inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors${verlauf[0].downloadUrl ? '' : ' opacity-30 pointer-events-none'}`} title={verlauf[0].downloadUrl ? undefined : "Kein PDF vorhanden"}
                 >
                   <Download className="w-4 h-4" />
                   Herunterladen
@@ -2064,16 +2064,16 @@ const DokumentVerlauf = ({ verlauf }: { verlauf: PlatzbauerDokumentVerlaufEintra
             </div>
             <div className="flex gap-2">
               <a
-                href={dok.viewUrl}
+                href={dok.viewUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 text-gray-400 hover:text-amber-500 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                className={`p-2 text-gray-400 hover:text-amber-500 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors${dok.viewUrl ? '' : ' opacity-30 pointer-events-none'}`} title={dok.viewUrl ? undefined : "Kein PDF vorhanden"}
               >
                 <Eye className="w-5 h-5" />
               </a>
               <a
-                href={dok.downloadUrl}
-                className="p-2 text-gray-400 hover:text-amber-500 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                href={dok.downloadUrl || undefined}
+                className={`p-2 text-gray-400 hover:text-amber-500 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors${dok.downloadUrl ? '' : ' opacity-30 pointer-events-none'}`} title={dok.downloadUrl ? undefined : "Kein PDF vorhanden"}
               >
                 <Download className="w-5 h-5" />
               </a>

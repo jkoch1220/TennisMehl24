@@ -656,11 +656,11 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                               </span>
                             )}
                             <a
-                              href={eintrag.viewUrl}
+                  href={eintrag.viewUrl || undefined}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                              title="PDF öffnen"
+                              className={`p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded${eintrag.viewUrl ? '' : ' opacity-30 pointer-events-none'}`}
+                              title={eintrag.viewUrl ? "PDF öffnen" : "Kein PDF vorhanden"}
                             >
                               <Eye className="w-4 h-4" />
                             </a>
