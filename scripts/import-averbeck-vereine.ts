@@ -3,11 +3,20 @@
  * Basierend auf Excel-Liste "Tennissand Lieferung Tennismehl 2026.xlsx"
  */
 import { Client, Databases, Query, ID } from 'node-appwrite';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
+const apiKey = process.env.APPWRITE_API_KEY;
+if (!apiKey) {
+  console.error('❌ APPWRITE_API_KEY fehlt (.env)');
+  process.exit(1);
+}
 
 const client = new Client()
-  .setEndpoint('https://fra.cloud.appwrite.io/v1')
-  .setProject('tennismehl24')
-  .setKey('standard_dfd6863760876e94387cc29faa3c91d1fda9db654f0c282ae01de4e0ec80a7db6a8ac3ea4685ef470d592d013141baa01c3e3e66187511f695fe7b776136a31b13fd02e057c4a6adee1bedf7356cfabc4ddb1e680cb60cde834c9ce87b8f33c94ecccace0b8d5c7f3ea101e894df599853d11bdce72bd3a183ddadff7d234f42');
+  .setEndpoint(process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
+  .setProject(process.env.VITE_APPWRITE_PROJECT_ID || 'tennismehl24')
+  .setKey(apiKey);
 
 const databases = new Databases(client);
 const DATABASE_ID = 'tennismehl24_db';
