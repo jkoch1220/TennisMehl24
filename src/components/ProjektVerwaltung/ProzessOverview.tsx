@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState, ReactNode, ComponentType } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  ReactNode,
+  ComponentType,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
@@ -6,14 +14,13 @@ import {
   HardHat,
   Mail,
   Phone,
-  Layers,
   LayoutGrid,
   Truck,
   Droplets,
   Package,
   Banknote,
   BarChart3,
-  ChevronRight,
+  Calculator,
   ChevronDown,
   RefreshCw,
   Lock,
@@ -27,11 +34,18 @@ import {
   istUniversalProjekt,
 } from '../../utils/projektHerkunft';
 import { useCan } from '../../hooks/useCan';
+import { useAuth } from '../../contexts/AuthContext';
 import { prozessOverviewService, ProzessKennzahlen, LEERE_KENNZAHLEN } from '../../services/prozessOverviewService';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 
 /** Ansichten der Projekt-Verwaltung, die von der Übersicht aus erreichbar sind. */
-export type OverviewZiel = 'kanban' | 'anfragen' | 'hydrocourt' | 'universal' | 'statistik';
+export type OverviewZiel =
+  | 'kanban'
+  | 'anfragen'
+  | 'hydrocourt'
+  | 'universal'
+  | 'statistik'
+  | 'massenangebot';
 
 interface ProzessOverviewProps {
   projekteGruppiert: Record<ProjektStatus, Projekt[]>;
@@ -43,12 +57,40 @@ interface ProzessOverviewProps {
 }
 
 // ============================================================
+// ORGANIGRAMM-VERDRAHTUNG
+// Jede Karte trägt ein data-knoten-Attribut; daraus werden die
+// Verbindungslinien gezeichnet (siehe useLayoutEffect weiter unten).
+// ============================================================
+
+const VERBINDUNGEN: Array<[von: string, nach: string]> = [
+  ['shop', 'board'],
+  ['anfragen', 'board'],
+  ['platzbauer', 'board'],
+  ['massenangebot', 'board'],
+  ['email', 'board'],
+  ['telefon', 'board'],
+  ['board', 'dispo'],
+  ['board', 'hydrocourt'],
+  ['board', 'universal'],
+  ['board', 'debitoren'],
+  ['debitoren', 'statistik'],
+];
+
+/** Ab dieser Breite stehen die Spalten nebeneinander — nur dann werden Linien gezeichnet. */
+const ORGANIGRAMM_AB_PX = 1280;
+
+interface Linie {
+  key: string;
+  d: string;
+}
+
+// ============================================================
 // FARBSCHEMATA
 // Volle Klassennamen, keine Interpolation — sonst findet Tailwind
 // die Klassen beim Build nicht.
 // ============================================================
 
-type FarbName = 'blau' | 'gruen' | 'bernstein' | 'schiefer' | 'rose' | 'lila' | 'himmel' | 'cyan' | 'orange' | 'smaragd';
+type FarbName = 'blau' | 'gruen' | 'bernstein' | 'schiefer' | 'rose' | 'lila' | 'himmel' | 'cyan' | 'orange' | 'smaragd' | 'petrol';
 
 const FARBEN: Record<FarbName, { karte: string; icon: string; zahl: string; punkt: string }> = {
   blau: {
@@ -111,6 +153,12 @@ const FARBEN: Record<FarbName, { karte: string; icon: string; zahl: string; punk
     zahl: 'text-green-700 dark:text-green-300',
     punkt: 'bg-green-500',
   },
+  petrol: {
+    karte: 'border-teal-200 dark:border-teal-900/60 hover:border-teal-400 dark:hover:border-teal-700',
+    icon: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300',
+    zahl: 'text-teal-700 dark:text-teal-300',
+    punkt: 'bg-teal-500',
+  },
 };
 
 /** Kurzlabel je Status für die Statuskette auf der Board-Karte. */
@@ -125,7 +173,7 @@ const STATUS_KURZ: Record<ProjektStatus, string> = {
   verloren: 'Verloren',
 };
 
-/** Status, die auf dem Board als „laufend" gelten (Verloren/Bezahlt sind Endpunkte). */
+/** Status, die auf dem Board als Kette dargestellt werden (Verloren ist ein Seitenausgang). */
 const KETTE: ProjektStatus[] = ALLE_PROJEKT_STATUS.filter((status) => status !== 'verloren');
 
 // ============================================================
@@ -148,27 +196,34 @@ const euro = (wert: number | null | undefined): string =>
 // BAUSTEINE
 // ============================================================
 
-/** Pfeil zwischen zwei Prozessstufen — waagerecht auf großen Schirmen, senkrecht darunter. */
-const Konnektor = () => (
+/** Pfeil zwischen zwei Spalten — nur unterhalb der Organigramm-Breite, wo gestapelt wird. */
+const StapelPfeil = () => (
   <div
     aria-hidden="true"
-    className="flex xl:flex-col items-center justify-center shrink-0 py-1 xl:py-0 xl:px-0.5 text-gray-300 dark:text-slate-600"
+    className="xl:hidden flex items-center justify-center py-1 text-gray-300 dark:text-slate-600"
   >
-    <ChevronDown className="w-6 h-6 xl:hidden" />
-    <ChevronRight className="hidden xl:block w-6 h-6" />
+    <ChevronDown className="w-6 h-6" />
   </div>
 );
 
-interface StufeProps {
+interface SpalteProps {
   nummer: number;
   titel: string;
   beschreibung: string;
-  breit?: boolean;
+  breite?: string;
   children: ReactNode;
 }
 
-const Stufe = ({ nummer, titel, beschreibung, breit = false, children }: StufeProps) => (
-  <section className={`flex-1 min-w-0 ${breit ? 'xl:min-w-[290px]' : 'xl:min-w-[230px]'}`}>
+const Spalte = ({
+  nummer,
+  titel,
+  beschreibung,
+  // Spalten wachsen mit der Bildschirmbreite; die Obergrenze verhindert, dass
+  // die Karten auf sehr breiten Schirmen auseinanderlaufen.
+  breite = 'xl:flex-1 xl:min-w-[14rem] xl:max-w-[21rem]',
+  children,
+}: SpalteProps) => (
+  <section className={`min-w-0 ${breite}`}>
     <div className="flex items-center gap-2 mb-1.5">
       <span className="w-5 h-5 shrink-0 rounded-full bg-gray-900 dark:bg-slate-200 text-white dark:text-slate-900 text-[11px] font-bold flex items-center justify-center">
         {nummer}
@@ -177,21 +232,21 @@ const Stufe = ({ nummer, titel, beschreibung, breit = false, children }: StufePr
         {titel}
       </h3>
     </div>
-    <p className="text-xs text-gray-500 dark:text-slate-400 mb-3 leading-relaxed min-h-[2.5rem]">
-      {beschreibung}
-    </p>
-    <div className="space-y-2">{children}</div>
+    <p className="text-xs text-gray-500 dark:text-slate-400 mb-3 leading-relaxed">{beschreibung}</p>
+    <div className="space-y-2.5">{children}</div>
   </section>
 );
 
 interface ToolKarteProps {
+  /** Knoten-Id für die Verbindungslinien */
+  knoten: string;
   titel: string;
   icon: ComponentType<{ className?: string }>;
   farbe: FarbName;
   /** Hauptkennzahl — als Zahl oder „—", wenn die Quelle nicht erreichbar war */
   kennzahl: string;
   kennzahlLabel: string;
-  /** Kennzahl ist Text statt Zahl (z.B. „manuell") — dann kleiner gesetzt */
+  /** Kennzahl ist Text statt Zahl (z.B. „Postfach") — dann kleiner gesetzt */
   kennzahlAlsText?: boolean;
   /** Zweite Zeile, z.B. „12 Projekte in dieser Saison" */
   zusatz?: string;
@@ -207,6 +262,7 @@ interface ToolKarteProps {
 }
 
 const ToolKarte = ({
+  knoten,
   titel,
   icon: Icon,
   farbe,
@@ -232,6 +288,7 @@ const ToolKarte = ({
 
   return (
     <div
+      data-knoten={knoten}
       role={klickbar ? 'button' : undefined}
       tabIndex={klickbar ? 0 : undefined}
       onClick={handleClick}
@@ -299,8 +356,12 @@ const ProzessOverview = ({
   onZeigeView,
 }: ProzessOverviewProps) => {
   const { can } = useCan();
+  // Das Massen-Angebots-Tool ist im Board nur Admins zugänglich — hier ebenso
+  const { isAdmin } = useAuth();
   const [kennzahlen, setKennzahlen] = useState<ProzessKennzahlen>(LEERE_KENNZAHLEN);
   const [laedt, setLaedt] = useState(true);
+  const [linien, setLinien] = useState<Linie[]>([]);
+  const organigrammRef = useRef<HTMLDivElement>(null);
 
   // Externe Kennzahlen (Anfragen, Shop, Platzbauer, Debitoren) nachladen.
   // Die Projekt-Zahlen stehen bereits über die Props zur Verfügung.
@@ -339,11 +400,16 @@ const ProzessOverview = ({
 
     const laufend = alle.filter((p) => p.status !== 'bezahlt' && p.status !== 'verloren');
 
-    // Herkunft: woraus die Projekte dieser Saison entstanden sind
-    const herkunft = { shop: 0, anfrage: 0, platzbau: 0, direkt: 0 };
+    // Herkunft: woraus die Projekte dieser Saison entstanden sind.
+    // Massen-Angebote sind kein Kanal in getProjektHerkunft, tragen aber einen
+    // eigenen Marker — sie hier abzuziehen verhindert, dass sie zusätzlich als
+    // „direkt angelegt" gezählt werden.
+    const herkunft = { shop: 0, anfrage: 0, platzbau: 0, massenangebot: 0, direkt: 0 };
     alle.forEach((projekt) => {
       const kanal = getProjektHerkunft(projekt, anfrageProjektIds);
-      if (kanal) herkunft[kanal] += 1;
+      const ausMassenlauf = projekt.automatischErzeugt === true || !!projekt.erzeugungsBatchId;
+      if (ausMassenlauf) herkunft.massenangebot += 1;
+      else if (kanal) herkunft[kanal] += 1;
       else herkunft.direkt += 1;
     });
 
@@ -371,6 +437,71 @@ const ProzessOverview = ({
     };
   }, [projekteGruppiert, anfrageProjektIds]);
 
+  // Verbindungslinien zwischen den Karten messen. Erst nach dem Layout, damit
+  // die Kartenpositionen stehen; unterhalb der Organigramm-Breite wird gestapelt
+  // und es werden gar keine Linien gezeichnet.
+  useLayoutEffect(() => {
+    const berechne = () => {
+      const container = organigrammRef.current;
+      if (!container) return;
+
+      if (window.innerWidth < ORGANIGRAMM_AB_PX) {
+        setLinien((vorher) => (vorher.length === 0 ? vorher : []));
+        return;
+      }
+
+      const basis = container.getBoundingClientRect();
+      const knoten = new Map<string, DOMRect>();
+      container.querySelectorAll<HTMLElement>('[data-knoten]').forEach((el) => {
+        const id = el.dataset.knoten;
+        if (id) knoten.set(id, el.getBoundingClientRect());
+      });
+
+      const neue: Linie[] = [];
+      for (const [von, nach] of VERBINDUNGEN) {
+        const a = knoten.get(von);
+        const b = knoten.get(nach);
+        if (!a || !b) continue;
+
+        const x1 = a.right - basis.left;
+        const y1 = a.top + a.height / 2 - basis.top;
+        // 7px Abstand zur Zielkarte, damit die Pfeilspitze frei steht
+        const x2 = b.left - basis.left - 7;
+        const y2 = b.top + b.height / 2 - basis.top;
+        const krümmung = Math.max(20, (x2 - x1) * 0.45);
+
+        neue.push({
+          key: `${von}-${nach}`,
+          d: `M ${x1} ${y1} C ${x1 + krümmung} ${y1}, ${x2 - krümmung} ${y2}, ${x2} ${y2}`,
+        });
+      }
+      setLinien(neue);
+    };
+
+    berechne();
+    // Zweiter Durchgang nach dem Layout-Pass: beim ersten Render stehen die
+    // endgültigen Kartenhöhen (Schriften, Umbrüche) noch nicht fest.
+    const frame = requestAnimationFrame(berechne);
+
+    const container = organigrammRef.current;
+    const beobachter = new ResizeObserver(berechne);
+    if (container) {
+      beobachter.observe(container);
+      // Auch jede Karte einzeln: eine Karte kann höher werden, ohne dass sich
+      // die Größe des Containers ändert — die Linien müssten dann trotzdem nach.
+      container
+        .querySelectorAll<HTMLElement>('[data-knoten]')
+        .forEach((el) => beobachter.observe(el));
+    }
+    window.addEventListener('resize', berechne);
+    return () => {
+      cancelAnimationFrame(frame);
+      beobachter.disconnect();
+      window.removeEventListener('resize', berechne);
+    };
+    // Kennzahlen ändern die Kartenhöhen (Skeleton → Zahl), deshalb mit in den Abhängigkeiten
+  }, [projektZahlen, kennzahlen, laedt]);
+
   const darfShop = can('shop-bestellungen', 'view');
   const darfPlatzbauer = can('platzbauer-verwaltung', 'view');
   const darfEmail = can('email-dashboard', 'view');
@@ -386,11 +517,11 @@ const ProzessOverview = ({
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">
               So läuft ein Auftrag durch unsere Tools
             </h2>
-            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1 max-w-3xl leading-relaxed">
-              Egal ob Onlineshop, Anfrage, Platzbauer, E-Mail oder Telefon — aus jedem Eingang
-              entsteht <strong className="font-semibold text-gray-800 dark:text-slate-200">genau ein Projekt</strong>.
-              Alle Projekte laufen über das Kanban-Board. Von dort zweigen die Spezial-Tools ab,
-              am Ende stehen Rechnung und Auswertung.
+            <p className="text-sm text-gray-600 dark:text-slate-400 mt-1 max-w-4xl leading-relaxed">
+              Egal ob Onlineshop, Anfrage, Platzbauer, Massen-Angebot, E-Mail oder Telefon — aus jedem Eingang
+              entsteht <strong className="font-semibold text-gray-800 dark:text-slate-200">genau ein Projekt</strong>,
+              und alle Projekte landen auf dem Kanban-Board. Von dort zweigen die Tools ab, die
+              den Auftrag ausführen; am Ende stehen Rechnung und Auswertung.
             </p>
           </div>
           <button
@@ -402,242 +533,276 @@ const ProzessOverview = ({
             Zahlen aktualisieren
           </button>
         </div>
-        <p className="text-xs text-gray-500 dark:text-slate-500 mt-2">
-          Projekt-Zahlen beziehen sich auf Saison {saisonjahr}. Eingangs-Zähler zeigen den
-          aktuellen Stand der jeweiligen Tools.
-        </p>
       </div>
 
-      {/* Prozesskette */}
-      <div className="flex flex-col xl:flex-row xl:items-stretch gap-1 xl:gap-2">
-        {/* ---------- 1. Eingang ---------- */}
-        <Stufe
-          nummer={1}
-          titel="Wo Projekte entstehen"
-          beschreibung="Alle Kanäle, über die Arbeit ins Haus kommt."
+      {/* Organigramm */}
+      <div ref={organigrammRef} className="relative">
+        {/* Verbindungslinien — liegen hinter den Karten und fangen keine Klicks ab */}
+        <svg
+          aria-hidden="true"
+          className="hidden xl:block absolute inset-0 w-full h-full pointer-events-none text-gray-300 dark:text-slate-600"
         >
-          <ToolKarte
-            titel="Onlineshop"
-            icon={ShoppingCart}
-            farbe="blau"
-            kennzahl={zahl(kennzahlen.shopNeu)}
-            kennzahlLabel="neue Bestellungen"
-            zusatz={`${zahl(kennzahlen.shopInArbeit)} in Bearbeitung · ${projektZahlen.herkunft.shop} Projekte in dieser Saison`}
-            route="/shop-bestellungen"
-            gesperrt={!darfShop}
-            laedt={laedt}
-          />
-          <ToolKarte
-            titel="Anfragen"
-            icon={Inbox}
-            farbe="gruen"
-            kennzahl={zahl(kennzahlen.anfragenNeu)}
-            kennzahlLabel="offene Anfragen"
-            zusatz={`${zahl(kennzahlen.anfragenInArbeit)} in Arbeit · ${projektZahlen.herkunft.anfrage} Projekte in dieser Saison`}
-            onClick={() => onZeigeView('anfragen')}
-            laedt={laedt}
-          />
-          <ToolKarte
-            titel="Platzbauer"
-            icon={HardHat}
-            farbe="bernstein"
-            kennzahl={zahl(kennzahlen.platzbauerOffen)}
-            kennzahlLabel="laufende Platzbau-Projekte"
-            zusatz={`${zahl(kennzahlen.platzbauerGesamt)} gesamt in Saison ${saisonjahr} · ${projektZahlen.herkunft.platzbau} Vereinsprojekte`}
-            route="/platzbauer-verwaltung"
-            gesperrt={!darfPlatzbauer}
-            laedt={laedt}
-          />
-          <ToolKarte
-            titel="E-Mail"
-            icon={Mail}
-            farbe="schiefer"
-            kennzahl="Postfach"
-            kennzahlLabel="ohne Zähler"
-            kennzahlAlsText
-            zusatz="Mails, die keine automatische Anfrage erzeugt haben, werden von Hand zum Projekt."
-            route="/email-dashboard"
-            gesperrt={!darfEmail}
-          />
-          <ToolKarte
-            titel="Telefon & direkt"
-            icon={Phone}
-            farbe="rose"
-            kennzahl={String(projektZahlen.herkunft.direkt)}
-            kennzahlLabel="direkt angelegt"
-            zusatz="Projekte ohne Quell-Tool — im Board über „Neues Projekt“ erfasst."
-            onClick={() => onZeigeView('kanban')}
-          />
-        </Stufe>
+          <defs>
+            <marker
+              id="prozess-pfeil"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="5"
+              markerHeight="5"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+            </marker>
+          </defs>
+          {linien.map((linie) => (
+            <path
+              key={linie.key}
+              d={linie.d}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              markerEnd="url(#prozess-pfeil)"
+            />
+          ))}
+        </svg>
 
-        <Konnektor />
-
-        {/* ---------- 2. Kern-Entität ---------- */}
-        <Stufe
-          nummer={2}
-          titel="Die eine Entität"
-          beschreibung="Jeder Eingang wird zum Projekt. Ab hier ist der Weg für alle gleich."
-        >
-          <div className="bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-800 rounded-xl p-4 text-center shadow-sm">
-            <div className="inline-flex p-2.5 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 mb-2">
-              <Layers className="w-6 h-6" />
-            </div>
-            <h4 className="text-base font-bold text-gray-900 dark:text-white">PROJEKT</h4>
-            <p className="text-3xl font-bold text-purple-700 dark:text-purple-300 mt-1 leading-none">
-              {projektZahlen.gesamt}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-              Projekte in Saison {saisonjahr}
-            </p>
-            <p className="text-xs text-gray-400 dark:text-slate-500 mt-2 leading-snug">
-              davon {projektZahlen.laufend} laufend
-            </p>
-          </div>
-          <div className="text-[11px] text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-lg p-2.5 leading-relaxed">
-            Ein Projekt trägt Kunde, Menge, Preise und alle Dokumente — Angebot,
-            Auftragsbestätigung, Lieferschein und Rechnung hängen daran.
-          </div>
-        </Stufe>
-
-        <Konnektor />
-
-        {/* ---------- 3. Kanban ---------- */}
-        <Stufe
-          nummer={3}
-          titel="Das Board"
-          beschreibung="Hier fließt alles zusammen. Der Status sagt, wie weit ein Projekt ist."
-          breit
-        >
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => onZeigeView('kanban')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onZeigeView('kanban');
-              }
-            }}
-            className="group bg-white dark:bg-slate-800 border-2 border-purple-200 dark:border-purple-900/60 hover:border-purple-400 dark:hover:border-purple-700 rounded-xl p-3 cursor-pointer transition-all hover:shadow-md"
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 xl:gap-10 2xl:gap-16">
+          {/* ---------- 1. Eingang ---------- */}
+          <Spalte
+            nummer={1}
+            titel="Wo Projekte entstehen"
+            beschreibung="Alle Kanäle, über die Arbeit ins Haus kommt."
           >
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="p-2 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-                <LayoutGrid className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Kanban-Board</h4>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  <span className="font-bold text-purple-700 dark:text-purple-300">
-                    {projektZahlen.laufend}
-                  </span>{' '}
-                  aktive Projekte
-                </p>
-              </div>
-            </div>
+            <ToolKarte
+              knoten="shop"
+              titel="Onlineshop"
+              icon={ShoppingCart}
+              farbe="blau"
+              kennzahl={zahl(kennzahlen.shopNeu)}
+              kennzahlLabel="neue Bestellungen"
+              zusatz={`${zahl(kennzahlen.shopInArbeit)} in Bearbeitung · ${projektZahlen.herkunft.shop} Projekte in dieser Saison`}
+              route="/shop-bestellungen"
+              gesperrt={!darfShop}
+              laedt={laedt}
+            />
+            <ToolKarte
+              knoten="anfragen"
+              titel="Anfragen"
+              icon={Inbox}
+              farbe="gruen"
+              kennzahl={zahl(kennzahlen.anfragenNeu)}
+              kennzahlLabel="offene Anfragen"
+              zusatz={`${zahl(kennzahlen.anfragenInArbeit)} in Arbeit · ${projektZahlen.herkunft.anfrage} Projekte in dieser Saison`}
+              onClick={() => onZeigeView('anfragen')}
+              laedt={laedt}
+            />
+            <ToolKarte
+              knoten="platzbauer"
+              titel="Platzbauer"
+              icon={HardHat}
+              farbe="bernstein"
+              kennzahl={zahl(kennzahlen.platzbauerOffen)}
+              kennzahlLabel="laufende Platzbau-Projekte"
+              zusatz={`${zahl(kennzahlen.platzbauerGesamt)} gesamt in Saison ${saisonjahr} · ${projektZahlen.herkunft.platzbau} Vereinsprojekte`}
+              route="/platzbauer-verwaltung"
+              gesperrt={!darfPlatzbauer}
+              laedt={laedt}
+            />
+            <ToolKarte
+              knoten="massenangebot"
+              titel="Massen-Angebote"
+              icon={Calculator}
+              farbe="petrol"
+              kennzahl={String(projektZahlen.herkunft.massenangebot)}
+              kennzahlLabel="Projekte aus Massen-Läufen"
+              zusatz="Frühjahrs-Instandsetzung: Angebote für viele Saisonkunden in einem Lauf."
+              onClick={() => onZeigeView('massenangebot')}
+              gesperrt={!isAdmin}
+            />
+            <ToolKarte
+              knoten="email"
+              titel="E-Mail"
+              icon={Mail}
+              farbe="schiefer"
+              kennzahl="Postfach"
+              kennzahlLabel="ohne Zähler"
+              kennzahlAlsText
+              zusatz="Mails, die keine automatische Anfrage erzeugt haben, werden von Hand zum Projekt."
+              route="/email-dashboard"
+              gesperrt={!darfEmail}
+            />
+            <ToolKarte
+              knoten="telefon"
+              titel="Telefon & direkt"
+              icon={Phone}
+              farbe="rose"
+              kennzahl={String(projektZahlen.herkunft.direkt)}
+              kennzahlLabel="direkt angelegt"
+              zusatz="Projekte ohne Quell-Tool — im Board über „Neues Projekt“ erfasst."
+              onClick={() => onZeigeView('kanban')}
+            />
+          </Spalte>
 
-            {/* Statuskette */}
-            <div className="space-y-1">
-              {KETTE.map((status, index) => (
-                <div key={status} className="flex items-center gap-2">
-                  <span className="w-3 flex justify-center text-gray-300 dark:text-slate-600 text-[10px]">
-                    {index === 0 ? '' : '↓'}
-                  </span>
-                  <div className="flex-1 flex items-center justify-between gap-2 px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-700/50">
-                    <span className="text-xs text-gray-600 dark:text-slate-300 truncate">
-                      {STATUS_KURZ[status]}
-                    </span>
-                    <span className="text-xs font-semibold text-gray-900 dark:text-white tabular-nums">
-                      {projektZahlen.proStatus[status]}
-                    </span>
-                  </div>
+          <StapelPfeil />
+
+          {/* ---------- 2. Board ---------- */}
+          <Spalte
+            nummer={2}
+            titel="Hier läuft alles zusammen"
+            beschreibung="Jeder Eingang wird zu genau einem Projekt — und jedes Projekt liegt auf dem Board."
+            breite="xl:flex-1 xl:min-w-[17rem] xl:max-w-[25rem]"
+          >
+            <div
+              data-knoten="board"
+              role="button"
+              tabIndex={0}
+              onClick={() => onZeigeView('kanban')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onZeigeView('kanban');
+                }
+              }}
+              className="group relative bg-white dark:bg-slate-800 border-2 border-purple-300 dark:border-purple-800 rounded-xl p-4 cursor-pointer transition-all hover:border-purple-500 dark:hover:border-purple-600 hover:shadow-lg"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                  <LayoutGrid className="w-6 h-6" />
                 </div>
-              ))}
+                <div className="min-w-0">
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white">Kanban-Board</h4>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    <span className="font-bold text-purple-700 dark:text-purple-300">
+                      {projektZahlen.laufend}
+                    </span>{' '}
+                    aktive Projekte
+                  </p>
+                </div>
+              </div>
+
+              {/* Statuskette */}
+              <div className="space-y-1">
+                {KETTE.map((status, index) => (
+                  <div key={status} className="flex items-center gap-2">
+                    <span className="w-3 flex justify-center text-gray-300 dark:text-slate-600 text-[10px]">
+                      {index === 0 ? '' : '↓'}
+                    </span>
+                    <div className="flex-1 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-gray-50 dark:bg-slate-700/50">
+                      <span className="text-xs text-gray-600 dark:text-slate-300 truncate">
+                        {STATUS_KURZ[status]}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">
+                        {projektZahlen.proStatus[status]}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Projektzahl der Saison als Fuß der Board-Karte */}
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-purple-700 dark:text-purple-300 leading-none">
+                    {projektZahlen.gesamt}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">
+                    Projekte in Saison {saisonjahr}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">
+                    {projektZahlen.proStatus.verloren > 0
+                      ? `davon ${projektZahlen.proStatus.verloren} verloren`
+                      : 'keine verlorenen Projekte'}
+                  </span>
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
+                    Board öffnen <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
             </div>
+          </Spalte>
 
-            <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-2 flex items-center gap-1">
-              Board öffnen <ArrowRight className="w-3 h-3" />
-            </p>
-          </div>
-          {projektZahlen.proStatus.verloren > 0 && (
-            <p className="text-[11px] text-gray-400 dark:text-slate-500 px-1">
-              {projektZahlen.proStatus.verloren} Projekte als verloren markiert (im Board
-              ausblendbar).
-            </p>
-          )}
-        </Stufe>
+          <StapelPfeil />
 
-        <Konnektor />
+          {/* ---------- 3. Abwicklung ---------- */}
+          <Spalte
+            nummer={3}
+            titel="Abwicklung"
+            beschreibung="Aus dem Board zweigen die Tools ab, die den Auftrag ausführen und abrechnen."
+          >
+            <ToolKarte
+              knoten="dispo"
+              titel="Disposition"
+              icon={Truck}
+              farbe="himmel"
+              kennzahl={String(projektZahlen.dispoOffen)}
+              kennzahlLabel="zu disponieren"
+              zusatz="Aufträge mit AB, deren Lieferung noch geplant werden muss."
+              route="/dispo-planung"
+              gesperrt={!darfDispo}
+            />
+            <ToolKarte
+              knoten="hydrocourt"
+              titel="Hydrocourt"
+              icon={Droplets}
+              farbe="cyan"
+              kennzahl={String(projektZahlen.hydrocourtOffen)}
+              kennzahlLabel="offene TM-HYC"
+              zusatz="Bestellungen mit Artikel TM-HYC — Versand über Schwab."
+              onClick={() => onZeigeView('hydrocourt')}
+            />
+            <ToolKarte
+              knoten="universal"
+              titel="Universal"
+              icon={Package}
+              farbe="orange"
+              kennzahl={String(projektZahlen.universalOffen)}
+              kennzahlLabel="offene Bestellungen"
+              zusatz="Fremdprodukte aus dem Universal-Katalog."
+              onClick={() => onZeigeView('universal')}
+            />
+            <ToolKarte
+              knoten="debitoren"
+              titel="Debitoren"
+              icon={Banknote}
+              farbe="smaragd"
+              kennzahl={zahl(kennzahlen.debitorenOffenAnzahl)}
+              kennzahlLabel="offene Forderungen"
+              zusatz={`${euro(kennzahlen.debitorenOffenBetrag)} offen`}
+              warnung={
+                kennzahlen.debitorenUeberfaellig
+                  ? `${kennzahlen.debitorenUeberfaellig} überfällig`
+                  : undefined
+              }
+              route="/debitoren"
+              gesperrt={!darfDebitoren}
+              laedt={laedt}
+            />
+          </Spalte>
 
-        {/* ---------- 4. Abwicklung ---------- */}
-        <Stufe
-          nummer={4}
-          titel="Abwicklung"
-          beschreibung="Aus dem Board zweigen die Tools ab, die den Auftrag ausführen."
-        >
-          <ToolKarte
-            titel="Disposition"
-            icon={Truck}
-            farbe="himmel"
-            kennzahl={String(projektZahlen.dispoOffen)}
-            kennzahlLabel="zu disponieren"
-            zusatz="Aufträge mit AB, deren Lieferung noch geplant werden muss."
-            route="/dispo-planung"
-            gesperrt={!darfDispo}
-          />
-          <ToolKarte
-            titel="Hydrocourt"
-            icon={Droplets}
-            farbe="cyan"
-            kennzahl={String(projektZahlen.hydrocourtOffen)}
-            kennzahlLabel="offene TM-HYC"
-            zusatz="Bestellungen mit Artikel TM-HYC — Versand über Schwab."
-            onClick={() => onZeigeView('hydrocourt')}
-          />
-          <ToolKarte
-            titel="Universal"
-            icon={Package}
-            farbe="orange"
-            kennzahl={String(projektZahlen.universalOffen)}
-            kennzahlLabel="offene Bestellungen"
-            zusatz="Fremdprodukte aus dem Universal-Katalog."
-            onClick={() => onZeigeView('universal')}
-          />
-        </Stufe>
+          <StapelPfeil />
 
-        <Konnektor />
-
-        {/* ---------- 5. Abschluss ---------- */}
-        <Stufe
-          nummer={5}
-          titel="Abschluss & Auswertung"
-          beschreibung="Geld reinholen, Zahlen anschauen."
-        >
-          <ToolKarte
-            titel="Debitoren"
-            icon={Banknote}
-            farbe="smaragd"
-            kennzahl={zahl(kennzahlen.debitorenOffenAnzahl)}
-            kennzahlLabel="offene Forderungen"
-            zusatz={`${euro(kennzahlen.debitorenOffenBetrag)} offen`}
-            warnung={
-              kennzahlen.debitorenUeberfaellig
-                ? `${kennzahlen.debitorenUeberfaellig} überfällig`
-                : undefined
-            }
-            route="/debitoren"
-            gesperrt={!darfDebitoren}
-            laedt={laedt}
-          />
-          <ToolKarte
-            titel="Statistik"
-            icon={BarChart3}
-            farbe="lila"
-            kennzahl={String(projektZahlen.proStatus.bezahlt)}
-            kennzahlLabel="bezahlte Projekte"
-            zusatz={`Umsatz, Mengen und DB1 der Saison ${saisonjahr}.`}
-            onClick={() => onZeigeView('statistik')}
-          />
-        </Stufe>
+          {/* ---------- 4. Auswertung ---------- */}
+          <Spalte
+            nummer={4}
+            titel="Auswertung"
+            beschreibung="Am Ende der Kette stehen die Zahlen der Saison."
+            breite="xl:flex-1 xl:min-w-[13rem] xl:max-w-[18rem]"
+          >
+            <ToolKarte
+              knoten="statistik"
+              titel="Statistik"
+              icon={BarChart3}
+              farbe="lila"
+              kennzahl={String(projektZahlen.proStatus.bezahlt)}
+              kennzahlLabel="bezahlte Projekte"
+              zusatz={`Umsatz, Mengen und DB1 der Saison ${saisonjahr}.`}
+              onClick={() => onZeigeView('statistik')}
+            />
+          </Spalte>
+        </div>
       </div>
 
       {/* Legende */}
@@ -650,7 +815,8 @@ const ProzessOverview = ({
             <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${FARBEN.lila.punkt}`} />
             <span>
               <strong className="text-gray-800 dark:text-slate-200">Ein Eingang = ein Projekt.</strong>{' '}
-              Kein Auftrag lebt nur in einer Mail oder im Shop — er wird immer zum Projekt.
+              Kein Auftrag lebt nur in einer Mail oder im Shop — er wird immer zum Projekt, und
+              das Projekt trägt Kunde, Menge, Preise und alle Dokumente.
             </span>
           </li>
           <li className="flex gap-2">
@@ -664,8 +830,8 @@ const ProzessOverview = ({
             <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${FARBEN.smaragd.punkt}`} />
             <span>
               <strong className="text-gray-800 dark:text-slate-200">Der Status ist der Fortschritt.</strong>{' '}
-              Angebot → AB → Lieferschein → Geliefert → Rechnung → Bezahlt. Die Spezial-Tools
-              arbeiten parallel dazu, ersetzen den Status aber nicht.
+              Angebot → AB → Lieferschein → Geliefert → Rechnung → Bezahlt. Die Tools der
+              Abwicklung arbeiten parallel dazu, ersetzen den Status aber nicht.
             </span>
           </li>
         </ul>
