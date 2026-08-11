@@ -45,6 +45,7 @@ import {
 } from './projektabwicklungDokumentService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
+import { istMockModusAktiv } from '../config/mockModus';
 import { generiereAngebotPDF } from './dokumentService';
 import { getArtikelPreis, getStammdatenOderDefault, getPreisKonfiguration } from './stammdatenService';
 import { generiereStandardEmail } from '../utils/emailHelpers';
@@ -1270,7 +1271,16 @@ function baueAngebotsDaten(
 // ===== SCHARFE ERZEUGUNG / ROLLBACK / PROTOKOLL =====
 
 // Erkennt, ob die App gegen eine Appwrite-Testumgebung läuft (für Banner + Protokoll).
+/**
+ * Markiert einen Lauf im Protokoll (`angebots_laeufe.testModus`) als nicht-echt.
+ *
+ * Beide Signale werden verodert: die alte Testumgebungs-Erkennung (eigenes
+ * Appwrite-Projekt für Tests) UND der Mock-Modus. Ohne das zweite Signal stünde
+ * ein kompletter Sandbox-Lauf im Protokoll als scharfer Lauf — und wäre später
+ * nicht mehr von einem echten zu unterscheiden.
+ */
 function istTestumgebung(): boolean {
+  if (istMockModusAktiv()) return true;
   const flag = import.meta.env.VITE_APPWRITE_TESTUMGEBUNG;
   if (typeof flag === 'string') return flag === 'true' || flag === '1';
   const pid = (PROJECT_ID || '').toLowerCase();

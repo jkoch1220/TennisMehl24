@@ -4,7 +4,6 @@
  */
 
 import {
-  DATABASE_ID,
   KUNDEN_COLLECTION_ID,
   KUNDEN_AKTIVITAETEN_COLLECTION_ID,
   SAISON_KUNDEN_COLLECTION_ID,
@@ -71,6 +70,7 @@ import {
   // Massen-Angebots-Läufe (Protokoll)
   ANGEBOTS_LAEUFE_COLLECTION_ID,
 } from '../config/appwrite';
+import { getDatabaseId } from '../config/mockModus';
 
 // Verwende die REST API direkt für Management-Operationen
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
@@ -779,7 +779,7 @@ async function ensureIndex(collectionId: string, indexKey: string, attributes: s
 
   // Prüfen ob Index existiert
   const res = await fetch(
-    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    `${endpoint}/databases/${getDatabaseId()}/collections/${collectionId}/indexes`,
     { method: 'GET', headers }
   );
 
@@ -791,7 +791,7 @@ async function ensureIndex(collectionId: string, indexKey: string, attributes: s
 
   console.log(`📇 Erstelle Index ${indexKey} für Collection ${collectionId} ...`);
   const createRes = await fetch(
-    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/indexes`,
+    `${endpoint}/databases/${getDatabaseId()}/collections/${collectionId}/indexes`,
     {
       method: 'POST',
       headers,
@@ -864,7 +864,7 @@ async function ensureCollection(collectionId: string, name: string, permissions?
   };
 
   const res = await fetch(
-    `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}`,
+    `${endpoint}/databases/${getDatabaseId()}/collections/${collectionId}`,
     { method: 'GET', headers }
   );
   if (res.ok) return;
@@ -874,7 +874,7 @@ async function ensureCollection(collectionId: string, name: string, permissions?
   }
 
   console.log(`📦 Erstelle fehlende Collection ${collectionId} (${name}) ...`);
-  const createRes = await fetch(`${endpoint}/databases/${DATABASE_ID}/collections`, {
+  const createRes = await fetch(`${endpoint}/databases/${getDatabaseId()}/collections`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -922,7 +922,7 @@ async function createFieldViaAPI(collectionId: string, field: FieldConfig) {
     }
 
     const response = await fetch(
-      `${endpoint}/databases/${DATABASE_ID}/collections/${collectionId}/attributes/${field.type}`,
+      `${endpoint}/databases/${getDatabaseId()}/collections/${collectionId}/attributes/${field.type}`,
       {
         method: 'POST',
         headers: {

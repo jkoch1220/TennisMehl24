@@ -42,6 +42,7 @@ import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 import DokumentAdresseFormular, { DokumentAdresse } from '../Projektabwicklung/DokumentAdresseFormular';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
+import { getBucketId } from '../../config/mockModus';
 
 interface PlatzbauerRechnungTabProps {
   projekt: PlatzbauerProjekt;
@@ -685,7 +686,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                   Abbrechen
                 </button>
                 <a
-                  href={`${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${gespeicherteRechnung.dateiId}/download?project=${PROJECT_ID}`}
+                  href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${gespeicherteRechnung.dateiId}/download?project=${PROJECT_ID}`}
                   download={gespeicherteRechnung.dateiname}
                   onClick={() => {
                     // Nach kurzer Verzögerung mailto öffnen

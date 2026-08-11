@@ -206,6 +206,10 @@ const Liefernachweis = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
   const testModus = searchParams.get('test') === '1';
+  // Aus einem Sandbox-QR-Code: die Function soll gegen die Mock-Datenbank
+  // arbeiten. Der Parameter stammt aus der URL des QR-Codes, nicht aus dem
+  // localStorage — diese Seite wird ja auf einem fremden Handy geöffnet.
+  const mockModus = searchParams.get('mock') === '1';
 
   const [status, setStatus] = useState<SeitenStatus>('laden');
   const [fehlerText, setFehlerText] = useState<string>('');
@@ -255,7 +259,7 @@ const Liefernachweis = () => {
     setFehlerText('');
     try {
       const res = await fetch(
-        `${FUNCTION_URL}?projektId=${encodeURIComponent(projektId)}&token=${encodeURIComponent(token)}`
+        `${FUNCTION_URL}?projektId=${encodeURIComponent(projektId)}&token=${encodeURIComponent(token)}${mockModus ? '&mock=1' : ''}`
       );
       const json = (await res.json()) as { auftrag?: AuftragsInfo; error?: string };
       if (!res.ok || !json.auftrag) {
@@ -277,7 +281,7 @@ const Liefernachweis = () => {
       setFehlerText('Keine Verbindung. Bitte Empfang prüfen und erneut versuchen.');
       setStatus('fehler');
     }
-  }, [projektId, token]);
+  }, [projektId, token, mockModus]);
 
   useEffect(() => {
     void ladeAuftrag();
@@ -319,6 +323,7 @@ const Liefernachweis = () => {
           unterzeichnerName: unterzeichnerName.trim() || undefined,
           geo,
           testModus: testModus || undefined,
+          mock: mockModus || undefined,
         }),
       });
       const json = (await res.json()) as {

@@ -3,6 +3,7 @@
  */
 
 import { storage, APPWRITE_ENDPOINT, PROJECT_ID } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
 import { ID } from 'appwrite';
 
 const EMAIL_BILDER_BUCKET_ID = 'email-bilder';
@@ -37,7 +38,7 @@ export const ladebildHoch = async (file: File): Promise<string> => {
 
     // Generiere öffentliche URL
     // Format: {endpoint}/storage/buckets/{bucketId}/files/{fileId}/view?project={projectId}
-    const publicUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${EMAIL_BILDER_BUCKET_ID}/files/${result.$id}/view?project=${PROJECT_ID}`;
+    const publicUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(EMAIL_BILDER_BUCKET_ID)}/files/${result.$id}/view?project=${PROJECT_ID}`;
 
     return publicUrl;
   } catch (error) {
@@ -77,7 +78,7 @@ export const listeBilder = async (): Promise<Array<{ id: string; name: string; u
     return result.files.map(file => ({
       id: file.$id,
       name: file.name,
-      url: `${APPWRITE_ENDPOINT}/storage/buckets/${EMAIL_BILDER_BUCKET_ID}/files/${file.$id}/view?project=${PROJECT_ID}`,
+      url: `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(EMAIL_BILDER_BUCKET_ID)}/files/${file.$id}/view?project=${PROJECT_ID}`,
     }));
   } catch (error) {
     console.error('Fehler beim Auflisten der Bilder:', error);

@@ -5,6 +5,7 @@
  */
 
 import { BACKEND_CONFIG, backendFetch } from '../config/backend';
+import { blockiereImMockModus } from '../config/mockModus';
 import { databases, DATABASE_ID, UNIVERSA_ARTIKEL_COLLECTION_ID, COLLECTIONS } from '../config/appwrite';
 import { Query, ID } from 'appwrite';
 import { UniversalArtikel } from '../types/universaArtikel';
@@ -231,6 +232,7 @@ class ShopBestellungService {
    * Synchronisiert Bestellungen aus dem IMAP-Postfach
    */
   async syncEmails(): Promise<ShopSyncResult> {
+    blockiereImMockModus('Shop-Bestellungen synchronisieren (Backend schreibt in die Produktionsdatenbank)');
     if (!this.isBackendAvailable()) {
       throw new Error('Backend nicht verfügbar. Bitte VITE_USE_BACKEND=true setzen.');
     }
@@ -285,6 +287,7 @@ class ShopBestellungService {
    * Aktualisiert den Status einer Bestellung
    */
   async updateStatus(id: string, update: StatusUpdate): Promise<ShopBestellung> {
+    blockiereImMockModus('Shop-Bestellstatus ändern (wirkt auf die echte Bestellung)');
     if (!this.isBackendAvailable()) {
       throw new Error('Backend nicht verfügbar. Bitte VITE_USE_BACKEND=true setzen.');
     }
@@ -304,6 +307,9 @@ class ShopBestellungService {
    * Sendet Versandbenachrichtigung an Kunden
    */
   async sendeVersandbenachrichtigung(id: string): Promise<{ success: boolean; message: string }> {
+    // Diese Mail verschickt das VPS-Backend — sie läuft NICHT durch
+    // emailSendService und wird deshalb auch nicht auf die Testadresse umgeleitet.
+    blockiereImMockModus('Versandbenachrichtigung senden (Backend mailt direkt an den echten Kunden)');
     if (!this.isBackendAvailable()) {
       throw new Error('Backend nicht verfügbar. Bitte VITE_USE_BACKEND=true setzen.');
     }
@@ -320,6 +326,7 @@ class ShopBestellungService {
    * Aktualisiert eine einzelne Bestellung von Gambio
    */
   async refreshFromGambio(id: string): Promise<ShopBestellung> {
+    blockiereImMockModus('Bestellung aus Gambio aktualisieren (Backend schreibt in die Produktionsdatenbank)');
     if (!this.isBackendAvailable()) {
       throw new Error('Backend nicht verfügbar. Bitte VITE_USE_BACKEND=true setzen.');
     }

@@ -23,6 +23,7 @@ import {
   APPWRITE_ENDPOINT,
   PROJECT_ID,
 } from '../config/appwrite';
+import { getBucketId, mockLocalStorageKey } from '../config/mockModus';
 import {
   PlatzbauerProjekt,
   PlatzbauerPosition,
@@ -65,14 +66,14 @@ const pdfToBlob = (pdf: any): Blob => {
  * Generiert eine URL zum Anzeigen einer Datei
  */
 const getFileViewUrl = (dateiId: string): string => {
-  return `${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${dateiId}/view?project=${PROJECT_ID}`;
+  return `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${PROJECT_ID}`;
 };
 
 /**
  * Generiert eine URL zum Herunterladen einer Datei
  */
 const getFileDownloadUrl = (dateiId: string): string => {
-  return `${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${PROJECT_ID}`;
+  return `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${PROJECT_ID}`;
 };
 
 /**
@@ -909,7 +910,7 @@ export const speichereEntwurf = async (
   }
 
   // === SOFORT IN LOCALSTORAGE SPEICHERN (BACKUP) ===
-  const localStorageKey = `platzbauer_entwurf_${projektId}_${typ}`;
+  const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
   try {
     localStorage.setItem(localStorageKey, JSON.stringify(daten));
     console.log('💾 LocalStorage Backup gespeichert:', localStorageKey);
@@ -981,7 +982,7 @@ export const ladeEntwurf = async <T>(
   console.log('🔍 ladeEntwurf aufgerufen:', { projektId, typ });
 
   // === ZUERST LOCALSTORAGE PRÜFEN (BACKUP) ===
-  const localStorageKey = `platzbauer_entwurf_${projektId}_${typ}`;
+  const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
   try {
     const localData = localStorage.getItem(localStorageKey);
     if (localData) {

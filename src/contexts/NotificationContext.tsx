@@ -10,7 +10,8 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { client, DATABASE_ID, NOTIFICATIONS_COLLECTION_ID } from '../config/appwrite';
+import { client, NOTIFICATIONS_COLLECTION_ID } from '../config/appwrite';
+import { realtimeKanal } from '../config/mockModus';
 import { useAuth } from './AuthContext';
 import { notificationService, mapDocument } from '../services/notificationService';
 import type { Benachrichtigung } from '../types/notification';
@@ -78,7 +79,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   useEffect(() => {
     if (!userId) return;
 
-    const channel = `databases.${DATABASE_ID}.collections.${NOTIFICATIONS_COLLECTION_ID}.documents`;
+    const channel = realtimeKanal(NOTIFICATIONS_COLLECTION_ID);
 
     const unsubscribe = client.subscribe(channel, (response) => {
       const events: string[] = response.events || [];

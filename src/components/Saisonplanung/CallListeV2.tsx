@@ -39,7 +39,8 @@ import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
-import { client, DATABASE_ID, SAISON_KUNDEN_COLLECTION_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { client, SAISON_KUNDEN_COLLECTION_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { realtimeKanal } from '../../config/mockModus';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 
 interface CallListeV2Props {
@@ -174,8 +175,8 @@ const CallListeV2 = ({ saisonjahr, onClose }: CallListeV2Props) => {
       try {
         const unsubscribe = client.subscribe(
           [
-            `databases.${DATABASE_ID}.collections.${SAISON_KUNDEN_COLLECTION_ID}.documents`,
-            `databases.${DATABASE_ID}.collections.${PROJEKTE_COLLECTION_ID}.documents`,
+            realtimeKanal(SAISON_KUNDEN_COLLECTION_ID),
+            realtimeKanal(PROJEKTE_COLLECTION_ID),
           ],
           (response) => {
             // Bei jeder Änderung neu laden

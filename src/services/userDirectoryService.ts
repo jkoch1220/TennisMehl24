@@ -1,4 +1,5 @@
 import { account } from './authService';
+import { blockiereImMockModus } from '../config/mockModus';
 
 /**
  * Zugriff auf die Netlify Function admin-users:
@@ -51,11 +52,17 @@ export const listUsersMitEmail = async (): Promise<DirectoryUser[]> => {
   return Array.isArray(data.users) ? (data.users as DirectoryUser[]) : [];
 };
 
+// Benutzerkonten liegen in Appwrite PROJEKTWEIT, nicht in einer Datenbank. Der
+// Mock-Modus kann sie deshalb nicht isolieren: ein hier angelegter Benutzer
+// wäre ein echter Benutzer, und ein Passwort-Reset träfe ein echtes Konto —
+// samt echter E-Mail an dessen Adresse. Fail-closed statt Durchlass.
 export const createUser = async (email: string, name: string): Promise<DirectoryUser> => {
+  blockiereImMockModus('Benutzer anlegen (Konten sind projektweit, nicht Teil der Sandbox)');
   const data = await adminRequest({ action: 'create', email, name });
   return data.user as unknown as DirectoryUser;
 };
 
 export const resetUserPassword = async (userId: string): Promise<void> => {
+  blockiereImMockModus('Passwort zurücksetzen (trifft das echte Konto und verschickt eine echte E-Mail)');
   await adminRequest({ action: 'reset-password', userId });
 };

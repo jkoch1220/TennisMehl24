@@ -21,6 +21,8 @@ import {
   MINDMAP_ZEITEN_COLLECTION_ID,
   MINDMAP_BILDER_BUCKET_ID,
 } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
+import { realtimeKanal } from '../config/mockModus';
 import {
   MindmapBoard,
   MindmapBoardTyp,
@@ -159,7 +161,7 @@ export const deleteMindmapNodes = async (ids: string[]): Promise<void> => {
 export const subscribeMindmap = (
   onChange: (event: 'upsert' | 'delete', node: MindmapNode) => void
 ): (() => void) => {
-  const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_NODES_COLLECTION_ID}.documents`;
+  const channel = realtimeKanal(MINDMAP_NODES_COLLECTION_ID);
   return client.subscribe(channel, (response) => {
     const events: string[] = response.events || [];
     const node = mapDocument(response.payload as Record<string, unknown>);
@@ -264,7 +266,7 @@ export const deleteBoard = async (boardId: string): Promise<void> => {
 };
 
 export const subscribeBoards = (onChange: () => void): (() => void) => {
-  const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_BOARDS_COLLECTION_ID}.documents`;
+  const channel = realtimeKanal(MINDMAP_BOARDS_COLLECTION_ID);
   return client.subscribe(channel, () => onChange());
 };
 
@@ -321,7 +323,7 @@ export const deleteGeraet = async (id: string): Promise<void> => {
 };
 
 export const subscribeGeraete = (onChange: () => void): (() => void) => {
-  const channel = `databases.${DATABASE_ID}.collections.${MINDMAP_GERAETE_COLLECTION_ID}.documents`;
+  const channel = realtimeKanal(MINDMAP_GERAETE_COLLECTION_ID);
   return client.subscribe(channel, () => onChange());
 };
 
@@ -487,7 +489,7 @@ export const uploadTaskBild = async (file: File): Promise<string> => {
 };
 
 export const getTaskBildUrl = (fileId: string, preview = false): string => {
-  const base = `${APPWRITE_ENDPOINT}/storage/buckets/${MINDMAP_BILDER_BUCKET_ID}/files/${fileId}`;
+  const base = `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(MINDMAP_BILDER_BUCKET_ID)}/files/${fileId}`;
   return preview
     ? `${base}/preview?width=400&project=${PROJECT_ID}`
     : `${base}/view?project=${PROJECT_ID}`;

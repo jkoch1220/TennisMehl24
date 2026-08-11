@@ -1,5 +1,21 @@
 import { databases, DATABASE_ID, STAMMDATEN_COLLECTION_ID, STAMMDATEN_DOCUMENT_ID, PROJEKTE_COLLECTION_ID } from '../config/appwrite';
 import { Query } from 'appwrite';
+import { istMockModusAktiv } from '../config/mockModus';
+
+/**
+ * Präfix für Dokumentnummern aus der Sandbox: `MOCK-ANG-2026-0024`.
+ *
+ * Der Zählerstand selbst ist bereits getrennt — er liegt im stammdaten-Dokument
+ * der jeweiligen Datenbank, ein Sandbox-Lauf kann den Produktionszähler also
+ * gar nicht bewegen. Der Präfix löst das zweite Problem: dass in Sandbox und
+ * Produktion dieselbe Nummer für zwei völlig verschiedene Dokumente steht.
+ *
+ * Mit dem Präfix ist auf jedem PDF, in jeder Liste und in jeder E-Mail sofort
+ * erkennbar, dass ein Dokument aus der Sandbox stammt — und eine Sandbox-Nummer
+ * kann niemals mit einer echten Rechnungsnummer verwechselt werden.
+ */
+const mitMockPraefix = (nummer: string): string =>
+  istMockModusAktiv() ? `MOCK-${nummer}` : nummer;
 
 export type DokumentTyp = 'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung' | 'stornorechnung' | 'proformarechnung';
 
@@ -232,7 +248,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
 
       // Generiere die vollständige Dokumentnummer
       // Alle Dokumenttypen enthalten das Saisonjahr: ANG-2026-0001, AB-2026-0001, LS-2026-0001, RE-2026-0001
-      const dokumentnummer = `${prefix}-${aktuellesJahr}-${laufnummer}`;
+      const dokumentnummer = mitMockPraefix(`${prefix}-${aktuellesJahr}-${laufnummer}`);
       
       // KRITISCH: Prüfe, ob diese Nummer bereits existiert
       const existiert = await nummerExistiertBereits(dokumentnummer, typ);
@@ -294,7 +310,7 @@ export const generiereNaechsteDokumentnummer = async (typ: DokumentTyp): Promise
 
     // Im Fallback das Saisonjahr für alle Dokumenttypen einfügen
     const fallbackSaison = berechneAktuelleSaison();
-    const fallbackNummer = `${prefix}-${fallbackSaison}-${laufnummer}`;
+    const fallbackNummer = mitMockPraefix(`${prefix}-${fallbackSaison}-${laufnummer}`);
     console.error(`⚠️ Verwende Fallback-Nummer: ${fallbackNummer}`);
 
     return fallbackNummer;

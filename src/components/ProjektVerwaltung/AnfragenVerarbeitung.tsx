@@ -47,6 +47,7 @@ import {
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import AnfrageBearbeitungDialog from './AnfrageBearbeitungDialog';
 import AnfragenKartenansicht from './AnfragenKartenansicht';
+import { blockiereImMockModus } from '../../config/mockModus';
 
 interface AnfragenVerarbeitungProps {
   onAnfrageGenehmigt?: (projektId: string) => void;
@@ -163,6 +164,9 @@ const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps)
   const [syncResult, setSyncResult] = useState<{ neu: number; duplikate: number } | null>(null);
 
   const syncEmails = useCallback(async () => {
+    // Die Function email-sync schreibt mit hartkodierter Produktions-Datenbank-ID
+    // und läuft serverseitig, kennt den Client-Schalter also nicht.
+    blockiereImMockModus('Postfach-Synchronisation (schreibt direkt in die Produktionsdatenbank)');
     setSyncing(true);
     setSyncResult(null);
     try {

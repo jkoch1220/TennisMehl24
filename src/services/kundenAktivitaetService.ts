@@ -6,6 +6,7 @@ import {
   databases,
   storage,
 } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
 import { KundenAktivitaet, KundenAktivitaetsTyp, NeueKundenAktivitaet } from '../types/kundenAktivitaet';
 import { loadAllDocuments } from '../utils/appwritePagination';
 
@@ -127,19 +128,19 @@ export const kundenAktivitaetService = {
   getDateiUrl(dateiId: string): string {
     const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    return `${endpoint}/storage/buckets/${KUNDEN_DATEIEN_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+    return `${endpoint}/storage/buckets/${getBucketId(KUNDEN_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${projectId}`;
   },
 
   getDownloadUrl(dateiId: string): string {
     const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    return `${endpoint}/storage/buckets/${KUNDEN_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${projectId}`;
+    return `${endpoint}/storage/buckets/${getBucketId(KUNDEN_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${projectId}`;
   },
 
   getPreviewUrl(dateiId: string, width = 400, height = 300): string {
     const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    return `${endpoint}/storage/buckets/${KUNDEN_DATEIEN_BUCKET_ID}/files/${dateiId}/preview?project=${projectId}&width=${width}&height=${height}`;
+    return `${endpoint}/storage/buckets/${getBucketId(KUNDEN_DATEIEN_BUCKET_ID)}/files/${dateiId}/preview?project=${projectId}&width=${width}&height=${height}`;
   },
 
   // Schüttplatzbilder spezifische Methoden

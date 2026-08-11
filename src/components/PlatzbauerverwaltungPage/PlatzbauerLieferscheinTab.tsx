@@ -31,6 +31,7 @@ import {
   ladeLieferscheineFuerProjekt,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
+import { getBucketId } from '../../config/mockModus';
 
 interface PlatzbauerLieferscheinTabProps {
   projekt: PlatzbauerProjekt;
@@ -160,7 +161,7 @@ const PlatzbauerLieferscheinTab = ({ projekt, platzbauer }: PlatzbauerLiefersche
       );
 
       // PDF öffnen
-      const viewUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${neuerLieferschein.dateiId}/view?project=${PROJECT_ID}`;
+      const viewUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${neuerLieferschein.dateiId}/view?project=${PROJECT_ID}`;
       window.open(viewUrl, '_blank');
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error);
@@ -277,7 +278,7 @@ const PlatzbauerLieferscheinTab = ({ projekt, platzbauer }: PlatzbauerLiefersche
                   {istErstellt && verein.lieferschein ? (
                     <>
                       <a
-                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${verein.lieferschein.dateiId}/view?project=${PROJECT_ID}`}
+                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${verein.lieferschein.dateiId}/view?project=${PROJECT_ID}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -286,7 +287,7 @@ const PlatzbauerLieferscheinTab = ({ projekt, platzbauer }: PlatzbauerLiefersche
                         Anzeigen
                       </a>
                       <a
-                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${PLATZBAUER_DATEIEN_BUCKET_ID}/files/${verein.lieferschein.dateiId}/download?project=${PROJECT_ID}`}
+                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${verein.lieferschein.dateiId}/download?project=${PROJECT_ID}`}
                         className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50"
                       >
                         <Download className="w-4 h-4" />

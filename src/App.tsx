@@ -10,6 +10,7 @@ import { mustChangePassword } from './services/authService';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import OfflineBanner from './components/OfflineBanner';
+import MockModusBanner from './components/MockModusBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'sonner';
 import lazyWithRetry from './utils/lazyWithRetry';
@@ -395,6 +396,7 @@ function App() {
             }}
           />
           <OfflineBanner />
+          <MockModusBanner />
           <Router>
             <Suspense fallback={<PageLoader />}>
               <Routes>

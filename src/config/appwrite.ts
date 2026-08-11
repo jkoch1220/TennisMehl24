@@ -1,7 +1,22 @@
 import { Client, Databases, Storage, Account } from 'appwrite';
+import { APPWRITE_ENDPOINT, PROJECT_ID, PRODUKTIONS_DATABASE_ID } from './appwriteEnv';
+import { getDatabaseId, getBucketId, istMockModusAktiv } from './mockModus';
 
-// Database und Collection IDs (müssen zuerst definiert werden)
-export const DATABASE_ID = 'tennismehl24_db';
+export { APPWRITE_ENDPOINT, PROJECT_ID };
+
+/**
+ * @deprecated Nicht mehr direkt verwenden.
+ *
+ * Für Appwrite-Aufrufe ist die Konstante bedeutungslos: der Proxy weiter unten
+ * ersetzt die Datenbank-ID ohnehin bei jedem Call. `databases.listDocuments(
+ * DATABASE_ID, ...)` funktioniert also weiterhin korrekt und landet im
+ * Mock-Modus in der Sandbox.
+ *
+ * GEFÄHRLICH ist die Konstante überall dort, wo die ID in einen String gebaut
+ * wird, der NICHT durch den Proxy läuft — vor allem Realtime-Kanäle. Dafür gibt
+ * es `realtimeKanal()` aus `config/mockModus`.
+ */
+export const DATABASE_ID = PRODUKTIONS_DATABASE_ID;
 export const FIXKOSTEN_COLLECTION_ID = 'fixkosten';
 export const VARIABLE_KOSTEN_COLLECTION_ID = 'variable_kosten';
 export const LIEFERUNGEN_COLLECTION_ID = 'lieferungen';
@@ -235,32 +250,244 @@ export const STAMMDATEN_DOCUMENT_ID = 'stammdaten_data';
 
 const client = new Client();
 
-export const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_ENDPOINT;
-export const PROJECT_ID = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-
 const endpoint = APPWRITE_ENDPOINT;
 const projectId = PROJECT_ID;
 
-if (!endpoint || !projectId) {
-  console.error('❌ Appwrite Konfiguration fehlt!');
-  console.error('VITE_APPWRITE_ENDPOINT:', endpoint);
-  console.error('VITE_APPWRITE_PROJECT_ID:', projectId);
-  throw new Error('VITE_APPWRITE_ENDPOINT und VITE_APPWRITE_PROJECT_ID müssen gesetzt sein');
-}
-
 client.setEndpoint(endpoint).setProject(projectId);
 
-export const databases = new Databases(client);
-export const storage = new Storage(client);
+// ===========================================================================
+// MOCK-MODUS-INTERCEPTOR
+// ===========================================================================
+//
+// Das ist die zentrale Sicherheitskomponente des Sandbox-Features. 68 Dateien
+// importieren `databases` von hier. Statt in allen 68 Dateien die Datenbank-ID
+// auszutauschen, sitzt hier ein Proxy, der bei JEDEM Aufruf die Ziel-Datenbank
+// aus `getDatabaseId()` einsetzt. Analog für `storage` mit `getBucketId()`.
+//
+// Warum das funktioniert: Bei allen dokumentbezogenen Methoden des Appwrite-
+// SDK ist die `databaseId` das erste Argument (bzw. ein Feld des Parameter-
+// Objekts). Es gibt keinen Aufruf ohne sie.
+//
+// ---------------------------------------------------------------------------
+// ⚠️ ZWEI AUFRUFFORMEN — hier lag die eigentliche Falle
+//
+// Appwrite SDK 21 überlädt jede Methode doppelt (verifiziert in
+// node_modules/appwrite/types/services/databases.d.ts):
+//
+//   listDocuments(databaseId, collectionId, queries?)          // positional
+//   listDocuments({ databaseId, collectionId, queries? })      // Objekt-Form
+//
+// Ein Proxy, der nur `args[0]` ersetzt, würde die Objekt-Form still
+// durchrutschen lassen — und damit einen Schreibzugriff auf die
+// Produktionsdatenbank. Der Wrapper unten behandelt beide Formen.
+//
+// ---------------------------------------------------------------------------
+// FAIL-CLOSED
+//
+// Trifft der Proxy im Mock-Modus auf etwas, das er nicht sicher umschreiben
+// kann (unbekannte Methode, Transaktions-API, unerwartete Argumentform), wirft
+// er. Ein blockiertes Feature ist ein akzeptables Ergebnis; ein durchgerutschter
+// Schreibzugriff auf Produktivdaten nicht.
+//
+// Im Normalbetrieb (Mock-Modus aus) wird nie geworfen — dort zeigt
+// `getDatabaseId()` ohnehin auf die Produktionsdatenbank, es gibt also nichts
+// umzuschreiben und nichts zu schützen.
+// ===========================================================================
+
+/**
+ * Methoden, deren erstes Argument die `databaseId` ist.
+ * Erhoben aus der SDK-Typdefinition, nicht geraten. Bei einem SDK-Update ist
+ * diese Liste gegen `databases.d.ts` zu prüfen — alles, was hier fehlt, wird
+ * im Mock-Modus geblockt (nicht durchgelassen), fällt also sofort auf.
+ */
+const DB_METHODEN_MIT_DATABASE_ID = new Set([
+  'listDocuments',
+  'createDocument',
+  'getDocument',
+  'upsertDocument',
+  'updateDocument',
+  'deleteDocument',
+  'incrementDocumentAttribute',
+  'decrementDocumentAttribute',
+]);
+
+/**
+ * Transaktions-API: `createOperations(transactionId, operations)` trägt die
+ * `databaseId` in jedem Element von `operations`, nicht im ersten Argument.
+ * Das ließe sich umschreiben — wird aktuell aber nirgends im Projekt benutzt.
+ * Solange das so ist, ist Blocken die ehrlichere Lösung als ungetesteter Code
+ * in einem Sicherheitspfad.
+ */
+const DB_TRANSAKTIONS_METHODEN = new Set([
+  'listTransactions',
+  'createTransaction',
+  'getTransaction',
+  'updateTransaction',
+  'deleteTransaction',
+  'createOperations',
+]);
+
+/** Storage-Methoden mit `bucketId` als erstem Argument. */
+const STORAGE_METHODEN_MIT_BUCKET_ID = new Set([
+  'listFiles',
+  'createFile',
+  'getFile',
+  'updateFile',
+  'deleteFile',
+  'getFileDownload',
+  'getFilePreview',
+  'getFileView',
+]);
+
+type UnbekannteFunktion = (...args: unknown[]) => unknown;
+
+/**
+ * Ersetzt die ID im ersten Argument — egal ob positional oder Objekt-Form.
+ * Gibt die neue Argumentliste zurück, oder `null`, wenn die Form unbekannt ist.
+ */
+function ersetzeId(
+  args: unknown[],
+  feldname: 'databaseId' | 'bucketId',
+  neueId: (alt: string) => string
+): unknown[] | null {
+  const erstes = args[0];
+
+  // Positional: listDocuments('tennismehl24_db', 'projekte', [...])
+  if (typeof erstes === 'string') {
+    return [neueId(erstes), ...args.slice(1)];
+  }
+
+  // Objekt-Form: listDocuments({ databaseId: '...', collectionId: '...' })
+  if (erstes !== null && typeof erstes === 'object' && feldname in erstes) {
+    const alt = (erstes as Record<string, unknown>)[feldname];
+    if (typeof alt !== 'string') return null;
+    return [{ ...(erstes as Record<string, unknown>), [feldname]: neueId(alt) }, ...args.slice(1)];
+  }
+
+  return null;
+}
+
+function baueProxy<T extends object>(
+  ziel: T,
+  art: 'databases' | 'storage',
+  methodenMitId: Set<string>,
+  transaktionsMethoden: Set<string>,
+  feldname: 'databaseId' | 'bucketId',
+  neueId: (alt: string) => string
+): T {
+  return new Proxy(ziel, {
+    get(target, prop, receiver) {
+      const wert = Reflect.get(target, prop, receiver);
+
+      // Nicht-Funktionen (Properties, Symbole) unverändert durchreichen.
+      if (typeof wert !== 'function' || typeof prop !== 'string') {
+        return wert;
+      }
+
+      const original = wert as UnbekannteFunktion;
+
+      return function (this: unknown, ...args: unknown[]): unknown {
+        // Normalbetrieb: nichts umschreiben, nichts blockieren.
+        if (!istMockModusAktiv()) {
+          return original.apply(target, args);
+        }
+
+        if (methodenMitId.has(prop)) {
+          const neu = ersetzeId(args, feldname, neueId);
+          if (neu === null) {
+            throw new Error(
+              `🧪 Mock-Modus: Aufruf von ${art}.${prop}() hat eine unerwartete Argumentform — ` +
+                `die ${feldname} konnte nicht auf die Sandbox umgebogen werden. ` +
+                'Der Aufruf wurde blockiert, damit er nicht auf Produktivdaten wirkt.'
+            );
+          }
+          return original.apply(target, neu);
+        }
+
+        if (transaktionsMethoden.has(prop)) {
+          throw new Error(
+            `🧪 Mock-Modus: ${art}.${prop}() (Transaktions-API) wird in der Sandbox nicht ` +
+              'unterstützt — die Datenbank-ID steckt dort in den einzelnen Operationen und ' +
+              'wird vom Interceptor nicht erfasst. Zum Ausführen zurück auf Echtdaten schalten.'
+          );
+        }
+
+        // Geerbtes von Object.prototype (toString, valueOf, hasOwnProperty …)
+        // ist keine SDK-Methode und kann nichts adressieren — durchreichen.
+        // Sonst würde schon ein `String(databases)` in der Sandbox werfen.
+        if (!Object.prototype.hasOwnProperty.call(Object.getPrototypeOf(target), prop)) {
+          return original.apply(target, args);
+        }
+
+        // Eine echte SDK-Methode, die der Interceptor nicht kennt — typischer
+        // Fall nach einem SDK-Update. Fail-closed: lieber blockieren, als eine
+        // Methode durchzulassen, von der niemand geprüft hat, wohin sie zeigt.
+        throw new Error(
+          `🧪 Mock-Modus: ${art}.${prop}() ist dem Interceptor nicht bekannt und wurde ` +
+            'blockiert. Bitte in src/config/appwrite.ts eintragen, nachdem geprüft wurde, ' +
+            'wie die Methode ihr Ziel adressiert.'
+        );
+      };
+    },
+  });
+}
+
+const databasesRoh = new Databases(client);
+const storageRoh = new Storage(client);
+
+/**
+ * Datenbankzugriff für die gesamte Anwendung.
+ * Zeigt automatisch auf `tennismehl24_db_mock`, solange der Mock-Modus läuft.
+ */
+export const databases = baueProxy(
+  databasesRoh,
+  'databases',
+  DB_METHODEN_MIT_DATABASE_ID,
+  DB_TRANSAKTIONS_METHODEN,
+  'databaseId',
+  () => getDatabaseId()
+);
+
+/**
+ * Dateizugriff für die gesamte Anwendung.
+ * Bucket `projekt-anhaenge` wird im Mock-Modus zu `mock_projekt-anhaenge`.
+ */
+export const storage = baueProxy(
+  storageRoh,
+  'storage',
+  STORAGE_METHODEN_MIT_BUCKET_ID,
+  new Set<string>(),
+  'bucketId',
+  (alt) => getBucketId(alt)
+);
+
 export const account = new Account(client);
 export { client };
+
+/**
+ * Direkte Datei-URL (Anzeigen/Herunterladen im Browser-Tab).
+ *
+ * Warum diese Funktion existiert: An mehreren Stellen wurden solche URLs von
+ * Hand zusammengesetzt —
+ *   `${APPWRITE_ENDPOINT}/storage/buckets/${BUCKET}/files/${id}/view?project=...`
+ * — und liefen damit am Storage-Proxy vorbei. Im Mock-Modus hätten sie weiter
+ * auf den Produktions-Bucket gezeigt. Über `getBucketId()` stimmt das Ziel jetzt
+ * in beiden Modi.
+ */
+export const dateiUrl = (
+  bucketId: string,
+  dateiId: string,
+  modus: 'view' | 'download' = 'view'
+): string =>
+  `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(bucketId)}/files/${dateiId}/${modus}?project=${PROJECT_ID}`;
 
 // Debug: Zeige Konfiguration in Development
 if (import.meta.env.DEV) {
   console.log('✅ Appwrite konfiguriert:', {
     endpoint,
     projectId,
-    databaseId: DATABASE_ID,
+    databaseId: getDatabaseId(),
+    mockModus: istMockModusAktiv(),
   });
 }
 

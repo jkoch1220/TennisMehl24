@@ -28,11 +28,63 @@ import { timingSafeEqual } from 'node:crypto';
 import { jsPDF } from 'jspdf';
 
 // === Konfiguration (identisch zu src/config/appwrite.ts) ===
-const DATABASE_ID = 'tennismehl24_db';
+const PRODUKTIONS_DATABASE_ID = 'tennismehl24_db';
+const MOCK_DATABASE_ID = 'tennismehl24_db_mock';
 const PROJEKTE_COLLECTION_ID = 'projekte';
 const DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
-const DOKUMENTE_BUCKET_ID = 'bestellabwicklung_dateien';
-const LIEFERNACHWEIS_BUCKET_ID = 'liefernachweis-dateien';
+const DOKUMENTE_BUCKET_BASIS = 'bestellabwicklung_dateien';
+const LIEFERNACHWEIS_BUCKET_BASIS = 'liefernachweis-dateien';
+
+/**
+ * ===========================================================================
+ * SANDBOX-DURCHSTICH
+ * ===========================================================================
+ *
+ * Der QR-Code auf einem Lieferschein zeigt auf eine öffentliche URL, die diese
+ * Function aufruft. Weil sie serverseitig läuft, kennt sie den Browser-Schalter
+ * des Portals nicht — ein aus der Sandbox gedruckter Lieferschein hätte deshalb
+ * in der Produktionsdatenbank nachgeschlagen und das Projekt nicht gefunden.
+ *
+ * Lösung: Ein QR-Code aus der Sandbox trägt `&mock=1`. Diese Function schaltet
+ * dann Datenbank UND Buckets auf die Sandbox um, sodass der komplette Durchlauf
+ * — Lieferschein drucken, QR scannen, unterschreiben, Liefernachweis-PDF
+ * erzeugen — dort geprobt werden kann.
+ *
+ * Warum das keinen neuen Angriffsweg öffnet:
+ *  - Der Zugriff hängt weiterhin ausschließlich am Token des Projekts, das mit
+ *    timingSafeEqual geprüft wird. `mock=1` ohne gültiges Token bringt nichts.
+ *  - Ein Aufruf MIT `mock=1` kann die Produktionsdatenbank nicht mehr erreichen,
+ *    und einer OHNE nicht die Sandbox. Beide Richtungen sind dicht.
+ *  - Die Sandbox-Tokens sind Kopien der echten. Wer eines besitzt, hat ohnehin
+ *    Zugriff auf sein eigenes Projekt — es entsteht kein zusätzlicher Einblick.
+ *
+ * Die Umschaltung gilt pro Aufruf: Netlify Functions (AWS Lambda) bearbeiten je
+ * Instanz immer nur einen Request, ein Nebeneinander verschiedener Ziele kann
+ * es also nicht geben. `setzeDatenziel()` läuft als Erstes im Handler.
+ */
+let DATABASE_ID: string = PRODUKTIONS_DATABASE_ID;
+let DOKUMENTE_BUCKET_ID: string = DOKUMENTE_BUCKET_BASIS;
+let LIEFERNACHWEIS_BUCKET_ID: string = LIEFERNACHWEIS_BUCKET_BASIS;
+
+const setzeDatenziel = (mock: boolean): void => {
+  DATABASE_ID = mock ? MOCK_DATABASE_ID : PRODUKTIONS_DATABASE_ID;
+  DOKUMENTE_BUCKET_ID = mock ? `mock_${DOKUMENTE_BUCKET_BASIS}` : DOKUMENTE_BUCKET_BASIS;
+  LIEFERNACHWEIS_BUCKET_ID = mock ? `mock_${LIEFERNACHWEIS_BUCKET_BASIS}` : LIEFERNACHWEIS_BUCKET_BASIS;
+  if (mock) console.log('🧪 Liefernachweis läuft gegen die Sandbox:', DATABASE_ID);
+};
+
+/** Liest das Sandbox-Kennzeichen aus Query-String oder JSON-Body. */
+const istMockAufruf = (event: HandlerEvent): boolean => {
+  if (event.queryStringParameters?.mock === '1') return true;
+  if (event.body) {
+    try {
+      return (JSON.parse(event.body) as { mock?: unknown }).mock === true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+};
 
 const TOKEN_GUELTIGKEIT_TAGE = 30;
 const MAX_FOTO_BASE64_LAENGE = 4_500_000; // ~3,3 MB binär
@@ -447,6 +499,10 @@ const handler: Handler = async (event: HandlerEvent) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers, body: '' };
   }
+
+  // Muss VOR jedem Datenzugriff stehen: legt Datenbank und Buckets für diesen
+  // einen Aufruf fest (Produktion oder Sandbox).
+  setzeDatenziel(istMockAufruf(event));
 
   if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID || !APPWRITE_API_KEY) {
     return {

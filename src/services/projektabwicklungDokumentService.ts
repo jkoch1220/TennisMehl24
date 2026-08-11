@@ -7,6 +7,7 @@ import {
   BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
   COLLECTIONS
 } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
 import {
   GespeichertesDokument,
   DokumentAnzeige,
@@ -159,16 +160,26 @@ const generiereLesDatname = (
 };
 
 // Helper: URLs generieren
+//
+// Leere dateiId → leere URL. Das ist der Normalfall in der Sandbox: dorthin
+// werden die Dokumentzeilen kopiert (das Massen-Angebots-Tool braucht sie als
+// Referenz für Positionen und Preise), die zugehörigen PDFs aber bewusst NICHT.
+// Ein aus der Produktion kopiertes Projekt im Status „Rechnung" hat in der
+// Sandbox also seine Daten, aber kein PDF — nur was dort erzeugt wird, hat eins.
+// Ohne diese Prüfung entstünde eine URL auf `…/files//view`, die als kaputter
+// Link im UI landet statt als „kein Dokument vorhanden".
 const getFileViewUrl = (dateiId: string): string => {
+  if (!dateiId) return '';
   const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  return `${endpoint}/storage/buckets/${BESTELLABWICKLUNG_DATEIEN_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+  return `${endpoint}/storage/buckets/${getBucketId(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${projectId}`;
 };
 
 const getFileDownloadUrl = (dateiId: string): string => {
+  if (!dateiId) return '';
   const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  return `${endpoint}/storage/buckets/${BESTELLABWICKLUNG_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${projectId}`;
+  return `${endpoint}/storage/buckets/${getBucketId(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${projectId}`;
 };
 
 // === DOKUMENT LADEN ===

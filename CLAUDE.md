@@ -10,6 +10,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run lint` - Run ESLint to check code quality
 - `npm run preview` - Preview production build locally
 
+### Mock-Datenbank (Sandbox)
+- `npm run mock:setup` - Sandbox-DB `tennismehl24_db_mock` + Buckets anlegen (Schema aus der Produktion gespiegelt)
+- `npm run mock:copy` - Produktionsdaten in die Sandbox kopieren (Quelle nur lesend)
+- `npm run mock:reset` - Sandbox leeren und frisch befüllen
+- Umschalten im Portal: Settings → **Sandbox** (nur Admins). Details: `scripts/README-mock-modus.md`
+
+**Für Änderungen am Datenzugriff wichtig:** `databases` und `storage` aus `src/config/appwrite.ts`
+sind Proxys, die im Mock-Modus die Datenbank- bzw. Bucket-ID austauschen. Wer eine ID in einen
+String baut, statt sie als Argument zu übergeben, umgeht den Proxy — dafür gibt es
+`realtimeKanal()`, `getBucketId()` und `dateiUrl()`. `DATABASE_ID` ist deprecated.
+
 ### Appwrite Scripts
 - `npm run setup:appwrite` - Setup Appwrite database fields and collections
 - `npm run setup:users` - Setup initial users in Appwrite

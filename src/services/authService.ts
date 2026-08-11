@@ -1,6 +1,7 @@
 import { Account, Models } from 'appwrite';
 import { client } from '../config/appwrite';
 import { mapOnboardingPassword } from '../constants/onboarding';
+import { blockiereImMockModus } from '../config/mockModus';
 
 export const account = new Account(client);
 
@@ -95,6 +96,10 @@ export const isAuthenticated = async (): Promise<boolean> => {
 
 // Passwort ändern (für eingeloggten User)
 export const changePassword = async (oldPassword: string, newPassword: string): Promise<void> => {
+  // Benutzerkonten liegen in Appwrite PROJEKTWEIT, nicht in einer Datenbank.
+  // Ein Passwortwechsel in der Sandbox würde das echte Konto treffen — man
+  // spielt „nur mal kurz" und hat danach ein anderes Produktionspasswort.
+  blockiereImMockModus('Passwort ändern (das Konto ist projektweit, nicht Teil der Sandbox)');
   try {
     await account.updatePassword(newPassword, mapOnboardingPassword(oldPassword));
     console.log('✅ Passwort erfolgreich geändert');
@@ -123,6 +128,9 @@ export const clearMustChangePasswordFlag = async (user: User): Promise<void> => 
  * damit nicht erratbar ist, welche E-Mail-Adressen ein Konto haben.
  */
 export const passwortVergessenAnfordern = async (email: string): Promise<void> => {
+  // Appwrite verschickt die Recovery-Mail serverseitig an die echte Adresse des
+  // Kontos. Weder testMode noch der E-Mail-Interceptor greifen hier.
+  blockiereImMockModus('Passwort-vergessen-Mail (verschickt Appwrite direkt an die echte Adresse)');
   await account.createRecovery(email, `${window.location.origin}/passwort-zuruecksetzen`);
 };
 

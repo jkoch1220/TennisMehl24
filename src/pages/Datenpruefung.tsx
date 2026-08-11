@@ -30,6 +30,8 @@ import {
   XCircle,
 } from 'lucide-react';
 
+import { blockiereImMockModus } from '../config/mockModus';
+
 const FUNCTION_URL = '/.netlify/functions/datenpruefung';
 
 interface AuftragsPosition {
@@ -168,6 +170,10 @@ const Datenpruefung = () => {
     setStatus('senden');
     setFehlerText('');
     try {
+      // Die Function datenpruefung schreibt mit hartkodierter Produktions-
+      // Datenbank-ID. Diese Seite ist zwar für Kunden gedacht, kann aber auch
+      // im Browser eines Admins geöffnet werden, während die Sandbox läuft.
+      blockiereImMockModus('Datenprüfung absenden (Function schreibt in die Produktionsdatenbank)');
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

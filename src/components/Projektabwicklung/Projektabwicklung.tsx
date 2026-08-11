@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { FileText, FileCheck, Truck, FileSignature, AlertCircle, ArrowLeft, User, MapPin, ChevronDown, ChevronUp, Hammer, ExternalLink, Link2, PackageCheck, X } from 'lucide-react';
 import { DokumentTyp } from '../../types/projektabwicklung';
 import { ProjektStatus, TeilprojektTyp } from '../../types/projekt';
-import { client, DATABASE_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { client, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { realtimeKanal } from '../../config/mockModus';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Projekt } from '../../types/projekt';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -140,7 +141,7 @@ const Projektabwicklung = () => {
   useEffect(() => {
     if (!projektId) return;
 
-    const channel = `databases.${DATABASE_ID}.collections.${PROJEKTE_COLLECTION_ID}.documents.${projektId}`;
+    const channel = realtimeKanal(PROJEKTE_COLLECTION_ID, projektId);
     const unsubscribe = client.subscribe(channel, () => {
       // Das Realtime-Payload ist das rohe Appwrite-Dokument; getProjekt() übernimmt
       // das Parsen des data-JSON und das Mergen der Top-Level-Spalten.

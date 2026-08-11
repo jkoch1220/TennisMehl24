@@ -3,6 +3,7 @@ import { User, login as loginService, loginMitKachel, logout as logoutService, c
 import { cacheUser } from '../services/userCacheService';
 import { loadUserPermissions, loadAllPermissions, clearPermissionsCache } from '../services/permissionsService';
 import { auditService, setAuditUser } from '../services/auditService';
+import { setMockModusUser } from '../config/mockModus';
 
 // Auth-Initialisierung Timeout (5 Sekunden)
 const AUTH_INIT_TIMEOUT = 5000;
@@ -56,6 +57,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Login, Session-Restore, Refresh und Logout ab)
   useEffect(() => {
     setAuditUser(user);
+  }, [user]);
+
+  // Gleiches Muster für den Mock-Modus: die Umschaltfunktion prüft damit selbst
+  // auf Admin-Rechte (nicht nur das UI), und beim Logout (user === null)
+  // schaltet sich eine laufende Sandbox ab — sie soll nicht für den nächsten
+  // Nutzer an diesem Rechner scharf bleiben.
+  useEffect(() => {
+    setMockModusUser(
+      user ? { $id: user.$id, name: user.name, istAdmin: isAdmin(user) } : null
+    );
   }, [user]);
 
   // Permissions für aktuellen User laden

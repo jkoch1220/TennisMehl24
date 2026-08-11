@@ -8,6 +8,7 @@ import {
   NewsletterSource
 } from '../types/newsletter';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { blockiereImMockModus } from '../config/mockModus';
 
 // Generiere einen sicheren Random-Token für Abmeldelinks
 const generateUnsubscribeToken = (): string => {
@@ -155,6 +156,10 @@ export const newsletterService = {
 
   // Abmelden per Token (ÖFFENTLICH - ohne Login, läuft serverseitig über Netlify Function)
   async unsubscribeByToken(token: string): Promise<{ success: boolean; email?: string; error?: string }> {
+    // Die Function newsletter-unsubscribe hat die Produktions-Datenbank
+    // hartkodiert — eine Abmeldung aus der Sandbox würde einen echten
+    // Abonnenten austragen.
+    blockiereImMockModus('Newsletter-Abmeldung (Function schreibt in die Produktionsdatenbank)');
     try {
       const response = await fetch('/.netlify/functions/newsletter-unsubscribe', {
         method: 'POST',

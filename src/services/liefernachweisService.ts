@@ -16,6 +16,7 @@
 
 import { Projekt } from '../types/projekt';
 import { projektService } from './projektService';
+import { getBucketId, istMockModusAktiv } from '../config/mockModus';
 
 /** Gültigkeit des Tokens in Tagen (muss mit der Netlify Function übereinstimmen) */
 export const LIEFERNACHWEIS_TOKEN_GUELTIGKEIT_TAGE = 30;
@@ -35,7 +36,7 @@ export const LIEFERNACHWEIS_BUCKET_ID = 'liefernachweis-dateien';
 export const getLiefernachweisDateiUrl = (dateiId: string): string => {
   const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  return `${endpoint}/storage/buckets/${LIEFERNACHWEIS_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+  return `${endpoint}/storage/buckets/${getBucketId(LIEFERNACHWEIS_BUCKET_ID)}/files/${dateiId}/view?project=${projectId}`;
 };
 
 /** Erzeugt ein zufälliges, nicht erratbares Token (UUID + 32 Zufallsbytes hex) */
@@ -72,7 +73,11 @@ export const baueLiefernachweisUrl = (
   testModus?: boolean
 ): string => {
   const testParam = testModus ? '&test=1' : '';
-  return `${getPortalPublicUrl()}/liefernachweis/${projektId}?token=${token}${testParam}`;
+  // Ein in der Sandbox gedruckter QR-Code muss beim Scannen auch dort
+  // nachschlagen — sonst sucht die Netlify Function das Projekt in der
+  // Produktion und findet es nicht.
+  const mockParam = istMockModusAktiv() ? '&mock=1' : '';
+  return `${getPortalPublicUrl()}/liefernachweis/${projektId}?token=${token}${testParam}${mockParam}`;
 };
 
 /**

@@ -5,6 +5,7 @@
  */
 
 import { backendFetch } from '../config/backend';
+import { blockiereImMockModus } from '../config/mockModus';
 import type {
   BankingStatus,
   BankInstitution,
@@ -23,6 +24,7 @@ class BankingService {
 
   /** GoCardless Credentials über Portal konfigurieren */
   async setup(secretId: string, secretKey: string, institutionId?: string): Promise<SetupResponse> {
+    blockiereImMockModus('GoCardless-Zugangsdaten setzen (wirkt auf die echte Bankanbindung)');
     return backendFetch<SetupResponse>('/api/banking/setup', {
       method: 'POST',
       body: JSON.stringify({ secretId, secretKey, institutionId }),
@@ -31,6 +33,7 @@ class BankingService {
 
   /** Konfiguration zurücksetzen */
   async resetSetup(): Promise<void> {
+    blockiereImMockModus('GoCardless-Konfiguration zurücksetzen (wirkt auf die echte Bankanbindung)');
     await backendFetch('/api/banking/setup', { method: 'DELETE' });
   }
 
@@ -41,6 +44,7 @@ class BankingService {
 
   /** Bankverbindung erstellen - gibt Link zurück zur Bank-Authentifizierung */
   async connect(redirectUrl: string, institutionId?: string): Promise<ConnectResponse> {
+    blockiereImMockModus('Bankverbindung herstellen (legt eine echte GoCardless-Requisition an)');
     return backendFetch<ConnectResponse>('/api/banking/connect', {
       method: 'POST',
       body: JSON.stringify({ redirectUrl, institutionId }),
@@ -73,6 +77,7 @@ class BankingService {
 
   /** Bankverbindung trennen */
   async disconnect(requisitionId: string): Promise<void> {
+    blockiereImMockModus('Bankverbindung trennen (löscht eine echte GoCardless-Requisition)');
     await backendFetch(`/api/banking/requisitions/${requisitionId}`, {
       method: 'DELETE',
     });

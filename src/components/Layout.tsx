@@ -8,6 +8,7 @@ import { filterAllowedTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
 import UserManagement from './Settings/UserManagement';
 import RolesEditor from './Settings/RolesEditor';
+import MockModusSchalter from './Settings/MockModusSchalter';
 import ThemeToggle from './ThemeToggle';
 import GlobalChatDropdown from './Shared/GlobalChatDropdown';
 import NotificationBell from './Notifications/NotificationBell';
@@ -52,7 +53,7 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tools' | 'password' | 'users' | 'roles' | 'reminders'>('tools');
+  const [activeTab, setActiveTab] = useState<'tools' | 'password' | 'users' | 'roles' | 'reminders' | 'sandbox'>('tools');
   const [toolSearchQuery, setToolSearchQuery] = useState('');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -703,6 +704,18 @@ const Layout = ({ children }: LayoutProps) => {
                   Rollen
                 </button>
               )}
+              {isAdmin && (
+                <button
+                  onClick={() => setActiveTab('sandbox')}
+                  className={`flex-shrink-0 px-3 sm:px-4 py-2.5 font-semibold text-sm transition-colors border-b-2 whitespace-nowrap ${
+                    activeTab === 'sandbox'
+                      ? 'border-red-500 text-red-600 dark:text-red-400'
+                      : 'border-transparent text-gray-600 dark:text-dark-textMuted hover:text-gray-900 dark:hover:text-dark-text'
+                  }`}
+                >
+                  Sandbox
+                </button>
+              )}
             </div>
 
             {/* Tab Content */}
@@ -814,6 +827,8 @@ const Layout = ({ children }: LayoutProps) => {
               {activeTab === 'users' && isAdmin && <UserManagement />}
 
               {activeTab === 'roles' && isAdmin && <RolesEditor />}
+
+              {activeTab === 'sandbox' && isAdmin && <MockModusSchalter />}
 
               {activeTab === 'reminders' && (
                 <div className="space-y-4">

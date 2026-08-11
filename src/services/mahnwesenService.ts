@@ -15,6 +15,7 @@ import {
   BESTELLABWICKLUNG_DATEIEN_BUCKET_ID,
   COLLECTIONS
 } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
 import {
   MahnwesenDokumentDaten,
   MahnwesenDokumentTyp,
@@ -727,7 +728,7 @@ export const ladeMahnwesenDokumenteFuerProjekt = async (
 export const getMahnwesenDokumentUrl = (dateiId: string): string => {
   const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  return `${endpoint}/storage/buckets/${BESTELLABWICKLUNG_DATEIEN_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+  return `${endpoint}/storage/buckets/${getBucketId(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${projectId}`;
 };
 
 /**
@@ -736,7 +737,7 @@ export const getMahnwesenDokumentUrl = (dateiId: string): string => {
 export const getMahnwesenDokumentDownloadUrl = (dateiId: string): string => {
   const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
   const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-  return `${endpoint}/storage/buckets/${BESTELLABWICKLUNG_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${projectId}`;
+  return `${endpoint}/storage/buckets/${getBucketId(BESTELLABWICKLUNG_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${projectId}`;
 };
 
 /**

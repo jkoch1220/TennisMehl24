@@ -3,6 +3,7 @@
  */
 
 import { databases, DATABASE_ID } from '../config/appwrite';
+import { istMockModusAktiv } from '../config/mockModus';
 import { ID } from 'appwrite';
 import {
   EmailSendRequest,
@@ -89,6 +90,48 @@ const alsString = (wert: unknown): string | undefined =>
 export const sendeEmail = async (request: EmailSendRequest): Promise<EmailSendResponse> => {
   const apiUrl = getEmailApiUrl();
 
+  // =========================================================================
+  // MOCK-MODUS: Testversand wird hier ERZWUNGEN — nicht in den Komponenten.
+  //
+  // Dies ist die einzige Stelle im Frontend, an der eine E-Mail das Haus
+  // verlässt: `sendeEmailMitPdf()` und alle Fachservices (Mahnwesen,
+  // Rechnungsversand, Massen-Angebote, Anfragebearbeitung) laufen hier durch.
+  // Deshalb sitzt die Erzwingung hier und nicht bei den ~10 Aufrufern — die
+  // können sie so nicht überstimmen, auch nicht versehentlich.
+  //
+  // Der Empfänger wird serverseitig in netlify/functions/email-send.ts durch
+  // TEST_EMAIL_ADDRESS ersetzt; `testMode: true` ist das Signal dafür. Das
+  // Betreff-Präfix setzt die Function ebenfalls ("[TEST - Original an: …]"),
+  // wir ergänzen hier zusätzlich "[MOCK]", damit im Postfach sofort erkennbar
+  // ist, dass die Mail aus der Sandbox stammt und nicht aus einem normalen
+  // Testversand auf Echtdaten.
+  //
+  // Der bestehende Komponenten-Schalter (testModus-State) bleibt bestehen und
+  // wirkt weiter — er ist eine zusätzliche Bremse, kein Ersatz für diese hier.
+  // =========================================================================
+  // Zwei Bremsen statt einer: `testMode: true` biegt den Empfänger serverseitig
+  // um, UND der Empfänger wird hier bereits clientseitig ersetzt. Die zweite
+  // Bremse greift auch dann, wenn auf Netlify eine ältere Version der Function
+  // läuft, die `testMode` noch nicht kennt — dieser Fall wäre sonst genau der
+  // Weg, auf dem eine Sandbox-Mail bei einem echten Kunden landet.
+  const mockAktiv = istMockModusAktiv();
+  const effektiverRequest: EmailSendRequest = mockAktiv
+    ? {
+        ...request,
+        testMode: true,
+        to: TEST_EMAIL_ADDRESS,
+        subject: request.subject.startsWith('[MOCK')
+          ? request.subject
+          : `[MOCK → ${request.to}] ${request.subject}`,
+      }
+    : request;
+
+  if (mockAktiv) {
+    console.warn(
+      `🧪 Mock-Modus: E-Mail an "${request.to}" wird stattdessen an ${TEST_EMAIL_ADDRESS} zugestellt.`
+    );
+  }
+
   let response: Response;
   try {
     response = await fetch(apiUrl, {
@@ -96,7 +139,7 @@ export const sendeEmail = async (request: EmailSendRequest): Promise<EmailSendRe
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify(effektiverRequest),
     });
   } catch (error) {
     // fetch-Exception: Server/Proxy gar nicht erreichbar (ECONNREFUSED, DNS, offline)

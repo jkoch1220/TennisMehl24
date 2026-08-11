@@ -5,6 +5,7 @@ import {
   RECHNUNGS_AKTIVITAETEN_COLLECTION_ID,
   RECHNUNGS_DATEIEN_BUCKET_ID
 } from '../config/appwrite';
+import { getBucketId } from '../config/mockModus';
 import { RechnungsAktivitaet, NeueRechnungsAktivitaet, AktivitaetsTyp } from '../types/kreditor';
 import { ID } from 'appwrite';
 import { loadAllDocuments } from '../utils/appwritePagination';
@@ -146,14 +147,14 @@ export const aktivitaetService = {
   getDateiUrl(dateiId: string): string {
     const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    return `${endpoint}/storage/buckets/${RECHNUNGS_DATEIEN_BUCKET_ID}/files/${dateiId}/view?project=${projectId}`;
+    return `${endpoint}/storage/buckets/${getBucketId(RECHNUNGS_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${projectId}`;
   },
 
   // Datei-Download-URL abrufen
   getDateiDownloadUrl(dateiId: string): string {
     const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT;
     const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID;
-    return `${endpoint}/storage/buckets/${RECHNUNGS_DATEIEN_BUCKET_ID}/files/${dateiId}/download?project=${projectId}`;
+    return `${endpoint}/storage/buckets/${getBucketId(RECHNUNGS_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${projectId}`;
   },
 
   // ========== SCHNELLE AKTIVITÄTEN ERSTELLEN ==========
