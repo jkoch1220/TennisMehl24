@@ -9,9 +9,9 @@
  *
  * Endpunkte:
  *   GET  ?projektId=...&token=...   → kompakte Auftragsdaten (ohne Preise)
- *   POST { projektId, token, fotoBase64, ... }
+ *   POST { projektId, token, fotoBase64, wiegescheinBase64, ... }
  *        → Bestätigung: archiviert Liefernachweis-PDF (GoBD) in
- *          bestellabwicklung_dokumente, legt Foto/Unterschrift im Bucket
+ *          bestellabwicklung_dokumente, legt Fotos/Unterschrift im Bucket
  *          liefernachweis-dateien ab und setzt dispoStatus='geliefert' +
  *          liefernachweisAm am Projekt (im data-JSON).
  *
@@ -21,6 +21,24 @@
  *     verarbeitet (200 mit bereitsBestaetigt: true)
  *   - Best-Effort-Rate-Limit pro IP (In-Memory)
  *   - Testmodus (testModus: true): kein Statuswechsel, keine Archivierung
+ *
+ * ===========================================================================
+ * WIEGESCHEIN
+ * ===========================================================================
+ * Der Fahrer fotografiert zusätzlich den Wiegeschein. Auf ihm steht die
+ * tatsächlich verwogene Menge — die Zahl, nach der abgerechnet wird.
+ *
+ * Die Function liest den Schein per Bilderkennung vor, das Ergebnis ist aber
+ * ausdrücklich nur ein VORSCHLAG (`wiegeschein.ocr`) und wird nirgends
+ * automatisch übernommen. Verbindlich wird eine Menge erst, wenn ein Mensch
+ * sie im Portal bestätigt (`wiegeschein.gepruefteMengeTonnen`, gesetzt von
+ * src/services/wiegescheinService.ts). Bis dahin steht der Prüfstatus auf
+ * 'offen' und die Lieferung erscheint in der Prüfliste.
+ *
+ * Die Bilderkennung läuft als LETZTER Schritt und rein Best-Effort: schlägt
+ * sie fehl oder dauert zu lange, ist die Lieferung trotzdem vollständig
+ * bestätigt und archiviert — der Prüfer liest die Menge dann selbst vom Foto
+ * ab. Sie darf niemals einen Fahrer an der Bestätigung hindern.
  */
 
 import { Handler, HandlerEvent } from '@netlify/functions';
@@ -90,9 +108,35 @@ const TOKEN_GUELTIGKEIT_TAGE = 30;
 const MAX_FOTO_BASE64_LAENGE = 4_500_000; // ~3,3 MB binär
 const MAX_UNTERSCHRIFT_BASE64_LAENGE = 600_000; // ~450 KB binär
 
+/**
+ * Ist das Wiegeschein-Foto Pflicht? (Stand 08/2026: ja, Entscheidung der GF)
+ *
+ * Bewusst als eine benannte Konstante und nicht verstreut in if-Bedingungen:
+ * Wenn Fahrer in der Praxis hängenbleiben, weil es zu einer Lieferung real
+ * keinen Wiegeschein gibt (Palettenware ab Werk, Selbstabholer), ist das hier
+ * der EINE Schalter. Auf `false` wird der Schritt optional — die Fahrer-Seite
+ * liest den Wert über den GET-Endpunkt mit und passt sich an.
+ */
+const WIEGESCHEIN_PFLICHT = true;
+
+/** Zeitbudget für die Bilderkennung. Danach gilt der Wiegeschein als ungelesen. */
+const OCR_TIMEOUT_MS = 7000;
+
+/**
+ * Modell für die Wiegeschein-Erkennung. Bewusst nicht das kleinste Modell:
+ * gelesen werden verschmutzte, schräg fotografierte Belege, und eine falsch
+ * erkannte Ziffer verschiebt die Abrechnung um Tonnen.
+ */
+const OCR_MODEL = 'claude-sonnet-5';
+
+/** Plausibilitätsfenster für eine LKW-Nettomenge in Tonnen (Motorwagen bis Sattelzug) */
+const PLAUSIBEL_MIN_TONNEN = 0.2;
+const PLAUSIBEL_MAX_TONNEN = 45;
+
 const APPWRITE_ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT || '';
 const APPWRITE_PROJECT_ID = process.env.VITE_APPWRITE_PROJECT_ID || '';
 const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY || '';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
 // === Typen ===
 interface ProjektDaten {
@@ -113,6 +157,7 @@ interface ProjektDaten {
   liefernachweisTokenErstelltAm?: string;
   liefernachweisAm?: string;
   liefernachweis?: Record<string, unknown>;
+  wiegeschein?: Record<string, unknown>;
   lieferscheinDaten?: string;
   auftragsbestaetigungsDaten?: string;
   [key: string]: unknown;
@@ -133,12 +178,27 @@ interface PositionOhnePreis {
 interface BestaetigungsRequest {
   projektId?: string;
   token?: string;
-  fotoBase64?: string; // JPEG, Pflicht (Data-URL oder roher Base64-String)
+  fotoBase64?: string; // JPEG der abgeladenen Ware, Pflicht (Data-URL oder roher Base64-String)
+  wiegescheinBase64?: string; // JPEG des Wiegescheins, Pflicht solange WIEGESCHEIN_PFLICHT
   fahrerName?: string; // Name des Fahrers (von der Seite als Pflichtfeld erhoben)
   unterschriftBase64?: string; // PNG, optional
   unterzeichnerName?: string; // optional
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
   testModus?: boolean;
+}
+
+/** Ergebnis der Wiegeschein-Erkennung — reiner Vorschlag, siehe Kopfkommentar */
+interface WiegescheinOcr {
+  gelesen: boolean;
+  menge?: number;
+  einheit?: 't' | 'kg';
+  mengeTonnen?: number;
+  belegnummer?: string;
+  kennzeichen?: string;
+  datum?: string;
+  konfidenz?: number;
+  hinweis?: string;
+  fehler?: string;
 }
 
 // === Best-Effort-Rate-Limiter (In-Memory pro Function-Instanz) ===
@@ -383,6 +443,187 @@ const bettePdfBildEin = (
   doc.addImage(bytes, format, x, y, breite, hoehe);
 };
 
+// ===========================================================================
+// WIEGESCHEIN-ERKENNUNG (Best Effort, Ergebnis ist nur ein Vorschlag)
+// ===========================================================================
+
+const OCR_SYSTEM_PROMPT = `Du liest deutsche Wiegescheine (Waagescheine) von LKW-Fuhren mit Schüttgut.
+Deine einzige Aufgabe: die Werte ablesen, die WIRKLICH auf dem Beleg stehen.
+
+WELCHE ZAHL GESUCHT IST:
+Ein Wiegeschein zeigt meist drei Gewichte: Brutto (voller LKW), Tara (leerer LKW)
+und Netto (die Ware). Gesucht ist ausschliesslich das NETTOGEWICHT — die gelieferte
+Ware. Steht kein Netto da, aber Brutto und Tara, rechne Brutto minus Tara und schreibe
+das in den Hinweis. Gibt es weder Netto noch beides, ist menge null.
+
+DEUTSCHES ZAHLENFORMAT — die haeufigste Fehlerquelle:
+Der Punkt ist Tausendertrenner, das Komma ist Dezimaltrenner.
+  "24.320 kg"  = 24320 Kilogramm  (NICHT 24,32)
+  "24,32 t"    = 24.32 Tonnen
+  "1.250 kg"   = 1250 Kilogramm
+Gib "menge" IMMER als reine Zahl mit Punkt als Dezimaltrenner aus, ohne Tausendertrenner.
+Aus "24.320 kg" wird also menge=24320, einheit="kg".
+Schreibe zusaetzlich in "nettoRohtext" die Zeichenfolge exakt so, wie sie gedruckt ist.
+
+WENN DU UNSICHER BIST:
+Rate niemals. Eine falsch gelesene Ziffer verursacht eine falsche Rechnung.
+Ist eine Ziffer unscharf, verdeckt, abgeschnitten oder mehrdeutig, setze
+konfidenz niedrig (unter 0.5) und beschreibe im Hinweis genau, was unklar ist.
+Ist der Beleg gar kein Wiegeschein oder unlesbar, setze menge auf null.
+
+Antworte AUSSCHLIESSLICH mit gueltigem JSON in genau diesem Format:
+{"menge":number|null,"einheit":"kg"|"t"|null,"nettoRohtext":string|null,"belegnummer":string|null,"kennzeichen":string|null,"datum":string|null,"konfidenz":number,"hinweis":string}
+
+Keine Codebloecke, kein Markdown, kein Text ausserhalb des JSON.`;
+
+/** Zieht das JSON aus der Modellantwort (toleriert Codeblöcke und Beitext) */
+const parseOcrAntwort = (text: string): Record<string, unknown> => {
+  let kandidat = text.trim();
+  const codeMatch = kandidat.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+  if (codeMatch) kandidat = codeMatch[1].trim();
+  const auf = kandidat.indexOf('{');
+  const zu = kandidat.lastIndexOf('}');
+  if (auf < 0 || zu < 0) throw new Error('Keine JSON-Antwort im Modell-Output');
+  return JSON.parse(kandidat.slice(auf, zu + 1)) as Record<string, unknown>;
+};
+
+/**
+ * Rechnet die abgelesene Menge auf Tonnen um und prüft sie gegen ein
+ * Plausibilitätsfenster. Ein Wert ausserhalb (0,2 t bis 45 t) deutet fast immer
+ * auf einen Lesefehler hin — typisch: Tausendertrenner als Komma gelesen. Der
+ * Wert wird dann verworfen statt weitergereicht.
+ */
+const normalisiereAufTonnen = (
+  menge: number,
+  einheit: 't' | 'kg'
+): { tonnen: number; plausibel: boolean } => {
+  const tonnen = einheit === 'kg' ? menge / 1000 : menge;
+  const gerundet = Math.round(tonnen * 1000) / 1000;
+  return {
+    tonnen: gerundet,
+    plausibel: gerundet >= PLAUSIBEL_MIN_TONNEN && gerundet <= PLAUSIBEL_MAX_TONNEN,
+  };
+};
+
+/**
+ * Liest den Wiegeschein per Bilderkennung vor.
+ *
+ * Wirft NIE — jeder Fehler (kein Key, Timeout, Netzproblem, unparsbare Antwort)
+ * kommt als `{ gelesen: false, fehler }` zurück. Der Prüfer im Portal sieht dann
+ * das Foto ohne Vorschlag und tippt die Menge selbst ab.
+ */
+const leseWiegescheinAus = async (jpegBase64: string): Promise<WiegescheinOcr> => {
+  if (!ANTHROPIC_API_KEY) {
+    return { gelesen: false, fehler: 'Bilderkennung nicht konfiguriert (ANTHROPIC_API_KEY fehlt).' };
+  }
+
+  const abbruch = new AbortController();
+  const timer = setTimeout(() => abbruch.abort(), OCR_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      signal: abbruch.signal,
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        max_tokens: 400,
+        system: OCR_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: 'image/jpeg', data: jpegBase64 },
+              },
+              { type: 'text', text: 'Lies diesen Wiegeschein aus.' },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { gelesen: false, fehler: `Bilderkennung nicht erreichbar (HTTP ${res.status}). ${text.slice(0, 120)}` };
+    }
+
+    const antwort = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const text = (antwort.content ?? [])
+      .map((c) => (c.type === 'text' ? c.text ?? '' : ''))
+      .join('')
+      .trim();
+    if (!text) return { gelesen: false, fehler: 'Leere Antwort der Bilderkennung.' };
+
+    const roh = parseOcrAntwort(text);
+    const konfidenz = typeof roh.konfidenz === 'number' ? roh.konfidenz : undefined;
+    const hinweis = typeof roh.hinweis === 'string' && roh.hinweis.trim() ? roh.hinweis.trim() : undefined;
+    const belegnummer = typeof roh.belegnummer === 'string' && roh.belegnummer.trim() ? roh.belegnummer.trim() : undefined;
+    const kennzeichen = typeof roh.kennzeichen === 'string' && roh.kennzeichen.trim() ? roh.kennzeichen.trim() : undefined;
+    const datum = typeof roh.datum === 'string' && roh.datum.trim() ? roh.datum.trim() : undefined;
+
+    const menge = typeof roh.menge === 'number' && Number.isFinite(roh.menge) ? roh.menge : undefined;
+    const einheit = roh.einheit === 'kg' || roh.einheit === 't' ? roh.einheit : undefined;
+
+    // Keine Menge erkannt: Beleg trotzdem mit den Nebenangaben zurückgeben,
+    // damit der Prüfer wenigstens Belegnummer und Hinweis sieht.
+    if (menge === undefined || einheit === undefined) {
+      return {
+        gelesen: false,
+        belegnummer,
+        kennzeichen,
+        datum,
+        konfidenz,
+        hinweis,
+        fehler: 'Auf dem Foto war keine eindeutige Nettomenge lesbar.',
+      };
+    }
+
+    const { tonnen, plausibel } = normalisiereAufTonnen(menge, einheit);
+    if (!plausibel) {
+      // Fast immer ein Lesefehler beim Tausendertrenner. Lieber gar kein
+      // Vorschlag als ein Vorschlag um Faktor 1000 daneben.
+      return {
+        gelesen: false,
+        menge,
+        einheit,
+        belegnummer,
+        kennzeichen,
+        datum,
+        konfidenz: 0,
+        hinweis,
+        fehler: `Gelesener Wert (${menge} ${einheit} = ${tonnen} t) liegt ausserhalb des plausiblen Bereichs und wurde verworfen.`,
+      };
+    }
+
+    return {
+      gelesen: true,
+      menge,
+      einheit,
+      mengeTonnen: tonnen,
+      belegnummer,
+      kennzeichen,
+      datum,
+      konfidenz,
+      hinweis,
+    };
+  } catch (fehler) {
+    const abgebrochen = fehler instanceof Error && fehler.name === 'AbortError';
+    return {
+      gelesen: false,
+      fehler: abgebrochen
+        ? 'Bilderkennung hat zu lange gebraucht und wurde abgebrochen.'
+        : `Bilderkennung fehlgeschlagen: ${fehler instanceof Error ? fehler.message : String(fehler)}`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 // === Liefernachweis-PDF (serverseitig mit jsPDF in Node) ===
 const generiereLiefernachweisPdf = (options: {
   daten: ProjektDaten;
@@ -392,6 +633,7 @@ const generiereLiefernachweisPdf = (options: {
   unterzeichnerName?: string;
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
   fotoJpegBytes: Uint8Array;
+  wiegescheinJpegBytes?: Uint8Array;
   unterschriftPngBytes?: Uint8Array;
 }): Uint8Array => {
   const { daten, positionen, zeitstempel, fahrerName, unterzeichnerName, geo } = options;
@@ -463,6 +705,33 @@ const generiereLiefernachweisPdf = (options: {
   } catch {
     doc.setFontSize(10);
     doc.text('Foto konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 32);
+  }
+
+  // Wiegeschein — der Beleg über die tatsächlich verwogene Menge.
+  // Bewusst NUR das Foto: Dieses PDF wird als unveränderbarer Nachweis
+  // archiviert (istFinal), eine zu diesem Zeitpunkt noch ungeprüfte
+  // Maschinenlesung hätte darin den Anschein eines festgestellten Werts.
+  // Die geprüfte Menge steht am Projekt und im Prüfprotokoll.
+  if (options.wiegescheinJpegBytes) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Wiegeschein', links, 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(
+      'Vom Fahrer beim Abladen fotografiert. Massgeblich ist der abgebildete Beleg.',
+      links,
+      26
+    );
+    doc.setTextColor(0, 0, 0);
+    try {
+      bettePdfBildEin(doc, options.wiegescheinJpegBytes, 'JPEG', links, 32, 170, 236);
+    } catch {
+      doc.setFontSize(10);
+      doc.text('Wiegeschein konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 36);
+    }
   }
 
   // Unterschrift (optional)
@@ -566,6 +835,10 @@ const handler: Handler = async (event: HandlerEvent) => {
             positionen: extrahierePositionen(daten),
             bereitsBestaetigt: Boolean(daten.liefernachweisAm),
             liefernachweisAm: daten.liefernachweisAm || null,
+            // Steuert, ob die Fahrer-Seite das Wiegeschein-Foto erzwingt.
+            // Server ist die Quelle der Wahrheit — die Prüfung unten läuft
+            // ohnehin serverseitig, die Seite passt nur ihre Führung an.
+            wiegescheinPflicht: WIEGESCHEIN_PFLICHT,
           },
         }),
       };
@@ -609,6 +882,24 @@ const handler: Handler = async (event: HandlerEvent) => {
         body: JSON.stringify({ error: 'Das Foto ist zu groß. Bitte erneut aufnehmen.' }),
       };
     }
+    const wiegescheinBase64 = request.wiegescheinBase64
+      ? bereinigeBase64(request.wiegescheinBase64)
+      : '';
+    if (WIEGESCHEIN_PFLICHT && !wiegescheinBase64) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Ein Foto des Wiegescheins ist erforderlich.' }),
+      };
+    }
+    if (wiegescheinBase64.length > MAX_FOTO_BASE64_LAENGE) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Das Foto des Wiegescheins ist zu groß. Bitte erneut aufnehmen.' }),
+      };
+    }
+
     const unterschriftBase64 = request.unterschriftBase64
       ? bereinigeBase64(request.unterschriftBase64)
       : undefined;
@@ -657,6 +948,9 @@ const handler: Handler = async (event: HandlerEvent) => {
     const fahrerName = request.fahrerName?.trim() || undefined;
     const unterzeichnerName = request.unterzeichnerName?.trim() || undefined;
     const fotoBytes = Uint8Array.from(Buffer.from(fotoBase64, 'base64'));
+    const wiegescheinBytes = wiegescheinBase64
+      ? Uint8Array.from(Buffer.from(wiegescheinBase64, 'base64'))
+      : undefined;
     const unterschriftBytes = unterschriftBase64
       ? Uint8Array.from(Buffer.from(unterschriftBase64, 'base64'))
       : undefined;
@@ -672,6 +966,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         unterzeichnerName,
         geo,
         fotoJpegBytes: fotoBytes,
+        wiegescheinJpegBytes: wiegescheinBytes,
         unterschriftPngBytes: unterschriftBytes,
       });
       return {
@@ -698,6 +993,15 @@ const handler: Handler = async (event: HandlerEvent) => {
       fotoBytes,
       'image/jpeg'
     );
+    let wiegescheinDatei: { $id: string } | null = null;
+    if (wiegescheinBytes) {
+      wiegescheinDatei = await ladeDateiHoch(
+        LIEFERNACHWEIS_BUCKET_ID,
+        `${basisname} Wiegeschein.jpg`,
+        wiegescheinBytes,
+        'image/jpeg'
+      );
+    }
     let unterschriftDatei: { $id: string } | null = null;
     if (unterschriftBytes) {
       unterschriftDatei = await ladeDateiHoch(
@@ -718,6 +1022,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       unterzeichnerName,
       geo,
       fotoJpegBytes: fotoBytes,
+      wiegescheinJpegBytes: wiegescheinBytes,
       unterschriftPngBytes: unterschriftBytes,
     });
     const pdfDatei = await ladeDateiHoch(
@@ -747,6 +1052,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       geo: geo || null,
       positionen, // ohne Preise
       fotoDateiId: fotoDatei?.$id || null,
+      wiegescheinDateiId: wiegescheinDatei?.$id || null,
       unterschriftDateiId: unterschriftDatei?.$id || null,
       quelle: 'qr-scan-fahrer',
     };
@@ -763,6 +1069,8 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     // ---- 3. Projekt aktualisieren: Status 'geliefert' + dispoStatus + liefernachweisAm ----
     let statusGesetzt = true;
+    // Für den nachgelagerten OCR-Schritt: der Stand, der gerade geschrieben wurde.
+    let gespeicherteDaten: ProjektDaten | null = null;
     try {
       // Der Projektstatus rückt auf 'geliefert' vor — die Ware ist raus, die Rechnung steht aus.
       // Guard gegen Rückschritt: ist bereits eine Rechnung gestellt oder bezahlt (oder das Projekt
@@ -788,6 +1096,18 @@ const handler: Handler = async (event: HandlerEvent) => {
           geo,
           dokumentId: archivEintrag.$id,
         },
+        // Wiegeschein zunächst OHNE Maschinenlesung: Foto und offener Prüfstatus
+        // reichen, damit die Lieferung sofort in der Prüfliste auftaucht. Die
+        // Erkennung wird gleich nachgetragen — scheitert sie, bleibt es beim Foto.
+        ...(wiegescheinDatei
+          ? {
+              wiegeschein: {
+                fotoDateiId: wiegescheinDatei.$id,
+                erfasstAm: zeitstempel,
+                pruefStatus: 'offen',
+              },
+            }
+          : {}),
         geaendertAm: zeitstempel,
       };
       await aktualisiereProjekt(projektId, {
@@ -797,10 +1117,36 @@ const handler: Handler = async (event: HandlerEvent) => {
         status: neuerStatus,
         geaendertAm: zeitstempel,
       });
+      gespeicherteDaten = neueDaten;
     } catch (updateFehler) {
       // Nachweis ist archiviert — Statuswechsel ist dann manuell nachzuholen.
       console.error('Projekt-Update nach Liefernachweis fehlgeschlagen:', updateFehler);
       statusGesetzt = false;
+    }
+
+    // ---- 4. Wiegeschein vorlesen — BEWUSST DER LETZTE SCHRITT ----
+    // Alles Verbindliche ist zu diesem Zeitpunkt gespeichert: Fotos, Archiv-PDF,
+    // Status. Die Erkennung ist reine Vorarbeit für den Menschen, der die Menge
+    // prüft. Bricht sie ab oder läuft die Function hier ins Zeitlimit, ist die
+    // Lieferung trotzdem vollständig bestätigt — es fehlt lediglich der
+    // Vorschlag, und der Prüfer liest die Menge selbst vom Foto ab.
+    let wiegescheinGelesen = false;
+    if (wiegescheinDatei && wiegescheinBase64 && gespeicherteDaten) {
+      try {
+        const ocr = await leseWiegescheinAus(wiegescheinBase64);
+        wiegescheinGelesen = ocr.gelesen;
+        const mitOcr: ProjektDaten = {
+          ...gespeicherteDaten,
+          wiegeschein: {
+            ...(gespeicherteDaten.wiegeschein as Record<string, unknown>),
+            ocr,
+          },
+        };
+        await aktualisiereProjekt(projektId, { data: JSON.stringify(mitOcr) });
+      } catch (ocrFehler) {
+        // Nur der Vorschlag fehlt. Der Prüfstatus steht weiterhin auf 'offen'.
+        console.warn('Wiegeschein-Erkennung übersprungen:', ocrFehler);
+      }
     }
 
     return {
@@ -810,6 +1156,8 @@ const handler: Handler = async (event: HandlerEvent) => {
         success: true,
         liefernachweisAm: zeitstempel,
         statusGesetzt,
+        wiegescheinGespeichert: Boolean(wiegescheinDatei),
+        wiegescheinGelesen,
         ...(statusGesetzt
           ? {}
           : {

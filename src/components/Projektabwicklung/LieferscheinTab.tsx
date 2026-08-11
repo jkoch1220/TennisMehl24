@@ -39,6 +39,7 @@ import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
 import LiefernachweisKarte from './LiefernachweisKarte';
+import WiegescheinKarte from './WiegescheinKarte';
 import EmailFormular from './EmailFormular';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -1628,8 +1629,11 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           
           {/* Rückmeldung des Fahrers aus dem QR-Scan */}
           {projekt && (
-            <div className="mt-6">
+            <div className="mt-6 space-y-6">
               <LiefernachweisKarte projekt={projekt} />
+              {/* key: die Karte hält ihren Prüfzustand selbst und muss beim
+                  Projektwechsel neu montiert werden (siehe WiegescheinKarte). */}
+              <WiegescheinKarte key={projekt.$id || projekt.id} projekt={projekt} />
             </div>
           )}
 

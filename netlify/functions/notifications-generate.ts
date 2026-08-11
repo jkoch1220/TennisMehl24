@@ -284,6 +284,74 @@ const ladeOffeneRechnungsProjekte = async (databases: Databases): Promise<Models
 };
 
 /**
+ * Lädt alle ausgelieferten Projekte (Status 'geliefert') — die Kandidaten für
+ * eine offene Wiegeschein-Prüfung. Projekte, die schon in der Rechnungsstellung
+ * sind, werden bewusst nicht mehr gemeldet: Dort ist der Zug abgefahren, die
+ * Menge wurde beim Fakturieren ohnehin angefasst.
+ */
+const ladeGelieferteProjekte = async (databases: Databases): Promise<Models.Document[]> => {
+  const alle: Models.Document[] = [];
+  let offset = 0;
+
+  while (offset < MAX_DATENSAETZE) {
+    const response = await databases.listDocuments(DATABASE_ID, PROJEKTE_COLLECTION_ID, [
+      Query.equal('status', 'geliefert'),
+      Query.limit(PAGE_SIZE),
+      Query.offset(offset),
+    ]);
+    alle.push(...response.documents);
+    if (response.documents.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return alle;
+};
+
+/**
+ * Meldet eine Lieferung, deren Wiegeschein noch niemand geprüft hat.
+ *
+ * Der Wiegeschein trägt die Menge, nach der abgerechnet wird — bleibt er
+ * ungeprüft liegen, wird entweder verspätet oder nach der falschen Zahl
+ * fakturiert. Über refTyp 'wiegeschein_pruefung' + refId (Projekt-ID) entsteht
+ * pro Lieferung genau EINE Meldung, sie wiederholt sich also nicht alle 5 Minuten.
+ */
+const wiegescheinZuNotification = (
+  projekt: Record<string, unknown>
+): NotificationInput | null => {
+  const projektId = projekt.$id as string;
+  const wiegeschein = projekt.wiegeschein as Record<string, unknown> | undefined;
+  if (!wiegeschein?.fotoDateiId) return null;
+  if (wiegeschein.pruefStatus !== 'offen') return null;
+
+  const kundenname = (projekt.kundenname as string) || 'Unbekannter Kunde';
+  const lieferscheinnummer = projekt.lieferscheinnummer as string | undefined;
+
+  // Der gelesene Wert darf in der Meldung auftauchen, aber niemals ohne den
+  // Zusatz, dass er ungeprüft ist — sonst wird er beim Überfliegen zur Zahl.
+  const ocr = wiegeschein.ocr as Record<string, unknown> | undefined;
+  const gelesen =
+    ocr?.gelesen === true && typeof ocr.mengeTonnen === 'number'
+      ? `${(ocr.mengeTonnen as number).toLocaleString('de-DE')} t gelesen (ungeprüft)`
+      : 'keine Menge automatisch gelesen';
+
+  const teile = [
+    kundenname,
+    lieferscheinnummer ? `Lieferschein ${lieferscheinnummer}` : '',
+    gelesen,
+  ].filter(Boolean);
+
+  return {
+    typ: 'wiegeschein_pruefung',
+    titel: 'Wiegeschein prüfen',
+    nachricht: teile.join(' · '),
+    refTyp: 'wiegeschein_pruefung',
+    refId: projektId,
+    link: '/projekt-verwaltung?view=wiegescheine',
+    prioritaet: 'normal',
+  };
+};
+
+/**
  * Lädt die Debitoren-Metadaten der übergebenen Projekte (Status + Zahlungsziel-
  * Override). Ohne diese würde eine bereits gemahnte, teilbezahlte oder als
  * storniert/reklamiert geschlossene Forderung erneut als „fällig" gemeldet.
@@ -504,6 +572,7 @@ const reconcile = async (): Promise<{
   anfragen: number;
   shop: number;
   rechnungen: number;
+  wiegescheine: number;
   geprueft: number;
 }> => {
   // Zuerst neue E-Mails ziehen (legt Notifications bereits am Ursprung an),
@@ -514,6 +583,7 @@ const reconcile = async (): Promise<{
   let erstelltAnfragen = 0;
   let erstelltShop = 0;
   let erstelltRechnungen = 0;
+  let erstelltWiegescheine = 0;
   let geprueft = 0;
 
   // --- Anfragen ---
@@ -572,16 +642,33 @@ const reconcile = async (): Promise<{
     console.error('Fehler bei Reconciliation fällige Rechnungen:', error);
   }
 
+  // --- Offene Wiegeschein-Prüfungen ---
+  try {
+    const geliefert = await ladeGelieferteProjekte(databases);
+    for (const doc of geliefert) {
+      const projekt = parseDatenDokument(doc);
+      geprueft++;
+      const input = wiegescheinZuNotification(projekt);
+      if (input && (await erstelleNotification(databases, input))) {
+        erstelltWiegescheine++;
+      }
+    }
+  } catch (error) {
+    console.error('Fehler bei Reconciliation Wiegeschein-Prüfungen:', error);
+  }
+
   console.log(
     `🔔 Notifications-Reconciliation: ${geprueft} geprüft, ` +
       `${erstelltAnfragen} Anfrage-Notifications, ${erstelltShop} Shop-Notifications, ` +
-      `${erstelltRechnungen} Rechnungs-Notifications erstellt`
+      `${erstelltRechnungen} Rechnungs-Notifications, ` +
+      `${erstelltWiegescheine} Wiegeschein-Notifications erstellt`
   );
 
   return {
     anfragen: erstelltAnfragen,
     shop: erstelltShop,
     rechnungen: erstelltRechnungen,
+    wiegescheine: erstelltWiegescheine,
     geprueft,
   };
 };

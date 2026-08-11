@@ -41,6 +41,7 @@ import {
   ShoppingCart,
   Inbox,
   Workflow,
+  Scale,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -57,6 +58,7 @@ import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
 import ProjektKartenansicht from './ProjektKartenansicht';
 import HydrocourtView from './HydrocourtView';
+import WiegescheinPruefliste from './WiegescheinPruefliste';
 import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
@@ -156,7 +158,7 @@ const KANBAN_GRID_KLASSEN: Record<number, string> = {
 const kanbanGridKlasse = (spalten: number): string =>
   KANBAN_GRID_KLASSEN[spalten] ?? 'xl:grid-cols-8';
 
-type ViewMode = 'overview' | 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'exports' | 'massenangebot';
+type ViewMode = 'overview' | 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'wiegescheine' | 'exports' | 'massenangebot';
 
 // Session Storage Keys
 // viewMode trägt ein `_v2`-Suffix, seit die Übersicht die Startansicht ist: der alte
@@ -377,9 +379,14 @@ const ProjektVerwaltung = () => {
   const [showVerlorenSpalte, setShowVerlorenSpalteState] = useState(() =>
     loadSetting(STORAGE_KEYS.showVerlorenSpalte, false)
   );
-  const [viewMode, setViewModeState] = useState<ViewMode>(() =>
-    loadSetting<ViewMode>(STORAGE_KEYS.viewMode, 'overview')
-  );
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    // Deep-Link aus Benachrichtigungen (z.B. /projekt-verwaltung?view=wiegescheine)
+    // sticht die zuletzt benutzte Ansicht — sonst landet ein Klick auf
+    // „Wiegeschein prüfen" im zuletzt geöffneten Kanban.
+    const ausUrl = new URLSearchParams(window.location.search).get('view');
+    if (ausUrl) return ausUrl as ViewMode;
+    return loadSetting<ViewMode>(STORAGE_KEYS.viewMode, 'overview');
+  });
   const [kompakteAnsicht, setKompakteAnsichtState] = useState(() =>
     loadSetting(STORAGE_KEYS.kompakteAnsicht, false)
   );
@@ -1188,6 +1195,17 @@ const ProjektVerwaltung = () => {
                 <span className="hidden sm:inline">Universal</span>
               </button>
               <button
+                onClick={() => setViewMode('wiegescheine')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'wiegescheine'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Scale className="w-4 h-4" />
+                <span className="hidden sm:inline">Wiegescheine</span>
+              </button>
+              <button
                 onClick={() => setViewMode('exports')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
                   viewMode === 'exports'
@@ -1378,6 +1396,11 @@ const ProjektVerwaltung = () => {
           ]}
           onProjektClick={handleProjektClick}
         />
+      )}
+
+      {/* Offene Wiegeschein-Prüfungen */}
+      {viewMode === 'wiegescheine' && (
+        <WiegescheinPruefliste saisonjahr={saisonjahr} onProjektClick={handleProjektClick} />
       )}
 
       {/* Hydrocourt-Ansicht */}

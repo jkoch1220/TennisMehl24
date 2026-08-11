@@ -89,6 +89,70 @@ export interface LiefernachweisInfo {
   dokumentId?: string;
 }
 
+/**
+ * Rohergebnis der automatischen Texterkennung auf dem Wiegeschein-Foto.
+ *
+ * ACHTUNG: Diese Werte sind ein VORSCHLAG einer Maschine und dürfen nirgends
+ * abrechnungsrelevant verwendet werden. Ein Wiegeschein ist handschriftlich
+ * ergänzt, verschmutzt, im LKW fotografiert — eine falsch gelesene Ziffer
+ * verschiebt die Rechnung um Tonnen. Verbindlich ist ausschließlich
+ * `WiegescheinInfo.gepruefteMengeTonnen`, also der von einem Menschen
+ * bestätigte Wert.
+ */
+export interface WiegescheinOcr {
+  /** true = Texterkennung ist gelaufen und hat ein verwertbares Ergebnis geliefert */
+  gelesen: boolean;
+  /** Nettomenge, wie auf dem Schein abgelesen (Rohwert in der Einheit `einheit`) */
+  menge?: number;
+  /** Einheit des Rohwerts, wie auf dem Schein gedruckt */
+  einheit?: 't' | 'kg';
+  /** Auf Tonnen normalisierte Menge — Basis für Vorbelegung und Abweichungsvergleich */
+  mengeTonnen?: number;
+  /** Nummer des Wiegescheins, falls lesbar */
+  belegnummer?: string;
+  /** Kfz-Kennzeichen des LKW, falls lesbar */
+  kennzeichen?: string;
+  /** Datum/Uhrzeit der Verwiegung als Rohtext, falls lesbar */
+  datum?: string;
+  /** Selbsteinschätzung der Lesbarkeit (0..1) — niedrig heißt: besonders genau prüfen */
+  konfidenz?: number;
+  /** Klartext-Hinweis, z.B. "Nettomenge unscharf, Beleg geknickt" */
+  hinweis?: string;
+  /** Grund, warum keine Erkennung möglich war (Netzfehler, kein API-Key, unlesbar) */
+  fehler?: string;
+}
+
+/**
+ * Stand der menschlichen Prüfung eines Wiegescheins.
+ * 'offen' blockiert nichts, macht die Lieferung aber in der Prüfliste sichtbar.
+ */
+export type WiegescheinPruefStatus = 'offen' | 'bestaetigt' | 'korrigiert' | 'unlesbar';
+
+/** Wiegeschein zur Lieferung — Foto des Fahrers plus Prüfergebnis */
+export interface WiegescheinInfo {
+  /** Datei-ID des Wiegeschein-Fotos im Bucket liefernachweis-dateien */
+  fotoDateiId?: string;
+  /** ISO-Zeitpunkt der Aufnahme (= Zeitpunkt der Fahrerbestätigung) */
+  erfasstAm?: string;
+  /** Maschinenlesung — nur Vorschlag, siehe WiegescheinOcr */
+  ocr?: WiegescheinOcr;
+  /** Stand der menschlichen Prüfung */
+  pruefStatus: WiegescheinPruefStatus;
+  /**
+   * Vom Menschen bestätigte oder korrigierte Nettomenge in Tonnen.
+   * NUR dieser Wert ist verbindlich und wird ins Liefergewicht übernommen.
+   */
+  gepruefteMengeTonnen?: number;
+  /** ISO-Zeitpunkt der Prüfung */
+  geprueftAm?: string;
+  /** Appwrite-User-ID des Prüfers */
+  geprueftVon?: string;
+  /** Klarname des Prüfers (für die Anzeige ohne User-Nachschlag) */
+  geprueftVonName?: string;
+  /** Notiz des Prüfers, z.B. "Zahl unleserlich, telefonisch bei Waage bestätigt" */
+  pruefNotiz?: string;
+}
+
 // Rückmeldung des Kunden aus dem öffentlichen Datenprüfungs-Formular (AB-E-Mail)
 export interface DatenpruefungRueckmeldung {
   /** ISO-Datum der Einreichung durch den Kunden */
@@ -170,6 +234,11 @@ export interface Projekt {
   liefernachweisAm?: string;
   /** Referenzen auf Foto/Unterschrift/Archiv-Dokument des Liefernachweises */
   liefernachweis?: LiefernachweisInfo;
+  /**
+   * Wiegeschein zur Lieferung: Foto des Fahrers, Maschinenlesung und Prüfergebnis.
+   * Die Menge daraus zählt erst, wenn sie ein Mensch bestätigt hat.
+   */
+  wiegeschein?: WiegescheinInfo;
 
   // === DATENPRÜFUNG (Änderungsformular-Link in der AB-E-Mail) ===
   // Alle Felder liegen NUR im data-JSON des Projekts — keine Appwrite-Spalten.
@@ -254,7 +323,12 @@ export interface Projekt {
 
   // Lieferdetails
   anzahlPaletten?: number;
-  liefergewicht?: number; // in Tonnen
+  /**
+   * Liefergewicht in Tonnen. Zunächst das geplante Gewicht aus der Dispo; nach
+   * der Prüfung des Wiegescheins wird es auf die tatsächlich verwogene Menge
+   * gesetzt (siehe wiegeschein.gepruefteMengeTonnen).
+   */
+  liefergewicht?: number;
 
   // DISPO-Ansprechpartner (z.B. Platzwart für diese Lieferung)
   dispoAnsprechpartner?: {

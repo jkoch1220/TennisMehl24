@@ -5,7 +5,14 @@
  *   /liefernachweis/:projektId?token=<token>[&test=1]
  *
  * Leitprinzip: maximal einfach — Scan → Auftrag kompakt sehen → „Abgeladen ✓"
- * → 1 Foto (Kamera) → fertig, unter 20 Sekunden. Unterschrift + Name optional.
+ * → Foto der Ware → Foto des Wiegescheins → fertig, unter 30 Sekunden.
+ * Unterschrift bleibt optional.
+ *
+ * Der Wiegeschein trägt die Menge, nach der abgerechnet wird. Deshalb wird er
+ * als eigener, deutlich angekündigter Schritt abgefragt und nicht als Zusatz
+ * zum Warenfoto — der Fahrer soll wissen, dass er ein zweites Blatt braucht,
+ * bevor er den LKW verlässt. Ob das Foto Pflicht ist, entscheidet der Server
+ * (`wiegescheinPflicht` aus dem GET); die Seite passt nur ihre Führung an.
  *
  * Es gibt KEINEN direkten Appwrite-Zugriff: alle Lese-/Schreiboperationen
  * laufen über die Netlify Function /.netlify/functions/liefernachweis.
@@ -21,6 +28,7 @@ import {
   Package,
   PenLine,
   RefreshCw,
+  Scale,
   Truck,
   XCircle,
 } from 'lucide-react';
@@ -43,9 +51,24 @@ interface AuftragsInfo {
   positionen: AuftragsPosition[];
   bereitsBestaetigt: boolean;
   liefernachweisAm: string | null;
+  /** Server-Vorgabe: muss der Fahrer den Wiegeschein fotografieren? */
+  wiegescheinPflicht?: boolean;
 }
 
-type SeitenStatus = 'laden' | 'fehler' | 'auftrag' | 'foto' | 'senden' | 'fertig';
+/**
+ * Schritte des Ablaufs:
+ *   auftrag     → Auftrag prüfen, Name eintragen, Warenfoto auslösen
+ *   wiegeschein → Wiegeschein fotografieren
+ *   abschluss   → beide Fotos ansehen, optional unterschreiben, absenden
+ */
+type SeitenStatus =
+  | 'laden'
+  | 'fehler'
+  | 'auftrag'
+  | 'wiegeschein'
+  | 'abschluss'
+  | 'senden'
+  | 'fertig';
 
 /** Foto auf sinnvolle Größe komprimieren (max. 1600 px, JPEG 80 %) */
 const komprimiereFoto = (datei: File): Promise<string> =>
@@ -216,6 +239,7 @@ const Liefernachweis = () => {
   const [auftrag, setAuftrag] = useState<AuftragsInfo | null>(null);
 
   const [fotoDataUrl, setFotoDataUrl] = useState<string | null>(null);
+  const [wiegescheinDataUrl, setWiegescheinDataUrl] = useState<string | null>(null);
   const [fotoVerarbeitet, setFotoVerarbeitet] = useState(false);
   const [zeigeUnterschrift, setZeigeUnterschrift] = useState(false);
   const [unterschriftDataUrl, setUnterschriftDataUrl] = useState<string | null>(null);
@@ -230,6 +254,11 @@ const Liefernachweis = () => {
   } | null>(null);
 
   const fotoInputRef = useRef<HTMLInputElement | null>(null);
+  const wiegescheinInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Standard ist Pflicht: Antwortet ein älterer Server das Feld nicht mit,
+  // wird der Wiegeschein trotzdem verlangt statt still übersprungen.
+  const wiegescheinPflicht = auftrag?.wiegescheinPflicht !== false;
 
   // Dark Mode: Auf dieser öffentlichen Seite folgt das Theme der System-
   // Einstellung des Fahrer-Smartphones (das Portal-Theme ist class-basiert und
@@ -287,16 +316,37 @@ const Liefernachweis = () => {
     void ladeAuftrag();
   }, [ladeAuftrag]);
 
-  // Fotoauswahl → komprimieren
+  // Foto der abgeladenen Ware → komprimieren → weiter zum Wiegeschein
   const handleFotoAuswahl = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const datei = e.target.files?.[0];
     e.target.value = ''; // gleiche Datei erneut wählbar
     if (!datei) return;
     setFotoVerarbeitet(true);
+    setFehlerText('');
     try {
       const dataUrl = await komprimiereFoto(datei);
       setFotoDataUrl(dataUrl);
-      setStatus('foto');
+      // Ist der Wiegeschein schon im Kasten (Foto neu aufgenommen), bleibt der
+      // Fahrer im Abschluss-Schritt statt erneut durch den Ablauf geschickt zu werden.
+      setStatus(wiegescheinDataUrl ? 'abschluss' : 'wiegeschein');
+    } catch {
+      setFehlerText('Das Foto konnte nicht verarbeitet werden. Bitte erneut aufnehmen.');
+    } finally {
+      setFotoVerarbeitet(false);
+    }
+  };
+
+  // Foto des Wiegescheins → komprimieren → weiter zum Abschluss
+  const handleWiegescheinAuswahl = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const datei = e.target.files?.[0];
+    e.target.value = '';
+    if (!datei) return;
+    setFotoVerarbeitet(true);
+    setFehlerText('');
+    try {
+      const dataUrl = await komprimiereFoto(datei);
+      setWiegescheinDataUrl(dataUrl);
+      setStatus('abschluss');
     } catch {
       setFehlerText('Das Foto konnte nicht verarbeitet werden. Bitte erneut aufnehmen.');
     } finally {
@@ -307,6 +357,7 @@ const Liefernachweis = () => {
   // Bestätigung absenden
   const sendeBestaetigung = async () => {
     if (!projektId || !fotoDataUrl || !fahrerName.trim()) return;
+    if (wiegescheinPflicht && !wiegescheinDataUrl) return;
     setStatus('senden');
     setFehlerText('');
     try {
@@ -318,6 +369,7 @@ const Liefernachweis = () => {
           projektId,
           token,
           fotoBase64: fotoDataUrl,
+          wiegescheinBase64: wiegescheinDataUrl || undefined,
           fahrerName: fahrerName.trim(),
           unterschriftBase64: unterschriftDataUrl || undefined,
           unterzeichnerName: unterzeichnerName.trim() || undefined,
@@ -336,14 +388,14 @@ const Liefernachweis = () => {
       };
       if (!res.ok || !json.success) {
         setFehlerText(json.error || 'Die Bestätigung ist fehlgeschlagen. Bitte erneut versuchen.');
-        setStatus('foto');
+        setStatus('abschluss');
         return;
       }
       setErgebnis(json);
       setStatus('fertig');
     } catch {
       setFehlerText('Keine Verbindung. Bitte Empfang prüfen und erneut versuchen.');
-      setStatus('foto');
+      setStatus('abschluss');
     }
   };
 
@@ -489,14 +541,87 @@ const Liefernachweis = () => {
             </button>
             <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
               {fahrerName.trim()
-                ? 'Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.'
-                : 'Bitte zuerst Ihren Namen eintragen, dann Foto aufnehmen — fertig.'}
+                ? wiegescheinPflicht
+                  ? 'Danach 2 Fotos: die abgeladene Ware und der Wiegeschein.'
+                  : 'Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.'
+                : 'Bitte zuerst Ihren Namen eintragen, dann Fotos aufnehmen.'}
             </p>
+            {wiegescheinPflicht && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-4 py-3">
+                <p className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                  <Scale className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                  <span>
+                    <span className="font-semibold">Wiegeschein bereithalten.</span> Er wird im
+                    nächsten Schritt fotografiert — bitte noch nicht weglegen.
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Foto-Schritt: Vorschau + optionale Unterschrift + Absenden */}
-        {(status === 'foto' || status === 'senden') && fotoDataUrl && (
+        {/* Wiegeschein-Schritt: eigener Bildschirm, damit er nicht übersehen wird */}
+        {status === 'wiegeschein' && (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-white dark:bg-dark-surface p-5 shadow-lg">
+              <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
+                <Scale className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                Jetzt den Wiegeschein fotografieren
+              </p>
+              <p className="mt-2 text-sm text-gray-600 dark:text-dark-textMuted">
+                Bitte den ganzen Schein aufs Bild bringen und darauf achten, dass die
+                <span className="font-semibold"> Nettomenge </span>
+                gut lesbar ist. Lieber im Hellen und ohne Schatten.
+              </p>
+
+              {fotoDataUrl && (
+                <div className="mt-4 flex items-center gap-3 rounded-xl bg-green-50 dark:bg-green-950/40 px-3 py-2">
+                  <img
+                    src={fotoDataUrl}
+                    alt="Foto der abgeladenen Ware"
+                    className="h-12 w-12 rounded-lg object-cover"
+                  />
+                  <span className="text-sm font-medium text-green-800 dark:text-green-300">
+                    Foto der Ware ist gespeichert ✓
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {fehlerText && (
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">{fehlerText}</p>
+            )}
+
+            <button
+              onClick={() => wiegescheinInputRef.current?.click()}
+              disabled={fotoVerarbeitet}
+              className="w-full rounded-2xl bg-green-600 py-6 text-2xl font-bold text-white shadow-lg transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-60"
+            >
+              {fotoVerarbeitet ? (
+                <span className="inline-flex items-center gap-3">
+                  <Loader2 className="h-7 w-7 animate-spin" />
+                  Foto wird verarbeitet …
+                </span>
+              ) : (
+                'Wiegeschein fotografieren'
+              )}
+            </button>
+
+            {/* Nur sichtbar, wenn der Server den Wiegeschein nicht erzwingt. */}
+            {!wiegescheinPflicht && (
+              <button
+                onClick={() => setStatus('abschluss')}
+                disabled={fotoVerarbeitet}
+                className="w-full rounded-xl px-4 py-3 text-sm font-medium text-gray-600 underline dark:text-dark-textMuted"
+              >
+                Es gibt keinen Wiegeschein — ohne fortfahren
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Abschluss: beide Fotos prüfen, optional unterschreiben, absenden */}
+        {(status === 'abschluss' || status === 'senden') && fotoDataUrl && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
               <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
@@ -516,6 +641,38 @@ const Liefernachweis = () => {
               >
                 <RefreshCw className="h-4 w-4" />
                 Foto neu aufnehmen
+              </button>
+            </div>
+
+            <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
+              <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
+                <Scale className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                Wiegeschein
+              </p>
+              {wiegescheinDataUrl ? (
+                <>
+                  <img
+                    src={wiegescheinDataUrl}
+                    alt="Foto des Wiegescheins"
+                    className="mt-3 w-full max-h-72 object-contain rounded-xl bg-gray-50 dark:bg-gray-800"
+                  />
+                  <p className="mt-2 text-xs text-gray-500 dark:text-dark-textMuted">
+                    Ist die Nettomenge auf dem Bild gut lesbar? Wenn nicht, bitte neu aufnehmen.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-gray-600 dark:text-dark-textMuted">
+                  Kein Wiegeschein aufgenommen.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => wiegescheinInputRef.current?.click()}
+                disabled={status === 'senden'}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-600 dark:text-dark-accent"
+              >
+                <RefreshCw className="h-4 w-4" />
+                {wiegescheinDataUrl ? 'Wiegeschein neu aufnehmen' : 'Wiegeschein fotografieren'}
               </button>
             </div>
 
@@ -553,7 +710,7 @@ const Liefernachweis = () => {
 
             <button
               onClick={() => void sendeBestaetigung()}
-              disabled={status === 'senden'}
+              disabled={status === 'senden' || (wiegescheinPflicht && !wiegescheinDataUrl)}
               className="w-full rounded-2xl bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white text-xl font-bold py-5 shadow-lg transition-colors"
             >
               {status === 'senden' ? (
@@ -565,6 +722,11 @@ const Liefernachweis = () => {
                 'Lieferung bestätigen ✓'
               )}
             </button>
+            {wiegescheinPflicht && !wiegescheinDataUrl && (
+              <p className="text-center text-sm font-medium text-amber-700 dark:text-amber-400">
+                Zum Bestätigen fehlt noch das Foto des Wiegescheins.
+              </p>
+            )}
           </div>
         )}
 
@@ -608,7 +770,9 @@ const Liefernachweis = () => {
           </div>
         )}
 
-        {/* Verstecktes Kamera-Input (capture=environment öffnet direkt die Kamera) */}
+        {/* Versteckte Kamera-Inputs (capture=environment öffnet direkt die Kamera).
+            Zwei getrennte Felder, damit ein neu aufgenommenes Warenfoto nie
+            versehentlich den Wiegeschein überschreibt. */}
         <input
           ref={fotoInputRef}
           type="file"
@@ -616,6 +780,14 @@ const Liefernachweis = () => {
           capture="environment"
           className="hidden"
           onChange={(e) => void handleFotoAuswahl(e)}
+        />
+        <input
+          ref={wiegescheinInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => void handleWiegescheinAuswahl(e)}
         />
 
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
