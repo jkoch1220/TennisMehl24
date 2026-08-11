@@ -4,8 +4,19 @@
  * Berechnet den Dieselpreiszuschlag gemäß AGB §4:
  * - Zuschlag auf Schüttgut-Tonnen (TM-ZM-02, TM-ZM-03) sowie
  *   Palettenware/BigBag-Tonnen (TM-ZM-02St, TM-ZM-03St, TM-ZM-02BB, TM-ZM-03BB)
- * - Formel: Math.floor((tagesDieselPreis - basisPreis) / 0.05) * 0.45 €/t
+ * - Formel: Math.floor((tagesDieselPreis - basisPreis) / 0.05) * zuschlagProStufe €/t
  * - Zuschlag nur wenn tagesDieselPreis > basisPreis
+ *
+ * Ab dem Lieferjahr 2027 ist `zuschlagProStufe` nicht mehr konstant, sondern haengt von der
+ * Entfernung Werk -> Abladestelle ab (siehe ENTFERNUNGS_STAFFEL_2027). Fachlicher Grund: der
+ * Mehrverbrauch aus einem gestiegenen Dieselpreis faellt pro Tonne umso staerker ins Gewicht,
+ * je weiter gefahren wird — ein Pauschalbetrag subventioniert die Fernlieferung zulasten der
+ * Nahlieferung.
+ *
+ * WICHTIG — eine Quelle der Wahrheit: Der kundensichtbare Klauseltext auf Angebot/AB wird von
+ * `getDieselKlauselText()` aus derselben Konfiguration erzeugt, aus der auch gerechnet wird.
+ * Wer hier Werte aendert, aendert damit automatisch auch den Text auf dem Dokument. Zahlen
+ * deshalb NICHT zusaetzlich irgendwo als Fliesstext hartkodieren.
  */
 
 import { Position } from '../types/projektabwicklung';
@@ -18,12 +29,49 @@ import {
 // KONFIGURATION - Zuschlagsstaffeln nach Jahr
 // ==========================================
 
+/**
+ * Eine Entfernungsstufe der Zuschlagsstaffel.
+ *
+ * `bisKm` ist die Obergrenze EINSCHLIESSLICH (bis 50 km = 50,0 km zaehlt noch zur Stufe).
+ * `bisKm: null` markiert die offene letzte Stufe ("darueber hinaus") und muss genau einmal,
+ * als letzter Eintrag, vorkommen.
+ */
+export interface EntfernungsStufe {
+  bisKm: number | null;      // Obergrenze einschliesslich, null = offen nach oben
+  zuschlagProStufe: number;  // €/t je Dieselpreis-Stufe (stufenGroesse)
+}
+
 export interface DieselZuschlagConfig {
   basisPreis: number;        // €/L (aus AGB)
-  zuschlagProStufe: number;  // 0.45 €/t
+  zuschlagProStufe: number;  // €/t je Stufe — ohne Entfernungsstaffel bzw. wenn km unbekannt
   stufenGroesse: number;     // 0.05 €/L
   gueltigBis: string;        // Format: 'YYYY-12-31'
+  /**
+   * Ab 2027: entfernungsabhaengiger Betrag je Dieselpreis-Stufe. Fehlt das Feld, gilt
+   * `zuschlagProStufe` pauschal (Rechtsstand bis einschliesslich 2026).
+   */
+  entfernungsStaffel?: EntfernungsStufe[];
 }
+
+/**
+ * Entfernungsstaffel ab Lieferjahr 2027.
+ *
+ * Grundlage ist die Vorgabe der Geschaeftsfuehrung (Roni/Julian, 08/2026): 25-km-Schritte,
+ * Startwert 0,45 €/t wie bisher, je Schritt +0,20 €/t. Die offene Stufe ist bewusst bei
+ * 150 km gedeckelt — darueber laeuft die Ware praktisch immer per Spedition, die ihren
+ * eigenen Floater berechnet (siehe rabenDieselfloater.ts).
+ *
+ * Die Werte stehen NUR hier. Klauseltext, PDF-Hinweis und Rechnungsposition leiten sich
+ * daraus ab.
+ */
+export const ENTFERNUNGS_STAFFEL_2027: EntfernungsStufe[] = [
+  { bisKm: 50, zuschlagProStufe: 0.45 },
+  { bisKm: 75, zuschlagProStufe: 0.65 },
+  { bisKm: 100, zuschlagProStufe: 0.85 },
+  { bisKm: 125, zuschlagProStufe: 1.05 },
+  { bisKm: 150, zuschlagProStufe: 1.25 },
+  { bisKm: null, zuschlagProStufe: 1.45 },
+];
 
 /**
  * Zuschlagsstaffeln nach Angebotsgültigkeit/Jahr
@@ -42,15 +90,25 @@ const DIESEL_STAFFELN: DieselZuschlagConfig[] = [
     stufenGroesse: 0.05,      // €/L pro Stufe
     gueltigBis: '2026-12-31',
   },
-  // Für 2027+ hier weitere Staffeln hinzufügen
+  {
+    basisPreis: 1.749,        // €/L — vor Saisonstart 2027 pruefen
+    zuschlagProStufe: 0.45,   // €/t — greift nur, wenn keine Entfernung ermittelbar ist
+    stufenGroesse: 0.05,      // €/L pro Stufe
+    gueltigBis: '2027-12-31',
+    entfernungsStaffel: ENTFERNUNGS_STAFFEL_2027,
+  },
+  // Für 2028+ hier weitere Staffeln hinzufügen
 ];
 
-// Fallback-Staffel wenn kein passendes Jahr gefunden wird
+// Fallback-Staffel wenn kein passendes Jahr gefunden wird (Leistungsdatum nach der letzten
+// definierten Staffel). Erbt bewusst den Stand der juengsten Staffel inkl. Entfernungsstaffel,
+// damit ein vergessener Jahreseintrag nicht still auf den alten Pauschalbetrag zurueckfaellt.
 const FALLBACK_STAFFEL: DieselZuschlagConfig = {
   basisPreis: 1.749,
   zuschlagProStufe: 0.45,
   stufenGroesse: 0.05,
   gueltigBis: '9999-12-31',
+  entfernungsStaffel: ENTFERNUNGS_STAFFEL_2027,
 };
 
 // ==========================================
@@ -103,6 +161,15 @@ export interface DieselZuschlagErgebnis {
   gesamtZuschlag: number;     // zuschlagProTonne * gesamtTonnen (2 Dezimalstellen)
   hatZuschlag: boolean;       // true wenn Zuschlag > 0
   config: DieselZuschlagConfig;
+  // === Entfernungsstaffel (ab 2027) ===
+  /** Zugrunde gelegte Entfernung Werk -> Abladestelle in km, undefined wenn unbekannt */
+  entfernungKm?: number;
+  /** Tatsaechlich angewandter Betrag €/t je Dieselpreis-Stufe */
+  zuschlagProStufe: number;
+  /** true, wenn die Staffel greift, aber keine Entfernung vorlag (unterste Stufe angewandt) */
+  entfernungUnbekannt: boolean;
+  /** Klartext der angewandten Stufe, z.B. "51–75 km" — leer, wenn keine Staffel gilt */
+  staffelBezeichnung: string;
 }
 
 export type DieselPreisStatus =
@@ -139,16 +206,92 @@ export function getBasisPreisConfig(leistungsdatum: string): DieselZuschlagConfi
   return FALLBACK_STAFFEL;
 }
 
+// ==========================================
+// ENTFERNUNGSSTAFFEL
+// ==========================================
+
+/**
+ * Sucht die Entfernungsstufe, die für eine Entfernung gilt.
+ *
+ * @param config - Zuschlagskonfiguration
+ * @param entfernungKm - Entfernung Werk -> Abladestelle (einfache Strecke), undefined = unbekannt
+ * @returns Die passende Stufe, oder null wenn die Config keine Entfernungsstaffel hat
+ */
+export function getEntfernungsStufe(
+  config: DieselZuschlagConfig,
+  entfernungKm?: number
+): EntfernungsStufe | null {
+  const staffel = config.entfernungsStaffel;
+  if (!staffel || staffel.length === 0) return null;
+
+  // Ohne belastbare Entfernung gilt die unterste Stufe. Bewusst konservativ: der Kunde hat
+  // im Angebot eine nach Entfernung gestaffelte Klausel akzeptiert — im Zweifel darf daraus
+  // kein hoeherer als der guenstigste Satz werden. Der Aufrufer sieht `entfernungUnbekannt`
+  // und kann in der UI zur Eingabe auffordern.
+  if (entfernungKm === undefined || entfernungKm === null || !Number.isFinite(entfernungKm) || entfernungKm < 0) {
+    return staffel[0];
+  }
+
+  for (const stufe of staffel) {
+    if (stufe.bisKm === null || entfernungKm <= stufe.bisKm) {
+      return stufe;
+    }
+  }
+
+  // Kein offener Abschluss definiert -> letzte Stufe
+  return staffel[staffel.length - 1];
+}
+
+/**
+ * Ermittelt den anzuwendenden Betrag €/t je Dieselpreis-Stufe.
+ * Ohne Entfernungsstaffel ist das schlicht `config.zuschlagProStufe`.
+ */
+export function getZuschlagProStufe(
+  config: DieselZuschlagConfig,
+  entfernungKm?: number
+): number {
+  const stufe = getEntfernungsStufe(config, entfernungKm);
+  return stufe ? stufe.zuschlagProStufe : config.zuschlagProStufe;
+}
+
+/**
+ * Beschriftung einer Entfernungsstufe für Anzeige und Dokumente.
+ *
+ * Bewusst "über 50 bis 75 km" statt "50–75 km": die Grenze selbst gehört zur unteren Stufe
+ * (bisKm ist einschliesslich). Eine Schreibweise "50–75" liesse bei exakt 50,0 km offen,
+ * welcher Satz gilt — auf einem Preisblatt ist das ein Streitpunkt, den niemand braucht.
+ */
+export function formatEntfernungsStufe(
+  stufe: EntfernungsStufe,
+  vorherigeObergrenze: number | null
+): string {
+  const von = vorherigeObergrenze === null ? 0 : vorherigeObergrenze;
+  if (stufe.bisKm === null) {
+    return `über ${formatKm(von)} km`;
+  }
+  if (von === 0) {
+    return `bis ${formatKm(stufe.bisKm)} km`;
+  }
+  return `über ${formatKm(von)} bis ${formatKm(stufe.bisKm)} km`;
+}
+
+/** Ganzzahlige km ohne Nachkommastelle, sonst mit einer. */
+function formatKm(km: number): string {
+  return Number.isInteger(km) ? String(km) : km.toFixed(1).replace('.', ',');
+}
+
 /**
  * Berechnet den Zuschlag pro Tonne basierend auf aktuellem Dieselpreis
  *
  * @param dieselPreis - Aktueller Dieselpreis in €/L
  * @param config - Zuschlagskonfiguration
+ * @param entfernungKm - Entfernung Werk -> Abladestelle (nur relevant ab Staffel 2027)
  * @returns Zuschlag in €/t (3 Dezimalstellen)
  */
 export function berechneZuschlagProTonne(
   dieselPreis: number,
-  config: DieselZuschlagConfig
+  config: DieselZuschlagConfig,
+  entfernungKm?: number
 ): number {
   // Kein Zuschlag wenn Dieselpreis unter oder gleich Basispreis
   if (dieselPreis <= config.basisPreis) {
@@ -158,8 +301,8 @@ export function berechneZuschlagProTonne(
   // Anzahl der Stufen berechnen (abgerundet)
   const stufen = Math.floor((dieselPreis - config.basisPreis) / config.stufenGroesse);
 
-  // Zuschlag pro Tonne
-  const zuschlag = stufen * config.zuschlagProStufe;
+  // Betrag je Stufe — ab 2027 entfernungsabhaengig
+  const zuschlag = stufen * getZuschlagProStufe(config, entfernungKm);
 
   // Auf 3 Dezimalstellen runden (cent-genau bei Multiplikation)
   return Math.round(zuschlag * 1000) / 1000;
@@ -197,18 +340,21 @@ export function istDieselZuschlagPosition(position: Position): boolean {
  * @param positionen - Alle Rechnungspositionen
  * @param dieselPreis - Aktueller Dieselpreis in €/L
  * @param leistungsdatum - Leistungsdatum für Staffelbestimmung
+ * @param entfernungKm - Entfernung Werk -> Abladestelle in km (einfache Strecke).
+ *                       Ab Staffel 2027 preisrelevant; davor ohne Wirkung.
  * @returns Detailliertes Ergebnis der Zuschlagsberechnung
  */
 export function berechneGesamtZuschlag(
   positionen: Position[],
   dieselPreis: number,
-  leistungsdatum: string
+  leistungsdatum: string,
+  entfernungKm?: number
 ): DieselZuschlagErgebnis {
   // Konfiguration basierend auf Leistungsdatum
   const config = getBasisPreisConfig(leistungsdatum);
 
   // Zuschlag pro Tonne berechnen
-  const zuschlagProTonne = berechneZuschlagProTonne(dieselPreis, config);
+  const zuschlagProTonne = berechneZuschlagProTonne(dieselPreis, config, entfernungKm);
 
   // Stufen berechnen
   const stufen = dieselPreis > config.basisPreis
@@ -229,6 +375,17 @@ export function berechneGesamtZuschlag(
   // Gesamtzuschlag berechnen (auf 2 Dezimalstellen runden)
   const gesamtZuschlag = Math.round(zuschlagProTonne * gesamtTonnen * 100) / 100;
 
+  // Angewandte Entfernungsstufe fuer Anzeige und Belegtext festhalten
+  const staffel = config.entfernungsStaffel;
+  const angewandteStufe = getEntfernungsStufe(config, entfernungKm);
+  const kmBekannt = entfernungKm !== undefined && entfernungKm !== null && Number.isFinite(entfernungKm) && entfernungKm >= 0;
+  let staffelBezeichnung = '';
+  if (staffel && angewandteStufe) {
+    const index = staffel.indexOf(angewandteStufe);
+    const vorherige = index > 0 ? staffel[index - 1].bisKm : null;
+    staffelBezeichnung = formatEntfernungsStufe(angewandteStufe, vorherige);
+  }
+
   return {
     zuschlagProTonne,
     tagesDieselPreis: dieselPreis,
@@ -238,6 +395,10 @@ export function berechneGesamtZuschlag(
     gesamtZuschlag,
     hatZuschlag: gesamtZuschlag > 0,
     config,
+    entfernungKm: kmBekannt ? entfernungKm : undefined,
+    zuschlagProStufe: getZuschlagProStufe(config, entfernungKm),
+    entfernungUnbekannt: Boolean(staffel) && !kmBekannt,
+    staffelBezeichnung,
   };
 }
 
@@ -250,9 +411,17 @@ export function berechneGesamtZuschlag(
 export function erstelleDieselZuschlagPosition(
   ergebnis: DieselZuschlagErgebnis
 ): Position {
+  // Entfernungsstaffel im Belegtext nachvollziehbar machen: der Kunde muss den Betrag aus der
+  // Klausel nachrechnen koennen, ohne nachzufragen. Nur ausweisen, wenn eine Staffel gilt.
+  const staffelDetail = ergebnis.config.entfernungsStaffel
+    ? ergebnis.entfernungKm !== undefined
+      ? `, Entfernung: ${formatKm(Math.round(ergebnis.entfernungKm))} km → ${ergebnis.staffelBezeichnung}: ${ergebnis.zuschlagProStufe.toFixed(2).replace('.', ',')} €/t je Stufe`
+      : `, Entfernung nicht hinterlegt → Grundstaffel ${ergebnis.staffelBezeichnung}: ${ergebnis.zuschlagProStufe.toFixed(2).replace('.', ',')} €/t je Stufe`
+    : '';
+
   // Beschreibung mit Berechnungsdetails
   const beschreibung = ergebnis.hatZuschlag
-    ? `${ergebnis.gesamtTonnen.toFixed(2)} t × ${ergebnis.zuschlagProTonne.toFixed(2)} €/t (Basis: ${ergebnis.basisPreis.toFixed(3)} €/L, Aktuell: ${ergebnis.tagesDieselPreis.toFixed(3)} €/L, ${ergebnis.stufen} Stufe(n))`
+    ? `${ergebnis.gesamtTonnen.toFixed(2)} t × ${ergebnis.zuschlagProTonne.toFixed(2)} €/t (Basis: ${ergebnis.basisPreis.toFixed(3)} €/L, Aktuell: ${ergebnis.tagesDieselPreis.toFixed(3)} €/L, ${ergebnis.stufen} Stufe(n)${staffelDetail})`
     : `Kein Zuschlag - Dieselpreis (${ergebnis.tagesDieselPreis.toFixed(3)} €/L) unter Basis (${ergebnis.basisPreis.toFixed(3)} €/L)`;
 
   return {
@@ -293,6 +462,95 @@ export function getDieselPreisStatus(leistungsdatum: string): 'aktuell' | 'histo
   }
 
   return 'aktuell'; // Heute oder gestern
+}
+
+// ==========================================
+// KUNDENSICHTBARE TEXTE
+// ==========================================
+
+/**
+ * Erzeugt die Staffeltabelle als Fliesstext, z.B.
+ * "bis 50 km: 0,45 €/t; 51–75 km: 0,65 €/t; …; über 150 km: 1,45 €/t"
+ */
+export function formatEntfernungsStaffel(staffel: EntfernungsStufe[]): string {
+  return staffel
+    .map((stufe, i) => {
+      const vorherige = i > 0 ? staffel[i - 1].bisKm : null;
+      const betrag = stufe.zuschlagProStufe.toFixed(2).replace('.', ',');
+      return `${formatEntfernungsStufe(stufe, vorherige)}: ${betrag} € je Tonne`;
+    })
+    .join('; ');
+}
+
+/**
+ * Der Dieselpreiszuschlag-Hinweis für Angebot und Auftragsbestätigung.
+ *
+ * Wird aus der geltenden Zuschlagskonfiguration erzeugt, damit der Text auf dem Dokument
+ * nicht von der tatsaechlichen Berechnung abweichen kann. Das Datum bestimmt, welche
+ * Staffel gilt — massgeblich ist dasselbe Datum wie bei der Berechnung (Leistungsdatum
+ * bzw. bei Angeboten das Ende der Angebotsgueltigkeit).
+ *
+ * @param datum - ISO-Datum (YYYY-MM-DD)
+ */
+export function getDieselKlauselText(datum: string): string {
+  const config = getBasisPreisConfig(datum);
+  const basis = config.basisPreis.toFixed(3).replace('.', ',');
+  const stufe = config.stufenGroesse.toFixed(2).replace('.', ',');
+
+  if (!config.entfernungsStaffel) {
+    const betrag = config.zuschlagProStufe.toFixed(2).replace('.', ',');
+    return (
+      `Die angebotenen Preise beinhalten einen Dieselpreis von bis zu ${basis} €/Liter. ` +
+      `Bei Steigerungen je ${stufe} € über unserem kalkulierten Basis-Dieselpreis erhöht sich ` +
+      `der Preis des gelieferten Ziegelmehls um ${betrag} € je Tonne.`
+    );
+  }
+
+  return (
+    `Die angebotenen Preise beinhalten einen Dieselpreis von bis zu ${basis} €/Liter. ` +
+    `Bei Steigerungen je ${stufe} € über unserem kalkulierten Basis-Dieselpreis erhöht sich ` +
+    `der Preis des gelieferten Ziegelmehls gestaffelt nach der Entfernung zwischen unserem ` +
+    `Versandwerk und der Abladestelle (einfache Strecke): ${formatEntfernungsStaffel(config.entfernungsStaffel)}. ` +
+    `Maßgeblich ist die Entfernung zur vereinbarten Abladestelle.`
+  );
+}
+
+/**
+ * Historische, fest verdrahtete Klauseltexte aus der Zeit vor dem Text-Generator.
+ * Nur fuer die Erkennung "unveraendert" gedacht — nicht mehr ausgeben.
+ */
+const ALTE_STANDARD_KLAUSELTEXTE = [
+  'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
+    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
+    'des gelieferten Ziegelmehls um 0,45 € je Tonne.',
+  'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,699 €. ' +
+    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
+    'des gelieferten Ziegelmehls um 0,45 € je Tonne.',
+];
+
+/**
+ * Prüft, ob ein Klauseltext noch einer unveränderten Vorlage entspricht.
+ *
+ * Zweck: Verschiebt der Innendienst die Angebotsgültigkeit ins Folgejahr, soll der Hinweis
+ * automatisch auf die dann geltende Staffel wechseln — aber niemals einen von Hand
+ * formulierten Text überschreiben. Nur wenn diese Funktion true liefert, darf nachgezogen
+ * werden.
+ */
+export function istStandardDieselKlauselText(text: string | undefined | null): boolean {
+  if (!text || text.trim().length === 0) return true;
+  const normalisiert = text.replace(/\s+/g, ' ').trim();
+
+  if (ALTE_STANDARD_KLAUSELTEXTE.some((t) => t.replace(/\s+/g, ' ').trim() === normalisiert)) {
+    return true;
+  }
+
+  // Gegen die generierten Texte aller definierten Staffeln pruefen
+  return [...DIESEL_STAFFELN, FALLBACK_STAFFEL].some((config) => {
+    const referenz = getDieselKlauselText(
+      config.gueltigBis === '9999-12-31' ? '9999-01-01' : config.gueltigBis
+    );
+    return referenz.replace(/\s+/g, ' ').trim() === normalisiert;
+  });
 }
 
 /**
