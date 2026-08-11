@@ -129,8 +129,15 @@ const Saisonplanung = () => {
 
   const handleNeueSaison = async () => {
     try {
-      await saisonplanungService.erstelleNeueSaison(saisonjahr);
+      const ergebnis = await saisonplanungService.erstelleNeueSaison(saisonjahr);
       await loadData();
+      if (ergebnis.fehlgeschlagen > 0) {
+        alert(
+          `${ergebnis.erstellt} von ${ergebnis.gesamt} Saison-Datensätzen angelegt, ` +
+            `${ergebnis.fehlgeschlagen} fehlgeschlagen.\n\n` +
+            'Nochmal starten holt die fehlenden nach.'
+        );
+      }
     } catch (error) {
       console.error('Fehler beim Anlegen der neuen Saison:', error);
       alert('Neue Saison konnte nicht angelegt werden.');

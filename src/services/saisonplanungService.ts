@@ -10,6 +10,7 @@ import {
   COLLECTIONS,
 } from '../config/appwrite';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { runBatched } from '../utils/rateLimiter';
 import { formatAdresszeile } from './pdfHelpers';
 import {
   SaisonKunde,
@@ -31,6 +32,20 @@ import {
   AnrufErgebnis,
 } from '../types/saisonplanung';
 import { cacheService } from './cacheService';
+
+/** Ergebnis eines Saison-Rollovers (siehe `erstelleNeueSaison`) */
+export interface SaisonRolloverErgebnis {
+  /** Wie viele Datensätze angelegt werden sollten */
+  gesamt: number;
+  /** Davon erfolgreich angelegt */
+  erstellt: number;
+  /** Kunden ohne Bedarf (Datensatz existierte bereits oder kein Vorjahres-Ist) */
+  uebersprungen: number;
+  /** Nach allen Retries endgültig fehlgeschlagen */
+  fehlgeschlagen: number;
+  /** Bis zu 3 verschiedene Fehlermeldungen als Beispiel */
+  fehler: string[];
+}
 
 // Helper: Parse Document mit data-Feld
 function parseDocument<T>(doc: Models.Document, fallback: T): T {
@@ -1620,28 +1635,98 @@ export const saisonplanungService = {
     return result;
   },
 
-  // Erstelle neue Saison für alle Kunden
-  async erstelleNeueSaison(saisonjahr: number): Promise<void> {
-    const alleKunden = await this.loadAlleKunden();
+  /**
+   * Rollover: legt die Saison-Datensätze der neuen Saison an und übernimmt die
+   * Referenzmenge aus dem Vorjahres-Ist.
+   *
+   * Rate-Limit: Appwrite Cloud deckelt schreibende Requests pro IP (~240/min).
+   * Deshalb (a) werden die vorhandenen Saison-Daten beider Jahre in je einer
+   * paginierten Query geladen statt zwei Einzelabfragen pro Kunde, (b) laufen
+   * die Writes über `runBatched` mit Pace und 429-Backoff, und (c) werden nur
+   * Kunden angelegt, die im Vorjahr überhaupt eine Ist-Menge hatten — ein leerer
+   * Datensatz ohne Referenzmenge bringt nichts, die Call-Liste und
+   * `updateAnrufStatus` legen ihn bei Bedarf selbst an.
+   *
+   * Der Lauf ist idempotent: ein erneuter Start holt nur die fehlenden nach.
+   */
+  async erstelleNeueSaison(
+    saisonjahr: number,
+    optionen: {
+      onProgress?: (verarbeitet: number, gesamt: number, fehler: number) => void;
+      /** true = auch Kunden ohne Vorjahres-Ist einen leeren Datensatz anlegen */
+      auchOhneVorjahresdaten?: boolean;
+    } = {}
+  ): Promise<SaisonRolloverErgebnis> {
+    const { onProgress, auchOhneVorjahresdaten = false } = optionen;
+
+    const [alleKunden, bestehende, vorjahr] = await Promise.all([
+      this.loadAlleKunden(),
+      this.loadAlleSaisonDatenFuerJahr(saisonjahr),
+      this.loadAlleSaisonDatenFuerJahr(saisonjahr - 1),
+    ]);
+
     const aktiveKunden = alleKunden.filter((k) => k.aktiv);
+    const anzulegen: NeueSaisonDaten[] = [];
+    let uebersprungen = 0;
 
     for (const kunde of aktiveKunden) {
-      // Prüfe ob Saison bereits existiert
-      const existiert = await this.loadAktuelleSaisonDaten(kunde.id, saisonjahr);
-      if (existiert) continue;
-
-      // Lade Vorjahres-Saison
-      const vorjahresSaison = await this.loadAktuelleSaisonDaten(kunde.id, saisonjahr - 1);
-      const referenzmenge = vorjahresSaison?.tatsaechlicheMenge;
-
-      // Erstelle neue Saison-Daten
-      await this.createSaisonDaten({
+      if (bestehende.has(kunde.id)) {
+        uebersprungen++;
+        continue;
+      }
+      const referenzmenge = vorjahr.get(kunde.id)?.tatsaechlicheMenge;
+      if (referenzmenge === undefined && !auchOhneVorjahresdaten) {
+        uebersprungen++;
+        continue;
+      }
+      anzulegen.push({
         kundeId: kunde.id,
         saisonjahr,
         referenzmenge,
         gespraechsstatus: 'offen',
       });
     }
+
+    onProgress?.(0, anzulegen.length, 0);
+
+    const ergebnisse = await runBatched<NeueSaisonDaten, void>({
+      items: anzulegen,
+      // 4 parallel alle 1,2 s ≈ 200 Writes/min — bewusst unter dem Cloud-Limit.
+      concurrency: 4,
+      paceMs: 1200,
+      maxRetries: 4,
+      onProgress,
+      operation: async (daten) => {
+        const jetzt = new Date().toISOString();
+        const neu: SaisonDaten = {
+          ...daten,
+          id: daten.id || ID.unique(),
+          gespraechsstatus: daten.gespraechsstatus || 'offen',
+          erstelltAm: jetzt,
+          geaendertAm: jetzt,
+        };
+        await databases.createDocument(
+          DATABASE_ID,
+          SAISON_DATEN_COLLECTION_ID,
+          neu.id,
+          toPayload(neu, ['kundeId', 'saisonjahr'])
+        );
+      },
+    });
+
+    const fehlgeschlagene = ergebnisse.filter((r) => !r.ok);
+
+    cacheService.invalidate('callliste');
+    cacheService.invalidate('statistik');
+    cacheService.invalidate('dashboard');
+
+    return {
+      gesamt: anzulegen.length,
+      erstellt: anzulegen.length - fehlgeschlagene.length,
+      uebersprungen,
+      fehlgeschlagen: fehlgeschlagene.length,
+      fehler: Array.from(new Set(fehlgeschlagene.map((f) => f.fehler || 'Unbekannter Fehler'))).slice(0, 3),
+    };
   },
 
   // ========== CALL-LISTEN-TOOL FUNKTIONEN ==========

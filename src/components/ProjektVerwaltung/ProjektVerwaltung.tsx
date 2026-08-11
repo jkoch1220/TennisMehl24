@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
-import { saisonplanungService } from '../../services/saisonplanungService';
+import { saisonplanungService, type SaisonRolloverErgebnis } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { getAktuelleSaison, berechneAktuelleSaison } from '../../services/nummerierungService';
 import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
@@ -184,18 +184,36 @@ const NeueSaisonModal = ({
 }: {
   aktuelleSaison: number;
   onClose: () => void;
-  onErstellen: (neuesJahr: number, mitRollover: boolean) => Promise<void>;
+  onErstellen: (
+    neuesJahr: number,
+    mitRollover: boolean,
+    onProgress: (verarbeitet: number, gesamt: number, fehler: number) => void
+  ) => Promise<SaisonRolloverErgebnis | null>;
 }) => {
   const [neuesJahr, setNeuesJahr] = useState(aktuelleSaison + 1);
   const [mitRollover, setMitRollover] = useState(true);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const [fortschritt, setFortschritt] = useState<{ verarbeitet: number; gesamt: number } | null>(null);
+  const [ergebnis, setErgebnis] = useState<SaisonRolloverErgebnis | null>(null);
 
   const handleBestaetigen = async () => {
     setLaeuft(true);
     setFehler(null);
+    setErgebnis(null);
+    setFortschritt(null);
     try {
-      await onErstellen(neuesJahr, mitRollover);
+      const rollover = await onErstellen(neuesJahr, mitRollover, (verarbeitet, gesamt) =>
+        setFortschritt({ verarbeitet, gesamt })
+      );
+      // Teilweise fehlgeschlagen (z.B. Rate-Limit): Dialog offen lassen, damit der
+      // Lauf nachgeholt werden kann — das Anlegen ist idempotent.
+      if (rollover && rollover.fehlgeschlagen > 0) {
+        setErgebnis(rollover);
+        setLaeuft(false);
+        return;
+      }
+      onClose();
     } catch (error) {
       console.error('Fehler beim Erstellen der Saison:', error);
       setFehler(error instanceof Error ? error.message : 'Unbekannter Fehler');
@@ -243,6 +261,43 @@ const NeueSaisonModal = ({
             </span>
           </label>
 
+          {laeuft && fortschritt && fortschritt.gesamt > 0 && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-gray-600 dark:text-slate-400">
+                <span>Referenzmengen werden übernommen …</span>
+                <span>
+                  {fortschritt.verarbeitet} / {fortschritt.gesamt}
+                </span>
+              </div>
+              <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-600 transition-all"
+                  style={{ width: `${Math.round((fortschritt.verarbeitet / fortschritt.gesamt) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-slate-500">
+                Der Lauf ist bewusst gedrosselt (Appwrite-Limit). Fenster geöffnet lassen.
+              </p>
+            </div>
+          )}
+
+          {ergebnis && ergebnis.fehlgeschlagen > 0 && (
+            <div className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2 font-medium">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>
+                  {ergebnis.erstellt} von {ergebnis.gesamt} übernommen, {ergebnis.fehlgeschlagen}{' '}
+                  fehlgeschlagen
+                </span>
+              </div>
+              <p className="text-xs">
+                Saison {neuesJahr} ist bereits als Standard gesetzt. Erneut starten holt nur die
+                fehlenden Datensätze nach.
+              </p>
+              {ergebnis.fehler[0] && <p className="text-xs opacity-80">{ergebnis.fehler[0]}</p>}
+            </div>
+          )}
+
           {fehler && (
             <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -257,7 +312,7 @@ const NeueSaisonModal = ({
             disabled={laeuft}
             className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
           >
-            Abbrechen
+            {ergebnis ? 'Schließen' : 'Abbrechen'}
           </button>
           <button
             onClick={handleBestaetigen}
@@ -265,7 +320,7 @@ const NeueSaisonModal = ({
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50"
           >
             {laeuft ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Saison {neuesJahr} erstellen
+            {ergebnis ? 'Fehlende nachholen' : `Saison ${neuesJahr} erstellen`}
           </button>
         </div>
       </div>
@@ -410,17 +465,24 @@ const ProjektVerwaltung = () => {
   // Neue Saison als Standard setzen. Ändert NUR Stammdaten (aktuelleSaison) +
   // optional Rollover der saison_daten (Referenzmengen). Es werden KEINE Projekte gelöscht.
   const handleNeueSaisonErstellen = useCallback(
-    async (neuesJahr: number, mitRollover: boolean) => {
+    async (
+      neuesJahr: number,
+      mitRollover: boolean,
+      onProgress: (verarbeitet: number, gesamt: number, fehler: number) => void
+    ): Promise<SaisonRolloverErgebnis | null> => {
       const stammdaten = await ladeStammdaten();
       await speichereStammdaten({ ...(stammdaten ?? {}), aktuelleSaison: neuesJahr } as StammdatenInput);
+
+      let rollover: SaisonRolloverErgebnis | null = null;
       if (mitRollover) {
         // Referenzmengen aus Vorjahres-Ist anlegen (idempotent, überspringt Vorhandenes)
-        await saisonplanungService.erstelleNeueSaison(neuesJahr);
+        rollover = await saisonplanungService.erstelleNeueSaison(neuesJahr, { onProgress });
       }
+
       setAktuelleSaison(neuesJahr);
       saisonManuellGewaehlt.current = false;
       setSaisonjahr(neuesJahr);
-      setShowNeueSaisonModal(false);
+      return rollover;
     },
     []
   );
