@@ -329,3 +329,16 @@ export const DEFAULT_TOOL_VISIBILITY = ALL_TOOLS.reduce<Record<string, boolean>>
   acc[tool.id] = true;
   return acc;
 }, {});
+
+/**
+ * Tools, die in der Menüleiste vorne stehen — die täglichen Einstiege, in
+ * genau dieser Reihenfolge. Alles Weitere folgt in der Reihenfolge von
+ * ALL_TOOLS. Betrifft nur die Navigation, nicht die Kacheln der Startseite.
+ */
+export const NAVIGATION_PRIORITAET = ['saisonplanung', 'projekt-verwaltung'];
+
+/** Sortiert Tools für die Menüleiste: NAVIGATION_PRIORITAET zuerst, Rest unverändert. */
+export const sortiereFuerNavigation = <T extends { id: string }>(tools: T[]): T[] => [
+  ...NAVIGATION_PRIORITAET.flatMap((id) => tools.filter((tool) => tool.id === id)),
+  ...tools.filter((tool) => !NAVIGATION_PRIORITAET.includes(tool.id)),
+];

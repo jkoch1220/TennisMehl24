@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Menu, LogOut, Settings, Search, X, CheckSquare, LayoutDashboard, Bell, Wrench, Calendar } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import VorschlagButton from './Tickets/VorschlagButton';
-import { ALL_TOOLS } from '../constants/tools';
+import { ALL_TOOLS, sortiereFuerNavigation } from '../constants/tools';
 import { useAuth } from '../contexts/AuthContext';
 import { filterAllowedTools } from '../services/permissionsService';
 import PasswordChange from './Settings/PasswordChange';
@@ -284,7 +284,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navigation = [
     { name: 'Startseite', href: '/', icon: Home, badge: 0 },
-    ...visibleTools.map((tool) => ({
+    ...sortiereFuerNavigation(visibleTools).map((tool) => ({
       name: tool.name,
       href: tool.href,
       icon: tool.icon,
