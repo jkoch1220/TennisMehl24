@@ -53,6 +53,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
     rechnungsadresse: undefined, // Optional abweichend
     email: '',
     rechnungsEmail: '',
+    angebotsEmails: [],
     notizen: '',
     aktiv: true,
     standardBezugsweg: 'direkt',
@@ -104,6 +105,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         rechnungsadresse: adressenAbweichend ? kunde.kunde.rechnungsadresse : undefined,
         email: kunde.kunde.email || '',
         rechnungsEmail: kunde.kunde.rechnungsEmail || '',
+        angebotsEmails: kunde.kunde.angebotsEmails || [],
         notizen: kunde.kunde.notizen || '',
         aktiv: kunde.kunde.aktiv,
         standardBezugsweg: kunde.kunde.standardBezugsweg,
@@ -145,6 +147,7 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         rechnungsadresse: undefined,
         email: '',
         rechnungsEmail: '',
+        angebotsEmails: [],
         notizen: '',
         aktiv: true,
         standardBezugsweg: 'direkt',
@@ -580,6 +583,36 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">
                   Falls Rechnungen an eine andere Adresse gehen sollen (z.B. Geschäftsführer, Buchhaltung)
+                </p>
+              </div>
+
+              {/* Verteiler für Massen-Angebote: mehrere Empfänger, eine Adresse pro Zeile.
+                  Vereine haben oft keinen einzelnen Zuständigen — Platzwart, Kassierer
+                  und Vorstand sollen das Frühjahrsangebot gemeinsam bekommen. */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
+                  Angebots-Verteiler
+                  <span className="text-xs text-gray-500 dark:text-slate-500 ml-1">(optional, mehrere möglich)</span>
+                </label>
+                <textarea
+                  value={(formData.angebotsEmails || []).join('\n')}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      angebotsEmails: e.target.value
+                        .split(/[\n,;]+/)
+                        .map((adresse) => adresse.trim())
+                        .filter((adresse) => adresse.length > 0),
+                    })
+                  }
+                  rows={3}
+                  placeholder={'platzwart@verein.de\nkassier@verein.de'}
+                  className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">
+                  Eine Adresse pro Zeile. Massen-Angebote gehen an <strong>alle</strong> davon
+                  gleichzeitig; die Empfänger sehen sich gegenseitig. Bleibt das Feld leer, wird
+                  wie bisher die Rechnungs-E-Mail bzw. die allgemeine E-Mail verwendet.
                 </p>
               </div>
 

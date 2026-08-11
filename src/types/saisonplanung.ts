@@ -192,6 +192,18 @@ export interface SaisonKunde {
   email?: string;
   /** Abweichende E-Mail für Rechnungen (z.B. an Geschäftsführer/Buchhaltung) */
   rechnungsEmail?: string;
+  /**
+   * Empfänger für Massen-Angebote — mehrere Adressen möglich.
+   *
+   * Vereine haben oft keinen einzelnen Zuständigen: Platzwart, Kassierer und
+   * 1. Vorstand sollen das Frühjahrsangebot gemeinsam bekommen. `email` und
+   * `rechnungsEmail` fassen jeweils nur eine Adresse und bleiben unverändert
+   * für Rechnungen und allgemeine Post zuständig.
+   *
+   * Ist die Liste leer oder nicht gesetzt, greift weiterhin
+   * `rechnungsEmail || email` (siehe ermittleEmpfaenger in massenAngebotService).
+   */
+  angebotsEmails?: string[];
   notizen?: string;
   aktiv: boolean;
   // Zuletzt gezahlter Preis (aus letzter Saison)

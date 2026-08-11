@@ -467,7 +467,22 @@ function berechnePlzPreisProTonne(plz: string, menge: number, werkspreisProTonne
   return round2(werkspreisProTonne + aufschlag + speditionProTonne);
 }
 
+/**
+ * Empfänger des Massen-Angebots.
+ *
+ * Vorrang hat die gepflegte Angebots-Verteilerliste (`angebotsEmails`); erst
+ * wenn sie leer ist, greift der bisherige Weg `rechnungsEmail || email`.
+ *
+ * Mehrere Adressen werden kommasepariert zurückgegeben — nodemailer nimmt das
+ * im To-Feld direkt entgegen, es braucht keine Änderung an der Versand-Function.
+ * Alle Empfänger stehen im To und sehen sich gegenseitig; bei Vereinsverteilern
+ * ist das gewollt (der Platzwart soll sehen, dass der Kassierer mitliest).
+ */
 function ermittleEmpfaenger(kunde: SaisonKunde): string | undefined {
+  const liste = (kunde.angebotsEmails ?? [])
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0);
+  if (liste.length > 0) return [...new Set(liste)].join(', ');
   return kunde.rechnungsEmail || kunde.email || undefined;
 }
 
