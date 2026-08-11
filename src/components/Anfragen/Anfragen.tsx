@@ -542,8 +542,11 @@ const Anfragen = () => {
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(anfrage.status)}`}>
                           {getStatusLabel(anfrage.status)}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-dark-textMuted">
-                          {new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}
+                        <span
+                          className="text-xs text-gray-500 dark:text-dark-textMuted"
+                          title={`E-Mail vom ${new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}`}
+                        >
+                          {new Date(anfrage.erstelltAm || anfrage.emailDatum).toLocaleDateString('de-DE')}
                         </span>
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-dark-text mb-1">

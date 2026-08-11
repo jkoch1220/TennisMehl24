@@ -1,7 +1,10 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import Imap from 'imap';
 import { simpleParser, ParsedMail } from 'mailparser';
+// ID bleibt importiert: Die Anfrage selbst bekommt zwar eine deterministische ID
+// (siehe anfrageDokumentId), die zugehörige Benachrichtigung aber weiterhin ID.unique().
 import { Client, Databases, ID, Query } from 'node-appwrite';
+import { createHash } from 'node:crypto';
 
 // Interfaces
 interface EmailAccount {
@@ -601,6 +604,26 @@ const moveEmailToFolder = (
   });
 };
 
+/**
+ * Dokument-ID, die sich aus der E-Mail selbst ergibt (Konto + IMAP-UID + Datum).
+ *
+ * Damit ist das Anlegen idempotent: Läuft der Sync zweimal parallel — der
+ * Notification-Cron stößt ihn alle 5 Minuten an, der Sync-Button im Portal
+ * zusätzlich —, prüfen beide Läufe gleichzeitig auf Duplikate, bekommen beide
+ * "gibt es noch nicht" und legen an. Mit fester ID gewinnt der erste Schreiber,
+ * der zweite läuft in einen 409 und wird als Duplikat gezählt.
+ *
+ * Appwrite erlaubt max. 36 Zeichen aus [a-zA-Z0-9_], nicht mit "_" beginnend.
+ */
+const anfrageDokumentId = (emailKonto: string, uid: number, emailDatum: string): string =>
+  createHash('sha1').update(`${emailKonto}:${uid}:${emailDatum}`).digest('hex').substring(0, 32);
+
+/** Appwrite meldet eine bereits existierende Dokument-ID mit 409. */
+const istKonflikt = (error: unknown): boolean => {
+  const e = error as { code?: number; type?: string };
+  return e?.code === 409 || e?.type === 'document_already_exists';
+};
+
 // Speichere Anfrage in Appwrite
 const speichereAnfrage = async (
   databases: Databases,
@@ -609,6 +632,7 @@ const speichereAnfrage = async (
   emailKonto: string
 ): Promise<string> => {
   const jetzt = new Date().toISOString();
+  const dokumentId = anfrageDokumentId(emailKonto, email.uid, email.date);
 
   // Basis-Daten (immer vorhanden)
   const basisDaten = {
@@ -631,7 +655,7 @@ const speichereAnfrage = async (
     const document = await databases.createDocument(
       DATABASE_ID,
       ANFRAGEN_COLLECTION_ID,
-      ID.unique(),
+      dokumentId,
       {
         ...basisDaten,
         emailUid: email.uid,
@@ -641,12 +665,12 @@ const speichereAnfrage = async (
     return document.$id;
   } catch (error: any) {
     // Falls Fehler wegen unbekannter Attribute, ohne neue Felder speichern
-    if (error?.message?.includes('Unknown attribute') || error?.code === 400) {
+    if (error?.message?.includes('Unknown attribute') || (error?.code === 400 && !istKonflikt(error))) {
       console.log('⚠️ Neue Felder noch nicht in Appwrite - speichere ohne emailUid/emailKonto');
       const document = await databases.createDocument(
         DATABASE_ID,
         ANFRAGEN_COLLECTION_ID,
-        ID.unique(),
+        dokumentId,
         basisDaten
       );
       return document.$id;
@@ -791,6 +815,12 @@ const handler: Handler = async (event: HandlerEvent) => {
         await erstelleAnfrageNotification(databases, docId, extrahierteDaten, email.subject);
 
       } catch (error) {
+        // Zweiter paralleler Sync-Lauf war schneller — kein Fehler, sondern ein Duplikat.
+        if (istKonflikt(error)) {
+          console.log(`↩️ Parallel bereits angelegt: UID ${email.uid}`);
+          duplikate++;
+          continue;
+        }
         console.error(`❌ Fehler bei E-Mail ${email.uid}:`, error);
         fehler++;
       }

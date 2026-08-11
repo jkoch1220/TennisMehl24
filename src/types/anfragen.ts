@@ -117,6 +117,9 @@ export interface AnfrageUpdate {
   angebotId?: string;
   notizen?: string;
   bearbeitetVon?: string;
+  kundeId?: string;
+  projektId?: string;
+  angebotVersendetAm?: string;
 }
 
 /**

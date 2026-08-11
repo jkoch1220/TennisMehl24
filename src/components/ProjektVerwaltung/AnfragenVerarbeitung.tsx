@@ -32,8 +32,9 @@ import {
   CheckSquare,
   Square,
   X,
+  Inbox,
 } from 'lucide-react';
-import { VerarbeiteteAnfrage, Anfrage } from '../../types/anfragen';
+import { VerarbeiteteAnfrage, Anfrage, AnfrageStatus } from '../../types/anfragen';
 import {
   parseWebformularAnfrage,
   berechneEmpfohlenenPreis,
@@ -62,6 +63,33 @@ interface AntwortInfo {
 }
 
 type ViewMode = 'list' | 'map';
+
+// Bis zu diesem Alter (gerechnet ab Eingang im Portal) gilt eine Anfrage als frisch
+// und bekommt das "Neu"-Badge.
+const NEU_FENSTER_MS = 3 * 24 * 60 * 60 * 1000;
+
+// Diese Status weisen eine Anfrage als abgehakt aus — gesetzt von der Verarbeitung.
+const ERLEDIGT_STATUS: AnfrageStatus[] = [
+  'angebot_erstellt',
+  'angebot_versendet',
+  'verarbeitet',
+  'erledigt',
+  'abgelehnt',
+];
+
+/**
+ * Zeitpunkt, zu dem die Anfrage im Portal eingegangen ist — NICHT das Datum der
+ * E-Mail. Der Sync holt regelmäßig auch ältere Nachrichten aus dem Postfach nach;
+ * die tragen ein Monate altes `emailDatum`. Nach E-Mail-Datum sortiert landen sie
+ * mitten in der Liste, obwohl die Benachrichtigung sie als neu meldet (die geht
+ * nach `erstelltAm`). Deshalb ist der Eingang das führende Sortierkriterium.
+ */
+const eingangsZeit = (anfrage: Pick<Anfrage, 'erstelltAm' | 'emailDatum'>): number => {
+  const eingang = new Date(anfrage.erstelltAm || '').getTime();
+  if (!isNaN(eingang)) return eingang;
+  const email = new Date(anfrage.emailDatum).getTime();
+  return isNaN(email) ? 0 : email;
+};
 
 const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps) => {
   const navigate = useNavigate();
@@ -383,15 +411,24 @@ Bei Fragen sind wir gerne für Sie da.`,
       // Konvertiere zu VerarbeiteteAnfrage
       const verarbeitete: VerarbeiteteAnfrage[] = aktiveAnfragen.map(konvertiereZuVerarbeiteteAnfrage);
 
-      // Sortiere nach Datum (neueste zuerst)
-      verarbeitete.sort((a, b) => new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime());
+      // Sortiere nach Eingang im Portal (neueste zuerst), bei Gleichstand nach E-Mail-Datum
+      verarbeitete.sort((a, b) => {
+        const nachEingang = eingangsZeit(b) - eingangsZeit(a);
+        if (nachEingang !== 0) return nachEingang;
+        return new Date(b.emailDatum).getTime() - new Date(a.emailDatum).getTime();
+      });
 
       // SOFORT anzeigen - ohne auf KI-Analyse zu warten!
       setAnfragen(verarbeitete);
       setLoading(false); // UI sofort freigeben!
 
-      // Sammle alle E-Mail-Adressen für IMAP-Prüfung
+      // IMAP-Prüfung nur für Anfragen ohne Erledigt-Status. Für alle anderen ist
+      // der Bearbeitungsstand bereits bekannt — und jede Adresse kostet eine
+      // IMAP-Suche über mehrere Ordner. Der Postfach-Server lässt nur 10
+      // gleichzeitige Verbindungen zu (mail_max_userip_connections), darüber
+      // scheitern auch der Sync und der Versand.
       const emailAdressen = verarbeitete
+        .filter(a => !ERLEDIGT_STATUS.includes(a.status))
         .map(a => a.analysiert.email || a.emailAbsender)
         .filter(Boolean) as string[];
 
@@ -441,7 +478,12 @@ Bei Fragen sind wir gerne für Sie da.`,
 
   // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)
   // Eine Anfrage gilt nur als beantwortet, wenn NACH dem Eingang der Anfrage
-  // eine E-Mail an diese Adresse gesendet wurde
+  // eine E-Mail an diese Adresse gesendet wurde.
+  //
+  // ACHTUNG: Das ist nur die Heuristik für Altbestand. Sie liegt zwangsläufig
+  // falsch, wenn das Angebot an eine andere Adresse ging als die des Anfragenden
+  // (Vereins- vs. Firmenadresse). Führend ist deshalb der Status der Anfrage —
+  // siehe `istErledigt`.
   const istBereitsBeantwortet = (email: string, anfrageDatum: string): boolean => {
     const antworten = antwortDaten.get(email.toLowerCase());
     if (!antworten || antworten.length === 0) return false;
@@ -452,6 +494,19 @@ Bei Fragen sind wir gerne für Sie da.`,
       const antwortDatumMs = new Date(antwort.gesendetAm).getTime();
       return antwortDatumMs > anfrageDatumMs;
     });
+  };
+
+  /**
+   * Ist die Anfrage abgehakt?
+   *
+   * Zuerst der harte Status aus der Datenbank, den die Verarbeitung setzt; erst
+   * danach die Adress-Heuristik über das E-Mail-Protokoll. Anfragen aus der Zeit
+   * vor dieser Statusführung tragen alle noch `neu` — für die bleibt die
+   * Heuristik die einzige Auskunft.
+   */
+  const istErledigt = (anfrage: VerarbeiteteAnfrage): boolean => {
+    if (ERLEDIGT_STATUS.includes(anfrage.status)) return true;
+    return istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum);
   };
 
   // Hole die Antwort-Info für eine Anfrage (Projekt-ID, Dokumentnummer)
@@ -580,13 +635,9 @@ Bei Fragen sind wir gerne für Sie da.`,
     );
   }
 
-  // Zähle offene vs beantwortete Anfragen (mit Zeitpunkt-Prüfung!)
-  const offeneAnfragen = anfragen.filter(
-    (a) => !istBereitsBeantwortet(a.analysiert.email || a.emailAbsender, a.emailDatum)
-  );
-  const beantwortetAnfragen = anfragen.filter(
-    (a) => istBereitsBeantwortet(a.analysiert.email || a.emailAbsender, a.emailDatum)
-  );
+  // Zähle offene vs erledigte Anfragen (Status zuerst, dann Zeitpunkt-Heuristik)
+  const offeneAnfragen = anfragen.filter((a) => !istErledigt(a));
+  const beantwortetAnfragen = anfragen.filter((a) => istErledigt(a));
 
   // Anzuzeigende Anfragen basierend auf Toggle
   const anzuzeigendeAnfragen = zeigeBeantwortet ? anfragen : offeneAnfragen;
@@ -774,7 +825,7 @@ Bei Fragen sind wir gerne für Sie da.`,
       {viewMode === 'map' && (
         <AnfragenKartenansicht
           anfragen={anzuzeigendeAnfragen}
-          istBeantwortet={(email, datum) => istBereitsBeantwortet(email, datum)}
+          istBeantwortet={istErledigt}
           onAnfrageClick={(anfrage) => setSelectedAnfrage(anfrage)}
         />
       )}
@@ -804,10 +855,20 @@ Bei Fragen sind wir gerne für Sie da.`,
           </div>
         ) : (
           anzuzeigendeAnfragen.map((anfrage) => {
-            const beantwortet = istBereitsBeantwortet(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum);
-            const antwortInfo = beantwortet
+            const beantwortet = istErledigt(anfrage);
+            const heuristik = beantwortet
               ? getAntwortInfo(anfrage.analysiert.email || anfrage.emailAbsender, anfrage.emailDatum)
               : null;
+            // Das an der Anfrage hinterlegte Projekt ist verlässlicher als der
+            // über die E-Mail-Adresse geratene Protokolleintrag.
+            const antwortInfo: AntwortInfo | null = anfrage.projektId
+              ? {
+                  gesendetAm: anfrage.angebotVersendetAm || anfrage.aktualisiertAm,
+                  projektId: anfrage.projektId,
+                  dokumentNummer: heuristik?.dokumentNummer || 'Projekt öffnen',
+                  quelle: 'app',
+                }
+              : heuristik;
             const istWebformular = true;
             return (
               <AnfrageCard
@@ -837,7 +898,7 @@ Bei Fragen sind wir gerne für Sie da.`,
 
       {/* Dialog für Anfrage-Bearbeitung */}
       {selectedAnfrage && (() => {
-        const beantwortet = istBereitsBeantwortet(selectedAnfrage.analysiert.email || selectedAnfrage.emailAbsender, selectedAnfrage.emailDatum);
+        const beantwortet = istErledigt(selectedAnfrage);
         const antwortInfoFuerDialog = beantwortet
           ? getAntwortInfo(selectedAnfrage.analysiert.email || selectedAnfrage.emailAbsender, selectedAnfrage.emailDatum)
           : null;
@@ -881,6 +942,15 @@ interface AnfrageCardProps {
 }
 
 const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antwortInfo, onClick, onProjektClick, multiSelectMode, isChecked, onToggleSelect }: AnfrageCardProps) => {
+  // Eingang im Portal vs. Datum der E-Mail: Bei nachgezogenen Altmails fallen die
+  // beiden auseinander — dann werden beide Daten ausgewiesen, damit die Karte nicht
+  // "alt" aussieht, obwohl sie gerade erst hereinkam.
+  const eingangMs = eingangsZeit(anfrage);
+  const eingangTag = new Date(eingangMs).toLocaleDateString('de-DE');
+  const emailTag = new Date(anfrage.emailDatum).toLocaleDateString('de-DE');
+  const istNachzuegler = eingangTag !== emailTag;
+  const istFrisch = Date.now() - eingangMs < NEU_FENSTER_MS;
+
   return (
     <div
       onClick={onClick}
@@ -915,6 +985,13 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antw
         <div className="flex-1 min-w-0">
           {/* Status-Badges */}
           <div className="flex flex-wrap gap-1 mb-2">
+            {/* Frisch eingegangen — auch wenn die E-Mail selbst älter ist */}
+            {istFrisch && !istBeantwortet && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 text-xs rounded-full font-medium">
+                <Inbox className="w-3 h-3" />
+                Neu
+              </div>
+            )}
             {/* Wichtig-Badge */}
             {anfrage.notizen?.includes('WICHTIG') && (
               <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 text-xs rounded-full">
@@ -1033,9 +1110,19 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antw
 
         {/* Zeitstempel und Arrow */}
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <Clock className="w-3 h-3" />
-            {new Date(anfrage.emailDatum).toLocaleDateString('de-DE')}
+          <div className="flex flex-col items-end">
+            <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <Clock className="w-3 h-3" />
+              {eingangTag}
+            </div>
+            {istNachzuegler && (
+              <span
+                className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap"
+                title={`Die E-Mail selbst stammt vom ${emailTag}, eingegangen im Portal am ${eingangTag}`}
+              >
+                E-Mail v. {emailTag}
+              </span>
+            )}
           </div>
           <ChevronRight
             className={`w-5 h-5 transition-transform ${

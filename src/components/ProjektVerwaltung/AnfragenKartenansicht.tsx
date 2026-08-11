@@ -52,7 +52,8 @@ interface AnfrageMarker {
 
 interface AnfragenKartenansichtProps {
   anfragen: VerarbeiteteAnfrage[];
-  istBeantwortet: (email: string, datum: string) => boolean;
+  /** Erledigt-Prüfung der Liste — Status der Anfrage vor Adress-Heuristik. */
+  istBeantwortet: (anfrage: VerarbeiteteAnfrage) => boolean;
   onAnfrageClick: (anfrage: VerarbeiteteAnfrage) => void;
 }
 
@@ -152,10 +153,7 @@ const AnfragenKartenansicht = ({
           newMarkers.push({
             anfrage,
             position,
-            istBeantwortet: istBeantwortet(
-              anfrage.analysiert.email || anfrage.emailAbsender,
-              anfrage.emailDatum
-            ),
+            istBeantwortet: istBeantwortet(anfrage),
           });
         }
 

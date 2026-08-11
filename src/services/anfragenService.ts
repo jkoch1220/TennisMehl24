@@ -18,8 +18,12 @@ export const anfragenService = {
    */
   async loadAlleAnfragen(): Promise<Anfrage[]> {
     try {
+      // Sortiert nach Eingang im Portal, nicht nach `emailDatum`: Der Sync zieht
+      // regelmäßig auch ältere Nachrichten aus dem Postfach nach. Nach E-Mail-Datum
+      // sortiert verschwinden die in der Mitte der Liste, obwohl sie gerade erst
+      // hereinkamen — die Benachrichtigung meldet sie zu Recht als neu.
       const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
-        queries: [Query.orderDesc('emailDatum')],
+        queries: [Query.orderDesc('$createdAt')],
       });
       return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
@@ -73,7 +77,7 @@ export const anfragenService = {
   async loadAnfragenNachStatus(status: string): Promise<Anfrage[]> {
     try {
       const documents = await loadAllDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, {
-        queries: [Query.equal('status', status), Query.orderDesc('emailDatum')],
+        queries: [Query.equal('status', status), Query.orderDesc('$createdAt')],
       });
       return documents.map(doc => this.parseDocument(doc));
     } catch (error) {
@@ -184,6 +188,15 @@ export const anfragenService = {
       if (update.bearbeitetVon !== undefined) {
         updateData.bearbeitetVon = update.bearbeitetVon;
         updateData.bearbeitetAm = jetzt;
+      }
+      if (update.kundeId !== undefined) {
+        updateData.kundeId = update.kundeId;
+      }
+      if (update.projektId !== undefined) {
+        updateData.projektId = update.projektId;
+      }
+      if (update.angebotVersendetAm !== undefined) {
+        updateData.angebotVersendetAm = update.angebotVersendetAm;
       }
 
       const document = await databases.updateDocument(

@@ -93,6 +93,49 @@ export interface AnfrageVerarbeitungErgebnis {
 }
 
 /**
+ * Hält den Bearbeitungsstand an der Anfrage selbst fest.
+ *
+ * Früher wurde hier eine zweite Anfrage mit Status 'verarbeitet' angelegt — das
+ * Original blieb auf 'neu' liegen. Das Anfragen-Tool musste den Bearbeitungsstand
+ * deshalb aus dem E-Mail-Protokoll erraten und lag falsch, sobald das Angebot an
+ * eine andere Adresse ging als die des Anfragenden (Vereins- vs. Firmenadresse).
+ * Nur wenn die Anfrage nicht aus der Datenbank stammt, wird noch angelegt.
+ */
+async function markiereAnfrageAlsVerarbeitet(
+  anfrage: AnfrageVerarbeitungInput['anfrage'],
+  daten: {
+    status: 'verarbeitet' | 'angebot_erstellt';
+    kundeId: string;
+    projektId: string;
+    angebotVersendetAm?: string;
+  }
+): Promise<void> {
+  if (anfrage.id) {
+    await anfragenService.updateAnfrage(anfrage.id, {
+      status: daten.status,
+      kundeId: daten.kundeId,
+      projektId: daten.projektId,
+      angebotId: daten.projektId,
+      ...(daten.angebotVersendetAm ? { angebotVersendetAm: daten.angebotVersendetAm } : {}),
+    });
+    return;
+  }
+
+  await anfragenService.createAnfrage({
+    emailBetreff: anfrage.emailBetreff,
+    emailAbsender: anfrage.emailAbsender,
+    emailDatum: anfrage.emailDatum,
+    emailText: anfrage.emailText,
+    emailHtml: anfrage.emailHtml,
+    extrahierteDaten: anfrage.extrahierteDaten,
+    status: daten.status,
+    kundeId: daten.kundeId,
+    projektId: daten.projektId,
+    angebotVersendetAm: daten.angebotVersendetAm,
+  });
+}
+
+/**
  * Verarbeitet eine Anfrage vollständig in einem Durchgang:
  * 1. Kunde anlegen (wenn neu)
  * 2. Projekt erstellen
@@ -101,7 +144,7 @@ export interface AnfrageVerarbeitungErgebnis {
  * 5. Angebot speichern
  * 6. E-Mail mit PDF versenden
  * 7. Projektstatus aktualisieren
- * 8. Anfrage in DB speichern
+ * 8. Anfrage als verarbeitet markieren
  */
 export async function verarbeiteAnfrageVollstaendig(
   input: AnfrageVerarbeitungInput,
@@ -377,26 +420,20 @@ export async function verarbeiteAnfrageVollstaendig(
     }
 
     // ============================================
-    // SCHRITT 8: Anfrage in DB speichern (für Nachverfolgung)
+    // SCHRITT 8: Anfrage als verarbeitet markieren
     // ============================================
     try {
-      await anfragenService.createAnfrage({
-        emailBetreff: input.anfrage.emailBetreff,
-        emailAbsender: input.anfrage.emailAbsender,
-        emailDatum: input.anfrage.emailDatum,
-        emailText: input.anfrage.emailText,
-        emailHtml: input.anfrage.emailHtml,
-        extrahierteDaten: input.anfrage.extrahierteDaten,
+      await markiereAnfrageAlsVerarbeitet(input.anfrage, {
         status: 'verarbeitet',
         kundeId: kundeId!,
         projektId,
         angebotVersendetAm: new Date().toISOString(),
       });
-      reportFortschritt('anfrage_speichern', true, 'Anfrage protokolliert');
+      reportFortschritt('anfrage_speichern', true, 'Anfrage als verarbeitet markiert');
     } catch (error) {
       // Nicht kritisch
-      reportFortschritt('anfrage_speichern', false, 'Protokollierung fehlgeschlagen (nicht kritisch)');
-      console.warn('Anfrage konnte nicht in DB gespeichert werden:', error);
+      reportFortschritt('anfrage_speichern', false, 'Markierung fehlgeschlagen (nicht kritisch)');
+      console.warn('Anfrage konnte nicht als verarbeitet markiert werden:', error);
     }
 
     // ============================================
@@ -657,25 +694,20 @@ export async function erstelleNurKundeUndProjekt(
     }
 
     // ============================================
-    // SCHRITT 4: Anfrage in DB speichern (falls vorhanden)
+    // SCHRITT 4: Anfrage als bearbeitet markieren (falls vorhanden)
     // ============================================
     if (input.anfrage) {
       try {
-        await anfragenService.createAnfrage({
-          emailBetreff: input.anfrage.emailBetreff,
-          emailAbsender: input.anfrage.emailAbsender,
-          emailDatum: input.anfrage.emailDatum,
-          emailText: input.anfrage.emailText,
-          emailHtml: input.anfrage.emailHtml,
-          extrahierteDaten: input.anfrage.extrahierteDaten,
-          status: 'angebot_erstellt', // Projekt angelegt, Angebotsentwurf gespeichert, aber nicht versendet
+        await markiereAnfrageAlsVerarbeitet(input.anfrage, {
+          // Projekt angelegt, Angebotsentwurf gespeichert, aber nicht versendet
+          status: 'angebot_erstellt',
           kundeId: kundeId!,
           projektId,
         });
-        reportFortschritt('anfrage_speichern', true, 'Anfrage protokolliert');
+        reportFortschritt('anfrage_speichern', true, 'Anfrage als bearbeitet markiert');
       } catch (error) {
-        reportFortschritt('anfrage_speichern', false, 'Protokollierung fehlgeschlagen (nicht kritisch)');
-        console.warn('Anfrage konnte nicht in DB gespeichert werden:', error);
+        reportFortschritt('anfrage_speichern', false, 'Markierung fehlgeschlagen (nicht kritisch)');
+        console.warn('Anfrage konnte nicht als bearbeitet markiert werden:', error);
       }
     }
 
