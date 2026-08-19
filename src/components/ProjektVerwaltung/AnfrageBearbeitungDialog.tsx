@@ -8,7 +8,7 @@
  * - Intuitivem Layout
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Mail,
   User,
@@ -63,6 +63,10 @@ import {
 import { anfragenService } from '../../services/anfragenService';
 import { claudeAnfrageService } from '../../services/claudeAnfrageService';
 import { berechneFremdlieferungRoute, formatZeit } from '../../utils/routeCalculation';
+import {
+  berechneLosePreisEmpfehlung,
+  weichtVonEmpfehlungAb,
+} from '../../utils/losePreisEmpfehlung';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
 import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
@@ -85,6 +89,7 @@ import {
   istDieselZuschlagPosition,
 } from '../../utils/dieselZuschlag';
 import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
+import { ermittleEntfernungAbWerkKm } from '../../utils/lieferEntfernung';
 
 // Konstanten
 const FREMDLIEFERUNG_STUNDENLOHN = 108;
@@ -113,7 +118,16 @@ async function ergaenzeDieselPauschale(
 
   try {
     const preisErgebnis = await holeDieselPreisFuerDatum(datum, plz || START_PLZ);
-    const ergebnis = berechneGesamtZuschlag(ohneDiesel, preisErgebnis.preis, datum);
+
+    // Entfernung zur Abladestelle — ab Staffel 2027 bestimmt sie den Satz je Preisstufe
+    const entfernung = plz ? await ermittleEntfernungAbWerkKm(plz) : null;
+
+    const ergebnis = berechneGesamtZuschlag(
+      ohneDiesel,
+      preisErgebnis.preis,
+      datum,
+      entfernung?.km
+    );
 
     if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
       return ohneDiesel;
@@ -135,6 +149,9 @@ async function ergaenzeDieselPauschale(
     return ohneDiesel;
   }
 }
+
+/** Artikelnummern für loses Schüttgut — deren Einzelpreis ist der Preis/t aus dem Dialog. */
+const ARTIKELNUMMERN_LOSE = ['TM-ZM-02', 'TM-ZM-03'];
 
 interface BearbeitbareDaten {
   kundenname: string;
@@ -272,6 +289,15 @@ const AnfrageBearbeitungDialog = ({
   // Automatisch gefundene existierende Kunden
   const [gefundeneKunden, setGefundeneKunden] = useState<GefundenerKunde[]>([]);
 
+  // Hat der Bearbeiter den Preis/t von Hand gesetzt? Dann darf die automatische
+  // Empfehlung ihn nicht mehr überschreiben — sonst wird ein bewusst gewährter
+  // Nachlass beim nächsten Mengen-Tastendruck stillschweigend zurückgesetzt.
+  const preisManuellGesetzt = useRef(false);
+
+  // Preis, mit dem die Positionen zuletzt abgeglichen wurden. Trennt eine
+  // Preisänderung (Positionen nachziehen) von einer Positionsänderung (in Ruhe lassen).
+  const zuletztSynchronisierterPreis = useRef<number | null>(null);
+
   // Hintergrund-Scroll sperren, solange der Dialog offen ist.
   // Ohne das scrollt die Seite unter dem Overlay weiter — und der `backdrop-blur`
   // muss dann in jedem Scroll-Frame den kompletten Hintergrund neu weichzeichnen.
@@ -396,6 +422,52 @@ const AnfrageBearbeitungDialog = ({
   const werkspreisSackwareAbWerk = werkspreisAusStamm('TM-ZM-02St', 155);
   const werkspreisBigbagAbWerk = werkspreisAusStamm('TM-ZM-BIG-02', 125.9);
 
+  // Lose Tonnage — Bezugsgröße für die Lieferkosten-Umlage. Sackware, BigBags und
+  // Paletten gehen per Spedition und werden separat kalkuliert.
+  const loseTonnage = (editedData?.tonnenLose02 || 0) + (editedData?.tonnenLose03 || 0);
+
+  // EINE Preisempfehlung für Anzeige und Vorbefüllung. Vorher rechneten beide
+  // getrennt — die Vorbefüllung mit der Gesamtmenge, die Anzeige mit der losen
+  // Menge — und wichen bei gemischten Anfragen voneinander ab.
+  const preisEmpfehlung = useMemo(
+    () =>
+      berechneLosePreisEmpfehlung({
+        werkspreis: werkspreisLose,
+        lieferkostenGesamt: lieferkostenBerechnung.ergebnis?.lohnkosten ?? null,
+        loseTonnage,
+      }),
+    [werkspreisLose, lieferkostenBerechnung.ergebnis, loseTonnage]
+  );
+
+  // Steht für diese PLZ noch ein Lieferkosten-Ergebnis aus? Entweder läuft der Abruf,
+  // oder das vorliegende Ergebnis gehört noch zu einer anderen PLZ/Tonnage.
+  const berechnungLaeuftNoch =
+    !!editedData &&
+    editedData.plz.length >= 5 &&
+    loseTonnage > 0 &&
+    (lieferkostenBerechnung.isLoading ||
+      lieferkostenBerechnung.plz !== editedData.plz ||
+      lieferkostenBerechnung.tonnage !== loseTonnage);
+
+  // Warnhinweis nur, wenn der eingetragene Preis wirklich abweicht
+  const preisWeichtAb =
+    !!preisEmpfehlung &&
+    !!editedData &&
+    weichtVonEmpfehlungAb(editedData.preisProTonne, preisEmpfehlung.empfohlenerPreis);
+
+  // Empfehlung ins Preisfeld übernehmen, solange der Bearbeiter den Preis nicht
+  // selbst gesetzt hat. Läuft bewusst getrennt von der Lieferkosten-Berechnung:
+  // so greift auch ein nachgeladener Artikelstamm-Preis noch (der Werkspreis kommt
+  // asynchron aus Appwrite und stand beim ersten Lauf oft noch nicht bereit).
+  useEffect(() => {
+    if (!preisEmpfehlung || preisManuellGesetzt.current) return;
+    setEditedData((prev) =>
+      prev && prev.preisProTonne !== preisEmpfehlung.empfohlenerPreis
+        ? { ...prev, preisProTonne: preisEmpfehlung.empfohlenerPreis }
+        : prev
+    );
+  }, [preisEmpfehlung]);
+
   // Suche nach existierenden Kunden die zur Anfrage passen
   useEffect(() => {
     if (!isOpen || !anfrage || existierendeKunden.length === 0) {
@@ -503,6 +575,11 @@ const AnfrageBearbeitungDialog = ({
         emailText: anfrage.emailVorschlag.text,
       });
 
+      // Neue Anfrage: die Empfehlung darf wieder vorbefüllen. Ohne dieses Zurücksetzen
+      // würde eine manuelle Preisänderung aus der vorherigen Anfrage nachwirken.
+      preisManuellGesetzt.current = false;
+      zuletztSynchronisierterPreis.current = null;
+
       setSelectedKundeId(null);
       setAllePositionen([]);
       setShowArtikelSuche(false);
@@ -531,7 +608,15 @@ const AnfrageBearbeitungDialog = ({
     }
   }, [isOpen, anfrage]);
 
-  // Lieferkosten berechnen
+  // Lieferkosten der Schüttgut-Fuhre berechnen.
+  //
+  // Bezugsgröße ist die LOSE Tonnage, nicht die Gesamtmenge: Der Silo-LKW fährt nur
+  // das Schüttgut, Sackware/BigBag gehen per Spedition (`speditionskostenBerechnung`).
+  // Mit der Gesamtmenge als `lkwLadungInTonnen` wurde bei gemischten Anfragen eine
+  // zu große Fuhre unterstellt und die Umlage pro Tonne fiel zu niedrig aus.
+  //
+  // Dieser Effekt setzt bewusst KEINEN Preis mehr — das macht ausschließlich der
+  // Effekt an `preisEmpfehlung`, damit es nur eine Rechenquelle gibt.
   useEffect(() => {
     if (!editedData || !editedData.plz || editedData.plz.length < 5) {
       setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz: null, tonnage: 0 });
@@ -539,14 +624,16 @@ const AnfrageBearbeitungDialog = ({
     }
 
     const plz = editedData.plz;
-    const tonnage = editedData.menge || 0;
+    const tonnage = loseTonnage;
 
     if (plz === lieferkostenBerechnung.plz && tonnage === lieferkostenBerechnung.tonnage && lieferkostenBerechnung.ergebnis) {
       return;
     }
 
-    const hatLosesMaterial = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0) > 0;
-    if (!hatLosesMaterial && tonnage <= 0) {
+    // Ohne loses Material gibt es keine Schüttgut-Fuhre — und damit auch keine
+    // Lose-Preisempfehlung. Vorher lief die Route hier trotzdem und überschrieb das
+    // Preisfeld mit einem Schüttgut-Preis, obwohl nur Sackware angefragt war.
+    if (tonnage <= 0) {
       setLieferkostenBerechnung({ isLoading: false, ergebnis: null, plz, tonnage });
       return;
     }
@@ -566,14 +653,10 @@ const AnfrageBearbeitungDialog = ({
         };
 
         const ergebnis = await berechneFremdlieferungRoute(START_PLZ, plz, fremdlieferungStammdaten);
-        const lieferkostenProTonne = tonnage > 0 ? ergebnis.lohnkosten / tonnage : 0;
-        const empfohlenerPreisProTonne =
-          Math.round((werkspreisLose + lieferkostenProTonne) * 100) / 100;
 
         setEditedData(prev => prev ? {
           ...prev,
           frachtkosten: Math.round(ergebnis.lohnkosten * 100) / 100,
-          preisProTonne: empfohlenerPreisProTonne,
         } : prev);
         setLieferkostenBerechnung({ isLoading: false, ergebnis, tonnage, plz });
       } catch (error) {
@@ -584,7 +667,7 @@ const AnfrageBearbeitungDialog = ({
 
     const timeout = setTimeout(berechneLieferkosten, 500);
     return () => clearTimeout(timeout);
-  }, [editedData?.plz, editedData?.menge, editedData?.tonnenLose02, editedData?.tonnenLose03]);
+  }, [editedData?.plz, loseTonnage]);
 
   // Speditionskosten für Palettenware berechnen
   useEffect(() => {
@@ -651,6 +734,46 @@ const AnfrageBearbeitungDialog = ({
     const timeout = setTimeout(generierePositionen, 300);
     return () => clearTimeout(timeout);
   }, [editedData, anfrage, allePositionen.length]);
+
+  // Lose Positionen dem Preis/t nachziehen.
+  //
+  // Die Positionen werden nur EINMAL generiert (der Effekt oben steigt bei
+  // `allePositionen.length > 0` aus). Wann sie fertig sind, ist nicht vorhersagbar:
+  // Der 300-ms-Timer ist nur der Start, danach laufen elf Artikel-Queries plus
+  // Dieselpreis- und Entfernungsabruf. Die Lieferkosten-Route kann also vor ODER nach
+  // der Generierung fertig werden. Ohne Abgleich behielten die Positionen den groben
+  // Schätzpreis, während das Feld Preis/t den kalkulierten zeigte — und ins
+  // Angebots-PDF geht der Positionspreis, also der falsche.
+  //
+  // Deshalb hängt der Effekt an BEIDEN Größen. `zuletztSynchronisierterPreis`
+  // unterscheidet dabei zwei Fälle, die sonst gleich aussehen:
+  //   - Preis geändert (Empfehlung oder Eingabe im Feld) → Positionen nachziehen
+  //   - Positionen geändert (Einzelpreis von Hand korrigiert) → nicht anfassen
+  // Ohne diese Unterscheidung würde jede manuelle Preiskorrektur an einer
+  // Schüttgut-Position sofort wieder überschrieben.
+  //
+  // Betrifft nur Schüttgut: Sackware, BigBag, PE-Folie und Pauschalen haben eigene
+  // Preise und bleiben unangetastet.
+  useEffect(() => {
+    const preis = editedData?.preisProTonne;
+    if (!preis || preis <= 0) return;
+    if (allePositionen.length === 0) return;
+    if (zuletztSynchronisierterPreis.current === preis) return;
+
+    zuletztSynchronisierterPreis.current = preis;
+
+    setAllePositionen((prev) => {
+      let veraendert = false;
+      const neu = prev.map((pos) => {
+        if (!pos.artikelnummer || !ARTIKELNUMMERN_LOSE.includes(pos.artikelnummer) || pos.einzelpreis === preis) {
+          return pos;
+        }
+        veraendert = true;
+        return { ...pos, einzelpreis: preis, gesamtpreis: pos.menge * preis };
+      });
+      return veraendert ? neu : prev;
+    });
+  }, [editedData?.preisProTonne, allePositionen]);
 
   // E-Mail Verlauf laden wenn Tab gewechselt wird
   useEffect(() => {
@@ -736,6 +859,12 @@ const AnfrageBearbeitungDialog = ({
           anzahlPlaetze: anfrage.analysiert?.anzahlPlaetze,
         },
       });
+
+      // Ein von der KI gesetzter Preis ist eine bewusste Setzung — die automatische
+      // Empfehlung darf ihn nicht direkt wieder überschreiben.
+      if (analyse.angebot.empfohlenerPreis) {
+        preisManuellGesetzt.current = true;
+      }
 
       setEditedData({
         ...editedData,
@@ -1602,7 +1731,7 @@ const AnfrageBearbeitungDialog = ({
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Lose <span className="text-green-600">95.75€/t</span>
+                          Lose <span className="text-green-600">{werkspreisLose.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1620,7 +1749,7 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          BigBag <span className="text-green-600">125€/t</span>
+                          BigBag <span className="text-green-600">{werkspreisBigbagAbWerk.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1638,7 +1767,7 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Gesackt <span className="text-green-600">145€/t</span>
+                          Gesackt <span className="text-green-600">{werkspreisSackwareAbWerk.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1663,7 +1792,7 @@ const AnfrageBearbeitungDialog = ({
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Lose <span className="text-green-600">95.75€/t</span>
+                          Lose <span className="text-green-600">{werkspreisLose.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1681,7 +1810,7 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          BigBag <span className="text-green-600">125€/t</span>
+                          BigBag <span className="text-green-600">{werkspreisBigbagAbWerk.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1699,7 +1828,7 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          Gesackt <span className="text-green-600">145€/t</span>
+                          Gesackt <span className="text-green-600">{werkspreisSackwareAbWerk.toFixed(2)}€/t</span>
                         </label>
                         <input
                           type="number"
@@ -1734,9 +1863,28 @@ const AnfrageBearbeitungDialog = ({
                         type="number"
                         step="0.50"
                         value={editedData.preisProTonne}
-                        onChange={(e) => setEditedData({ ...editedData, preisProTonne: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => {
+                          // Ab jetzt gilt der Wert des Bearbeiters — die Empfehlung
+                          // überschreibt ihn nicht mehr.
+                          preisManuellGesetzt.current = true;
+                          setEditedData({ ...editedData, preisProTonne: parseFloat(e.target.value) || 0 });
+                        }}
                         className="w-full text-2xl font-bold text-gray-900 dark:text-white bg-transparent border-0 p-0 focus:ring-0"
                       />
+                      {preisWeichtAb && preisEmpfehlung && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            preisManuellGesetzt.current = false;
+                            setEditedData({ ...editedData, preisProTonne: preisEmpfehlung.empfohlenerPreis });
+                          }}
+                          className="mt-1 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:underline"
+                          title="Preis auf die berechnete Empfehlung zurücksetzen"
+                        >
+                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                          Empfehlung: {preisEmpfehlung.empfohlenerPreis.toFixed(2)} EUR/t übernehmen
+                        </button>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Fracht</label>
@@ -1750,13 +1898,11 @@ const AnfrageBearbeitungDialog = ({
                     </div>
                   </div>
 
-                  {/* Lieferkosten-Info & Preisberechnung */}
-                  {lieferkostenBerechnung.ergebnis && (editedData.tonnenLose02 > 0 || editedData.tonnenLose03 > 0) && (() => {
-                    const werkspreis = werkspreisLose;
-                    const tonnage = (editedData.tonnenLose02 || 0) + (editedData.tonnenLose03 || 0);
-                    const lieferkostenGesamt = lieferkostenBerechnung.ergebnis.lohnkosten;
-                    const lieferkostenProTonne = tonnage > 0 ? lieferkostenGesamt / tonnage : 0;
-                    const empfohlenerPreis = werkspreis + lieferkostenProTonne;
+                  {/* Lieferkosten-Info & Preisberechnung — gleiche Quelle wie das Preisfeld */}
+                  {lieferkostenBerechnung.ergebnis && preisEmpfehlung && (() => {
+                    const { werkspreis, lieferkostenProTonne, lieferkostenGesamt, empfohlenerPreis } =
+                      preisEmpfehlung;
+                    const tonnage = preisEmpfehlung.loseTonnage;
 
                     return (
                       <div className="mt-4 space-y-3">
@@ -1818,6 +1964,29 @@ const AnfrageBearbeitungDialog = ({
                       </div>
                     );
                   })()}
+
+                  {/* Loses Material ohne belastbare Kalkulation: der Preis im Feld stammt dann
+                      nur aus der groben PLZ-Zonen-Schätzung und ist kein kalkulierter Endpreis.
+
+                      `berechnungLaeuftNoch` verhindert, dass der Hinweis in der Lücke zwischen
+                      Dialog-Öffnen und Eintreffen der Route aufblitzt: Dort ist `isLoading` noch
+                      false (der 500-ms-Debounce läuft) und ein Ergebnis liegt noch nicht vor —
+                      ohne die Prüfung stünde bei JEDEM Öffnen kurz „nicht kalkuliert". */}
+                  {loseTonnage > 0 && !preisEmpfehlung && !berechnungLaeuftNoch && (
+                    <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-start gap-2 text-amber-800 dark:text-amber-300">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <div className="text-sm">
+                          <div className="font-medium">Preis/t ist nicht kalkuliert</div>
+                          <div className="text-amber-700 dark:text-amber-400 mt-0.5">
+                            {!editedData.plz || editedData.plz.length < 5
+                              ? 'Ohne gültige PLZ lassen sich die Lieferkosten nicht berechnen — bitte PLZ ergänzen.'
+                              : 'Die Lieferkosten konnten für diese PLZ nicht ermittelt werden. Der angezeigte Preis ist nur eine grobe Schätzung.'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Speditionskosten für Palettenware (Sackware + BigBag) */}
                   {speditionskostenBerechnung.kosten !== null && (() => {
