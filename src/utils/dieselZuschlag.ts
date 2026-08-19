@@ -281,6 +281,26 @@ function formatKm(km: number): string {
 }
 
 /**
+ * Anzahl der vollen Dieselpreis-Stufen über dem Basispreis.
+ *
+ * Rechnet in Zehntelcent (ganze Zahlen) statt in Euro-Gleitkommazahlen. Direkt formuliert
+ * — `Math.floor((dieselPreis - basisPreis) / stufenGroesse)` — verschluckt der Ausdruck bei
+ * exakt getroffener Grenze eine ganze Stufe: 1,899 − 1,749 ergibt in IEEE-754
+ * 0,1499999999999999, geteilt durch 0,05 also 2,9999… und abgerundet 2 statt 3. Genau die
+ * Preise mit drei Nachkommastellen, die von der Tankstellen-API kommen, treffen diese Grenzen
+ * regelmäßig. Ab 2027 wird der Fehler mit dem Entfernungssatz multipliziert.
+ */
+export function berechneStufen(dieselPreis: number, config: DieselZuschlagConfig): number {
+  if (dieselPreis <= config.basisPreis) return 0;
+
+  const differenzZehntelCent = Math.round((dieselPreis - config.basisPreis) * 1000);
+  const stufenGroesseZehntelCent = Math.round(config.stufenGroesse * 1000);
+  if (stufenGroesseZehntelCent <= 0) return 0;
+
+  return Math.floor(differenzZehntelCent / stufenGroesseZehntelCent);
+}
+
+/**
  * Berechnet den Zuschlag pro Tonne basierend auf aktuellem Dieselpreis
  *
  * @param dieselPreis - Aktueller Dieselpreis in €/L
@@ -298,11 +318,8 @@ export function berechneZuschlagProTonne(
     return 0;
   }
 
-  // Anzahl der Stufen berechnen (abgerundet)
-  const stufen = Math.floor((dieselPreis - config.basisPreis) / config.stufenGroesse);
-
   // Betrag je Stufe — ab 2027 entfernungsabhaengig
-  const zuschlag = stufen * getZuschlagProStufe(config, entfernungKm);
+  const zuschlag = berechneStufen(dieselPreis, config) * getZuschlagProStufe(config, entfernungKm);
 
   // Auf 3 Dezimalstellen runden (cent-genau bei Multiplikation)
   return Math.round(zuschlag * 1000) / 1000;
@@ -356,10 +373,8 @@ export function berechneGesamtZuschlag(
   // Zuschlag pro Tonne berechnen
   const zuschlagProTonne = berechneZuschlagProTonne(dieselPreis, config, entfernungKm);
 
-  // Stufen berechnen
-  const stufen = dieselPreis > config.basisPreis
-    ? Math.floor((dieselPreis - config.basisPreis) / config.stufenGroesse)
-    : 0;
+  // Stufen berechnen (dieselbe Quelle wie berechneZuschlagProTonne — nicht neu herleiten)
+  const stufen = berechneStufen(dieselPreis, config);
 
   // Palettenware/BigBag werden vom Raben-Dieselfloater (TM-DZ-R) abgedeckt, sobald
   // eine solche Position im Dokument existiert. Doppelberechnung vermeiden.

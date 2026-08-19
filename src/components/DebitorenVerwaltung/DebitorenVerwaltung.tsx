@@ -16,7 +16,17 @@ import {
   Mail,
   History,
 } from 'lucide-react';
-import { DebitorView, DebitorenStatistik, DebitorFilter, DebitorStatus, istForderungGeschlossen } from '../../types/debitor';
+import {
+  DebitorView,
+  DebitorenStatistik,
+  DebitorFilter,
+  DebitorStatus,
+  DebitorHerkunft,
+  DEBITOR_HERKUNFT_CONFIG,
+  DEBITOR_HERKUNFT_REIHENFOLGE,
+  getDebitorHerkuenfte,
+  istForderungGeschlossen,
+} from '../../types/debitor';
 import { debitorService } from '../../services/debitorService';
 import DebitorenListe from './DebitorenListe';
 import DebitorDetail from './DebitorDetail';
@@ -88,6 +98,8 @@ const DebitorenVerwaltung = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [saisonjahrFilter, setSaisonjahrFilter] = useState<number>(new Date().getFullYear());
+  // Herkunfts-Filter: nur Forderungen eines Kanals zeigen (Onlineshop/Hydrocourt/Universal/Anfrage/Direkt)
+  const [herkunftFilter, setHerkunftFilter] = useState<DebitorHerkunft | 'alle'>('alle');
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -283,8 +295,8 @@ const DebitorenVerwaltung = () => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
 
-  // Gefilterte Debitoren nach Tab
-  const getFilteredDebitoren = (): DebitorView[] => {
+  // Gefilterte Debitoren nach Suche + Tab (ohne Herkunftsfilter — Basis für dessen Zähler)
+  const getTabDebitoren = (): DebitorView[] => {
     let filtered = debitoren;
 
     // Suchfilter
@@ -323,6 +335,24 @@ const DebitorenVerwaltung = () => {
         return filtered;
     }
   };
+
+  const tabDebitoren = getTabDebitoren();
+
+  const getFilteredDebitoren = (): DebitorView[] =>
+    herkunftFilter === 'alle'
+      ? tabDebitoren
+      : tabDebitoren.filter((d) => getDebitorHerkuenfte(d).includes(herkunftFilter));
+
+  // Anzahl je Herkunft im aktuellen Tab — Mehrfachzuordnung möglich, Summe kann > Gesamt sein
+  const anzahlProHerkunft = DEBITOR_HERKUNFT_REIHENFOLGE.reduce(
+    (acc, herkunft) => {
+      acc[herkunft] = tabDebitoren.filter((d) =>
+        getDebitorHerkuenfte(d).includes(herkunft)
+      ).length;
+      return acc;
+    },
+    {} as Record<DebitorHerkunft, number>
+  );
 
   // Saisonjahre für Filter
   const verfuegbareSaisonjahre = Array.from(
@@ -782,8 +812,8 @@ const DebitorenVerwaltung = () => {
           activeTab !== 'rechnungsversand' &&
           activeTab !== 'mahnhistorie' && (
           <div className="space-y-4">
-            {/* Suche */}
-            <div className="flex gap-4">
+            {/* Suche + Herkunftsfilter */}
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
@@ -793,6 +823,22 @@ const DebitorenVerwaltung = () => {
                   onChange={(e) => setSearchText(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg px-4 py-2">
+                <Filter className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+                <select
+                  value={herkunftFilter}
+                  onChange={(e) => setHerkunftFilter(e.target.value as DebitorHerkunft | 'alle')}
+                  className="border-none bg-transparent text-sm font-semibold text-gray-900 dark:text-slate-100 focus:outline-none cursor-pointer"
+                  title="Nach Herkunft der Forderung filtern"
+                >
+                  <option value="alle">Alle Herkünfte</option>
+                  {DEBITOR_HERKUNFT_REIHENFOLGE.map((herkunft) => (
+                    <option key={herkunft} value={herkunft}>
+                      {DEBITOR_HERKUNFT_CONFIG[herkunft].label} ({anzahlProHerkunft[herkunft]})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

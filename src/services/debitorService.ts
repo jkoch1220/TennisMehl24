@@ -3,7 +3,13 @@ import { ID, Query } from 'appwrite';
 import { Projekt } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { handleServiceError } from '../utils/errorHandling';
-import { istShopProjekt, istHydrocourtProjekt, istUniversalProjekt } from '../utils/projektHerkunft';
+import {
+  istShopProjekt,
+  istHydrocourtProjekt,
+  istUniversalProjekt,
+  istAnfrageProjekt,
+  getShopBestellnummer,
+} from '../utils/projektHerkunft';
 import { GespeichertesDokument, RechnungsDaten as VolleRechnungsDaten } from '../types/projektabwicklung';
 
 // Alias für RechnungsDokument - verwendet den gleichen Typ wie die UI
@@ -23,6 +29,7 @@ import {
   istForderungGeschlossen,
 } from '../types/debitor';
 import { projektService } from './projektService';
+import { anfragenService } from './anfragenService';
 import { saisonplanungService } from './saisonplanungService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 import { auditService, bearbeiterStempel } from './auditService';
@@ -163,6 +170,38 @@ const ladeRechnungsDokumenteFuerProjekte = async (
 class DebitorService {
   private readonly collectionId = COLLECTIONS.DEBITOREN_METADATEN;
 
+  /**
+   * Projekt-IDs, die an einer Anfrage hängen — Grundlage für die Herkunft 'Anfrage'
+   * bei Altbestand (Projekte von vor dem `herkunft`-Marker tragen das Feld nicht).
+   * Wird einmal pro Session geladen und dann wiederverwendet; `null` = noch nicht geladen,
+   * dann fällt die Erkennung auf `projekt.herkunft === 'anfrage'` zurück.
+   */
+  private anfrageProjektIds: Set<string> | null = null;
+  private anfrageProjektIdsLaden: Promise<Set<string>> | null = null;
+
+  /** Anfragen-Index laden (parallele Aufrufe teilen dieselbe Anfrage). */
+  private async ladeAnfrageProjektIds(): Promise<Set<string>> {
+    if (this.anfrageProjektIds) return this.anfrageProjektIds;
+    if (!this.anfrageProjektIdsLaden) {
+      this.anfrageProjektIdsLaden = anfragenService
+        .loadProjektIdsAusAnfragen()
+        .then((ids) => {
+          this.anfrageProjektIds = ids;
+          return ids;
+        })
+        .catch((error) => {
+          // Ohne Index bleibt nur der herkunft-Marker — Badges fehlen dann bei Altbestand,
+          // die Debitorenliste soll deswegen aber nicht scheitern.
+          console.warn('Anfragen-Index für Debitoren-Herkunft nicht ladbar:', error);
+          return new Set<string>();
+        })
+        .finally(() => {
+          this.anfrageProjektIdsLaden = null;
+        });
+    }
+    return this.anfrageProjektIdsLaden;
+  }
+
   // =====================================================
   // LADEN
   // =====================================================
@@ -181,10 +220,11 @@ class DebitorService {
         queries.push(Query.equal('saisonjahr', filter.saisonjahr));
       }
 
-      // 1+2: Projekte UND Metadaten parallel laden (unabhängig voneinander)
+      // 1+2+3: Projekte, Metadaten und Anfragen-Index parallel laden (unabhängig voneinander)
       const [projekteDocuments, metadatenDocuments] = await Promise.all([
         loadAllDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, { queries }),
         loadAllDocuments(DATABASE_ID, this.collectionId),
+        this.ladeAnfrageProjektIds(),
       ]);
 
       const projekte: Projekt[] = projekteDocuments.map((doc) => {
@@ -253,7 +293,10 @@ class DebitorService {
    */
   async loadDebitorFuerProjekt(projektId: string): Promise<DebitorView | null> {
     try {
-      const projekt = await projektService.getProjekt(projektId);
+      const [projekt] = await Promise.all([
+        projektService.getProjekt(projektId),
+        this.ladeAnfrageProjektIds(),
+      ]);
       if (!projekt) {
         return null;
       }
@@ -1320,7 +1363,7 @@ class DebitorService {
       platzbauerId: projekt.platzbauerId,
       zugeordnetesPlatzbauerprojektId: projekt.zugeordnetesPlatzbauerprojektId,
       bezugsweg: projekt.bezugsweg,
-      ...this.bestimmeBestelltyp(projekt),
+      ...this.bestimmeHerkunft(projekt),
       rechnungsnummer: rechnungsnummer || undefined,
       rechnungsdatum: rechnungsdatum || undefined,
       rechnungsbetrag,
@@ -1402,20 +1445,26 @@ class DebitorService {
   }
 
   /**
-   * Leitet den Bestelltyp eines Projekts ab (Hydrocourt / Universal / Onlineshop).
-   * Arbeitet ausschließlich auf bereits geladenen Projekt-Daten — geeignet für die Listenansicht.
+   * Leitet die Herkunft eines Projekts ab (Onlineshop / Hydrocourt / Universal / Anfrage).
+   * Arbeitet ausschließlich auf bereits geladenen Projekt-Daten plus dem Anfragen-Index —
+   * kein zusätzlicher DB-Zugriff pro Debitor.
    *
-   * Kriterien je Typ: siehe utils/projektHerkunft.
+   * Kriterien je Kanal: siehe utils/projektHerkunft.
    */
-  private bestimmeBestelltyp(projekt: Projekt): {
+  private bestimmeHerkunft(projekt: Projekt): {
     istHydrocourt: boolean;
     istUniversal: boolean;
     istOnlineshop: boolean;
+    istAnfrage: boolean;
+    shopBestellnummer?: string;
   } {
+    const istShop = istShopProjekt(projekt);
     return {
       istHydrocourt: istHydrocourtProjekt(projekt),
       istUniversal: istUniversalProjekt(projekt),
-      istOnlineshop: istShopProjekt(projekt),
+      istOnlineshop: istShop,
+      istAnfrage: istAnfrageProjekt(projekt, this.anfrageProjektIds ?? undefined),
+      shopBestellnummer: istShop ? getShopBestellnummer(projekt) : undefined,
     };
   }
 

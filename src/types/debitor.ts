@@ -148,10 +148,14 @@ export interface DebitorView {
    * `kundenname` enthält dann den Platzbauer (= Schuldner). Wird nur gesetzt, wenn auflösbar.
    */
   vereinName?: string;
-  /** Bestelltyp-Marker (abgeleitet aus Positionen/Status) — für Badges in der Mahnliste */
+  /** Herkunfts-Marker (abgeleitet aus Positionen/Status/Verknüpfungen) — für Badges in Liste, Detail und Mahnliste */
   istHydrocourt?: boolean;
   istUniversal?: boolean;
   istOnlineshop?: boolean;
+  /** Projekt entstand aus einer Kundenanfrage (Anfragen-Tab / E-Mail-Anfrage) */
+  istAnfrage?: boolean;
+  /** Bei Shop-Herkunft: Bestellnummer aus dem Online-Shop (für Tooltip/Nachverfolgung) */
+  shopBestellnummer?: string;
   rechnungsnummer?: string;
   rechnungsdatum?: string;
   rechnungsbetrag: number;
@@ -258,6 +262,70 @@ export const DEBITOR_STATUS_CONFIG: Record<DebitorStatus, { label: string; color
 
 // Standard-Zahlungsziel in Tagen
 export const STANDARD_ZAHLUNGSZIEL_TAGE = 14;
+
+// ==================== HERKUNFT EINER FORDERUNG ====================
+
+/**
+ * Woher die Rechnung bzw. das Projekt dahinter stammt. Ein Debitor kann mehrere
+ * Herkünfte tragen (z.B. Shop-Bestellung mit Universal-Artikeln) — deshalb Liste
+ * statt einem Wert. `direkt` greift nur, wenn keine andere Herkunft erkennbar ist
+ * (von Hand angelegtes Projekt, z.B. aus der Saisonplanung oder telefonisch).
+ */
+export type DebitorHerkunft = 'onlineshop' | 'hydrocourt' | 'universal' | 'anfrage' | 'direkt';
+
+export const DEBITOR_HERKUNFT_CONFIG: Record<
+  DebitorHerkunft,
+  { label: string; beschreibung: string; badgeClass: string }
+> = {
+  onlineshop: {
+    label: 'Onlineshop',
+    beschreibung: 'Bestellung aus dem Online-Shop (tennismehl24.com)',
+    badgeClass:
+      'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+  },
+  hydrocourt: {
+    label: 'Hydrocourt',
+    beschreibung: 'Hydrocourt-Bestellung (Artikel TM-HYC)',
+    badgeClass: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300',
+  },
+  universal: {
+    label: 'Universal',
+    beschreibung: 'Bestellung mit Universal-Artikeln (Fremdkatalog)',
+    badgeClass: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  },
+  anfrage: {
+    label: 'Anfrage',
+    beschreibung: 'Projekt entstand aus einer Kundenanfrage',
+    badgeClass: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300',
+  },
+  direkt: {
+    label: 'Direkt',
+    beschreibung: 'Von Hand angelegtes Projekt (Saisonplanung, Telefon, Mail)',
+    badgeClass: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+  },
+};
+
+/** Reihenfolge für Badges und Filter-Auswahl */
+export const DEBITOR_HERKUNFT_REIHENFOLGE: DebitorHerkunft[] = [
+  'onlineshop',
+  'hydrocourt',
+  'universal',
+  'anfrage',
+  'direkt',
+];
+
+/**
+ * Alle zutreffenden Herkünfte eines Debitors. Leer wird nie zurückgegeben:
+ * ohne erkennbaren Kanal gilt die Forderung als Direktauftrag.
+ */
+export const getDebitorHerkuenfte = (debitor: DebitorView): DebitorHerkunft[] => {
+  const herkuenfte: DebitorHerkunft[] = [];
+  if (debitor.istOnlineshop) herkuenfte.push('onlineshop');
+  if (debitor.istHydrocourt) herkuenfte.push('hydrocourt');
+  if (debitor.istUniversal) herkuenfte.push('universal');
+  if (debitor.istAnfrage) herkuenfte.push('anfrage');
+  return herkuenfte.length > 0 ? herkuenfte : ['direkt'];
+};
 
 // Mahn-Empfehlungen: welcher Schritt ist für einen Debitor aktuell fällig?
 // Reihenfolge der Eskalation:

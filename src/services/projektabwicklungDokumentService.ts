@@ -30,6 +30,21 @@ import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSu
 import { saisonplanungService } from './saisonplanungService';
 import { debitorService } from './debitorService';
 import { auditService, erstellerStempel } from './auditService';
+import { DIESEL_ZUSCHLAG_ARTIKELNUMMER } from '../utils/dieselZuschlag';
+import { RABEN_DIESELFLOATER_ARTIKELNUMMER } from '../utils/rabenDieselfloater';
+
+/**
+ * Reine Abrechnungspositionen (Dieselpreiszuschlag eigen + Raben), deren Beschreibung eine
+ * Preisherleitung enthält.
+ */
+const istZuschlagsPosition = (artikelnummer?: string): boolean => {
+  if (!artikelnummer) return false;
+  const nr = artikelnummer.trim().toUpperCase();
+  return (
+    nr === DIESEL_ZUSCHLAG_ARTIKELNUMMER.toUpperCase() ||
+    nr === RABEN_DIESELFLOATER_ARTIKELNUMMER.toUpperCase()
+  );
+};
 import jsPDF from 'jspdf';
 
 // === AUDIT-CHOKEPOINT ===
@@ -1642,7 +1657,12 @@ function konvertierePositionen(
       id: pos.id,
       artikelnummer: pos.artikelnummer,
       artikel: pos.bezeichnung,
-      beschreibung: pos.beschreibung,
+      // Die Beschreibung der Zuschlagspositionen ist eine Preisherleitung
+      // ("10,00 t × 1,35 €/t, Basis 1,749 €/L, Entfernung 62 km → 0,65 €/t je Stufe").
+      // Der Lieferschein wird bewusst ohne Preise gedruckt und beim Kunden abgegeben —
+      // dort hat die Herleitung nichts verloren. Die Position selbst bleibt stehen, damit
+      // die Zeilen zwischen den Dokumenten deckungsgleich sind.
+      beschreibung: istZuschlagsPosition(pos.artikelnummer) ? undefined : pos.beschreibung,
       menge: pos.menge,
       einheit: pos.einheit,
       seriennummer: undefined,

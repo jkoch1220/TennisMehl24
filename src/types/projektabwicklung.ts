@@ -112,6 +112,15 @@ export interface AngebotsDaten extends BaseDokument {
   // Dieselpreiszuschlag
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
+  /**
+   * Entfernung Versandwerk -> Abladestelle in km (einfache Strecke). Bestimmt ab der
+   * Staffel 2027, welcher Satz je Dieselpreis-Stufe gilt (siehe utils/dieselZuschlag.ts).
+   * Wird mit dem Dokument festgehalten: eine von Hand korrigierte Zahl darf nicht beim
+   * nächsten Öffnen still durch ein abweichendes Routing-Ergebnis ersetzt werden.
+   */
+  dieselEntfernungKm?: number;
+  /** Woher die Kilometerzahl stammt — 'manuell' verhindert automatisches Überschreiben */
+  dieselEntfernungQuelle?: 'route' | 'schaetzung' | 'manuell';
 
   // Weitere Vertragsklauseln (z.B. erschwerte Zufahrt, Mengenanpassung)
   vertragsklauseln?: VertragsKlausel[];
@@ -223,6 +232,15 @@ export interface AuftragsbestaetigungsDaten extends BaseDokument {
   // Dieselpreiszuschlag
   dieselpreiszuschlagAktiviert?: boolean;
   dieselpreiszuschlagText?: string;
+  /**
+   * Entfernung Versandwerk -> Abladestelle in km (einfache Strecke). Bestimmt ab der
+   * Staffel 2027, welcher Satz je Dieselpreis-Stufe gilt (siehe utils/dieselZuschlag.ts).
+   * Wird mit dem Dokument festgehalten: eine von Hand korrigierte Zahl darf nicht beim
+   * nächsten Öffnen still durch ein abweichendes Routing-Ergebnis ersetzt werden.
+   */
+  dieselEntfernungKm?: number;
+  /** Woher die Kilometerzahl stammt — 'manuell' verhindert automatisches Überschreiben */
+  dieselEntfernungQuelle?: 'route' | 'schaetzung' | 'manuell';
 
   // Weitere Vertragsklauseln (z.B. erschwerte Zufahrt, Mengenanpassung)
   vertragsklauseln?: VertragsKlausel[];
@@ -323,6 +341,17 @@ export interface RechnungsDaten extends BaseDokument {
 
   // Raben-Dieselfloater (Palettenspedition)
   rabenBasispreis?: number; // EUR - Summe der Speditionsdienste aus Raben-Rechnung
+
+  // Eigener Dieselpreiszuschlag: Entfernung für die Staffel ab 2027
+  /**
+   * Entfernung Versandwerk -> Abladestelle in km (einfache Strecke). Bestimmt, welcher
+   * Satz je Dieselpreis-Stufe gilt (siehe utils/dieselZuschlag.ts). Wird mit der Rechnung
+   * festgehalten, damit ein abweichendes Routing-Ergebnis den Betrag nachträglich nicht
+   * still verändert.
+   */
+  dieselEntfernungKm?: number;
+  /** Woher die Kilometerzahl stammt — 'manuell' verhindert automatisches Überschreiben */
+  dieselEntfernungQuelle?: 'route' | 'schaetzung' | 'manuell';
 
   // Gesamtrabatt (wird auf Nettobetrag + Fracht angewendet, vor MwSt)
   gesamtrabattProzent?: number;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Download, Package, Search, FileCheck, Edit3, AlertCircle, CheckCircle2, Loader2, Cloud, CloudOff, Mail, CalendarDays, Truck, Fuel, Tag } from 'lucide-react';
 import {
   DndContext,
@@ -33,6 +33,10 @@ import {
   ladeEntwurf,
   ladePositionenVonVorherigem
 } from '../../services/projektabwicklungDokumentService';
+import {
+  getDieselKlauselText,
+  istStandardDieselKlauselText,
+} from '../../utils/dieselZuschlag';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import { saisonplanungService } from '../../services/saisonplanungService';
@@ -127,10 +131,8 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
   // Verwende Props-Kunde oder geladenen Kunden
   const kunde = kundeFromProps || geladenerKunde;
 
-  const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
-    'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
-    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
-    'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
+  // useMemo: stabile Referenz, damit HEUTE_ISO als Effekt-Dependency taugt
+  const HEUTE_ISO = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const [auftragsbestaetigungsDaten, setAuftragsbestaetigungsDaten] = useState<AuftragsbestaetigungsDaten>({
     // Platzhalter bis die Stammdaten geladen sind. Das PDF liest diese Felder nicht
@@ -156,7 +158,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     lieferbedingungenAktiviert: true,
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
     dieselpreiszuschlagAktiviert: true,
-    dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+    dieselpreiszuschlagText: getDieselKlauselText(HEUTE_ISO),
     agbAnhaengen: true,
   });
 
@@ -280,7 +282,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               lieferadressePlzOrt: lieferadressePlzOrt,
               // Dieselpreiszuschlag defaults für alte Dokumente
               dieselpreiszuschlagAktiviert: gespeicherteDaten.dieselpreiszuschlagAktiviert ?? true,
-              dieselpreiszuschlagText: gespeicherteDaten.dieselpreiszuschlagText || DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+              dieselpreiszuschlagText: gespeicherteDaten.dieselpreiszuschlagText || getDieselKlauselText(HEUTE_ISO),
             });
           }
           setAutoSaveStatus('gespeichert');
@@ -318,7 +320,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               lieferadressePlzOrt: lieferadressePlzOrt,
               // Dieselpreiszuschlag defaults für alte Entwürfe
               dieselpreiszuschlagAktiviert: entwurf.dieselpreiszuschlagAktiviert ?? true,
-              dieselpreiszuschlagText: entwurf.dieselpreiszuschlagText || DEFAULT_DIESELPREISZUSCHLAG_TEXT,
+              dieselpreiszuschlagText: entwurf.dieselpreiszuschlagText || getDieselKlauselText(HEUTE_ISO),
             });
             setAutoSaveStatus('gespeichert');
             datenBereitsVorhandenRef.current = true; // Entwurf geladen – ladeDaten soll nicht überschreiben
@@ -370,19 +372,34 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
     };
   }, [auftragsbestaetigungsDaten, speichereAutomatisch, gespeichertesDokument]);
 
-  // Dieselpreiszuschlag: Wenn aktiviert und noch kein Text gesetzt, automatisch Standardtext hinterlegen
+  // Dieselpreiszuschlag: Standardtext hinterlegen bzw. auf die Staffel des Lieferjahres
+  // nachziehen. Maßgeblich ist das Lieferdatum, nicht das AB-Datum — eine im Dezember
+  // bestätigte Frühjahrslieferung wird nach der Staffel des Lieferjahres abgerechnet.
+  // Ein von Hand angepasster Text bleibt unangetastet.
   useEffect(() => {
-    if (
-      auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert &&
-      (!auftragsbestaetigungsDaten.dieselpreiszuschlagText ||
-        auftragsbestaetigungsDaten.dieselpreiszuschlagText.trim().length === 0)
-    ) {
-      setAuftragsbestaetigungsDaten(prev => ({
-        ...prev,
-        dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
-      }));
+    if (!auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert) return;
+    // Ein bereits erzeugtes AB-PDF ist ein Snapshot und wird nicht nachträglich umformuliert.
+    if (gespeichertesDokument && !istBearbeitungsModus) return;
+
+    const stichtag =
+      auftragsbestaetigungsDaten.lieferdatum ||
+      auftragsbestaetigungsDaten.auftragsbestaetigungsdatum ||
+      HEUTE_ISO;
+    const sollText = getDieselKlauselText(stichtag);
+    const aktuell = auftragsbestaetigungsDaten.dieselpreiszuschlagText;
+
+    if (aktuell !== sollText && istStandardDieselKlauselText(aktuell)) {
+      setAuftragsbestaetigungsDaten(prev => ({ ...prev, dieselpreiszuschlagText: sollText }));
     }
-  }, [auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert, auftragsbestaetigungsDaten.dieselpreiszuschlagText]);
+  }, [
+    auftragsbestaetigungsDaten.dieselpreiszuschlagAktiviert,
+    auftragsbestaetigungsDaten.dieselpreiszuschlagText,
+    auftragsbestaetigungsDaten.lieferdatum,
+    auftragsbestaetigungsDaten.auftragsbestaetigungsdatum,
+    gespeichertesDokument,
+    istBearbeitungsModus,
+    HEUTE_ISO,
+  ]);
 
   // Auftragsbestätigungsnummer generieren (nur wenn noch keine vorhanden ist)
   useEffect(() => {
