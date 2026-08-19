@@ -686,9 +686,19 @@ class ProjektService {
       // Erst das aktuelle Projekt laden
       const aktuell = await this.getProjekt(projektId);
 
+      // Zahldatum beim Wechsel auf 'bezahlt' festhalten. Ohne das blieb `bezahltAm` leer,
+      // sobald ein Projekt im Kanban auf 'Bezahlt' gezogen wurde — die Auswertungen
+      // hatten dann einen bezahlten Auftrag ohne Zahlungsdatum. Bei vorab bezahlten
+      // Shop-Bestellungen zählt der tatsächliche Zahlungseingang, nicht der Tag des Zugs.
+      const bezahltAm =
+        neuerStatus === 'bezahlt'
+          ? aktuell.bezahltAm || aktuell.vorabBezahltAm || new Date().toISOString()
+          : aktuell.bezahltAm;
+
       const aktualisiert = {
         ...aktuell,
         status: neuerStatus,
+        bezahltAm,
         geaendertAm: new Date().toISOString(),
       };
 

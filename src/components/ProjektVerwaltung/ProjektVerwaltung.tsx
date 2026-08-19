@@ -9,6 +9,7 @@ import {
   Search,
   MapPin,
   Euro,
+  BadgeEuro,
   Package,
   PackageCheck,
   GripVertical,
@@ -1852,6 +1853,24 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
           </div>
         )}
       </div>
+
+      {/* Bereits bezahlt — die Shop-Bestellung war beim Eingang schon beglichen
+          (Gambio Hub: PayPal, Kreditkarte, Lastschrift). Nach der Auslieferung kann
+          die Karte deshalb ohne Rechnungslauf direkt auf „Bezahlt" gezogen werden;
+          vorher stand das nur als Freitext in den Notizen — und dort sogar falsch. */}
+      {projekt.vorabBezahlt && status !== 'bezahlt' && (
+        <div
+          className="flex items-center gap-1 mt-1.5 ml-6 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+          title={
+            `Bereits bezahlt${projekt.vorabBezahltMethode ? ` via ${projekt.vorabBezahltMethode}` : ''}` +
+            `${projekt.vorabBezahltReferenz ? ` (${projekt.vorabBezahltReferenz})` : ''}` +
+            ' — nach der Auslieferung direkt auf „Bezahlt" ziehen, es ist keine Forderung offen.'
+          }
+        >
+          <BadgeEuro className="w-3 h-3 shrink-0" />
+          <span>Bereits bezahlt{projekt.vorabBezahltMethode ? ` · ${projekt.vorabBezahltMethode}` : ''}</span>
+        </div>
+      )}
 
       {/* Mengen- und Preis-Info */}
       {(projekt.angefragteMenge || projekt.preisProTonne) && (
