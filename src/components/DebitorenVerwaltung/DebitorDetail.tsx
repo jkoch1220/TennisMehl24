@@ -49,6 +49,7 @@ import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentSer
 import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
+import HerkunftBadges from './HerkunftBadges';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -445,6 +446,8 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
               {debitor.rechnungsnummer} • Saison {debitor.saisonjahr}
             </p>
+            {/* Herkunft der Forderung — woher Rechnung/Projekt stammen */}
+            <HerkunftBadges debitor={debitor} className="mt-2" />
             <BearbeitetVonHinweis
               bearbeitetVonName={debitor.bearbeitetVonName}
               bearbeitetAm={debitor.bearbeitetAm}

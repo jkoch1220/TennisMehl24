@@ -68,9 +68,59 @@ export interface ShopBestellung {
   aktivitaetsLog?: string; // JSON Array
   erstelltAm: string;
   aktualisiertAm: string;
-  // Zahlungsstatus (NEU)
+
+  /**
+   * Zahlungsstatus, wie ihn der Gambio-Sync schreibt (Appwrite-Attribut `zahlungsStatus`).
+   *
+   * Das ist die einzige Zahlungsinformation, die tatsächlich in der Datenbank landet.
+   * Sie ist verlässlich: Bestellungen über den Gambio Hub (PayPal2Hub) — auch die mit
+   * Zahlart „Kreditkarten" oder „Lastschrift" — kommen dort als 'bezahlt' an, weil der
+   * Hub das Geld bereits eingezogen hat. 'offen' steht bei Rechnungskauf und Vorkasse.
+   *
+   * `undefined` bei Altbestellungen, die vor Einführung des Feldes synchronisiert wurden.
+   */
+  zahlungsStatus?: 'bezahlt' | 'offen' | string;
+  /** ISO-Datum des Zahlungseingangs, sofern der Shop es liefert */
+  bezahltAm?: string;
+  /** Zahlungsreferenz aus dem Mollie-Checkout (nur beim neuen Shop belegt) */
+  molliePaymentId?: string;
+
+  /**
+   * @deprecated Existiert NICHT als Appwrite-Attribut und ist daher immer `undefined`.
+   * Das Backend leitet den Wert zwar in `gambio-api.ts` ab, schreibt ihn aber nur als
+   * `zahlungsStatus` weg. Wer hier abfragt, bekommt bei JEDER Bestellung `false` —
+   * genau deshalb landete früher „(noch offen)" in den Projektnotizen bezahlter
+   * Shop-Bestellungen. `istVorabBezahlt()` verwenden.
+   */
   bezahlt?: boolean;
+  /** @deprecated Existiert nicht als Appwrite-Attribut, immer `undefined`. */
   zahlungsart?: 'paypal' | 'rechnungskauf' | 'vorkasse' | 'sonstige';
+}
+
+/**
+ * Ist die Bestellung bereits bezahlt beim Portal angekommen?
+ *
+ * Maßgeblich ist `zahlungsStatus` aus dem Sync. Für Altbestellungen ohne das Feld
+ * greift ersatzweise die Zahlungsmethode: Rechnung und Vorkasse sind offen, alles
+ * über den Hub abgewickelte (PayPal, Kreditkarte, Lastschrift, Sofort, Klarna …)
+ * ist bezahlt. Im Zweifel `false` — lieber einmal zu viel nachsehen als eine
+ * offene Forderung als beglichen zu führen.
+ */
+export function istVorabBezahlt(
+  bestellung: Partial<Pick<ShopBestellung, 'zahlungsStatus' | 'zahlungsmethode'>>
+): boolean {
+  if (bestellung.zahlungsStatus === 'bezahlt') return true;
+  if (bestellung.zahlungsStatus === 'offen') return false;
+
+  // Fallback für Altbestellungen ohne zahlungsStatus
+  const methode = (bestellung.zahlungsmethode || '').toLowerCase();
+  if (!methode) return false;
+  if (methode.includes('rechnung') || methode.includes('vorkasse') || methode.includes('überweisung')) {
+    return false;
+  }
+  return ['paypal', 'kredit', 'debit', 'lastschrift', 'sofort', 'klarna', 'apple', 'google', 'hub'].some(
+    (kennung) => methode.includes(kennung)
+  );
 }
 
 // Gambio Status-Historie Eintrag
@@ -564,10 +614,12 @@ class ShopBestellungService {
       bemerkung: bestellung.anmerkungen || '',
     };
 
-    // Notizen mit Zahlungsstatus
-    const zahlungsInfo = bestellung.bezahlt
-      ? `Bezahlt via ${bestellung.zahlungsmethode}`
-      : `${bestellung.zahlungsart === 'rechnungskauf' ? 'Rechnungskauf' : bestellung.zahlungsmethode} (noch offen)`;
+    // Zahlungsstatus aus dem Sync — NICHT aus `bestellung.bezahlt`, das es in Appwrite
+    // nicht gibt und das deshalb jede Bestellung als offen auswies.
+    const vorabBezahlt = istVorabBezahlt(bestellung);
+    const zahlungsInfo = vorabBezahlt
+      ? `Bereits bezahlt via ${bestellung.zahlungsmethode}`
+      : `${bestellung.zahlungsmethode} (noch offen)`;
 
     // Erstelle Projekt
     const neuesProjekt: NeuesProjekt = {
@@ -588,6 +640,14 @@ class ShopBestellungService {
       saisonjahr: new Date().getFullYear(),
       herkunft: 'shop',
       status: 'auftragsbestaetigung', // Direkt auf AB, da Kunde bereits bestellt hat
+      // Zahlung strukturiert mitführen, damit nach der Auslieferung ohne Blick nach
+      // Gambio erkennbar ist, dass keine Forderung mehr offen ist.
+      vorabBezahlt,
+      vorabBezahltMethode: bestellung.zahlungsmethode,
+      vorabBezahltAm: vorabBezahlt ? bestellung.bezahltAm || bestellung.bestelldatum : undefined,
+      vorabBezahltReferenz: vorabBezahlt
+        ? bestellung.molliePaymentId || `Shop #${bestellung.bestellnummer}`
+        : undefined,
       auftragsbestaetigungsnummer: abNummer,
       auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
       auftragsbestaetigungsDaten: JSON.stringify(abDaten),

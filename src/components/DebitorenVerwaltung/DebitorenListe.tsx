@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL, istForderungGeschlossen } from '../../types/debitor';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import HerkunftBadges from './HerkunftBadges';
 
 interface DebitorenListeProps {
   debitoren: DebitorView[];
@@ -209,6 +210,9 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                 Rechnung
               </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                Herkunft
+              </th>
               <SortHeader field="rechnungsbetrag" label="Betrag" />
               <SortHeader field="offenerBetrag" label="Offen" />
               <SortHeader field="faelligkeitsdatum" label="Fällig" />
@@ -263,6 +267,9 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                         </p>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <HerkunftBadges debitor={debitor} />
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-900 dark:text-slate-100 font-medium">
                     {formatCurrency(debitor.rechnungsbetrag)}
@@ -378,6 +385,7 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
                     <p className="text-sm text-gray-500 dark:text-slate-400 truncate">
                       {debitor.rechnungsnummer || 'Keine Rechnungsnr.'} • {formatDate(debitor.faelligkeitsdatum)}
                     </p>
+                    <HerkunftBadges debitor={debitor} className="mt-1.5" />
                   </div>
                 </div>
                 <StatusBadge status={debitor.status} />

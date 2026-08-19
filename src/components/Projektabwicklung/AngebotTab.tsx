@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Download, Package, Search, Cloud, CloudOff, Loader2, FileCheck, Edit3, AlertCircle, CheckCircle2, Mail, ShoppingBag, Send, Truck, ListPlus, ChevronDown, Tag, Info, Fuel } from 'lucide-react';
 import {
   DndContext,
@@ -43,8 +43,14 @@ import {
   istDieselZuschlagPosition,
   istZuschlagsfaehig,
   formatDieselPreis,
+  getDieselKlauselText,
+  istStandardDieselKlauselText,
   DIESEL_ZUSCHLAG_ARTIKELNUMMER,
 } from '../../utils/dieselZuschlag';
+import {
+  ermittleEntfernungAbWerkKm,
+  getMassgeblichePlzOrt,
+} from '../../utils/lieferEntfernung';
 import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
 import {
   berechneRabenDieselfloater,
@@ -95,10 +101,13 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   const { isFieldHidden } = useCan();
   // Sensible Felder (D9) — Tool-Kontext ist die Projekt-Verwaltung
   const fieldHidden = (key: string) => isFieldHidden('projekt-verwaltung', key);
-  const DEFAULT_DIESELPREISZUSCHLAG_TEXT =
-    'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. ' +
-    'Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis ' +
-    'des gelieferten Ziegelmehls um 0,45 € je Tonne.';
+  // Standard-Gültigkeit eines neuen Angebots: 30 Tage. Bestimmt zugleich, welche
+  // Dieselzuschlag-Staffel im Hinweistext steht (AGB § 4: "Angebote mit Gültigkeit …").
+  // useMemo, damit die Referenz über Renders stabil bleibt und als Effekt-Dependency taugt.
+  const STANDARD_GUELTIG_BIS = useMemo(
+    () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    []
+  );
 
   // Geladener Kunde (Fallback wenn nicht von Props übergeben)
   const [geladenerKunde, setGeladenerKunde] = useState<SaisonKunde | null>(null);
@@ -140,14 +149,14 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     
     angebotsnummer: '',
     angebotsdatum: new Date().toISOString().split('T')[0],
-    gueltigBis: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    gueltigBis: STANDARD_GUELTIG_BIS,
     
     positionen: [],
     zahlungsziel: '14 Tage',
     lieferbedingungenAktiviert: true,
     lieferbedingungen: 'Für die Lieferung ist eine uneingeschränkte Befahrbarkeit für LKW mit Achslasten bis 11,5t und Gesamtgewicht bis 40 t erforderlich. Der Durchfahrtsfreiraum muss mindestens 3,20 m Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.',
     dieselpreiszuschlagAktiviert: true,
-    dieselpreiszuschlagText: 'Die angebotenen Preise beinhalten einen Dieselpreis von bis zu 1,749 €. Bei Steigerungen je 0,05 € über unserem kalkulierten Basis-Dieselpreis erhöht sich der Preis des gelieferten Ziegelmehls um 0,45 € je Tonne.',
+    dieselpreiszuschlagText: getDieselKlauselText(STANDARD_GUELTIG_BIS),
     agbAnhaengen: true,
   });
 
@@ -815,19 +824,31 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     return () => clearTimeout(timeout);
   }, [angebotsDaten.kundenPlzOrt, angebotsDaten.lieferadressePlzOrt, angebotsDaten.lieferadresseAbweichend, angebotsDaten.positionen]);
 
-  // Dieselpreiszuschlag: Wenn aktiviert und noch kein Text gesetzt, automatisch Standardtext hinterlegen
+  // Dieselpreiszuschlag: Standardtext hinterlegen bzw. auf die Staffel der Angebotsgültigkeit
+  // nachziehen. Verschiebt der Innendienst die Gültigkeit über den Jahreswechsel, muss der
+  // Hinweis die dann geltende Staffel nennen (AGB § 4). Ein von Hand angepasster Text bleibt
+  // unangetastet — deshalb die Prüfung auf istStandardDieselKlauselText.
   useEffect(() => {
-    if (
-      angebotsDaten.dieselpreiszuschlagAktiviert &&
-      (!angebotsDaten.dieselpreiszuschlagText ||
-        angebotsDaten.dieselpreiszuschlagText.trim().length === 0)
-    ) {
-      setAngebotsDaten(prev => ({
-        ...prev,
-        dieselpreiszuschlagText: DEFAULT_DIESELPREISZUSCHLAG_TEXT,
-      }));
+    if (!angebotsDaten.dieselpreiszuschlagAktiviert) return;
+    // Ein bereits erzeugtes Angebots-PDF ist ein Snapshot: solange es nur angezeigt wird,
+    // bleibt sein Wortlaut unangetastet.
+    if (initialLaden || (gespeichertesDokument && !istBearbeitungsModus)) return;
+
+    const sollText = getDieselKlauselText(angebotsDaten.gueltigBis || STANDARD_GUELTIG_BIS);
+    const aktuell = angebotsDaten.dieselpreiszuschlagText;
+
+    if (aktuell !== sollText && istStandardDieselKlauselText(aktuell)) {
+      setAngebotsDaten(prev => ({ ...prev, dieselpreiszuschlagText: sollText }));
     }
-  }, [angebotsDaten.dieselpreiszuschlagAktiviert, angebotsDaten.dieselpreiszuschlagText]);
+  }, [
+    angebotsDaten.dieselpreiszuschlagAktiviert,
+    angebotsDaten.dieselpreiszuschlagText,
+    angebotsDaten.gueltigBis,
+    initialLaden,
+    gespeichertesDokument,
+    istBearbeitungsModus,
+    STANDARD_GUELTIG_BIS,
+  ]);
 
   const handleInputChange = (field: keyof AngebotsDaten, value: any) => {
     hatGeaendert.current = true;
@@ -893,11 +914,31 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         angebotsDaten.angebotsdatum || new Date().toISOString().split('T')[0],
         '97828'
       );
+
+      // Entfernung zur Abladestelle — ab Staffel 2027 preisbestimmend
+      const entfernung = await ermittleEntfernungAbWerkKm(getMassgeblichePlzOrt(angebotsDaten));
+
+      // Stichtag = Ende der Angebotsgültigkeit, identisch zum Klauseltext oben. Würde hier
+      // das Angebotsdatum stehen, könnte ein im Dezember geschriebenes Angebot die Staffel
+      // des Folgejahres abdrucken, aber nach der alten Pauschale rechnen.
       const ergebnis = berechneGesamtZuschlag(
         angebotsDaten.positionen,
         preisErgebnis.preis,
-        angebotsDaten.angebotsdatum || new Date().toISOString().split('T')[0]
+        angebotsDaten.gueltigBis || STANDARD_GUELTIG_BIS,
+        entfernung?.km
       );
+
+      // Ohne Entfernung greift die Grundstaffel — das ist der niedrigste Satz und damit
+      // stillschweigend zu wenig berechnet. Lieber einmal nachfragen als falsch anbieten.
+      if (ergebnis.entfernungUnbekannt) {
+        const weiter = window.confirm(
+          'Die Entfernung zur Abladestelle konnte nicht ermittelt werden (keine gültige PLZ hinterlegt).\n\n' +
+            `Es wird die Grundstaffel angesetzt: ${ergebnis.staffelBezeichnung} = ` +
+            `${ergebnis.zuschlagProStufe.toFixed(2).replace('.', ',')} €/t je Preisstufe.\n\n` +
+            'Trotzdem einfügen?'
+        );
+        if (!weiter) return;
+      }
 
       if (!ergebnis.hatZuschlag || ergebnis.gesamtTonnen === 0) {
         alert(

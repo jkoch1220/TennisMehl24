@@ -257,7 +257,25 @@ export interface Projekt {
   rechnungVersendetAm?: string;
 
   bezahltAm?: string;
-  
+
+  /**
+   * Die Bestellung war beim Eingang ins Portal bereits bezahlt — typischerweise eine
+   * Shop-Bestellung über den Gambio Hub (PayPal, Kreditkarte, Lastschrift …), bei der
+   * das Geld schon eingezogen ist.
+   *
+   * Zweck: Nach der Auslieferung muss niemand mehr in Gambio nachsehen, ob noch eine
+   * Forderung offen ist — das Projekt kann direkt auf `bezahlt` gezogen werden.
+   * Vorher stand diese Information nur als Freitext in `notizen`, und dort wegen eines
+   * nie befüllten Feldes sogar falsch („noch offen" bei bezahlten Bestellungen).
+   */
+  vorabBezahlt?: boolean;
+  /** Wie bezahlt wurde, im Klartext des Shops (z.B. „Kreditkarten", „PayPal") */
+  vorabBezahltMethode?: string;
+  /** ISO-Datum des Zahlungseingangs, sofern der Shop eines liefert */
+  vorabBezahltAm?: string;
+  /** Referenz zur Zahlung im Quellsystem (Shop-Bestellnummer, ggf. Mollie-ID) */
+  vorabBezahltReferenz?: string;
+
   // Mengen- und Preis-Info (aus Callliste)
   angefragteMenge?: number;
   preisProTonne?: number;

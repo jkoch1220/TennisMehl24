@@ -190,13 +190,18 @@ export const PLZ_KOORDINATEN_3: Record<string, { lat: number; lng: number }> = {
   // Würzburg/Marktheidenfeld Gebiet (wichtig für TennisMehl!)
   '970': { lat: 49.80, lng: 9.94 },
   '971': { lat: 49.79, lng: 9.93 },
-  '972': { lat: 49.85, lng: 9.60 }, // Marktheidenfeld!
+  // Korrigiert 08/2026: Die Marktheidenfeld-Koordinate (49.85 / 9.60) stand unter '972'.
+  // Marktheidenfeld ist aber 97828, also Präfix '978'. Folge: jede Lieferadresse im
+  // Würzburger Umland (97218 Gerbrunn, 97232 Giebelstadt, 97246 Eibelstadt …) wurde auf
+  // die Verladestelle selbst gemappt und ergab in der Schätzung ~0 km Entfernung — genau
+  // in dem Gebiet, in dem die 50/75-km-Grenzen der Dieselstaffel liegen.
+  '972': { lat: 49.75, lng: 9.95 }, // Würzburger Umland (Gerbrunn/Giebelstadt/Rimpar)
   '973': { lat: 49.78, lng: 9.88 },
   '974': { lat: 49.70, lng: 9.75 },
   '975': { lat: 49.66, lng: 9.52 },
   '976': { lat: 49.62, lng: 9.68 },
   '977': { lat: 49.74, lng: 9.62 },
-  '978': { lat: 49.82, lng: 10.05 },
+  '978': { lat: 49.85, lng: 9.60 }, // Marktheidenfeld/Lohr — Standort der Verladestelle
   '979': { lat: 49.88, lng: 9.78 },
 
   // Nürnberg genauer

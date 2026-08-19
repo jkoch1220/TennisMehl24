@@ -1099,11 +1099,16 @@ const AnfrageCard = ({ anfrage, isSelected, istBeantwortet, istWebformular, antw
             </div>
           )}
 
-          {/* Empfohlener Preis */}
+          {/* Grobe Preisschätzung nach PLZ-Zone — NICHT der kalkulierte Angebotspreis.
+              Der entsteht erst im Bearbeitungsdialog aus Werkspreis + echter Route,
+              und weicht regelmäßig ab. Deshalb hier klar als Schätzung ausgewiesen. */}
           {anfrage.angebotsvorschlag.empfohlenerPreisProTonne && !istBeantwortet && (
-            <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs rounded-full">
+            <div
+              className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400 text-xs rounded-full"
+              title="Grobe Schätzung nach PLZ-Zone. Der verbindliche Preis wird beim Öffnen der Anfrage aus Werkspreis und tatsächlichen Lieferkosten berechnet."
+            >
               <Sparkles className="w-3 h-3" />
-              ca. {anfrage.angebotsvorschlag.empfohlenerPreisProTonne} EUR/t
+              Schätzung ca. {anfrage.angebotsvorschlag.empfohlenerPreisProTonne} EUR/t
             </div>
           )}
         </div>

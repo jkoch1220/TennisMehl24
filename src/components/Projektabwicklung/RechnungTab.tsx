@@ -67,11 +67,18 @@ import {
   istDieselZuschlagPosition,
   istZuschlagsfaehig,
   formatDieselPreis,
+  formatEntfernungsStaffel,
   formatZuschlagProTonne,
   formatGesamtZuschlag,
   DieselZuschlagErgebnis,
   DieselPreisStatus,
 } from '../../utils/dieselZuschlag';
+import {
+  ermittleEntfernungAbWerkKm,
+  getMassgeblichePlzOrt,
+  formatEntfernung,
+  EntfernungsQuelle,
+} from '../../utils/lieferEntfernung';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
@@ -249,6 +256,27 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const [dieselPreisEingabe, setDieselPreisEingabe] = useState('');
   const dieselZuschlagManuellEntfernt = useRef(false);
   const dieselDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // === ENTFERNUNG FÜR DIE DIESELSTAFFEL (ab 2027) ===
+  // Die Entfernung Versandwerk -> Abladestelle bestimmt, welcher Satz je Preisstufe gilt.
+  // Sie wird aus der Lieferadresse ermittelt und kann von Hand korrigiert werden, wenn die
+  // Route abweicht (z.B. mehrere Abladestellen oder gesperrte Zufahrt).
+  //
+  // Der Wert lebt in rechnungsDaten und wird damit mitgespeichert: eine korrigierte Zahl
+  // muss den Reload überstehen, sonst rechnet die Rechnung beim nächsten Öffnen still
+  // wieder mit dem Routing-Ergebnis.
+  const entfernungKm = rechnungsDaten.dieselEntfernungKm ?? null;
+  const entfernungQuelle = rechnungsDaten.dieselEntfernungQuelle ?? null;
+  const [entfernungEditieren, setEntfernungEditieren] = useState(false);
+  const [entfernungEingabe, setEntfernungEingabe] = useState('');
+
+  const setzeEntfernung = useCallback((km: number | null, quelle: EntfernungsQuelle | null) => {
+    setRechnungsDaten(prev => ({
+      ...prev,
+      dieselEntfernungKm: km ?? undefined,
+      dieselEntfernungQuelle: quelle ?? undefined,
+    }));
+  }, []);
 
   // Gespeichertes Dokument und Entwurf laden (wenn Projekt vorhanden)
   useEffect(() => {
@@ -560,6 +588,27 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     });
   }, []);
 
+  // === ENTFERNUNG: aus der Lieferadresse ermitteln ===
+  // Läuft nur, solange der Wert nicht von Hand gesetzt wurde und die Rechnung noch offen ist.
+  const massgeblichePlzOrt = getMassgeblichePlzOrt(rechnungsDaten);
+
+  useEffect(() => {
+    if (gespeichertesDokument || entfernungQuelle === 'manuell') return;
+
+    let abgebrochen = false;
+    const laden = async () => {
+      const ergebnis = await ermittleEntfernungAbWerkKm(massgeblichePlzOrt);
+      if (abgebrochen) return;
+      setzeEntfernung(ergebnis?.km ?? null, ergebnis?.quelle ?? null);
+    };
+
+    const timeout = setTimeout(laden, 400);
+    return () => {
+      abgebrochen = true;
+      clearTimeout(timeout);
+    };
+  }, [massgeblichePlzOrt, gespeichertesDokument, entfernungQuelle, setzeEntfernung]);
+
   // === DIESELPREISZUSCHLAG: Berechnung aktualisieren (NUR Anzeige, ohne Position zu ändern) ===
   // Berechne bei jeder Positionsänderung, aber OHNE die Positionen zu modifizieren (verhindert Infinite Loop)
   const dieselZuschlagBerechnet = useMemo(() => {
@@ -569,9 +618,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     return berechneGesamtZuschlag(
       rechnungsDaten.positionen,
       dieselPreis,
-      rechnungsDaten.leistungsdatum
+      rechnungsDaten.leistungsdatum,
+      entfernungKm ?? undefined
     );
-  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument]);
+  }, [dieselPreis, rechnungsDaten.positionen, rechnungsDaten.leistungsdatum, gespeichertesDokument, entfernungKm]);
 
   // Ergebnis für UI-Anzeige setzen
   useEffect(() => {
@@ -582,18 +632,24 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   // Separater useEffect, der NICHT auf Positionsänderungen reagiert (verhindert Infinite Loop)
   const letzterDieselPreisRef = useRef<number | null>(null);
   const letztesLeistungsdatumRef = useRef<string>('');
+  // Die Entfernung trifft asynchron ein (Routing) und kann von Hand korrigiert werden. Ohne
+  // sie in der Auslöseprüfung bliebe eine bereits eingefügte Position auf der Grundstaffel
+  // stehen, obwohl inzwischen ein höherer Satz gilt.
+  const letzteEntfernungRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Nur ausführen wenn sich Dieselpreis oder Leistungsdatum tatsächlich geändert haben
+    // Nur ausführen wenn sich Dieselpreis, Leistungsdatum oder Entfernung tatsächlich geändert haben
     if (
       dieselPreis === letzterDieselPreisRef.current &&
-      rechnungsDaten.leistungsdatum === letztesLeistungsdatumRef.current
+      rechnungsDaten.leistungsdatum === letztesLeistungsdatumRef.current &&
+      entfernungKm === letzteEntfernungRef.current
     ) {
       return;
     }
 
     letzterDieselPreisRef.current = dieselPreis;
     letztesLeistungsdatumRef.current = rechnungsDaten.leistungsdatum || '';
+    letzteEntfernungRef.current = entfernungKm;
 
     if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
       return;
@@ -603,7 +659,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     if (!dieselZuschlagManuellEntfernt.current && dieselZuschlagBerechnet) {
       aktualisiereZuschlagPosition(dieselZuschlagBerechnet);
     }
-  }, [dieselPreis, rechnungsDaten.leistungsdatum, gespeichertesDokument, dieselZuschlagBerechnet, aktualisiereZuschlagPosition]);
+  }, [dieselPreis, rechnungsDaten.leistungsdatum, entfernungKm, gespeichertesDokument, dieselZuschlagBerechnet, aktualisiereZuschlagPosition]);
 
   // === DIESELPREISZUSCHLAG: Manuellen Preis setzen ===
   const setzeManuellenDieselPreis = () => {
@@ -2292,7 +2348,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                       const ergebnis = berechneGesamtZuschlag(
                         rechnungsDaten.positionen,
                         preisErgebnis.preis,
-                        rechnungsDaten.leistungsdatum
+                        rechnungsDaten.leistungsdatum,
+                        entfernungKm ?? undefined
                       );
 
                       if (ergebnis.hatZuschlag && ergebnis.gesamtTonnen > 0) {
@@ -2685,6 +2742,96 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                         {' auf '}<span className="font-medium">{dieselZuschlagErgebnis.gesamtTonnen.toFixed(2)} t</span>
                         {' = '}<span className="font-bold">{formatGesamtZuschlag(dieselZuschlagErgebnis.gesamtZuschlag)} netto</span>
                       </p>
+
+                      {/* Entfernungsstaffel (ab Lieferjahr 2027) */}
+                      {dieselZuschlagErgebnis.config.entfernungsStaffel && (
+                        <div className="mt-2 pt-2 border-t border-blue-200 dark:border-blue-800">
+                          {entfernungEditieren ? (
+                            <div className="flex items-center gap-2">
+                              <label className="text-sm text-blue-700 dark:text-blue-400">
+                                Entfernung (einfache Strecke):
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                autoFocus
+                                value={entfernungEingabe}
+                                onChange={(e) => setEntfernungEingabe(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const wert = parseFloat(entfernungEingabe.replace(',', '.'));
+                                    if (!isNaN(wert) && wert >= 0) {
+                                      setzeEntfernung(wert, 'manuell');
+                                      setEntfernungEditieren(false);
+                                    }
+                                  }
+                                  if (e.key === 'Escape') setEntfernungEditieren(false);
+                                }}
+                                className="w-24 px-2 py-1 text-sm border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-dark-text"
+                              />
+                              <span className="text-sm text-blue-700 dark:text-blue-400">km</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const wert = parseFloat(entfernungEingabe.replace(',', '.'));
+                                  if (!isNaN(wert) && wert >= 0) {
+                                    setzeEntfernung(wert, 'manuell');
+                                    setEntfernungEditieren(false);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                              >
+                                Übernehmen
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEntfernungEditieren(false)}
+                                className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Abbrechen
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-blue-700 dark:text-blue-400">
+                              {dieselZuschlagErgebnis.entfernungUnbekannt ? (
+                                <span className="font-medium text-amber-700 dark:text-amber-400">
+                                  Entfernung unbekannt — Grundstaffel {dieselZuschlagErgebnis.staffelBezeichnung} angesetzt
+                                </span>
+                              ) : (
+                                <>
+                                  Entfernung:{' '}
+                                  <span className="font-medium">
+                                    {formatEntfernung(dieselZuschlagErgebnis.entfernungKm!)}
+                                  </span>
+                                  {entfernungQuelle === 'schaetzung' && ' (geschätzt)'}
+                                  {entfernungQuelle === 'manuell' && ' (manuell)'}
+                                  {' → Staffel '}
+                                  <span className="font-medium">{dieselZuschlagErgebnis.staffelBezeichnung}</span>
+                                  {' = '}
+                                  <span className="font-medium">
+                                    {dieselZuschlagErgebnis.zuschlagProStufe.toFixed(2).replace('.', ',')} €/t je Preisstufe
+                                  </span>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEntfernungEingabe(entfernungKm !== null ? String(Math.round(entfernungKm)) : '');
+                                  setEntfernungEditieren(true);
+                                }}
+                                className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                korrigieren
+                              </button>
+                            </p>
+                          )}
+                          <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">
+                            Staffel {dieselZuschlagErgebnis.config.gueltigBis.slice(0, 4)}:{' '}
+                            {formatEntfernungsStaffel(dieselZuschlagErgebnis.config.entfernungsStaffel)}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

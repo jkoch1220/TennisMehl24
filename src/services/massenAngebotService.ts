@@ -23,6 +23,7 @@ import { ID, Query } from 'appwrite';
 import { SaisonKunde, SaisonDaten } from '../types/saisonplanung';
 import { Position, AngebotsDaten, GespeichertesDokument } from '../types/projektabwicklung';
 import { getKlauselVorlagen, initialisiereDokumentKlauseln } from '../constants/vertragsklauseln';
+import { getDieselKlauselText } from '../utils/dieselZuschlag';
 import {
   MassenAngebotKandidat,
   KandidatenZusammenfassung,
@@ -1280,6 +1281,11 @@ function baueAngebotsDaten(
     firmenEmail: stammdaten.firmenEmail,
     vertragsklauseln: initialisiereDokumentKlauseln(getKlauselVorlagen(stammdaten)),
     agbAnhaengen: true,
+    // Dieselpreiszuschlag-Hinweis nach der Staffel der Angebotsgültigkeit. Gerade die
+    // Saisonkunden aus dem Massenangebot müssen die Umstellung auf die Entfernungsstaffel
+    // schwarz auf weiß auf ihrem Angebot finden.
+    dieselpreiszuschlagAktiviert: true,
+    dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
   };
 }
 

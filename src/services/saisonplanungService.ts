@@ -633,26 +633,42 @@ export const saisonplanungService = {
   },
 
   /**
-   * Führt einen Dispo-Kontakt in den Ansprechpartner-Stamm des Kunden über.
+   * Führt einen Kontakt in den Ansprechpartner-Stamm des Kunden über.
    *
-   * Dispo-Kontakte wurden bis 07/2026 nur als loses `{name, telefon}`-Objekt am Kunden,
+   * Kontakte wurden bis 07/2026 nur als loses `{name, telefon}`-Objekt am Kunden,
    * am Projekt und an der AB geführt — ohne Verbindung zu den echten Ansprechpartnern.
    * Wer einen Platzwart als Dispo-Kontakt eintrug, fand ihn in der Kundenakte nicht wieder.
    *
    * Verhalten:
-   * - Namensgleicher Ansprechpartner vorhanden → wird ergänzt (Telefon/E-Mail) und markiert
+   * - Namensgleicher Ansprechpartner vorhanden → wird ergänzt (Telefon/E-Mail)
    * - sonst neu angelegt
-   * - alle übrigen Ansprechpartner des Kunden verlieren die Markierung (genau einer gilt)
+   *
+   * `dispo` steuert die Dispo-Markierung, die exklusiv ist (genau einer pro Kunde gilt):
+   * - `'setzen'` (Default): markiert diesen Kontakt, alle übrigen verlieren die Markierung
+   * - `'nur_wenn_keiner'`: markiert nur, solange der Kunde noch keinen markierten hat —
+   *   für automatisch übernommene Kontakte, die einem gepflegten Platzwart nicht die
+   *   Dispo-Rolle wegnehmen dürfen
+   * - `'nicht_aendern'`: rührt die Markierung nicht an
+   *
+   * `rolle` greift nur bei Neuanlage; ein bestehender Ansprechpartner behält seine.
    *
    * Fehler werden geworfen; Aufrufer im UI sollten sie abfangen, damit ein
    * fehlgeschlagener Abgleich nicht den eigentlichen Speichervorgang kippt.
    */
   async setzeDispoAnsprechpartner(
     kundeId: string,
-    kontakt: { name?: string; telefon?: string; email?: string }
+    kontakt: { name?: string; telefon?: string; email?: string },
+    optionen?: {
+      dispo?: 'setzen' | 'nur_wenn_keiner' | 'nicht_aendern';
+      rolle?: string;
+      telefonTyp?: string;
+    }
   ): Promise<Ansprechpartner | null> {
     const name = (kontakt.name || '').trim();
     if (!kundeId || !name) return null;
+
+    const dispoModus = optionen?.dispo ?? 'setzen';
+    const telefonTyp = optionen?.telefonTyp ?? 'Dispo';
 
     const vorhandene = await this.loadAnsprechpartnerFuerKunde(kundeId);
     const normalisiert = (wert: string) => wert.trim().toLowerCase();
@@ -661,6 +677,14 @@ export const saisonplanungService = {
     const telefon = (kontakt.telefon || '').trim();
     const email = (kontakt.email || '').trim();
 
+    // Bei 'nur_wenn_keiner' zählt ein bereits markierter ANDERER Kontakt als Sperre.
+    const andererDispoVorhanden = vorhandene.some(
+      (ap) => ap.istDispoAnsprechpartner && ap.aktiv && ap.id !== treffer?.id
+    );
+    const alsDispoMarkieren =
+      dispoModus === 'setzen' ||
+      (dispoModus === 'nur_wenn_keiner' && !andererDispoVorhanden);
+
     let ergebnis: Ansprechpartner;
 
     if (treffer) {
@@ -668,36 +692,44 @@ export const saisonplanungService = {
       // Nummern (Mobil/Festnetz) dürfen dabei nicht verlorengehen.
       const nummern = [...(treffer.telefonnummern || [])];
       if (telefon && !nummern.some((t) => normalisiert(t.nummer) === normalisiert(telefon))) {
-        nummern.push({ nummer: telefon, typ: 'Dispo' });
+        nummern.push({ nummer: telefon, typ: telefonTyp });
       }
 
       ergebnis = await this.updateAnsprechpartner(treffer.id, {
         telefonnummern: nummern,
-        email: email || treffer.email,
-        istDispoAnsprechpartner: true,
+        // Eine gepflegte Adresse NIE ersetzen — nur eine fehlende ergänzen. Automatisch
+        // übernommene Kontakte (z.B. aus einer Anfrage) tragen oft die allgemeine
+        // Vereinsadresse; die würde sonst die persönliche des Ansprechpartners
+        // überschreiben. Bei den Telefonnummern gilt dasselbe (sie werden nur angehängt).
+        email: treffer.email || email || undefined,
+        // Eine bestehende Markierung darf nicht verlorengehen, nur weil dieser
+        // Aufruf sie nicht selbst setzen will.
+        istDispoAnsprechpartner: alsDispoMarkieren || treffer.istDispoAnsprechpartner,
         aktiv: true,
       });
     } else {
       ergebnis = await this.createAnsprechpartner({
         kundeId,
         name,
-        rolle: 'Disposition',
+        rolle: optionen?.rolle ?? 'Disposition',
         email: email || undefined,
-        telefonnummern: telefon ? [{ nummer: telefon, typ: 'Dispo' }] : [],
+        telefonnummern: telefon ? [{ nummer: telefon, typ: telefonTyp }] : [],
         aktiv: true,
-        istDispoAnsprechpartner: true,
+        istDispoAnsprechpartner: alsDispoMarkieren,
       });
     }
 
-    // Markierung ist exklusiv: alle anderen zurücksetzen
-    const zuBereinigen = vorhandene.filter(
-      (ap) => ap.id !== ergebnis.id && ap.istDispoAnsprechpartner
-    );
-    for (const ap of zuBereinigen) {
-      try {
-        await this.updateAnsprechpartner(ap.id, { istDispoAnsprechpartner: false });
-      } catch (error) {
-        console.warn(`Dispo-Markierung bei ${ap.name} konnte nicht entfernt werden:`, error);
+    // Markierung ist exklusiv — aber nur bereinigen, wenn dieser Kontakt sie auch bekommt.
+    if (alsDispoMarkieren) {
+      const zuBereinigen = vorhandene.filter(
+        (ap) => ap.id !== ergebnis.id && ap.istDispoAnsprechpartner
+      );
+      for (const ap of zuBereinigen) {
+        try {
+          await this.updateAnsprechpartner(ap.id, { istDispoAnsprechpartner: false });
+        } catch (error) {
+          console.warn(`Dispo-Markierung bei ${ap.name} konnte nicht entfernt werden:`, error);
+        }
       }
     }
 
