@@ -16,6 +16,7 @@ import { speichereAngebot } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { anfragenService } from './anfragenService';
 import { AngebotsDaten, VertragsKlausel } from '../types/projektabwicklung';
+import { getDieselKlauselText } from '../utils/dieselZuschlag';
 import { STANDARD_LIEFERBEDINGUNGEN, STANDARD_ZAHLUNGSZIEL } from '../constants/vertragsklauseln';
 import { NeuerSaisonKunde } from '../types/saisonplanung';
 import { generiereStandardEmail } from '../utils/emailHelpers';
@@ -135,6 +136,200 @@ async function markiereAnfrageAlsVerarbeitet(
   });
 }
 
+/** Kontaktdaten, wie sie aus dem Anfragen-Dialog kommen */
+export interface AnfrageKundenDaten {
+  name: string;
+  email: string;
+  telefon?: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  land?: string;
+  ansprechpartner?: string;
+}
+
+/**
+ * Legt die Person aus der Anfrage als Ansprechpartner im Kundenstamm an —
+ * mit Name, E-Mail und Telefonnummer.
+ *
+ * Bis 08/2026 landeten diese Daten nur im losen `dispoAnsprechpartner`-Objekt am
+ * Kunden (Name + Telefon, ohne E-Mail). Die Kundenakte und die Call-Liste lesen aber
+ * `ansprechpartner[].telefonnummern` aus der Ansprechpartner-Collection — dort stand
+ * nichts. Wer nach einem Angebot nachtelefonieren wollte, musste die Nummer aus der
+ * Original-E-Mail suchen.
+ *
+ * Angelegt wird, sobald ein Name vorliegt und mindestens ein Kontaktweg (E-Mail oder
+ * Telefon) bekannt ist — ein Eintrag ganz ohne Kontaktdaten hätte keinen Nutzen.
+ * Ohne eigenen Ansprechpartner-Namen greift der Kundenname, damit die E-Mail-Adresse
+ * des Absenders trotzdem in der Akte auffindbar ist.
+ *
+ * `dispo` unterscheidet die beiden Fälle:
+ * - Neukunde → `'setzen'`: Diese Person ist der einzige bekannte Kontakt und damit
+ *   auch der für die Lieferabstimmung.
+ * - Bestandskunde → `'nur_wenn_keiner'`: Ein gepflegter Dispo-Ansprechpartner
+ *   (z.B. der Platzwart) darf seine Markierung nicht an den Absender der Anfrage
+ *   verlieren — sonst ruft die Tourenplanung später den Falschen an.
+ *
+ * Schlägt das fehl, wird nur gewarnt: Ein nicht übernommener Kontakt darf nicht die
+ * gesamte Anfragen-Verarbeitung (Angebot, E-Mail-Versand) kippen.
+ */
+export async function uebernehmeKontaktInKundenstamm(
+  kundeId: string,
+  kontakt: { name: string; email: string; telefon: string },
+  dispo: 'setzen' | 'nur_wenn_keiner' | 'nicht_aendern'
+): Promise<void> {
+  if (!kundeId) return;
+
+  const name = kontakt.name.trim();
+  const email = kontakt.email.trim();
+  const telefon = kontakt.telefon.trim();
+
+  if (!name || (!telefon && !email)) return;
+
+  try {
+    await saisonplanungService.setzeDispoAnsprechpartner(
+      kundeId,
+      { name, telefon, email },
+      {
+        dispo,
+        // Freitext-Rolle: macht in der Kundenakte sichtbar, woher der Kontakt stammt
+        rolle: 'Ansprechpartner (aus Anfrage)',
+        telefonTyp: 'Telefon',
+      }
+    );
+  } catch (error) {
+    console.warn('Kontakt konnte nicht in den Ansprechpartner-Stamm übernommen werden:', error);
+  }
+}
+
+/**
+ * Ermittelt die Kontaktdaten der Person, die die Anfrage geschickt hat.
+ *
+ * Wichtig, weil `kundenDaten` NICHT durchgehend die Person beschreibt: Sobald im
+ * Dialog ein bestehender Kunde zugeordnet wird, überschreibt dieser `email` und
+ * `telefon` mit den Stammdaten des KUNDEN (Vereinsadresse, Nummer des Platzwarts) —
+ * `ansprechpartner` bleibt dabei der Absender. Wer das ungeprüft übernimmt, legt
+ * einen Ansprechpartner an, der den Namen der einen und die Kontaktdaten einer
+ * anderen Person trägt.
+ *
+ * Deshalb:
+ * - Neuer Kunde → `kundenDaten` ist unverfälscht (und ggf. vom Bearbeiter korrigiert)
+ * - Bestehender Kunde → die Originaldaten aus der Anfrage, sonst gar nichts.
+ *   Lieber kein Kontakt als ein falsch zusammengesetzter.
+ */
+function ermittleAbsenderKontakt(
+  kundenDaten: AnfrageKundenDaten,
+  anfrage: VerarbeiteteAnfrage | undefined,
+  kundeIstNeu: boolean
+): { name: string; email: string; telefon: string } | null {
+  if (kundeIstNeu) {
+    return {
+      name: kundenDaten.ansprechpartner?.trim() || kundenDaten.name?.trim() || '',
+      email: kundenDaten.email || '',
+      telefon: kundenDaten.telefon || '',
+    };
+  }
+
+  const a = anfrage?.analysiert;
+  if (!a) return null;
+
+  const name = (a.ansprechpartner || '').trim();
+  if (!name) return null; // ohne Personennamen liesse sich nur der Vereinsname eintragen
+
+  return { name, email: a.email || '', telefon: a.telefon || '' };
+}
+
+/**
+ * Legt den Kunden aus einer Anfrage an oder lädt den ausgewählten bestehenden.
+ *
+ * Fasst vier zuvor Wort für Wort identische Blöcke zusammen (je zwei in
+ * `verarbeiteAnfrageVollstaendig` und `erstelleNurKundeUndProjekt`) — die
+ * Kontakt-Übernahme hätte sonst an vier Stellen gepflegt werden müssen.
+ */
+export async function legeKundeAnOderLade(
+  kundeNeu: boolean,
+  existierenderKundeId: string | undefined,
+  kundenDaten: AnfrageKundenDaten,
+  anfrage?: VerarbeiteteAnfrage
+): Promise<{ kundeId: string; kundennummer?: string; details: string }> {
+  const telefon = (kundenDaten.telefon || '').trim();
+
+  // Bestehender Kunde: Nummer nur ergänzen, nie überschreiben — im Stamm steht oft
+  // die gepflegte Vereinsnummer, in der Anfrage die des aktuellen Absenders.
+  if (!kundeNeu && existierenderKundeId) {
+    const existierenderKunde = await saisonplanungService.loadKunde(existierenderKundeId);
+    if (!existierenderKunde) {
+      throw new Error('Existierender Kunde konnte nicht geladen werden');
+    }
+
+    if (telefon && !existierenderKunde.telefon?.trim()) {
+      try {
+        await saisonplanungService.updateKunde(existierenderKundeId, { telefon });
+      } catch (error) {
+        console.warn('Telefonnummer konnte nicht am Kunden ergänzt werden:', error);
+      }
+    }
+
+    const kontakt = ermittleAbsenderKontakt(kundenDaten, anfrage, false);
+    if (kontakt) {
+      // Die Dispo-Markierung entscheidet, wen Lieferschein und Tourenplanung anrufen.
+      // Sie darf der Absender einer Anfrage nur bekommen, wenn der Kunde noch gar
+      // keinen Dispo-Kontakt hat — auch nicht im losen Feld `dispoAnsprechpartner`,
+      // das bei migrierten Kunden und Altbestand die einzige Quelle ist und von
+      // `nur_wenn_keiner` (das nur die Ansprechpartner-Collection kennt) nicht
+      // gesehen würde.
+      const hatGepflegtenDispoKontakt = !!existierenderKunde.dispoAnsprechpartner?.name?.trim();
+      await uebernehmeKontaktInKundenstamm(
+        existierenderKundeId,
+        kontakt,
+        hatGepflegtenDispoKontakt ? 'nicht_aendern' : 'nur_wenn_keiner'
+      );
+    }
+
+    return {
+      kundeId: existierenderKundeId,
+      kundennummer: existierenderKunde.kundennummer,
+      details: `Bestehender Kunde verwendet (${existierenderKunde.kundennummer || existierenderKundeId})`,
+    };
+  }
+
+  const adresse = {
+    strasse: kundenDaten.strasse,
+    plz: kundenDaten.plz,
+    ort: kundenDaten.ort,
+    bundesland: '',
+  };
+
+  const neuerKundeInput: NeuerSaisonKunde = {
+    typ: 'verein',
+    name: kundenDaten.name,
+    email: kundenDaten.email,
+    // Hauptnummer am Kunden — wird u.a. in der Kundenliste und in Projekt-E-Mails gelesen
+    telefon: telefon || undefined,
+    aktiv: true,
+    rechnungsadresse: { ...adresse },
+    lieferadresse: { ...adresse },
+    // DISPO-Ansprechpartner (immer mit Name, optional mit Telefon)
+    dispoAnsprechpartner: {
+      name: kundenDaten.ansprechpartner || kundenDaten.name,
+      telefon,
+    },
+  };
+
+  const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
+
+  const kontakt = ermittleAbsenderKontakt(kundenDaten, anfrage, true);
+  if (kontakt) {
+    await uebernehmeKontaktInKundenstamm(neuerKunde.id, kontakt, 'setzen');
+  }
+
+  return {
+    kundeId: neuerKunde.id,
+    kundennummer: neuerKunde.kundennummer,
+    details: `Kunde "${neuerKunde.name}" angelegt (${neuerKunde.kundennummer})`,
+  };
+}
+
 /**
  * Verarbeitet eine Anfrage vollständig in einem Durchgang:
  * 1. Kunde anlegen (wenn neu)
@@ -164,89 +359,22 @@ export async function verarbeiteAnfrageVollstaendig(
     // ============================================
     // SCHRITT 1: Kunde anlegen oder laden
     // ============================================
-    let kundeId = input.existierenderKundeId;
+    let kundeId: string;
     let kundennummer: string | undefined;
 
-    if (input.kundeNeu && input.kundenDaten) {
-      try {
-        const neuerKundeInput: NeuerSaisonKunde = {
-          typ: 'verein',
-          name: input.kundenDaten.name,
-          email: input.kundenDaten.email,
-          aktiv: true,
-          rechnungsadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          lieferadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          // DISPO-Ansprechpartner (immer mit Name, optional mit Telefon)
-          dispoAnsprechpartner: {
-            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon || '',
-          },
-        };
-
-        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
-        kundeId = neuerKunde.id;
-        kundennummer = neuerKunde.kundennummer;
-        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-      }
-    } else if (kundeId) {
-      try {
-        const existierenderKunde = await saisonplanungService.loadKunde(kundeId);
-        if (existierenderKunde) {
-          kundennummer = existierenderKunde.kundennummer;
-          reportFortschritt('kunde_anlegen', true, `Bestehender Kunde verwendet (${kundennummer || kundeId})`);
-        }
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, 'Kunde konnte nicht geladen werden');
-        throw new Error('Existierender Kunde konnte nicht geladen werden');
-      }
-    } else {
-      // Kein Kunde - erstelle mit den Anfrage-Daten
-      try {
-        const neuerKundeInput: NeuerSaisonKunde = {
-          typ: 'verein',
-          name: input.kundenDaten.name,
-          email: input.kundenDaten.email,
-          aktiv: true,
-          rechnungsadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          lieferadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          // DISPO-Ansprechpartner (immer mit Name, optional mit Telefon)
-          dispoAnsprechpartner: {
-            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon || '',
-          },
-        };
-
-        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
-        kundeId = neuerKunde.id;
-        kundennummer = neuerKunde.kundennummer;
-        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-      }
+    try {
+      const kundenErgebnis = await legeKundeAnOderLade(
+        input.kundeNeu,
+        input.existierenderKundeId,
+        input.kundenDaten,
+        input.anfrage
+      );
+      kundeId = kundenErgebnis.kundeId;
+      kundennummer = kundenErgebnis.kundennummer;
+      reportFortschritt('kunde_anlegen', true, kundenErgebnis.details);
+    } catch (error) {
+      reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+      throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
     }
 
     // ============================================
@@ -265,6 +393,10 @@ export async function verarbeiteAnfrageVollstaendig(
         kundenstrasse: input.kundenDaten.strasse,
         kundenPlzOrt,
         kundenEmail: input.kundenDaten.email,
+        // Telefonnummer aus der Anfrage direkt am Projekt — die Projektansicht und die
+        // Lieferschein-/Speditions-Mail lesen `kundenTelefon`. Ohne sie musste man zum
+        // Nachtelefonieren erst in die Kundenakte oder die Original-Mail wechseln.
+        kundenTelefon: input.kundenDaten.telefon?.trim() || undefined,
         saisonjahr: new Date().getFullYear(),
         herkunft: 'anfrage',
         status: 'angebot',
@@ -339,6 +471,11 @@ export async function verarbeiteAnfrageVollstaendig(
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
+        // Dieselpreiszuschlag: Der Betrag wird als TM-DZ-Position einkalkuliert, also muss
+        // der Hinweis auch auf dem Dokument stehen — sonst berechnen wir etwas, das wir
+        // nicht erklären. Text richtet sich nach der Staffel der Angebotsgültigkeit.
+        dieselpreiszuschlagAktiviert: true,
+        dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
         // Stammdaten für Header/Footer
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
@@ -533,87 +670,22 @@ export async function erstelleNurKundeUndProjekt(
     // ============================================
     // SCHRITT 1: Kunde anlegen oder laden
     // ============================================
-    let kundeId = input.existierenderKundeId;
+    let kundeId: string;
     let kundennummer: string | undefined;
 
-    if (input.kundeNeu && input.kundenDaten) {
-      try {
-        const neuerKundeInput: NeuerSaisonKunde = {
-          typ: 'verein',
-          name: input.kundenDaten.name,
-          email: input.kundenDaten.email,
-          aktiv: true,
-          rechnungsadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          lieferadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          dispoAnsprechpartner: {
-            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon || '',
-          },
-        };
-
-        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
-        kundeId = neuerKunde.id;
-        kundennummer = neuerKunde.kundennummer;
-        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-      }
-    } else if (kundeId) {
-      try {
-        const existierenderKunde = await saisonplanungService.loadKunde(kundeId);
-        if (existierenderKunde) {
-          kundennummer = existierenderKunde.kundennummer;
-          reportFortschritt('kunde_anlegen', true, `Bestehender Kunde verwendet (${kundennummer || kundeId})`);
-        }
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, 'Kunde konnte nicht geladen werden');
-        throw new Error('Existierender Kunde konnte nicht geladen werden');
-      }
-    } else {
-      // Kein Kunde ausgewählt - erstelle neuen
-      try {
-        const neuerKundeInput: NeuerSaisonKunde = {
-          typ: 'verein',
-          name: input.kundenDaten.name,
-          email: input.kundenDaten.email,
-          aktiv: true,
-          rechnungsadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          lieferadresse: {
-            strasse: input.kundenDaten.strasse,
-            plz: input.kundenDaten.plz,
-            ort: input.kundenDaten.ort,
-            bundesland: ''
-          },
-          dispoAnsprechpartner: {
-            name: input.kundenDaten.ansprechpartner || input.kundenDaten.name,
-            telefon: input.kundenDaten.telefon || '',
-          },
-        };
-
-        const neuerKunde = await saisonplanungService.createKunde(neuerKundeInput);
-        kundeId = neuerKunde.id;
-        kundennummer = neuerKunde.kundennummer;
-        reportFortschritt('kunde_anlegen', true, `Kunde "${neuerKunde.name}" angelegt (${kundennummer})`);
-      } catch (error) {
-        reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-        throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
-      }
+    try {
+      const kundenErgebnis = await legeKundeAnOderLade(
+        input.kundeNeu,
+        input.existierenderKundeId,
+        input.kundenDaten,
+        input.anfrage
+      );
+      kundeId = kundenErgebnis.kundeId;
+      kundennummer = kundenErgebnis.kundennummer;
+      reportFortschritt('kunde_anlegen', true, kundenErgebnis.details);
+    } catch (error) {
+      reportFortschritt('kunde_anlegen', false, `Fehler: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+      throw new Error(`Kunde konnte nicht angelegt werden: ${error instanceof Error ? error.message : 'Unbekannt'}`);
     }
 
     // ============================================
@@ -638,6 +710,10 @@ export async function erstelleNurKundeUndProjekt(
         kundenstrasse: input.kundenDaten.strasse,
         kundenPlzOrt,
         kundenEmail: input.kundenDaten.email,
+        // Telefonnummer aus der Anfrage direkt am Projekt — die Projektansicht und die
+        // Lieferschein-/Speditions-Mail lesen `kundenTelefon`. Ohne sie musste man zum
+        // Nachtelefonieren erst in die Kundenakte oder die Original-Mail wechseln.
+        kundenTelefon: input.kundenDaten.telefon?.trim() || undefined,
         saisonjahr: new Date().getFullYear(),
         herkunft: 'anfrage',
         status: 'angebot', // Status "angebot" (nicht versendet)
@@ -678,6 +754,11 @@ export async function erstelleNurKundeUndProjekt(
         // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
         vertragsklauseln: input.vertragsklauseln,
         agbAnhaengen: input.agbAnhaengen ?? true,
+        // Dieselpreiszuschlag: Der Betrag wird als TM-DZ-Position einkalkuliert, also muss
+        // der Hinweis auch auf dem Dokument stehen — sonst berechnen wir etwas, das wir
+        // nicht erklären. Text richtet sich nach der Staffel der Angebotsgültigkeit.
+        dieselpreiszuschlagAktiviert: true,
+        dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
         firmenname: stammdaten.firmenname,
         firmenstrasse: stammdaten.firmenstrasse,
         firmenPlzOrt: `${stammdaten.firmenPlz} ${stammdaten.firmenOrt}`,
@@ -1324,6 +1405,9 @@ export async function generiereAngebotsVorschauPDF(
     // Klauseln + AGB-Anhang aus dem Anfrage-Dialog
     vertragsklauseln: input.vertragsklauseln,
     agbAnhaengen: input.agbAnhaengen ?? true,
+    // Dieselpreiszuschlag: siehe oben — berechnen und erklären gehören zusammen
+    dieselpreiszuschlagAktiviert: true,
+    dieselpreiszuschlagText: getDieselKlauselText(gueltigBis),
     // Stammdaten für Header/Footer
     firmenname: stammdaten.firmenname,
     firmenstrasse: stammdaten.firmenstrasse,
