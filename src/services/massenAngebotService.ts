@@ -47,7 +47,13 @@ import {
   loescheDokumenteFuerProjekt,
 } from './projektabwicklungDokumentService';
 import { generiereNaechsteDokumentnummer, NummernPruefungFehlgeschlagen } from './nummerierungService';
-import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
+import {
+  sendeEmailMitPdf,
+  pdfZuBase64,
+  wrapInEmailTemplate,
+  ladeEmailProtokollFuerDokument,
+  istTestversand,
+} from './emailSendService';
 import { istMockModusAktiv } from '../config/mockModus';
 import { generiereAngebotPDF } from './dokumentService';
 import { getArtikelPreis, getStammdatenOderDefault, getPreisKonfiguration } from './stammdatenService';
@@ -1763,7 +1769,13 @@ async function versendeAngebot(
   projektId: string,
   realEmail: string | undefined,
   testModus: boolean
-): Promise<{ success: boolean; testModeActive?: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  testModeActive?: boolean;
+  error?: string;
+  /** Gesetzt, wenn die Mail raus ist, der Statuswechsel aber scheiterte. */
+  statusWarnung?: string;
+}> {
   const empfaenger = testModus ? TEST_EMAIL : realEmail;
   if (!empfaenger) {
     return { success: false, error: 'Keine Empfänger-E-Mail' };
@@ -1785,6 +1797,22 @@ async function versendeAngebot(
       // eine Rücknahme des Laufs in einem anderen Tab. Dann gibt es nichts zu
       // versenden, und das ist kein Systemfehler, sondern ein Zustand.
       return { success: false, error: 'Projekt existiert nicht mehr' };
+    }
+
+    // Zweite, unabhängige Sicherung: Der Projektstatus ist nicht der einzige
+    // Beleg dafür, dass eine Mail raus ist — und er ist der unzuverlässigere.
+    // Scheitert der Statuswechsel nach einem erfolgreichen Versand, bleibt das
+    // Projekt auf „angebot" stehen, obwohl der Verein sein Angebot längst hat.
+    // Das E-Mail-Protokoll weiß es besser: Dort steht der Versand, bevor
+    // irgendein Status geschrieben wird.
+    const protokoll = await ladeEmailProtokollFuerDokument(projektId, 'angebot');
+    // null heißt „konnte nicht geprüft werden" — dann lieber senden als einen
+    // Verein wegen einer Protokollstörung ohne Angebot zu lassen.
+    const bereitsRaus = (protokoll ?? []).some(
+      (eintrag) => eintrag.status === 'gesendet' && !istTestversand(eintrag)
+    );
+    if (bereitsRaus) {
+      return { success: false, error: 'Bereits versendet (laut E-Mail-Protokoll)' };
     }
   }
 
@@ -1841,13 +1869,33 @@ async function versendeAngebot(
     skipProtokoll: testModus,
   });
 
+  // Ab hier ist die Mail beim Verein. Was jetzt noch schiefgeht, darf den Versand
+  // NICHT als gescheitert darstellen: Ein Kunde in der Fehlerliste steht
+  // anschließend wieder vorausgewählt in der Versandliste, und der naheliegende
+  // Griff — „die Fehler nochmal senden" — schickt ihm dasselbe Angebot ein
+  // zweites Mal. Ein Appwrite-Aussetzer von Sekunden während eines
+  // zweieinhalbminütigen Laufs träfe so Dutzende Vereine.
+  let statusWarnung: string | undefined;
   if (result.success && !testModus) {
-    await projektService.updateProjektStatus(projektId, 'angebot_versendet');
+    try {
+      await projektService.updateProjektStatus(projektId, 'angebot_versendet');
+    } catch (error) {
+      console.error(
+        'Angebot ist versendet, der Status konnte aber nicht gesetzt werden:',
+        projektId,
+        error
+      );
+      statusWarnung =
+        'Angebot wurde versendet, der Projektstatus konnte nicht gesetzt werden. ' +
+        'Status von Hand auf „Angebot versendet" ziehen — NICHT erneut senden.';
+    }
   }
+
   return {
     success: result.success,
     testModeActive: result.testModeActive,
     error: result.success ? undefined : 'Versand fehlgeschlagen',
+    statusWarnung,
   };
 }
 
@@ -1871,23 +1919,36 @@ async function versendeBatch(
 ): Promise<{
   gesendet: number;
   fehler: { kundenname: string; fehler: string }[];
+  /**
+   * Versendet, aber der Statuswechsel scheiterte. Bewusst getrennt von `fehler`:
+   * Diese Vereine haben ihr Angebot bekommen und dürfen auf keinen Fall in einem
+   * Wiederholungslauf landen.
+   */
+  nachzutragen: { kundenname: string; hinweis: string }[];
   abgebrochen?: { offen: number };
 }> {
   let gesendet = 0;
   const fehler: { kundenname: string; fehler: string }[] = [];
+  const nachzutragen: { kundenname: string; hinweis: string }[] = [];
   const pause = optionen.pauseMs ?? (testModus ? 0 : VERSAND_PAUSE_MS);
   let index = 0;
   for (const kandidat of kandidaten) {
     // Vor dem Senden prüfen, nicht danach: Ein Abbruch soll die nächste Mail
     // verhindern, nicht erst nach ihr greifen.
     if (optionen.abbruchSignal?.()) {
-      return { gesendet, fehler, abgebrochen: { offen: kandidaten.length - index } };
+      return { gesendet, fehler, nachzutragen, abgebrochen: { offen: kandidaten.length - index } };
     }
     index += 1;
     try {
       const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus);
-      if (res.success) gesendet += 1;
-      else fehler.push({ kundenname: kandidat.kundenname, fehler: res.error || 'Fehler' });
+      if (res.success) {
+        gesendet += 1;
+        if (res.statusWarnung) {
+          nachzutragen.push({ kundenname: kandidat.kundenname, hinweis: res.statusWarnung });
+        }
+      } else {
+        fehler.push({ kundenname: kandidat.kundenname, fehler: res.error || 'Fehler' });
+      }
     } catch (error) {
       fehler.push({
         kundenname: kandidat.kundenname,
@@ -1898,7 +1959,7 @@ async function versendeBatch(
     }
     if (pause > 0 && index < kandidaten.length) await warte(pause);
   }
-  return { gesendet, fehler };
+  return { gesendet, fehler, nachzutragen };
 }
 
 /** NUR für Unit-Tests: reine Helfer der Referenz-/Paletten-Logik. */

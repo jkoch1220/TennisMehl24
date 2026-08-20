@@ -207,6 +207,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [versandErgebnis, setVersandErgebnis] = useState<{
     gesendet: number;
     fehler: { kundenname: string; fehler: string }[];
+    /** Versendet, aber der Statuswechsel scheiterte — nicht erneut senden. */
+    nachzutragen?: { kundenname: string; hinweis: string }[];
     /** Gesetzt, wenn der Versand über den Anhalten-Knopf gestoppt wurde. */
     abgebrochen?: { offen: number };
   } | null>(null);
@@ -449,7 +451,16 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setVersandErgebnis(res);
       if (!testModus && versandBatchId) {
         const vk = await massenAngebotService.ladeVersandKandidaten(versandBatchId);
-        setVersandKandidaten(vk);
+        // Bewusst abgewählte Empfänger bleiben abgewählt. Die frisch geladene
+        // Liste hakt sonst alles wieder an — auch die Zweifelsfälle, die vor dem
+        // Lauf herausgenommen wurden. Nach einem Abbruch bei 150 von 290 bekämen
+        // sie beim Weitermachen ihr Angebot doch.
+        setVersandKandidaten((prev) => {
+          const abgewaehlt = new Set(
+            (prev ?? []).filter((v) => !v.ausgewaehlt).map((v) => v.projektId)
+          );
+          return vk.map((v) => (abgewaehlt.has(v.projektId) ? { ...v, ausgewaehlt: false } : v));
+        });
       }
     } catch (error) {
       console.error('Versand fehlgeschlagen:', error);
@@ -1102,6 +1113,19 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                   {f.kundenname}: {f.fehler}
                 </div>
               ))}
+            </div>
+          )}
+          {versandErgebnis.nachzutragen && versandErgebnis.nachzutragen.length > 0 && (
+            <div className="mt-2 p-2.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <div className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                {versandErgebnis.nachzutragen.length} versendet, Status nachzutragen — nicht erneut
+                senden
+              </div>
+              <div className="text-xs text-amber-800 dark:text-amber-300 mt-1 max-h-24 overflow-y-auto">
+                {versandErgebnis.nachzutragen.map((n, i) => (
+                  <div key={i}>{n.kundenname}</div>
+                ))}
+              </div>
             </div>
           )}
         </div>

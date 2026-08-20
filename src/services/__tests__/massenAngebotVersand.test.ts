@@ -12,6 +12,7 @@ const updateProjektStatus = vi.fn();
 const ladeDokumentNachTyp = vi.fn();
 const ladeDokumentDaten = vi.fn();
 const sendeEmailMitPdf = vi.fn();
+const ladeEmailProtokollFuerDokument = vi.fn();
 
 vi.mock('../projektService', () => ({
   projektService: {
@@ -29,6 +30,8 @@ vi.mock('../emailSendService', () => ({
   sendeEmailMitPdf: (...a: unknown[]) => sendeEmailMitPdf(...a),
   pdfZuBase64: () => 'base64',
   wrapInEmailTemplate: (t: string) => t,
+  ladeEmailProtokollFuerDokument: (...a: unknown[]) => ladeEmailProtokollFuerDokument(...a),
+  istTestversand: (e: { empfaenger?: string }) => e.empfaenger === 'test@example.com',
 }));
 vi.mock('../dokumentService', () => ({ generiereAngebotPDF: vi.fn() }));
 vi.mock('../stammdatenService', () => ({
@@ -69,6 +72,8 @@ beforeEach(() => {
   ladeDokumentNachTyp.mockResolvedValue({ id: 'd1' });
   ladeDokumentDaten.mockReturnValue({ angebotsnummer: 'ANG-2027-0001', kundenname: 'V', kundennummer: '1' });
   sendeEmailMitPdf.mockResolvedValue({ success: true });
+  updateProjektStatus.mockResolvedValue(undefined);
+  ladeEmailProtokollFuerDokument.mockResolvedValue([]);
 });
 
 describe('Doppelversand-Schutz', () => {
@@ -161,5 +166,62 @@ describe('versendeBatch', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Statuswechsel nach dem Versand', () => {
+  it('meldet einen Versand NICHT als Fehler, wenn nur der Statuswechsel scheitert', async () => {
+    // Die Mail ist raus. Waere der Kunde jetzt in der Fehlerliste, stuende er
+    // anschliessend wieder vorausgewaehlt in der Versandliste — und der
+    // naheliegende Griff „die Fehler nochmal senden" schickt ihm dasselbe
+    // Angebot ein zweites Mal.
+    updateProjektStatus.mockRejectedValue(new Error('Netzwerkfehler'));
+    const res = await massenAngebotService.versendeAngebot('p1', 'a@b.de', false);
+    expect(res.success).toBe(true);
+    expect(res.statusWarnung).toMatch(/nicht erneut senden/i);
+  });
+
+  it('fuehrt solche Faelle im Batch getrennt von den Fehlern', async () => {
+    updateProjektStatus.mockRejectedValue(new Error('Netzwerkfehler'));
+    const res = await massenAngebotService.versendeBatch(
+      [kandidat(1), kandidat(2)],
+      false,
+      undefined,
+      { pauseMs: 0 }
+    );
+    expect(res.gesendet).toBe(2);
+    expect(res.fehler).toHaveLength(0);
+    expect(res.nachzutragen).toHaveLength(2);
+  });
+});
+
+describe('Doppelversand-Schutz ueber das E-Mail-Protokoll', () => {
+  it('sendet nicht, wenn das Protokoll bereits einen echten Versand kennt', async () => {
+    // Der Projektstatus sagt „angebot" — der Statuswechsel war beim ersten
+    // Versuch gescheitert. Das Protokoll weiss es besser.
+    ladeEmailProtokollFuerDokument.mockResolvedValue([
+      { status: 'gesendet', empfaenger: 'verein@example.com' },
+    ]);
+    const res = await massenAngebotService.versendeAngebot('p1', 'verein@example.com', false);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/protokoll/i);
+    expect(sendeEmailMitPdf).not.toHaveBeenCalled();
+  });
+
+  it('laesst einen Testversand im Protokoll nicht als echten Versand gelten', async () => {
+    ladeEmailProtokollFuerDokument.mockResolvedValue([
+      { status: 'gesendet', empfaenger: 'test@example.com' },
+    ]);
+    const res = await massenAngebotService.versendeAngebot('p1', 'verein@example.com', false);
+    expect(res.success).toBe(true);
+    expect(sendeEmailMitPdf).toHaveBeenCalled();
+  });
+
+  it('sendet trotzdem, wenn das Protokoll nicht abgefragt werden kann', async () => {
+    // Lieber einmal zu viel gesendet als einen Verein wegen einer
+    // Protokollstoerung ohne Angebot lassen — der Statuscheck greift ja weiter.
+    ladeEmailProtokollFuerDokument.mockResolvedValue(null);
+    const res = await massenAngebotService.versendeAngebot('p1', 'verein@example.com', false);
+    expect(res.success).toBe(true);
   });
 });
