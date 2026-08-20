@@ -1447,33 +1447,72 @@ function neueBatchId(): string {
   return `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function schreibeProtokoll(
+/**
+ * Legt den Protokolleintrag an, BEVOR der erste Kunde bearbeitet wird, und gibt
+ * die Dokument-ID zurück.
+ *
+ * Der Eintrag ist der einzige Ort, an dem die `batchId` dauerhaft steht — und
+ * die `batchId` ist der Schlüssel für Rücknahme und Versandliste. Entstand er
+ * erst am Ende, war ein Lauf, den jemand nach der Hälfte im Browser schloss,
+ * praktisch unauffindbar: hunderte Projekte, die man nur noch von Hand
+ * zusammensuchen kann.
+ *
+ * Scheitert das Anlegen, wirft die Funktion. Ein Lauf ohne Protokoll darf nicht
+ * beginnen.
+ */
+async function eroeffneProtokoll(
   batchId: string,
   saisonjahr: number,
-  ergebnis: ErzeugungsErgebnis,
-  meta: { benutzer?: string }
+  meta: { benutzer?: string; geplant: number }
+): Promise<string> {
+  const doc = await databases.createDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, ID.unique(), {
+    batchId,
+    saisonjahr,
+    zeitpunkt: new Date().toISOString(),
+    benutzer: meta.benutzer,
+    testModus: istTestumgebung(),
+    anzahlErzeugt: 0,
+    anzahlUebersprungen: 0,
+    anzahlFehler: 0,
+    rueckgaengigGemacht: false,
+    data: JSON.stringify({ batchId, geplant: meta.geplant, laeuft: true }),
+  });
+  auditService.logAktion({
+    action: 'create',
+    entityType: 'angebots_lauf',
+    entityId: batchId,
+    summary: `Massen-Angebots-Lauf ${saisonjahr} gestartet: ${meta.geplant} Kandidaten`,
+  });
+  return doc.$id;
+}
+
+/**
+ * Schreibt das Endergebnis in den zuvor eröffneten Eintrag fort. Schlägt das
+ * fehl, bleibt der Anker mit den Startwerten stehen — die `batchId` ist damit
+ * weiterhin auffindbar, Rücknahme und Versand funktionieren. Deshalb genügt
+ * hier eine Warnung.
+ */
+async function schreibeProtokoll(
+  dokumentId: string,
+  batchId: string,
+  saisonjahr: number,
+  ergebnis: ErzeugungsErgebnis
 ): Promise<void> {
   try {
-    await databases.createDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, ID.unique(), {
-      batchId,
-      saisonjahr,
-      zeitpunkt: new Date().toISOString(),
-      benutzer: meta.benutzer,
-      testModus: istTestumgebung(),
+    await databases.updateDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, dokumentId, {
       anzahlErzeugt: ergebnis.erzeugt.length,
       anzahlUebersprungen: ergebnis.uebersprungen.length,
       anzahlFehler: ergebnis.fehler.length,
-      rueckgaengigGemacht: false,
       data: JSON.stringify(ergebnis).slice(0, 99000),
     });
     auditService.logAktion({
-      action: 'create',
+      action: 'update',
       entityType: 'angebots_lauf',
       entityId: batchId,
-      summary: `Massen-Angebots-Lauf ${saisonjahr}: ${ergebnis.erzeugt.length} erzeugt, ${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler`,
+      summary: `Massen-Angebots-Lauf ${saisonjahr}: ${ergebnis.erzeugt.length} erzeugt, ${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler${ergebnis.abgebrochen ? ' — ABGEBROCHEN' : ''}`,
     });
   } catch (error) {
-    console.warn('Angebots-Lauf konnte nicht protokolliert werden:', error);
+    console.warn('Ergebnis des Angebots-Laufs konnte nicht fortgeschrieben werden:', error);
   }
 }
 
@@ -1501,6 +1540,13 @@ async function erzeugeBatch(
   const zuErzeugen =
     optionen.limit && optionen.limit > 0 ? erzeugbar.slice(0, optionen.limit) : erzeugbar;
   const gesamt = zuErzeugen.length;
+
+  // Anker VOR dem ersten Kunden. Wirft bewusst: Ohne auffindbare batchId wären
+  // die erzeugten Projekte später nicht mehr als Lauf zusammenzuführen.
+  const protokollId = await eroeffneProtokoll(batchId, saisonjahr, {
+    benutzer: optionen.benutzer,
+    geplant: gesamt,
+  });
 
   let index = 0;
   for (const kandidat of zuErzeugen) {
@@ -1586,7 +1632,7 @@ async function erzeugeBatch(
     }
   }
 
-  await schreibeProtokoll(batchId, saisonjahr, ergebnis, { benutzer: optionen.benutzer });
+  await schreibeProtokoll(protokollId, batchId, saisonjahr, ergebnis);
   return ergebnis;
 }
 

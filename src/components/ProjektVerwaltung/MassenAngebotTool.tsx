@@ -39,6 +39,12 @@ import {
 
 type FilterTyp = 'alle' | 'vorjahr' | 'neukunden' | 'fehler' | 'manuell';
 
+// Unterhalb dieser Zahl ist ein Frühjahrslauf mit hoher Wahrscheinlichkeit kein
+// gewollter Teillauf, sondern ein vergessenes Opt-in: Wer nicht als
+// „massenangebots-tauglich" markiert ist, erscheint gar nicht erst in der Liste.
+// Der Bestand zählt mehrere hundert Vereine mit Vorjahresmenge.
+const OPT_IN_ERWARTUNG = 50;
+
 // Eine Zeile der (schlanken) Master-Liste: Name, Nummer, Profil, Quelle,
 // Referenz, Summe, Status, E-Mail-Warnung. Klick öffnet das Detail-Panel.
 const KandidatListenZeile = ({
@@ -182,6 +188,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [ergebnis, setErgebnis] = useState<ErzeugungsErgebnis | null>(null);
 
   const [rollbackBestaetigung, setRollbackBestaetigung] = useState(false);
+  // Gesetzt, wenn die Rücknahme aus dem Protokoll heraus angestoßen wird.
+  const [rollbackBatchId, setRollbackBatchId] = useState<string | null>(null);
   const [rollbackInfo, setRollbackInfo] = useState<string | null>(null);
   const [rollbackLaeuft, setRollbackLaeuft] = useState(false);
 
@@ -384,18 +392,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   }, [anzahlZuErzeugen, kandidaten, zielSaison, benutzer, limitZahl, ladeKandidaten]);
 
   const bestaetigeRollback = useCallback(async () => {
-    if (!ergebnis) return;
+    // Die Kennung kommt entweder aus dem gerade gelaufenen Ergebnis oder aus dem
+    // Protokoll — nach einem Neuladen des Tabs gibt es nur noch letzteres.
+    const batchId = rollbackBatchId ?? ergebnis?.batchId;
+    if (!batchId) return;
     setRollbackBestaetigung(false);
     setRollbackLaeuft(true);
     setRollbackInfo(null);
     try {
-      const res = await massenAngebotService.rollbackBatch(ergebnis.batchId);
+      const res = await massenAngebotService.rollbackBatch(batchId);
       setRollbackInfo(
         `${res.geloescht} gelöscht, ${res.uebersprungenVersendet} behalten (versendet), ${res.fehler} Fehler.`
       );
       setErgebnis(null);
       setVersandKandidaten(null);
       setVersandBatchId(null);
+      setRollbackBatchId(null);
       await ladeKandidaten();
     } catch (error) {
       console.error('Rollback fehlgeschlagen:', error);
@@ -403,7 +415,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     } finally {
       setRollbackLaeuft(false);
     }
-  }, [ergebnis, ladeKandidaten]);
+  }, [ergebnis, rollbackBatchId, ladeKandidaten]);
 
   const versandAuswahl = useMemo(
     () => (versandKandidaten ?? []).filter((v) => v.ausgewaehlt && v.empfaengerEmail) ,
@@ -647,6 +659,24 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                 void ladeKandidaten();
               }}
             />
+          )}
+
+          {/* Warnung, wenn der Lauf unplausibel klein ausfällt */}
+          {zusammenfassung.gesamt > 0 && zusammenfassung.gesamt < OPT_IN_ERWARTUNG && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
+              <MousePointerClick className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-semibold text-amber-900 dark:text-amber-200">
+                  Nur {zusammenfassung.gesamt}{' '}
+                  {zusammenfassung.gesamt === 1 ? 'Kunde ist' : 'Kunden sind'} freigeschaltet
+                </div>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                  Der Frühjahrslauf betrifft normalerweise mehrere hundert Vereine. Wer nicht als
+                  „massenangebots-tauglich" markiert ist, taucht hier gar nicht erst auf — prüfe die
+                  Vorschlagsliste oben, bevor du den Lauf startest.
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Zähler + Werkzeuge */}
@@ -1030,6 +1060,19 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                     Versand-Liste öffnen
                   </button>
                 )}
+                {!lauf.rueckgaengigGemacht && lauf.anzahlErzeugt > 0 && lauf.batchId && (
+                  <button
+                    onClick={() => {
+                      setRollbackBatchId(lauf.batchId);
+                      setRollbackBestaetigung(true);
+                    }}
+                    disabled={rollbackLaeuft}
+                    className="px-2.5 py-1 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 inline-flex items-center gap-1.5 disabled:opacity-50"
+                    title="Nimmt die noch unversendeten Angebote dieses Laufs zurück — auch nach einem Seiten-Reload"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" /> Rückgängig
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1072,17 +1115,30 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       )}
 
       {/* Bestätigungsdialog Rollback */}
-      {rollbackBestaetigung && ergebnis && (
+      {rollbackBestaetigung && (rollbackBatchId || ergebnis) && (
         <BestaetigungsDialog
           icon={<Undo2 className="w-6 h-6 text-red-600" />}
           titel="Lauf rückgängig machen?"
-          onAbbrechen={() => setRollbackBestaetigung(false)}
+          onAbbrechen={() => {
+            setRollbackBestaetigung(false);
+            setRollbackBatchId(null);
+          }}
           onBestaetigen={bestaetigeRollback}
           bestaetigenLabel="Endgültig löschen"
           bestaetigenClass="bg-red-600 hover:bg-red-700"
         >
-          Alle <strong>{ergebnis.erzeugt.length}</strong> noch nicht versendeten Angebote dieses Laufs werden
-          gelöscht. Bereits versendete bleiben erhalten (GoBD).
+          {rollbackBatchId ? (
+            <>
+              Die noch nicht versendeten Angebote des Laufs{' '}
+              <code className="text-xs">{rollbackBatchId}</code> werden gelöscht.
+            </>
+          ) : (
+            <>
+              Alle <strong>{ergebnis?.erzeugt.length ?? 0}</strong> noch nicht versendeten Angebote
+              dieses Laufs werden gelöscht.
+            </>
+          )}{' '}
+          Bereits versendete bleiben erhalten (GoBD).
         </BestaetigungsDialog>
       )}
 
