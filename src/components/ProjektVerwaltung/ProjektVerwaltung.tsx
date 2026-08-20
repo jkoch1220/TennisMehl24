@@ -834,21 +834,37 @@ const ProjektVerwaltung = () => {
     });
 
     // Zurückrollen — bei einem Fehler ebenso wie beim Widerruf des Nutzers.
+    //
+    // Bewusst über den vorherigen Zustand statt über einen eingefrorenen
+    // Schnappschuss: Zwischen Statuswechsel und Widerruf können zehn Sekunden
+    // liegen, in denen ein Realtime-Nachladen oder ein zweiter Wechsel neue Daten
+    // gebracht hat. Ein Schnappschuss würde die überschreiben. So wird nur die
+    // eine Karte zurückgeschoben, alles andere bleibt auf dem aktuellen Stand.
+    const projektId = (projekt as any).$id || projekt.id;
     const zurueckrollen = () => {
       setProjekteGruppiert(prev => {
         const reverted = { ...prev };
+        // Die Karte in ihrer AKTUELLEN Fassung suchen — sie kann inzwischen
+        // andere Felder tragen als beim Verschieben.
+        const aktuelleFassung =
+          reverted[neuerStatus].find(p => ((p as any).$id || p.id) === projektId) ?? projekt;
         reverted[neuerStatus] = reverted[neuerStatus].filter(p =>
-          ((p as any).$id || p.id) !== ((projekt as any).$id || projekt.id)
+          ((p as any).$id || p.id) !== projektId
         );
-        reverted[alterStatus] = [...reverted[alterStatus], projekt];
+        // Nicht doppelt einfügen, falls zwischenzeitlich neu geladen wurde.
+        const schonDa = reverted[alterStatus].some(
+          p => ((p as any).$id || p.id) === projektId
+        );
+        reverted[alterStatus] = schonDa
+          ? reverted[alterStatus]
+          : [...reverted[alterStatus], { ...aktuelleFassung, status: alterStatus }];
         return reverted;
       });
     };
 
     // Dann in DB speichern
-    const documentId = (projekt as any).$id || projekt.id;
     try {
-      await projektService.updateProjektStatus(documentId, neuerStatus);
+      await projektService.updateProjektStatus(projektId, neuerStatus);
 
       // Rückmeldung mit Widerruf. Ein Statuswechsel ist schnell gemacht und schwer
       // zu bemerken — beim Ziehen landet eine Karte auch mal in der Nachbarspalte.
@@ -861,7 +877,7 @@ const ProjektVerwaltung = () => {
           label: 'Rückgängig',
           onClick: () => {
             zurueckrollen();
-            void projektService.updateProjektStatus(documentId, alterStatus).catch((error) => {
+            void projektService.updateProjektStatus(projektId, alterStatus).catch((error) => {
               console.error('Rücknahme des Statuswechsels fehlgeschlagen:', error);
               toast.error('Der Statuswechsel konnte nicht zurückgenommen werden.');
               void loadData({ stillesNachladen: true });
@@ -1933,6 +1949,21 @@ const StatusWechsler = ({
 }) => {
   const [offen, setOffen] = useState(false);
   const behaelter = useRef<HTMLDivElement>(null);
+  const knopf = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  // Position beim Öffnen einmal bestimmen. Klappt das Menü unten aus dem Fenster,
+  // erscheint es oberhalb des Knopfes.
+  useEffect(() => {
+    if (!offen || !knopf.current) return;
+    const r = knopf.current.getBoundingClientRect();
+    const MENUE_HOEHE = 300;
+    const nachOben = r.bottom + MENUE_HOEHE > window.innerHeight;
+    setMenuPos({
+      top: nachOben ? Math.max(8, r.top - MENUE_HOEHE) : r.bottom + 4,
+      left: Math.max(8, Math.min(r.right - 208, window.innerWidth - 216)),
+    });
+  }, [offen]);
 
   useEffect(() => {
     if (!offen) return;
@@ -1953,6 +1984,7 @@ const StatusWechsler = ({
   return (
     <div ref={behaelter} className="relative" onClick={(e) => e.stopPropagation()}>
       <button
+        ref={knopf}
         onClick={() => setOffen((v) => !v)}
         className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
         title="Status ändern"
@@ -1962,9 +1994,13 @@ const StatusWechsler = ({
         <ChevronDown className="w-3.5 h-3.5" />
       </button>
       {offen && (
+        // Als Portal ans Dokument gehängt: Die Kanban-Spalte scrollt
+        // (overflow-y-auto) und würde ein Menü innerhalb der Karte abschneiden —
+        // ausgerechnet bei den unteren Karten, wo es am ehesten aufklappt.
         <div
           role="menu"
-          className="absolute right-0 top-full mt-1 z-30 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left }}
+          className="z-50 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1"
         >
           <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">
             Weiter zu
@@ -2064,7 +2100,7 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
         title={kundenname}
         className={`border rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
           herkunft ? HERKUNFT_CARD_STYLE[herkunft] : STANDARD_CARD_STYLE
-        } ${isVerloren ? 'opacity-60' : ''}`}
+        } ${isVerloren ? 'opacity-60' : ''} gruppe-karte`}
       >
         <div className="flex items-start gap-2">
           <GripVertical className="w-3 h-3 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted flex-shrink-0 mt-0.5" />
@@ -2212,19 +2248,29 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Der Statuswechsel ist die häufigste Aktion auf einer Karte und der
+            einzige Weg, der ohne Maus funktioniert — er steht deshalb dauerhaft
+            hier. Die gesamte Aktionsleiste erschien früher nur bei Hover; am
+            Tablet gibt es kein Hover, und damit war ausgerechnet der Weg
+            unerreichbar, der dort gebraucht wird. */}
+        {!isVerloren && (
+          <div className="flex-shrink-0">
+            <StatusWechsler
+              aktuellerStatus={status}
+              onWechsel={(neuerStatus) => onStatusWechsel(projekt, neuerStatus)}
+            />
+          </div>
+        )}
+
+        {/* Selteneres — Bearbeiten, Löschen, neuer Tab — bleibt zurückhaltend und
+            erscheint erst beim Überfahren der Karte. */}
+        <div className="flex gap-0.5 kartenaktionen">
           <OpenInNewTabButton
             to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`}
             appearOnGroupHover={false}
             className="p-1"
             iconClassName="w-3.5 h-3.5"
           />
-          {!isVerloren && (
-            <StatusWechsler
-              aktuellerStatus={status}
-              onWechsel={(neuerStatus) => onStatusWechsel(projekt, neuerStatus)}
-            />
-          )}
           <button
             onClick={(e) => onEdit(e, projekt)}
             className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded transition-colors"

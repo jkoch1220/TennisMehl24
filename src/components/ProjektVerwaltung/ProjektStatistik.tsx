@@ -24,18 +24,18 @@ import {
   Euro,
   Package,
 } from 'lucide-react';
-import { Projekt } from '../../types/projekt';
+import { Projekt , ALLE_PROJEKT_STATUS, ProjektStatus } from '../../types/projekt';
 
 interface ProjektStatistikProps {
-  projekteGruppiert: {
-    angebot: Projekt[];
-    angebot_versendet: Projekt[];
-    auftragsbestaetigung: Projekt[];
-    lieferschein: Projekt[];
-    rechnung: Projekt[];
-    bezahlt: Projekt[];
-    verloren: Projekt[];
-  };
+  /**
+   * Nach Status gruppierte Projekte.
+   *
+   * Bewusst `Record<ProjektStatus, …>` statt einer Aufzählung: Die frühere Liste
+   * ließ „geliefert" aus — gelieferte Projekte fehlten hier lautlos, und
+   * TypeScript konnte es nicht melden, weil der Typ selbst unvollständig war.
+   * Ein neuer Status kann jetzt nicht mehr vergessen werden.
+   */
+  projekteGruppiert: Record<ProjektStatus, Projekt[]>;
 }
 
 // Hilfsfunktion: Datum parsen
@@ -143,16 +143,13 @@ const COLORS = {
 };
 
 const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
-  // Alle Projekte zusammenführen
-  const alleProjekte = useMemo(() => [
-    ...projekteGruppiert.angebot,
-    ...projekteGruppiert.angebot_versendet,
-    ...projekteGruppiert.auftragsbestaetigung,
-    ...projekteGruppiert.lieferschein,
-    ...projekteGruppiert.rechnung,
-    ...projekteGruppiert.bezahlt,
-    ...projekteGruppiert.verloren,
-  ], [projekteGruppiert]);
+  // Alle Projekte zusammenführen — abgeleitet statt aufgezählt. Die frühere
+  // Aufzählung ließ „geliefert" aus: Gelieferte Projekte fehlten in jeder
+  // Auswertung, und die Umsatzzahlen stimmten still nicht.
+  const alleProjekte = useMemo(
+    () => ALLE_PROJEKT_STATUS.flatMap((status) => projekteGruppiert[status] ?? []),
+    [projekteGruppiert]
+  );
 
   // Statistik-Daten berechnen (mit Fallbacks aus JSON-Daten und erstelltAm)
   const stats = useMemo(() => {

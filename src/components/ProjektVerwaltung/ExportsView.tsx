@@ -18,15 +18,15 @@ import { useCan } from '../../hooks/useCan';
 
 // Props
 interface ExportsViewProps {
-  projekteGruppiert: {
-    angebot: Projekt[];
-    angebot_versendet: Projekt[];
-    auftragsbestaetigung: Projekt[];
-    lieferschein: Projekt[];
-    rechnung: Projekt[];
-    bezahlt: Projekt[];
-    verloren: Projekt[];
-  };
+  /**
+   * Nach Status gruppierte Projekte.
+   *
+   * Bewusst `Record<ProjektStatus, …>` statt einer Aufzählung: Die frühere Liste
+   * ließ „geliefert" aus — gelieferte Projekte fehlten hier lautlos, und
+   * TypeScript konnte es nicht melden, weil der Typ selbst unvollständig war.
+   * Ein neuer Status kann jetzt nicht mehr vergessen werden.
+   */
+  projekteGruppiert: Record<ProjektStatus, Projekt[]>;
   onProjektClick: (projekt: Projekt) => void;
 }
 
@@ -59,9 +59,12 @@ const ExportsView = ({ projekteGruppiert, onProjektClick }: ExportsViewProps) =>
 
   // Alle Projekte mit AB (Status >= auftragsbestaetigung)
   const projekteAb = useMemo(() => {
+    // „geliefert" gehört dazwischen — ohne diesen Status fehlten gelieferte,
+    // aber noch nicht berechnete Aufträge in jedem Export.
     return [
       ...projekteGruppiert.auftragsbestaetigung,
       ...projekteGruppiert.lieferschein,
+      ...projekteGruppiert.geliefert,
       ...projekteGruppiert.rechnung,
       ...projekteGruppiert.bezahlt,
     ];

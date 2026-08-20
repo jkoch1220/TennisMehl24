@@ -161,3 +161,29 @@ body {
   }
 }
 
+/* ============ Kartenaktionen: erreichbar auch ohne Maus ============ */
+/*
+ * Die Aktionsleiste einer Projektkarte (Statuswechsel, Bearbeiten, Löschen) war
+ * mit `opacity-0 group-hover:opacity-100` gebaut. Auf dem Tablet gibt es kein
+ * Hover — ausgerechnet der Statuswechsler, der genau dort gebraucht wird, war
+ * damit unerreichbar.
+ *
+ * Standard ist deshalb sichtbar. Nur wo es einen hover-fähigen Zeiger gibt (also
+ * an Maus-Arbeitsplätzen), blendet sie sich aus und erscheint bei Hover oder
+ * Tastaturfokus. Als Tailwind-Variante liess sich das nicht ausdrücken — die
+ * arbitrary variant `[@media(hover:hover)]:` wurde nicht generiert.
+ */
+.kartenaktionen {
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kartenaktionen {
+    opacity: 0;
+  }
+  .gruppe-karte:hover .kartenaktionen,
+  .kartenaktionen:focus-within {
+    opacity: 1;
+  }
+}
