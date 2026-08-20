@@ -501,6 +501,11 @@ Bei Fragen sind wir gerne für Sie da.`,
     const zielId = params.get('anfrageId');
     if (!zielId || loading) return;
 
+    // Verlässt der Nutzer die Ansicht, während der Nachschlag unten noch läuft,
+    // darf dessen Antwort nichts mehr auslösen — sonst ploppt das Alert über
+    // einer ganz anderen Ansicht auf.
+    let abgebrochen = false;
+
     const treffer = anfragen.find((a) => a.id === zielId);
     params.delete('anfrageId');
     const rest = params.toString();
@@ -516,20 +521,35 @@ Bei Fragen sind wir gerne für Sie da.`,
       // schlicht falsch, deshalb wird erst direkt nachgesehen.
       void (async () => {
         const frisch = await anfragenService.loadAnfrage(zielId);
+        if (abgebrochen) return;
         if (frisch && frisch.status !== 'geloescht') {
           await loadAnfragen();
+          if (abgebrochen) return;
           if (ERLEDIGT_STATUS.includes(frisch.status)) setZeigeBeantwortet(true);
           setSelectedAnfrage(konvertiereZuVerarbeiteteAnfrage(frisch));
           return;
         }
-        alert('Diese Anfrage lässt sich nicht öffnen – sie wurde gelöscht oder ist gerade nicht erreichbar.');
+        // `frisch` liegt vor: dann ist der Status bekannt und die Anfrage wirklich
+        // weggeräumt. Kam gar nichts zurück, war es ein Ladefehler — das darf
+        // nicht als „gelöscht" verkauft werden.
+        alert(
+          frisch
+            ? 'Diese Anfrage wurde gelöscht und steht nicht mehr in der Liste.'
+            : 'Die Anfrage konnte nicht geladen werden. Bitte die Verbindung prüfen und es erneut versuchen.'
+        );
       })();
-      return;
+      return () => {
+        abgebrochen = true;
+      };
     }
     // Bereits abgehakte Anfragen sind standardmäßig ausgeblendet — sonst steht
     // hinter dem Dialog eine leere Liste.
     if (istErledigt(treffer)) setZeigeBeantwortet(true);
     setSelectedAnfrage(treffer);
+
+    return () => {
+      abgebrochen = true;
+    };
   }, [location.key, location.search, location.pathname, anfragen, loading, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
 

@@ -120,7 +120,12 @@ const KATEGORIE_CONFIG: Record<
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(false);
+  // Synchron initialisieren, nicht mit `false`: Sonst ist der erste Render immer
+  // „Desktop", und alles, was beim Mount von `isMobile` abhängt, entscheidet am
+  // Handy zwangsläufig falsch — der Effekt kommt erst einen Render zu spät.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  );
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -172,6 +177,15 @@ type ViewMode = (typeof VIEW_MODES)[number];
 
 const istViewMode = (wert: string | null): wert is ViewMode =>
   wert !== null && (VIEW_MODES as readonly string[]).includes(wert);
+
+// Die Mobilansicht rendert nur diese beiden Ansichten eigenständig; alles andere
+// fällt dort auf die allgemeine Projektliste zurück, die keinen Weg zurück zur
+// Übersicht anbietet. Ein Deep-Link auf eine andere Ansicht wird am Handy
+// deshalb ignoriert.
+const MOBILE_VIEW_MODES: readonly ViewMode[] = ['overview', 'anfragen'];
+
+const istErlaubt = (wert: ViewMode, isMobile: boolean): boolean =>
+  !isMobile || MOBILE_VIEW_MODES.includes(wert);
 
 // Session Storage Keys
 // viewMode trägt ein `_v2`-Suffix, seit die Übersicht die Startansicht ist: der alte
@@ -397,12 +411,8 @@ const ProjektVerwaltung = () => {
     // Deep-Link aus Benachrichtigungen (z.B. /projekt-verwaltung?view=wiegescheine)
     // sticht die zuletzt benutzte Ansicht — sonst landet ein Klick auf
     // „Wiegeschein prüfen" im zuletzt geöffneten Kanban.
-    // Am Handy nur die zwei Ansichten, die es dort überhaupt gibt — siehe den
-    // Effekt weiter unten, der denselben Filter anwendet.
     const ausUrl = new URLSearchParams(window.location.search).get('view');
-    if (istViewMode(ausUrl) && !(isMobile && ausUrl !== 'overview' && ausUrl !== 'anfragen')) {
-      return ausUrl;
-    }
+    if (istViewMode(ausUrl) && istErlaubt(ausUrl, isMobile)) return ausUrl;
     return loadSetting<ViewMode>(STORAGE_KEYS.viewMode, 'overview');
   });
   const [kompakteAnsicht, setKompakteAnsichtState] = useState(() =>
@@ -444,31 +454,20 @@ const ProjektVerwaltung = () => {
    * Deep-Link ist ein einmaliger Sprung. Über `setViewMode` würde er in den
    * Session-Speicher wandern und die Projektverwaltung für den Rest der
    * Sitzung dort starten lassen, statt in der Prozess-Übersicht.
+   *
+   * Der Parameter bleibt bewusst in der Adresse stehen. Ihn hier wegzuräumen
+   * hieße, dass zwei Effekte auf derselben Route navigieren — und weil React
+   * Kind-Effekte vor Eltern-Effekten ausführt, schriebe dieser hier die
+   * `anfrageId` zurück, die die Anfragen-Verarbeitung eine Zeile vorher
+   * verbraucht hat. Deren Nachschlag liefe dann doppelt und setzte einen
+   * offenen Bearbeitungsdialog samt eingetippter Preise zurück. Der Preis
+   * dafür: Nach einem Deep-Link plus Tab-Wechsel gewinnt beim Neuladen wieder
+   * der Parameter — so war es vor diesem Umbau auch schon.
    */
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const ausUrl = params.get('view');
-    if (!ausUrl) return;
-
-    // Am Handy gibt es nur die Übersicht und die Anfragen; alles andere fällt
-    // auf die allgemeine Projektliste zurück. Ein Sprung auf z.B.
-    // `?view=wiegescheine` würde dort die aktuelle Ansicht wegnehmen, ohne
-    // etwas Passendes anzubieten — und weil mobil keine Tab-Leiste steht, käme
-    // niemand mehr zurück zur Übersicht.
-    const erlaubt = isMobile ? ['overview', 'anfragen'] : (VIEW_MODES as readonly string[]);
-    if (istViewMode(ausUrl) && erlaubt.includes(ausUrl)) {
-      setViewModeState(ausUrl);
-    }
-
-    // `view` wieder aus der Adresse nehmen: Der Sprung ist einmalig. Bliebe der
-    // Parameter stehen, gewänne er nach jedem Neuladen erneut gegen die zuletzt
-    // gewählte Ansicht — der Nutzer käme aus der über den Deep-Link geöffneten
-    // Ansicht nicht mehr dauerhaft heraus. `anfrageId` bleibt unangetastet, die
-    // räumt die Anfragen-Verarbeitung selbst weg, sobald sie sie gelesen hat.
-    params.delete('view');
-    const rest = params.toString();
-    navigate(`${location.pathname}${rest ? `?${rest}` : ''}`, { replace: true });
-  }, [location.key, location.search, location.pathname, isMobile, navigate]);
+    const ausUrl = new URLSearchParams(location.search).get('view');
+    if (istViewMode(ausUrl) && istErlaubt(ausUrl, isMobile)) setViewModeState(ausUrl);
+  }, [location.key, location.search, isMobile]);
 
   const setKompakteAnsicht = useCallback((value: boolean) => {
     setKompakteAnsichtState(value);
