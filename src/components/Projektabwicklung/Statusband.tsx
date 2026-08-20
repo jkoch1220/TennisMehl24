@@ -16,6 +16,8 @@
  */
 
 import { Projekt, ProjektStatus, ALLE_PROJEKT_STATUS } from '../../types/projekt';
+import { istShopProjekt } from '../../utils/projektHerkunft';
+import { wiegescheinVorgesehen } from '../../utils/abwicklungsweg';
 
 interface Station {
   status: ProjektStatus;
@@ -26,6 +28,12 @@ interface Station {
   datum?: string;
   /** Zusatz, der eine Lücke benennt — z. B. „nicht versendet". */
   hinweis?: string;
+  /**
+   * Diese Station hat für diesen Vorgang nie stattgefunden, und das ist richtig
+   * so. Sie darf dann weder grün („erledigt") noch mahnend erscheinen — der Text
+   * sagt, warum sie entfällt.
+   */
+  uebersprungen?: string;
 }
 
 const formatDatum = (iso?: string): string | undefined => {
@@ -42,12 +50,19 @@ const formatDatum = (iso?: string): string | undefined => {
 const REIHENFOLGE: ProjektStatus[] = ALLE_PROJEKT_STATUS.filter((s) => s !== 'verloren');
 
 function baueStationen(projekt: Projekt): Station[] {
+  // Ein Shop-Auftrag ist bereits bestellt, teils schon bezahlt — er beginnt bei
+  // der Auftragsbestätigung. Ohne diese Unterscheidung stünden die ersten beiden
+  // Stationen grün da, als sei ein Angebot geschrieben und versendet worden.
+  const ohneAngebotsphase = !projekt.angebotsnummer && istShopProjekt(projekt);
+  const angebotEntfaellt = ohneAngebotsphase ? 'direkt im Shop bestellt' : undefined;
+
   return [
     {
       status: 'angebot',
       label: 'Angebot',
       nummer: projekt.angebotsnummer,
       datum: formatDatum(projekt.angebotsdatum),
+      uebersprungen: angebotEntfaellt,
     },
     {
       status: 'angebot_versendet',
@@ -55,6 +70,7 @@ function baueStationen(projekt: Projekt): Station[] {
       // Es gibt kein eigenes Versanddatum für Angebote; erreicht ist die Station
       // dann, wenn der Projektstatus darüber hinaus ist.
       datum: undefined,
+      uebersprungen: angebotEntfaellt ? 'entfällt' : undefined,
     },
     {
       status: 'auftragsbestaetigung',
@@ -75,8 +91,12 @@ function baueStationen(projekt: Projekt): Station[] {
       status: 'geliefert',
       label: 'Geliefert',
       datum: formatDatum(projekt.liefernachweisAm),
+      // Gewogen wird nur loses Material. An einem Sackware-Auftrag stünde die
+      // Mahnung sonst dauerhaft, ohne dass sie je erfüllbar wäre.
       hinweis:
-        projekt.status === 'geliefert' && !projekt.wiegeschein
+        projekt.status === 'geliefert' &&
+        !projekt.wiegeschein &&
+        wiegescheinVorgesehen(projekt) === true
           ? 'Wiegeschein fehlt'
           : undefined,
     },
@@ -113,9 +133,10 @@ const Statusband = ({ projekt }: { projekt: Projekt }) => {
       )}
       <div className="flex gap-0 overflow-x-auto">
         {stationen.map((station, index) => {
-          const erreicht = !istVerloren && index < aktuellerIndex;
-          const aktuell = !istVerloren && index === aktuellerIndex;
-          const offen = !erreicht && !aktuell;
+          const entfaellt = !!station.uebersprungen;
+          const erreicht = !istVerloren && !entfaellt && index < aktuellerIndex;
+          const aktuell = !istVerloren && !entfaellt && index === aktuellerIndex;
+          const offen = !erreicht && !aktuell && !entfaellt;
 
           return (
             <div key={station.status} className="flex-1 min-w-[7.5rem] pr-2">
@@ -127,6 +148,8 @@ const Statusband = ({ projekt }: { projekt: Projekt }) => {
                     ? 'bg-blue-600 dark:bg-blue-400'
                     : erreicht
                     ? 'bg-emerald-500 dark:bg-emerald-500'
+                    : entfaellt
+                    ? 'bg-gray-200 dark:bg-slate-700 opacity-50'
                     : 'bg-gray-200 dark:bg-slate-700'
                 } ${aktuell ? 'h-1.5' : ''}`}
               />
@@ -149,6 +172,11 @@ const Statusband = ({ projekt }: { projekt: Projekt }) => {
                 )}
                 {station.datum && (
                   <div className="text-xs text-gray-500 dark:text-slate-400">{station.datum}</div>
+                )}
+                {station.uebersprungen && (
+                  <div className="text-xs text-gray-400 dark:text-slate-500 leading-tight">
+                    {station.uebersprungen}
+                  </div>
                 )}
                 {!station.nummer && !station.datum && offen && (
                   <div className="text-xs text-gray-300 dark:text-slate-600">—</div>

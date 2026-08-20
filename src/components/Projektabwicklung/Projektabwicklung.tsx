@@ -21,6 +21,7 @@ import ProjektSplitBanner from './ProjektSplitBanner';
 import ProjektSplitModal from './ProjektSplitModal';
 import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
 import Statusband from './Statusband';
+import DurchstichBlock from './DurchstichBlock';
 import ProjektEmailVerlauf from '../Shared/ProjektEmailVerlauf';
 
 // Status-Konfiguration für das Kanban-Board
@@ -285,8 +286,12 @@ const Projektabwicklung = () => {
       {/* Statusband: der Durchstich in einer Zeile. Steht bewusst VOR den
           Dokument-Reitern — die zeigen je einen Beleg, das Band den Gesamtstand
           samt Luecken ("AB erstellt, nie versendet"). */}
-      <div className="mb-6">
+      <div className="mb-6 space-y-2">
         <Statusband projekt={projekt} />
+        {/* Darunter der Durchstich in die Nachbarwerkzeuge: woher der Auftrag
+            kam, ob er in der Dispo liegt, ob ein Wiegeschein da ist, wie es um
+            die Forderung steht. Alles vier bisher nur ausserhalb der Akte. */}
+        <DurchstichBlock projekt={projekt} />
       </div>
 
       {/* PLATZBAUER-BANNER - Wenn Kunde ein Platzbauer ist oder Projekt über Platzbauer läuft */}

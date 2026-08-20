@@ -20,7 +20,7 @@
 import { useMemo } from 'react';
 import { Package, Truck, Droplets, Tag, ArrowRight, AlertTriangle } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
-import { getAbwicklungswege } from '../../utils/abwicklungsweg';
+import { getAbwicklungswege, faehrtEigenerLkw } from '../../utils/abwicklungsweg';
 
 interface LieferantenleisteProps {
   projekteGruppiert: Record<ProjektStatus, Projekt[]>;
@@ -86,12 +86,18 @@ const Lieferantenleiste = ({ projekteGruppiert, onOeffne }: LieferantenleistePro
         }
       }
 
-      if (wege.has('schuettgut')) {
+      // „Eigene Dispo" heisst: unser LKW faehrt. Das ist meistens Schuettgut,
+      // aber eben nicht nur — Sackware auf Paletten faehrt der Haengerzug mit.
+      if (faehrtEigenerLkw(projekt)) {
         if (!projekt.dispoStatus || projekt.dispoStatus === 'offen') dispoOffen += 1;
         else if (projekt.dispoStatus === 'geplant') dispoGeplant += 1;
       }
 
-      if (wege.has('palette') || wege.has('kranwagen')) spedition += 1;
+      // Speditionsware ist Palettenware, die NICHT unser LKW faehrt — sonst
+      // stuende derselbe Auftrag in beiden Spalten.
+      if ((wege.has('palette') || wege.has('kranwagen')) && !faehrtEigenerLkw(projekt)) {
+        spedition += 1;
+      }
     }
 
     return [

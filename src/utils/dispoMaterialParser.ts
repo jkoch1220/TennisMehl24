@@ -15,6 +15,28 @@ import { Position, AuftragsbestaetigungsDaten } from '../types/projektabwicklung
 import { TENNISMEHL_ARTIKEL, SACKWARE } from '../constants/artikelPreise';
 
 /**
+ * Positionen, die zwar in Tonnen fakturiert werden, aber keine Ware sind:
+ * Pauschalen, Zuschläge, Dienstleistungen.
+ *
+ * Ohne diese Liste zählt der Fallback am Ende der Schleife jede Position mit
+ * Einheit „t" als loses Material. Gemessen an Saison 2026 sind das 48,2 t
+ * Phantom-Tonnage — und schlimmer als die Zahl ist die Folge für die
+ * Wegzuordnung: `TM-LKW-KR` ist der Ladekran-Zuschlag für SACKWARE, macht den
+ * Auftrag aber zu einem Schüttgut-Auftrag. Er verschwindet damit aus dem
+ * Palettenfilter und taucht in der eigenen Dispo auf, wo er nicht hingehört.
+ *
+ * Nur exakte Artikelnummern, bewusst keine Textsuche: „Tennismehl 0/2 Schüttgut
+ * inkl. Frachtkosten" enthält das Wort Frachtkosten und ist trotzdem 8 t Ware.
+ */
+const NICHT_MATERIAL_ARTIKEL = new Set([
+  'TM-PE',      // PE-Folie
+  'TM-FP',      // Frachtkostenpauschale
+  'TM-HYC-V',   // Hydrocourt Versand Standard Pauschal
+  'TM-LKW-KR',  // Entladung Sackware mit LKW-Ladekran (Dienstleistung)
+  'TM-SK',      // Zuschlag Sonderkommissionierung
+]);
+
+/**
  * Transport-Typ für Dispo-Planung
  * - eigenlager: Schüttgut + Beiladung → eigener LKW
  * - spedition: Palettenware + BigBag → externe Spedition (z.B. Raben)
@@ -155,8 +177,9 @@ export function parseMaterialAufschluesselung(projekt: Projekt): MaterialAufschl
     // Überspringe Bedarfspositionen und Nicht-Material-Artikel
     if (pos.istBedarfsposition) continue;
 
-    // PE-Folie und Frachtkostenpauschale überspringen
-    if (artikelnummerUpper === 'TM-PE' || artikelnummerUpper === 'TM-FP') continue;
+    // Pauschalen, Zuschläge, Dienstleistungen sind keine Ware — siehe
+    // NICHT_MATERIAL_ARTIKEL.
+    if (NICHT_MATERIAL_ARTIKEL.has(artikelnummerUpper)) continue;
 
     // Tennismehl-Artikel kategorisieren (Case-Insensitive Lookup)
     // Suche nach exaktem Match oder case-insensitive Match

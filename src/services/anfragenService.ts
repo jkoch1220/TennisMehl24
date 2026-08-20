@@ -87,6 +87,34 @@ export const anfragenService = {
   },
 
   /**
+   * Die Anfrage, aus der ein bestimmtes Projekt entstanden ist — oder `null`.
+   *
+   * `loadProjektIdsAusAnfragen` laedt fuer dieselbe Frage ALLE Anfragen; das ist
+   * richtig, wenn man eine Projektliste einfaerbt, aber zu teuer, wenn nur eine
+   * einzelne Akte wissen will, woher sie kommt. Hier reicht ein Treffer.
+   *
+   * Der Aufrufer kennt die Projekt-ID je nach Herkunft als `projekt.id` oder als
+   * Appwrite-`$id` — beide werden geprueft, weil die Anfrage historisch mal die
+   * eine, mal die andere gespeichert hat.
+   */
+  async findeAnfrageZuProjekt(...projektIds: (string | undefined)[]): Promise<Anfrage | null> {
+    const ids = [...new Set(projektIds.filter((id): id is string => !!id))];
+    if (ids.length === 0) return null;
+
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        ANFRAGEN_COLLECTION_ID,
+        [Query.equal('projektId', ids), Query.limit(1)]
+      );
+      return response.documents.length > 0 ? this.parseDocument(response.documents[0]) : null;
+    } catch (error) {
+      console.error('Fehler beim Suchen der Anfrage zum Projekt:', error);
+      return null;
+    }
+  },
+
+  /**
    * Lade eine einzelne Anfrage
    */
   async loadAnfrage(id: string): Promise<Anfrage | null> {
