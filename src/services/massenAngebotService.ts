@@ -35,6 +35,8 @@ import {
   VersandKandidat,
   TauglichkeitsVorschlag,
   MarkierungsErgebnis,
+  EmailKandidat,
+  EmailKlaerungsFall,
 } from '../types/massenAngebot';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -57,6 +59,7 @@ import {
   databases,
   DATABASE_ID,
   ANGEBOTS_LAEUFE_COLLECTION_ID,
+  SAISON_ANSPRECHPARTNER_COLLECTION_ID,
   PROJECT_ID,
   PROJEKTE_COLLECTION_ID,
   SAISON_DATEN_COLLECTION_ID,
@@ -967,6 +970,132 @@ async function sammleKandidaten(
   );
 }
 
+// ===== E-MAIL-KLÄRUNG VOR DEM LAUF =====
+
+// Formal gültige Adresse. Bewusst streng: Was hier durchfällt, taugt auch nicht
+// als Vorschlag — eine unbrauchbare Adresse im Auswahldialog kostet mehr Zeit,
+// als sie spart.
+const EMAIL_MUSTER = /^[^@\s,;]+@[^@\s,;]+\.[a-zA-Z]{2,}$/;
+const istEmail = (wert: unknown): boolean => EMAIL_MUSTER.test(String(wert ?? '').trim());
+const normalisiereEmail = (wert: unknown): string => String(wert ?? '').trim();
+
+/**
+ * Sucht für die übergebenen Kunden alle im System auffindbaren E-Mail-Adressen
+ * zusammen und meldet, wo der Empfänger vor dem Massenlauf geklärt werden muss.
+ *
+ * Zwei Fälle brauchen einen Menschen:
+ * - `fehlt`: keine Adresse auffindbar. Sie muss recherchiert und eingetragen werden.
+ * - `mehrdeutig`: mehrere gefunden. Welche davon der Vorstand ist, kann keine
+ *   Heuristik entscheiden — `knut.christiansen@dhl.com` gegen `tc-verein@web.de`
+ *   ist genau der Fall, bei dem ein Automatismus an den Falschen schreibt.
+ *
+ * Ein bereits gepflegter Angebots-Verteiler (`angebotsEmails`) gilt immer als
+ * geklärt, auch mit mehreren Empfängern — dort ist die Mehrfachnennung gewollt.
+ *
+ * Reine Leseoperation — schreibt nichts.
+ */
+async function sammleEmailKlaerungsfaelle(
+  kundeIds: string[],
+  onFortschritt?: SammelFortschritt
+): Promise<EmailKlaerungsFall[]> {
+  const gesucht = new Set(kundeIds);
+  if (gesucht.size === 0) return [];
+  const melde = (schritt: string, prozent: number) => onFortschritt?.(schritt, prozent);
+
+  melde('Lade Kundenstamm…', 10);
+  const alleKunden = await saisonplanungService.loadAlleKunden();
+  const kundenMap = new Map(alleKunden.filter((k) => gesucht.has(k.id)).map((k) => [k.id, k]));
+
+  // Kandidaten je Kunde. Reihenfolge des Einfügens = Reihenfolge in der Anzeige.
+  const kandidatenMap = new Map<string, EmailKandidat[]>();
+  const merke = (kundeId: string, kandidat: EmailKandidat) => {
+    if (!gesucht.has(kundeId) || !istEmail(kandidat.email)) return;
+    const liste = kandidatenMap.get(kundeId) ?? [];
+    // Gleiche Adresse nur einmal, auch wenn sie aus zwei Quellen stammt.
+    if (liste.some((k) => k.email.toLowerCase() === normalisiereEmail(kandidat.email).toLowerCase())) return;
+    liste.push({ ...kandidat, email: normalisiereEmail(kandidat.email) });
+    kandidatenMap.set(kundeId, liste);
+  };
+
+  for (const kunde of kundenMap.values()) {
+    merke(kunde.id, { email: kunde.rechnungsEmail ?? '', quelle: 'rechnung', hinweis: 'Rechnungsadresse' });
+    merke(kunde.id, { email: kunde.email ?? '', quelle: 'kunde', hinweis: 'Kundenstamm' });
+  }
+
+  melde('Durchsuche Ansprechpartner…', 45);
+  const apDocs = await loadAllDocuments(DATABASE_ID, SAISON_ANSPRECHPARTNER_COLLECTION_ID, {});
+  for (const doc of apDocs as unknown as Array<{ kundeId?: string; data?: string }>) {
+    if (!doc.kundeId || !gesucht.has(doc.kundeId)) continue;
+    let daten: { email?: string; name?: string; funktion?: string } = {};
+    try {
+      daten = doc.data ? JSON.parse(doc.data) : {};
+    } catch {
+      continue;
+    }
+    const wer = [daten.name, daten.funktion].filter(Boolean).join(', ');
+    merke(doc.kundeId, { email: daten.email ?? '', quelle: 'ansprechpartner', hinweis: wer || 'Ansprechpartner' });
+  }
+
+  melde('Durchsuche frühere Projekte…', 75);
+  const projektDocs = await loadAllDocuments(DATABASE_ID, PROJEKTE_COLLECTION_ID, {});
+  for (const doc of projektDocs as unknown as Array<{ kundeId?: string; saisonjahr?: number; data?: string }>) {
+    if (!doc.kundeId || !gesucht.has(doc.kundeId)) continue;
+    let daten: { kundenEmail?: string; rechnungsEmail?: string } = {};
+    try {
+      daten = doc.data ? JSON.parse(doc.data) : {};
+    } catch {
+      continue;
+    }
+    const woher = doc.saisonjahr ? `Projekt ${doc.saisonjahr}` : 'früheres Projekt';
+    merke(doc.kundeId, { email: daten.kundenEmail ?? '', quelle: 'projekt', hinweis: woher });
+    merke(doc.kundeId, { email: daten.rechnungsEmail ?? '', quelle: 'projekt', hinweis: woher });
+  }
+
+  melde('Werte aus…', 95);
+  const faelle: EmailKlaerungsFall[] = [];
+  for (const kundeId of gesucht) {
+    const kunde = kundenMap.get(kundeId);
+    if (!kunde) continue;
+
+    const verteiler = (kunde.angebotsEmails ?? []).map(normalisiereEmail).filter(istEmail);
+    if (verteiler.length >= 1) continue; // bewusst gepflegt
+
+    const kandidaten = kandidatenMap.get(kundeId) ?? [];
+    if (kandidaten.length === 1) continue; // eindeutig
+
+    faelle.push({
+      kundeId,
+      kundenname: kunde.name,
+      kundennummer: kunde.kundennummer,
+      art: kandidaten.length === 0 ? 'fehlt' : 'mehrdeutig',
+      bisher: verteiler,
+      kandidaten,
+    });
+  }
+
+  melde('Fertig', 100);
+  // Fehlende zuerst: Sie brauchen Recherche, die Mehrdeutigen nur einen Klick.
+  return faelle.sort((a, b) =>
+    a.art === b.art ? a.kundenname.localeCompare(b.kundenname, 'de') : a.art === 'fehlt' ? -1 : 1
+  );
+}
+
+/**
+ * Schreibt den geklärten Angebots-Verteiler an den Kunden. Eine leere Liste
+ * löscht den Verteiler — dann greift beim Versand wieder der Fallback auf
+ * Rechnungs- bzw. Kundenadresse.
+ */
+async function setzeAngebotsEmails(kundeId: string, emails: string[]): Promise<void> {
+  const bereinigt = [...new Set(emails.map(normalisiereEmail).filter(istEmail))];
+  await saisonplanungService.updateKunde(kundeId, { angebotsEmails: bereinigt });
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'saison_kunde',
+    entityId: kundeId,
+    summary: `Angebots-Verteiler gesetzt: ${bereinigt.length > 0 ? bereinigt.join(', ') : '(geleert)'}`,
+  });
+}
+
 // ===== OPT-IN-VORSCHLAGSLISTE =====
 
 /**
@@ -1705,6 +1834,8 @@ export const _massenAngebotInternals = {
 
 export const massenAngebotService = {
   sammleKandidaten,
+  sammleEmailKlaerungsfaelle,
+  setzeAngebotsEmails,
   sammleTauglichkeitsVorschlaege,
   markiereAlsTauglich,
   berechneZusammenfassung,

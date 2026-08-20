@@ -155,3 +155,30 @@ export interface ErzeugungsErgebnis {
    */
   abgebrochen?: { grund: string; offen: number };
 }
+
+/**
+ * Eine gefundene E-Mail-Adresse für einen Kunden samt Fundort. Die Auswahl
+ * trifft immer ein Mensch: Bei „knut.christiansen@dhl.com" gegen
+ * „tc-verein@web.de" kann keine Heuristik entscheiden, welche der
+ * Vereinsvorstand ist.
+ */
+export interface EmailKandidat {
+  email: string;
+  /** Woher die Adresse stammt — entscheidet, wie vertrauenswürdig sie ist. */
+  quelle: 'kunde' | 'rechnung' | 'ansprechpartner' | 'projekt';
+  /** Zusatz für die Anzeige, z. B. der Name des Ansprechpartners. */
+  hinweis?: string;
+}
+
+/** Ein Kunde, dessen Angebots-Empfänger vor dem Lauf geklärt werden muss. */
+export interface EmailKlaerungsFall {
+  kundeId: string;
+  kundenname: string;
+  kundennummer?: string;
+  /** `fehlt` = keine Adresse auffindbar, `mehrdeutig` = mehrere zur Auswahl. */
+  art: 'fehlt' | 'mehrdeutig';
+  /** Was heute in `angebotsEmails` steht (leer, wenn nie gepflegt). */
+  bisher: string[];
+  /** Alle im System auffindbaren Adressen, ohne Duplikate. */
+  kandidaten: EmailKandidat[];
+}

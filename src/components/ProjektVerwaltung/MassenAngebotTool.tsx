@@ -27,6 +27,7 @@ import {
 } from '../../types/massenAngebot';
 import MassenAngebotDetailPanel from './MassenAngebotDetailPanel';
 import MassenAngebotVorschlagsliste from './MassenAngebotVorschlagsliste';
+import MassenAngebotEmailKlaerung from './MassenAngebotEmailKlaerung';
 import BestaetigungsDialog from './MassenAngebotBestaetigungsDialog';
 import {
   eur,
@@ -172,6 +173,9 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     };
   }, []);
 
+  // Empfänger-Klärung: offen, solange der Nutzer sie nicht geschlossen hat.
+  const [zeigeEmailKlaerung, setZeigeEmailKlaerung] = useState(false);
+
   const [limit, setLimit] = useState('');
   const [erzeugeBestaetigung, setErzeugeBestaetigung] = useState(false);
   const [erzeugung, setErzeugung] = useState<{ done: number; total: number; aktuell: string } | null>(null);
@@ -270,6 +274,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const auswahlKandidat = useMemo(
     () => (auswahlKundeId ? kandidaten.find((k) => k.kundeId === auswahlKundeId) ?? null : null),
     [kandidaten, auswahlKundeId]
+  );
+
+  // Kandidaten, die erzeugt würden, aber keinen Empfänger haben. Sie bekommen ein
+  // Projekt und ein Angebot — nur eben keine Mail. Ohne Hinweis fällt das erst auf,
+  // wenn im Frühjahr die Bestellung ausbleibt.
+  const kandidatenOhneEmail = useMemo(
+    () => ausgewaehlteNeu.filter((k) => k.emailFehlt),
+    [ausgewaehlteNeu]
+  );
+
+  // Geprüft wird die ganze Auswahl, nicht nur die Kunden ohne Adresse: Auch wer
+  // zwei widersprüchliche Adressen hat, gehört geklärt — dort entscheidet sonst
+  // die Reihenfolge im Code, wer die Mail bekommt.
+  const kandidatenFuerKlaerung = useMemo(
+    () => ausgewaehlteNeu.map((k) => k.kundeId),
+    [ausgewaehlteNeu]
   );
 
   const handleToggle = useCallback((kundeId: string) => {
@@ -593,6 +613,42 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       ) : (
         <>
+          {/* Empfänger klären — bevor der Lauf startet */}
+          {kandidatenOhneEmail.length > 0 && !zeigeEmailKlaerung && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3 flex-wrap">
+              <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-[16rem]">
+                <div className="font-semibold text-amber-900 dark:text-amber-200">
+                  {kandidatenOhneEmail.length}{' '}
+                  {kandidatenOhneEmail.length === 1 ? 'Kunde hat' : 'Kunden haben'} keine
+                  Empfängeradresse
+                </div>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                  Sie werden zwar angelegt, bekommen aber keine Mail — und fallen still aus dem
+                  Lauf. Vor dem Erzeugen klären.
+                </p>
+              </div>
+              <button
+                onClick={() => setZeigeEmailKlaerung(true)}
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0"
+              >
+                Empfänger klären
+              </button>
+            </div>
+          )}
+
+          {zeigeEmailKlaerung && (
+            <MassenAngebotEmailKlaerung
+              kundeIds={kandidatenFuerKlaerung}
+              onFertig={() => {
+                setZeigeEmailKlaerung(false);
+                // Nach dem Klären ist die Vorschau veraltet: Die Empfänger stehen
+                // jetzt am Kunden, der Kandidat trägt aber noch den alten Stand.
+                void ladeKandidaten();
+              }}
+            />
+          )}
+
           {/* Zähler + Werkzeuge */}
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-3 flex-wrap text-sm">
