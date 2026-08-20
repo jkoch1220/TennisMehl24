@@ -2,7 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, ALLE_PROJEKT_STATUS, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
-import { handleServiceError } from '../utils/errorHandling';
+import { handleServiceError, AppError } from '../utils/errorHandling';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
@@ -58,19 +58,26 @@ export const gruppiereProjekteNachStatus = (projekte: Projekt[]): Record<Projekt
 const MAX_DATA_FIELD_SIZE = 9500;
 
 /**
- * Das Projekt passt nicht mehr in die `data`-Spalte. Eigener Typ, damit die
- * Oberfläche eine verständliche Meldung zeigen kann statt einer Appwrite-
- * Fehlernummer — und damit man solche Fälle im Log wiederfindet.
+ * Das Projekt passt nicht mehr in die `data`-Spalte.
+ *
+ * Erbt bewusst von `AppError` und nicht von `Error`: `handleServiceError` reicht
+ * ausschließlich AppError-Instanzen unverändert weiter und ersetzt alles andere
+ * durch „Bitte erneut versuchen". Genau diese Meldung wäre hier grob irreführend
+ * — Wiederholen ändert an der Größe nichts. Deshalb auch `retryable: false`,
+ * damit keine künftige Wiederholungslogik es doch versucht.
  */
-export class ProjektDatenZuGrossError extends Error {
+export class ProjektDatenZuGrossError extends AppError {
   readonly projektId: string;
   readonly groesse: number;
 
   constructor(projektId: string, groesse: number) {
     super(
+      `Projekt ${projektId}: data-Blob ${groesse} > ${MAX_DATA_FIELD_SIZE} Zeichen`,
       `Das Projekt ist zu umfangreich zum Speichern (${groesse} von maximal ${MAX_DATA_FIELD_SIZE} Zeichen). ` +
-      'Die Änderung wurde NICHT gespeichert. Bitte Positionen oder lange Texte kürzen — ' +
-      'oder das Projekt aufteilen.'
+        'Die Änderung wurde NICHT gespeichert. Bitte Positionen oder lange Texte kürzen — ' +
+        'oder das Projekt aufteilen.',
+      'VALIDATION',
+      false
     );
     this.name = 'ProjektDatenZuGrossError';
     this.projektId = projektId;
@@ -641,40 +648,28 @@ class ProjektService {
    *   unberührt. Die Karte hing sichtbar in „Rechnungsstellung" fest, obwohl bezahlt.
    * - Das Kanban zieht `projekt.status`.
    *
-   * Ein Vorgang, drei Wahrheiten. Diese Funktion schreibt jetzt alle: den
-   * Projektstatus als Top-Level-Spalte und — nur wenn schon gesetzt — die beiden
-   * Nebenachsen im data-Blob. „Nur wenn schon gesetzt" ist wichtig: Ein reines
-   * Ziegelmehl-Projekt bekommt dadurch keine Hydrocourt-Achse angehängt.
+   * Ein Vorgang, drei Wahrheiten. Diese Funktion schreibt jetzt alle: zuerst den
+   * Projektstatus als Top-Level-Spalte, danach — nur wenn schon gesetzt — die
+   * beiden Nebenachsen im data-Blob. „Nur wenn schon gesetzt" ist wichtig: Ein
+   * reines Ziegelmehl-Projekt bekommt dadurch keine Hydrocourt-Achse angehängt.
+   *
+   * Ohne Transaktion über beide Schreibvorgänge bleibt ein Restrisiko. Die
+   * Reihenfolge bestimmt, welcher Halbzustand im Fehlerfall entsteht — und der
+   * hier gewählte ist der harmlose.
    */
   async markiereProjektAlsBezahlt(projektId: string, bezahltAm?: string): Promise<Projekt> {
     try {
       const jetzt = new Date().toISOString();
 
-      // Nebenachsen mitziehen. Bewusst VOR dem Top-Level-Schreibvorgang: Scheitert
-      // dieser Teil, ist der Vorgang noch nicht als bezahlt markiert und der
-      // Aufrufer sieht einen Fehler — besser als ein halb gesetzter Zustand.
-      try {
-        const vorher = await this.getProjekt(projektId);
-        const nebenachsen: Partial<Projekt> = {};
-        if (vorher.hydrocourtStatus && vorher.hydrocourtStatus !== 'bezahlt') {
-          nebenachsen.hydrocourtStatus = 'bezahlt';
-        }
-        if (vorher.universalKanbanStatus && vorher.universalKanbanStatus !== 'bezahlt') {
-          nebenachsen.universalKanbanStatus = 'bezahlt';
-        }
-        if (Object.keys(nebenachsen).length > 0) {
-          await this.updateProjekt(projektId, nebenachsen);
-        }
-      } catch (error) {
-        // Ein Projekt ohne lesbaren data-Blob (oder zu groß zum Schreiben) darf den
-        // Bezahlt-Vermerk nicht verhindern — der Projektstatus ist die führende
-        // Wahrheit und wird gleich gesetzt.
-        console.warn(
-          `Projekt ${projektId}: Nebenachsen konnten nicht auf „bezahlt" gezogen werden.`,
-          error
-        );
-      }
-
+      // Der Projektstatus zuerst — er ist die führende Wahrheit. Scheitert dieser
+      // Schreibvorgang, ist gar nichts geschrieben, und der Fehler, den der
+      // Aufrufer sieht, stimmt auch.
+      //
+      // Die umgekehrte Reihenfolge wäre die gefährlichere: Gelingt zuerst die
+      // Nebenachse und scheitert dann der Statuswechsel, stünde die Ansicht auf
+      // „bezahlt", während Kanban und Debitorenverwaltung den Vorgang weiter als
+      // offen führen — genau die Drei-Wahrheiten-Lage, die diese Funktion
+      // beseitigen soll, nur mit vertauschten Vorzeichen und ohne Meldung.
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
         status: 'bezahlt',
         bezahltAm: bezahltAm ?? jetzt,
@@ -682,6 +677,33 @@ class ProjektService {
         ...bearbeiterStempel(),
       });
       this.invalidateCache();
+
+      // Nebenachsen danach nachziehen. Der Ausgangsstand steckt bereits in
+      // `response` — das spart den zusätzlichen Leseaufruf, der bei einer
+      // Sammelzahlung über hundert Rechnungen spürbar wäre.
+      let ergebnis = parseProjektDocument(response);
+      try {
+        const nebenachsen: Partial<Projekt> = {};
+        if (ergebnis.hydrocourtStatus && ergebnis.hydrocourtStatus !== 'bezahlt') {
+          nebenachsen.hydrocourtStatus = 'bezahlt';
+        }
+        if (ergebnis.universalKanbanStatus && ergebnis.universalKanbanStatus !== 'bezahlt') {
+          nebenachsen.universalKanbanStatus = 'bezahlt';
+        }
+        if (Object.keys(nebenachsen).length > 0) {
+          ergebnis = await this.updateProjekt(projektId, nebenachsen);
+        }
+      } catch (error) {
+        // Bleibt dieser Schritt liegen, ist der Vorgang trotzdem korrekt bezahlt:
+        // Kanban und Debitoren lesen den Projektstatus. Nur die Karte in der
+        // Hydrocourt- bzw. Universal-Ansicht hinkt hinterher — ein Zustand, den
+        // man sieht und von Hand richten kann.
+        console.warn(
+          `Projekt ${projektId}: Nebenachsen konnten nicht auf „bezahlt" gezogen werden.`,
+          error
+        );
+      }
+
       auditService.logAktion({
         action: 'update',
         entityType: 'projekt',
@@ -689,7 +711,7 @@ class ProjektService {
         summary: `Projekt "${(response as { projektName?: string }).projektName ?? projektId}" als bezahlt markiert`,
         changes: { status: { alt: 'rechnung', neu: 'bezahlt' } },
       });
-      return parseProjektDocument(response);
+      return ergebnis;
     } catch (error) {
       handleServiceError(error, 'Markieren des Projekts als bezahlt');
     }
