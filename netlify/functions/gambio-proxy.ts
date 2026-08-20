@@ -135,6 +135,23 @@ export const handler: Handler = async (event: HandlerEvent) => {
 
     const text = await antwortVomShop.text();
 
+    // Bei abgelehnten Zugangsdaten einen Hinweis mitgeben. Bewusst nur Benutzername
+    // und Passwortlaenge - damit laesst sich ein verstuemmelter Wert erkennen
+    // (Shell-Expansion bei `netlify env:set` frisst $, ! und &), ohne ihn zu zeigen.
+    if (antwortVomShop.status === 401) {
+      console.error(
+        `gambio-proxy: Shop lehnt Zugangsdaten ab. Benutzer="${user}", Passwortlaenge=${pass.length}`
+      );
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 401,
+          body: `Shop lehnt die Zugangsdaten ab. Netlify-Variablen pruefen: GAMBIO_API_USER="${user}", GAMBIO_API_PASS hat ${pass.length} Zeichen (erwartet: 15). Werte in der Weboberflaeche eintragen, nicht per CLI - die Shell frisst $, ! und &.`,
+        }),
+      };
+    }
+
     // Statuscode und Rohtext unverändert weiterreichen, damit der Gambio-Client
     // im Backend seine eigene Fehlerbehandlung unverändert anwenden kann.
     return {
