@@ -76,6 +76,21 @@ import {
   ProjektFilterKategorie,
 } from '../../utils/projektHerkunft';
 import { anfragenService } from '../../services/anfragenService';
+import {
+  lieferterminEffektiv,
+  formatiereTermin,
+  terminQuelleLabel,
+  istUeberfaellig,
+} from '../../utils/liefertermin';
+import {
+  getAbwicklungswege,
+  hatAbwicklungsweg,
+  wegNochOffen,
+  ABWICKLUNGSWEGE,
+  ABWICKLUNGSWEG_LABEL,
+  ABWICKLUNGSWEG_KUERZEL,
+  type Abwicklungsweg,
+} from '../../utils/abwicklungsweg';
 import { client, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
 import { realtimeKanal } from '../../config/mockModus';
 
@@ -438,7 +453,12 @@ const ProjektVerwaltung = () => {
 
   // Filter nach Herkunft/Typ (null = alle Projekte)
   const [aktiveKategorie, setAktiveKategorie] = useState<ProjektFilterKategorie | null>(null);
+  // Zweite Filterachse: Wie kommt die Ware zum Verein. `'offen'` steht für
+  // Projekte, bei denen sich das noch nicht sagen lässt — sie sind ein eigener
+  // Filterwert und fallen nicht still durch jede Auswahl.
+  const [aktiverWeg, setAktiverWeg] = useState<Abwicklungsweg | 'offen' | null>(null);
   const [showKategorieMenu, setShowKategorieMenu] = useState(false);
+  const [showWegMenu, setShowWegMenu] = useState(false);
 
   // Wrapper-Funktionen die auch in Session Storage speichern
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -663,6 +683,27 @@ const ProjektVerwaltung = () => {
     return zaehler;
   }, [kategorienMap]);
 
+  // Anzahl je Abwicklungsweg — damit im Menü steht, was sich dahinter verbirgt.
+  // Ohne Zähler klickt man ins Leere und weiß nicht, ob der Filter zu eng war
+  // oder es dort wirklich nichts gibt.
+  const wegZaehler = useMemo(() => {
+    const zaehler: Record<Abwicklungsweg | 'offen' | 'gesamt', number> = {
+      schuettgut: 0, palette: 0, kranwagen: 0, hydrocourt: 0, universal: 0,
+      abholung: 0, offen: 0, gesamt: 0,
+    };
+    Object.values(projekteGruppiert).forEach((projekte) => {
+      projekte.forEach((projekt) => {
+        zaehler.gesamt += 1;
+        const wege = getAbwicklungswege(projekt);
+        if (wege.size === 0) zaehler.offen += 1;
+        // Ein gemischter Auftrag zählt bewusst in jeder betroffenen Zeile mit —
+        // deshalb ergibt die Summe mehr als die Gesamtzahl.
+        wege.forEach((weg) => { zaehler[weg] += 1; });
+      });
+    });
+    return zaehler;
+  }, [projekteGruppiert]);
+
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
     // Schritt 1: Kategorie-Filter (Platzbauer, Shop, Anfrage, Hydrocourt, Universal)
@@ -672,6 +713,17 @@ const ProjektVerwaltung = () => {
           return kategorienMap.get(key)?.has(aktiveKategorie) === true;
         })
       : projekte;
+
+    // Schritt 1b: Abwicklungsweg — bewusst eine EIGENE Achse neben der Herkunft.
+    // „Über den Platzbauer bestellt" und „geht per Spedition" sind zwei
+    // verschiedene Fragen; sie standen früher in einem Topf, wodurch man nie
+    // beides gleichzeitig einschränken konnte.
+    if (aktiverWeg) {
+      gefiltert =
+        aktiverWeg === 'offen'
+          ? gefiltert.filter((p) => wegNochOffen(p))
+          : gefiltert.filter((p) => hatAbwicklungsweg(p, aktiverWeg));
+    }
 
     // ============================================
     // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (eigenes Feld!)
@@ -711,7 +763,7 @@ const ProjektVerwaltung = () => {
     }
 
     return gefiltert;
-  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap]);
+  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap, aktiverWeg]);
 
   // Alle Projekte mit Angebot für die Angebotsliste.
   // Über ALLE_PROJEKT_STATUS abgeleitet statt Status für Status aufgezählt: Die
@@ -1200,6 +1252,74 @@ const ProjektVerwaltung = () => {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              )}
+            </div>
+
+            {/* Abwicklungsweg — eigene Achse neben der Herkunft. „Wer hat bestellt"
+                und „wie kommt die Ware hin" sind zwei verschiedene Fragen. */}
+            <div className="relative">
+              <button
+                onClick={() => setShowWegMenu(!showWegMenu)}
+                className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
+                  aktiverWeg
+                    ? 'bg-slate-700 text-white border-transparent dark:bg-slate-200 dark:text-slate-900'
+                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Nach Abwicklungsweg filtern"
+              >
+                <Truck className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {aktiverWeg
+                    ? aktiverWeg === 'offen'
+                      ? 'Weg offen'
+                      : ABWICKLUNGSWEG_LABEL[aktiverWeg]
+                    : 'Abwicklung'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {showWegMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowWegMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1">
+                    <button
+                      onClick={() => { setAktiverWeg(null); setShowWegMenu(false); }}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                        !aktiverWeg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
+                      }`}
+                    >
+                      Alle Wege
+                      <span className="text-xs text-gray-400">{wegZaehler.gesamt}</span>
+                    </button>
+                    {ABWICKLUNGSWEGE.map((weg) => (
+                      <button
+                        key={weg}
+                        onClick={() => { setAktiverWeg(weg); setShowWegMenu(false); }}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                          aktiverWeg === weg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-400 w-10">
+                            {ABWICKLUNGSWEG_KUERZEL[weg]}
+                          </span>
+                          {ABWICKLUNGSWEG_LABEL[weg]}
+                        </span>
+                        <span className="text-xs text-gray-400">{wegZaehler[weg]}</span>
+                      </button>
+                    ))}
+                    {/* Eigener Eintrag statt stillem Ausblenden: Projekte ohne
+                        bestimmbaren Weg sind ein Arbeitsvorrat, kein Datenfehler. */}
+                    <button
+                      onClick={() => { setAktiverWeg('offen'); setShowWegMenu(false); }}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                        aktiverWeg === 'offen' ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400'
+                      }`}
+                    >
+                      Weg noch offen
+                      <span className="text-xs text-gray-400">{wegZaehler.offen}</span>
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -1886,6 +2006,11 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
   // Verwende aktuellen Kundennamen aus Kundendaten, falls vorhanden
   const kundenname = aktuellerKundenname || projekt.kundenname;
+  // Termin und Abwicklungsweg je Karte ableiten. Beides parst im Zweifel das
+  // Positions-JSON, deshalb memoisiert — bei 200 Karten summiert sich das.
+  const termin = useMemo(() => lieferterminEffektiv(projekt), [projekt]);
+  const ueberfaellig = useMemo(() => istUeberfaellig(projekt), [projekt]);
+  const wege = useMemo(() => [...getAbwicklungswege(projekt)], [projekt]);
   // Herkunfts-Badge: beim Platzbauer das Kürzel, sonst der Kanalname
   const platzbauerKuerzel = getPlatzbauerKuerzel(platzbauerName);
   const shopBestellnummer = herkunft === 'shop' ? getShopBestellnummer(projekt) : undefined;
@@ -2105,6 +2230,43 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
           </button>
         </div>
       </div>
+
+      {/* Liefertermin und Abwicklungsweg — die zwei Angaben, nach denen in der
+          Hochsaison zuerst gefragt wird. Beide standen bisher nirgends auf der
+          Karte, obwohl die Daten da sind. */}
+      {(termin || wege.length > 0) && (
+        <div className="flex items-center gap-1.5 flex-wrap mt-1 ml-6">
+          {termin && (
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border ${
+                ueberfaellig
+                  ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                  : termin.verbindlich
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-gray-50 dark:bg-slate-700/60 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600'
+              }`}
+              title={`Liefertermin ${formatiereTermin(termin)} — ${terminQuelleLabel(termin.quelle)}${
+                ueberfaellig ? ', überfällig' : ''
+              }`}
+            >
+              <CalendarDays className="w-3 h-3" />
+              {formatiereTermin(termin)}
+              {/* Die Herkunft steht bewusst daneben: Eine Schätzung darf nicht
+                  aussehen wie eine Zusage. */}
+              <span className="opacity-70">{terminQuelleLabel(termin.quelle)}</span>
+            </span>
+          )}
+          {wege.map((weg) => (
+            <span
+              key={weg}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600"
+              title={`Abwicklung: ${ABWICKLUNGSWEG_LABEL[weg]}`}
+            >
+              {ABWICKLUNGSWEG_KUERZEL[weg]}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Dokument-Infos - kompakter */}
       <div className="text-xs text-gray-500 dark:text-dark-textMuted space-y-0.5 ml-6">
