@@ -1769,6 +1769,25 @@ async function versendeAngebot(
     return { success: false, error: 'Keine Empfänger-E-Mail' };
   }
 
+  // Doppelversand-Schutz unmittelbar vor dem Senden, nicht nur beim Aufbau der
+  // Liste. Zwischen dem Laden der Versandliste und diesem Moment können Minuten
+  // liegen — genug, dass ein zweiter Tab oder ein zweiter Anlauf dieselbe Mail
+  // schon rausgeschickt hat. Beim Testversand entfällt die Prüfung, weil dort
+  // nichts beim Kunden ankommt und der Status unberührt bleibt.
+  if (!testModus) {
+    try {
+      const projekt = await projektService.getProjekt(projektId);
+      if (projekt.status !== 'angebot') {
+        return { success: false, error: `Bereits versendet (Status: ${projekt.status})` };
+      }
+    } catch {
+      // getProjekt wirft, wenn das Projekt inzwischen gelöscht wurde — etwa durch
+      // eine Rücknahme des Laufs in einem anderen Tab. Dann gibt es nichts zu
+      // versenden, und das ist kein Systemfehler, sondern ein Zustand.
+      return { success: false, error: 'Projekt existiert nicht mehr' };
+    }
+  }
+
   const dokument = await ladeDokumentNachTyp(projektId, 'angebot');
   if (!dokument) return { success: false, error: 'Kein gespeichertes Angebot gefunden' };
   const daten = ladeDokumentDaten<AngebotsDaten>(dokument);
@@ -1832,16 +1851,38 @@ async function versendeAngebot(
   };
 }
 
+/**
+ * Pause zwischen zwei Mails. Mehrere hundert Nachrichten in schneller Folge über
+ * dasselbe Postfach sind das klassische Muster, an dem Empfänger-Server
+ * Massenversand erkennen — im schlimmsten Fall landet das halbe Frühjahrsgeschäft
+ * im Spam-Ordner. Eine halbe Sekunde streckt 290 Mails auf gut zweieinhalb
+ * Minuten; das ist der Preis dafür, dass sie ankommen.
+ */
+const VERSAND_PAUSE_MS = 500;
+
+const warte = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 // Versendet mehrere Angebote nacheinander (sequentiell, mit Fortschritt + Fehlersammlung).
 async function versendeBatch(
   kandidaten: VersandKandidat[],
   testModus: boolean,
-  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void
-): Promise<{ gesendet: number; fehler: { kundenname: string; fehler: string }[] }> {
+  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void,
+  optionen: { abbruchSignal?: () => boolean; pauseMs?: number } = {}
+): Promise<{
+  gesendet: number;
+  fehler: { kundenname: string; fehler: string }[];
+  abgebrochen?: { offen: number };
+}> {
   let gesendet = 0;
   const fehler: { kundenname: string; fehler: string }[] = [];
+  const pause = optionen.pauseMs ?? (testModus ? 0 : VERSAND_PAUSE_MS);
   let index = 0;
   for (const kandidat of kandidaten) {
+    // Vor dem Senden prüfen, nicht danach: Ein Abbruch soll die nächste Mail
+    // verhindern, nicht erst nach ihr greifen.
+    if (optionen.abbruchSignal?.()) {
+      return { gesendet, fehler, abgebrochen: { offen: kandidaten.length - index } };
+    }
     index += 1;
     try {
       const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus);
@@ -1855,6 +1896,7 @@ async function versendeBatch(
     } finally {
       onFortschritt?.(index, kandidaten.length, kandidat.kundenname);
     }
+    if (pause > 0 && index < kandidaten.length) await warte(pause);
   }
   return { gesendet, fehler };
 }

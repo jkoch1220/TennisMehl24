@@ -193,6 +193,9 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [rollbackInfo, setRollbackInfo] = useState<string | null>(null);
   const [rollbackLaeuft, setRollbackLaeuft] = useState(false);
 
+  // Wird vom Stopp-Knopf gesetzt und vor jeder einzelnen Mail geprüft.
+  const versandAbbruch = useRef(false);
+
   const [versandKandidaten, setVersandKandidaten] = useState<VersandKandidat[] | null>(null);
   // Batch, zu dem die aktuell geladene Versand-Liste gehört (überlebt auch den
   // Weg über das Protokoll nach einem Seiten-Reload).
@@ -204,6 +207,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [versandErgebnis, setVersandErgebnis] = useState<{
     gesendet: number;
     fehler: { kundenname: string; fehler: string }[];
+    /** Gesetzt, wenn der Versand über den Anhalten-Knopf gestoppt wurde. */
+    abgebrochen?: { offen: number };
   } | null>(null);
 
   const [laeufe, setLaeufe] = useState<AngebotsLauf[]>([]);
@@ -430,12 +435,16 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     if (!versandKandidaten) return;
     setVersandBestaetigung(false);
     setVersandErgebnis(null);
+    versandAbbruch.current = false;
     // Im Testmodus dürfen auch Zeilen ohne Kunden-E-Mail mit (gehen an Testadresse).
     const liste = testModus ? versandAuswahlTest : versandAuswahl;
     setVersand({ done: 0, total: liste.length, aktuell: '' });
     try {
-      const res = await massenAngebotService.versendeBatch(liste, testModus, (done, total, aktuell) =>
-        setVersand({ done, total, aktuell })
+      const res = await massenAngebotService.versendeBatch(
+        liste,
+        testModus,
+        (done, total, aktuell) => setVersand({ done, total, aktuell }),
+        { abbruchSignal: () => versandAbbruch.current }
       );
       setVersandErgebnis(res);
       if (!testModus && versandBatchId) {
@@ -449,6 +458,18 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setVersand(null);
     }
   }, [versandKandidaten, testModus, versandAuswahl, versandAuswahlTest, versandBatchId]);
+
+  const handleVersandToggle = useCallback((projektId: string) => {
+    setVersandKandidaten((prev) =>
+      prev
+        ? prev.map((v) => (v.projektId === projektId ? { ...v, ausgewaehlt: !v.ausgewaehlt } : v))
+        : prev
+    );
+  }, []);
+
+  const handleVersandAlle = useCallback((wert: boolean) => {
+    setVersandKandidaten((prev) => (prev ? prev.map((v) => ({ ...v, ausgewaehlt: wert })) : prev));
+  }, []);
 
   // Versand-Liste eines früheren Laufs aus dem Protokoll öffnen — damit der
   // Versand-Schritt auch nach einem Seiten-Reload wieder erreichbar ist.
@@ -970,12 +991,62 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                 )}
               </span>
               <button
+                onClick={() => handleVersandAlle(true)}
+                disabled={!!versand}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Alle
+              </button>
+              <button
+                onClick={() => handleVersandAlle(false)}
+                disabled={!!versand}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Keine
+              </button>
+              <button
                 onClick={() => setVersandBestaetigung(true)}
                 disabled={!!versand || versandAnzahl === 0}
                 className="ml-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg inline-flex items-center gap-2 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {versandAnzahl} Angebote versenden
               </button>
+            </div>
+          )}
+
+          {/* Einzelne Empfänger abwählen — beim Massenversand an echte Kunden ist
+              das der letzte Punkt, an dem ein Zweifelsfall noch herausfällt. */}
+          {versandKandidaten.length > 0 && (
+            <div className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-100 dark:divide-slate-700/60 max-h-72 overflow-y-auto">
+              {versandKandidaten.map((v) => (
+                <label
+                  key={v.projektId}
+                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/40"
+                >
+                  <input
+                    type="checkbox"
+                    checked={v.ausgewaehlt}
+                    disabled={!!versand}
+                    onChange={() => handleVersandToggle(v.projektId)}
+                    className="h-4 w-4 rounded border-gray-300 dark:border-slate-600 text-purple-600 disabled:opacity-40"
+                  />
+                  <span className="text-sm text-gray-900 dark:text-slate-100 truncate flex-1 min-w-0">
+                    {v.kundenname}
+                  </span>
+                  {v.angebotsnummer && (
+                    <code className="text-xs text-gray-400 flex-shrink-0">{v.angebotsnummer}</code>
+                  )}
+                  {v.emailFehlt ? (
+                    <span className="text-xs text-red-600 dark:text-red-400 flex-shrink-0">
+                      keine Adresse
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[16rem] flex-shrink-0">
+                      {v.empfaengerEmail}
+                    </span>
+                  )}
+                </label>
+              ))}
             </div>
           )}
         </div>
@@ -987,6 +1058,15 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           <div className="flex items-center gap-2 text-gray-700 dark:text-slate-300 mb-2">
             <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
             Versende {versand.done} von {versand.total}… {versand.aktuell}
+            <button
+              onClick={() => {
+                versandAbbruch.current = true;
+              }}
+              className="ml-auto px-3 py-1.5 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40"
+              title="Hält nach der laufenden Mail an. Bereits versendete lassen sich nicht zurückholen."
+            >
+              Anhalten
+            </button>
           </div>
           <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -999,12 +1079,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       {versandErgebnis && (
         <div className="bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-sm">
           <div className="flex items-center gap-2 font-semibold text-purple-700 dark:text-purple-400 mb-1">
-            <Mail className="w-4 h-4" /> Versand abgeschlossen
+            <Mail className="w-4 h-4" />
+            {versandErgebnis.abgebrochen ? 'Versand angehalten' : 'Versand abgeschlossen'}
             {testModus && <span className="text-xs font-normal">(Testmodus – nur Testadresse)</span>}
           </div>
           <div className="text-gray-700 dark:text-slate-300">
             {versandErgebnis.gesendet} gesendet · {versandErgebnis.fehler.length} fehlerhaft
+            {versandErgebnis.abgebrochen && (
+              <> · <strong>{versandErgebnis.abgebrochen.offen}</strong> nicht mehr angefasst</>
+            )}
           </div>
+          {versandErgebnis.abgebrochen && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              Die offenen Empfänger stehen weiterhin in der Versand-Liste und können später
+              nachgeholt werden.
+            </p>
+          )}
           {versandErgebnis.fehler.length > 0 && (
             <div className="text-xs text-red-600 dark:text-red-400 mt-1 max-h-24 overflow-y-auto">
               {versandErgebnis.fehler.map((f, i) => (
