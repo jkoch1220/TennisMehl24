@@ -44,7 +44,7 @@ import {
   Workflow,
   Scale,
 } from 'lucide-react';
-import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
+import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE, ALLE_PROJEKT_STATUS } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService, type SaisonRolloverErgebnis } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -172,6 +172,11 @@ const VIEW_MODES = [
   'overview', 'kanban', 'angebotsliste', 'statistik', 'anfragen', 'karte',
   'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot',
 ] as const;
+
+// Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
+// Bewusst als Liste statt als Ausschluss: Wer eine Ansicht ergänzt, muss sich
+// aktiv entscheiden, ob die Filterzeile dort etwas bewirkt.
+const FILTERBARE_VIEWS: readonly string[] = ['kanban', 'angebotsliste', 'karte'];
 
 type ViewMode = (typeof VIEW_MODES)[number];
 
@@ -387,6 +392,9 @@ const ProjektVerwaltung = () => {
     verloren: [],
   });
   const [loading, setLoading] = useState(true);
+  // Nachladen im Hintergrund — das Board bleibt stehen, nur ein Hinweis erscheint.
+  const [aktualisiert, setAktualisiert] = useState(false);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [suche, setSuche] = useState('');
   const [nummerSuche, setNummerSuche] = useState(''); // Dedizierte Suche für Dokument-Nummern
@@ -481,8 +489,19 @@ const ProjektVerwaltung = () => {
 
   // Lade Daten inkl. Kundendaten für die Suche
   // OPTIMIERT: Lade alle Kunden auf einmal statt einzeln!
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  //
+  // `stillesNachladen` unterscheidet die beiden Fälle, die vorher gleich behandelt
+  // wurden: Beim ERSTEN Aufruf gibt es noch nichts anzuzeigen, da ist ein Spinner
+  // richtig. Bei jedem SPÄTEREN — nach Speichern, Löschen, Verloren-Markieren oder
+  // einem Klick auf Aktualisieren — steht das Board bereits da. Es dann durch einen
+  // Vollbild-Spinner zu ersetzen, montiert den ganzen Baum ab: eingeklappte Spalten
+  // gehen auf, die Scrollposition springt auf Anfang, der Fokus im Suchfeld ist weg
+  // und die Karte geokodiert neu. Das war die größte einzelne Ursache dafür, dass
+  // sich das Tool unruhig anfühlte.
+  const loadData = useCallback(async ({ stillesNachladen = false } = {}) => {
+    if (stillesNachladen) setAktualisiert(true);
+    else setLoading(true);
+    setLadeFehler(null);
     try {
       // Parallel: Projekte, alle Kunden UND die Anfragen-Verknüpfungen laden
       // (Letztere nur die ID-Felder — für die Herkunfts-Markierung im Board.)
@@ -502,9 +521,19 @@ const ProjektVerwaltung = () => {
       });
       setKundenMap(neueKundenMap);
     } catch (error) {
+      // Vorher landete der Fehler nur in der Konsole: Das Board blieb leer und sah
+      // aus wie „keine Projekte in dieser Saison". Jetzt sagt eine Leiste, dass das
+      // Laden fehlgeschlagen ist — der Unterschied zwischen „nichts da" und
+      // „nicht geladen" entscheidet, ob jemand anfängt, Daten neu anzulegen.
       console.error('Fehler beim Laden:', error);
+      setLadeFehler(
+        error instanceof Error
+          ? error.message
+          : 'Die Projekte konnten nicht geladen werden.'
+      );
     } finally {
       setLoading(false);
+      setAktualisiert(false);
     }
   }, [saisonjahr]);
 
@@ -652,17 +681,14 @@ const ProjektVerwaltung = () => {
     return gefiltert;
   }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap]);
 
-  // Alle Projekte mit Angebot für die Angebotsliste
+  // Alle Projekte mit Angebot für die Angebotsliste.
+  // Über ALLE_PROJEKT_STATUS abgeleitet statt Status für Status aufgezählt: Die
+  // frühere Liste ließ „geliefert" aus, ein geliefertes Projekt verschwand also
+  // aus der Angebotsliste — obwohl sein Angebot unverändert existiert.
   const angebotsProjekte = useMemo(() => {
-    const alleProjekte = [
-      ...projekteGruppiert.angebot,
-      ...projekteGruppiert.angebot_versendet,
-      ...projekteGruppiert.auftragsbestaetigung,
-      ...projekteGruppiert.lieferschein,
-      ...projekteGruppiert.rechnung,
-      ...projekteGruppiert.bezahlt,
-      ...projekteGruppiert.verloren,
-    ].filter(p => p.angebotsnummer);
+    const alleProjekte = ALLE_PROJEKT_STATUS.flatMap(
+      (status) => projekteGruppiert[status] ?? []
+    ).filter(p => p.angebotsnummer);
 
     // Sortiere nach Angebotsnummer (neueste zuerst)
     return filterProjekte(alleProjekte).sort((a, b) => {
@@ -760,7 +786,7 @@ const ProjektVerwaltung = () => {
         verlorenGrund: grund,
         verlorenGrundText: grund === 'sonstiges' ? grundText : undefined,
       });
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Markieren als verloren:', error);
       alert('Fehler beim Speichern. Bitte erneut versuchen.');
@@ -794,7 +820,7 @@ const ProjektVerwaltung = () => {
       await projektService.updateProjekt(projektId, updatedProjekt);
       setShowEditModal(false);
       setEditingProjekt(null);
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       alert('Fehler beim Speichern des Projekts. Bitte erneut versuchen.');
@@ -821,7 +847,7 @@ const ProjektVerwaltung = () => {
     setSaving(true);
     try {
       await projektService.deleteProjekt(projekt);
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       alert('Fehler beim Löschen des Projekts. Bitte erneut versuchen.');
@@ -831,31 +857,41 @@ const ProjektVerwaltung = () => {
   };
 
   // Berechne Gesamtzahlen
-  const gesamtAngebot = projekteGruppiert.angebot.length;
-  const gesamtAngebotVersendet = projekteGruppiert.angebot_versendet.length;
-  const gesamtAuftragsbestaetigung = projekteGruppiert.auftragsbestaetigung.length;
-  const gesamtLieferschein = projekteGruppiert.lieferschein.length;
-  const gesamtRechnung = projekteGruppiert.rechnung.length;
-  const gesamtBezahlt = projekteGruppiert.bezahlt.length;
   const gesamtVerloren = projekteGruppiert.verloren.length;
-  const gesamt = gesamtAngebot + gesamtAngebotVersendet + gesamtAuftragsbestaetigung + gesamtLieferschein + gesamtRechnung + gesamtBezahlt;
+
+  // Summe über ALLE Status außer „verloren" — bewusst abgeleitet statt aufgezählt.
+  // Die frühere Handaddition vergaß „geliefert": Die Kopfzeile meldete weniger
+  // Projekte, als das Board zeigte, und niemand konnte sagen, welche fehlten.
+  const gesamt = ALLE_PROJEKT_STATUS.reduce(
+    (summe, status) => (status === 'verloren' ? summe : summe + (projekteGruppiert[status]?.length ?? 0)),
+    0
+  );
 
   // Alle Status-Spalten nebeneinander — inkl. Verloren, wenn eingeblendet
   const kanbanSpaltenKlasse = kanbanGridKlasse(TABS.length + (showVerlorenSpalte ? 1 : 0));
 
-  // Helper für Count pro Status
-  const getCount = (status: ProjektStatus) => {
-    switch (status) {
-      case 'angebot': return gesamtAngebot;
-      case 'angebot_versendet': return gesamtAngebotVersendet;
-      case 'auftragsbestaetigung': return gesamtAuftragsbestaetigung;
-      case 'lieferschein': return gesamtLieferschein;
-      case 'rechnung': return gesamtRechnung;
-      case 'bezahlt': return gesamtBezahlt;
-      case 'verloren': return gesamtVerloren;
-      default: return 0;
-    }
-  };
+  // Menge für die Kartenansicht — memoisiert, und das ist hier kein Feinschliff:
+  // Der Geocoding-Effekt in ProjektKartenansicht hängt an dieser Liste. Wurde sie
+  // bei jedem Render neu gebaut, war sie jedes Mal eine neue Referenz — der Effekt
+  // lief erneut, setzte den Kartenausschnitt zurück und schickte Geocoding-Anfragen
+  // los. Beim Tippen in der Suche flackerten so die Marker bei jedem Anschlag.
+  //
+  // Außerdem wird die Menge jetzt aus ALLE_PROJEKT_STATUS abgeleitet statt Status
+  // für Status aufgezählt: Die alte Aufzählung ließ „geliefert" aus, gelieferte
+  // Projekte verschwanden also von der Karte.
+  const kartenProjekte = useMemo(
+    () =>
+      ALLE_PROJEKT_STATUS.filter((status) => status !== 'verloren' || showVerlorenSpalte).flatMap(
+        (status) => filterProjekte(projekteGruppiert[status] ?? [])
+      ),
+    [projekteGruppiert, showVerlorenSpalte, filterProjekte]
+  );
+
+  // Zähler direkt aus der Datenmenge. Die frühere switch-Liste hatte keinen Fall
+  // für „geliefert" und fiel auf 0 zurück — die Spalte zeigte dauerhaft 0,
+  // obwohl Karten darin lagen. Ein neuer Status kann hier nicht mehr vergessen
+  // werden.
+  const getCount = (status: ProjektStatus) => projekteGruppiert[status]?.length ?? 0;
 
   // Helper für Projekte pro Status
   const getProjekte = (status: ProjektStatus) => {
@@ -935,7 +971,7 @@ const ProjektVerwaltung = () => {
         <div className="p-4">
           <AnfragenVerarbeitung
             onAnfrageGenehmigt={() => {
-              loadData();
+              void loadData({ stillesNachladen: true });
             }}
           />
         </div>
@@ -1002,6 +1038,11 @@ const ProjektVerwaltung = () => {
                 <span>
                   {gesamt} aktive Projekte {gesamtVerloren > 0 && `• ${gesamtVerloren} verloren`} • Saison {saisonjahr}
                 </span>
+                {aktualisiert && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> wird aktualisiert
+                  </span>
+                )}
                 {saisonjahr === aktuelleSaison ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
                     aktuelle Saison
@@ -1046,8 +1087,12 @@ const ProjektVerwaltung = () => {
               )}
             </div>
 
-            {/* Suche und Filter greifen nur auf Projektlisten — in der Übersicht ausgeblendet */}
-            {viewMode !== 'overview' && (
+            {/* Suche und Kategoriefilter greifen ausschließlich auf die Projektlisten.
+                Sie standen früher auch über Statistik, Wiegescheinen, Hydrocourt,
+                Universal, Exports und Massen-Angeboten — sichtbar, beschriftet und
+                ohne jede Wirkung. Ein aktiver Filter, der nichts tut, ist die
+                teuerste Form von Vertrauensverlust. */}
+            {FILTERBARE_VIEWS.includes(viewMode) && (
               <>
             {/* Suche nach Vereinsname/PLZ */}
             <div className="relative flex-1 md:flex-none">
@@ -1333,8 +1378,8 @@ const ProjektVerwaltung = () => {
             )}
 
             <button
-              onClick={loadData}
-              disabled={loading}
+              onClick={() => void loadData({ stillesNachladen: true })}
+              disabled={loading || aktualisiert}
               className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -1351,6 +1396,32 @@ const ProjektVerwaltung = () => {
           onClose={() => setShowNeueSaisonModal(false)}
           onErstellen={handleNeueSaisonErstellen}
         />
+      )}
+
+      {/* Ladefehler sichtbar machen. Vorher blieb das Board einfach leer — nicht zu
+          unterscheiden von „diese Saison hat keine Projekte". */}
+      {ladeFehler && (
+        <div className="mb-4 px-4 py-3 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-red-800 dark:text-red-200">
+              Die Projekte konnten nicht geladen werden
+            </div>
+            <p className="text-sm text-red-700 dark:text-red-300 mt-0.5 break-words">
+              {ladeFehler}
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-300">
+              Was unten steht, ist möglicherweise nicht der aktuelle Stand.
+            </p>
+          </div>
+          <button
+            onClick={() => void loadData({ stillesNachladen: true })}
+            disabled={aktualisiert}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 flex-shrink-0"
+          >
+            Erneut versuchen
+          </button>
+        </div>
       )}
 
       {/* Prozess-Übersicht: Startansicht, verbindet alle Tools entlang des Ablaufs */}
@@ -1441,7 +1512,7 @@ const ProjektVerwaltung = () => {
         <AnfragenVerarbeitung
           onAnfrageGenehmigt={() => {
             // Nach Genehmigung zum Kanban wechseln und Daten neu laden
-            loadData();
+            void loadData({ stillesNachladen: true });
           }}
         />
       )}
@@ -1449,15 +1520,7 @@ const ProjektVerwaltung = () => {
       {/* Karten-Ansicht */}
       {viewMode === 'karte' && (
         <ProjektKartenansicht
-          projekte={[
-            ...filterProjekte(projekteGruppiert.angebot),
-            ...filterProjekte(projekteGruppiert.angebot_versendet),
-            ...filterProjekte(projekteGruppiert.auftragsbestaetigung),
-            ...filterProjekte(projekteGruppiert.lieferschein),
-            ...filterProjekte(projekteGruppiert.rechnung),
-            ...filterProjekte(projekteGruppiert.bezahlt),
-            ...(showVerlorenSpalte ? filterProjekte(projekteGruppiert.verloren) : []),
-          ]}
+          projekte={kartenProjekte}
           onProjektClick={handleProjektClick}
         />
       )}
