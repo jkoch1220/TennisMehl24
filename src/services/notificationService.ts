@@ -120,7 +120,10 @@ class NotificationService {
    * Die Liste wird begrenzt geladen (Performance); die Filterung auf „offen"
    * erfolgt clientseitig, da Appwrite kein „Array enthält NICHT"-Query bietet.
    */
-  async ladeOffeneNotifications(userId: string, limit = MAX_OFFENE_NOTIFICATIONS): Promise<Benachrichtigung[]> {
+  async ladeOffeneNotifications(
+    userId: string,
+    limit = MAX_OFFENE_NOTIFICATIONS
+  ): Promise<{ notifications: Benachrichtigung[]; ausgeblendeteAnfrageIds: string[] }> {
     try {
       const response = await databases.listDocuments(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, [
         Query.orderDesc('erstelltAm'),
@@ -131,10 +134,20 @@ class NotificationService {
         .map((doc) => mapDocument(doc as unknown as Record<string, unknown>))
         .filter((n) => !n.erledigtVon.includes(userId));
 
-      return this.ohneAbgearbeiteteAnfragen(offene);
+      const sichtbar = await this.ohneAbgearbeiteteAnfragen(offene);
+
+      // Welche Anfragen wurden bewusst ausgeblendet? Der Realtime-Handler braucht
+      // das, um sie bei einem fremden Update nicht wieder einzusortieren — und
+      // zwar synchron, ohne dafür erneut die Datenbank zu fragen.
+      const sichtbareIds = new Set(sichtbar.map((n) => n.$id));
+      const ausgeblendeteAnfrageIds = offene
+        .filter((n) => n.refTyp === ANFRAGEN_COLLECTION_ID && n.refId && !sichtbareIds.has(n.$id))
+        .map((n) => n.refId);
+
+      return { notifications: sichtbar, ausgeblendeteAnfrageIds };
     } catch (error) {
       console.error('Fehler beim Laden der Benachrichtigungen:', error);
-      return [];
+      return { notifications: [], ausgeblendeteAnfrageIds: [] };
     }
   }
 
@@ -161,6 +174,11 @@ class NotificationService {
       const response = await databases.listDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, [
         Query.equal('$id', anfrageIds),
         Query.limit(anfrageIds.length),
+        // Nur der Status wird gebraucht. Ohne select kämen die vollständigen
+        // Anfragen samt HTML-Mail mit — bei einem Rückstand von einigen Dutzend
+        // Anfragen sind das schnell mehrere MB, die jeder Seitenaufruf zusätzlich
+        // zieht, bevor die Glocke steht.
+        Query.select(['$id', 'status']),
       ]);
 
       // Status je Anfrage. Was die Abfrage nicht liefert, ist hart gelöscht —

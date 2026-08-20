@@ -53,7 +53,7 @@ import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenSe
 import { StammdatenInput } from '../../types/stammdaten';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCan } from '../../hooks/useCan';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
@@ -159,7 +159,19 @@ const KANBAN_GRID_KLASSEN: Record<number, string> = {
 const kanbanGridKlasse = (spalten: number): string =>
   KANBAN_GRID_KLASSEN[spalten] ?? 'xl:grid-cols-8';
 
-type ViewMode = 'overview' | 'kanban' | 'angebotsliste' | 'statistik' | 'anfragen' | 'karte' | 'hydrocourt' | 'universal' | 'wiegescheine' | 'exports' | 'massenangebot';
+// Liste statt ausgeschriebenem Union: Nur so laesst sich ein `?view=`-Wert aus der
+// Adresse pruefen, bevor er als ViewMode durchgereicht wird. Ein unbekannter Wert
+// (veraltetes Lesezeichen, Tippfehler) traefe sonst keine der Render-Bedingungen
+// und die Seite bliebe unterhalb der Tab-Leiste leer.
+const VIEW_MODES = [
+  'overview', 'kanban', 'angebotsliste', 'statistik', 'anfragen', 'karte',
+  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot',
+] as const;
+
+type ViewMode = (typeof VIEW_MODES)[number];
+
+const istViewMode = (wert: string | null): wert is ViewMode =>
+  wert !== null && (VIEW_MODES as readonly string[]).includes(wert);
 
 // Session Storage Keys
 // viewMode trägt ein `_v2`-Suffix, seit die Übersicht die Startansicht ist: der alte
@@ -346,6 +358,7 @@ const NeueSaisonModal = ({
 
 const ProjektVerwaltung = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   // Record<ProjektStatus, …> statt einer ausgeschriebenen Liste: ein neuer Status
   // bricht dann sofort den Build und nicht erst still im Kanban.
@@ -385,7 +398,7 @@ const ProjektVerwaltung = () => {
     // sticht die zuletzt benutzte Ansicht — sonst landet ein Klick auf
     // „Wiegeschein prüfen" im zuletzt geöffneten Kanban.
     const ausUrl = new URLSearchParams(window.location.search).get('view');
-    if (ausUrl) return ausUrl as ViewMode;
+    if (istViewMode(ausUrl)) return ausUrl;
     return loadSetting<ViewMode>(STORAGE_KEYS.viewMode, 'overview');
   });
   const [kompakteAnsicht, setKompakteAnsichtState] = useState(() =>
@@ -405,6 +418,33 @@ const ProjektVerwaltung = () => {
     setViewModeState(mode);
     saveSetting(STORAGE_KEYS.viewMode, mode);
   }, []);
+
+  /**
+   * Deep-Link auch dann befolgen, wenn die Projektverwaltung schon offen ist.
+   *
+   * Der Initializer oben greift nur beim Mount. Klickt jemand aus dem Kanban
+   * heraus auf eine Benachrichtigung, bleibt die Route dieselbe — React
+   * remountet nicht, und ohne diesen Effekt änderte sich nur die Adresszeile,
+   * während die Ansicht stehen blieb. Vorher fiel das nicht auf, weil die
+   * Meldungen auf die eigene Route /anfragen zeigten und dort ein Mount
+   * garantiert war.
+   *
+   * Abhängigkeit ist `location.key`, NICHT `location.search`: Die Tab-Leiste
+   * schreibt die Adresse nicht zurück, deshalb laufen URL und Ansicht
+   * auseinander. Steht `?view=wiegescheine` noch in der Adresse, während der
+   * Nutzer längst im Kanban arbeitet, ist der Suchteil beim nächsten Klick auf
+   * dieselbe Meldung zeichengleich — der Effekt liefe nie. Der Key ist dagegen
+   * bei jeder Navigation neu, auch bei identischer Adresse.
+   *
+   * Gesetzt wird bewusst nur der State, nicht die gemerkte Ansicht: Ein
+   * Deep-Link ist ein einmaliger Sprung. Über `setViewMode` würde er in den
+   * Session-Speicher wandern und die Projektverwaltung für den Rest der
+   * Sitzung dort starten lassen, statt in der Prozess-Übersicht.
+   */
+  useEffect(() => {
+    const ausUrl = new URLSearchParams(location.search).get('view');
+    if (istViewMode(ausUrl)) setViewModeState(ausUrl);
+  }, [location.key, location.search]);
 
   const setKompakteAnsicht = useCallback((value: boolean) => {
     setKompakteAnsichtState(value);

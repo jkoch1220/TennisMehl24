@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Mail,
   MapPin,
@@ -93,6 +93,7 @@ const eingangsZeit = (anfrage: Pick<Anfrage, 'erstelltAm' | 'emailDatum'>): numb
 
 const AnfragenVerarbeitung = ({ onAnfrageGenehmigt }: AnfragenVerarbeitungProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [anfragen, setAnfragen] = useState<VerarbeiteteAnfrage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAnfrage, setSelectedAnfrage] = useState<VerarbeiteteAnfrage | null>(null);
@@ -478,19 +479,32 @@ Bei Fragen sind wir gerne für Sie da.`,
   /**
    * Deep-Link aus einer Benachrichtigung oder der globalen Suche:
    * `/projekt-verwaltung?view=anfragen&anfrageId=<id>` öffnet genau diese Anfrage.
-   * Der Parameter wird danach aus der Adresse entfernt, sonst würde der Dialog
-   * beim Schließen sofort wieder aufgehen.
+   *
+   * Hängt an `location.key` und an der Liste, nicht allein an `[anfragen]`: Wer
+   * schon in der Anfragen-Ansicht steht und eine zweite Meldung anklickt, ändert
+   * nur die Adresse — die Liste bleibt dieselbe, ein Effekt allein auf
+   * `[anfragen]` liefe nie. Der Key wechselt bei jeder Navigation, auch wenn die
+   * Adresse zeichengleich bleibt (zweiter Klick auf dieselbe Meldung).
+   *
+   * Gewartet wird nur auf `loading`, nicht auf eine gefüllte Liste: Steht die
+   * Liste leer, weil das Laden fehlschlug oder alles abgearbeitet ist, muss der
+   * Parameter trotzdem verschwinden. Sonst bliebe er in der Adresse hängen und
+   * risse den Dialog beim nächsten Neuladen zu einer längst vergessenen Anfrage
+   * auf — oder ließe das Alert unten aus dem Nichts erscheinen.
+   *
+   * Entfernt wird über den Router, nicht per history.replaceState: Letzteres
+   * bekäme React Router nicht mit, `location` bliebe auf dem alten Stand und der
+   * nächste Klick auf dieselbe Anfrage wäre wirkungslos.
    */
   useEffect(() => {
-    if (anfragen.length === 0) return;
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const zielId = params.get('anfrageId');
-    if (!zielId) return;
+    if (!zielId || loading) return;
 
     const treffer = anfragen.find((a) => a.id === zielId);
     params.delete('anfrageId');
     const rest = params.toString();
-    window.history.replaceState({}, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+    navigate(`${location.pathname}${rest ? `?${rest}` : ''}`, { replace: true });
 
     if (!treffer) {
       alert('Diese Anfrage steht nicht mehr in der Liste – sie wurde gelöscht oder zusammengeführt.');
@@ -500,7 +514,7 @@ Bei Fragen sind wir gerne für Sie da.`,
     // hinter dem Dialog eine leere Liste.
     if (istErledigt(treffer)) setZeigeBeantwortet(true);
     setSelectedAnfrage(treffer);
-  }, [anfragen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.key, location.search, location.pathname, anfragen, loading, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)

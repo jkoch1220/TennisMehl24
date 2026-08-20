@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { client, NOTIFICATIONS_COLLECTION_ID } from '../config/appwrite';
+import { client, NOTIFICATIONS_COLLECTION_ID, ANFRAGEN_COLLECTION_ID } from '../config/appwrite';
 import { realtimeKanal } from '../config/mockModus';
 import { useAuth } from './AuthContext';
 import { notificationService, mapDocument } from '../services/notificationService';
@@ -55,16 +55,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const userIdRef = useRef<string | null>(userId);
   userIdRef.current = userId;
 
+  /**
+   * Anfragen, deren Meldung beim Laden bewusst ausgeblendet wurde, weil der
+   * Vorgang im Anfragen-Tool längst abgearbeitet ist.
+   *
+   * Der Realtime-Handler braucht diese Auskunft synchron: Hakt ein Kollege eine
+   * solche Meldung ab oder liest sie, kommt bei uns ein Update-Event für eine
+   * Meldung an, die nicht in der Liste steht — und würde ohne diese Notbremse
+   * wieder einsortiert. Als Ref und nicht als State, damit der Realtime-Callback
+   * immer den aktuellen Stand sieht, ohne die Subscription neu aufzubauen.
+   */
+  const ausgeblendeteAnfragenRef = useRef<Set<string>>(new Set());
+
   // --- Initiales Laden beim Mount / User-Wechsel ---
   const reload = useCallback(async () => {
     if (!userIdRef.current) {
       setNotifications([]);
+      ausgeblendeteAnfragenRef.current = new Set();
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const offene = await notificationService.ladeOffeneNotifications(userIdRef.current);
+      const { notifications: offene, ausgeblendeteAnfrageIds } =
+        await notificationService.ladeOffeneNotifications(userIdRef.current);
+      ausgeblendeteAnfragenRef.current = new Set(ausgeblendeteAnfrageIds);
       setNotifications(offene);
     } finally {
       setLoading(false);
@@ -121,12 +136,28 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
 
       if (isUpdate) {
+        // Fehlt die Meldung in der Liste, kann das zwei Gründe haben: Wir haben
+        // ihr Anlegen verpasst (dann gehört sie aufgenommen) — oder der Filter
+        // beim Laden hat sie bewusst aussortiert, weil die zugehörige Anfrage
+        // längst abgearbeitet ist. Im zweiten Fall darf ein fremdes Update (ein
+        // Kollege liest oder hakt sie ab) sie nicht zurückholen; sonst hielte
+        // sich der Filter nur bis zum ersten Realtime-Event.
+        //
+        // Die Entscheidung fällt synchron über die Ref, bewusst ohne erneute
+        // Abfrage: Ein Roundtrip aus dem State-Updater heraus würde die
+        // Reihenfolge der Ereignisse verdrehen (ein zwischenzeitliches Abhaken
+        // käme zuerst an, die verspätete Einfügung danach) und liefe zudem
+        // doppelt, weil React Updater mehrfach aufrufen darf.
+        const bewusstAusgeblendet =
+          notification.refTyp === ANFRAGEN_COLLECTION_ID &&
+          ausgeblendeteAnfragenRef.current.has(notification.refId);
+
         setNotifications((prev) => {
           const exists = prev.some((n) => n.$id === notification.$id);
           if (exists) {
             return prev.map((n) => (n.$id === notification.$id ? notification : n));
           }
-          // Falls noch nicht in der Liste (z.B. nach Reload verpasst), aufnehmen
+          if (bewusstAusgeblendet) return prev;
           return [notification, ...prev].sort((a, b) =>
             b.erstelltAm.localeCompare(a.erstelltAm)
           );
