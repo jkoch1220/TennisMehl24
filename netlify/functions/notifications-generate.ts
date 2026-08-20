@@ -28,6 +28,26 @@ const BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
 
 // Begrenzung: nur Datensätze der letzten X Tage berücksichtigen
 const MAX_TAGE = 30;
+
+// Zusätzliches Fenster für Anfragen, gemessen am DATUM DER E-MAIL.
+// Der Postfach-Sync zieht regelmäßig auch ältere Nachrichten nach; deren
+// `erstelltAm` (Eingang im Portal) ist dann von heute, obwohl die Anfrage
+// Monate alt ist. Ohne diese Prüfung meldet die Reconciliation solche
+// Nachzügler als „Neue Anfrage".
+const ANFRAGE_MAX_EMAIL_ALTER_TAGE = 30;
+
+// Anfrage-Status, die den Vorgang als abgearbeitet ausweisen. Deckungsgleich mit
+// `ERLEDIGT_STATUS` in ProjektVerwaltung/AnfragenVerarbeitung.tsx — plus
+// `geloescht`, denn eine weggeräumte Anfrage will erst recht niemand gemeldet
+// bekommen.
+const ANFRAGE_ERLEDIGT_STATUS = [
+  'angebot_erstellt',
+  'angebot_versendet',
+  'verarbeitet',
+  'erledigt',
+  'abgelehnt',
+  'geloescht',
+];
 const PAGE_SIZE = 100;
 const MAX_DATENSAETZE = 500; // Sicherheitslimit pro Quelle
 
@@ -176,8 +196,22 @@ const anfrageZuNotification = (doc: Models.Document): NotificationInput => {
     nachricht,
     refTyp: ANFRAGEN_COLLECTION_ID,
     refId: doc.$id,
-    link: '/anfragen',
+    // Anfragen werden ausschließlich im Tool der Projektverwaltung abgearbeitet.
+    // `view=anfragen` öffnet dort die Verarbeitung, `anfrageId` springt direkt
+    // auf den gemeldeten Vorgang.
+    link: `/projekt-verwaltung?view=anfragen&anfrageId=${doc.$id}`,
   };
+};
+
+/**
+ * Ist die E-Mail hinter der Anfrage frisch genug für eine Meldung?
+ * Fehlt das Datum, wird im Zweifel gemeldet.
+ */
+const emailIstFrisch = (emailDatum: string | undefined): boolean => {
+  if (!emailDatum) return true;
+  const zeit = new Date(emailDatum).getTime();
+  if (isNaN(zeit)) return true;
+  return zeit >= Date.now() - ANFRAGE_MAX_EMAIL_ALTER_TAGE * 24 * 60 * 60 * 1000;
 };
 
 /**
@@ -568,8 +602,80 @@ const triggerEmailSync = async (): Promise<void> => {
   }
 };
 
+/**
+ * Räumt Anfrage-Meldungen ab, deren Anfrage abgearbeitet ist.
+ *
+ * Eine Benachrichtigung ist ein Arbeitssignal, kein Archiv — die Historie steht
+ * in der Anfrage selbst. Bleibt die Meldung stehen, nachdem der Vorgang im
+ * Anfragen-Tool erledigt wurde, meldet die Glocke dauerhaft Altlasten als „neu".
+ * Deshalb wird sie hier gelöscht, sobald der Status der Anfrage das hergibt oder
+ * die Anfrage gar nicht mehr existiert.
+ *
+ * Neu entstehen kann sie dadurch nicht: die Reconciliation legt nur für
+ * Anfragen mit `status: 'neu'` eine Meldung an.
+ */
+const raeumeErledigteAnfrageNotifications = async (databases: Databases): Promise<number> => {
+  let geloescht = 0;
+  try {
+    // 1. Alle Anfrage-Meldungen einsammeln (paginiert, begrenzt)
+    const meldungen: Models.Document[] = [];
+    let offset = 0;
+    while (offset < MAX_DATENSAETZE) {
+      const response = await databases.listDocuments(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, [
+        Query.equal('refTyp', ANFRAGEN_COLLECTION_ID),
+        Query.orderDesc('erstelltAm'),
+        Query.limit(PAGE_SIZE),
+        Query.offset(offset),
+      ]);
+      meldungen.push(...response.documents);
+      if (response.documents.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+    if (meldungen.length === 0) return 0;
+
+    // 2. Status der referenzierten Anfragen holen (in 100er-Blöcken)
+    const refIds = [
+      ...new Set(
+        meldungen
+          .map((m) => (m as Record<string, unknown>).refId as string)
+          .filter(Boolean)
+      ),
+    ];
+    const status = new Map<string, string>();
+    for (let i = 0; i < refIds.length; i += PAGE_SIZE) {
+      const block = refIds.slice(i, i + PAGE_SIZE);
+      const response = await databases.listDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, [
+        Query.equal('$id', block),
+        Query.limit(block.length),
+      ]);
+      response.documents.forEach((doc) => {
+        status.set(doc.$id, ((doc as Record<string, unknown>).status as string) || 'neu');
+      });
+    }
+
+    // 3. Abgearbeitetes (und Verwaistes) löschen
+    for (const meldung of meldungen) {
+      const refId = (meldung as Record<string, unknown>).refId as string;
+      if (!refId) continue;
+      const s = status.get(refId);
+      // s === undefined -> Anfrage existiert nicht mehr (hart gelöscht)
+      if (s !== undefined && !ANFRAGE_ERLEDIGT_STATUS.includes(s)) continue;
+      try {
+        await databases.deleteDocument(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, meldung.$id);
+        geloescht++;
+      } catch (error) {
+        console.warn(`Konnte Anfrage-Meldung ${meldung.$id} nicht entfernen:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Fehler beim Aufräumen erledigter Anfrage-Meldungen:', error);
+  }
+  return geloescht;
+};
+
 const reconcile = async (): Promise<{
   anfragen: number;
+  anfragenAufgeraeumt: number;
   shop: number;
   rechnungen: number;
   wiegescheine: number;
@@ -584,14 +690,20 @@ const reconcile = async (): Promise<{
   let erstelltShop = 0;
   let erstelltRechnungen = 0;
   let erstelltWiegescheine = 0;
+  let anfragenAufgeraeumt = 0;
   let geprueft = 0;
 
   // --- Anfragen ---
   try {
     const anfragen = await ladeNeueDatensaetze(databases, ANFRAGEN_COLLECTION_ID);
     for (const doc of anfragen) {
-      const erstelltAm = (doc as Record<string, unknown>).erstelltAm as string | undefined;
+      const d = doc as Record<string, unknown>;
+      const erstelltAm = d.erstelltAm as string | undefined;
       if (!istAktuell(erstelltAm)) continue;
+      // Nachgezogene Alt-Mails sind keine neuen Anfragen (siehe
+      // ANFRAGE_MAX_EMAIL_ALTER_TAGE) — sie stehen weiter in der Liste,
+      // erzeugen aber keine Meldung mehr.
+      if (!emailIstFrisch(d.emailDatum as string | undefined)) continue;
       geprueft++;
       if (await erstelleNotification(databases, anfrageZuNotification(doc))) {
         erstelltAnfragen++;
@@ -600,6 +712,9 @@ const reconcile = async (): Promise<{
   } catch (error) {
     console.error('Fehler bei Reconciliation Anfragen:', error);
   }
+
+  // --- Abgearbeitete Anfragen aus der Glocke nehmen ---
+  anfragenAufgeraeumt = await raeumeErledigteAnfrageNotifications(databases);
 
   // --- Shop-Bestellungen ---
   try {
@@ -661,11 +776,13 @@ const reconcile = async (): Promise<{
     `🔔 Notifications-Reconciliation: ${geprueft} geprüft, ` +
       `${erstelltAnfragen} Anfrage-Notifications, ${erstelltShop} Shop-Notifications, ` +
       `${erstelltRechnungen} Rechnungs-Notifications, ` +
-      `${erstelltWiegescheine} Wiegeschein-Notifications erstellt`
+      `${erstelltWiegescheine} Wiegeschein-Notifications erstellt, ` +
+      `${anfragenAufgeraeumt} erledigte Anfrage-Meldungen entfernt`
   );
 
   return {
     anfragen: erstelltAnfragen,
+    anfragenAufgeraeumt,
     shop: erstelltShop,
     rechnungen: erstelltRechnungen,
     wiegescheine: erstelltWiegescheine,

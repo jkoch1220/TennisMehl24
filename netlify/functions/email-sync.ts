@@ -679,6 +679,20 @@ const speichereAnfrage = async (
   }
 };
 
+// Nur E-Mails aus diesem Fenster gelten als „neue Anfrage" und lösen eine
+// Benachrichtigung aus. Muss zum gleichnamigen Wert in
+// notifications-generate.ts passen, sonst meldet das Sicherheitsnetz nach,
+// was der Sync bewusst übersprungen hat.
+const ANFRAGE_MAX_EMAIL_ALTER_TAGE = 30;
+
+/** Ist die E-Mail frisch genug für eine Meldung? Ohne Datum im Zweifel ja. */
+const emailIstFrisch = (emailDatum: Date | string | undefined): boolean => {
+  if (!emailDatum) return true;
+  const zeit = new Date(emailDatum).getTime();
+  if (isNaN(zeit)) return true;
+  return zeit >= Date.now() - ANFRAGE_MAX_EMAIL_ALTER_TAGE * 24 * 60 * 60 * 1000;
+};
+
 /**
  * Erzeugt eine persistente Benachrichtigung für eine neue Anfrage.
  * Idempotent über refTyp+refId (Doppelschutz). Fehler werden nur geloggt,
@@ -688,9 +702,17 @@ const erstelleAnfrageNotification = async (
   databases: Databases,
   anfrageId: string,
   extrahierteDaten: ExtrahierteDaten,
-  emailBetreff: string
+  emailBetreff: string,
+  emailDatum: Date | string | undefined
 ): Promise<void> => {
   try {
+    // Der Sync holt regelmäßig auch ältere Nachrichten aus dem Postfach nach.
+    // Die werden weiter als Anfrage gespeichert, sind aber keine „neue Anfrage"
+    // mehr und dürfen deshalb keine Meldung auslösen.
+    if (!emailIstFrisch(emailDatum)) {
+      console.log(`⏭️ Anfrage ${anfrageId}: E-Mail älter als ${ANFRAGE_MAX_EMAIL_ALTER_TAGE} Tage – keine Benachrichtigung`);
+      return;
+    }
     // Doppelschutz: existiert bereits eine Notification für diese Anfrage?
     const vorhanden = await databases.listDocuments(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, [
       Query.equal('refTyp', ANFRAGEN_COLLECTION_ID),
@@ -715,7 +737,9 @@ const erstelleAnfrageNotification = async (
       nachricht: nachricht.substring(0, 2000),
       refTyp: ANFRAGEN_COLLECTION_ID,
       refId: anfrageId,
-      link: '/anfragen',
+      // Abgearbeitet wird ausschließlich im Anfragen-Tool der Projektverwaltung;
+      // `anfrageId` springt dort direkt auf den gemeldeten Vorgang.
+      link: `/projekt-verwaltung?view=anfragen&anfrageId=${anfrageId}`,
       prioritaet: 'normal',
       gelesenVon: [],
       erledigtVon: [],
@@ -812,7 +836,7 @@ const handler: Handler = async (event: HandlerEvent) => {
         console.log(`✅ Gespeichert: ${email.subject.substring(0, 50)}...`);
 
         // Persistente Benachrichtigung am Ursprung erzeugen (Doppelschutz)
-        await erstelleAnfrageNotification(databases, docId, extrahierteDaten, email.subject);
+        await erstelleAnfrageNotification(databases, docId, extrahierteDaten, email.subject, email.date);
 
       } catch (error) {
         // Zweiter paralleler Sync-Lauf war schneller — kein Fehler, sondern ein Duplikat.

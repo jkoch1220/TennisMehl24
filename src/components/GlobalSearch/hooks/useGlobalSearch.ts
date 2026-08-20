@@ -306,7 +306,7 @@ async function searchAnfragen(query: string): Promise<SearchResult[]> {
         text: statusLabels[doc.status] || doc.status,
         color: doc.status === 'neu' ? 'blue' : doc.status === 'erledigt' ? 'green' : 'amber',
       },
-      href: `/anfragen?anfrageId=${doc.$id}`,
+      href: `/projekt-verwaltung?view=anfragen&anfrageId=${doc.$id}`,
     }));
   } catch (error) {
     console.warn('Fehler bei Anfragen-Suche:', error);

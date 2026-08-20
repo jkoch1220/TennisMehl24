@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
@@ -44,9 +44,8 @@ const KundenKarte = lazyWithRetry(() => import('./pages/KundenKarte'));
 const Projektabwicklung = lazyWithRetry(() => import('./components/Projektabwicklung/Projektabwicklung'));
 const ProjektVerwaltung = lazyWithRetry(() => import('./components/ProjektVerwaltung/ProjektVerwaltung'));
 
-// Stammdaten & Anfragen
+// Stammdaten
 const Stammdaten = lazyWithRetry(() => import('./components/Stammdaten/Stammdaten'));
-const Anfragen = lazyWithRetry(() => import('./components/Anfragen/Anfragen'));
 
 // Weitere Tools
 const VorschlaegeNeu = lazyWithRetry(() => import('./components/Tickets/VorschlaegeNeu'));
@@ -83,6 +82,20 @@ const PlanungBoardRedirect = () => {
   const { boardId } = useParams();
   return <Navigate to={`/geschaeftsprozesse/${boardId}`} replace />;
 };
+
+// Weiterleitung des abgeschafften Anfragen-Duplikats (/anfragen) auf das echte
+// Tool in der Projektverwaltung. Anfragen werden ausschliesslich dort abgearbeitet;
+// die alte Oberflaeche konnte am Verarbeitungsweg vorbei Projekte anlegen.
+// Ein mitgegebenes `anfrageId` (Benachrichtigungen, Lesezeichen, Globale Suche)
+// wird durchgereicht, damit der Sprung auf die einzelne Anfrage erhalten bleibt.
+const AnfragenRedirect = () => {
+  const anfrageId = new URLSearchParams(useLocation().search).get('anfrageId');
+  const ziel = anfrageId
+    ? `/projekt-verwaltung?view=anfragen&anfrageId=${encodeURIComponent(anfrageId)}`
+    : '/projekt-verwaltung?view=anfragen';
+  return <Navigate to={ziel} replace />;
+};
+
 const TaskDetail = lazyWithRetry(() => import('./components/TaskVerwaltung/TaskDetail'));
 const AuditLogTool = lazyWithRetry(() => import('./components/AuditLog/AuditLogTool'));
 const AdminChangelog = lazyWithRetry(() => import('./components/Admin/AdminChangelog').then(m => ({ default: m.AdminChangelog })));
@@ -220,11 +233,7 @@ function AuthenticatedContent() {
                       <Stammdaten />
                     </ProtectedRoute>
                   } />
-                  <Route path="/anfragen" element={
-                    <ProtectedRoute toolId="anfragen">
-                      <Anfragen />
-                    </ProtectedRoute>
-                  } />
+                  <Route path="/anfragen" element={<AnfragenRedirect />} />
                   <Route path="/kalender" element={
                     <ProtectedRoute toolId="kalender">
                       <Kalender />

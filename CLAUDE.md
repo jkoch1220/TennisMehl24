@@ -203,10 +203,17 @@ Die Projektverwaltung (`src/components/ProjektVerwaltung/`) bietet verschiedene 
 | `kanban` | ProjektVerwaltung.tsx | Drag & Drop Kanban-Board nach Status |
 | `angebotsliste` | - | Tabellarische Listenansicht |
 | `statistik` | ProjektStatistik.tsx | KPIs und Auswertungen |
-| `anfragen` | AnfragenVerarbeitung.tsx | E-Mail-Anfragen bearbeiten |
+| `anfragen` | AnfragenVerarbeitung.tsx | E-Mail-Anfragen bearbeiten — **das einzige Anfragen-Tool** |
 | `karte` | ProjektKartenansicht.tsx | Geografische Kartenansicht |
 | `hydrocourt` | HydrocourtView.tsx | Alle TM-HYC Artikel-Bestellungen |
 | `universal` | UniversalView.tsx | Alle Universal-Artikel Bestellungen |
+
+**Anfragen werden ausschliesslich hier abgearbeitet.** Das frühere Duplikat unter
+`/anfragen` (`src/components/Anfragen/Anfragen.tsx`) ist entfernt: es griff auf
+dieselbe Collection zu, legte aber am Verarbeitungsweg vorbei Projekte an. Die Route
+`/anfragen` leitet nur noch auf `/projekt-verwaltung?view=anfragen` um und reicht ein
+`anfrageId` durch. Benachrichtigungen und die globale Suche verlinken direkt auf
+`/projekt-verwaltung?view=anfragen&anfrageId=<id>`.
 
 **Spezial-Views (Hydrocourt & Universal):**
 - Filtern Positionen aus bestätigten Aufträgen (Status >= AB)
@@ -262,7 +269,8 @@ backendFetch<T>(path: string, options?: RequestInit): Promise<T>
 # Backend aktivieren
 VITE_USE_BACKEND=true
 VITE_BACKEND_URL=http://localhost:3000  # Dev
-VITE_BACKEND_URL=https://api.tennismehl.de  # Prod
+# Prod: NICHT setzen - das Portal ruft /api/* relativ auf, Netlify proxyt zum VPS.
+# (Frueher stand hier api.tennismehl.de. Diese Domain gehoert dem Wettbewerb.)
 VITE_BACKEND_TIMEOUT=30000
 
 # Feature-Flags (einzeln steuerbar)
@@ -294,7 +302,7 @@ VITE_BACKEND_APPWRITE=false  # Appwrite-Proxy
 | `email-send.ts` | E-Mails versenden |
 | `email-sync.ts` | Kundenanfragen aus Postfach synchronisieren |
 | `kalender-ics.ts` | Kalender-Export als ICS |
-| `notifications-generate.ts` | Scheduled (alle 5 Min): erzeugt Benachrichtigungen für neue Anfragen, Shop-Bestellungen und frisch fällige Rechnungen |
+| `notifications-generate.ts` | Scheduled (alle 5 Min): erzeugt Benachrichtigungen für neue Anfragen, Shop-Bestellungen und frisch fällige Rechnungen — und räumt Anfrage-Meldungen ab, deren Anfrage abgearbeitet ist |
 
 **Benachrichtigungen — „Rechnung frisch fällig"**
 

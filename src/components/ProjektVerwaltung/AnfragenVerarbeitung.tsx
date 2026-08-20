@@ -475,6 +475,33 @@ Bei Fragen sind wir gerne für Sie da.`,
     loadAnfragen();
   }, [loadAnfragen]);
 
+  /**
+   * Deep-Link aus einer Benachrichtigung oder der globalen Suche:
+   * `/projekt-verwaltung?view=anfragen&anfrageId=<id>` öffnet genau diese Anfrage.
+   * Der Parameter wird danach aus der Adresse entfernt, sonst würde der Dialog
+   * beim Schließen sofort wieder aufgehen.
+   */
+  useEffect(() => {
+    if (anfragen.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const zielId = params.get('anfrageId');
+    if (!zielId) return;
+
+    const treffer = anfragen.find((a) => a.id === zielId);
+    params.delete('anfrageId');
+    const rest = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${rest ? `?${rest}` : ''}`);
+
+    if (!treffer) {
+      alert('Diese Anfrage steht nicht mehr in der Liste – sie wurde gelöscht oder zusammengeführt.');
+      return;
+    }
+    // Bereits abgehakte Anfragen sind standardmäßig ausgeblendet — sonst steht
+    // hinter dem Dialog eine leere Liste.
+    if (istErledigt(treffer)) setZeigeBeantwortet(true);
+    setSelectedAnfrage(treffer);
+  }, [anfragen]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Prüfe ob eine Anfrage bereits beantwortet wurde (basierend auf Zeitpunkt!)
   // Eine Anfrage gilt nur als beantwortet, wenn NACH dem Eingang der Anfrage

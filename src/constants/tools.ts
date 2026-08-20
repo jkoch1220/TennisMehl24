@@ -13,7 +13,6 @@ import {
   Layers,
   Database,
   ClipboardList,
-  Mail,
   FileSpreadsheet,
   Send,
   TestTube2,
@@ -194,14 +193,6 @@ export const ALL_TOOLS: ToolConfig[] = [
     href: '/stammdaten',
     icon: Database,
     color: 'from-blue-500 to-cyan-600',
-  },
-  {
-    id: 'anfragen',
-    name: 'Anfragen',
-    description: 'Automatisch erkannte E-Mail-Anfragen verwalten und zu Kunden zuordnen',
-    href: '/anfragen',
-    icon: Mail,
-    color: 'from-teal-500 to-cyan-500',
   },
   {
     id: 'kalender',

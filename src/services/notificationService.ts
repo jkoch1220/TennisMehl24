@@ -11,11 +11,26 @@
  */
 
 import { Query, ID } from 'appwrite';
-import { databases, DATABASE_ID, NOTIFICATIONS_COLLECTION_ID } from '../config/appwrite';
+import { databases, DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, ANFRAGEN_COLLECTION_ID } from '../config/appwrite';
 import type { Benachrichtigung, NeueNotification } from '../types/notification';
 
 /** Maximale Anzahl offener Benachrichtigungen, die geladen werden. */
 export const MAX_OFFENE_NOTIFICATIONS = 100;
+
+/**
+ * Anfrage-Status, die den Vorgang als abgearbeitet ausweisen. Deckungsgleich mit
+ * `ERLEDIGT_STATUS` in der Anfragen-Verarbeitung (ProjektVerwaltung) — plus
+ * `geloescht`, denn eine weggeräumte Anfrage will erst recht niemand gemeldet
+ * bekommen.
+ */
+const ANFRAGE_ERLEDIGT_STATUS = [
+  'angebot_erstellt',
+  'angebot_versendet',
+  'verarbeitet',
+  'erledigt',
+  'abgelehnt',
+  'geloescht',
+];
 
 /**
  * Wandelt ein rohes Appwrite-Dokument in eine typisierte Benachrichtigung um.
@@ -112,12 +127,59 @@ class NotificationService {
         Query.limit(limit),
       ]);
 
-      return response.documents
+      const offene = response.documents
         .map((doc) => mapDocument(doc as unknown as Record<string, unknown>))
         .filter((n) => !n.erledigtVon.includes(userId));
+
+      return this.ohneAbgearbeiteteAnfragen(offene);
     } catch (error) {
       console.error('Fehler beim Laden der Benachrichtigungen:', error);
       return [];
+    }
+  }
+
+  /**
+   * Entfernt Anfrage-Meldungen, deren Anfrage im Anfragen-Tool der
+   * Projektverwaltung längst abgearbeitet ist.
+   *
+   * Ohne diesen Abgleich bleibt eine Meldung stehen, bis irgendjemand sie von
+   * Hand abhakt — sie meldet dann einen Vorgang als „neu", der bereits ein
+   * Angebot hat. Führend ist der Status der Anfrage, nicht der Zustand der
+   * Benachrichtigung. Der Abgleich kostet EINE zusätzliche Abfrage und
+   * entfällt, wenn gar keine Anfrage-Meldung offen ist.
+   *
+   * Aufgeräumt (gelöscht) werden die Datensätze serverseitig vom
+   * Reconciliation-Cron; hier geht es nur darum, sie nicht anzuzeigen.
+   */
+  async ohneAbgearbeiteteAnfragen(notifications: Benachrichtigung[]): Promise<Benachrichtigung[]> {
+    const anfrageIds = notifications
+      .filter((n) => n.refTyp === ANFRAGEN_COLLECTION_ID && n.refId)
+      .map((n) => n.refId);
+    if (anfrageIds.length === 0) return notifications;
+
+    try {
+      const response = await databases.listDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, [
+        Query.equal('$id', anfrageIds),
+        Query.limit(anfrageIds.length),
+      ]);
+
+      // Status je Anfrage. Was die Abfrage nicht liefert, ist hart gelöscht —
+      // solche Meldungen fliegen ebenfalls raus.
+      const status = new Map<string, string>();
+      response.documents.forEach((doc) => {
+        status.set(doc.$id, ((doc as unknown as Record<string, unknown>).status as string) || 'neu');
+      });
+
+      return notifications.filter((n) => {
+        if (n.refTyp !== ANFRAGEN_COLLECTION_ID || !n.refId) return true;
+        const s = status.get(n.refId);
+        if (s === undefined) return false;
+        return !ANFRAGE_ERLEDIGT_STATUS.includes(s);
+      });
+    } catch (error) {
+      // Im Zweifel lieber eine Meldung zu viel als eine übersehene Anfrage.
+      console.warn('Anfrage-Status für Benachrichtigungen nicht prüfbar:', error);
+      return notifications;
     }
   }
 
