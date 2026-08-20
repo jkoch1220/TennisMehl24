@@ -54,6 +54,7 @@ import { StammdatenInput } from '../../types/stammdaten';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCan } from '../../hooks/useCan';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
@@ -747,13 +748,8 @@ const ProjektVerwaltung = () => {
       return updated;
     });
 
-    // Dann in DB speichern
-    try {
-      const documentId = (projekt as any).$id || projekt.id;
-      await projektService.updateProjektStatus(documentId, neuerStatus);
-    } catch (error) {
-      console.error('Fehler beim Status-Update:', error);
-      // Bei Fehler: Zurück verschieben
+    // Zurückrollen — bei einem Fehler ebenso wie beim Widerruf des Nutzers.
+    const zurueckrollen = () => {
       setProjekteGruppiert(prev => {
         const reverted = { ...prev };
         reverted[neuerStatus] = reverted[neuerStatus].filter(p =>
@@ -762,7 +758,40 @@ const ProjektVerwaltung = () => {
         reverted[alterStatus] = [...reverted[alterStatus], projekt];
         return reverted;
       });
-      alert('Fehler beim Speichern. Bitte erneut versuchen.');
+    };
+
+    // Dann in DB speichern
+    const documentId = (projekt as any).$id || projekt.id;
+    try {
+      await projektService.updateProjektStatus(documentId, neuerStatus);
+
+      // Rückmeldung mit Widerruf. Ein Statuswechsel ist schnell gemacht und schwer
+      // zu bemerken — beim Ziehen landet eine Karte auch mal in der Nachbarspalte.
+      // Zehn Sekunden Widerrufsfrist ersparen die Suche danach, wo das Projekt
+      // hingerutscht ist.
+      const zielLabel = TABS.find((t) => t.id === neuerStatus)?.label ?? neuerStatus;
+      toast.success(`${projekt.kundenname} → ${zielLabel}`, {
+        duration: 10000,
+        action: {
+          label: 'Rückgängig',
+          onClick: () => {
+            zurueckrollen();
+            void projektService.updateProjektStatus(documentId, alterStatus).catch((error) => {
+              console.error('Rücknahme des Statuswechsels fehlgeschlagen:', error);
+              toast.error('Der Statuswechsel konnte nicht zurückgenommen werden.');
+              void loadData({ stillesNachladen: true });
+            });
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Fehler beim Status-Update:', error);
+      zurueckrollen();
+      toast.error(
+        error instanceof Error
+          ? `Status konnte nicht gespeichert werden: ${error.message}`
+          : 'Status konnte nicht gespeichert werden.'
+      );
     }
   };
 
@@ -1465,6 +1494,7 @@ const ProjektVerwaltung = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onMarkAsLost={handleMarkAsLost}
+                onStatusWechsel={updateStatus}
               />
             );
           })}
@@ -1488,6 +1518,7 @@ const ProjektVerwaltung = () => {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onMarkAsLost={handleMarkAsLost}
+              onStatusWechsel={updateStatus}
               isVerloren
             />
           )}
@@ -1612,6 +1643,7 @@ interface KanbanSpalteProps {
   onEdit: (e: React.MouseEvent, projekt: Projekt) => void;
   onDelete: (e: React.MouseEvent, projekt: Projekt) => void;
   onMarkAsLost: (e: React.MouseEvent, projekt: Projekt) => void;
+  onStatusWechsel: (projekt: Projekt, neuerStatus: ProjektStatus) => void;
   isVerloren?: boolean;
 }
 
@@ -1632,6 +1664,7 @@ const KanbanSpalte = ({
   onEdit,
   onDelete,
   onMarkAsLost,
+  onStatusWechsel,
   isVerloren,
 }: KanbanSpalteProps) => {
   const TabIcon = tab.icon;
@@ -1693,10 +1726,93 @@ const KanbanSpalte = ({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onMarkAsLost={onMarkAsLost}
+                onStatusWechsel={onStatusWechsel}
                 isVerloren={isVerloren}
               />
             ))
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Statuswechsel per Menü — der einzige Weg, der ohne Maus funktioniert.
+ *
+ * Bis 08/2026 ging ein Statuswechsel ausschließlich per Ziehen. Am Tablet, wo
+ * Dispo und Innendienst häufig arbeiten, war er damit gar nicht möglich: Es gab
+ * keinen Weg, ein Projekt weiterzuschieben. Auch mit Tastatur nicht.
+ */
+const StatusWechsler = ({
+  aktuellerStatus,
+  onWechsel,
+}: {
+  aktuellerStatus: ProjektStatus;
+  onWechsel: (neuerStatus: ProjektStatus) => void;
+}) => {
+  const [offen, setOffen] = useState(false);
+  const behaelter = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!offen) return;
+    const schliesseBeiKlickAussen = (e: MouseEvent) => {
+      if (!behaelter.current?.contains(e.target as Node)) setOffen(false);
+    };
+    const schliesseBeiEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOffen(false);
+    };
+    document.addEventListener('mousedown', schliesseBeiKlickAussen);
+    document.addEventListener('keydown', schliesseBeiEscape);
+    return () => {
+      document.removeEventListener('mousedown', schliesseBeiKlickAussen);
+      document.removeEventListener('keydown', schliesseBeiEscape);
+    };
+  }, [offen]);
+
+  return (
+    <div ref={behaelter} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOffen((v) => !v)}
+        className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+        title="Status ändern"
+        aria-haspopup="menu"
+        aria-expanded={offen}
+      >
+        <ChevronDown className="w-3.5 h-3.5" />
+      </button>
+      {offen && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 z-30 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1"
+        >
+          <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">
+            Weiter zu
+          </div>
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const istAktuell = tab.id === aktuellerStatus;
+            return (
+              <button
+                key={tab.id}
+                role="menuitem"
+                disabled={istAktuell}
+                onClick={() => {
+                  setOffen(false);
+                  if (!istAktuell) onWechsel(tab.id);
+                }}
+                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
+                  istAktuell
+                    ? 'text-gray-400 dark:text-slate-500 cursor-default'
+                    : 'text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${istAktuell ? '' : tab.color} ${istAktuell ? '' : tab.darkColor}`} />
+                {tab.label}
+                {istAktuell && <span className="ml-auto text-xs">aktuell</span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1718,10 +1834,12 @@ interface ProjektCardProps {
   onEdit: (e: React.MouseEvent, projekt: Projekt) => void;
   onDelete: (e: React.MouseEvent, projekt: Projekt) => void;
   onMarkAsLost: (e: React.MouseEvent, projekt: Projekt) => void;
+  /** Statuswechsel ohne Ziehen — der einzige Weg, der am Tablet funktioniert. */
+  onStatusWechsel: (projekt: Projekt, neuerStatus: ProjektStatus) => void;
   isVerloren?: boolean;
 }
 
-const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, onStatusWechsel, isVerloren }: ProjektCardProps) => {
   // Extrahiere PLZ aus kundenPlzOrt
   const plzMatch = projekt.kundenPlzOrt?.match(/^(\d{5})/);
   const plz = plzMatch ? plzMatch[1] : '';
@@ -1916,6 +2034,12 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
             className="p-1"
             iconClassName="w-3.5 h-3.5"
           />
+          {!isVerloren && (
+            <StatusWechsler
+              aktuellerStatus={status}
+              onWechsel={(neuerStatus) => onStatusWechsel(projekt, neuerStatus)}
+            />
+          )}
           <button
             onClick={(e) => onEdit(e, projekt)}
             className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 rounded transition-colors"
