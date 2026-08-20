@@ -313,12 +313,15 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           setLieferscheinDaten(prev => ({ ...prev, lieferscheinnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
-          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-          setLieferscheinDaten(prev => ({ 
-            ...prev, 
-            lieferscheinnummer: `LS-${laufnummer}` 
-          }));
+          // BEWUSST keine Ersatznummer: `LS-3847` läge ausserhalb des fortlaufenden
+          // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+          // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+          // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+          alert(
+            'Die Lieferscheinnummer konnte nicht vergeben werden.\n\n' +
+            'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+            'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+          );
         }
       }
     };
@@ -373,9 +376,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             lieferscheinnummer = await generiereNaechsteDokumentnummer('lieferschein');
           } catch (error) {
             console.error('Fehler beim Generieren der Lieferscheinnummer:', error);
-            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-            lieferscheinnummer = `LS-${laufnummer}`;
+            // BEWUSST keine Ersatznummer: `LS-3847` läge ausserhalb des fortlaufenden
+            // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+            // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+            // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+            alert(
+              'Die Lieferscheinnummer konnte nicht vergeben werden.\n\n' +
+              'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+              'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+            );
+            lieferscheinnummer = '';
           }
         }
         

@@ -546,9 +546,16 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
           } catch (error) {
             console.error('Fehler beim Generieren der Angebotsnummer:', error);
-            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-            angebotsnummer = `ANG-${laufnummer}`;
+            // BEWUSST keine Ersatznummer: `ANG-3847` läge ausserhalb des fortlaufenden
+            // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+            // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+            // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+            alert(
+              'Die Angebotsnummer konnte nicht vergeben werden.\n\n' +
+              'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+              'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+            );
+            angebotsnummer = '';
           }
         }
         
@@ -694,12 +701,15 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Angebotsnummer:', error);
-          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-          setAngebotsDaten(prev => ({ 
-            ...prev, 
-            angebotsnummer: `ANG-${laufnummer}` 
-          }));
+          // BEWUSST keine Ersatznummer: `ANG-3847` läge ausserhalb des fortlaufenden
+          // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+          // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+          // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+          alert(
+            'Die Angebotsnummer konnte nicht vergeben werden.\n\n' +
+            'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+            'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+          );
         }
       }
     };

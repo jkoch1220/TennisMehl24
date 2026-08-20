@@ -410,12 +410,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           setAuftragsbestaetigungsDaten(prev => ({ ...prev, auftragsbestaetigungsnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
-          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-          setAuftragsbestaetigungsDaten(prev => ({ 
-            ...prev, 
-            auftragsbestaetigungsnummer: `AB-${laufnummer}` 
-          }));
+          // BEWUSST keine Ersatznummer: `AB-3847` läge ausserhalb des fortlaufenden
+          // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+          // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+          // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+          alert(
+            'Die Auftragsbestätigungsnummer konnte nicht vergeben werden.\n\n' +
+            'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+            'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+          );
         }
       }
     };
@@ -512,9 +515,16 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
             auftragsbestaetigungsnummer = await generiereNaechsteDokumentnummer('auftragsbestaetigung');
           } catch (error) {
             console.error('Fehler beim Generieren der Auftragsbestätigungsnummer:', error);
-            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-            auftragsbestaetigungsnummer = `AB-${laufnummer}`;
+            // BEWUSST keine Ersatznummer: `AB-3847` läge ausserhalb des fortlaufenden
+            // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+            // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+            // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+            alert(
+              'Die Auftragsbestätigungsnummer konnte nicht vergeben werden.\n\n' +
+              'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+              'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+            );
+            auftragsbestaetigungsnummer = '';
           }
         }
         

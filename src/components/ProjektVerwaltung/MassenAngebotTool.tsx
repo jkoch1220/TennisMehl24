@@ -789,10 +789,38 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
       {/* Ergebnis Erzeugung + Rollback + Versand-Einstieg */}
       {ergebnis && (
-        <div className="bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="w-5 h-5" /> Lauf abgeschlossen
-          </div>
+        <div
+          className={`bg-white dark:bg-slate-800 border rounded-xl p-4 space-y-3 ${
+            ergebnis.abgebrochen
+              ? 'border-red-300 dark:border-red-800'
+              : ergebnis.fehler.length > 0
+              ? 'border-amber-300 dark:border-amber-800'
+              : 'border-emerald-200 dark:border-emerald-800'
+          }`}
+        >
+          {ergebnis.abgebrochen ? (
+            <div className="flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
+              <ShieldAlert className="w-5 h-5" /> Lauf abgebrochen
+            </div>
+          ) : ergebnis.fehler.length > 0 ? (
+            <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5" /> Lauf beendet — mit Fehlern
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-5 h-5" /> Lauf abgeschlossen
+            </div>
+          )}
+          {ergebnis.abgebrochen && (
+            <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              Der Lauf wurde gestoppt, weil der Fehler nicht am einzelnen Kunden lag:{' '}
+              {ergebnis.abgebrochen.grund}
+              <div className="mt-1.5">
+                <strong>{ergebnis.abgebrochen.offen}</strong> Kandidaten wurden gar nicht erst
+                versucht — sie sind unberührt und können nach der Behebung erneut laufen.
+              </div>
+            </div>
+          )}
           <div className="text-sm text-gray-700 dark:text-slate-300">
             {ergebnis.erzeugt.length} erzeugt · {ergebnis.uebersprungen.length} übersprungen ·{' '}
             {ergebnis.fehler.length} fehlerhaft · Batch <code className="text-xs">{ergebnis.batchId}</code>
@@ -809,7 +837,10 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           <div className="flex items-center gap-3 flex-wrap pt-1">
             <button
               onClick={() => setRollbackBestaetigung(true)}
-              disabled={rollbackLaeuft || ergebnis.erzeugt.length === 0}
+              // Auch ein Lauf, der nur Fehler produziert hat, muss zurücknehmbar
+              // sein — sonst bleiben angefangene Projekte liegen und sperren den
+              // Kunden beim Wiederholungslauf als „existiert bereits".
+              disabled={rollbackLaeuft || (ergebnis.erzeugt.length === 0 && ergebnis.fehler.length === 0)}
               className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg inline-flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
             >
               {rollbackLaeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}

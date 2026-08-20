@@ -313,8 +313,20 @@ export const generiereNaechsteDokumentnummer = async (
       }
     }
     
-    // Falls nach MAX_VERSUCHE keine freie Nummer gefunden wurde
-    throw new Error(`Konnte nach ${MAX_VERSUCHE} Versuchen keine freie ${typ}nummer generieren`);
+    // Falls nach MAX_VERSUCHE keine freie Nummer gefunden wurde.
+    // Auch das ist ein systemischer Zustand, kein Einzelfall: Der Zähler steht
+    // dann unterhalb eines bereits belegten Blocks (z. B. weil ein Lauf für ein
+    // anderes Zieljahr in denselben Zähler geschrieben hat). Eine Ersatznummer
+    // würde das Problem verstecken und bei jedem weiteren Aufruf wiederkehren —
+    // deshalb derselbe Fehlertyp, der den Notfall-Zweig unten überspringt. Der
+    // Zählerstand lässt sich in den Stammdaten korrigieren.
+    throw new NummernPruefungFehlgeschlagen(
+      `${prefix}-${nummernJahr}-…`,
+      new Error(
+        `Nach ${MAX_VERSUCHE} Versuchen war keine freie ${typ}nummer für ${nummernJahr} frei. ` +
+        `Der Zähler steht auf ${zaehlerstaende[zaehlerFeld]} und läuft in einen bereits vergebenen Block.`
+      )
+    );
     
   } catch (error) {
     // Konnte die Eindeutigkeit nicht geprüft werden, darf hier KEINE Ersatznummer

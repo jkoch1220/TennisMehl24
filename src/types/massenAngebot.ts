@@ -148,4 +148,10 @@ export interface ErzeugungsErgebnis {
   erzeugt: { kundeId: string; kundenname: string; projektId: string; angebotsnummer: string }[];
   uebersprungen: { kundeId: string; kundenname: string; grund: string }[];
   fehler: { kundeId: string; kundenname: string; fehler: string }[];
+  /**
+   * Gesetzt, wenn der Lauf vorzeitig gestoppt wurde, weil der Fehler nicht am
+   * einzelnen Kunden lag, sondern am System (z. B. Nummernvergabe nicht
+   * prüfbar). Die restlichen Kandidaten wurden dann gar nicht erst versucht.
+   */
+  abgebrochen?: { grund: string; offen: number };
 }

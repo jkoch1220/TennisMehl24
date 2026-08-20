@@ -44,7 +44,7 @@ import {
   speichereAngebot,
   loescheDokumenteFuerProjekt,
 } from './projektabwicklungDokumentService';
-import { generiereNaechsteDokumentnummer } from './nummerierungService';
+import { generiereNaechsteDokumentnummer, NummernPruefungFehlgeschlagen } from './nummerierungService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { istMockModusAktiv } from '../config/mockModus';
 import { generiereAngebotPDF } from './dokumentService';
@@ -1388,6 +1388,16 @@ async function erzeugeBatch(
         continue;
       }
 
+      // Belegnummer VOR dem Projekt ziehen. Scheitert sie, darf kein Projekt
+      // zurückbleiben: Ein Projekt ohne Angebot wird beim Wiederholungslauf von
+      // der Prüfung oben als „existiert bereits" übersprungen — der Verein bekäme
+      // nie ein Angebot, und das Protokoll sähe sauber aus.
+      // Zieljahr explizit mitgeben: Der Lauf erzeugt im Herbst Angebote für die
+      // kommende Saison. Ohne diesen Parameter müsste die Standardsaison
+      // hochgestellt werden — das zöge den Zähler aller anderen Belegarten mit.
+      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot', saisonjahr);
+      const heute = new Date().toISOString().split('T')[0];
+
       const adresse = flacheKundenadresse(kandidat.kunde);
       const projekt = await projektService.createProjekt(
         {
@@ -1406,19 +1416,14 @@ async function erzeugeBatch(
           automatischErzeugt: true,
           erzeugungsBatchId: batchId,
           preisProTonne: kandidat.preisProTonne,
+          angebotsnummer,
+          angebotsdatum: heute,
         },
         // Im Massenlauf keine kaskadierende Platzbauer-Projekt-Zuordnung auslösen.
         { skipPlatzbauerProjektZuordnung: true }
       );
 
       const projektId = projekt.id;
-      // Zieljahr explizit mitgeben: Der Lauf erzeugt im Herbst Angebote für die
-      // kommende Saison. Ohne diesen Parameter müsste die Standardsaison
-      // hochgestellt werden — das zöge den Zähler aller anderen Belegarten mit.
-      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot', saisonjahr);
-      const heute = new Date().toISOString().split('T')[0];
-      await projektService.updateProjekt(projektId, { angebotsnummer, angebotsdatum: heute });
-
       const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten, saisonjahr);
       await speichereAngebot(projektId, angebotsDaten);
 
@@ -1436,6 +1441,17 @@ async function erzeugeBatch(
         kundenname: kandidat.kundenname,
         fehler: message,
       });
+
+      // Lässt sich die Eindeutigkeit einer Belegnummer nicht prüfen, liegt das nie
+      // am einzelnen Kunden — die Datenbank ist nicht erreichbar oder das Schema
+      // stimmt nicht. Der Fehler träfe alle folgenden genauso. Statt ihn
+      // hundertfach zu wiederholen, hält der Lauf an; die offenen Kandidaten
+      // bleiben unberührt und können nach der Behebung erneut laufen.
+      if (error instanceof NummernPruefungFehlgeschlagen) {
+        ergebnis.abgebrochen = { grund: message, offen: gesamt - index };
+        optionen.onFortschritt?.(index, gesamt, kandidat.kundenname);
+        break;
+      }
     } finally {
       optionen.onFortschritt?.(index, gesamt, kandidat.kundenname);
     }
