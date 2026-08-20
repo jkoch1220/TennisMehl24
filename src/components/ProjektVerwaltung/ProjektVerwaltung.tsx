@@ -76,6 +76,8 @@ import {
   ProjektFilterKategorie,
 } from '../../utils/projektHerkunft';
 import { anfragenService } from '../../services/anfragenService';
+import { client, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { realtimeKanal } from '../../config/mockModus';
 
 // Herkunfts-Optik im Board: Platzbauer beige, Shop blau, Anfrage grün — jeweils
 // mit farbiger Kante links. Normale Projekte bleiben weiß.
@@ -396,6 +398,8 @@ const ProjektVerwaltung = () => {
   // Nachladen im Hintergrund — das Board bleibt stehen, nur ein Hinweis erscheint.
   const [aktualisiert, setAktualisiert] = useState(false);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  // Jemand anderes hat ein Projekt dieser Saison geändert.
+  const [fremdaenderung, setFremdaenderung] = useState(false);
   const [saving, setSaving] = useState(false);
   const [suche, setSuche] = useState('');
   const [nummerSuche, setNummerSuche] = useState(''); // Dedizierte Suche für Dokument-Nummern
@@ -521,6 +525,7 @@ const ProjektVerwaltung = () => {
         neueKundenMap.set(kunde.id, kunde);
       });
       setKundenMap(neueKundenMap);
+      setFremdaenderung(false);
     } catch (error) {
       // Vorher landete der Fehler nur in der Konsole: Das Board blieb leer und sah
       // aus wie „keine Projekte in dieser Saison". Jetzt sagt eine Leiste, dass das
@@ -541,6 +546,32 @@ const ProjektVerwaltung = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  /**
+   * Live-Aktualisierung: Ändert jemand anderes ein Projekt, kommt es hier an.
+   *
+   * Bis 08/2026 gab es in der ganzen Projektverwaltung keine einzige
+   * Realtime-Verbindung. Zu zweit arbeitete man gegen veraltete Stände: Roni zog
+   * eine Karte auf „Rechnung", während sie beim Kollegen noch unter „Lieferschein"
+   * lag — und wer zuletzt speicherte, überschrieb den anderen, ohne dass es
+   * jemandem auffiel.
+   *
+   * Bewusst NICHT sofort nachgeladen: Das Board bekommt nur einen Hinweis, dass
+   * es einen neueren Stand gibt. Ein Board, das sich unter den Händen umsortiert,
+   * während man eine Karte zieht oder ein Formular ausfüllt, wäre schlimmer als
+   * der veraltete Stand. Wann aktualisiert wird, entscheidet der Mensch.
+   */
+  useEffect(() => {
+    const kanal = realtimeKanal(PROJEKTE_COLLECTION_ID);
+    const abmelden = client.subscribe(kanal, (nachricht: { payload?: unknown }) => {
+      // Nur die betrachtete Saison ist interessant — sonst blinkt der Hinweis
+      // auch bei Arbeit an einem längst abgeschlossenen Jahr.
+      const doc = nachricht.payload as { saisonjahr?: number } | undefined;
+      if (doc?.saisonjahr !== undefined && doc.saisonjahr !== saisonjahr) return;
+      setFremdaenderung(true);
+    });
+    return () => abmelden();
+  }, [saisonjahr]);
 
   // Standard-/Default-Saison aus Stammdaten laden (manuell > berechnet).
   // Solange der Nutzer nicht selbst eine Saison gewählt hat, folgt die Ansicht der Default-Saison.
@@ -1071,6 +1102,15 @@ const ProjektVerwaltung = () => {
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
                     <RefreshCw className="w-3 h-3 animate-spin" /> wird aktualisiert
                   </span>
+                )}
+                {fremdaenderung && !aktualisiert && (
+                  <button
+                    onClick={() => void loadData({ stillesNachladen: true })}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                    title="Jemand anderes hat ein Projekt dieser Saison geändert. Klicken, um den neuen Stand zu laden."
+                  >
+                    <RefreshCw className="w-3 h-3" /> neuer Stand verfügbar
+                  </button>
                 )}
                 {saisonjahr === aktuelleSaison ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
