@@ -25,10 +25,12 @@ describe('getAbwicklungswege', () => {
     expect([...getAbwicklungswege(projekt({ belieferungsart: 'nur_motorwagen' }))]).toEqual(['schuettgut']);
   });
 
-  it('führt Kranwagen als eigenen Weg — dort muss jemand einen Kran bestellen', () => {
-    expect([...getAbwicklungswege(projekt({ belieferungsart: 'palette_mit_ladekran' }))]).toEqual([
-      'kranwagen',
-    ]);
+  it('führt Kranwagen als eigenen Weg NEBEN der Palette', () => {
+    // Der Kran ist ein Koordinationstermin, die Ware bleibt Palettenware —
+    // beides muss auffindbar sein.
+    const wege = getAbwicklungswege(projekt({ belieferungsart: 'palette_mit_ladekran' }));
+    expect(wege.has('kranwagen')).toBe(true);
+    expect(wege.has('palette')).toBe(true);
   });
 
   it('zählt BigBag zur Palettenware', () => {
@@ -39,6 +41,35 @@ describe('getAbwicklungswege', () => {
     expect([...getAbwicklungswege(projekt({ belieferungsart: 'abholung_ab_werk' }))]).toEqual([
       'abholung',
     ]);
+  });
+
+  it('führt abgeholte Palettenware unter BEIDEM — Abholung ist kein Warenersatz', () => {
+    // Abholung ab Werk gilt für alles: loses Schüttgut, einzelne Säcke, ganze
+    // Paletten, BigBags. Wer sie als Warenart führte, ließe einen abgeholten
+    // Palettenauftrag aus dem Palettenfilter verschwinden.
+    const p = mitPositionen(
+      [{ artikelnummer: 'TM-ZM-02St', menge: 2, einheit: 'Pal' }],
+      { belieferungsart: 'abholung_ab_werk' }
+    );
+    const wege = getAbwicklungswege(p);
+    expect(wege.has('abholung')).toBe(true);
+    expect(wege.has('palette')).toBe(true);
+  });
+
+  it('führt abgeholtes Schüttgut unter Schüttgut und Abholung', () => {
+    const p = mitPositionen(
+      [{ artikelnummer: 'TM-ZM-02', menge: 20, einheit: 't' }],
+      { belieferungsart: 'abholung_ab_werk' }
+    );
+    const wege = getAbwicklungswege(p);
+    expect(wege.has('abholung')).toBe(true);
+    expect(wege.has('schuettgut')).toBe(true);
+  });
+
+  it('rät bei Abholung keine Warenart aus dem Dispo-Bezug', () => {
+    // Wir fahren nicht — dann darf auch nicht „Schüttgut" unterstellt werden.
+    const p = projekt({ belieferungsart: 'abholung_ab_werk', dispoStatus: 'offen' });
+    expect([...getAbwicklungswege(p)]).toEqual(['abholung']);
   });
 
   it('erkennt Hydrocourt an der Artikelnummer', () => {

@@ -6,7 +6,10 @@
  * - Palettenware geht über eine Spedition, teils mit Ladekran beim Verein.
  * - Hydrocourt wird beim Lieferanten bestellt und von dort direkt zugestellt.
  * - Universal wird per Lieferschein beim Lieferanten abgerufen.
- * - Abholung heißt: Der Verein holt selbst ab, wir tun nichts.
+ * - Abholung heißt: Der Verein holt selbst ab, zu Ab-Werk-Preisen. Das ist KEINE
+ *   Warenart, sondern der Verzicht auf unseren Transport — abgeholt wird alles:
+ *   loses Schüttgut, einzelne Säcke, ganze Paletten, BigBags. Deshalb steht
+ *   „Abholung" neben der Warenart, nicht an ihrer Stelle.
  *
  * Bewusst eine MENGE und kein einzelner Wert. Der Code hält „ein Projekt = eine
  * Produktart" nämlich nicht durch: Der Split in Teilprojekte ist freiwillig und
@@ -22,6 +25,7 @@
 
 import { Projekt } from '../types/projekt';
 import { istHydrocourtProjekt, istUniversalProjekt } from './projektHerkunft';
+import { parseMaterialAufschluesselung } from './dispoMaterialParser';
 
 export type Abwicklungsweg =
   | 'schuettgut'
@@ -75,6 +79,19 @@ export function getAbwicklungswege(projekt: Projekt): Set<Abwicklungsweg> {
   if (istHydrocourtProjekt(projekt)) wege.add('hydrocourt');
   if (istUniversalProjekt(projekt)) wege.add('universal');
 
+  // WARENART aus den Positionen — unabhängig davon, wer sie transportiert.
+  // Der Parser kennt die Artikelnummern und trennt lose Ware, Sackware auf
+  // Paletten und BigBags sauber.
+  const material = parseMaterialAufschluesselung(projekt);
+  if (material.gesamtLose > 0) wege.add('schuettgut');
+  if (material.hatPalettenware || material.hatBigBag) wege.add('palette');
+
+  // TRANSPORTWEG aus der Belieferungsart. Wichtig: Abholung ab Werk ist KEINE
+  // Warenart, sondern der Verzicht auf unseren Transport — der Verein holt
+  // selbst ab, zu Ab-Werk-Preisen. Abgeholt werden kann alles: loses Schüttgut
+  // ebenso wie einzelne Säcke, ganze Paletten oder BigBags. Deshalb steht
+  // „Abholung" NEBEN der Warenart und nicht an ihrer Stelle — sonst verschwände
+  // ein abgeholter Palettenauftrag aus dem Palettenfilter.
   switch (projekt.belieferungsart) {
     case 'abholung_ab_werk':
       wege.add('abholung');
@@ -83,6 +100,7 @@ export function getAbwicklungswege(projekt: Projekt): Set<Abwicklungsweg> {
       // Eigener Weg, weil beim Verein ein Kran bereitstehen muss — das ist ein
       // Termin, den jemand koordiniert, keine bloße Speditionslieferung.
       wege.add('kranwagen');
+      wege.add('palette');
       break;
     case 'bigbag':
       wege.add('palette');
@@ -95,10 +113,13 @@ export function getAbwicklungswege(projekt: Projekt): Set<Abwicklungsweg> {
       break;
   }
 
-  // Ohne Belieferungsart, aber mit Dispo-Bezug: Es wird gefahren, nur ist noch
-  // nicht hinterlegt womit. Als Schüttgut führen ist näher an der Wahrheit als
-  // gar nichts — der überwiegende Teil des Direktgeschäfts ist lose Ware.
-  if (wege.size === 0 && projekt.dispoStatus) {
+  // Ohne erkennbare Warenart, aber mit Dispo-Bezug: Es wird gefahren, nur ist
+  // noch nicht hinterlegt womit. Als Schüttgut führen ist näher an der Wahrheit
+  // als gar nichts — der überwiegende Teil des Direktgeschäfts ist lose Ware.
+  // Greift bewusst NICHT, wenn bereits „Abholung" gesetzt ist: Dann wäre die
+  // Warenart geraten, obwohl wir gar nicht fahren.
+  const nurTransportweg = [...wege].every((w) => w === 'abholung' || w === 'kranwagen');
+  if (nurTransportweg && projekt.dispoStatus && !wege.has('abholung')) {
     wege.add('schuettgut');
   }
 
