@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Calculator,
   Send,
@@ -116,6 +116,20 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const { user, isAdmin } = useAuth();
   const istTestumgebung = useMemo(() => massenAngebotService.istTestumgebung(), []);
 
+  // Zieljahr des Laufs — bewusst getrennt von der Saison, die das Board anzeigt.
+  // Die Frühjahrsangebote entstehen im Herbst der Vorsaison: Im September 2026
+  // laufen die Angebote für die Instandsetzung 2027. Ohne eigene Wahl müsste man
+  // dafür die Standardsaison des ganzen Portals hochstellen — das zieht den
+  // Nummernkreis aller Belegarten mit, und die nächste Rechnung im Oktober hieße
+  // RE-2027-0001.
+  const [zielSaison, setZielSaison] = useState(saisonjahr);
+  const zielSaisonManuell = useRef(false);
+
+  // Folgt der Saisonwahl des Boards, solange hier nichts anderes eingestellt wurde.
+  useEffect(() => {
+    if (!zielSaisonManuell.current) setZielSaison(saisonjahr);
+  }, [saisonjahr]);
+
   const [kandidaten, setKandidaten] = useState<MassenAngebotKandidat[]>([]);
   const [loading, setLoading] = useState(false);
   const [geladen, setGeladen] = useState(false);
@@ -132,6 +146,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   // Kunde, dessen Detail-Panel rechts geöffnet ist
   const [auswahlKundeId, setAuswahlKundeId] = useState<string | null>(null);
 
+  // Bereits angewandte Preisanpassung dieses Laufs (null = noch keine).
+  const [angewandteAnpassung, setAngewandteAnpassung] = useState<{ typ: 'prozent' | 'fix'; wert: number } | null>(null);
   const [anpassungsTyp, setAnpassungsTyp] = useState<'prozent' | 'fix'>('prozent');
   const [anpassungsWert, setAnpassungsWert] = useState('');
   // Vorbelegung aus den Stammdaten (zentrale Preis-Konfiguration); pro Lauf überschreibbar.
@@ -184,20 +200,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     || (user as { name?: string; email?: string } | null)?.email;
 
   const ladeLaeufe = useCallback(async () => {
-    setLaeufe(await massenAngebotService.ladeLaeufe(saisonjahr));
-  }, [saisonjahr]);
+    setLaeufe(await massenAngebotService.ladeLaeufe(zielSaison));
+  }, [zielSaison]);
 
   const ladeKandidaten = useCallback(async () => {
     setLoading(true);
     setFehlerMeldung(null);
     setDryRunFortschritt({ schritt: 'Starte Berechnung…', prozent: 0 });
     try {
-      const liste = await massenAngebotService.sammleKandidaten(saisonjahr, (schritt, prozent) =>
+      const liste = await massenAngebotService.sammleKandidaten(zielSaison, (schritt, prozent) =>
         setDryRunFortschritt({ schritt, prozent })
       );
       setKandidaten(liste);
       setGeladen(true);
       setAuswahlKundeId(null);
+      // Frische Liste = frische Preise. Die Anpassung muss erneut angewandt werden.
+      setAngewandteAnpassung(null);
       await ladeLaeufe();
     } catch (error) {
       console.error('Fehler beim Sammeln der Kandidaten:', error);
@@ -206,7 +224,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setLoading(false);
       setDryRunFortschritt(null);
     }
-  }, [saisonjahr, ladeLaeufe]);
+  }, [zielSaison, ladeLaeufe]);
 
   useEffect(() => {
     void ladeLaeufe();
@@ -312,6 +330,10 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     setKandidaten((prev) =>
       massenAngebotService.wendePreisanpassungAn(prev, { typ: anpassungsTyp, wert })
     );
+    // Merken, was angewandt wurde. Die Anpassung wirkt auf die bereits berechneten
+    // Preise — ein zweiter Klick multipliziert erneut (aus +4 % würden +8,16 %).
+    // Deshalb wird der Knopf danach gesperrt, bis die Liste neu berechnet ist.
+    setAngewandteAnpassung({ typ: anpassungsTyp, wert });
   }, [anpassungsTyp, anpassungsWert]);
 
   const limitZahl = limit ? Math.max(0, Math.floor(Number(limit))) : 0;
@@ -322,7 +344,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     setErgebnis(null);
     setErzeugung({ done: 0, total: anzahlZuErzeugen, aktuell: '' });
     try {
-      const res = await massenAngebotService.erzeugeBatch(kandidaten, saisonjahr, {
+      const res = await massenAngebotService.erzeugeBatch(kandidaten, zielSaison, {
         benutzer,
         limit: limitZahl > 0 ? limitZahl : undefined,
         onFortschritt: (done, total, aktuell) => setErzeugung({ done, total, aktuell }),
@@ -339,7 +361,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     } finally {
       setErzeugung(null);
     }
-  }, [anzahlZuErzeugen, kandidaten, saisonjahr, benutzer, limitZahl, ladeKandidaten]);
+  }, [anzahlZuErzeugen, kandidaten, zielSaison, benutzer, limitZahl, ladeKandidaten]);
 
   const bestaetigeRollback = useCallback(async () => {
     if (!ergebnis) return;
@@ -436,13 +458,50 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
             <Calculator className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-              Frühjahrs-Angebote · Saison {saisonjahr}
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
+                Frühjahrs-Angebote · Saison
+              </h2>
+              <select
+                value={zielSaison}
+                onChange={(e) => {
+                  zielSaisonManuell.current = true;
+                  setZielSaison(Number(e.target.value));
+                  // Die geladene Liste gehört zum alten Zieljahr — sie würde sonst
+                  // Kandidaten zeigen, die für das neue Jahr gar nicht gelten.
+                  setKandidaten([]);
+                  setGeladen(false);
+                  setAuswahlKundeId(null);
+                  setErgebnis(null);
+                  setAngewandteAnpassung(null);
+                }}
+                className="px-2.5 py-1 text-lg font-bold rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-input text-gray-900 dark:text-dark-text"
+                aria-label="Saison, für die die Angebote erzeugt werden"
+              >
+                {[saisonjahr - 1, saisonjahr, saisonjahr + 1].map((jahr) => (
+                  <option key={jahr} value={jahr}>
+                    {jahr}
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="text-sm text-gray-500 dark:text-slate-400">
               Erzeugt Angebote für alle aktiven Kunden mit Kennzeichen „Massenangebots-tauglich"
               (Opt-in).
             </p>
+            {zielSaison !== saisonjahr && (
+              <p className="mt-1.5 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  Der Lauf erzeugt Angebote für <strong>{zielSaison}</strong>, während das Portal auf
+                  Saison <strong>{saisonjahr}</strong> steht. Die Angebotsnummern lauten{' '}
+                  <code className="px-1 rounded bg-amber-100 dark:bg-amber-900/40">
+                    ANG-{zielSaison}-…
+                  </code>
+                  ; Rechnungen und Lieferscheine behalten den Nummernkreis {saisonjahr}.
+                </span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -496,7 +555,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
       {/* Schritt 0: Opt-in-Vorschlagsliste (VOR der Angebots-Vorschau) */}
       <MassenAngebotVorschlagsliste
-        saisonjahr={saisonjahr}
+        saisonjahr={zielSaison}
         onMarkiert={geladen ? () => void ladeKandidaten() : undefined}
       />
 
@@ -592,10 +651,25 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
               />
               <button
                 onClick={handlePreisanpassung}
-                className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-200"
+                disabled={angewandteAnpassung !== null}
+                title={
+                  angewandteAnpassung
+                    ? 'Bereits angewandt. Ein zweiter Klick würde erneut auf die schon angepassten Preise rechnen. Zum Ändern die Liste neu berechnen.'
+                    : undefined
+                }
+                className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Anwenden
               </button>
+              {angewandteAnpassung && (
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  angewandt:{' '}
+                  {angewandteAnpassung.typ === 'prozent'
+                    ? `${angewandteAnpassung.wert >= 0 ? '+' : ''}${angewandteAnpassung.wert.toLocaleString('de-DE')} %`
+                    : `${eur(angewandteAnpassung.wert)} / t`}
+                </span>
+              )}
               {stammdatenPreisanpassung !== null && (
                 <span
                   className="text-xs text-gray-500 dark:text-slate-400 inline-flex items-center gap-1"
@@ -886,9 +960,27 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           bestaetigenClass="bg-emerald-600 hover:bg-emerald-700"
         >
           Es werden <strong>{anzahlZuErzeugen}</strong> neue Angebots-Projekte für Saison{' '}
-          <strong>{saisonjahr}</strong> angelegt
+          <strong>{zielSaison}</strong> angelegt
           {istTestumgebung ? ' (TESTUMGEBUNG)' : ''}. Bestehende Projekte werden nie verändert. Versand
           erfolgt erst später in einem separaten Schritt.
+          {angewandteAnpassung ? (
+            <span className="mt-3 block text-sm text-emerald-700 dark:text-emerald-300">
+              Preisanpassung angewandt:{' '}
+              <strong>
+                {angewandteAnpassung.typ === 'prozent'
+                  ? `${angewandteAnpassung.wert >= 0 ? '+' : ''}${angewandteAnpassung.wert.toLocaleString('de-DE')} %`
+                  : `${eur(angewandteAnpassung.wert)} / t`}
+              </strong>
+            </span>
+          ) : (
+            <span className="mt-3 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Keine Preisanpassung angewandt.</strong> Die Angebote gehen mit den
+                Vorjahrespreisen raus. Nach dem Versand ist das nicht mehr korrigierbar.
+              </span>
+            </span>
+          )}
         </BestaetigungsDialog>
       )}
 

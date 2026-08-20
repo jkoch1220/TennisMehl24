@@ -1237,11 +1237,17 @@ function wendePreisanpassungAn(
 function baueAngebotsDaten(
   kandidat: MassenAngebotKandidat,
   angebotsnummer: string,
-  stammdaten: Stammdaten
+  stammdaten: Stammdaten,
+  saisonjahr: number
 ): AngebotsDaten {
   const kunde = kandidat.kunde;
   const heute = new Date().toISOString().split('T')[0];
-  const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Die Gültigkeit endet mit der Liefersaison, nicht 30 Tage nach dem Druck.
+  // Im September erzeugte Angebote für die Frühjahrsinstandsetzung wären sonst
+  // schon im Oktober abgelaufen — Monate bevor der Verein überhaupt beauftragt.
+  // Dasselbe Datum wählt weiter unten die Dieselklausel aus: Mit einem Datum im
+  // Zieljahr greift die dort gültige Staffel statt der des Vorjahres.
+  const gueltigBis = `${saisonjahr}-05-31`;
   const rech = kunde.rechnungsadresse;
   const liefer = kunde.lieferadresse;
 
@@ -1406,11 +1412,14 @@ async function erzeugeBatch(
       );
 
       const projektId = projekt.id;
-      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
+      // Zieljahr explizit mitgeben: Der Lauf erzeugt im Herbst Angebote für die
+      // kommende Saison. Ohne diesen Parameter müsste die Standardsaison
+      // hochgestellt werden — das zöge den Zähler aller anderen Belegarten mit.
+      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot', saisonjahr);
       const heute = new Date().toISOString().split('T')[0];
       await projektService.updateProjekt(projektId, { angebotsnummer, angebotsdatum: heute });
 
-      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten);
+      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten, saisonjahr);
       await speichereAngebot(projektId, angebotsDaten);
 
       ergebnis.erzeugt.push({
@@ -1675,6 +1684,7 @@ export const _massenAngebotInternals = {
   findePrimaerPosition,
   berechneSumme,
   wendePreisanpassungAn,
+  baueAngebotsDaten,
 };
 
 export const massenAngebotService = {
