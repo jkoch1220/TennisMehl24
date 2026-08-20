@@ -65,6 +65,7 @@ import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import ProzessOverview from './ProzessOverview';
+import Wochenbrett from './Wochenbrett';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
@@ -187,14 +188,15 @@ const kanbanGridKlasse = (spalten: number): string =>
 // (veraltetes Lesezeichen, Tippfehler) traefe sonst keine der Render-Bedingungen
 // und die Seite bliebe unterhalb der Tab-Leiste leer.
 const VIEW_MODES = [
-  'overview', 'kanban', 'angebotsliste', 'statistik', 'anfragen', 'karte',
+  'overview', 'kanban',
+  'wochen', 'angebotsliste', 'statistik', 'anfragen', 'karte',
   'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot',
 ] as const;
 
 // Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
 // Bewusst als Liste statt als Ausschluss: Wer eine Ansicht ergänzt, muss sich
 // aktiv entscheiden, ob die Filterzeile dort etwas bewirkt.
-const FILTERBARE_VIEWS: readonly string[] = ['kanban', 'angebotsliste', 'karte'];
+const FILTERBARE_VIEWS: readonly string[] = ['kanban', 'wochen', 'angebotsliste', 'karte'];
 
 type ViewMode = (typeof VIEW_MODES)[number];
 
@@ -1438,6 +1440,18 @@ const ProjektVerwaltung = () => {
                 <span className="hidden sm:inline">Kanban</span>
               </button>
               <button
+                onClick={() => setViewMode('wochen')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'wochen'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Nach Lieferwoche — die Frage der Hochsaison"
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">Wochen</span>
+              </button>
+              <button
                 onClick={() => setViewMode('angebotsliste')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
                   viewMode === 'angebotsliste'
@@ -1683,6 +1697,12 @@ const ProjektVerwaltung = () => {
             />
           )}
         </div>
+      )}
+
+      {/* Wochenbrett — dieselbe gefilterte Menge wie das Kanban, nur nach
+          Lieferwoche gegliedert statt nach Status. */}
+      {viewMode === 'wochen' && (
+        <Wochenbrett projekte={kartenProjekte} onProjektClick={handleProjektClick} />
       )}
 
       {/* Angebotsliste */}
