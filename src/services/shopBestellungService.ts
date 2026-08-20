@@ -73,13 +73,15 @@ export interface ShopBestellung {
    * Zahlungsstatus, wie ihn der Gambio-Sync schreibt (Appwrite-Attribut `zahlungsStatus`).
    *
    * Das ist die einzige Zahlungsinformation, die tatsächlich in der Datenbank landet.
-   * Sie ist verlässlich: Bestellungen über den Gambio Hub (PayPal2Hub) — auch die mit
-   * Zahlart „Kreditkarten" oder „Lastschrift" — kommen dort als 'bezahlt' an, weil der
-   * Hub das Geld bereits eingezogen hat. 'offen' steht bei Rechnungskauf und Vorkasse.
+   * Sie ist verlässlich: Der Sync liest die Zahlungsereignisse aus der Gambio-Status-
+   * historie („Capture Completed" / „Zahlung abgeschlossen" der Zahlungsmodule) — das
+   * ist eine Bestätigung des Zahlungsdienstleisters, keine Ableitung aus der Zahlart.
+   * 'offen' steht bei Rechnungskauf und Vorkasse ohne Zahlungseingang, 'erstattet' bei
+   * zurückgezahlten Bestellungen (Rückabwicklung/Widerruf).
    *
    * `undefined` bei Altbestellungen, die vor Einführung des Feldes synchronisiert wurden.
    */
-  zahlungsStatus?: 'bezahlt' | 'offen' | string;
+  zahlungsStatus?: 'bezahlt' | 'offen' | 'erstattet' | string;
   /** ISO-Datum des Zahlungseingangs, sofern der Shop es liefert */
   bezahltAm?: string;
   /** Zahlungsreferenz aus dem Mollie-Checkout (nur beim neuen Shop belegt) */
@@ -111,6 +113,9 @@ export function istVorabBezahlt(
 ): boolean {
   if (bestellung.zahlungsStatus === 'bezahlt') return true;
   if (bestellung.zahlungsStatus === 'offen') return false;
+  // 'erstattet': Geld ist zurückgezahlt. Ohne diesen Zweig fiele der Wert auf den
+  // Zahlart-Fallback durch und eine erstattete PayPal-Bestellung stünde als bezahlt da.
+  if (bestellung.zahlungsStatus === 'erstattet') return false;
 
   // Fallback für Altbestellungen ohne zahlungsStatus
   const methode = (bestellung.zahlungsmethode || '').toLowerCase();
