@@ -72,6 +72,12 @@ describe('istVorabBezahlt — Fallback fuer Altbestellungen ohne zahlungsStatus'
     expect(istVorabBezahlt({ zahlungsmethode: 'rechnung' })).toBe(false);
   });
 
+  it('fuehrt erstattete Bestellungen nicht als bezahlt', () => {
+    // Rueckabwicklung: Das Geld ist zurueck beim Kunden. Ohne eigene Behandlung
+    // wuerde der Zahlart-Fallback greifen und PayPal faelschlich als bezahlt melden.
+    expect(istVorabBezahlt({ zahlungsStatus: 'erstattet', zahlungsmethode: 'PayPal' })).toBe(false);
+  });
+
   it('laesst Rechnung auch dann offen, wenn der Text weitere Kennungen enthaelt', () => {
     // "Kauf auf Rechnung (Klarna)" ist eine Forderung, keine Vorabzahlung
     expect(istVorabBezahlt({ zahlungsmethode: 'Kauf auf Rechnung (Klarna)' })).toBe(false);

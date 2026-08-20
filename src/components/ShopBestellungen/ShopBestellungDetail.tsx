@@ -35,6 +35,7 @@ import {
   parseAktivitaetsLog,
   formatBestelldatum,
   getStatusInfo,
+  istVorabBezahlt,
   shopBestellungService,
 } from '../../services/shopBestellungService';
 import { UniversalArtikel } from '../../types/universaArtikel';
@@ -252,26 +253,44 @@ const ShopBestellungDetail = ({
               <CreditCard className="w-4 h-4" />
               {bestellung.zahlungsmethode}
             </div>
-            {/* Zahlungsstatus */}
-            {bestellung.bezahlt !== undefined && (
-              <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium ${
-                bestellung.bezahlt
+            {/* Zahlungsstatus — aus `zahlungsStatus` des Syncs, NICHT aus `bestellung.bezahlt`:
+                dieses Feld existiert nicht in Appwrite, ist immer undefined und hat den
+                Badge dadurch komplett unsichtbar gemacht. */}
+            {(() => {
+              const erstattet = bestellung.zahlungsStatus === 'erstattet';
+              const bezahlt = istVorabBezahlt(bestellung);
+              const farbe = erstattet
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                : bezahlt
                   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-              }`}>
-                {bestellung.bezahlt ? (
-                  <>
-                    <Banknote className="w-3.5 h-3.5" />
-                    Bezahlt
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {bestellung.zahlungsart === 'rechnungskauf' ? 'Rechnungskauf' : 'Offen'}
-                  </>
-                )}
-              </div>
-            )}
+                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+
+              return (
+                <div className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium ${farbe}`}>
+                  {erstattet ? (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Erstattet
+                    </>
+                  ) : bezahlt ? (
+                    <>
+                      <Banknote className="w-3.5 h-3.5" />
+                      Bezahlt
+                      {bestellung.bezahltAm && (
+                        <span className="font-normal opacity-75">
+                          {new Date(bestellung.bezahltAm).toLocaleDateString('de-DE')}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Zahlung offen
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Positionen */}
