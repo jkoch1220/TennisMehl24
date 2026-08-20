@@ -66,6 +66,7 @@ import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import ProzessOverview from './ProzessOverview';
 import Wochenbrett from './Wochenbrett';
+import Lieferantenleiste from './Lieferantenleiste';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
@@ -1650,6 +1651,24 @@ const ProjektVerwaltung = () => {
           anfrageProjektIds={anfrageProjektIds}
           saisonjahr={saisonjahr}
           onZeigeView={setViewMode}
+        />
+      )}
+
+      {/* Lieferantenleiste: was liegt gerade bei wem. Steht ueber dem Board in den
+          beiden Arbeitsansichten — der Beschaffungstakt laeuft parallel zum
+          Kundentakt und war bisher nur in getrennten Vollbildansichten sichtbar. */}
+      {(viewMode === 'kanban' || viewMode === 'wochen') && (
+        <Lieferantenleiste
+          projekteGruppiert={projekteGruppiert}
+          onOeffne={(ziel) => {
+            if (ziel === 'hydrocourt') setViewMode('hydrocourt');
+            else if (ziel === 'universal') setViewMode('universal');
+            else if (ziel === 'dispo') {
+              // Die Wochenplanung liegt im Dispo-Tool, nicht hier — deshalb ein
+              // echter Seitenwechsel statt eines Ansichtswechsels.
+              navigate('/dispo-planung');
+            }
+          }}
         />
       )}
 
