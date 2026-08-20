@@ -507,7 +507,23 @@ Bei Fragen sind wir gerne für Sie da.`,
     navigate(`${location.pathname}${rest ? `?${rest}` : ''}`, { replace: true });
 
     if (!treffer) {
-      alert('Diese Anfrage steht nicht mehr in der Liste – sie wurde gelöscht oder zusammengeführt.');
+      // Nicht in der Liste heisst nicht „gibt es nicht". Zwei Fälle sehen von
+      // hier aus gleich aus: Die Anfrage ist gerade erst eingegangen und steht
+      // noch nicht in der geladenen Liste (wer die Ansicht offen hat, bekommt
+      // keine Nachlieferung) — oder das Laden ist still fehlgeschlagen, denn
+      // `loadAlleAnfragen` fängt jeden Fehler selbst ab und liefert eine leere
+      // Liste, statt zu werfen. In beiden Fällen wäre die Meldung „gelöscht"
+      // schlicht falsch, deshalb wird erst direkt nachgesehen.
+      void (async () => {
+        const frisch = await anfragenService.loadAnfrage(zielId);
+        if (frisch && frisch.status !== 'geloescht') {
+          await loadAnfragen();
+          if (ERLEDIGT_STATUS.includes(frisch.status)) setZeigeBeantwortet(true);
+          setSelectedAnfrage(konvertiereZuVerarbeiteteAnfrage(frisch));
+          return;
+        }
+        alert('Diese Anfrage lässt sich nicht öffnen – sie wurde gelöscht oder ist gerade nicht erreichbar.');
+      })();
       return;
     }
     // Bereits abgehakte Anfragen sind standardmäßig ausgeblendet — sonst steht
