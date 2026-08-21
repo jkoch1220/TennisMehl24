@@ -440,12 +440,15 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           setRechnungsDaten(prev => ({ ...prev, rechnungsnummer: neueNummer }));
         } catch (error) {
           console.error('Fehler beim Generieren der Rechnungsnummer:', error);
-          // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-          const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-          setRechnungsDaten(prev => ({ 
-            ...prev, 
-            rechnungsnummer: `RE-${laufnummer}` 
-          }));
+          // BEWUSST keine Ersatznummer: `RE-3847` läge ausserhalb des fortlaufenden
+          // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+          // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+          // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+          alert(
+            'Die Rechnungsnummer konnte nicht vergeben werden.\n\n' +
+            'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+            'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+          );
         }
       }
     };
@@ -766,9 +769,16 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             rechnungsnummer = await generiereNaechsteDokumentnummer('rechnung');
           } catch (error) {
             console.error('Fehler beim Generieren der Rechnungsnummer:', error);
-            // Fallback: Verwende Timestamp-basierte eindeutige Nummer
-            const laufnummer = (Date.now() % 10000).toString().padStart(4, '0');
-            rechnungsnummer = `RE-${laufnummer}`;
+            // BEWUSST keine Ersatznummer: `RE-3847` läge ausserhalb des fortlaufenden
+            // Nummernkreises, trüge kein Saisonjahr und in der Sandbox kein MOCK-Präfix.
+            // Das Feld bleibt leer — die Speicher-Guards lassen kein Dokument ohne Nummer
+            // durch, und der Nutzer sieht sofort, dass etwas nicht stimmt.
+            alert(
+              'Die Rechnungsnummer konnte nicht vergeben werden.\n\n' +
+              'Bitte den Reiter neu laden. Wenn es erneut fehlschlägt, ist die Verbindung ' +
+              'zur Datenbank gestört — in dem Fall keine Nummer von Hand eintragen.'
+            );
+            rechnungsnummer = '';
           }
         }
 

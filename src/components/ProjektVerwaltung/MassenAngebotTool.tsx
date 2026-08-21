@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Calculator,
   Send,
@@ -27,6 +27,7 @@ import {
 } from '../../types/massenAngebot';
 import MassenAngebotDetailPanel from './MassenAngebotDetailPanel';
 import MassenAngebotVorschlagsliste from './MassenAngebotVorschlagsliste';
+import MassenAngebotEmailKlaerung from './MassenAngebotEmailKlaerung';
 import BestaetigungsDialog from './MassenAngebotBestaetigungsDialog';
 import {
   eur,
@@ -37,6 +38,12 @@ import {
 } from './massenAngebotUi';
 
 type FilterTyp = 'alle' | 'vorjahr' | 'neukunden' | 'fehler' | 'manuell';
+
+// Unterhalb dieser Zahl ist ein Frühjahrslauf mit hoher Wahrscheinlichkeit kein
+// gewollter Teillauf, sondern ein vergessenes Opt-in: Wer nicht als
+// „massenangebots-tauglich" markiert ist, erscheint gar nicht erst in der Liste.
+// Der Bestand zählt mehrere hundert Vereine mit Vorjahresmenge.
+const OPT_IN_ERWARTUNG = 50;
 
 // Eine Zeile der (schlanken) Master-Liste: Name, Nummer, Profil, Quelle,
 // Referenz, Summe, Status, E-Mail-Warnung. Klick öffnet das Detail-Panel.
@@ -116,6 +123,20 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const { user, isAdmin } = useAuth();
   const istTestumgebung = useMemo(() => massenAngebotService.istTestumgebung(), []);
 
+  // Zieljahr des Laufs — bewusst getrennt von der Saison, die das Board anzeigt.
+  // Die Frühjahrsangebote entstehen im Herbst der Vorsaison: Im September 2026
+  // laufen die Angebote für die Instandsetzung 2027. Ohne eigene Wahl müsste man
+  // dafür die Standardsaison des ganzen Portals hochstellen — das zieht den
+  // Nummernkreis aller Belegarten mit, und die nächste Rechnung im Oktober hieße
+  // RE-2027-0001.
+  const [zielSaison, setZielSaison] = useState(saisonjahr);
+  const zielSaisonManuell = useRef(false);
+
+  // Folgt der Saisonwahl des Boards, solange hier nichts anderes eingestellt wurde.
+  useEffect(() => {
+    if (!zielSaisonManuell.current) setZielSaison(saisonjahr);
+  }, [saisonjahr]);
+
   const [kandidaten, setKandidaten] = useState<MassenAngebotKandidat[]>([]);
   const [loading, setLoading] = useState(false);
   const [geladen, setGeladen] = useState(false);
@@ -132,6 +153,8 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   // Kunde, dessen Detail-Panel rechts geöffnet ist
   const [auswahlKundeId, setAuswahlKundeId] = useState<string | null>(null);
 
+  // Bereits angewandte Preisanpassung dieses Laufs (null = noch keine).
+  const [angewandteAnpassung, setAngewandteAnpassung] = useState<{ typ: 'prozent' | 'fix'; wert: number } | null>(null);
   const [anpassungsTyp, setAnpassungsTyp] = useState<'prozent' | 'fix'>('prozent');
   const [anpassungsWert, setAnpassungsWert] = useState('');
   // Vorbelegung aus den Stammdaten (zentrale Preis-Konfiguration); pro Lauf überschreibbar.
@@ -156,14 +179,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     };
   }, []);
 
+  // Empfänger-Klärung: offen, solange der Nutzer sie nicht geschlossen hat.
+  const [zeigeEmailKlaerung, setZeigeEmailKlaerung] = useState(false);
+
   const [limit, setLimit] = useState('');
   const [erzeugeBestaetigung, setErzeugeBestaetigung] = useState(false);
   const [erzeugung, setErzeugung] = useState<{ done: number; total: number; aktuell: string } | null>(null);
   const [ergebnis, setErgebnis] = useState<ErzeugungsErgebnis | null>(null);
 
   const [rollbackBestaetigung, setRollbackBestaetigung] = useState(false);
+  // Gesetzt, wenn die Rücknahme aus dem Protokoll heraus angestoßen wird.
+  const [rollbackBatchId, setRollbackBatchId] = useState<string | null>(null);
   const [rollbackInfo, setRollbackInfo] = useState<string | null>(null);
   const [rollbackLaeuft, setRollbackLaeuft] = useState(false);
+
+  // Wird vom Stopp-Knopf gesetzt und vor jeder einzelnen Mail geprüft.
+  const versandAbbruch = useRef(false);
 
   const [versandKandidaten, setVersandKandidaten] = useState<VersandKandidat[] | null>(null);
   // Batch, zu dem die aktuell geladene Versand-Liste gehört (überlebt auch den
@@ -176,6 +207,10 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const [versandErgebnis, setVersandErgebnis] = useState<{
     gesendet: number;
     fehler: { kundenname: string; fehler: string }[];
+    /** Versendet, aber der Statuswechsel scheiterte — nicht erneut senden. */
+    nachzutragen?: { kundenname: string; hinweis: string }[];
+    /** Gesetzt, wenn der Versand über den Anhalten-Knopf gestoppt wurde. */
+    abgebrochen?: { offen: number };
   } | null>(null);
 
   const [laeufe, setLaeufe] = useState<AngebotsLauf[]>([]);
@@ -184,20 +219,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     || (user as { name?: string; email?: string } | null)?.email;
 
   const ladeLaeufe = useCallback(async () => {
-    setLaeufe(await massenAngebotService.ladeLaeufe(saisonjahr));
-  }, [saisonjahr]);
+    setLaeufe(await massenAngebotService.ladeLaeufe(zielSaison));
+  }, [zielSaison]);
 
   const ladeKandidaten = useCallback(async () => {
     setLoading(true);
     setFehlerMeldung(null);
     setDryRunFortschritt({ schritt: 'Starte Berechnung…', prozent: 0 });
     try {
-      const liste = await massenAngebotService.sammleKandidaten(saisonjahr, (schritt, prozent) =>
+      const liste = await massenAngebotService.sammleKandidaten(zielSaison, (schritt, prozent) =>
         setDryRunFortschritt({ schritt, prozent })
       );
       setKandidaten(liste);
       setGeladen(true);
       setAuswahlKundeId(null);
+      // Frische Liste = frische Preise. Die Anpassung muss erneut angewandt werden.
+      setAngewandteAnpassung(null);
       await ladeLaeufe();
     } catch (error) {
       console.error('Fehler beim Sammeln der Kandidaten:', error);
@@ -206,7 +243,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setLoading(false);
       setDryRunFortschritt(null);
     }
-  }, [saisonjahr, ladeLaeufe]);
+  }, [zielSaison, ladeLaeufe]);
 
   useEffect(() => {
     void ladeLaeufe();
@@ -252,6 +289,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   const auswahlKandidat = useMemo(
     () => (auswahlKundeId ? kandidaten.find((k) => k.kundeId === auswahlKundeId) ?? null : null),
     [kandidaten, auswahlKundeId]
+  );
+
+  // Kandidaten, die erzeugt würden, aber keinen Empfänger haben. Sie bekommen ein
+  // Projekt und ein Angebot — nur eben keine Mail. Ohne Hinweis fällt das erst auf,
+  // wenn im Frühjahr die Bestellung ausbleibt.
+  const kandidatenOhneEmail = useMemo(
+    () => ausgewaehlteNeu.filter((k) => k.emailFehlt),
+    [ausgewaehlteNeu]
+  );
+
+  // Geprüft wird die ganze Auswahl, nicht nur die Kunden ohne Adresse: Auch wer
+  // zwei widersprüchliche Adressen hat, gehört geklärt — dort entscheidet sonst
+  // die Reihenfolge im Code, wer die Mail bekommt.
+  const kandidatenFuerKlaerung = useMemo(
+    () => ausgewaehlteNeu.map((k) => k.kundeId),
+    [ausgewaehlteNeu]
   );
 
   const handleToggle = useCallback((kundeId: string) => {
@@ -312,6 +365,10 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     setKandidaten((prev) =>
       massenAngebotService.wendePreisanpassungAn(prev, { typ: anpassungsTyp, wert })
     );
+    // Merken, was angewandt wurde. Die Anpassung wirkt auf die bereits berechneten
+    // Preise — ein zweiter Klick multipliziert erneut (aus +4 % würden +8,16 %).
+    // Deshalb wird der Knopf danach gesperrt, bis die Liste neu berechnet ist.
+    setAngewandteAnpassung({ typ: anpassungsTyp, wert });
   }, [anpassungsTyp, anpassungsWert]);
 
   const limitZahl = limit ? Math.max(0, Math.floor(Number(limit))) : 0;
@@ -322,7 +379,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     setErgebnis(null);
     setErzeugung({ done: 0, total: anzahlZuErzeugen, aktuell: '' });
     try {
-      const res = await massenAngebotService.erzeugeBatch(kandidaten, saisonjahr, {
+      const res = await massenAngebotService.erzeugeBatch(kandidaten, zielSaison, {
         benutzer,
         limit: limitZahl > 0 ? limitZahl : undefined,
         onFortschritt: (done, total, aktuell) => setErzeugung({ done, total, aktuell }),
@@ -339,21 +396,25 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     } finally {
       setErzeugung(null);
     }
-  }, [anzahlZuErzeugen, kandidaten, saisonjahr, benutzer, limitZahl, ladeKandidaten]);
+  }, [anzahlZuErzeugen, kandidaten, zielSaison, benutzer, limitZahl, ladeKandidaten]);
 
   const bestaetigeRollback = useCallback(async () => {
-    if (!ergebnis) return;
+    // Die Kennung kommt entweder aus dem gerade gelaufenen Ergebnis oder aus dem
+    // Protokoll — nach einem Neuladen des Tabs gibt es nur noch letzteres.
+    const batchId = rollbackBatchId ?? ergebnis?.batchId;
+    if (!batchId) return;
     setRollbackBestaetigung(false);
     setRollbackLaeuft(true);
     setRollbackInfo(null);
     try {
-      const res = await massenAngebotService.rollbackBatch(ergebnis.batchId);
+      const res = await massenAngebotService.rollbackBatch(batchId);
       setRollbackInfo(
         `${res.geloescht} gelöscht, ${res.uebersprungenVersendet} behalten (versendet), ${res.fehler} Fehler.`
       );
       setErgebnis(null);
       setVersandKandidaten(null);
       setVersandBatchId(null);
+      setRollbackBatchId(null);
       await ladeKandidaten();
     } catch (error) {
       console.error('Rollback fehlgeschlagen:', error);
@@ -361,7 +422,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     } finally {
       setRollbackLaeuft(false);
     }
-  }, [ergebnis, ladeKandidaten]);
+  }, [ergebnis, rollbackBatchId, ladeKandidaten]);
 
   const versandAuswahl = useMemo(
     () => (versandKandidaten ?? []).filter((v) => v.ausgewaehlt && v.empfaengerEmail) ,
@@ -376,17 +437,30 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
     if (!versandKandidaten) return;
     setVersandBestaetigung(false);
     setVersandErgebnis(null);
+    versandAbbruch.current = false;
     // Im Testmodus dürfen auch Zeilen ohne Kunden-E-Mail mit (gehen an Testadresse).
     const liste = testModus ? versandAuswahlTest : versandAuswahl;
     setVersand({ done: 0, total: liste.length, aktuell: '' });
     try {
-      const res = await massenAngebotService.versendeBatch(liste, testModus, (done, total, aktuell) =>
-        setVersand({ done, total, aktuell })
+      const res = await massenAngebotService.versendeBatch(
+        liste,
+        testModus,
+        (done, total, aktuell) => setVersand({ done, total, aktuell }),
+        { abbruchSignal: () => versandAbbruch.current }
       );
       setVersandErgebnis(res);
       if (!testModus && versandBatchId) {
         const vk = await massenAngebotService.ladeVersandKandidaten(versandBatchId);
-        setVersandKandidaten(vk);
+        // Bewusst abgewählte Empfänger bleiben abgewählt. Die frisch geladene
+        // Liste hakt sonst alles wieder an — auch die Zweifelsfälle, die vor dem
+        // Lauf herausgenommen wurden. Nach einem Abbruch bei 150 von 290 bekämen
+        // sie beim Weitermachen ihr Angebot doch.
+        setVersandKandidaten((prev) => {
+          const abgewaehlt = new Set(
+            (prev ?? []).filter((v) => !v.ausgewaehlt).map((v) => v.projektId)
+          );
+          return vk.map((v) => (abgewaehlt.has(v.projektId) ? { ...v, ausgewaehlt: false } : v));
+        });
       }
     } catch (error) {
       console.error('Versand fehlgeschlagen:', error);
@@ -395,6 +469,18 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       setVersand(null);
     }
   }, [versandKandidaten, testModus, versandAuswahl, versandAuswahlTest, versandBatchId]);
+
+  const handleVersandToggle = useCallback((projektId: string) => {
+    setVersandKandidaten((prev) =>
+      prev
+        ? prev.map((v) => (v.projektId === projektId ? { ...v, ausgewaehlt: !v.ausgewaehlt } : v))
+        : prev
+    );
+  }, []);
+
+  const handleVersandAlle = useCallback((wert: boolean) => {
+    setVersandKandidaten((prev) => (prev ? prev.map((v) => ({ ...v, ausgewaehlt: wert })) : prev));
+  }, []);
 
   // Versand-Liste eines früheren Laufs aus dem Protokoll öffnen — damit der
   // Versand-Schritt auch nach einem Seiten-Reload wieder erreichbar ist.
@@ -436,13 +522,50 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
             <Calculator className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-              Frühjahrs-Angebote · Saison {saisonjahr}
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-dark-text">
+                Frühjahrs-Angebote · Saison
+              </h2>
+              <select
+                value={zielSaison}
+                onChange={(e) => {
+                  zielSaisonManuell.current = true;
+                  setZielSaison(Number(e.target.value));
+                  // Die geladene Liste gehört zum alten Zieljahr — sie würde sonst
+                  // Kandidaten zeigen, die für das neue Jahr gar nicht gelten.
+                  setKandidaten([]);
+                  setGeladen(false);
+                  setAuswahlKundeId(null);
+                  setErgebnis(null);
+                  setAngewandteAnpassung(null);
+                }}
+                className="px-2.5 py-1 text-lg font-bold rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-input text-gray-900 dark:text-dark-text"
+                aria-label="Saison, für die die Angebote erzeugt werden"
+              >
+                {[saisonjahr - 1, saisonjahr, saisonjahr + 1].map((jahr) => (
+                  <option key={jahr} value={jahr}>
+                    {jahr}
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="text-sm text-gray-500 dark:text-slate-400">
               Erzeugt Angebote für alle aktiven Kunden mit Kennzeichen „Massenangebots-tauglich"
               (Opt-in).
             </p>
+            {zielSaison !== saisonjahr && (
+              <p className="mt-1.5 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  Der Lauf erzeugt Angebote für <strong>{zielSaison}</strong>, während das Portal auf
+                  Saison <strong>{saisonjahr}</strong> steht. Die Angebotsnummern lauten{' '}
+                  <code className="px-1 rounded bg-amber-100 dark:bg-amber-900/40">
+                    ANG-{zielSaison}-…
+                  </code>
+                  ; Rechnungen und Lieferscheine behalten den Nummernkreis {saisonjahr}.
+                </span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -496,7 +619,7 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
       {/* Schritt 0: Opt-in-Vorschlagsliste (VOR der Angebots-Vorschau) */}
       <MassenAngebotVorschlagsliste
-        saisonjahr={saisonjahr}
+        saisonjahr={zielSaison}
         onMarkiert={geladen ? () => void ladeKandidaten() : undefined}
       />
 
@@ -534,6 +657,60 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       ) : (
         <>
+          {/* Empfänger klären — bevor der Lauf startet */}
+          {kandidatenOhneEmail.length > 0 && !zeigeEmailKlaerung && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3 flex-wrap">
+              <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-[16rem]">
+                <div className="font-semibold text-amber-900 dark:text-amber-200">
+                  {kandidatenOhneEmail.length}{' '}
+                  {kandidatenOhneEmail.length === 1 ? 'Kunde hat' : 'Kunden haben'} keine
+                  Empfängeradresse
+                </div>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                  Sie werden zwar angelegt, bekommen aber keine Mail — und fallen still aus dem
+                  Lauf. Vor dem Erzeugen klären.
+                </p>
+              </div>
+              <button
+                onClick={() => setZeigeEmailKlaerung(true)}
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0"
+              >
+                Empfänger klären
+              </button>
+            </div>
+          )}
+
+          {zeigeEmailKlaerung && (
+            <MassenAngebotEmailKlaerung
+              kundeIds={kandidatenFuerKlaerung}
+              onFertig={() => {
+                setZeigeEmailKlaerung(false);
+                // Nach dem Klären ist die Vorschau veraltet: Die Empfänger stehen
+                // jetzt am Kunden, der Kandidat trägt aber noch den alten Stand.
+                void ladeKandidaten();
+              }}
+            />
+          )}
+
+          {/* Warnung, wenn der Lauf unplausibel klein ausfällt */}
+          {zusammenfassung.gesamt > 0 && zusammenfassung.gesamt < OPT_IN_ERWARTUNG && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
+              <MousePointerClick className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-semibold text-amber-900 dark:text-amber-200">
+                  Nur {zusammenfassung.gesamt}{' '}
+                  {zusammenfassung.gesamt === 1 ? 'Kunde ist' : 'Kunden sind'} freigeschaltet
+                </div>
+                <p className="text-sm text-amber-800 dark:text-amber-300 mt-0.5">
+                  Der Frühjahrslauf betrifft normalerweise mehrere hundert Vereine. Wer nicht als
+                  „massenangebots-tauglich" markiert ist, taucht hier gar nicht erst auf — prüfe die
+                  Vorschlagsliste oben, bevor du den Lauf startest.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Zähler + Werkzeuge */}
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 space-y-4">
             <div className="flex items-center gap-3 flex-wrap text-sm">
@@ -592,10 +769,25 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
               />
               <button
                 onClick={handlePreisanpassung}
-                className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-200"
+                disabled={angewandteAnpassung !== null}
+                title={
+                  angewandteAnpassung
+                    ? 'Bereits angewandt. Ein zweiter Klick würde erneut auf die schon angepassten Preise rechnen. Zum Ändern die Liste neu berechnen.'
+                    : undefined
+                }
+                className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Anwenden
               </button>
+              {angewandteAnpassung && (
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  angewandt:{' '}
+                  {angewandteAnpassung.typ === 'prozent'
+                    ? `${angewandteAnpassung.wert >= 0 ? '+' : ''}${angewandteAnpassung.wert.toLocaleString('de-DE')} %`
+                    : `${eur(angewandteAnpassung.wert)} / t`}
+                </span>
+              )}
               {stammdatenPreisanpassung !== null && (
                 <span
                   className="text-xs text-gray-500 dark:text-slate-400 inline-flex items-center gap-1"
@@ -715,10 +907,38 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
       {/* Ergebnis Erzeugung + Rollback + Versand-Einstieg */}
       {ergebnis && (
-        <div className="bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="w-5 h-5" /> Lauf abgeschlossen
-          </div>
+        <div
+          className={`bg-white dark:bg-slate-800 border rounded-xl p-4 space-y-3 ${
+            ergebnis.abgebrochen
+              ? 'border-red-300 dark:border-red-800'
+              : ergebnis.fehler.length > 0
+              ? 'border-amber-300 dark:border-amber-800'
+              : 'border-emerald-200 dark:border-emerald-800'
+          }`}
+        >
+          {ergebnis.abgebrochen ? (
+            <div className="flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
+              <ShieldAlert className="w-5 h-5" /> Lauf abgebrochen
+            </div>
+          ) : ergebnis.fehler.length > 0 ? (
+            <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5" /> Lauf beendet — mit Fehlern
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-5 h-5" /> Lauf abgeschlossen
+            </div>
+          )}
+          {ergebnis.abgebrochen && (
+            <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              Der Lauf wurde gestoppt, weil der Fehler nicht am einzelnen Kunden lag:{' '}
+              {ergebnis.abgebrochen.grund}
+              <div className="mt-1.5">
+                <strong>{ergebnis.abgebrochen.offen}</strong> Kandidaten wurden gar nicht erst
+                versucht — sie sind unberührt und können nach der Behebung erneut laufen.
+              </div>
+            </div>
+          )}
           <div className="text-sm text-gray-700 dark:text-slate-300">
             {ergebnis.erzeugt.length} erzeugt · {ergebnis.uebersprungen.length} übersprungen ·{' '}
             {ergebnis.fehler.length} fehlerhaft · Batch <code className="text-xs">{ergebnis.batchId}</code>
@@ -735,7 +955,10 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           <div className="flex items-center gap-3 flex-wrap pt-1">
             <button
               onClick={() => setRollbackBestaetigung(true)}
-              disabled={rollbackLaeuft || ergebnis.erzeugt.length === 0}
+              // Auch ein Lauf, der nur Fehler produziert hat, muss zurücknehmbar
+              // sein — sonst bleiben angefangene Projekte liegen und sperren den
+              // Kunden beim Wiederholungslauf als „existiert bereits".
+              disabled={rollbackLaeuft || (ergebnis.erzeugt.length === 0 && ergebnis.fehler.length === 0)}
               className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg inline-flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
             >
               {rollbackLaeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Undo2 className="w-4 h-4" />}
@@ -779,12 +1002,62 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                 )}
               </span>
               <button
+                onClick={() => handleVersandAlle(true)}
+                disabled={!!versand}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Alle
+              </button>
+              <button
+                onClick={() => handleVersandAlle(false)}
+                disabled={!!versand}
+                className="px-2.5 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                Keine
+              </button>
+              <button
                 onClick={() => setVersandBestaetigung(true)}
                 disabled={!!versand || versandAnzahl === 0}
                 className="ml-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg inline-flex items-center gap-2 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {versandAnzahl} Angebote versenden
               </button>
+            </div>
+          )}
+
+          {/* Einzelne Empfänger abwählen — beim Massenversand an echte Kunden ist
+              das der letzte Punkt, an dem ein Zweifelsfall noch herausfällt. */}
+          {versandKandidaten.length > 0 && (
+            <div className="border border-gray-200 dark:border-slate-700 rounded-lg divide-y divide-gray-100 dark:divide-slate-700/60 max-h-72 overflow-y-auto">
+              {versandKandidaten.map((v) => (
+                <label
+                  key={v.projektId}
+                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700/40"
+                >
+                  <input
+                    type="checkbox"
+                    checked={v.ausgewaehlt}
+                    disabled={!!versand}
+                    onChange={() => handleVersandToggle(v.projektId)}
+                    className="h-4 w-4 rounded border-gray-300 dark:border-slate-600 text-purple-600 disabled:opacity-40"
+                  />
+                  <span className="text-sm text-gray-900 dark:text-slate-100 truncate flex-1 min-w-0">
+                    {v.kundenname}
+                  </span>
+                  {v.angebotsnummer && (
+                    <code className="text-xs text-gray-400 flex-shrink-0">{v.angebotsnummer}</code>
+                  )}
+                  {v.emailFehlt ? (
+                    <span className="text-xs text-red-600 dark:text-red-400 flex-shrink-0">
+                      keine Adresse
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-slate-400 truncate max-w-[16rem] flex-shrink-0">
+                      {v.empfaengerEmail}
+                    </span>
+                  )}
+                </label>
+              ))}
             </div>
           )}
         </div>
@@ -796,6 +1069,15 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           <div className="flex items-center gap-2 text-gray-700 dark:text-slate-300 mb-2">
             <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
             Versende {versand.done} von {versand.total}… {versand.aktuell}
+            <button
+              onClick={() => {
+                versandAbbruch.current = true;
+              }}
+              className="ml-auto px-3 py-1.5 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40"
+              title="Hält nach der laufenden Mail an. Bereits versendete lassen sich nicht zurückholen."
+            >
+              Anhalten
+            </button>
           </div>
           <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -808,12 +1090,22 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
       {versandErgebnis && (
         <div className="bg-white dark:bg-slate-800 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-sm">
           <div className="flex items-center gap-2 font-semibold text-purple-700 dark:text-purple-400 mb-1">
-            <Mail className="w-4 h-4" /> Versand abgeschlossen
+            <Mail className="w-4 h-4" />
+            {versandErgebnis.abgebrochen ? 'Versand angehalten' : 'Versand abgeschlossen'}
             {testModus && <span className="text-xs font-normal">(Testmodus – nur Testadresse)</span>}
           </div>
           <div className="text-gray-700 dark:text-slate-300">
             {versandErgebnis.gesendet} gesendet · {versandErgebnis.fehler.length} fehlerhaft
+            {versandErgebnis.abgebrochen && (
+              <> · <strong>{versandErgebnis.abgebrochen.offen}</strong> nicht mehr angefasst</>
+            )}
           </div>
+          {versandErgebnis.abgebrochen && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              Die offenen Empfänger stehen weiterhin in der Versand-Liste und können später
+              nachgeholt werden.
+            </p>
+          )}
           {versandErgebnis.fehler.length > 0 && (
             <div className="text-xs text-red-600 dark:text-red-400 mt-1 max-h-24 overflow-y-auto">
               {versandErgebnis.fehler.map((f, i) => (
@@ -821,6 +1113,19 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                   {f.kundenname}: {f.fehler}
                 </div>
               ))}
+            </div>
+          )}
+          {versandErgebnis.nachzutragen && versandErgebnis.nachzutragen.length > 0 && (
+            <div className="mt-2 p-2.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <div className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                {versandErgebnis.nachzutragen.length} versendet, Status nachzutragen — nicht erneut
+                senden
+              </div>
+              <div className="text-xs text-amber-800 dark:text-amber-300 mt-1 max-h-24 overflow-y-auto">
+                {versandErgebnis.nachzutragen.map((n, i) => (
+                  <div key={i}>{n.kundenname}</div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -869,6 +1174,19 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
                     Versand-Liste öffnen
                   </button>
                 )}
+                {!lauf.rueckgaengigGemacht && lauf.anzahlErzeugt > 0 && lauf.batchId && (
+                  <button
+                    onClick={() => {
+                      setRollbackBatchId(lauf.batchId);
+                      setRollbackBestaetigung(true);
+                    }}
+                    disabled={rollbackLaeuft}
+                    className="px-2.5 py-1 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950/40 inline-flex items-center gap-1.5 disabled:opacity-50"
+                    title="Nimmt die noch unversendeten Angebote dieses Laufs zurück — auch nach einem Seiten-Reload"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" /> Rückgängig
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -886,24 +1204,55 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
           bestaetigenClass="bg-emerald-600 hover:bg-emerald-700"
         >
           Es werden <strong>{anzahlZuErzeugen}</strong> neue Angebots-Projekte für Saison{' '}
-          <strong>{saisonjahr}</strong> angelegt
+          <strong>{zielSaison}</strong> angelegt
           {istTestumgebung ? ' (TESTUMGEBUNG)' : ''}. Bestehende Projekte werden nie verändert. Versand
           erfolgt erst später in einem separaten Schritt.
+          {angewandteAnpassung ? (
+            <span className="mt-3 block text-sm text-emerald-700 dark:text-emerald-300">
+              Preisanpassung angewandt:{' '}
+              <strong>
+                {angewandteAnpassung.typ === 'prozent'
+                  ? `${angewandteAnpassung.wert >= 0 ? '+' : ''}${angewandteAnpassung.wert.toLocaleString('de-DE')} %`
+                  : `${eur(angewandteAnpassung.wert)} / t`}
+              </strong>
+            </span>
+          ) : (
+            <span className="mt-3 flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Keine Preisanpassung angewandt.</strong> Die Angebote gehen mit den
+                Vorjahrespreisen raus. Nach dem Versand ist das nicht mehr korrigierbar.
+              </span>
+            </span>
+          )}
         </BestaetigungsDialog>
       )}
 
       {/* Bestätigungsdialog Rollback */}
-      {rollbackBestaetigung && ergebnis && (
+      {rollbackBestaetigung && (rollbackBatchId || ergebnis) && (
         <BestaetigungsDialog
           icon={<Undo2 className="w-6 h-6 text-red-600" />}
           titel="Lauf rückgängig machen?"
-          onAbbrechen={() => setRollbackBestaetigung(false)}
+          onAbbrechen={() => {
+            setRollbackBestaetigung(false);
+            setRollbackBatchId(null);
+          }}
           onBestaetigen={bestaetigeRollback}
           bestaetigenLabel="Endgültig löschen"
           bestaetigenClass="bg-red-600 hover:bg-red-700"
         >
-          Alle <strong>{ergebnis.erzeugt.length}</strong> noch nicht versendeten Angebote dieses Laufs werden
-          gelöscht. Bereits versendete bleiben erhalten (GoBD).
+          {rollbackBatchId ? (
+            <>
+              Die noch nicht versendeten Angebote des Laufs{' '}
+              <code className="text-xs">{rollbackBatchId}</code> werden gelöscht.
+            </>
+          ) : (
+            <>
+              Alle <strong>{ergebnis?.erzeugt.length ?? 0}</strong> noch nicht versendeten Angebote
+              dieses Laufs werden gelöscht.
+            </>
+          )}{' '}
+          Bereits versendete bleiben erhalten (GoBD).
         </BestaetigungsDialog>
       )}
 

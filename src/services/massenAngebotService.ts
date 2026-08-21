@@ -35,6 +35,8 @@ import {
   VersandKandidat,
   TauglichkeitsVorschlag,
   MarkierungsErgebnis,
+  EmailKandidat,
+  EmailKlaerungsFall,
 } from '../types/massenAngebot';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
@@ -44,8 +46,14 @@ import {
   speichereAngebot,
   loescheDokumenteFuerProjekt,
 } from './projektabwicklungDokumentService';
-import { generiereNaechsteDokumentnummer } from './nummerierungService';
-import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
+import { generiereNaechsteDokumentnummer, NummernPruefungFehlgeschlagen } from './nummerierungService';
+import {
+  sendeEmailMitPdf,
+  pdfZuBase64,
+  wrapInEmailTemplate,
+  ladeEmailProtokollFuerDokument,
+  istTestversand,
+} from './emailSendService';
 import { istMockModusAktiv } from '../config/mockModus';
 import { generiereAngebotPDF } from './dokumentService';
 import { getArtikelPreis, getStammdatenOderDefault, getPreisKonfiguration } from './stammdatenService';
@@ -57,6 +65,7 @@ import {
   databases,
   DATABASE_ID,
   ANGEBOTS_LAEUFE_COLLECTION_ID,
+  SAISON_ANSPRECHPARTNER_COLLECTION_ID,
   PROJECT_ID,
   PROJEKTE_COLLECTION_ID,
   SAISON_DATEN_COLLECTION_ID,
@@ -967,6 +976,132 @@ async function sammleKandidaten(
   );
 }
 
+// ===== E-MAIL-KLÄRUNG VOR DEM LAUF =====
+
+// Formal gültige Adresse. Bewusst streng: Was hier durchfällt, taugt auch nicht
+// als Vorschlag — eine unbrauchbare Adresse im Auswahldialog kostet mehr Zeit,
+// als sie spart.
+const EMAIL_MUSTER = /^[^@\s,;]+@[^@\s,;]+\.[a-zA-Z]{2,}$/;
+const istEmail = (wert: unknown): boolean => EMAIL_MUSTER.test(String(wert ?? '').trim());
+const normalisiereEmail = (wert: unknown): string => String(wert ?? '').trim();
+
+/**
+ * Sucht für die übergebenen Kunden alle im System auffindbaren E-Mail-Adressen
+ * zusammen und meldet, wo der Empfänger vor dem Massenlauf geklärt werden muss.
+ *
+ * Zwei Fälle brauchen einen Menschen:
+ * - `fehlt`: keine Adresse auffindbar. Sie muss recherchiert und eingetragen werden.
+ * - `mehrdeutig`: mehrere gefunden. Welche davon der Vorstand ist, kann keine
+ *   Heuristik entscheiden — `knut.christiansen@dhl.com` gegen `tc-verein@web.de`
+ *   ist genau der Fall, bei dem ein Automatismus an den Falschen schreibt.
+ *
+ * Ein bereits gepflegter Angebots-Verteiler (`angebotsEmails`) gilt immer als
+ * geklärt, auch mit mehreren Empfängern — dort ist die Mehrfachnennung gewollt.
+ *
+ * Reine Leseoperation — schreibt nichts.
+ */
+async function sammleEmailKlaerungsfaelle(
+  kundeIds: string[],
+  onFortschritt?: SammelFortschritt
+): Promise<EmailKlaerungsFall[]> {
+  const gesucht = new Set(kundeIds);
+  if (gesucht.size === 0) return [];
+  const melde = (schritt: string, prozent: number) => onFortschritt?.(schritt, prozent);
+
+  melde('Lade Kundenstamm…', 10);
+  const alleKunden = await saisonplanungService.loadAlleKunden();
+  const kundenMap = new Map(alleKunden.filter((k) => gesucht.has(k.id)).map((k) => [k.id, k]));
+
+  // Kandidaten je Kunde. Reihenfolge des Einfügens = Reihenfolge in der Anzeige.
+  const kandidatenMap = new Map<string, EmailKandidat[]>();
+  const merke = (kundeId: string, kandidat: EmailKandidat) => {
+    if (!gesucht.has(kundeId) || !istEmail(kandidat.email)) return;
+    const liste = kandidatenMap.get(kundeId) ?? [];
+    // Gleiche Adresse nur einmal, auch wenn sie aus zwei Quellen stammt.
+    if (liste.some((k) => k.email.toLowerCase() === normalisiereEmail(kandidat.email).toLowerCase())) return;
+    liste.push({ ...kandidat, email: normalisiereEmail(kandidat.email) });
+    kandidatenMap.set(kundeId, liste);
+  };
+
+  for (const kunde of kundenMap.values()) {
+    merke(kunde.id, { email: kunde.rechnungsEmail ?? '', quelle: 'rechnung', hinweis: 'Rechnungsadresse' });
+    merke(kunde.id, { email: kunde.email ?? '', quelle: 'kunde', hinweis: 'Kundenstamm' });
+  }
+
+  melde('Durchsuche Ansprechpartner…', 45);
+  const apDocs = await loadAllDocuments(DATABASE_ID, SAISON_ANSPRECHPARTNER_COLLECTION_ID, {});
+  for (const doc of apDocs as unknown as Array<{ kundeId?: string; data?: string }>) {
+    if (!doc.kundeId || !gesucht.has(doc.kundeId)) continue;
+    let daten: { email?: string; name?: string; funktion?: string } = {};
+    try {
+      daten = doc.data ? JSON.parse(doc.data) : {};
+    } catch {
+      continue;
+    }
+    const wer = [daten.name, daten.funktion].filter(Boolean).join(', ');
+    merke(doc.kundeId, { email: daten.email ?? '', quelle: 'ansprechpartner', hinweis: wer || 'Ansprechpartner' });
+  }
+
+  melde('Durchsuche frühere Projekte…', 75);
+  const projektDocs = await loadAllDocuments(DATABASE_ID, PROJEKTE_COLLECTION_ID, {});
+  for (const doc of projektDocs as unknown as Array<{ kundeId?: string; saisonjahr?: number; data?: string }>) {
+    if (!doc.kundeId || !gesucht.has(doc.kundeId)) continue;
+    let daten: { kundenEmail?: string; rechnungsEmail?: string } = {};
+    try {
+      daten = doc.data ? JSON.parse(doc.data) : {};
+    } catch {
+      continue;
+    }
+    const woher = doc.saisonjahr ? `Projekt ${doc.saisonjahr}` : 'früheres Projekt';
+    merke(doc.kundeId, { email: daten.kundenEmail ?? '', quelle: 'projekt', hinweis: woher });
+    merke(doc.kundeId, { email: daten.rechnungsEmail ?? '', quelle: 'projekt', hinweis: woher });
+  }
+
+  melde('Werte aus…', 95);
+  const faelle: EmailKlaerungsFall[] = [];
+  for (const kundeId of gesucht) {
+    const kunde = kundenMap.get(kundeId);
+    if (!kunde) continue;
+
+    const verteiler = (kunde.angebotsEmails ?? []).map(normalisiereEmail).filter(istEmail);
+    if (verteiler.length >= 1) continue; // bewusst gepflegt
+
+    const kandidaten = kandidatenMap.get(kundeId) ?? [];
+    if (kandidaten.length === 1) continue; // eindeutig
+
+    faelle.push({
+      kundeId,
+      kundenname: kunde.name,
+      kundennummer: kunde.kundennummer,
+      art: kandidaten.length === 0 ? 'fehlt' : 'mehrdeutig',
+      bisher: verteiler,
+      kandidaten,
+    });
+  }
+
+  melde('Fertig', 100);
+  // Fehlende zuerst: Sie brauchen Recherche, die Mehrdeutigen nur einen Klick.
+  return faelle.sort((a, b) =>
+    a.art === b.art ? a.kundenname.localeCompare(b.kundenname, 'de') : a.art === 'fehlt' ? -1 : 1
+  );
+}
+
+/**
+ * Schreibt den geklärten Angebots-Verteiler an den Kunden. Eine leere Liste
+ * löscht den Verteiler — dann greift beim Versand wieder der Fallback auf
+ * Rechnungs- bzw. Kundenadresse.
+ */
+async function setzeAngebotsEmails(kundeId: string, emails: string[]): Promise<void> {
+  const bereinigt = [...new Set(emails.map(normalisiereEmail).filter(istEmail))];
+  await saisonplanungService.updateKunde(kundeId, { angebotsEmails: bereinigt });
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'saison_kunde',
+    entityId: kundeId,
+    summary: `Angebots-Verteiler gesetzt: ${bereinigt.length > 0 ? bereinigt.join(', ') : '(geleert)'}`,
+  });
+}
+
 // ===== OPT-IN-VORSCHLAGSLISTE =====
 
 /**
@@ -1237,11 +1372,17 @@ function wendePreisanpassungAn(
 function baueAngebotsDaten(
   kandidat: MassenAngebotKandidat,
   angebotsnummer: string,
-  stammdaten: Stammdaten
+  stammdaten: Stammdaten,
+  saisonjahr: number
 ): AngebotsDaten {
   const kunde = kandidat.kunde;
   const heute = new Date().toISOString().split('T')[0];
-  const gueltigBis = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Die Gültigkeit endet mit der Liefersaison, nicht 30 Tage nach dem Druck.
+  // Im September erzeugte Angebote für die Frühjahrsinstandsetzung wären sonst
+  // schon im Oktober abgelaufen — Monate bevor der Verein überhaupt beauftragt.
+  // Dasselbe Datum wählt weiter unten die Dieselklausel aus: Mit einem Datum im
+  // Zieljahr greift die dort gültige Staffel statt der des Vorjahres.
+  const gueltigBis = `${saisonjahr}-05-31`;
   const rech = kunde.rechnungsadresse;
   const liefer = kunde.lieferadresse;
 
@@ -1312,33 +1453,72 @@ function neueBatchId(): string {
   return `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-async function schreibeProtokoll(
+/**
+ * Legt den Protokolleintrag an, BEVOR der erste Kunde bearbeitet wird, und gibt
+ * die Dokument-ID zurück.
+ *
+ * Der Eintrag ist der einzige Ort, an dem die `batchId` dauerhaft steht — und
+ * die `batchId` ist der Schlüssel für Rücknahme und Versandliste. Entstand er
+ * erst am Ende, war ein Lauf, den jemand nach der Hälfte im Browser schloss,
+ * praktisch unauffindbar: hunderte Projekte, die man nur noch von Hand
+ * zusammensuchen kann.
+ *
+ * Scheitert das Anlegen, wirft die Funktion. Ein Lauf ohne Protokoll darf nicht
+ * beginnen.
+ */
+async function eroeffneProtokoll(
   batchId: string,
   saisonjahr: number,
-  ergebnis: ErzeugungsErgebnis,
-  meta: { benutzer?: string }
+  meta: { benutzer?: string; geplant: number }
+): Promise<string> {
+  const doc = await databases.createDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, ID.unique(), {
+    batchId,
+    saisonjahr,
+    zeitpunkt: new Date().toISOString(),
+    benutzer: meta.benutzer,
+    testModus: istTestumgebung(),
+    anzahlErzeugt: 0,
+    anzahlUebersprungen: 0,
+    anzahlFehler: 0,
+    rueckgaengigGemacht: false,
+    data: JSON.stringify({ batchId, geplant: meta.geplant, laeuft: true }),
+  });
+  auditService.logAktion({
+    action: 'create',
+    entityType: 'angebots_lauf',
+    entityId: batchId,
+    summary: `Massen-Angebots-Lauf ${saisonjahr} gestartet: ${meta.geplant} Kandidaten`,
+  });
+  return doc.$id;
+}
+
+/**
+ * Schreibt das Endergebnis in den zuvor eröffneten Eintrag fort. Schlägt das
+ * fehl, bleibt der Anker mit den Startwerten stehen — die `batchId` ist damit
+ * weiterhin auffindbar, Rücknahme und Versand funktionieren. Deshalb genügt
+ * hier eine Warnung.
+ */
+async function schreibeProtokoll(
+  dokumentId: string,
+  batchId: string,
+  saisonjahr: number,
+  ergebnis: ErzeugungsErgebnis
 ): Promise<void> {
   try {
-    await databases.createDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, ID.unique(), {
-      batchId,
-      saisonjahr,
-      zeitpunkt: new Date().toISOString(),
-      benutzer: meta.benutzer,
-      testModus: istTestumgebung(),
+    await databases.updateDocument(DATABASE_ID, ANGEBOTS_LAEUFE_COLLECTION_ID, dokumentId, {
       anzahlErzeugt: ergebnis.erzeugt.length,
       anzahlUebersprungen: ergebnis.uebersprungen.length,
       anzahlFehler: ergebnis.fehler.length,
-      rueckgaengigGemacht: false,
       data: JSON.stringify(ergebnis).slice(0, 99000),
     });
     auditService.logAktion({
-      action: 'create',
+      action: 'update',
       entityType: 'angebots_lauf',
       entityId: batchId,
-      summary: `Massen-Angebots-Lauf ${saisonjahr}: ${ergebnis.erzeugt.length} erzeugt, ${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler`,
+      summary: `Massen-Angebots-Lauf ${saisonjahr}: ${ergebnis.erzeugt.length} erzeugt, ${ergebnis.uebersprungen.length} übersprungen, ${ergebnis.fehler.length} Fehler${ergebnis.abgebrochen ? ' — ABGEBROCHEN' : ''}`,
     });
   } catch (error) {
-    console.warn('Angebots-Lauf konnte nicht protokolliert werden:', error);
+    console.warn('Ergebnis des Angebots-Laufs konnte nicht fortgeschrieben werden:', error);
   }
 }
 
@@ -1367,6 +1547,13 @@ async function erzeugeBatch(
     optionen.limit && optionen.limit > 0 ? erzeugbar.slice(0, optionen.limit) : erzeugbar;
   const gesamt = zuErzeugen.length;
 
+  // Anker VOR dem ersten Kunden. Wirft bewusst: Ohne auffindbare batchId wären
+  // die erzeugten Projekte später nicht mehr als Lauf zusammenzuführen.
+  const protokollId = await eroeffneProtokoll(batchId, saisonjahr, {
+    benutzer: optionen.benutzer,
+    geplant: gesamt,
+  });
+
   let index = 0;
   for (const kandidat of zuErzeugen) {
     index += 1;
@@ -1381,6 +1568,16 @@ async function erzeugeBatch(
         });
         continue;
       }
+
+      // Belegnummer VOR dem Projekt ziehen. Scheitert sie, darf kein Projekt
+      // zurückbleiben: Ein Projekt ohne Angebot wird beim Wiederholungslauf von
+      // der Prüfung oben als „existiert bereits" übersprungen — der Verein bekäme
+      // nie ein Angebot, und das Protokoll sähe sauber aus.
+      // Zieljahr explizit mitgeben: Der Lauf erzeugt im Herbst Angebote für die
+      // kommende Saison. Ohne diesen Parameter müsste die Standardsaison
+      // hochgestellt werden — das zöge den Zähler aller anderen Belegarten mit.
+      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot', saisonjahr);
+      const heute = new Date().toISOString().split('T')[0];
 
       const adresse = flacheKundenadresse(kandidat.kunde);
       const projekt = await projektService.createProjekt(
@@ -1400,17 +1597,15 @@ async function erzeugeBatch(
           automatischErzeugt: true,
           erzeugungsBatchId: batchId,
           preisProTonne: kandidat.preisProTonne,
+          angebotsnummer,
+          angebotsdatum: heute,
         },
         // Im Massenlauf keine kaskadierende Platzbauer-Projekt-Zuordnung auslösen.
         { skipPlatzbauerProjektZuordnung: true }
       );
 
       const projektId = projekt.id;
-      const angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
-      const heute = new Date().toISOString().split('T')[0];
-      await projektService.updateProjekt(projektId, { angebotsnummer, angebotsdatum: heute });
-
-      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten);
+      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten, saisonjahr);
       await speichereAngebot(projektId, angebotsDaten);
 
       ergebnis.erzeugt.push({
@@ -1427,12 +1622,23 @@ async function erzeugeBatch(
         kundenname: kandidat.kundenname,
         fehler: message,
       });
+
+      // Lässt sich die Eindeutigkeit einer Belegnummer nicht prüfen, liegt das nie
+      // am einzelnen Kunden — die Datenbank ist nicht erreichbar oder das Schema
+      // stimmt nicht. Der Fehler träfe alle folgenden genauso. Statt ihn
+      // hundertfach zu wiederholen, hält der Lauf an; die offenen Kandidaten
+      // bleiben unberührt und können nach der Behebung erneut laufen.
+      if (error instanceof NummernPruefungFehlgeschlagen) {
+        ergebnis.abgebrochen = { grund: message, offen: gesamt - index };
+        optionen.onFortschritt?.(index, gesamt, kandidat.kundenname);
+        break;
+      }
     } finally {
       optionen.onFortschritt?.(index, gesamt, kandidat.kundenname);
     }
   }
 
-  await schreibeProtokoll(batchId, saisonjahr, ergebnis, { benutzer: optionen.benutzer });
+  await schreibeProtokoll(protokollId, batchId, saisonjahr, ergebnis);
   return ergebnis;
 }
 
@@ -1563,10 +1769,51 @@ async function versendeAngebot(
   projektId: string,
   realEmail: string | undefined,
   testModus: boolean
-): Promise<{ success: boolean; testModeActive?: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  testModeActive?: boolean;
+  error?: string;
+  /** Gesetzt, wenn die Mail raus ist, der Statuswechsel aber scheiterte. */
+  statusWarnung?: string;
+}> {
   const empfaenger = testModus ? TEST_EMAIL : realEmail;
   if (!empfaenger) {
     return { success: false, error: 'Keine Empfänger-E-Mail' };
+  }
+
+  // Doppelversand-Schutz unmittelbar vor dem Senden, nicht nur beim Aufbau der
+  // Liste. Zwischen dem Laden der Versandliste und diesem Moment können Minuten
+  // liegen — genug, dass ein zweiter Tab oder ein zweiter Anlauf dieselbe Mail
+  // schon rausgeschickt hat. Beim Testversand entfällt die Prüfung, weil dort
+  // nichts beim Kunden ankommt und der Status unberührt bleibt.
+  if (!testModus) {
+    try {
+      const projekt = await projektService.getProjekt(projektId);
+      if (projekt.status !== 'angebot') {
+        return { success: false, error: `Bereits versendet (Status: ${projekt.status})` };
+      }
+    } catch {
+      // getProjekt wirft, wenn das Projekt inzwischen gelöscht wurde — etwa durch
+      // eine Rücknahme des Laufs in einem anderen Tab. Dann gibt es nichts zu
+      // versenden, und das ist kein Systemfehler, sondern ein Zustand.
+      return { success: false, error: 'Projekt existiert nicht mehr' };
+    }
+
+    // Zweite, unabhängige Sicherung: Der Projektstatus ist nicht der einzige
+    // Beleg dafür, dass eine Mail raus ist — und er ist der unzuverlässigere.
+    // Scheitert der Statuswechsel nach einem erfolgreichen Versand, bleibt das
+    // Projekt auf „angebot" stehen, obwohl der Verein sein Angebot längst hat.
+    // Das E-Mail-Protokoll weiß es besser: Dort steht der Versand, bevor
+    // irgendein Status geschrieben wird.
+    const protokoll = await ladeEmailProtokollFuerDokument(projektId, 'angebot');
+    // null heißt „konnte nicht geprüft werden" — dann lieber senden als einen
+    // Verein wegen einer Protokollstörung ohne Angebot zu lassen.
+    const bereitsRaus = (protokoll ?? []).some(
+      (eintrag) => eintrag.status === 'gesendet' && !istTestversand(eintrag)
+    );
+    if (bereitsRaus) {
+      return { success: false, error: 'Bereits versendet (laut E-Mail-Protokoll)' };
+    }
   }
 
   const dokument = await ladeDokumentNachTyp(projektId, 'angebot');
@@ -1622,31 +1869,86 @@ async function versendeAngebot(
     skipProtokoll: testModus,
   });
 
+  // Ab hier ist die Mail beim Verein. Was jetzt noch schiefgeht, darf den Versand
+  // NICHT als gescheitert darstellen: Ein Kunde in der Fehlerliste steht
+  // anschließend wieder vorausgewählt in der Versandliste, und der naheliegende
+  // Griff — „die Fehler nochmal senden" — schickt ihm dasselbe Angebot ein
+  // zweites Mal. Ein Appwrite-Aussetzer von Sekunden während eines
+  // zweieinhalbminütigen Laufs träfe so Dutzende Vereine.
+  let statusWarnung: string | undefined;
   if (result.success && !testModus) {
-    await projektService.updateProjektStatus(projektId, 'angebot_versendet');
+    try {
+      await projektService.updateProjektStatus(projektId, 'angebot_versendet');
+    } catch (error) {
+      console.error(
+        'Angebot ist versendet, der Status konnte aber nicht gesetzt werden:',
+        projektId,
+        error
+      );
+      statusWarnung =
+        'Angebot wurde versendet, der Projektstatus konnte nicht gesetzt werden. ' +
+        'Status von Hand auf „Angebot versendet" ziehen — NICHT erneut senden.';
+    }
   }
+
   return {
     success: result.success,
     testModeActive: result.testModeActive,
     error: result.success ? undefined : 'Versand fehlgeschlagen',
+    statusWarnung,
   };
 }
+
+/**
+ * Pause zwischen zwei Mails. Mehrere hundert Nachrichten in schneller Folge über
+ * dasselbe Postfach sind das klassische Muster, an dem Empfänger-Server
+ * Massenversand erkennen — im schlimmsten Fall landet das halbe Frühjahrsgeschäft
+ * im Spam-Ordner. Eine halbe Sekunde streckt 290 Mails auf gut zweieinhalb
+ * Minuten; das ist der Preis dafür, dass sie ankommen.
+ */
+const VERSAND_PAUSE_MS = 500;
+
+const warte = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Versendet mehrere Angebote nacheinander (sequentiell, mit Fortschritt + Fehlersammlung).
 async function versendeBatch(
   kandidaten: VersandKandidat[],
   testModus: boolean,
-  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void
-): Promise<{ gesendet: number; fehler: { kundenname: string; fehler: string }[] }> {
+  onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void,
+  optionen: { abbruchSignal?: () => boolean; pauseMs?: number } = {}
+): Promise<{
+  gesendet: number;
+  fehler: { kundenname: string; fehler: string }[];
+  /**
+   * Versendet, aber der Statuswechsel scheiterte. Bewusst getrennt von `fehler`:
+   * Diese Vereine haben ihr Angebot bekommen und dürfen auf keinen Fall in einem
+   * Wiederholungslauf landen.
+   */
+  nachzutragen: { kundenname: string; hinweis: string }[];
+  abgebrochen?: { offen: number };
+}> {
   let gesendet = 0;
   const fehler: { kundenname: string; fehler: string }[] = [];
+  const nachzutragen: { kundenname: string; hinweis: string }[] = [];
+  const pause = optionen.pauseMs ?? (testModus ? 0 : VERSAND_PAUSE_MS);
   let index = 0;
   for (const kandidat of kandidaten) {
+    // Vor dem Senden prüfen, nicht danach: Ein Abbruch soll die nächste Mail
+    // verhindern, nicht erst nach ihr greifen.
+    if (optionen.abbruchSignal?.()) {
+      return { gesendet, fehler, nachzutragen, abgebrochen: { offen: kandidaten.length - index } };
+    }
     index += 1;
     try {
       const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus);
-      if (res.success) gesendet += 1;
-      else fehler.push({ kundenname: kandidat.kundenname, fehler: res.error || 'Fehler' });
+      if (res.success) {
+        gesendet += 1;
+        if (res.statusWarnung) {
+          nachzutragen.push({ kundenname: kandidat.kundenname, hinweis: res.statusWarnung });
+        }
+      } else {
+        fehler.push({ kundenname: kandidat.kundenname, fehler: res.error || 'Fehler' });
+      }
     } catch (error) {
       fehler.push({
         kundenname: kandidat.kundenname,
@@ -1655,8 +1957,9 @@ async function versendeBatch(
     } finally {
       onFortschritt?.(index, kandidaten.length, kandidat.kundenname);
     }
+    if (pause > 0 && index < kandidaten.length) await warte(pause);
   }
-  return { gesendet, fehler };
+  return { gesendet, fehler, nachzutragen };
 }
 
 /** NUR für Unit-Tests: reine Helfer der Referenz-/Paletten-Logik. */
@@ -1675,10 +1978,13 @@ export const _massenAngebotInternals = {
   findePrimaerPosition,
   berechneSumme,
   wendePreisanpassungAn,
+  baueAngebotsDaten,
 };
 
 export const massenAngebotService = {
   sammleKandidaten,
+  sammleEmailKlaerungsfaelle,
+  setzeAngebotsEmails,
   sammleTauglichkeitsVorschlaege,
   markiereAlsTauglich,
   berechneZusammenfassung,
