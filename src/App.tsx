@@ -64,7 +64,6 @@ const Schichtplanung = lazyWithRetry(() => import('./components/Schichtplanung/S
 const ProduktionsTracker = lazyWithRetry(() => import('./components/ProduktionsTracker/ProduktionsTracker'));
 
 // Shop Bestellungen
-const ShopBestellungen = lazyWithRetry(() => import('./components/ShopBestellungen/ShopBestellungen'));
 
 // Banking
 const Kontouebersicht = lazyWithRetry(() => import('./components/Kontouebersicht/Kontouebersicht'));
@@ -93,6 +92,19 @@ const AnfragenRedirect = () => {
   const ziel = anfrageId
     ? `/projekt-verwaltung?view=anfragen&anfrageId=${encodeURIComponent(anfrageId)}`
     : '/projekt-verwaltung?view=anfragen';
+  return <Navigate to={ziel} replace />;
+};
+
+// Weiterleitung des Shop-Tools in die Projektverwaltung. Der Onlineshop ist ein
+// EINGANGSKANAL fuer Auftraege — er gehoert dorthin, wo die Auftraege abgearbeitet
+// werden, nicht in ein Nebentool. Ein mitgegebenes `bestellnummer` wird
+// durchgereicht, damit Benachrichtigungen weiterhin auf die einzelne Bestellung
+// springen. Gleiches Muster wie AnfragenRedirect.
+const ShopRedirect = () => {
+  const bestellnummer = new URLSearchParams(useLocation().search).get('bestellnummer');
+  const ziel = bestellnummer
+    ? `/projekt-verwaltung?view=shop&bestellnummer=${encodeURIComponent(bestellnummer)}`
+    : '/projekt-verwaltung?view=shop';
   return <Navigate to={ziel} replace />;
 };
 
@@ -289,11 +301,7 @@ function AuthenticatedContent() {
                       <ProduktionsTracker />
                     </ProtectedRoute>
                   } />
-                  <Route path="/shop-bestellungen" element={
-                    <ProtectedRoute toolId="shop-bestellungen">
-                      <ShopBestellungen />
-                    </ProtectedRoute>
-                  } />
+                  <Route path="/shop-bestellungen" element={<ShopRedirect />} />
                   <Route path="/kontouebersicht" element={
                     <ProtectedRoute toolId="kontouebersicht">
                       <Kontouebersicht />

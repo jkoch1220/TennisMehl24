@@ -20,7 +20,16 @@ import ShopBestellungTabelle from './ShopBestellungTabelle';
 import ShopBestellungDetail from './ShopBestellungDetail';
 import VersandDialog from './VersandDialog';
 
-const ShopBestellungen = () => {
+interface ShopBestellungenProps {
+  /**
+   * Als Reiter in der Projektverwaltung gerendert. Unterdrueckt den eigenen
+   * Seitenkopf und das Aussenpadding — beides stellt die Projektverwaltung
+   * bereits, sonst stuenden zwei Ueberschriften uebereinander.
+   */
+  eingebettet?: boolean;
+}
+
+const ShopBestellungen = ({ eingebettet = false }: ShopBestellungenProps) => {
   const { user } = useAuth();
   const [bestellungen, setBestellungen] = useState<ShopBestellung[]>([]);
   const [stats, setStats] = useState<ShopStats | null>(null);
@@ -226,17 +235,25 @@ const ShopBestellungen = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className={eingebettet ? 'space-y-6' : 'p-4 md:p-6 space-y-6'}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <ShoppingCart className="w-7 h-7 text-orange-500" />
-            Shop Bestellungen
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Gambio Online-Shop - tennismehl24.com
-          </p>
+          {eingebettet ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Gambio Online-Shop · tennismehl24.com
+            </p>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <ShoppingCart className="w-7 h-7 text-orange-500" />
+                Shop Bestellungen
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Gambio Online-Shop - tennismehl24.com
+              </p>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

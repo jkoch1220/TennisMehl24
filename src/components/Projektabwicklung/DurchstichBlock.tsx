@@ -170,7 +170,7 @@ const DurchstichBlock = ({ projekt }: { projekt: Projekt }) => {
             <div>
               Onlineshop{shopNummer ? <> · Bestellung <strong>{shopNummer}</strong></> : null}
             </div>
-            <Verweis to="/shop-bestellungen">Bestellungen öffnen</Verweis>
+            <Verweis to="/projekt-verwaltung?view=shop">Bestellungen öffnen</Verweis>
           </>
         )}
         {herkunft === 'platzbau' && (

@@ -582,7 +582,7 @@ const ProzessOverview = ({
               kennzahl={zahl(kennzahlen.shopNeu)}
               kennzahlLabel="neue Bestellungen"
               zusatz={`${zahl(kennzahlen.shopInArbeit)} in Bearbeitung · ${projektZahlen.herkunft.shop} Projekte in dieser Saison`}
-              route="/shop-bestellungen"
+              route="/projekt-verwaltung?view=shop"
               gesperrt={!darfShop}
               laedt={laedt}
             />

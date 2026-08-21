@@ -66,6 +66,8 @@ import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import SammelfakturierungTool from './SammelfakturierungTool';
+import ShopBestellungen from '../ShopBestellungen/ShopBestellungen';
+import { canAccessTool } from '../../services/permissionsService';
 import ProzessOverview from './ProzessOverview';
 import Wochenbrett from './Wochenbrett';
 import Lieferantenleiste from './Lieferantenleiste';
@@ -193,7 +195,7 @@ const kanbanGridKlasse = (spalten: number): string =>
 const VIEW_MODES = [
   'overview', 'kanban',
   'wochen', 'angebotsliste', 'statistik', 'anfragen', 'karte',
-  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot', 'fakturierung',
+  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot', 'fakturierung', 'shop',
 ] as const;
 
 // Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
@@ -431,7 +433,12 @@ const ProjektVerwaltung = () => {
   const [aktuelleSaison, setAktuelleSaison] = useState<number>(() => berechneAktuelleSaison());
   const saisonManuellGewaehlt = useRef(false);
   const [showNeueSaisonModal, setShowNeueSaisonModal] = useState(false);
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  // Der Shop-Reiter haengt am bestehenden Tool-Recht, nicht am Zugang zur
+  // Projektverwaltung. Sonst saehe die Produktionsleitung Shop-Bestellungen mit
+  // Kundendaten und Zahlungsarten, von denen sie bisher bewusst ausgeschlossen war —
+  // eine Rechteausweitung als Nebenwirkung eines Umzugs.
+  const darfShop = canAccessTool(user, 'shop-bestellungen');
   const { can: canDo } = useCan();
   const [editingProjekt, setEditingProjekt] = useState<Projekt | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1503,6 +1510,20 @@ const ProjektVerwaltung = () => {
                 <MapIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Karte</span>
               </button>
+              {darfShop && (
+              <button
+                onClick={() => setViewMode('shop')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'shop'
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Bestellungen aus dem Onlineshop"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span className="hidden sm:inline">Shop</span>
+              </button>
+              )}
               <button
                 onClick={() => setViewMode('hydrocourt')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
@@ -1817,6 +1838,7 @@ const ProjektVerwaltung = () => {
       {/* Massen-Angebote (Frühjahrsinstandsetzung) – zielt immer auf die aktuelle Default-Saison */}
       {viewMode === 'massenangebot' && isAdmin && <MassenAngebotTool saisonjahr={aktuelleSaison} />}
       {viewMode === 'fakturierung' && <SammelfakturierungTool saisonjahr={aktuelleSaison} />}
+      {viewMode === 'shop' && darfShop && <ShopBestellungen eingebettet />}
 
       {/* Saving Overlay */}
       {saving && (
