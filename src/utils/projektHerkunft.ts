@@ -16,8 +16,12 @@ export type ProjektHerkunftKanal = 'platzbau' | 'shop' | 'anfrage';
  * wie in debitorService.
  */
 export function istShopProjekt(projekt: Projekt): boolean {
+  // Ist die Spalte gepflegt, ist sie die Wahrheit — auch ihr NEIN. Sonst würde
+  // ein umbenanntes Projekt („Shop #171 → TC Musterstadt") stillschweigend den
+  // Kanal wechseln, sobald die Muster wieder greifen.
+  if (projekt.herkunft) return projekt.herkunft === 'shop';
+
   return (
-    projekt.herkunft === 'shop' ||
     (typeof projekt.kundeId === 'string' && projekt.kundeId.startsWith('shop-')) ||
     (typeof projekt.auftragsbestaetigungsnummer === 'string' &&
       projekt.auftragsbestaetigungsnummer.startsWith('SHOP-')) ||
@@ -30,6 +34,8 @@ export function istShopProjekt(projekt: Projekt): boolean {
  * Quelle ist die AB-Nummer `SHOP-<nr>-U|-E` bzw. der Projektname `Shop #<nr>`.
  */
 export function getShopBestellnummer(projekt: Projekt): string | undefined {
+  if (projekt.shopBestellnummer) return projekt.shopBestellnummer;
+
   const ausAbNummer = projekt.auftragsbestaetigungsnummer?.match(/^SHOP-(.+?)(?:-[UE])?$/);
   if (ausAbNummer) return ausAbNummer[1];
 
@@ -48,7 +54,7 @@ export function getShopBestellnummer(projekt: Projekt): string | undefined {
  * die Verknüpfung auf der Anfrage erkennbar.
  */
 export function istAnfrageProjekt(projekt: Projekt, anfrageProjektIds?: Set<string>): boolean {
-  if (projekt.herkunft === 'anfrage') return true;
+  if (projekt.herkunft) return projekt.herkunft === 'anfrage';
   if (!anfrageProjektIds || anfrageProjektIds.size === 0) return false;
 
   const appwriteId = (projekt as { $id?: string }).$id;
@@ -64,7 +70,21 @@ export function getProjektHerkunft(
   projekt: Projekt,
   anfrageProjektIds?: Set<string>
 ): ProjektHerkunftKanal | null {
+  // Platzbau steht VOR der Spalte, und zwar bewusst: Die Zuordnung zu einem
+  // Platzbauer passiert nachträglich, nicht beim Anlegen. Ein Projekt, das als
+  // „direkt" begann und später einem Platzbauer zugeschlagen wurde, trüge sonst
+  // dauerhaft den falschen Kanal. `istPlatzbauProjekt` liest echte Felder
+  // (`istPlatzbauerprojekt`, `platzbauerId`) — das ist keine Rateei, die die
+  // Spalte ersetzen müsste.
   if (istPlatzbauProjekt(projekt)) return 'platzbau';
+
+  // Für alles Weitere beendet die gepflegte Spalte die Frage. 'direkt' ist dabei
+  // eine Antwort und keine Lücke: von Hand angelegt, kein Kanal.
+  if (projekt.herkunft) {
+    return projekt.herkunft === 'direkt' || projekt.herkunft === 'platzbau'
+      ? null
+      : projekt.herkunft;
+  }
   if (istShopProjekt(projekt)) return 'shop';
   if (istAnfrageProjekt(projekt, anfrageProjektIds)) return 'anfrage';
   return null;

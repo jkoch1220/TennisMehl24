@@ -91,6 +91,8 @@ const PROJEKT_TOP_LEVEL_FELDER = [
   'status',
   'geaendertAm',
   'bezahltAm',
+  'herkunft',
+  'shopBestellnummer',
   'rechnungsnummer',
   'rechnungsdatum',
   'rechnungVersendetAm',
@@ -109,6 +111,11 @@ const SCHEMA_V39_OPTIONALE_FELDER: ReadonlySet<string> = new Set([
   'rechnungsnummer',
   'rechnungsdatum',
   'rechnungVersendetAm',
+  // Schema v44, scripts/setup-projekt-herkunft.mjs. Solange die Migration auf
+  // einer Umgebung nicht gelaufen ist, muss das Schreiben ohne diese Felder
+  // durchgehen — die Werte stehen ohnehin auch im data-JSON.
+  'herkunft',
+  'shopBestellnummer',
 ]);
 
 function extrahiereUnbekanntesAttribut(message: string): string | null {
@@ -430,6 +437,16 @@ class ProjektService {
         geaendertAm: jetzt,
         data: JSON.stringify(neuesProjekt),
       };
+      // Herkunft als eigene Spalte, damit sich der Kanal abfragen laesst, statt ihn
+      // aus Projektnamen und kundeId zu raten. Liegt zusaetzlich in `data`, der
+      // Fallback ohne Spalte ist also verlustfrei (Schema v44).
+      if (neuesProjekt.herkunft) {
+        dokument.herkunft = neuesProjekt.herkunft;
+      }
+      if (neuesProjekt.shopBestellnummer) {
+        dokument.shopBestellnummer = neuesProjekt.shopBestellnummer;
+      }
+
       // Massen-Angebots-Tool: Batch-ID als top-level Spalte für Rollback. Der Wert liegt
       // zusätzlich in `data`, daher ist ein Fallback ohne die Spalte verlustfrei (Schema v43).
       if (neuesProjekt.erzeugungsBatchId) {

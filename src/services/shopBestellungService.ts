@@ -644,6 +644,9 @@ class ShopBestellungService {
       },
       saisonjahr: new Date().getFullYear(),
       herkunft: 'shop',
+      // Als eigenes Feld, nicht nur eingebettet in AB-Nummer und Projektname:
+      // beide sind frei editierbar, die Zuordnung zur Bestellung darf das nicht sein.
+      shopBestellnummer: String(bestellung.bestellnummer),
       status: 'auftragsbestaetigung', // Direkt auf AB, da Kunde bereits bestellt hat
       // Zahlung strukturiert mitführen, damit nach der Auslieferung ohne Blick nach
       // Gambio erkennbar ist, dass keine Forderung mehr offen ist.

@@ -120,7 +120,11 @@ const DurchstichBlock = ({ projekt }: { projekt: Projekt }) => {
   // Marker schlicht falsch waere.
   useEffect(() => {
     let aktiv = true;
-    if (projekt.herkunft) {
+    // Steht ein anderer Kanal fest, ist nichts nachzuschlagen. Bei 'anfrage'
+    // schon: die Spalte sagt DASS es eine Anfrage gab, nicht WELCHE — und ohne
+    // deren ID führte der Verweis nur auf die Sammelliste statt auf den Vorgang.
+    if (projekt.herkunft && projekt.herkunft !== 'anfrage') {
+      setAnfrageId(null);
       setAnfrageGeprueft(true);
       return;
     }

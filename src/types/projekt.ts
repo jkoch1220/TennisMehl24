@@ -182,7 +182,21 @@ export interface DispoNotiz {
 }
 
 // Herkunft eines Projekts: aus welchem Kanal es entstanden ist
-export type ProjektHerkunft = 'shop' | 'anfrage';
+/**
+ * Woher ein Projekt stammt — als GESPEICHERTER Wert an der Appwrite-Spalte
+ * `herkunft` (scripts/setup-projekt-herkunft.mjs).
+ *
+ * Leer heißt NICHT „direkt", sondern „keine Festlegung" — dann entscheiden die
+ * Ableitungen in utils/projektHerkunft.ts. Das ist Absicht: Eine Anfrage kann
+ * einem bestehenden Projekt nachträglich zugeordnet werden, und ein vorschnell
+ * eingetragenes 'direkt' würde diese Erkennung dauerhaft blockieren. Die
+ * Migration vergibt 'direkt' deshalb nicht.
+ *
+ * 'direkt' bleibt für den umgekehrten Fall: ein Projekt, das die Muster
+ * fälschlich einem Kanal zuschlagen („Shop #171 nachgebaut"), lässt sich damit
+ * von Hand richtigstellen.
+ */
+export type ProjektHerkunft = 'shop' | 'anfrage' | 'platzbau' | 'direkt';
 
 // Projekt für Projektabwicklung
 export interface Projekt {
@@ -404,10 +418,14 @@ export interface Projekt {
   erzeugungsBatchId?: string;         // ID des Erzeugungslaufs (für Rollback)
 
   // === HERKUNFT ===
-  // Woher stammt dieses Projekt? Wird beim Anlegen gesetzt und im Kanban farblich
-  // markiert. Nur für Projekte, die NICHT von Hand angelegt wurden; bei Altbestand
-  // ohne Marker greifen die Fallbacks in utils/projektHerkunft.ts.
+  // Woher stammt dieses Projekt? Echte Appwrite-Spalte, wird beim Anlegen gesetzt.
+  // Bei Altbestand ohne Marker greifen die Ableitungen in utils/projektHerkunft.ts.
   herkunft?: ProjektHerkunft;
+
+  // Bestellnummer aus dem Gambio-Shop. Stand bisher nur implizit in der AB-Nummer
+  // (`SHOP-<nr>-U|-E`) oder im Projektnamen (`Shop #<nr>`) — beides zerbricht,
+  // sobald jemand ein Projekt umbenennt.
+  shopBestellnummer?: string;
 
   // Timestamps
   erstelltAm: string;
