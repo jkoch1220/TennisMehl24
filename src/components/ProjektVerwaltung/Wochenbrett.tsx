@@ -37,6 +37,7 @@ import {
   ABWICKLUNGSWEG_LABEL,
 } from '../../utils/abwicklungsweg';
 import { getMontagDerKW } from '../../utils/kalenderwoche';
+import { projektTonnage, summiereTonnage, tonnageQuelleLabel } from '../../utils/projektTonnage';
 
 interface WochenbrettProps {
   /** Bereits gefilterte Projekte — dieselbe Menge, die das Kanban zeigt. */
@@ -61,9 +62,6 @@ const STATUS_KURZ: Record<ProjektStatus, string> = {
 const brauchtNochKeinenTermin = (projekt: Projekt): boolean =>
   projekt.status === 'angebot' || projekt.status === 'angebot_versendet';
 
-const summiereTonnage = (projekte: Projekt[]): number =>
-  projekte.reduce((summe, p) => summe + (p.liefergewicht ?? p.angefragteMenge ?? 0), 0);
-
 const formatTonnen = (tonnen: number): string =>
   tonnen > 0 ? `${tonnen.toLocaleString('de-DE', { maximumFractionDigits: 1 })} t` : '—';
 
@@ -76,6 +74,7 @@ const ProjektZeile = ({
 }) => {
   const termin = lieferterminEffektiv(projekt);
   const wege = [...getAbwicklungswege(projekt)];
+  const tonnage = projektTonnage(projekt);
   return (
     <button
       onClick={onClick}
@@ -103,11 +102,21 @@ const ProjektZeile = ({
             {ABWICKLUNGSWEG_KUERZEL[weg]}
           </span>
         ))}
-        {(projekt.liefergewicht ?? projekt.angefragteMenge) ? (
-          <span className="text-gray-500 dark:text-slate-400">
-            {formatTonnen(projekt.liefergewicht ?? projekt.angefragteMenge ?? 0)}
+        {tonnage ? (
+          <span
+            className="text-gray-500 dark:text-slate-400"
+            title={tonnageQuelleLabel(tonnage.quelle)}
+          >
+            {/* Ein Tilde-Zeichen vor der Zahl heisst: noch nicht gewogen. Ohne
+                diese Unterscheidung stuende eine Prognose wie eine Messung da. */}
+            {tonnage.quelle === 'gewogen' ? '' : '~'}
+            {formatTonnen(tonnage.tonnen)}
           </span>
-        ) : null}
+        ) : (
+          <span className="text-gray-400 dark:text-slate-500" title="Für dieses Projekt ist keine Menge hinterlegt">
+            Menge offen
+          </span>
+        )}
       </div>
     </button>
   );
@@ -131,7 +140,7 @@ const Lane = ({
   leerText?: string;
 }) => {
   const [offen, setOffen] = useState(standardOffen);
-  const tonnage = summiereTonnage(projekte);
+  const summe = summiereTonnage(projekte);
 
   const rahmen =
     farbe === 'rot'
@@ -160,7 +169,20 @@ const Lane = ({
         {untertitel && <span className="text-xs opacity-70">{untertitel}</span>}
         <span className="ml-auto text-xs font-medium tabular-nums">
           {projekte.length} {projekte.length === 1 ? 'Projekt' : 'Projekte'}
-          {tonnage > 0 && ` · ${formatTonnen(tonnage)}`}
+          {summe.tonnen > 0 &&
+            ` · ${summe.enthaeltPrognose ? '~' : ''}${formatTonnen(summe.tonnen)}`}
+          {/* Unbekannte Mengen gehoeren an die Summe geschrieben. Eine Woche mit
+              vier mengenlosen Auftraegen ist keine 60-Tonnen-Woche, auch wenn die
+              Summe der uebrigen sechs 60 ergibt — wer das fuer vollstaendig haelt,
+              plant zu wenig Fahrzeuge ein. */}
+          {summe.unbekannt > 0 && (
+            <span
+              className="ml-1 font-normal opacity-70"
+              title={`${summe.unbekannt} Projekt(e) ohne Mengenangabe — die Summe ist unvollständig`}
+            >
+              (+{summe.unbekannt} ohne Menge)
+            </span>
+          )}
         </span>
       </button>
       {offen && (

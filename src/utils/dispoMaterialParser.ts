@@ -78,6 +78,14 @@ export interface MaterialAufschluesselung {
   bigBagTonnen02: number;
   bigBagTonnen03: number;
 
+  /**
+   * Die Mengen stammen NICHT aus Positionen, sondern aus dem Fallback unten
+   * (`liefergewicht` bzw. `angefragteMenge`), samt geratener Klassifizierung.
+   * Wer die Herkunft einer Zahl ausweist, muss das wissen — sonst gibt er eine
+   * angefragte Menge als beauftragte aus.
+   */
+  ausFallback: boolean;
+
   // Summen
   gesamtLose: number;      // lose02 + lose03
   gesamtGesackt: number;   // gesackt02 + gesackt03
@@ -120,6 +128,7 @@ export function parseMaterialAufschluesselung(projekt: Projekt): MaterialAufschl
     palettenTonnen03: 0,
     bigBagTonnen02: 0,
     bigBagTonnen03: 0,
+    ausFallback: false,
     gesamtLose: 0,
     gesamtGesackt: 0,
     gesamtPalette: 0,
@@ -427,6 +436,7 @@ export function parseMaterialAufschluesselung(projekt: Projekt): MaterialAufschl
   // Fallback: Wenn keine Positionen gefunden, nutze liefergewicht/angefragteMenge
   if (result.gesamtTonnen === 0) {
     const fallbackMenge = projekt.liefergewicht || projekt.angefragteMenge || 0;
+    result.ausFallback = fallbackMenge > 0;
 
     // Prüfe Belieferungsart für korrekte Klassifizierung
     if (projekt.belieferungsart === 'palette_mit_ladekran' || projekt.belieferungsart === 'bigbag') {

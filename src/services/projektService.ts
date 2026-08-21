@@ -787,10 +787,17 @@ class ProjektService {
       // sobald ein Projekt im Kanban auf 'Bezahlt' gezogen wurde — die Auswertungen
       // hatten dann einen bezahlten Auftrag ohne Zahlungsdatum. Bei vorab bezahlten
       // Shop-Bestellungen zählt der tatsächliche Zahlungseingang, nicht der Tag des Zugs.
+      //
+      // Umgekehrt gilt dasselbe: Wer ein Projekt aus 'bezahlt' herauszieht — per
+      // Widerruf, nach einer Ruecklastschrift oder weil die Karte danebenlag —
+      // sagt damit, dass es nicht bezahlt ist. Bliebe `bezahltAm` stehen, stuende
+      // das Kanban auf „offen" und die Debitorenverwaltung auf „bezahlt", ohne
+      // dass jemand den Widerspruch sieht. `vorabBezahltAm` bleibt unberuehrt:
+      // Das ist der Zahlungseingang im Shop, eine eigene Tatsache.
       const bezahltAm =
         neuerStatus === 'bezahlt'
           ? aktuell.bezahltAm || aktuell.vorabBezahltAm || new Date().toISOString()
-          : aktuell.bezahltAm;
+          : undefined;
 
       const aktualisiert = {
         ...aktuell,
@@ -806,6 +813,12 @@ class ProjektService {
         saisonjahr: aktualisiert.saisonjahr,
         status: aktualisiert.status,
         geaendertAm: aktualisiert.geaendertAm,
+        // MUSS als Top-Level-Spalte mitgeschrieben werden, nicht nur im data-JSON:
+        // `bezahltAm` steht in PROJEKT_TOP_LEVEL_FELDER und gewinnt beim Lesen gegen
+        // die JSON-Kopie. Wuerde man es nur aus `data` entfernen, bliebe die Spalte
+        // stehen und das Projekt gaelte weiter als bezahlt — der Widerruf haette
+        // sichtbar nichts bewirkt. `null` loescht die Spalte, `undefined` nicht.
+        bezahltAm: aktualisiert.bezahltAm ?? null,
       };
 
       // Beim reinen Statuswechsel ist das Auslassen von `data` vertretbar: Der
