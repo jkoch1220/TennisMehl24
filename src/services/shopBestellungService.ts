@@ -14,6 +14,55 @@ import { Position, AuftragsbestaetigungsDaten } from '../types/projektabwicklung
 import { projektService } from './projektService';
 import { loadAllDocuments } from '../utils/appwritePagination';
 
+/**
+ * Zu dieser Bestellung gibt es für diese Warenart bereits ein Projekt.
+ *
+ * Eigene Klasse statt `Error`, damit die Oberfläche auf das vorhandene Projekt
+ * verweisen kann, statt nur eine Meldung anzuzeigen — „gibt es schon" ist ohne
+ * den Weg dorthin eine halbe Auskunft.
+ */
+export class ProjektBereitsVorhandenError extends Error {
+  constructor(
+    public readonly bestellnummer: string,
+    public readonly typ: 'universal' | 'eigen',
+    public readonly projektId: string
+  ) {
+    super(
+      `Für Bestellung #${bestellnummer} existiert bereits ein ${
+        typ === 'universal' ? 'Universal' : 'Eigen'
+      }-Projekt.`
+    );
+    this.name = 'ProjektBereitsVorhandenError';
+  }
+}
+
+/**
+ * Ein Appwrite-Projektdokument in ein `Projekt` überführen.
+ *
+ * Nötig, weil nur zwölf Felder echte Spalten sind — alles Übrige, darunter
+ * `auftragsbestaetigungsnummer`, liegt im `data`-JSON. Ein blosses
+ * `doc as unknown as Projekt` liefert dort `undefined`, und genau darauf stützte
+ * sich die Unterscheidung Universal-/Eigen-Projekt.
+ */
+function parseProjektAusDokument(doc: Record<string, unknown>): Projekt {
+  let base: Record<string, unknown> = {};
+  if (typeof doc.data === 'string') {
+    try {
+      base = JSON.parse(doc.data);
+    } catch {
+      base = {};
+    }
+  }
+  // Top-Level gewinnt, wo gesetzt — die Spalten sind nach Teil-Updates aktueller
+  // als die JSON-Kopie.
+  for (const [k, v] of Object.entries(doc)) {
+    if (k === 'data') continue;
+    if (v !== undefined && v !== null && v !== '') base[k] = v;
+  }
+  base.$id = doc.$id;
+  return base as unknown as Projekt;
+}
+
 // ============================================
 // INTERFACES
 // ============================================
@@ -38,6 +87,12 @@ export interface ShopPosition {
 export interface ShopBestellung {
   $id: string;
   bestellnummer: string;
+  /**
+   * JSON-Array der Projekt-IDs, die aus dieser Bestellung entstanden sind
+   * (Schema v44). Eine Bestellung kann in zwei Projekte zerfallen: Eigen- und
+   * Universalware werden getrennt abgewickelt.
+   */
+  projektIds?: string;
   bestelldatum: string;
   kundennummer: string;
   rechnungsadresse: string; // JSON
@@ -479,27 +534,46 @@ class ShopBestellungService {
   // ============================================
 
   /**
-   * Prüft ob bereits Projekte für eine Shop-Bestellung existieren
-   * Sucht nach auftragsbestaetigungsnummer = SHOP-{bestellnummer}
+   * Prüft, ob für eine Shop-Bestellung bereits Projekte existieren.
+   *
+   * Suchte bis 08/2026 über `Query.equal('auftragsbestaetigungsnummer', …)` — ein
+   * Feld, das es als Appwrite-SPALTE nie gab; es liegt nur im `data`-JSON. Appwrite
+   * quittierte das mit „Invalid query: Attribute not found in schema", der Catch
+   * lieferte `{ universal: null, eigen: null }`, und die Oberfläche schloss daraus:
+   * „noch kein Projekt vorhanden". Zu einer Bestellung liessen sich deshalb
+   * beliebig viele Projekte anlegen. Bestellung #173 trägt real zwei.
+   *
+   * `shopBestellnummer` ist seit Schema v44 eine echte Spalte und damit abfragbar.
    */
   async getExistierendeProjekte(bestellnummer: string): Promise<{ universal: Projekt | null; eigen: Projekt | null }> {
     try {
-      // Suche nach Universal-Projekt (SHOP-{nr}-U) und Eigenem Projekt (SHOP-{nr}-E)
-      // Fallback: Alte Projekte ohne Suffix (SHOP-{nr})
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
-        Query.or([
-          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}`),
-          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}-U`),
-          Query.equal('auftragsbestaetigungsnummer', `SHOP-${bestellnummer}-E`),
-        ]),
-        Query.limit(10),
-      ]);
+      let dokumente: unknown[];
+      try {
+        const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
+          Query.equal('shopBestellnummer', String(bestellnummer)),
+          Query.limit(10),
+        ]);
+        dokumente = response.documents;
+      } catch (spaltenFehler) {
+        // Umgebung ohne die Spalte (Sandbox vor der Migration): über den
+        // Projektnamen suchen. Langsamer, aber besser als still nichts finden —
+        // genau daran krankte die alte Fassung.
+        console.warn(
+          'shopBestellnummer nicht abfragbar, weiche auf die Namenssuche aus:',
+          spaltenFehler
+        );
+        const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PROJEKTE, [
+          Query.startsWith('projektName', `Shop #${bestellnummer}`),
+          Query.limit(10),
+        ]);
+        dokumente = response.documents;
+      }
 
       let universal: Projekt | null = null;
       let eigen: Projekt | null = null;
 
-      for (const doc of response.documents) {
-        const projekt = doc as unknown as Projekt;
+      for (const doc of dokumente) {
+        const projekt = parseProjektAusDokument(doc as Record<string, unknown>);
         const abNr = projekt.auftragsbestaetigungsnummer || '';
 
         if (abNr.endsWith('-U')) {
@@ -569,6 +643,21 @@ class ShopBestellungService {
 
     if (zuVerwendendePositionen.length === 0) {
       throw new Error(`Keine ${typ === 'universal' ? 'Universal-Artikel' : 'eigenen Produkte'} in dieser Bestellung`);
+    }
+
+    // Sperre gegen Doppelanlage — im SERVICE und nicht nur in der Oberflaeche.
+    // Die Oberflaeche prueft beim Laden; zwischen Laden und Klick kann jemand
+    // anderes dasselbe getan haben, und ein zweiter Tab weiss davon ohnehin
+    // nichts. Zwei Projekte zur selben Bestellung bedeuten am Ende zwei
+    // Auftragsbestaetigungen und zwei Rechnungen an denselben Kunden.
+    const bereitsVorhanden = await this.getExistierendeProjekte(bestellung.bestellnummer);
+    const schonDa = typ === 'universal' ? bereitsVorhanden.universal : bereitsVorhanden.eigen;
+    if (schonDa) {
+      throw new ProjektBereitsVorhandenError(
+        bestellung.bestellnummer,
+        typ,
+        schonDa.$id || schonDa.id
+      );
     }
 
     // Konvertiere Shop-Positionen zu Projekt-Positionen
@@ -671,7 +760,52 @@ class ShopBestellungService {
       skipPlatzbauerProjektZuordnung: true,
     });
 
+    // Rueckverweis an der Bestellung. Ohne ihn war von der Shop-Seite aus nicht
+    // erkennbar, dass ueberhaupt schon ein Projekt existiert — die Verknuepfung
+    // gab es nur in eine Richtung.
+    await this.verknuepfeProjektMitBestellung(bestellung, projekt);
+
     return projekt;
+  }
+
+  /**
+   * Traegt die Projekt-ID in `shop_bestellungen.projektIds` nach.
+   *
+   * Ein Array, weil eine Bestellung in zwei Projekte zerfallen kann (Eigen- und
+   * Universalware). Scheitert das Nachtragen, ist das Projekt trotzdem in der
+   * Welt — deshalb nur eine Warnung: Ein Fehler hier duerfte nicht dazu fuehren,
+   * dass der Aufrufer die Erstellung fuer gescheitert haelt und sie wiederholt.
+   */
+  private async verknuepfeProjektMitBestellung(
+    bestellung: ShopBestellung,
+    projekt: Projekt
+  ): Promise<void> {
+    const projektId = projekt.$id || projekt.id;
+    const bestellungId = bestellung.$id;
+    if (!projektId || !bestellungId) return;
+
+    try {
+      let bisher: string[] = [];
+      const roh = (bestellung as { projektIds?: string }).projektIds;
+      if (roh) {
+        try {
+          const geparst = JSON.parse(roh);
+          if (Array.isArray(geparst)) bisher = geparst.filter((x) => typeof x === 'string');
+        } catch {
+          /* defekter Wert wird ueberschrieben */
+        }
+      }
+      if (bisher.includes(projektId)) return;
+
+      await databases.updateDocument(DATABASE_ID, COLLECTIONS.SHOP_BESTELLUNGEN, bestellungId, {
+        projektIds: JSON.stringify([...bisher, projektId]),
+      });
+    } catch (error) {
+      console.warn(
+        `Projekt ${projektId} konnte nicht an Bestellung ${bestellung.bestellnummer} vermerkt werden:`,
+        error
+      );
+    }
   }
 }
 

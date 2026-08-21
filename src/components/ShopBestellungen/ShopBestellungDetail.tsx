@@ -37,6 +37,7 @@ import {
   getStatusInfo,
   istVorabBezahlt,
   shopBestellungService,
+  ProjektBereitsVorhandenError,
 } from '../../services/shopBestellungService';
 import { UniversalArtikel } from '../../types/universaArtikel';
 import { Projekt } from '../../types/projekt';
@@ -138,7 +139,25 @@ const ShopBestellungDetail = ({
       navigate(`/projektabwicklung/${projekt.id}`);
     } catch (error) {
       console.error('Projekt-Erstellung fehlgeschlagen:', error);
-      toast.error((error as Error).message || 'Projekt konnte nicht erstellt werden');
+
+      // „Gibt es schon" ist ohne den Weg dorthin eine halbe Auskunft. Der Nutzer
+      // wollte zu einem Projekt — also fuehren wir ihn zu dem, das es gibt.
+      if (error instanceof ProjektBereitsVorhandenError) {
+        toast.error(error.message, {
+          action: {
+            label: 'Projekt öffnen',
+            onClick: () => navigate(`/projektabwicklung/${error.projektId}`),
+          },
+          duration: 10000,
+        });
+        // Ansicht auffrischen, damit der Knopf danach gesperrt ist.
+        void shopBestellungService
+          .getExistierendeProjekte(bestellung.bestellnummer)
+          .then(setExistierendeProjekte)
+          .catch(() => undefined);
+      } else {
+        toast.error((error as Error).message || 'Projekt konnte nicht erstellt werden');
+      }
     } finally {
       setCreatingProjekt(false);
     }
