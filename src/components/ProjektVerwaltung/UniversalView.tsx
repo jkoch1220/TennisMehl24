@@ -415,15 +415,20 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
       // - projekt.bezahltAm = new Date()
       // - debitor_metadaten.status = 'bezahlt'
       // - Aktivitäts-Protokoll
+      // - seit 08/2026 zusätzlich `universalKanbanStatus` (über
+      //   projektService.markiereProjektAlsBezahlt). Vorher blieb genau diese
+      //   Achse liegen — und weil getKanbanStatus sie mit Vorrang liest, hing die
+      //   Karte sichtbar in „Rechnungsstellung", obwohl der Vorgang bezahlt war.
       await debitorService.markiereAlsBezahlt(projektId);
       console.log(`✓ Projekt ${projektId} als bezahlt markiert (inkl. Debitoren-Update)`);
 
-      // UI sofort aktualisieren
+      // UI sofort aktualisieren — beide Achsen, sonst springt die Karte beim
+      // nächsten Laden an eine andere Stelle als jetzt angezeigt.
       setBestellungen(prev => prev.map(b => {
         if (b.projektId === projektId) {
           return {
             ...b,
-            projekt: { ...b.projekt, status: 'bezahlt' }
+            projekt: { ...b.projekt, status: 'bezahlt', universalKanbanStatus: 'bezahlt' }
           };
         }
         return b;

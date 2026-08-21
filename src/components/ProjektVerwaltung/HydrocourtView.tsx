@@ -29,6 +29,7 @@ import { Projekt, ProjektStatus, HydrocourtStatus } from '../../types/projekt';
 import { AuftragsbestaetigungsDaten, Position, RechnungsDaten } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import { projektService } from '../../services/projektService';
+import { debitorService } from '../../services/debitorService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
@@ -568,10 +569,25 @@ Bitte um Bestätigung und Mitteilung der Tracking-Nummern nach Versand.`;
   // Status manuell ändern
   const handleStatusChange = async (projektId: string, neuerStatus: HydrocourtStatus) => {
     try {
-      await projektService.updateHydrocourtStatus(projektId, neuerStatus);
+      if (neuerStatus === 'bezahlt') {
+        // „Bezahlt" ist mehr als eine Hydrocourt-Achse. Früher setzte dieser Knopf
+        // ausschließlich `hydrocourtStatus` — der Projektstatus blieb auf
+        // „rechnung", das Bezahldatum leer und der Debitor offen. Im Kanban und in
+        // der Debitorenliste stand der Vorgang weiter als unbezahlt, während er
+        // hier grün war. Der Debitorendienst schreibt alle Stellen (und zieht über
+        // markiereProjektAlsBezahlt auch die Hydrocourt-Achse mit).
+        await debitorService.markiereAlsBezahlt(projektId);
+      } else {
+        await projektService.updateHydrocourtStatus(projektId, neuerStatus);
+      }
       ladeHydrocourtBestellungen();
     } catch (error) {
       console.error('Fehler beim Ändern des Status:', error);
+      alert(
+        error instanceof Error
+          ? `Status konnte nicht geändert werden: ${error.message}`
+          : 'Status konnte nicht geändert werden.'
+      );
     }
   };
 

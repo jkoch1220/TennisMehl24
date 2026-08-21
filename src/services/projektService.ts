@@ -2,7 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS } from '../config/appwrite';
 import { ID, Query } from 'appwrite';
 import { Projekt, NeuesProjekt, ProjektFilter, ProjektStatus, ALLE_PROJEKT_STATUS, HydrocourtStatus, TeilprojektTyp } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
-import { handleServiceError } from '../utils/errorHandling';
+import { handleServiceError, AppError } from '../utils/errorHandling';
 import { saisonplanungService } from './saisonplanungService';
 import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
@@ -45,9 +45,45 @@ export const gruppiereProjekteNachStatus = (projekte: Projekt[]): Record<Projekt
   return gruppen;
 };
 
-// Maximalgröße für das `data`-Feld in Appwrite (Schema: 100000, aber alte Collections können noch
-// 10000 sein). Wir nutzen eine konservative Schwelle, um Sicherheitsmarge zu lassen.
+// Maximalgröße für das `data`-Feld in Appwrite.
+//
+// VERIFIZIERT (20.08.2026, gegen die Produktivdatenbank): Das Attribut `data` der
+// Collection `projekte` ist ein String mit size=10000 — nicht 100000, wie ein
+// älterer Kommentar behauptete. Die 9500 sind also die richtige konservative
+// Schwelle und dürfen NICHT angehoben werden, solange die Spalte 10000 fasst;
+// sonst lehnt Appwrite den Schreibvorgang rundheraus ab.
+//
+// Wer mehr Platz braucht, muss zuerst das Attribut vergrößern (Appwrite erlaubt
+// das Wachsen von String-Attributen) — siehe scripts/README zu Schemaänderungen.
 const MAX_DATA_FIELD_SIZE = 9500;
+
+/**
+ * Das Projekt passt nicht mehr in die `data`-Spalte.
+ *
+ * Erbt bewusst von `AppError` und nicht von `Error`: `handleServiceError` reicht
+ * ausschließlich AppError-Instanzen unverändert weiter und ersetzt alles andere
+ * durch „Bitte erneut versuchen". Genau diese Meldung wäre hier grob irreführend
+ * — Wiederholen ändert an der Größe nichts. Deshalb auch `retryable: false`,
+ * damit keine künftige Wiederholungslogik es doch versucht.
+ */
+export class ProjektDatenZuGrossError extends AppError {
+  readonly projektId: string;
+  readonly groesse: number;
+
+  constructor(projektId: string, groesse: number) {
+    super(
+      `Projekt ${projektId}: data-Blob ${groesse} > ${MAX_DATA_FIELD_SIZE} Zeichen`,
+      `Das Projekt ist zu umfangreich zum Speichern (${groesse} von maximal ${MAX_DATA_FIELD_SIZE} Zeichen). ` +
+        'Die Änderung wurde NICHT gespeichert. Bitte Positionen oder lange Texte kürzen — ' +
+        'oder das Projekt aufteilen.',
+      'VALIDATION',
+      false
+    );
+    this.name = 'ProjektDatenZuGrossError';
+    this.projektId = projektId;
+    this.groesse = groesse;
+  }
+}
 
 // Felder, die als eigene Appwrite-Spalten existieren (Top-Level). Diese werden beim Lesen aus
 // dem Dokument bevorzugt — die JSON-Kopie in `data` kann nach Partial-Updates veraltet sein.
@@ -549,16 +585,20 @@ class ProjektService {
         rechnungsdatum: aktualisiert.rechnungsdatum ?? null,
       };
 
-      // Wenn das serialisierte `data` über dem Appwrite-Limit liegt (z.B. Projekte mit großen
-      // rechnungsDaten), nur die Top-Level-Felder schreiben. Verhindert den 10000-chars-Fehler.
+      // Passt das serialisierte `data` nicht ins Appwrite-Feld, wurde hier früher
+      // eine console.warn geschrieben und weitergemacht: Der Aufrufer bekam eine
+      // Erfolgsmeldung, obwohl seine Änderung nie gespeichert wurde. Ein Angebot
+      // mit vielen Positionen, eine ergänzte Notiz, ein korrigierter Preis — alles
+      // weg, ohne dass irgendwo etwas aufblinkt.
+      //
+      // Jetzt wird geworfen. Ein abgebrochener Speichervorgang, den der Nutzer
+      // sieht, ist ungleich besser als ein stiller Datenverlust, der erst Wochen
+      // später auffällt.
       const serialisiert = JSON.stringify(aktualisiert);
-      if (serialisiert.length <= MAX_DATA_FIELD_SIZE) {
-        dokument.data = serialisiert;
-      } else {
-        console.warn(
-          `Projekt ${projektId}: data-Blob ist zu groß (${serialisiert.length} Zeichen) — Partial-Update auf Top-Level-Felder, data bleibt unverändert.`
-        );
+      if (serialisiert.length > MAX_DATA_FIELD_SIZE) {
+        throw new ProjektDatenZuGrossError(projektId, serialisiert.length);
       }
+      dokument.data = serialisiert;
 
       Object.assign(dokument, bearbeiterStempel());
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, dokument);
@@ -597,9 +637,39 @@ class ProjektService {
    * (status, bezahltAm, geaendertAm) und lässt das große `data`-Feld unangetastet.
    * Erforderlich für Projekte mit großen rechnungsDaten, deren `data` das Appwrite-Limit ausreizt.
    */
+  /**
+   * Setzt ein Projekt auf „bezahlt" — an ALLEN Stellen, die diesen Zustand führen.
+   *
+   * Es gab dafür drei Wege mit drei verschiedenen Ergebnissen:
+   * - Die Hydrocourt-Ansicht setzte nur `hydrocourtStatus`. Der Projektstatus blieb
+   *   auf „rechnung", `bezahltAm` leer, der Debitor offen — im Kanban stand der
+   *   Vorgang weiter als unbezahlt.
+   * - Die Universal-Ansicht rief den Debitorendienst und ließ `universalKanbanStatus`
+   *   unberührt. Die Karte hing sichtbar in „Rechnungsstellung" fest, obwohl bezahlt.
+   * - Das Kanban zieht `projekt.status`.
+   *
+   * Ein Vorgang, drei Wahrheiten. Diese Funktion schreibt jetzt alle: zuerst den
+   * Projektstatus als Top-Level-Spalte, danach — nur wenn schon gesetzt — die
+   * beiden Nebenachsen im data-Blob. „Nur wenn schon gesetzt" ist wichtig: Ein
+   * reines Ziegelmehl-Projekt bekommt dadurch keine Hydrocourt-Achse angehängt.
+   *
+   * Ohne Transaktion über beide Schreibvorgänge bleibt ein Restrisiko. Die
+   * Reihenfolge bestimmt, welcher Halbzustand im Fehlerfall entsteht — und der
+   * hier gewählte ist der harmlose.
+   */
   async markiereProjektAlsBezahlt(projektId: string, bezahltAm?: string): Promise<Projekt> {
     try {
       const jetzt = new Date().toISOString();
+
+      // Der Projektstatus zuerst — er ist die führende Wahrheit. Scheitert dieser
+      // Schreibvorgang, ist gar nichts geschrieben, und der Fehler, den der
+      // Aufrufer sieht, stimmt auch.
+      //
+      // Die umgekehrte Reihenfolge wäre die gefährlichere: Gelingt zuerst die
+      // Nebenachse und scheitert dann der Statuswechsel, stünde die Ansicht auf
+      // „bezahlt", während Kanban und Debitorenverwaltung den Vorgang weiter als
+      // offen führen — genau die Drei-Wahrheiten-Lage, die diese Funktion
+      // beseitigen soll, nur mit vertauschten Vorzeichen und ohne Meldung.
       const response = await updateProjektMitSchemaFallback(this.collectionId, projektId, {
         status: 'bezahlt',
         bezahltAm: bezahltAm ?? jetzt,
@@ -607,6 +677,33 @@ class ProjektService {
         ...bearbeiterStempel(),
       });
       this.invalidateCache();
+
+      // Nebenachsen danach nachziehen. Der Ausgangsstand steckt bereits in
+      // `response` — das spart den zusätzlichen Leseaufruf, der bei einer
+      // Sammelzahlung über hundert Rechnungen spürbar wäre.
+      let ergebnis = parseProjektDocument(response);
+      try {
+        const nebenachsen: Partial<Projekt> = {};
+        if (ergebnis.hydrocourtStatus && ergebnis.hydrocourtStatus !== 'bezahlt') {
+          nebenachsen.hydrocourtStatus = 'bezahlt';
+        }
+        if (ergebnis.universalKanbanStatus && ergebnis.universalKanbanStatus !== 'bezahlt') {
+          nebenachsen.universalKanbanStatus = 'bezahlt';
+        }
+        if (Object.keys(nebenachsen).length > 0) {
+          ergebnis = await this.updateProjekt(projektId, nebenachsen);
+        }
+      } catch (error) {
+        // Bleibt dieser Schritt liegen, ist der Vorgang trotzdem korrekt bezahlt:
+        // Kanban und Debitoren lesen den Projektstatus. Nur die Karte in der
+        // Hydrocourt- bzw. Universal-Ansicht hinkt hinterher — ein Zustand, den
+        // man sieht und von Hand richten kann.
+        console.warn(
+          `Projekt ${projektId}: Nebenachsen konnten nicht auf „bezahlt" gezogen werden.`,
+          error
+        );
+      }
+
       auditService.logAktion({
         action: 'update',
         entityType: 'projekt',
@@ -614,7 +711,7 @@ class ProjektService {
         summary: `Projekt "${(response as { projektName?: string }).projektName ?? projektId}" als bezahlt markiert`,
         changes: { status: { alt: 'rechnung', neu: 'bezahlt' } },
       });
-      return parseProjektDocument(response);
+      return ergebnis;
     } catch (error) {
       handleServiceError(error, 'Markieren des Projekts als bezahlt');
     }
@@ -711,12 +808,18 @@ class ProjektService {
         geaendertAm: aktualisiert.geaendertAm,
       };
 
+      // Beim reinen Statuswechsel ist das Auslassen von `data` vertretbar: Der
+      // Status ist eine eigene Appwrite-Spalte und wird korrekt geschrieben, die
+      // JSON-Kopie in `data` darf hinterherhinken (parseProjektDocument bevorzugt
+      // ohnehin die Top-Level-Spalten). Anders als beim allgemeinen Update geht
+      // hier also nichts verloren, was der Nutzer gerade eingegeben hat.
       const serialisiert = JSON.stringify(aktualisiert);
       if (serialisiert.length <= MAX_DATA_FIELD_SIZE) {
         dokument.data = serialisiert;
       } else {
         console.warn(
-          `Projekt ${projektId}: data-Blob ist zu groß (${serialisiert.length} Zeichen) — Status-Partial-Update.`
+          `Projekt ${projektId}: data-Blob ist zu groß (${serialisiert.length} von ${MAX_DATA_FIELD_SIZE} Zeichen) — ` +
+          'Status wird als Top-Level-Spalte geschrieben, die JSON-Kopie bleibt auf dem alten Stand.'
         );
       }
 

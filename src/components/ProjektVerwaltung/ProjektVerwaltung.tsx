@@ -44,7 +44,7 @@ import {
   Workflow,
   Scale,
 } from 'lucide-react';
-import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE } from '../../types/projekt';
+import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE, ALLE_PROJEKT_STATUS } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService, type SaisonRolloverErgebnis } from '../../services/saisonplanungService';
 import { SaisonKunde } from '../../types/saisonplanung';
@@ -54,6 +54,7 @@ import { StammdatenInput } from '../../types/stammdaten';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCan } from '../../hooks/useCan';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 import MobileProjektView from './MobileProjektView';
 import ProjektStatistik from './ProjektStatistik';
 import AnfragenVerarbeitung from './AnfragenVerarbeitung';
@@ -64,6 +65,8 @@ import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import ProzessOverview from './ProzessOverview';
+import Wochenbrett from './Wochenbrett';
+import Lieferantenleiste from './Lieferantenleiste';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
@@ -75,6 +78,23 @@ import {
   ProjektFilterKategorie,
 } from '../../utils/projektHerkunft';
 import { anfragenService } from '../../services/anfragenService';
+import {
+  lieferterminEffektiv,
+  formatiereTermin,
+  terminQuelleLabel,
+  istUeberfaellig,
+} from '../../utils/liefertermin';
+import {
+  getAbwicklungswege,
+  hatAbwicklungsweg,
+  wegNochOffen,
+  ABWICKLUNGSWEGE,
+  ABWICKLUNGSWEG_LABEL,
+  ABWICKLUNGSWEG_KUERZEL,
+  type Abwicklungsweg,
+} from '../../utils/abwicklungsweg';
+import { client, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
+import { realtimeKanal } from '../../config/mockModus';
 
 // Herkunfts-Optik im Board: Platzbauer beige, Shop blau, Anfrage grün — jeweils
 // mit farbiger Kante links. Normale Projekte bleiben weiß.
@@ -169,9 +189,15 @@ const kanbanGridKlasse = (spalten: number): string =>
 // (veraltetes Lesezeichen, Tippfehler) traefe sonst keine der Render-Bedingungen
 // und die Seite bliebe unterhalb der Tab-Leiste leer.
 const VIEW_MODES = [
-  'overview', 'kanban', 'angebotsliste', 'statistik', 'anfragen', 'karte',
+  'overview', 'kanban',
+  'wochen', 'angebotsliste', 'statistik', 'anfragen', 'karte',
   'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot',
 ] as const;
+
+// Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
+// Bewusst als Liste statt als Ausschluss: Wer eine Ansicht ergänzt, muss sich
+// aktiv entscheiden, ob die Filterzeile dort etwas bewirkt.
+const FILTERBARE_VIEWS: readonly string[] = ['kanban', 'wochen', 'angebotsliste', 'karte'];
 
 type ViewMode = (typeof VIEW_MODES)[number];
 
@@ -387,6 +413,11 @@ const ProjektVerwaltung = () => {
     verloren: [],
   });
   const [loading, setLoading] = useState(true);
+  // Nachladen im Hintergrund — das Board bleibt stehen, nur ein Hinweis erscheint.
+  const [aktualisiert, setAktualisiert] = useState(false);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  // Jemand anderes hat ein Projekt dieser Saison geändert.
+  const [fremdaenderung, setFremdaenderung] = useState(false);
   const [saving, setSaving] = useState(false);
   const [suche, setSuche] = useState('');
   const [nummerSuche, setNummerSuche] = useState(''); // Dedizierte Suche für Dokument-Nummern
@@ -425,7 +456,12 @@ const ProjektVerwaltung = () => {
 
   // Filter nach Herkunft/Typ (null = alle Projekte)
   const [aktiveKategorie, setAktiveKategorie] = useState<ProjektFilterKategorie | null>(null);
+  // Zweite Filterachse: Wie kommt die Ware zum Verein. `'offen'` steht für
+  // Projekte, bei denen sich das noch nicht sagen lässt — sie sind ein eigener
+  // Filterwert und fallen nicht still durch jede Auswahl.
+  const [aktiverWeg, setAktiverWeg] = useState<Abwicklungsweg | 'offen' | null>(null);
   const [showKategorieMenu, setShowKategorieMenu] = useState(false);
+  const [showWegMenu, setShowWegMenu] = useState(false);
 
   // Wrapper-Funktionen die auch in Session Storage speichern
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -481,8 +517,19 @@ const ProjektVerwaltung = () => {
 
   // Lade Daten inkl. Kundendaten für die Suche
   // OPTIMIERT: Lade alle Kunden auf einmal statt einzeln!
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  //
+  // `stillesNachladen` unterscheidet die beiden Fälle, die vorher gleich behandelt
+  // wurden: Beim ERSTEN Aufruf gibt es noch nichts anzuzeigen, da ist ein Spinner
+  // richtig. Bei jedem SPÄTEREN — nach Speichern, Löschen, Verloren-Markieren oder
+  // einem Klick auf Aktualisieren — steht das Board bereits da. Es dann durch einen
+  // Vollbild-Spinner zu ersetzen, montiert den ganzen Baum ab: eingeklappte Spalten
+  // gehen auf, die Scrollposition springt auf Anfang, der Fokus im Suchfeld ist weg
+  // und die Karte geokodiert neu. Das war die größte einzelne Ursache dafür, dass
+  // sich das Tool unruhig anfühlte.
+  const loadData = useCallback(async ({ stillesNachladen = false } = {}) => {
+    if (stillesNachladen) setAktualisiert(true);
+    else setLoading(true);
+    setLadeFehler(null);
     try {
       // Parallel: Projekte, alle Kunden UND die Anfragen-Verknüpfungen laden
       // (Letztere nur die ID-Felder — für die Herkunfts-Markierung im Board.)
@@ -501,16 +548,53 @@ const ProjektVerwaltung = () => {
         neueKundenMap.set(kunde.id, kunde);
       });
       setKundenMap(neueKundenMap);
+      setFremdaenderung(false);
     } catch (error) {
+      // Vorher landete der Fehler nur in der Konsole: Das Board blieb leer und sah
+      // aus wie „keine Projekte in dieser Saison". Jetzt sagt eine Leiste, dass das
+      // Laden fehlgeschlagen ist — der Unterschied zwischen „nichts da" und
+      // „nicht geladen" entscheidet, ob jemand anfängt, Daten neu anzulegen.
       console.error('Fehler beim Laden:', error);
+      setLadeFehler(
+        error instanceof Error
+          ? error.message
+          : 'Die Projekte konnten nicht geladen werden.'
+      );
     } finally {
       setLoading(false);
+      setAktualisiert(false);
     }
   }, [saisonjahr]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  /**
+   * Live-Aktualisierung: Ändert jemand anderes ein Projekt, kommt es hier an.
+   *
+   * Bis 08/2026 gab es in der ganzen Projektverwaltung keine einzige
+   * Realtime-Verbindung. Zu zweit arbeitete man gegen veraltete Stände: Roni zog
+   * eine Karte auf „Rechnung", während sie beim Kollegen noch unter „Lieferschein"
+   * lag — und wer zuletzt speicherte, überschrieb den anderen, ohne dass es
+   * jemandem auffiel.
+   *
+   * Bewusst NICHT sofort nachgeladen: Das Board bekommt nur einen Hinweis, dass
+   * es einen neueren Stand gibt. Ein Board, das sich unter den Händen umsortiert,
+   * während man eine Karte zieht oder ein Formular ausfüllt, wäre schlimmer als
+   * der veraltete Stand. Wann aktualisiert wird, entscheidet der Mensch.
+   */
+  useEffect(() => {
+    const kanal = realtimeKanal(PROJEKTE_COLLECTION_ID);
+    const abmelden = client.subscribe(kanal, (nachricht: { payload?: unknown }) => {
+      // Nur die betrachtete Saison ist interessant — sonst blinkt der Hinweis
+      // auch bei Arbeit an einem längst abgeschlossenen Jahr.
+      const doc = nachricht.payload as { saisonjahr?: number } | undefined;
+      if (doc?.saisonjahr !== undefined && doc.saisonjahr !== saisonjahr) return;
+      setFremdaenderung(true);
+    });
+    return () => abmelden();
+  }, [saisonjahr]);
 
   // Standard-/Default-Saison aus Stammdaten laden (manuell > berechnet).
   // Solange der Nutzer nicht selbst eine Saison gewählt hat, folgt die Ansicht der Default-Saison.
@@ -602,6 +686,27 @@ const ProjektVerwaltung = () => {
     return zaehler;
   }, [kategorienMap]);
 
+  // Anzahl je Abwicklungsweg — damit im Menü steht, was sich dahinter verbirgt.
+  // Ohne Zähler klickt man ins Leere und weiß nicht, ob der Filter zu eng war
+  // oder es dort wirklich nichts gibt.
+  const wegZaehler = useMemo(() => {
+    const zaehler: Record<Abwicklungsweg | 'offen' | 'gesamt', number> = {
+      schuettgut: 0, palette: 0, kranwagen: 0, hydrocourt: 0, universal: 0,
+      abholung: 0, offen: 0, gesamt: 0,
+    };
+    Object.values(projekteGruppiert).forEach((projekte) => {
+      projekte.forEach((projekt) => {
+        zaehler.gesamt += 1;
+        const wege = getAbwicklungswege(projekt);
+        if (wege.size === 0) zaehler.offen += 1;
+        // Ein gemischter Auftrag zählt bewusst in jeder betroffenen Zeile mit —
+        // deshalb ergibt die Summe mehr als die Gesamtzahl.
+        wege.forEach((weg) => { zaehler[weg] += 1; });
+      });
+    });
+    return zaehler;
+  }, [projekteGruppiert]);
+
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
     // Schritt 1: Kategorie-Filter (Platzbauer, Shop, Anfrage, Hydrocourt, Universal)
@@ -611,6 +716,17 @@ const ProjektVerwaltung = () => {
           return kategorienMap.get(key)?.has(aktiveKategorie) === true;
         })
       : projekte;
+
+    // Schritt 1b: Abwicklungsweg — bewusst eine EIGENE Achse neben der Herkunft.
+    // „Über den Platzbauer bestellt" und „geht per Spedition" sind zwei
+    // verschiedene Fragen; sie standen früher in einem Topf, wodurch man nie
+    // beides gleichzeitig einschränken konnte.
+    if (aktiverWeg) {
+      gefiltert =
+        aktiverWeg === 'offen'
+          ? gefiltert.filter((p) => wegNochOffen(p))
+          : gefiltert.filter((p) => hatAbwicklungsweg(p, aktiverWeg));
+    }
 
     // ============================================
     // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (eigenes Feld!)
@@ -650,19 +766,16 @@ const ProjektVerwaltung = () => {
     }
 
     return gefiltert;
-  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap]);
+  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap, aktiverWeg]);
 
-  // Alle Projekte mit Angebot für die Angebotsliste
+  // Alle Projekte mit Angebot für die Angebotsliste.
+  // Über ALLE_PROJEKT_STATUS abgeleitet statt Status für Status aufgezählt: Die
+  // frühere Liste ließ „geliefert" aus, ein geliefertes Projekt verschwand also
+  // aus der Angebotsliste — obwohl sein Angebot unverändert existiert.
   const angebotsProjekte = useMemo(() => {
-    const alleProjekte = [
-      ...projekteGruppiert.angebot,
-      ...projekteGruppiert.angebot_versendet,
-      ...projekteGruppiert.auftragsbestaetigung,
-      ...projekteGruppiert.lieferschein,
-      ...projekteGruppiert.rechnung,
-      ...projekteGruppiert.bezahlt,
-      ...projekteGruppiert.verloren,
-    ].filter(p => p.angebotsnummer);
+    const alleProjekte = ALLE_PROJEKT_STATUS.flatMap(
+      (status) => projekteGruppiert[status] ?? []
+    ).filter(p => p.angebotsnummer);
 
     // Sortiere nach Angebotsnummer (neueste zuerst)
     return filterProjekte(alleProjekte).sort((a, b) => {
@@ -721,22 +834,66 @@ const ProjektVerwaltung = () => {
       return updated;
     });
 
-    // Dann in DB speichern
-    try {
-      const documentId = (projekt as any).$id || projekt.id;
-      await projektService.updateProjektStatus(documentId, neuerStatus);
-    } catch (error) {
-      console.error('Fehler beim Status-Update:', error);
-      // Bei Fehler: Zurück verschieben
+    // Zurückrollen — bei einem Fehler ebenso wie beim Widerruf des Nutzers.
+    //
+    // Bewusst über den vorherigen Zustand statt über einen eingefrorenen
+    // Schnappschuss: Zwischen Statuswechsel und Widerruf können zehn Sekunden
+    // liegen, in denen ein Realtime-Nachladen oder ein zweiter Wechsel neue Daten
+    // gebracht hat. Ein Schnappschuss würde die überschreiben. So wird nur die
+    // eine Karte zurückgeschoben, alles andere bleibt auf dem aktuellen Stand.
+    const projektId = (projekt as any).$id || projekt.id;
+    const zurueckrollen = () => {
       setProjekteGruppiert(prev => {
         const reverted = { ...prev };
+        // Die Karte in ihrer AKTUELLEN Fassung suchen — sie kann inzwischen
+        // andere Felder tragen als beim Verschieben.
+        const aktuelleFassung =
+          reverted[neuerStatus].find(p => ((p as any).$id || p.id) === projektId) ?? projekt;
         reverted[neuerStatus] = reverted[neuerStatus].filter(p =>
-          ((p as any).$id || p.id) !== ((projekt as any).$id || projekt.id)
+          ((p as any).$id || p.id) !== projektId
         );
-        reverted[alterStatus] = [...reverted[alterStatus], projekt];
+        // Nicht doppelt einfügen, falls zwischenzeitlich neu geladen wurde.
+        const schonDa = reverted[alterStatus].some(
+          p => ((p as any).$id || p.id) === projektId
+        );
+        reverted[alterStatus] = schonDa
+          ? reverted[alterStatus]
+          : [...reverted[alterStatus], { ...aktuelleFassung, status: alterStatus }];
         return reverted;
       });
-      alert('Fehler beim Speichern. Bitte erneut versuchen.');
+    };
+
+    // Dann in DB speichern
+    try {
+      await projektService.updateProjektStatus(projektId, neuerStatus);
+
+      // Rückmeldung mit Widerruf. Ein Statuswechsel ist schnell gemacht und schwer
+      // zu bemerken — beim Ziehen landet eine Karte auch mal in der Nachbarspalte.
+      // Zehn Sekunden Widerrufsfrist ersparen die Suche danach, wo das Projekt
+      // hingerutscht ist.
+      const zielLabel = TABS.find((t) => t.id === neuerStatus)?.label ?? neuerStatus;
+      toast.success(`${projekt.kundenname} → ${zielLabel}`, {
+        duration: 10000,
+        action: {
+          label: 'Rückgängig',
+          onClick: () => {
+            zurueckrollen();
+            void projektService.updateProjektStatus(projektId, alterStatus).catch((error) => {
+              console.error('Rücknahme des Statuswechsels fehlgeschlagen:', error);
+              toast.error('Der Statuswechsel konnte nicht zurückgenommen werden.');
+              void loadData({ stillesNachladen: true });
+            });
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Fehler beim Status-Update:', error);
+      zurueckrollen();
+      toast.error(
+        error instanceof Error
+          ? `Status konnte nicht gespeichert werden: ${error.message}`
+          : 'Status konnte nicht gespeichert werden.'
+      );
     }
   };
 
@@ -760,7 +917,7 @@ const ProjektVerwaltung = () => {
         verlorenGrund: grund,
         verlorenGrundText: grund === 'sonstiges' ? grundText : undefined,
       });
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Markieren als verloren:', error);
       alert('Fehler beim Speichern. Bitte erneut versuchen.');
@@ -794,7 +951,7 @@ const ProjektVerwaltung = () => {
       await projektService.updateProjekt(projektId, updatedProjekt);
       setShowEditModal(false);
       setEditingProjekt(null);
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       alert('Fehler beim Speichern des Projekts. Bitte erneut versuchen.');
@@ -821,7 +978,7 @@ const ProjektVerwaltung = () => {
     setSaving(true);
     try {
       await projektService.deleteProjekt(projekt);
-      await loadData();
+      await loadData({ stillesNachladen: true });
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
       alert('Fehler beim Löschen des Projekts. Bitte erneut versuchen.');
@@ -831,31 +988,41 @@ const ProjektVerwaltung = () => {
   };
 
   // Berechne Gesamtzahlen
-  const gesamtAngebot = projekteGruppiert.angebot.length;
-  const gesamtAngebotVersendet = projekteGruppiert.angebot_versendet.length;
-  const gesamtAuftragsbestaetigung = projekteGruppiert.auftragsbestaetigung.length;
-  const gesamtLieferschein = projekteGruppiert.lieferschein.length;
-  const gesamtRechnung = projekteGruppiert.rechnung.length;
-  const gesamtBezahlt = projekteGruppiert.bezahlt.length;
   const gesamtVerloren = projekteGruppiert.verloren.length;
-  const gesamt = gesamtAngebot + gesamtAngebotVersendet + gesamtAuftragsbestaetigung + gesamtLieferschein + gesamtRechnung + gesamtBezahlt;
+
+  // Summe über ALLE Status außer „verloren" — bewusst abgeleitet statt aufgezählt.
+  // Die frühere Handaddition vergaß „geliefert": Die Kopfzeile meldete weniger
+  // Projekte, als das Board zeigte, und niemand konnte sagen, welche fehlten.
+  const gesamt = ALLE_PROJEKT_STATUS.reduce(
+    (summe, status) => (status === 'verloren' ? summe : summe + (projekteGruppiert[status]?.length ?? 0)),
+    0
+  );
 
   // Alle Status-Spalten nebeneinander — inkl. Verloren, wenn eingeblendet
   const kanbanSpaltenKlasse = kanbanGridKlasse(TABS.length + (showVerlorenSpalte ? 1 : 0));
 
-  // Helper für Count pro Status
-  const getCount = (status: ProjektStatus) => {
-    switch (status) {
-      case 'angebot': return gesamtAngebot;
-      case 'angebot_versendet': return gesamtAngebotVersendet;
-      case 'auftragsbestaetigung': return gesamtAuftragsbestaetigung;
-      case 'lieferschein': return gesamtLieferschein;
-      case 'rechnung': return gesamtRechnung;
-      case 'bezahlt': return gesamtBezahlt;
-      case 'verloren': return gesamtVerloren;
-      default: return 0;
-    }
-  };
+  // Menge für die Kartenansicht — memoisiert, und das ist hier kein Feinschliff:
+  // Der Geocoding-Effekt in ProjektKartenansicht hängt an dieser Liste. Wurde sie
+  // bei jedem Render neu gebaut, war sie jedes Mal eine neue Referenz — der Effekt
+  // lief erneut, setzte den Kartenausschnitt zurück und schickte Geocoding-Anfragen
+  // los. Beim Tippen in der Suche flackerten so die Marker bei jedem Anschlag.
+  //
+  // Außerdem wird die Menge jetzt aus ALLE_PROJEKT_STATUS abgeleitet statt Status
+  // für Status aufgezählt: Die alte Aufzählung ließ „geliefert" aus, gelieferte
+  // Projekte verschwanden also von der Karte.
+  const kartenProjekte = useMemo(
+    () =>
+      ALLE_PROJEKT_STATUS.filter((status) => status !== 'verloren' || showVerlorenSpalte).flatMap(
+        (status) => filterProjekte(projekteGruppiert[status] ?? [])
+      ),
+    [projekteGruppiert, showVerlorenSpalte, filterProjekte]
+  );
+
+  // Zähler direkt aus der Datenmenge. Die frühere switch-Liste hatte keinen Fall
+  // für „geliefert" und fiel auf 0 zurück — die Spalte zeigte dauerhaft 0,
+  // obwohl Karten darin lagen. Ein neuer Status kann hier nicht mehr vergessen
+  // werden.
+  const getCount = (status: ProjektStatus) => projekteGruppiert[status]?.length ?? 0;
 
   // Helper für Projekte pro Status
   const getProjekte = (status: ProjektStatus) => {
@@ -935,7 +1102,7 @@ const ProjektVerwaltung = () => {
         <div className="p-4">
           <AnfragenVerarbeitung
             onAnfrageGenehmigt={() => {
-              loadData();
+              void loadData({ stillesNachladen: true });
             }}
           />
         </div>
@@ -1002,6 +1169,20 @@ const ProjektVerwaltung = () => {
                 <span>
                   {gesamt} aktive Projekte {gesamtVerloren > 0 && `• ${gesamtVerloren} verloren`} • Saison {saisonjahr}
                 </span>
+                {aktualisiert && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> wird aktualisiert
+                  </span>
+                )}
+                {fremdaenderung && !aktualisiert && (
+                  <button
+                    onClick={() => void loadData({ stillesNachladen: true })}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors"
+                    title="Jemand anderes hat ein Projekt dieser Saison geändert. Klicken, um den neuen Stand zu laden."
+                  >
+                    <RefreshCw className="w-3 h-3" /> neuer Stand verfügbar
+                  </button>
+                )}
                 {saisonjahr === aktuelleSaison ? (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
                     aktuelle Saison
@@ -1046,8 +1227,12 @@ const ProjektVerwaltung = () => {
               )}
             </div>
 
-            {/* Suche und Filter greifen nur auf Projektlisten — in der Übersicht ausgeblendet */}
-            {viewMode !== 'overview' && (
+            {/* Suche und Kategoriefilter greifen ausschließlich auf die Projektlisten.
+                Sie standen früher auch über Statistik, Wiegescheinen, Hydrocourt,
+                Universal, Exports und Massen-Angeboten — sichtbar, beschriftet und
+                ohne jede Wirkung. Ein aktiver Filter, der nichts tut, ist die
+                teuerste Form von Vertrauensverlust. */}
+            {FILTERBARE_VIEWS.includes(viewMode) && (
               <>
             {/* Suche nach Vereinsname/PLZ */}
             <div className="relative flex-1 md:flex-none">
@@ -1086,6 +1271,74 @@ const ProjektVerwaltung = () => {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              )}
+            </div>
+
+            {/* Abwicklungsweg — eigene Achse neben der Herkunft. „Wer hat bestellt"
+                und „wie kommt die Ware hin" sind zwei verschiedene Fragen. */}
+            <div className="relative">
+              <button
+                onClick={() => setShowWegMenu(!showWegMenu)}
+                className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
+                  aktiverWeg
+                    ? 'bg-slate-700 text-white border-transparent dark:bg-slate-200 dark:text-slate-900'
+                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Nach Abwicklungsweg filtern"
+              >
+                <Truck className="w-4 h-4" />
+                <span className="hidden sm:inline">
+                  {aktiverWeg
+                    ? aktiverWeg === 'offen'
+                      ? 'Weg offen'
+                      : ABWICKLUNGSWEG_LABEL[aktiverWeg]
+                    : 'Abwicklung'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {showWegMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowWegMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1">
+                    <button
+                      onClick={() => { setAktiverWeg(null); setShowWegMenu(false); }}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                        !aktiverWeg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
+                      }`}
+                    >
+                      Alle Wege
+                      <span className="text-xs text-gray-400">{wegZaehler.gesamt}</span>
+                    </button>
+                    {ABWICKLUNGSWEGE.map((weg) => (
+                      <button
+                        key={weg}
+                        onClick={() => { setAktiverWeg(weg); setShowWegMenu(false); }}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                          aktiverWeg === weg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-400 w-10">
+                            {ABWICKLUNGSWEG_KUERZEL[weg]}
+                          </span>
+                          {ABWICKLUNGSWEG_LABEL[weg]}
+                        </span>
+                        <span className="text-xs text-gray-400">{wegZaehler[weg]}</span>
+                      </button>
+                    ))}
+                    {/* Eigener Eintrag statt stillem Ausblenden: Projekte ohne
+                        bestimmbaren Weg sind ein Arbeitsvorrat, kein Datenfehler. */}
+                    <button
+                      onClick={() => { setAktiverWeg('offen'); setShowWegMenu(false); }}
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                        aktiverWeg === 'offen' ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400'
+                      }`}
+                    >
+                      Weg noch offen
+                      <span className="text-xs text-gray-400">{wegZaehler.offen}</span>
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -1202,6 +1455,18 @@ const ProjektVerwaltung = () => {
               >
                 <LayoutGrid className="w-4 h-4" />
                 <span className="hidden sm:inline">Kanban</span>
+              </button>
+              <button
+                onClick={() => setViewMode('wochen')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'wochen'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Nach Lieferwoche — die Frage der Hochsaison"
+              >
+                <CalendarDays className="w-4 h-4" />
+                <span className="hidden sm:inline">Wochen</span>
               </button>
               <button
                 onClick={() => setViewMode('angebotsliste')}
@@ -1333,8 +1598,8 @@ const ProjektVerwaltung = () => {
             )}
 
             <button
-              onClick={loadData}
-              disabled={loading}
+              onClick={() => void loadData({ stillesNachladen: true })}
+              disabled={loading || aktualisiert}
               className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-dark-textMuted hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -1353,6 +1618,32 @@ const ProjektVerwaltung = () => {
         />
       )}
 
+      {/* Ladefehler sichtbar machen. Vorher blieb das Board einfach leer — nicht zu
+          unterscheiden von „diese Saison hat keine Projekte". */}
+      {ladeFehler && (
+        <div className="mb-4 px-4 py-3 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-red-800 dark:text-red-200">
+              Die Projekte konnten nicht geladen werden
+            </div>
+            <p className="text-sm text-red-700 dark:text-red-300 mt-0.5 break-words">
+              {ladeFehler}
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-300">
+              Was unten steht, ist möglicherweise nicht der aktuelle Stand.
+            </p>
+          </div>
+          <button
+            onClick={() => void loadData({ stillesNachladen: true })}
+            disabled={aktualisiert}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 flex-shrink-0"
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      )}
+
       {/* Prozess-Übersicht: Startansicht, verbindet alle Tools entlang des Ablaufs */}
       {viewMode === 'overview' && (
         <ProzessOverview
@@ -1360,6 +1651,24 @@ const ProjektVerwaltung = () => {
           anfrageProjektIds={anfrageProjektIds}
           saisonjahr={saisonjahr}
           onZeigeView={setViewMode}
+        />
+      )}
+
+      {/* Lieferantenleiste: was liegt gerade bei wem. Steht ueber dem Board in den
+          beiden Arbeitsansichten — der Beschaffungstakt laeuft parallel zum
+          Kundentakt und war bisher nur in getrennten Vollbildansichten sichtbar. */}
+      {(viewMode === 'kanban' || viewMode === 'wochen') && (
+        <Lieferantenleiste
+          projekteGruppiert={projekteGruppiert}
+          onOeffne={(ziel) => {
+            if (ziel === 'hydrocourt') setViewMode('hydrocourt');
+            else if (ziel === 'universal') setViewMode('universal');
+            else if (ziel === 'dispo') {
+              // Die Wochenplanung liegt im Dispo-Tool, nicht hier — deshalb ein
+              // echter Seitenwechsel statt eines Ansichtswechsels.
+              navigate('/dispo-planung');
+            }
+          }}
         />
       )}
 
@@ -1394,6 +1703,7 @@ const ProjektVerwaltung = () => {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onMarkAsLost={handleMarkAsLost}
+                onStatusWechsel={updateStatus}
               />
             );
           })}
@@ -1417,10 +1727,17 @@ const ProjektVerwaltung = () => {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onMarkAsLost={handleMarkAsLost}
+              onStatusWechsel={updateStatus}
               isVerloren
             />
           )}
         </div>
+      )}
+
+      {/* Wochenbrett — dieselbe gefilterte Menge wie das Kanban, nur nach
+          Lieferwoche gegliedert statt nach Status. */}
+      {viewMode === 'wochen' && (
+        <Wochenbrett projekte={kartenProjekte} onProjektClick={handleProjektClick} />
       )}
 
       {/* Angebotsliste */}
@@ -1441,7 +1758,7 @@ const ProjektVerwaltung = () => {
         <AnfragenVerarbeitung
           onAnfrageGenehmigt={() => {
             // Nach Genehmigung zum Kanban wechseln und Daten neu laden
-            loadData();
+            void loadData({ stillesNachladen: true });
           }}
         />
       )}
@@ -1449,15 +1766,7 @@ const ProjektVerwaltung = () => {
       {/* Karten-Ansicht */}
       {viewMode === 'karte' && (
         <ProjektKartenansicht
-          projekte={[
-            ...filterProjekte(projekteGruppiert.angebot),
-            ...filterProjekte(projekteGruppiert.angebot_versendet),
-            ...filterProjekte(projekteGruppiert.auftragsbestaetigung),
-            ...filterProjekte(projekteGruppiert.lieferschein),
-            ...filterProjekte(projekteGruppiert.rechnung),
-            ...filterProjekte(projekteGruppiert.bezahlt),
-            ...(showVerlorenSpalte ? filterProjekte(projekteGruppiert.verloren) : []),
-          ]}
+          projekte={kartenProjekte}
           onProjektClick={handleProjektClick}
         />
       )}
@@ -1549,6 +1858,7 @@ interface KanbanSpalteProps {
   onEdit: (e: React.MouseEvent, projekt: Projekt) => void;
   onDelete: (e: React.MouseEvent, projekt: Projekt) => void;
   onMarkAsLost: (e: React.MouseEvent, projekt: Projekt) => void;
+  onStatusWechsel: (projekt: Projekt, neuerStatus: ProjektStatus) => void;
   isVerloren?: boolean;
 }
 
@@ -1569,6 +1879,7 @@ const KanbanSpalte = ({
   onEdit,
   onDelete,
   onMarkAsLost,
+  onStatusWechsel,
   isVerloren,
 }: KanbanSpalteProps) => {
   const TabIcon = tab.icon;
@@ -1630,10 +1941,113 @@ const KanbanSpalte = ({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onMarkAsLost={onMarkAsLost}
+                onStatusWechsel={onStatusWechsel}
                 isVerloren={isVerloren}
               />
             ))
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Statuswechsel per Menü — der einzige Weg, der ohne Maus funktioniert.
+ *
+ * Bis 08/2026 ging ein Statuswechsel ausschließlich per Ziehen. Am Tablet, wo
+ * Dispo und Innendienst häufig arbeiten, war er damit gar nicht möglich: Es gab
+ * keinen Weg, ein Projekt weiterzuschieben. Auch mit Tastatur nicht.
+ */
+const StatusWechsler = ({
+  aktuellerStatus,
+  onWechsel,
+}: {
+  aktuellerStatus: ProjektStatus;
+  onWechsel: (neuerStatus: ProjektStatus) => void;
+}) => {
+  const [offen, setOffen] = useState(false);
+  const behaelter = useRef<HTMLDivElement>(null);
+  const knopf = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+
+  // Position beim Öffnen einmal bestimmen. Klappt das Menü unten aus dem Fenster,
+  // erscheint es oberhalb des Knopfes.
+  useEffect(() => {
+    if (!offen || !knopf.current) return;
+    const r = knopf.current.getBoundingClientRect();
+    const MENUE_HOEHE = 300;
+    const nachOben = r.bottom + MENUE_HOEHE > window.innerHeight;
+    setMenuPos({
+      top: nachOben ? Math.max(8, r.top - MENUE_HOEHE) : r.bottom + 4,
+      left: Math.max(8, Math.min(r.right - 208, window.innerWidth - 216)),
+    });
+  }, [offen]);
+
+  useEffect(() => {
+    if (!offen) return;
+    const schliesseBeiKlickAussen = (e: MouseEvent) => {
+      if (!behaelter.current?.contains(e.target as Node)) setOffen(false);
+    };
+    const schliesseBeiEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOffen(false);
+    };
+    document.addEventListener('mousedown', schliesseBeiKlickAussen);
+    document.addEventListener('keydown', schliesseBeiEscape);
+    return () => {
+      document.removeEventListener('mousedown', schliesseBeiKlickAussen);
+      document.removeEventListener('keydown', schliesseBeiEscape);
+    };
+  }, [offen]);
+
+  return (
+    <div ref={behaelter} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        ref={knopf}
+        onClick={() => setOffen((v) => !v)}
+        className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+        title="Status ändern"
+        aria-haspopup="menu"
+        aria-expanded={offen}
+      >
+        <ChevronDown className="w-3.5 h-3.5" />
+      </button>
+      {offen && (
+        // Als Portal ans Dokument gehängt: Die Kanban-Spalte scrollt
+        // (overflow-y-auto) und würde ein Menü innerhalb der Karte abschneiden —
+        // ausgerechnet bei den unteren Karten, wo es am ehesten aufklappt.
+        <div
+          role="menu"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left }}
+          className="z-50 w-52 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1"
+        >
+          <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">
+            Weiter zu
+          </div>
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const istAktuell = tab.id === aktuellerStatus;
+            return (
+              <button
+                key={tab.id}
+                role="menuitem"
+                disabled={istAktuell}
+                onClick={() => {
+                  setOffen(false);
+                  if (!istAktuell) onWechsel(tab.id);
+                }}
+                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 transition-colors ${
+                  istAktuell
+                    ? 'text-gray-400 dark:text-slate-500 cursor-default'
+                    : 'text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${istAktuell ? '' : tab.color} ${istAktuell ? '' : tab.darkColor}`} />
+                {tab.label}
+                {istAktuell && <span className="ml-auto text-xs">aktuell</span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1655,16 +2069,23 @@ interface ProjektCardProps {
   onEdit: (e: React.MouseEvent, projekt: Projekt) => void;
   onDelete: (e: React.MouseEvent, projekt: Projekt) => void;
   onMarkAsLost: (e: React.MouseEvent, projekt: Projekt) => void;
+  /** Statuswechsel ohne Ziehen — der einzige Weg, der am Tablet funktioniert. */
+  onStatusWechsel: (projekt: Projekt, neuerStatus: ProjektStatus) => void;
   isVerloren?: boolean;
 }
 
-const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, isVerloren }: ProjektCardProps) => {
+const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, platzbauerName, onDragStart, onDragEnd, onClick, onEdit, onDelete, onMarkAsLost, onStatusWechsel, isVerloren }: ProjektCardProps) => {
   // Extrahiere PLZ aus kundenPlzOrt
   const plzMatch = projekt.kundenPlzOrt?.match(/^(\d{5})/);
   const plz = plzMatch ? plzMatch[1] : '';
   const ort = projekt.kundenPlzOrt?.replace(/^\d{5}\s*/, '') || '';
   // Verwende aktuellen Kundennamen aus Kundendaten, falls vorhanden
   const kundenname = aktuellerKundenname || projekt.kundenname;
+  // Termin und Abwicklungsweg je Karte ableiten. Beides parst im Zweifel das
+  // Positions-JSON, deshalb memoisiert — bei 200 Karten summiert sich das.
+  const termin = useMemo(() => lieferterminEffektiv(projekt), [projekt]);
+  const ueberfaellig = useMemo(() => istUeberfaellig(projekt), [projekt]);
+  const wege = useMemo(() => [...getAbwicklungswege(projekt)], [projekt]);
   // Herkunfts-Badge: beim Platzbauer das Kürzel, sonst der Kanalname
   const platzbauerKuerzel = getPlatzbauerKuerzel(platzbauerName);
   const shopBestellnummer = herkunft === 'shop' ? getShopBestellnummer(projekt) : undefined;
@@ -1698,7 +2119,7 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
         title={kundenname}
         className={`border rounded-lg px-2 py-1.5 hover:shadow-md dark:hover:shadow-lg transition-all cursor-pointer group ${
           herkunft ? HERKUNFT_CARD_STYLE[herkunft] : STANDARD_CARD_STYLE
-        } ${isVerloren ? 'opacity-60' : ''}`}
+        } ${isVerloren ? 'opacity-60' : ''} gruppe-karte`}
       >
         <div className="flex items-start gap-2">
           <GripVertical className="w-3 h-3 text-gray-300 dark:text-dark-textSubtle group-hover:text-gray-500 dark:group-hover:text-dark-textMuted flex-shrink-0 mt-0.5" />
@@ -1846,7 +2267,23 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Der Statuswechsel ist die häufigste Aktion auf einer Karte und der
+            einzige Weg, der ohne Maus funktioniert — er steht deshalb dauerhaft
+            hier. Die gesamte Aktionsleiste erschien früher nur bei Hover; am
+            Tablet gibt es kein Hover, und damit war ausgerechnet der Weg
+            unerreichbar, der dort gebraucht wird. */}
+        {!isVerloren && (
+          <div className="flex-shrink-0">
+            <StatusWechsler
+              aktuellerStatus={status}
+              onWechsel={(neuerStatus) => onStatusWechsel(projekt, neuerStatus)}
+            />
+          </div>
+        )}
+
+        {/* Selteneres — Bearbeiten, Löschen, neuer Tab — bleibt zurückhaltend und
+            erscheint erst beim Überfahren der Karte. */}
+        <div className="flex gap-0.5 kartenaktionen">
           <OpenInNewTabButton
             to={`/projektabwicklung/${(projekt as any).$id || projekt.id}`}
             appearOnGroupHover={false}
@@ -1878,6 +2315,43 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
           </button>
         </div>
       </div>
+
+      {/* Liefertermin und Abwicklungsweg — die zwei Angaben, nach denen in der
+          Hochsaison zuerst gefragt wird. Beide standen bisher nirgends auf der
+          Karte, obwohl die Daten da sind. */}
+      {(termin || wege.length > 0) && (
+        <div className="flex items-center gap-1.5 flex-wrap mt-1 ml-6">
+          {termin && (
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border ${
+                ueberfaellig
+                  ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                  : termin.verbindlich
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-gray-50 dark:bg-slate-700/60 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600'
+              }`}
+              title={`Liefertermin ${formatiereTermin(termin)} — ${terminQuelleLabel(termin.quelle)}${
+                ueberfaellig ? ', überfällig' : ''
+              }`}
+            >
+              <CalendarDays className="w-3 h-3" />
+              {formatiereTermin(termin)}
+              {/* Die Herkunft steht bewusst daneben: Eine Schätzung darf nicht
+                  aussehen wie eine Zusage. */}
+              <span className="opacity-70">{terminQuelleLabel(termin.quelle)}</span>
+            </span>
+          )}
+          {wege.map((weg) => (
+            <span
+              key={weg}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600"
+              title={`Abwicklung: ${ABWICKLUNGSWEG_LABEL[weg]}`}
+            >
+              {ABWICKLUNGSWEG_KUERZEL[weg]}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Dokument-Infos - kompakter */}
       <div className="text-xs text-gray-500 dark:text-dark-textMuted space-y-0.5 ml-6">
