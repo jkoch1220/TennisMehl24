@@ -1731,7 +1731,7 @@ async function ladeLaeufe(saisonjahr?: number): Promise<AngebotsLauf[]> {
 // ===== HALBAUTOMATISCHER E-MAIL-VERSAND =====
 
 const TEST_EMAIL = 'jtatwcook@gmail.com';
-const ANGEBOT_ABSENDER = 'anfrage@tennismehl.com';
+const ANGEBOT_ABSENDER = 'info@tennismehl.com';
 
 // Lädt die versandbereiten Angebote eines Batches (status === 'angebot', noch nicht versendet).
 async function ladeVersandKandidaten(batchId: string): Promise<VersandKandidat[]> {
