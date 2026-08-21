@@ -43,6 +43,7 @@ import {
   Inbox,
   Workflow,
   Scale,
+  Receipt,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE, ALLE_PROJEKT_STATUS } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -64,6 +65,7 @@ import WiegescheinPruefliste from './WiegescheinPruefliste';
 import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
+import SammelfakturierungTool from './SammelfakturierungTool';
 import ProzessOverview from './ProzessOverview';
 import Wochenbrett from './Wochenbrett';
 import Lieferantenleiste from './Lieferantenleiste';
@@ -191,7 +193,7 @@ const kanbanGridKlasse = (spalten: number): string =>
 const VIEW_MODES = [
   'overview', 'kanban',
   'wochen', 'angebotsliste', 'statistik', 'anfragen', 'karte',
-  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot',
+  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot', 'fakturierung',
 ] as const;
 
 // Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
@@ -1535,6 +1537,18 @@ const ProjektVerwaltung = () => {
                 <span className="hidden sm:inline">Wiegescheine</span>
               </button>
               <button
+                onClick={() => setViewMode('fakturierung')}
+                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  viewMode === 'fakturierung'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+                title="Rechnungen für gelieferte Aufträge auf einmal erzeugen"
+              >
+                <Receipt className="w-4 h-4" />
+                <span className="hidden sm:inline">Fakturierung</span>
+              </button>
+              <button
                 onClick={() => setViewMode('exports')}
                 className={`px-3 py-2 flex items-center gap-2 transition-colors ${
                   viewMode === 'exports'
@@ -1802,6 +1816,7 @@ const ProjektVerwaltung = () => {
 
       {/* Massen-Angebote (Frühjahrsinstandsetzung) – zielt immer auf die aktuelle Default-Saison */}
       {viewMode === 'massenangebot' && isAdmin && <MassenAngebotTool saisonjahr={aktuelleSaison} />}
+      {viewMode === 'fakturierung' && <SammelfakturierungTool saisonjahr={aktuelleSaison} />}
 
       {/* Saving Overlay */}
       {saving && (
