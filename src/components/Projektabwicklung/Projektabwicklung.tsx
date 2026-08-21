@@ -236,11 +236,14 @@ const Projektabwicklung = () => {
   return (
     <div className="flex h-[calc(100vh-64px)]">
       {/* Hauptinhalt */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
+      {/* Header. `flex-wrap` und `min-w-0` sind hier keine Kosmetik: Ohne sie
+          waechst die Zeile am Handy ueber den Viewport hinaus, und weil die Seite
+          nicht horizontal scrollt, wird der Kunden-Knopf unerreichbar — er stand
+          bei 375 px Breite rechnerisch auf Position 617. */}
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-6 sm:mb-8">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 w-full sm:w-auto sm:flex-1">
           <button
             onClick={() => navigate('/projekt-verwaltung')}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-600 dark:bg-slate-700 rounded-lg transition-colors"
@@ -248,18 +251,20 @@ const Projektabwicklung = () => {
           >
             <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-dark-textMuted" />
           </button>
-          <div className="p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg dark:shadow-dark-lg">
-            <FileText className="h-8 w-8 text-white" />
+          <div className="p-2 sm:p-3 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl shadow-lg dark:shadow-dark-lg flex-shrink-0">
+            <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-dark-text">Projektabwicklung</h1>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-dark-text">
+                Projektabwicklung
+              </h1>
               {/* Status-Badge */}
               <span className={`px-3 py-1 rounded-full text-sm font-semibold ${STATUS_CONFIG[projekt.status]?.color || 'bg-gray-100 text-gray-800'}`}>
                 {STATUS_CONFIG[projekt.status]?.label || projekt.status}
               </span>
             </div>
-            <p className="text-gray-600 dark:text-dark-textMuted mt-1">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-dark-textMuted mt-1 break-words">
               {kunde?.name || projekt.kundenname} • {projekt.kundenPlzOrt}
             </p>
             <BearbeitetVonHinweis
@@ -274,7 +279,7 @@ const Projektabwicklung = () => {
         {projekt.kundeId && (
           <button
             onClick={() => setShowKundenPopup(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            className="flex-shrink-0 w-full sm:w-auto justify-center sm:justify-start flex items-center gap-2 px-3 sm:px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
             title="Kundendaten anzeigen"
           >
             <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -296,9 +301,9 @@ const Projektabwicklung = () => {
 
       {/* PLATZBAUER-BANNER - Wenn Kunde ein Platzbauer ist oder Projekt über Platzbauer läuft */}
       {(projekt.istPlatzbauerprojekt || projekt.platzbauerId || kunde?.typ === 'platzbauer') && (
-        <div className="mb-6 bg-gradient-to-r from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-900/60 dark:via-yellow-900/60 dark:to-orange-900/60 border-4 border-amber-400 dark:border-amber-600 rounded-2xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-5">
+        <div className="mb-6 bg-gradient-to-r from-amber-100 via-yellow-100 to-orange-100 dark:from-amber-900/60 dark:via-yellow-900/60 dark:to-orange-900/60 border-4 border-amber-400 dark:border-amber-600 rounded-2xl p-4 sm:p-6 shadow-lg">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 sm:gap-5 min-w-0">
               <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl">
                 <Hammer className="h-8 w-8 text-white" />
               </div>
@@ -323,7 +328,7 @@ const Projektabwicklung = () => {
             </div>
             <button
               onClick={() => navigate('/platzbauer-verwaltung')}
-              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-semibold text-lg"
+              className="flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl font-semibold text-base sm:text-lg"
             >
               <span>Platzbauer-Verwaltung</span>
               <ExternalLink className="h-5 w-5" />
@@ -531,7 +536,10 @@ const Projektabwicklung = () => {
 
       {/* Tab Navigation */}
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 mb-6 overflow-hidden">
-        <div className="flex border-b border-gray-200 dark:border-slate-700">
+        {/* Am Handy passen vier Belegreiter nicht nebeneinander. Scrollen ist hier
+            richtiger als Umbrechen: Die Reihenfolge Angebot → AB → Lieferschein →
+            Rechnung ist der Ablauf selbst und soll eine Linie bleiben. */}
+        <div className="flex border-b border-gray-200 dark:border-slate-700 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
