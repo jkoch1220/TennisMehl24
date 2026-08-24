@@ -67,6 +67,14 @@ import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
 import SammelfakturierungTool from './SammelfakturierungTool';
 import ShopBestellungen from '../ShopBestellungen/ShopBestellungen';
+import ProjektFilterLeiste, { GespeicherteAnsicht } from './ProjektFilterLeiste';
+import {
+  ProjektFilter,
+  wendeFilterAn,
+  istFilterAktiv,
+  filterZuUrlParams,
+  filterAusUrlParams,
+} from '../../utils/projektFilter';
 import { canAccessTool } from '../../services/permissionsService';
 import ProzessOverview from './ProzessOverview';
 import Wochenbrett from './Wochenbrett';
@@ -76,10 +84,8 @@ import { fuzzySearch } from '../../utils/fuzzySearch';
 import { getPlatzbauerName, getPlatzbauerKuerzel } from '../../utils/platzbauerAnzeige';
 import {
   getProjektHerkunft,
-  getProjektKategorien,
   getShopBestellnummer,
   ProjektHerkunftKanal,
-  ProjektFilterKategorie,
 } from '../../utils/projektHerkunft';
 import { anfragenService } from '../../services/anfragenService';
 import {
@@ -90,12 +96,8 @@ import {
 } from '../../utils/liefertermin';
 import {
   getAbwicklungswege,
-  hatAbwicklungsweg,
-  wegNochOffen,
-  ABWICKLUNGSWEGE,
   ABWICKLUNGSWEG_LABEL,
   ABWICKLUNGSWEG_KUERZEL,
-  type Abwicklungsweg,
 } from '../../utils/abwicklungsweg';
 import { client, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
 import { realtimeKanal } from '../../config/mockModus';
@@ -123,24 +125,6 @@ const HERKUNFT_ICON: Record<ProjektHerkunftKanal, React.ComponentType<any>> = {
   anfrage: Inbox,
 };
 
-// Kategorie-Filter über dem Board. Reihenfolge = Reihenfolge im Dropdown.
-const KATEGORIE_REIHENFOLGE: ProjektFilterKategorie[] = [
-  'platzbau',
-  'shop',
-  'anfrage',
-  'hydrocourt',
-  'universal',
-];
-const KATEGORIE_CONFIG: Record<
-  ProjektFilterKategorie,
-  { label: string; icon: React.ComponentType<any>; iconStyle: string; aktivStyle: string }
-> = {
-  platzbau: { label: 'Platzbauer', icon: HardHat, iconStyle: 'text-amber-600 dark:text-amber-400', aktivStyle: 'bg-amber-600 text-white' },
-  shop: { label: 'Onlineshop', icon: ShoppingCart, iconStyle: 'text-blue-600 dark:text-blue-400', aktivStyle: 'bg-blue-600 text-white' },
-  anfrage: { label: 'Anfragen', icon: Inbox, iconStyle: 'text-emerald-600 dark:text-emerald-400', aktivStyle: 'bg-emerald-600 text-white' },
-  hydrocourt: { label: 'Hydrocourt', icon: Droplets, iconStyle: 'text-cyan-600 dark:text-cyan-400', aktivStyle: 'bg-cyan-600 text-white' },
-  universal: { label: 'Universal', icon: Tag, iconStyle: 'text-orange-600 dark:text-orange-400', aktivStyle: 'bg-orange-600 text-white' },
-};
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
@@ -216,6 +200,11 @@ const MOBILE_VIEW_MODES: readonly ViewMode[] = ['overview', 'anfragen'];
 
 const istErlaubt = (wert: ViewMode, isMobile: boolean): boolean =>
   !isMobile || MOBILE_VIEW_MODES.includes(wert);
+
+// Gespeicherte Filteransichten. localStorage und nicht sessionStorage: Eine
+// benannte Ansicht wie „Spedition diese Woche" ist eine Arbeitsgewohnheit und
+// soll den Browserneustart ueberleben.
+const ANSICHTEN_KEY = 'projektverwaltung_filteransichten_v1';
 
 // Session Storage Keys
 // viewMode trägt ein `_v2`-Suffix, seit die Übersicht die Startansicht ist: der alte
@@ -464,13 +453,24 @@ const ProjektVerwaltung = () => {
   const [anfrageProjektIds, setAnfrageProjektIds] = useState<Set<string>>(new Set());
 
   // Filter nach Herkunft/Typ (null = alle Projekte)
-  const [aktiveKategorie, setAktiveKategorie] = useState<ProjektFilterKategorie | null>(null);
+
+  // Mehrachsiger Filter. Anfangswert aus der Adresse, damit eine geteilte oder
+  // als Lesezeichen gesicherte Einstellung sofort greift.
+  const [filter, setFilter] = useState<ProjektFilter>(() =>
+    filterAusUrlParams(new URLSearchParams(window.location.search))
+  );
+  const [ansichten, setAnsichten] = useState<GespeicherteAnsicht[]>(() => {
+    try {
+      const roh = localStorage.getItem(ANSICHTEN_KEY);
+      const geparst = roh ? JSON.parse(roh) : [];
+      return Array.isArray(geparst) ? geparst : [];
+    } catch {
+      return [];
+    }
+  });
   // Zweite Filterachse: Wie kommt die Ware zum Verein. `'offen'` steht für
   // Projekte, bei denen sich das noch nicht sagen lässt — sie sind ein eigener
   // Filterwert und fallen nicht still durch jede Auswahl.
-  const [aktiverWeg, setAktiverWeg] = useState<Abwicklungsweg | 'offen' | null>(null);
-  const [showKategorieMenu, setShowKategorieMenu] = useState(false);
-  const [showWegMenu, setShowWegMenu] = useState(false);
 
   // Wrapper-Funktionen die auch in Session Storage speichern
   const setViewMode = useCallback((mode: ViewMode) => {
@@ -664,78 +664,89 @@ const ProjektVerwaltung = () => {
     []
   );
 
-  // Kategorien einmal pro Datenstand berechnen (das Ableiten parst Positions-JSON,
-  // deshalb nicht bei jedem Render pro Karte)
-  const kategorienMap = useMemo(() => {
-    const map = new Map<string, Set<ProjektFilterKategorie>>();
-    Object.values(projekteGruppiert).forEach(projekte => {
-      projekte.forEach(projekt => {
-        const key = (projekt as { $id?: string }).$id || projekt.id;
-        map.set(key, getProjektKategorien(projekt, anfrageProjektIds));
-      });
-    });
-    return map;
-  }, [projekteGruppiert, anfrageProjektIds]);
 
-  // Anzahl je Kategorie für das Filter-Dropdown
-  const kategorieZaehler = useMemo(() => {
-    const zaehler: Record<ProjektFilterKategorie, number> & { gesamt: number } = {
-      platzbau: 0,
-      shop: 0,
-      anfrage: 0,
-      hydrocourt: 0,
-      universal: 0,
-      gesamt: kategorienMap.size,
-    };
-    kategorienMap.forEach(kategorien => {
-      kategorien.forEach(kategorie => {
-        zaehler[kategorie] += 1;
-      });
-    });
-    return zaehler;
-  }, [kategorienMap]);
+  // Filter in die Adresse spiegeln: ueberlebt den Reload, laesst sich als
+  // Lesezeichen ablegen und verschicken — „schau dir die Speditionsauftraege
+  // dieser Woche an" wird ein Link statt einer Anleitung.
+  useEffect(() => {
+    const params = filterZuUrlParams(filter, new URLSearchParams(window.location.search));
+    const query = params.toString();
+    const ziel = `${window.location.pathname}${query ? `?${query}` : ''}`;
+    if (ziel !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(null, '', ziel);
+    }
+  }, [filter]);
 
-  // Anzahl je Abwicklungsweg — damit im Menü steht, was sich dahinter verbirgt.
-  // Ohne Zähler klickt man ins Leere und weiß nicht, ob der Filter zu eng war
-  // oder es dort wirklich nichts gibt.
-  const wegZaehler = useMemo(() => {
-    const zaehler: Record<Abwicklungsweg | 'offen' | 'gesamt', number> = {
-      schuettgut: 0, palette: 0, kranwagen: 0, hydrocourt: 0, universal: 0,
-      abholung: 0, offen: 0, gesamt: 0,
-    };
-    Object.values(projekteGruppiert).forEach((projekte) => {
-      projekte.forEach((projekt) => {
-        zaehler.gesamt += 1;
-        const wege = getAbwicklungswege(projekt);
-        if (wege.size === 0) zaehler.offen += 1;
-        // Ein gemischter Auftrag zählt bewusst in jeder betroffenen Zeile mit —
-        // deshalb ergibt die Summe mehr als die Gesamtzahl.
-        wege.forEach((weg) => { zaehler[weg] += 1; });
+  // Grundgesamtheit fuer die Filterzaehler: alle Projekte VOR dem Filtern.
+  const alleProjekteFlach = useMemo(
+    () => ALLE_PROJEKT_STATUS.flatMap((status) => projekteGruppiert[status] ?? []),
+    [projekteGruppiert]
+  );
+
+  const filterKontext = useMemo(() => ({ anfrageProjektIds }), [anfrageProjektIds]);
+
+  // Wirkt gerade irgendein Filter? Die Spaltenzaehler zeigen dann die gefilterte
+  // Menge statt der Gesamtzahl — sonst behauptet die Spaltenueberschrift 153
+  // Angebote, waehrend drei Karten darunter stehen.
+  const filterWirkt = useMemo(
+    () => istFilterAktiv(filter) || !!suche.trim() || !!nummerSuche.trim(),
+    [filter, suche, nummerSuche]
+  );
+
+  const gefilterteAnzahl = useMemo(
+    () =>
+      istFilterAktiv(filter)
+        ? wendeFilterAn(alleProjekteFlach, { ...filter, suche: '' }, filterKontext).length
+        : alleProjekteFlach.length,
+    [alleProjekteFlach, filter, filterKontext]
+  );
+
+  const speichereAnsicht = useCallback(
+    (name: string) => {
+      setAnsichten((prev) => {
+        // Gleicher Name ueberschreibt — sonst sammeln sich drei „Spedition" an.
+        const ohne = prev.filter((a) => a.name !== name);
+        const neu = [...ohne, { name, filter }];
+        try {
+          localStorage.setItem(ANSICHTEN_KEY, JSON.stringify(neu));
+        } catch (error) {
+          console.warn('Ansicht konnte nicht gespeichert werden:', error);
+        }
+        return neu;
       });
+      toast.success(`Ansicht „${name}" gesichert`);
+    },
+    [filter]
+  );
+
+  const loescheAnsicht = useCallback((name: string) => {
+    setAnsichten((prev) => {
+      const neu = prev.filter((a) => a.name !== name);
+      try {
+        localStorage.setItem(ANSICHTEN_KEY, JSON.stringify(neu));
+      } catch (error) {
+        console.warn('Ansicht konnte nicht geloescht werden:', error);
+      }
+      return neu;
     });
-    return zaehler;
-  }, [projekteGruppiert]);
+  }, []);
+
+
 
   // FILTER MIT SEPARATER NUMMERN-SUCHE
   const filterProjekte = useCallback((projekte: Projekt[]) => {
     // Schritt 1: Kategorie-Filter (Platzbauer, Shop, Anfrage, Hydrocourt, Universal)
-    let gefiltert = aktiveKategorie
-      ? projekte.filter(p => {
-          const key = (p as { $id?: string }).$id || p.id;
-          return kategorienMap.get(key)?.has(aktiveKategorie) === true;
-        })
-      : projekte;
+    let gefiltert = projekte;
 
     // Schritt 1b: Abwicklungsweg — bewusst eine EIGENE Achse neben der Herkunft.
     // „Über den Platzbauer bestellt" und „geht per Spedition" sind zwei
     // verschiedene Fragen; sie standen früher in einem Topf, wodurch man nie
     // beides gleichzeitig einschränken konnte.
-    if (aktiverWeg) {
-      gefiltert =
-        aktiverWeg === 'offen'
-          ? gefiltert.filter((p) => wegNochOffen(p))
-          : gefiltert.filter((p) => hatAbwicklungsweg(p, aktiverWeg));
-    }
+    // Schritt 1c: Die mehrachsigen Filter (Herkunft, Produkt, Koernung, Form,
+    // Transport, Termin). Innerhalb einer Achse ODER, zwischen den Achsen UND —
+    // siehe utils/projektFilter.ts. Die Freitextsuche laeuft NICHT hierueber:
+    // Sie bleibt bei der Fuzzy-Suche weiter unten, die Tippfehler verzeiht.
+    gefiltert = wendeFilterAn(gefiltert, { ...filter, suche: '' }, { anfrageProjektIds });
 
     // ============================================
     // SCHRITT 2: DEDIZIERTE NUMMERN-SUCHE (eigenes Feld!)
@@ -755,10 +766,11 @@ const ProjektVerwaltung = () => {
     // ============================================
     // SCHRITT 3: FUZZY SEARCH für Namen, Orte (wenn Text eingegeben)
     // ============================================
-    if (suche.trim()) {
+    const suchText = suche.trim() || filter.suche.trim();
+    if (suchText) {
       const results = fuzzySearch<Projekt>(
         gefiltert,
-        suche,
+        suchText,
         (p) => {
           const kunde = p.kundeId ? kundenMap.get(p.kundeId) : null;
           return [
@@ -775,7 +787,7 @@ const ProjektVerwaltung = () => {
     }
 
     return gefiltert;
-  }, [suche, nummerSuche, kundenMap, aktiveKategorie, kategorienMap, aktiverWeg]);
+  }, [suche, nummerSuche, kundenMap, filter, anfrageProjektIds]);
 
   // Alle Projekte mit Angebot für die Angebotsliste.
   // Über ALLE_PROJEKT_STATUS abgeleitet statt Status für Status aufgezählt: Die
@@ -1283,149 +1295,10 @@ const ProjektVerwaltung = () => {
               )}
             </div>
 
-            {/* Abwicklungsweg — eigene Achse neben der Herkunft. „Wer hat bestellt"
-                und „wie kommt die Ware hin" sind zwei verschiedene Fragen. */}
-            <div className="relative">
-              <button
-                onClick={() => setShowWegMenu(!showWegMenu)}
-                className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
-                  aktiverWeg
-                    ? 'bg-slate-700 text-white border-transparent dark:bg-slate-200 dark:text-slate-900'
-                    : 'border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Nach Abwicklungsweg filtern"
-              >
-                <Truck className="w-4 h-4" />
-                <span className="hidden sm:inline">
-                  {aktiverWeg
-                    ? aktiverWeg === 'offen'
-                      ? 'Weg offen'
-                      : ABWICKLUNGSWEG_LABEL[aktiverWeg]
-                    : 'Abwicklung'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-              {showWegMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowWegMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-20 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1">
-                    <button
-                      onClick={() => { setAktiverWeg(null); setShowWegMenu(false); }}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
-                        !aktiverWeg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Alle Wege
-                      <span className="text-xs text-gray-400">{wegZaehler.gesamt}</span>
-                    </button>
-                    {ABWICKLUNGSWEGE.map((weg) => (
-                      <button
-                        key={weg}
-                        onClick={() => { setAktiverWeg(weg); setShowWegMenu(false); }}
-                        className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700 ${
-                          aktiverWeg === weg ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-gray-400 w-10">
-                            {ABWICKLUNGSWEG_KUERZEL[weg]}
-                          </span>
-                          {ABWICKLUNGSWEG_LABEL[weg]}
-                        </span>
-                        <span className="text-xs text-gray-400">{wegZaehler[weg]}</span>
-                      </button>
-                    ))}
-                    {/* Eigener Eintrag statt stillem Ausblenden: Projekte ohne
-                        bestimmbaren Weg sind ein Arbeitsvorrat, kein Datenfehler. */}
-                    <button
-                      onClick={() => { setAktiverWeg('offen'); setShowWegMenu(false); }}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between border-t border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 ${
-                        aktiverWeg === 'offen' ? 'font-semibold text-gray-900 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400'
-                      }`}
-                    >
-                      Weg noch offen
-                      <span className="text-xs text-gray-400">{wegZaehler.offen}</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Kategorie-Filter (Platzbauer, Shop, Anfragen, Hydrocourt, Universal) */}
-            <div className="relative">
-              <button
-                onClick={() => setShowKategorieMenu(!showKategorieMenu)}
-                className={`px-3 py-2 flex items-center gap-2 rounded-lg border transition-colors ${
-                  aktiveKategorie
-                    ? `${KATEGORIE_CONFIG[aktiveKategorie].aktivStyle} border-transparent`
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Projekte nach Herkunft oder Typ filtern"
-              >
-                {(() => {
-                  const AktivIcon = aktiveKategorie ? KATEGORIE_CONFIG[aktiveKategorie].icon : Filter;
-                  return <AktivIcon className="w-4 h-4" />;
-                })()}
-                <span className="hidden sm:inline">
-                  {aktiveKategorie ? KATEGORIE_CONFIG[aktiveKategorie].label : 'Alle Projekte'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-
-              {showKategorieMenu && (
-                <>
-                  {/* Klick daneben schließt das Menü */}
-                  <div className="fixed inset-0 z-10" onClick={() => setShowKategorieMenu(false)} />
-                  <div className="absolute right-0 mt-1 z-20 w-60 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-xl py-1">
-                    <button
-                      onClick={() => {
-                        setAktiveKategorie(null);
-                        setShowKategorieMenu(false);
-                      }}
-                      className={`w-full px-3 py-2 flex items-center justify-between gap-2 text-sm transition-colors ${
-                        aktiveKategorie === null
-                          ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white font-semibold'
-                          : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-gray-400" />
-                        Alle Projekte
-                      </span>
-                      <span className="text-xs text-gray-400 dark:text-slate-400">{kategorieZaehler.gesamt}</span>
-                    </button>
-
-                    <div className="my-1 border-t border-gray-100 dark:border-slate-700" />
-
-                    {KATEGORIE_REIHENFOLGE.map((kategorie) => {
-                      const config = KATEGORIE_CONFIG[kategorie];
-                      const KategorieIcon = config.icon;
-                      const anzahl = kategorieZaehler[kategorie];
-                      return (
-                        <button
-                          key={kategorie}
-                          onClick={() => {
-                            setAktiveKategorie(kategorie);
-                            setShowKategorieMenu(false);
-                          }}
-                          className={`w-full px-3 py-2 flex items-center justify-between gap-2 text-sm transition-colors ${
-                            aktiveKategorie === kategorie
-                              ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white font-semibold'
-                              : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <KategorieIcon className={`w-4 h-4 ${config.iconStyle}`} />
-                            {config.label}
-                          </span>
-                          <span className="text-xs text-gray-400 dark:text-slate-400">{anzahl}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+            {/* Die frueheren Dropdowns fuer Kategorie und Abwicklungsweg sind in die
+                Filterleiste unter dieser Zeile gewandert. Sie liessen jeweils nur EINEN
+                Wert zu — „Shop UND Universal" oder „0/2 oder 0/3" war damit nicht
+                ausdrueckbar. */}
               </>
             )}
 
@@ -1689,6 +1562,23 @@ const ProjektVerwaltung = () => {
         />
       )}
 
+      {/* Filterleiste: mehrere Werte je Achse, UND zwischen den Achsen. Steht ueber
+          der Lieferantenleiste, weil sie bestimmt, worauf sich alles darunter
+          bezieht. */}
+      {FILTERBARE_VIEWS.includes(viewMode) && (
+        <ProjektFilterLeiste
+          filter={filter}
+          onChange={setFilter}
+          alleProjekte={alleProjekteFlach}
+          trefferAnzahl={gefilterteAnzahl}
+          kontext={filterKontext}
+          ansichten={ansichten}
+          onAnsichtSpeichern={speichereAnsicht}
+          onAnsichtLaden={(a) => setFilter(a.filter)}
+          onAnsichtLoeschen={loescheAnsicht}
+        />
+      )}
+
       {/* Lieferantenleiste: was liegt gerade bei wem. Steht ueber dem Board in den
           beiden Arbeitsansichten — der Beschaffungstakt laeuft parallel zum
           Kundentakt und war bisher nur in getrennten Vollbildansichten sichtbar. */}
@@ -1717,7 +1607,7 @@ const ProjektVerwaltung = () => {
           {TABS.map((tab) => {
             const projekte = filterProjekte(getProjekte(tab.id));
             // Bei aktivem Kategorie-Filter die sichtbare Anzahl zeigen, sonst die Gesamtzahl
-            const count = aktiveKategorie ? projekte.length : getCount(tab.id);
+            const count = filterWirkt ? projekte.length : getCount(tab.id);
 
             return (
               <KanbanSpalte
@@ -1748,7 +1638,7 @@ const ProjektVerwaltung = () => {
             <KanbanSpalte
               tab={VERLOREN_TAB}
               projekte={filterProjekte(getProjekte('verloren'))}
-              count={aktiveKategorie ? filterProjekte(getProjekte('verloren')).length : gesamtVerloren}
+              count={filterWirkt ? filterProjekte(getProjekte('verloren')).length : gesamtVerloren}
               dragOverTab={dragOverTab}
               kompakteAnsicht={kompakteAnsicht}
               kundenMap={kundenMap}
