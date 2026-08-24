@@ -33,6 +33,10 @@ String baut, statt sie als Argument zu übergeben, umgeht den Proxy — dafür g
 - `npx tsx scripts/migriere-universal-preise.ts` - Migriert Universal-Artikel von Brutto auf Netto-Preise
 - `npx tsx scripts/migriere-adressen.ts` - Migriert Adressen-Struktur
 - `node scripts/add-wiki-files-sortorder.js` - Fügt `wiki_files.sortOrder` hinzu (Datei-Sortierung im Wiki, idempotent)
+- `node scripts/setup-projekt-herkunft.mjs [--dry-run] [--mock]` - Legt `projekte.herkunft`,
+  `projekte.shopBestellnummer` und `shop_bestellungen.projektIds` an und migriert den Altbestand
+  (idempotent). **`--mock` arbeitet auf der Sandbox** — ohne den Schalter fehlen die Spalten dort,
+  und das Portal testet im Mock-Modus den Fallback statt der Herkunftslogik.
 - Alle Scripts unterstützen `--dry-run` für Vorschau ohne Änderungen
 
 ## Architecture
@@ -214,6 +218,20 @@ dieselbe Collection zu, legte aber am Verarbeitungsweg vorbei Projekte an. Die R
 `/anfragen` leitet nur noch auf `/projekt-verwaltung?view=anfragen` um und reicht ein
 `anfrageId` durch. Benachrichtigungen und die globale Suche verlinken direkt auf
 `/projekt-verwaltung?view=anfragen&anfrageId=<id>`.
+
+### Kanban-Filter
+
+Die Filterleiste (`utils/projektFilter.ts`, `components/ProjektVerwaltung/ProjektFilterLeiste.tsx`)
+kennt sechs Achsen: Herkunft, Produkt, Körnung, Gebindeform, Transport, Liefertermin.
+
+**Verknüpfung:** Innerhalb einer Achse **ODER** („0/2 oder 0/3"), zwischen den Achsen **UND**
+(„Shop UND Universal"). Eine leere Achse filtert nicht.
+
+Der Zähler an jedem Wert rechnet gegen den Filter **ohne die eigene Achse** — sonst zeigte „0/3"
+eine 0, sobald „0/2" gewählt ist, und man schlösse daraus, es gäbe keine 0/3-Aufträge.
+
+Der Filterzustand steht in der Adresse (`?f_kanal=shop&f_produkt=universal`) und ist damit
+teilbar; benannte Ansichten liegen im localStorage.
 
 **Spezial-Views (Hydrocourt & Universal):**
 - Filtern Positionen aus bestätigten Aufträgen (Status >= AB)

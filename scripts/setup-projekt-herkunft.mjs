@@ -21,12 +21,18 @@
  * zurück; `SCHEMA_V39_OPTIONALE_FELDER` in projektService.ts fängt das
  * "Unknown attribute" beim Schreiben ab.
  *
- * Aufruf:  node scripts/setup-projekt-herkunft.mjs [--dry-run]
+ * Aufruf:  node scripts/setup-projekt-herkunft.mjs [--dry-run] [--mock]
+ *
+ * `--mock` arbeitet auf der Sandbox-Datenbank statt auf der Produktion. Ohne den
+ * Schalter fehlen die drei Spalten dort — das Portal faellt im Mock-Modus zwar
+ * sauber auf die alten Ableitungen zurueck, aber wer die Sandbox zum Testen der
+ * Herkunftslogik benutzt, testet dann eben nicht sie, sondern den Fallback.
  */
 import { readFileSync } from 'fs';
 import { Client, Databases, Query } from 'node-appwrite';
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const MOCK = process.argv.includes('--mock');
 
 const env = {};
 for (const line of readFileSync('.env', 'utf8').split('\n')) {
@@ -37,7 +43,9 @@ for (const line of readFileSync('.env', 'utf8').split('\n')) {
 const ENDPOINT = env.VITE_APPWRITE_ENDPOINT;
 const PROJECT = env.VITE_APPWRITE_PROJECT_ID;
 const API_KEY = env.APPWRITE_API_KEY;
-const DB = 'tennismehl24_db';
+// Muss zu MOCK_DATABASE_ID / PRODUKTIONS_DATABASE_ID aus src/config/appwriteEnv.ts
+// passen. Als Node-Skript kann diese Datei den TS-Proxy nicht nutzen.
+const DB = MOCK ? 'tennismehl24_db_mock' : 'tennismehl24_db';
 
 if (!ENDPOINT || !PROJECT || !API_KEY) {
   console.error('❌ VITE_APPWRITE_ENDPOINT, VITE_APPWRITE_PROJECT_ID und APPWRITE_API_KEY müssen in .env gesetzt sein');
@@ -111,7 +119,9 @@ function shopBestellnummer(p) {
 }
 
 async function main() {
-  console.log(DRY_RUN ? '🔍 DRY-RUN — es wird nichts geschrieben\n' : '✏️  SCHREIBMODUS\n');
+  console.log(
+    `${DRY_RUN ? '🔍 DRY-RUN — es wird nichts geschrieben' : '✏️  SCHREIBMODUS'}  ·  Datenbank: ${DB}\n`
+  );
 
   console.log('— Attribute —');
   const fehlend = new Set();
