@@ -82,6 +82,13 @@ import { Stueckliste, getStuecklistenNachKategorie } from '../../constants/stuec
 import { berechneFremdlieferungRoute } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
 
+// 'ENTWURF' stammt aus dem Anfragen-Dialog ("Nur Kunde und Projekt anlegen"):
+// dort wurde das Angebot mit diesem Platzhalter statt einer echten Nummer
+// hinterlegt und teils sogar so versendet. Der Platzhalter zählt deshalb
+// überall als "keine Nummer", damit die automatische Vergabe greift.
+const istPlatzhalterNummer = (nummer?: string): boolean =>
+  !nummer || nummer.trim().toUpperCase() === 'ENTWURF';
+
 interface AngebotTabProps {
   projekt?: Projekt;
   kunde?: SaisonKunde | null;
@@ -540,7 +547,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           }
         }
         
-        let angebotsnummer = projekt?.angebotsnummer;
+        let angebotsnummer = istPlatzhalterNummer(projekt?.angebotsnummer)
+          ? undefined
+          : projekt?.angebotsnummer;
         if (!angebotsnummer) {
           try {
             angebotsnummer = await generiereNaechsteDokumentnummer('angebot');
@@ -695,7 +704,11 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   // Angebotsnummer generieren (nur wenn noch keine vorhanden ist)
   useEffect(() => {
     const generiereNummer = async () => {
-      if (!angebotsDaten.angebotsnummer && !projekt?.angebotsnummer && !initialLaden) {
+      if (
+        istPlatzhalterNummer(angebotsDaten.angebotsnummer) &&
+        istPlatzhalterNummer(projekt?.angebotsnummer) &&
+        !initialLaden
+      ) {
         try {
           const neueNummer = await generiereNaechsteDokumentnummer('angebot');
           setAngebotsDaten(prev => ({ ...prev, angebotsnummer: neueNummer }));
@@ -1322,8 +1335,12 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
   // PDF generieren und E-Mail-Formular öffnen
   const oeffneEmailMitAngebot = async () => {
     try {
-      if (!angebotsDaten.angebotsnummer) {
-        alert('Bitte geben Sie zuerst eine Angebotsnummer ein.');
+      if (istPlatzhalterNummer(angebotsDaten.angebotsnummer)) {
+        alert(
+          'Dieses Angebot hat noch keine gültige Angebotsnummer.\n\n' +
+          'Bitte den Reiter neu laden, damit automatisch eine Nummer vergeben wird — ' +
+          'ein Angebot darf nicht mit dem Platzhalter "ENTWURF" versendet werden.'
+        );
         return;
       }
 
@@ -1388,6 +1405,14 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
     }
+
+    if (istPlatzhalterNummer(angebotsDaten.angebotsnummer)) {
+      setStatusMeldung({
+        typ: 'fehler',
+        text: 'Keine gültige Angebotsnummer ("ENTWURF") — bitte den Reiter neu laden, damit automatisch eine Nummer vergeben wird.',
+      });
+      return;
+    }
     
     try {
       setLadeStatus('speichern');
@@ -1439,7 +1464,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         const projektUpdateDaten: Record<string, unknown> = {};
 
         // WICHTIG: Angebotsnummer, Datum und ID zum Projekt speichern (für Kanban-Anzeige und Suche!)
-        if (angebotsDaten.angebotsnummer) {
+        if (!istPlatzhalterNummer(angebotsDaten.angebotsnummer)) {
           projektUpdateDaten.angebotsnummer = angebotsDaten.angebotsnummer;
         }
         if (angebotsDaten.angebotsdatum) {

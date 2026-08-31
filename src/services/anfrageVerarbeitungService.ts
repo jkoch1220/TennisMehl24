@@ -12,7 +12,7 @@ import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { getStammdatenOderDefault } from './stammdatenService';
 import { generiereAngebotPDF } from './dokumentService';
 import { formatAdresszeile } from './pdfHelpers';
-import { speichereAngebot } from './projektabwicklungDokumentService';
+import { speichereAngebot, speichereEntwurf } from './projektabwicklungDokumentService';
 import { sendeEmailMitPdf, pdfZuBase64, wrapInEmailTemplate } from './emailSendService';
 import { anfragenService } from './anfragenService';
 import { AngebotsDaten, VertragsKlausel } from '../types/projektabwicklung';
@@ -743,7 +743,10 @@ export async function erstelleNurKundeUndProjekt(
         kundenstrasse: input.kundenDaten.strasse,
         kundenPlzOrt: formatAdresszeile(input.kundenDaten.plz, input.kundenDaten.ort, input.kundenDaten.land),
         ansprechpartner: input.kundenDaten.ansprechpartner,
-        angebotsnummer: 'ENTWURF', // Noch keine Nummer - wird erst bei Versand generiert
+        // Bewusst LEER statt Platzhalter wie 'ENTWURF': Der Angebot-Tab vergibt bei
+        // leerer Nummer automatisch die nächste echte Nummer. Ein Platzhalter würde
+        // die Vergabe blockieren und landete früher sogar auf versendeten PDFs.
+        angebotsnummer: '',
         angebotsdatum: heute,
         gueltigBis,
         positionen: input.positionen,
@@ -766,7 +769,10 @@ export async function erstelleNurKundeUndProjekt(
         firmenEmail: stammdaten.firmenEmail,
       };
 
-      await speichereAngebot(projektId, angebotsDaten);
+      // Als ENTWURF im Projekt ablegen — NICHT speichereAngebot: das würde ein
+      // finalisiertes Dokument (PDF + Verlaufseintrag) ohne gültige Nummer erzeugen.
+      // Die echte Nummer vergibt der Angebot-Tab beim ersten Öffnen.
+      await speichereEntwurf(projektId, 'angebotsDaten', angebotsDaten);
       reportFortschritt('angebot_speichern', true, 'Angebotsentwurf gespeichert');
     } catch (error) {
       // Nicht kritisch
