@@ -36,7 +36,7 @@ import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektab
 import { projektService } from '../../services/projektService';
 import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import { sendeEmailMitPdf, sendeEmail, wrapInEmailTemplate } from '../../services/emailSendService';
-import { generiereStandardEmail } from '../../utils/emailHelpers';
+import { ladeStandardSignatur } from '../../utils/emailHelpers';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import { debitorService } from '../../services/debitorService';
@@ -700,9 +700,8 @@ const UniversalView = ({ projekteGruppiert, onProjektClick }: UniversalViewProps
       const kundenEmail = projekt.kundenEmail || '';
       const kundenTelefon = projekt.kundenTelefon || projekt.dispoAnsprechpartner?.telefon || '';
 
-      // Signatur aus Stammdaten laden
-      const emailTemplate = await generiereStandardEmail('angebot', lieferscheinnummer, gruppe.kundenname);
-      const signaturHtml = emailTemplate.signatur || '';
+      // Zentrale Signatur direkt laden (kein Umweg über die Angebots-Vorlage)
+      const signaturHtml = await ladeStandardSignatur();
 
       // Email-Body erstellen (ohne Signatur, wird später angehängt)
       // Kundenkontaktdaten werden separat verwaltet und dynamisch eingefügt
@@ -940,9 +939,8 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
         }
       }
 
-      // Signatur aus Stammdaten laden (verwende 'angebot' Template wie bei Universal-Lieferschein)
-      const emailTemplate = await generiereStandardEmail('angebot', gruppe.abNummer, gruppe.kundenname);
-      const signaturHtml = emailTemplate.signatur || '';
+      // Zentrale Signatur direkt laden (kein Umweg über die Angebots-Vorlage)
+      const signaturHtml = await ladeStandardSignatur();
 
       // Empfänger basierend auf Testmodus (leer lassen wenn keine Email, User kann eintragen)
       const empfaenger = testModus ? TEST_EMAIL : (kundenEmail || '');

@@ -89,6 +89,9 @@ const EmailFormular = ({
   const [absender, setAbsender] = useState('');
   const [betreff, setBetreff] = useState('');
   const [htmlContent, setHtmlContent] = useState('');
+  // Signatur bleibt außerhalb des Editors: TipTap kennt keine Tabellen und würde
+  // das Tabellen-Layout der Signatur zerlegen; angehängt wird sie erst beim Versand.
+  const [signatur, setSignatur] = useState('');
   const [testModus, setTestModus] = useState(false);
 
   // UI-State
@@ -198,10 +201,9 @@ const EmailFormular = ({
           htmlText += '\n' + zusatzHtml;
         }
 
-        // Signatur aus Stammdaten anhängen wenn vorhanden
-        if (emailDaten.signatur) {
-          htmlText += '\n' + emailDaten.signatur;
-        }
+        // Signatur getrennt halten — sie wird unter dem Editor angezeigt
+        // und erst beim Versand angehängt
+        setSignatur(emailDaten.signatur || '');
         setHtmlContent(htmlText);
 
         // PDF-Vorschau erstellen
@@ -286,7 +288,7 @@ const EmailFormular = ({
       const pdfBase64 = pdfZuBase64(pdf);
 
       // HTML in E-Mail-Template wrappen
-      const vollstaendigesHtml = wrapInEmailTemplate(htmlContent);
+      const vollstaendigesHtml = wrapInEmailTemplate(htmlContent, signatur);
 
       // E-Mail senden
       const result = await sendeEmailMitPdf({
@@ -578,6 +580,18 @@ const EmailFormular = ({
               minHeight="250px"
             />
           </div>
+
+          {/* Signatur-Vorschau: nicht editierbar, wird beim Versand automatisch angehängt */}
+          {signatur && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
+                Signatur (wird automatisch angehängt)
+              </label>
+              <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-800 opacity-90">
+                <div dangerouslySetInnerHTML={{ __html: signatur }} />
+              </div>
+            </div>
+          )}
 
           {/* PDF-Anhang Info */}
           <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 flex items-start gap-4">

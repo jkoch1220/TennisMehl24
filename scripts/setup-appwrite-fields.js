@@ -33,7 +33,10 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const DATABASE_ID = 'tennismehl24_db';
+// `--mock` legt die Collections in der Sandbox an statt in der Produktion.
+// Ohne das Flag zielt das Skript wie bisher auf die Produktionsdatenbank.
+const MOCK = process.argv.includes('--mock');
+const DATABASE_ID = MOCK ? 'tennismehl24_db_mock' : 'tennismehl24_db';
 const FIXKOSTEN_COLLECTION_ID = 'fixkosten';
 const VARIABLE_KOSTEN_COLLECTION_ID = 'variable_kosten';
 const KUNDEN_COLLECTION_ID = 'kunden';
@@ -45,6 +48,9 @@ const WIKI_PAGES_COLLECTION_ID = 'wiki_pages';
 const WIKI_FILES_COLLECTION_ID = 'wiki_files';
 const WIKI_DATEIEN_BUCKET_ID = 'wiki-dateien';
 const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
+const MASSEN_ANGEBOTE_COLLECTION_ID = 'massen_angebote';
+const MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID = 'massen_angebot_zeilen';
+const BESTELLUNG_FOTOS_BUCKET_ID = 'bestellung-fotos';
 const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
 
 // Standard-Permissions für eingeloggte Nutzer (Collection-Level)
@@ -143,6 +149,10 @@ const kundenAktivitaetenFields = [
 // Alle anderen Daten werden im 'data'-JSON gespeichert.
 // Siehe: APPWRITE_COLLECTION_PROJEKTE.md
 const projekteFields = [
+  // Öffentliches Bestellportal: eigener Token, getrennt von der Datenprüfung.
+  { key: 'bestellToken', type: 'string', size: 100, required: false },
+  { key: 'bestellTokenErstelltAm', type: 'string', size: 50, required: false },
+  { key: 'bestellungEingegangenAm', type: 'string', size: 50, required: false },
   { key: 'projektName', type: 'string', size: 255, required: true },
   { key: 'kundeId', type: 'string', size: 255, required: true },
   { key: 'kundenname', type: 'string', size: 255, required: true },
@@ -169,6 +179,50 @@ const angebotsLaeufeFields = [
   { key: 'data', type: 'string', size: 100000, required: false },
 ];
 
+// Kampagnen-Kopf. Die Zaehler stehen als eigene Spalten, damit die Liste sie
+// anzeigen kann, ohne alle Zeilen zu laden.
+const massenAngeboteFields = [
+  { key: 'name', type: 'string', size: 255, required: true },
+  { key: 'typ', type: 'string', size: 40, required: true },
+  { key: 'saisonjahr', type: 'integer', required: true },
+  { key: 'status', type: 'string', size: 30, required: true },
+  { key: 'erstelltAm', type: 'string', size: 50, required: true },
+  { key: 'erstelltVon', type: 'string', size: 255, required: false },
+  { key: 'geaendertAm', type: 'string', size: 50, required: false },
+  { key: 'versendetAm', type: 'string', size: 50, required: false },
+  { key: 'batchId', type: 'string', size: 100, required: false },
+  { key: 'notiz', type: 'string', size: 5000, required: false },
+  { key: 'anzahlZeilen', type: 'integer', required: false, default: 0 },
+  { key: 'anzahlGeprueft', type: 'integer', required: false, default: 0 },
+  { key: 'anzahlKompliziert', type: 'integer', required: false, default: 0 },
+  { key: 'anzahlVersendet', type: 'integer', required: false, default: 0 },
+  { key: 'preisanpassungProzent', type: 'double', required: false },
+  { key: 'preisanpassungAngewendetAm', type: 'string', size: 50, required: false },
+];
+
+// Eine Zeile je Kunde. Filter- und sortierbare Werte stehen als echte Spalten,
+// alles Uebrige (Positionen, Referenz, Warnungen) im data-JSON: Query.equal
+// funktioniert nur auf echten Spalten, und genau danach wird gefiltert.
+const massenAngebotZeilenFields = [
+  { key: 'kampagneId', type: 'string', size: 100, required: true },
+  { key: 'kundeId', type: 'string', size: 100, required: true },
+  { key: 'kundenname', type: 'string', size: 255, required: false },
+  { key: 'kundennummer', type: 'string', size: 50, required: false },
+  { key: 'markierung', type: 'string', size: 30, required: false },
+  { key: 'ausgewaehlt', type: 'boolean', required: false, default: true },
+  { key: 'menge', type: 'double', required: false },
+  { key: 'preisProTonne', type: 'double', required: false },
+  { key: 'basisPreisProTonne', type: 'double', required: false },
+  { key: 'empfaengerEmail', type: 'string', size: 500, required: false },
+  { key: 'selbstabholer', type: 'boolean', required: false, default: false },
+  { key: 'projektId', type: 'string', size: 100, required: false },
+  { key: 'angebotsnummer', type: 'string', size: 50, required: false },
+  { key: 'versendetAm', type: 'string', size: 50, required: false },
+  { key: 'geaendertAm', type: 'string', size: 50, required: false },
+  { key: 'geaendertVon', type: 'string', size: 255, required: false },
+  { key: 'data', type: 'string', size: 200000, required: false },
+];
+
 // Archiv der Kunden-Merges (Sicherheitsnetz: jeder Merge voll wiederherstellbar)
 const kundenMergeArchivFields = [
   { key: 'survivorId', type: 'string', size: 100, required: true },
@@ -189,8 +243,17 @@ const artikelFields = [
   { key: 'beschreibung', type: 'string', size: 2000 },
   { key: 'einheit', type: 'string', size: 50, required: true },
   { key: 'einzelpreis', type: 'double', required: false }, // Optional - für Preise auf Anfrage
+  { key: 'einkaufspreis', type: 'double', required: false }, // für DB1; fehlte bis 08/2026 in Appwrite
+  { key: 'streichpreis', type: 'double', required: false },
   { key: 'erstelltAm', type: 'string', size: 50 },
   { key: 'aktualisiertAm', type: 'string', size: 50 },
+  // Klassifizierung (Stufe 1 Artikelverwaltung, 08/2026) — als Enums legt sie
+  // scripts/setup-artikel-stammfelder.ts an; hier als Referenz des Repo-Solls.
+  // createField kennt keinen enum-Typ, daher würden diese Keys bei einem
+  // Fresh-Setup über setup-artikel-stammfelder.ts nachgezogen (409 = ok).
+  { key: 'istTonnageRelevant', type: 'boolean', required: false, default: false },
+  { key: 'gewichtProStueckKg', type: 'double', required: false },
+  { key: 'aktiv', type: 'boolean', required: false, default: true },
 ];
 
 const stammdatenFields = [
@@ -225,8 +288,9 @@ const stammdatenFields = [
   { key: 'werkPlz', type: 'string', size: 20 },
   { key: 'werkOrt', type: 'string', size: 200 },
 
-  // E-Mail-Templates (als JSON-String)
-  { key: 'emailTemplates', type: 'string', size: 10000 },
+  // E-Mail-Templates (als JSON-String) — 65.535 wie update-email-templates-size.ts:
+  // die Tabellen-Signatur plus alle Vorlagen sprengen 10.000 Zeichen locker
+  { key: 'emailTemplates', type: 'string', size: 65535 },
 
   // Telefon-Leitfaden für die Anfragenbearbeitung (als JSON-String)
   { key: 'salesLeitfaden', type: 'string', size: 50000 },
@@ -394,6 +458,46 @@ async function ensureCollection(collectionId, name, permissions = [], documentSe
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
+/**
+ * Bucket fuer Kunden-Uploads: KEINE Rechte fuer irgendjemanden.
+ *
+ * Ohne Permissions kommt ausschliesslich der Server-API-Key an die Dateien —
+ * also nur die Netlify Function, die vorher den Token prueft. Ein Bucket mit
+ * `read("any")` waere ein Zugang ohne jede Pruefung, und Bucket- und Datei-IDs
+ * sind ratbar.
+ */
+async function ensurePrivaterBucket(bucketId, name, maxBytes) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Appwrite-Project': projectId,
+    'X-Appwrite-Key': apiKey,
+  };
+  const res = await fetch(`${endpoint}/storage/buckets/${bucketId}`, { method: 'GET', headers });
+  if (res.ok) { console.log(`✓ Bucket existiert bereits: ${bucketId}`); return; }
+  if (res.status !== 404) { console.warn(`⚠️ Konnte Bucket ${bucketId} nicht prüfen (${res.status}).`); return; }
+
+  console.log(`📦 Erstelle privaten Bucket ${bucketId} (${name}) ...`);
+  const createRes = await fetch(`${endpoint}/storage/buckets`, {
+    method: 'POST', headers,
+    body: JSON.stringify({
+      bucketId, name,
+      permissions: [],           // nur der Server-Key
+      fileSecurity: false,
+      maximumFileSize: maxBytes,
+      allowedFileExtensions: ['jpg', 'jpeg', 'png'],
+      compression: 'none',       // Bilder sind bereits komprimiert
+      encryption: true,
+      antivirus: true,
+    }),
+  });
+  if (!createRes.ok) {
+    const err = await createRes.json().catch(() => ({}));
+    console.error(`❌ Bucket ${bucketId} konnte nicht angelegt werden:`, err.message || createRes.status);
+    return;
+  }
+  console.log(`✅ Privater Bucket erstellt: ${bucketId}`);
+}
+
 async function ensureBucket(bucketId, name) {
   const headers = {
     'Content-Type': 'application/json',
@@ -502,9 +606,14 @@ async function main() {
     // Massen-Angebots-Läufe: Collection-Level-Permissions für eingeloggte Nutzer
     await ensureCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', USER_PERMISSIONS, false);
     await ensureCollection(KUNDEN_MERGE_ARCHIV_COLLECTION_ID, 'Kunden-Merge-Archiv', USER_PERMISSIONS, false);
+    await ensureCollection(MASSEN_ANGEBOTE_COLLECTION_ID, 'Massen-Angebote', USER_PERMISSIONS, false);
+    await ensureCollection(MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, 'Massen-Angebot-Zeilen', USER_PERMISSIONS, false);
 
     // Erstelle Bucket für Wiki-Dateien
     await ensureBucket(WIKI_DATEIEN_BUCKET_ID, 'Wiki Dateien');
+    // Kunden-Fotos der Schüttstelle: 2 MB reichen für ein auf 1600 px
+    // verkleinertes Bild reichlich und deckeln zugleich den Missbrauch.
+    await ensurePrivaterBucket(BESTELLUNG_FOTOS_BUCKET_ID, 'Bestellung Schüttstellen-Fotos', 2 * 1024 * 1024);
 
     console.log('\n📝 Erstelle Felder...\n');
 
@@ -520,6 +629,8 @@ async function main() {
     await setupCollection(WIKI_FILES_COLLECTION_ID, 'Wiki Files', wikiFilesFields);
     await setupCollection(ANGEBOTS_LAEUFE_COLLECTION_ID, 'Angebots-Läufe', angebotsLaeufeFields);
     await setupCollection(KUNDEN_MERGE_ARCHIV_COLLECTION_ID, 'Kunden-Merge-Archiv', kundenMergeArchivFields);
+    await setupCollection(MASSEN_ANGEBOTE_COLLECTION_ID, 'Massen-Angebote', massenAngeboteFields);
+    await setupCollection(MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, 'Massen-Angebot-Zeilen', massenAngebotZeilenFields);
 
     // Warte kurz, damit Felder erstellt sind
     console.log('\n⏳ Warte auf Feld-Erstellung...');
@@ -528,6 +639,10 @@ async function main() {
     // Erstelle Indizes für Wiki
     console.log('\n📇 Erstelle Indizes...\n');
     await ensureIndex(WIKI_FILES_COLLECTION_ID, 'pageId_index', ['pageId']);
+    // Ohne diesen Index laedt jede Kampagne alle Zeilen aller Kampagnen.
+    await ensureIndex(MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, 'kampagne_index', ['kampagneId']);
+    await ensureIndex(MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, 'kampagne_kunde_index', ['kampagneId', 'kundeId']);
+    await ensureIndex(MASSEN_ANGEBOTE_COLLECTION_ID, 'saison_index', ['saisonjahr']);
     await ensureIndex(WIKI_PAGES_COLLECTION_ID, 'slug_index', ['slug']);
 
     console.log('\n✨ Setup abgeschlossen!');

@@ -1330,30 +1330,6 @@ export function erstelleStandardPositionen(
 }
 
 /**
- * Generiert einen Standard-E-Mail-Text für das Angebot
- */
-export function generiereStandardEmailText(
-  _kundenname: string,
-  ansprechpartner?: string
-): string {
-  const anrede = ansprechpartner
-    ? `Sehr geehrte/r ${ansprechpartner}`
-    : 'Sehr geehrte Damen und Herren';
-
-  return `${anrede},
-
-vielen Dank für Ihre Anfrage.
-
-Anbei erhalten Sie unser Angebot für Tennismehl. Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-
-TENNISMEHL GmbH
-Tel: 09391 9870-0
-E-Mail: info@tennismehl.com`;
-}
-
-/**
  * Generiert eine PDF-Vorschau des Angebots ohne es zu versenden.
  * Öffnet das PDF in einem neuen Browser-Tab.
  */

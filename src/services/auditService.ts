@@ -116,6 +116,9 @@ export const setAuditUser = (user: User | null): void => {
   aktuellerUser = user;
 };
 
+/** Aktueller User für Stellen außerhalb von React, die den Absender brauchen (E-Mail-Signatur). */
+export const getAuditUser = (): User | null => aktuellerUser;
+
 /** Felder für "zuletzt bearbeitet von" an High-Value-Collections. */
 export const bearbeiterStempel = (): {
   bearbeitetVon: string;

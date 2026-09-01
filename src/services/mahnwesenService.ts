@@ -31,7 +31,7 @@ import {
   wrapInEmailTemplate,
   blobZuBase64,
 } from './emailSendService';
-import { generiereStandardEmail } from '../utils/emailHelpers';
+import { ladeStandardSignatur } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
 import { auditService } from './auditService';
 import { debitorService } from './debitorService';
@@ -462,9 +462,15 @@ export const generiereMahnwesenPDF = async (
   }
 
   // === Signatur ===
+  // Die Grußformel steht seit der Signatur-Zentralisierung nicht mehr im
+  // Vorlagen-Schlusstext (in der Mail käme sie sonst doppelt) — im PDF
+  // gehört sie deshalb hierher.
   yPos += 2;
+  yPos = await ensureSpace(doc, yPos, 12, stammdaten);
+  doc.text('Mit freundlichen Grüßen', 25, yPos);
+  yPos += 6;
   doc.setFont('helvetica', 'bold');
-  doc.text('Ihr Team der Tennismehl', 25, yPos);
+  doc.text('Ihr Team der Tennismehl GmbH', 25, yPos);
   doc.setFont('helvetica', 'normal');
 
   // === BANKVERBINDUNG MIT EPC-QR-CODE ===
@@ -1044,11 +1050,10 @@ export const sendeMahnungPerEmail = async (
     const pdf = await generiereMahnwesenPDF(daten);
     const pdfBase64 = await blobZuBase64(pdf.output('blob'));
 
-    // E-Mail-Body — Signatur aus den Stammdaten-E-Mail-Templates laden (wie Universal-Versand)
+    // E-Mail-Body — zentrale Signatur direkt laden (kein Umweg über die Angebots-Vorlage)
     const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
     const finalBetreff = testModus ? `[TEST] ${betreff}` : betreff;
-    const signaturVorlage = await generiereStandardEmail('angebot', daten.dokumentNummer, daten.kundenname);
-    const htmlBody = wrapInEmailTemplate(bodyText, signaturVorlage.signatur || '');
+    const htmlBody = wrapInEmailTemplate(bodyText, await ladeStandardSignatur());
 
     const result = await sendeEmailMitPdf({
       empfaenger,

@@ -692,7 +692,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                     // Nach kurzer Verzögerung mailto öffnen
                     setTimeout(() => {
                       const subject = encodeURIComponent(`Rechnung ${gespeicherteRechnung.dokumentNummer} - ${platzbauer?.name || 'Platzbauer'}`);
-                      const body = encodeURIComponent(`Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung ${gespeicherteRechnung.dokumentNummer}.\n\nMit freundlichen Grüßen\nTennisMehl GmbH`);
+                      const body = encodeURIComponent(`Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung ${gespeicherteRechnung.dokumentNummer}.\n\nMit freundlichen Grüßen\nIhr Team der Tennismehl GmbH`);
                       window.location.href = `mailto:${emailEmpfaenger}?subject=${subject}&body=${body}`;
                       setShowEmailDialog(false);
                     }, 500);

@@ -32,7 +32,7 @@ import { projektService } from '../../services/projektService';
 import { debitorService } from '../../services/debitorService';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { sendeEmailMitPdf, wrapInEmailTemplate } from '../../services/emailSendService';
-import { generiereStandardEmail } from '../../utils/emailHelpers';
+import { generiereStandardEmail, ladeStandardSignatur } from '../../utils/emailHelpers';
 import { generiereRechnungPDF } from '../../services/rechnungService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -465,9 +465,8 @@ const HydrocourtView = ({ projekteGruppiert, onProjektClick }: HydrocourtViewPro
       const tage = Math.floor((heute.getTime() - ersterJanuar.getTime()) / 86400000);
       const aktuelleKW = Math.ceil((tage + ersterJanuar.getDay() + 1) / 7);
 
-      // Stammdaten für Signatur laden (wie bei UniversalView - 'angebot' hat die richtige Signatur)
-      const emailTemplate = await generiereStandardEmail('angebot', '', '');
-      const signatur = emailTemplate.signatur || '';
+      // Zentrale Signatur direkt laden (kein Umweg über eine Belegvorlage)
+      const signatur = await ladeStandardSignatur();
 
       // Email-Body erstellen (ohne Grußformel - kommt aus Signatur)
       const emailText = `Hallo ${SCHWAB_NAME},
@@ -605,16 +604,14 @@ Bitte um Bestätigung und Mitteilung der Tracking-Nummern nach Versand.`;
     try {
       const ansprechpartner = bestellung.projekt.dispoAnsprechpartner?.name || bestellung.projekt.ansprechpartner || 'Kunde';
 
-      const emailTemplate = await generiereStandardEmail('lieferschein', '', bestellung.projekt.kundenname || '');
-      const signatur = emailTemplate.signatur || '';
+      const signatur = await ladeStandardSignatur();
 
+      // Ohne eigene Grußformel — „Mit sportlichen Grüßen“ kommt aus der Signatur
       const emailText = `Sehr geehrte(r) ${ansprechpartner},
 
 Ihre Hydrocourt-Bestellung wurde versendet.
 
-Tracking-Nummer: ${tracking}
-
-Mit sportlichen Grüßen`;
+Tracking-Nummer: ${tracking}`;
 
       const htmlBody = wrapInEmailTemplate(emailText, signatur);
 

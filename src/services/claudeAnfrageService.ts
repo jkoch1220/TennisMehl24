@@ -196,7 +196,7 @@ AUSGABEFORMAT - NUR VALIDES JSON:
     "hauptteil": "Gerne unterbreiten wir Ihnen...",
     "abschluss": "Bei Fragen stehen wir...",
     "grussformel": "Mit freundlichen Grüßen",
-    "volltext": "Der komplette E-Mail-Text ohne Signatur"
+    "volltext": "Der komplette E-Mail-Text OHNE Grußformel und OHNE Signatur — beide hängt das Portal beim Versand automatisch an; der Text endet mit dem Abschluss-Satz"
   },
   "qualitaet": {
     "datenVollstaendigkeit": 85,
@@ -500,13 +500,7 @@ Beachte: Felder können leer sein. Wenn nach einem Feldnamen nur ein anderer Fel
 
 vielen Dank für Ihre Anfrage.
 
-Anbei erhalten Sie unser Angebot über ${menge} Tonnen ${artikel}. Bei Fragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-
-TENNISMEHL GmbH
-Tel: 09391 9870-0
-E-Mail: info@tennismehl.com`,
+Anbei erhalten Sie unser Angebot über ${menge} Tonnen ${artikel}. Bei Fragen stehen wir Ihnen gerne zur Verfügung.`,
       };
     };
 
@@ -517,6 +511,8 @@ E-Mail: info@tennismehl.com`,
 - Menge: ${menge} Tonnen
 - Artikel: ${artikel}
 ${zusatzinfo ? `- Zusatzinfo: ${zusatzinfo}` : ''}
+
+Der Text endet mit dem Abschluss-Satz — OHNE Grußformel und OHNE Signatur, beide hängt das Portal automatisch an.
 
 Antworte NUR mit JSON: {"betreff": "...", "text": "..."}`;
 

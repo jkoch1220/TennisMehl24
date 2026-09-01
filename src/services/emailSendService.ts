@@ -434,23 +434,6 @@ export const sendeEmailMitPdf = async (params: {
 };
 
 /**
- * Generiert eine Standard-Signatur (HTML)
- */
-export const generiereStandardSignatur = (): string => {
-  return `
-<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-  <p style="margin: 0; color: #374151;">Mit freundlichen Grüßen</p>
-  <p style="margin: 5px 0 0 0; font-weight: bold; color: #1f2937;">Koch Dienste</p>
-  <p style="margin: 5px 0 0 0; font-size: 12px; color: #6b7280;">
-    TennisMehl24<br>
-    E-Mail: info@tennismehl.com<br>
-    Web: www.tennismehl24.de
-  </p>
-</div>
-`.trim();
-};
-
-/**
  * Konvertiert Plain-Text zu HTML (Zeilenumbrüche zu <br> und Absätze zu <p>)
  */
 export const textToHtml = (text: string): string => {
@@ -516,10 +499,19 @@ export const wrapInEmailTemplate = (content: string, signatur?: string): string 
       margin: 0 0 8px 0;
       font-size: 13px;
     }
-    .signature img {
-      max-height: 60px;
-      width: auto;
-    }
+    /* KEINE Höhenbegrenzung für Signaturbilder. Die Maße stehen als
+       width/height am img-Tag der gepflegten Signatur - hier zu deckeln
+       verzerrt sie:
+         ".signature img { max-height: 60px }" stauchte das 714x229 große
+         Hydrocourt-Banner auf 600x60 - zehnfach statt dreifach breiter als
+         hoch. Der Ausweg "max-height: none !important" am Attributselektor
+         half nicht, weil Gmail und Outlook Attributselektoren aus style-Blöcken
+         verwerfen; der Inline-Style am Bild setzte zwar "height:auto", aber
+         "max-height" ist eine andere Eigenschaft und blieb unangetastet.
+       "img { height: auto }" oben hält jedes Bild im Seitenverhältnis,
+       "max-width: 100%" verhindert den Überlauf auf schmalen Schirmen.
+       Hinweis: Dieser Kommentar steht in einem Template-Literal - keine
+       Backticks und kein Dollar-Klammer-Ausdruck hier hinein. */
   </style>
 </head>
 <body>

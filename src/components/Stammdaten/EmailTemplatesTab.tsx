@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff, Mail, PenLine } from 'lucide-react';
 import { ladeStammdaten, speichereStammdaten } from '../../services/stammdatenService';
-import { ladeEmailTemplatesNeu, AB_VORLAGE_EINFACH } from '../../utils/emailHelpers';
+import { ladeEmailTemplatesNeu, AB_VORLAGE_EINFACH, personalisiereSignatur } from '../../utils/emailHelpers';
 import TipTapEditor from '../Shared/TipTapEditor';
 import { DokumentTyp } from '../../types/email';
 
@@ -402,7 +402,25 @@ const EmailTemplatesTab = () => {
               <div className="border border-gray-300 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-800 min-h-[200px]">
                 <div
                   className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: templates.standardSignatur || '' }}
+                  dangerouslySetInnerHTML={{ __html: personalisiereSignatur(templates.standardSignatur || '') }}
+                />
+              </div>
+            ) : /<table/i.test(templates.standardSignatur || '') ? (
+              /* Tabellen-Signatur: TipTap kennt keine Tabellen und würde das Layout beim
+                 ersten Tastendruck plattwalzen — deshalb roher HTML-Modus mit Vorschau. */
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-3">
+                  <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-800 dark:text-blue-300">
+                    Diese Signatur ist als E-Mail-Tabelle aufgebaut und wird direkt als HTML
+                    gepflegt. Das Ergebnis über die Vorschau (Auge-Symbol) kontrollieren.
+                  </p>
+                </div>
+                <textarea
+                  value={templates.standardSignatur || ''}
+                  onChange={(e) => handleStandardSignaturChange(e.target.value)}
+                  spellCheck={false}
+                  className="w-full min-h-[250px] rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 font-mono text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             ) : (

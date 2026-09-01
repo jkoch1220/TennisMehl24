@@ -73,6 +73,7 @@ import {
 } from '../config/appwrite';
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { auditService } from './auditService';
+import { getPortalPublicUrl } from './liefernachweisService';
 
 // Standard-Menge (Tonnen) für PLZ-Kalkulation, wenn keine Referenzmenge vorliegt.
 export const STANDARD_MENGE_DEFAULT = 10;
@@ -221,6 +222,62 @@ function klassifizierePosition(pos: Position): PositionsKlasse {
     return 'schuettgut';
   }
   return 'sonstig';
+}
+
+/**
+ * Die PE-Folie gehört zu jeder losen Schüttgut-Lieferung.
+ *
+ * Ohne sie kann nicht gekippt werden: Das Material käme direkt auf den Belag.
+ * Sie fehlte bisher überall dort, wo der Vorjahresbeleg sie nicht enthielt —
+ * und bei Kunden ohne Beleg (Mosaik-Historie, PLZ-Kalkulation) grundsätzlich,
+ * weil dort nur die Warenposition aufgebaut wird.
+ *
+ * Bewusst NUR bei loser Ware: Sackware auf Palette und BigBags werden
+ * abgesetzt, nicht gekippt. Die Einheit allein taugt nicht zur Unterscheidung —
+ * Palettenware wird ebenfalls in Tonnen geführt.
+ */
+const FOLIE_ARTIKELNUMMER = 'TM-PE';
+const FOLIE_BEZEICHNUNG = 'PE-Folie zum Abdecken und Unterlegen';
+
+function hatLoseWare(positionen: Position[]): boolean {
+  return positionen.some(
+    (p) =>
+      !p.istBedarfsposition &&
+      klassifizierePosition(p) === 'schuettgut' &&
+      Number(p.menge ?? 0) > 0
+  );
+}
+
+function hatFolie(positionen: Position[]): boolean {
+  return positionen.some((p) => (p.artikelnummer || '').toUpperCase() === FOLIE_ARTIKELNUMMER);
+}
+
+function baueFolienPosition(preis: number): Position {
+  return {
+    id: naechstePositionId(),
+    artikelnummer: FOLIE_ARTIKELNUMMER,
+    bezeichnung: FOLIE_BEZEICHNUNG,
+    menge: 1,
+    einheit: 'Stk',
+    einzelpreis: round2(preis),
+    gesamtpreis: round2(preis),
+  };
+}
+
+/**
+ * Ergänzt die Folie, wenn lose Ware im Angebot steht und noch keine drin ist.
+ * Ohne Preis wird nichts angelegt — eine Position zu 0,00 € im Angebot wäre
+ * schlimmer als die fehlende Zeile.
+ */
+function ergaenzePflichtFolie(positionen: Position[], folienPreis: number): Position[] {
+  if (folienPreis <= 0) return positionen;
+  if (!hatLoseWare(positionen) || hatFolie(positionen)) return positionen;
+  return [...positionen, baueFolienPosition(folienPreis)];
+}
+
+/** Lose Ware im Angebot, aber keine Folie? Dann fehlt eine Pflichtzeile. */
+function fehltPflichtFolie(positionen: Position[]): boolean {
+  return hatLoseWare(positionen) && !hatFolie(positionen);
 }
 
 function istPalettenKlasse(klasse: PositionsKlasse): boolean {
@@ -488,7 +545,7 @@ function berechnePlzPreisProTonne(plz: string, menge: number, werkspreisProTonne
  * Alle Empfänger stehen im To und sehen sich gegenseitig; bei Vereinsverteilern
  * ist das gewollt (der Platzwart soll sehen, dass der Kassierer mitliest).
  */
-function ermittleEmpfaenger(kunde: SaisonKunde): string | undefined {
+export function ermittleEmpfaenger(kunde: SaisonKunde): string | undefined {
   const liste = (kunde.angebotsEmails ?? [])
     .map((e) => e.trim())
     .filter((e) => e.length > 0);
@@ -580,6 +637,7 @@ interface KandidatenLookup {
   zielSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Zielsaison
   vorjahrSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Vorsaison (Bezugsweg-Prüfung)
   halbePaletteAufschlagEuro: number; // Fester Anbruch-Aufschlag (€) aus der Preis-Konfiguration
+  folienPreis: number; // TM-PE aus dem Artikelstamm — Pflichtzeile bei loser Ware
 }
 
 // Bezieht der Kunde über einen Platzbauer? Dann darf KEIN automatisches
@@ -775,10 +833,16 @@ function bestimmeKandidat(
   if (vorjahrProjekte.length > 0) {
     const referenz = waehleGroessteBestellung(vorjahrProjekte, lookup.vorjahrDokumente);
     if (referenz) {
-      const aufgebaut = baueAngebotsPositionenAusReferenz(
+      const roh = baueAngebotsPositionenAusReferenz(
         referenz.positionen,
         lookup.halbePaletteAufschlagEuro
       );
+      // Die Folie gehört zu jeder losen Lieferung — auch wenn sie im
+      // Vorjahresbeleg fehlte. Ohne sie kann nicht gekippt werden.
+      const aufgebaut = {
+        ...roh,
+        positionen: ergaenzePflichtFolie(roh.positionen, lookup.folienPreis),
+      };
       const warnungen = [...aufgebaut.warnungen];
       if (referenz.verloren) {
         warnungen.push('Referenz stammt aus einem VERLORENEN Vorjahres-Projekt – bitte prüfen');
@@ -848,6 +912,7 @@ function bestimmeKandidat(
     const menge = kunde.tonnenLetztesJahr;
     const preis = kunde.zuletztGezahlterPreis;
     const position = baueZiegelmehlPosition(menge, preis);
+    const mosaikPositionen = ergaenzePflichtFolie([position], lookup.folienPreis);
     return validiere({
       ...base,
       quelle: 'mosaik',
@@ -858,11 +923,11 @@ function bestimmeKandidat(
         tonnage: menge,
         wert: round2(menge * preis),
       },
-      positionen: [position],
+      positionen: mosaikPositionen,
       primaerPositionId: position.id,
       menge,
       preisProTonne: preis,
-      angebotssumme: round2(menge * preis),
+      angebotssumme: berechneSumme(mosaikPositionen),
     });
   }
 
@@ -877,14 +942,15 @@ function bestimmeKandidat(
         : STANDARD_MENGE_DEFAULT;
     const preis = berechnePlzPreisProTonne(plz, menge, werkspreisProTonne);
     const position = baueZiegelmehlPosition(menge, preis);
+    const plzPositionen = ergaenzePflichtFolie([position], lookup.folienPreis);
     const kandidat = validiere({
       ...base,
       quelle: 'plz_kalkulation',
-      positionen: [position],
+      positionen: plzPositionen,
       primaerPositionId: position.id,
       menge,
       preisProTonne: preis,
-      angebotssumme: round2(menge * preis),
+      angebotssumme: berechneSumme(plzPositionen),
     });
     kandidat.warnungen = [...kandidat.warnungen, 'Kalkuliert aus PLZ-Zone – Menge & Preis bitte prüfen'];
     return kandidat;
@@ -921,6 +987,8 @@ async function sammleKandidaten(
   melde('Lade Werkspreis & Preis-Konfiguration…', 15);
   const werkspreisProTonne = await getArtikelPreis(STANDARD_ARTIKEL.nummer);
   const { halbePaletteAufschlagEuro } = await getPreisKonfiguration();
+  // Einmal je Lauf statt einmal je Kunde — bei 700 Vereinen wären das 700 Abfragen.
+  const folienPreis = await getArtikelPreis(FOLIE_ARTIKELNUMMER);
 
   melde(`Lade Projekte der Saison ${saisonjahr}…`, 25);
   const zielProjekte = await ladeProjekteFuerSaison(saisonjahr);
@@ -957,6 +1025,7 @@ async function sammleKandidaten(
     zielSaisonDaten,
     vorjahrSaisonDaten,
     halbePaletteAufschlagEuro,
+    folienPreis,
   };
   const kandidaten = berechtigte.map((kunde) =>
     bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne, lookup)
@@ -1731,6 +1800,83 @@ async function ladeLaeufe(saisonjahr?: number): Promise<AngebotsLauf[]> {
 // ===== HALBAUTOMATISCHER E-MAIL-VERSAND =====
 
 const TEST_EMAIL = 'jtatwcook@gmail.com';
+
+/**
+ * Öffentliche Basis-URL für Kundenlinks — dieselbe Quelle wie die QR-Codes auf
+ * den Lieferscheinen (`https://tennismehl-portal.online`). Bewusst der
+ * gemeinsame Helfer statt einer zweiten Env-Auswertung: Zwei Quellen für
+ * dieselbe Adresse laufen unweigerlich auseinander, und ein Link auf
+ * `netlify.app` im Postfach eines Vereins ist schlimmer als gar keiner.
+ */
+const portalUrl = (): string => getPortalPublicUrl();
+
+/**
+ * Erzeugt (einmalig) den Token für die Bestellseite und gibt den Link zurück.
+ *
+ * Der Token ist ein eigenes Zufallsfeld, nicht die Projekt-ID: IDs stehen in
+ * PDFs, internen Listen und Logs. Ein Link, der allein darauf beruhte, wäre
+ * durch die Weitergabe eines Dokuments offen.
+ */
+async function bestellLink(projektId: string, empfaenger?: string): Promise<string | null> {
+  // Beim lokalen Entwickeln zeigt der Link auf den laufenden Dev-Server —
+  // sonst führt jeder Testlauf auf die deployte Seite, die den neuen Stand noch
+  // gar nicht kennt. In der gebauten App gilt immer die konfigurierte Adresse.
+  // `typeof window` prüfen, nicht nur DEV: Die Tests laufen in Node, dort gibt
+  // es kein window — und ein Testlauf darf nicht daran scheitern.
+  const basis =
+    import.meta.env.DEV && typeof window !== 'undefined'
+      ? window.location.origin
+      : portalUrl();
+  // In der Produktion niemals eine localhost-Adresse verschicken: Ein solcher
+  // Link im Postfach eines Vereins ist ein Support-Fall, kein Angebot.
+  if (!basis || (!import.meta.env.DEV && /localhost|127\.0\.0\.1/.test(basis))) return null;
+  try {
+    const projekt = await projektService.getProjekt(projektId);
+    let token = projekt.bestellToken;
+    const patch: Record<string, unknown> = {};
+    if (!token) {
+      token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+      patch.bestellToken = token;
+      patch.bestellTokenErstelltAm = new Date().toISOString();
+    }
+    // Der Empfänger des Angebots ist auch der Empfänger der Bestätigung. Er
+    // steht am Projekt, weil die Function keinen Zugriff auf den Kundenstamm
+    // braucht — und weil sich der Verteiler später ändern kann.
+    if (empfaenger && projekt.bestellEmpfaenger !== empfaenger) patch.bestellEmpfaenger = empfaenger;
+    if (Object.keys(patch).length > 0) await projektService.updateProjekt(projektId, patch);
+
+    // Aus der Sandbox erzeugte Links zeigen auf die Sandbox-Daten. Ohne diese
+    // Markierung läse die Bestellseite aus der Produktion — ein Testlauf würde
+    // echte Aufträge anfassen.
+    const sandbox = istMockModusAktiv() ? '&sandbox=1' : '';
+    return `${basis}/bestellung/${projektId}?token=${token}${sandbox}`;
+  } catch (error) {
+    console.warn('Bestell-Link konnte nicht erzeugt werden:', error);
+    return null;
+  }
+}
+
+/**
+ * Der Bestell-Knopf für die E-Mail.
+ *
+ * Bewusst als Tabelle mit Inline-Styles: Outlook rendert weder Flexbox noch
+ * <style>-Blöcke. Was hier nicht inline steht, sieht der Empfänger nicht.
+ */
+function bestellButtonHtml(link: string): string {
+  return `
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
+  <tr><td align="center" bgcolor="#16a34a" style="border-radius:12px;">
+    <a href="${link}" target="_blank"
+       style="display:inline-block;padding:14px 32px;font-family:Arial,sans-serif;font-size:16px;
+              font-weight:bold;color:#ffffff;text-decoration:none;border-radius:12px;">
+      Angebot ansehen und bestellen
+    </a>
+  </td></tr>
+  <tr><td style="padding-top:8px;font-family:Arial,sans-serif;font-size:12px;color:#6b7280;">
+    Ein Klick genügt — Adressen und Menge können Sie dort ebenfalls anpassen.
+  </td></tr>
+</table>`;
+}
 const ANGEBOT_ABSENDER = 'info@tennismehl.com';
 
 // Lädt die versandbereiten Angebote eines Batches (status === 'angebot', noch nicht versendet).
@@ -1768,7 +1914,15 @@ async function ladeVersandKandidaten(batchId: string): Promise<VersandKandidat[]
 async function versendeAngebot(
   projektId: string,
   realEmail: string | undefined,
-  testModus: boolean
+  testModus: boolean,
+  /**
+   * Für diesen einen Verein abweichend formulierter Text.
+   *
+   * Ohne Override gilt die Vorlage aus den Stammdaten — der Regelfall. Mit
+   * Override hat jemand bewusst etwas anderes geschrieben, etwa einen Hinweis
+   * auf eine offene Absprache. Das darf die Vorlage nicht überschreiben.
+   */
+  eigenerText?: { betreff?: string; text?: string }
 ): Promise<{
   success: boolean;
   testModeActive?: boolean;
@@ -1776,7 +1930,17 @@ async function versendeAngebot(
   /** Gesetzt, wenn die Mail raus ist, der Statuswechsel aber scheiterte. */
   statusWarnung?: string;
 }> {
-  const empfaenger = testModus ? TEST_EMAIL : realEmail;
+  // Der Empfänger hängt an ZWEI Bedingungen, nicht nur am Testmodus-Schalter:
+  // In der Sandbox geht niemals eine Mail an einen echten Verein — auch dann
+  // nicht, wenn der Bearbeiter dort bewusst „scharf versenden" wählt. Genau das
+  // ist der Zweck einer Generalprobe: den echten Ablauf durchspielen, inklusive
+  // Statuswechsel und Protokoll, ohne dass draußen etwas ankommt.
+  //
+  // Der Testmodus-Schalter bleibt davon getrennt: Er unterdrückt zusätzlich den
+  // Statuswechsel und das Versandprotokoll. In der Sandbox sollen beide
+  // stattfinden, damit sich das Kanban-Board füllt wie im Ernstfall.
+  const empfaengerErzwungen = testModus || istMockModusAktiv();
+  const empfaenger = empfaengerErzwungen ? TEST_EMAIL : realEmail;
   if (!empfaenger) {
     return { success: false, error: 'Keine Empfänger-E-Mail' };
   }
@@ -1834,8 +1998,7 @@ async function versendeAngebot(
     `Sehr geehrte Damen und Herren,\n\n` +
     `anbei erhalten Sie unser Angebot ${daten.angebotsnummer} für die diesjährige ` +
     `Frühjahrsinstandsetzung Ihrer Tennisplätze.\n\n` +
-    `Bei Fragen stehen wir Ihnen gerne zur Verfügung. Über Ihren Auftrag freuen wir uns.\n\n` +
-    `Mit freundlichen Grüßen\nIhr TENNISMEHL-Team`;
+    `Bei Fragen stehen wir Ihnen gerne zur Verfügung. Über Ihren Auftrag freuen wir uns.`;
   let signatur: string | undefined;
   try {
     const vorlage = await generiereStandardEmail(
@@ -1853,7 +2016,16 @@ async function versendeAngebot(
       error
     );
   }
-  const htmlBody = wrapInEmailTemplate(text, signatur);
+  // Der individuelle Text schlägt die Vorlage — er ist die jüngere Entscheidung.
+  if (eigenerText?.betreff?.trim()) betreff = eigenerText.betreff.trim();
+  if (eigenerText?.text?.trim()) text = eigenerText.text.trim();
+  // Bestell-Knopf direkt über die Signatur — der Kunde soll ihn sehen, bevor er
+  // scrollt. Fehlt die Portal-URL, geht die Mail wie bisher ohne Knopf raus.
+  const link = await bestellLink(projektId, realEmail);
+  const htmlBody = wrapInEmailTemplate(
+    text + (link ? `\n\n{{BESTELL_BUTTON}}` : ''),
+    signatur
+  ).replace('{{BESTELL_BUTTON}}', link ? bestellButtonHtml(link) : '');
 
   const result = await sendeEmailMitPdf({
     empfaenger,
@@ -1912,7 +2084,7 @@ const warte = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Versendet mehrere Angebote nacheinander (sequentiell, mit Fortschritt + Fehlersammlung).
 async function versendeBatch(
-  kandidaten: VersandKandidat[],
+  kandidaten: Array<VersandKandidat & { emailBetreff?: string; emailText?: string }>,
   testModus: boolean,
   onFortschritt?: (erledigt: number, gesamt: number, aktueller: string) => void,
   optionen: { abbruchSignal?: () => boolean; pauseMs?: number } = {}
@@ -1940,7 +2112,10 @@ async function versendeBatch(
     }
     index += 1;
     try {
-      const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus);
+      const res = await versendeAngebot(kandidat.projektId, kandidat.empfaengerEmail, testModus, {
+        betreff: kandidat.emailBetreff,
+        text: kandidat.emailText,
+      });
       if (res.success) {
         gesendet += 1;
         if (res.statusWarnung) {
@@ -1968,6 +2143,9 @@ export const _massenAngebotInternals = {
   ANBRUCH_AUFSCHLAG_EINHEIT,
   baueAnbruchAufschlagPosition,
   klassifizierePosition,
+  ergaenzePflichtFolie,
+  hatLoseWare,
+  fehltPflichtFolie,
   berechneSchuettgutTonnage,
   bestimmeProduktprofil,
   rundeAufHalbePaletten,
@@ -1981,10 +2159,41 @@ export const _massenAngebotInternals = {
   baueAngebotsDaten,
 };
 
+/**
+ * Baut Betreff und Text so auf, wie sie beim Versand entstünden — ohne zu
+ * senden. Grundlage für die Vorschau: Wer hunderte Mails verschickt, muss
+ * vorher genau EINE davon gelesen haben.
+ */
+async function baueEmailVorschau(
+  angebotsnummer: string,
+  kundenname: string,
+  kundennummer?: string
+): Promise<{ betreff: string; text: string; signatur?: string; absender: string }> {
+  let betreff = `Ihr Angebot zur Frühjahrsinstandsetzung – ${angebotsnummer}`;
+  let text =
+    `Sehr geehrte Damen und Herren,\n\n` +
+    `anbei erhalten Sie unser Angebot ${angebotsnummer} für die diesjährige ` +
+    `Frühjahrsinstandsetzung Ihrer Tennisplätze.\n\n` +
+    `Bei Fragen stehen wir Ihnen gerne zur Verfügung. Über Ihren Auftrag freuen wir uns.`;
+  let signatur: string | undefined;
+  try {
+    const vorlage = await generiereStandardEmail('angebot', angebotsnummer, kundenname, kundennummer);
+    if (vorlage.betreff) betreff = vorlage.betreff;
+    if (vorlage.text) text = vorlage.text;
+    signatur = vorlage.signatur;
+  } catch {
+    // Ohne Vorlage bleibt der Standardtext — die Vorschau zeigt dann genau ihn.
+  }
+  return { betreff, text, signatur, absender: ANGEBOT_ABSENDER };
+}
+
 export const massenAngebotService = {
   sammleKandidaten,
   sammleEmailKlaerungsfaelle,
   setzeAngebotsEmails,
+  ermittleEmpfaenger,
+  fehltPflichtFolie,
+  ergaenzePflichtFolie,
   sammleTauglichkeitsVorschlaege,
   markiereAlsTauglich,
   berechneZusammenfassung,
@@ -2000,6 +2209,7 @@ export const massenAngebotService = {
   ladeVersandKandidaten,
   versendeAngebot,
   versendeBatch,
+  baueEmailVorschau,
   istTestumgebung,
   getStammdaten: getStammdatenOderDefault,
 };

@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { ladeStammdaten } from '../services/stammdatenService';
+import { getAuditUser } from '../services/auditService';
 
 // Cache für geladene Templates
 let emailTemplatesCache: Record<string, any> | null = null;
@@ -83,6 +84,43 @@ export const ermittleSignatur = (
 
   return getStandardSignatur();
 };
+
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Ersetzt den {absender}-Platzhalter der Signatur durch die Grußzeile des
+ * angemeldeten Benutzers ("Ihr Ronald Riedl" + Team-Zeile). Läuft der Code ohne
+ * Login (Skripte, Functions, Cron), bleibt die neutrale Team-Grußzeile stehen.
+ *
+ * Namensquelle: prefs.signaturName des Kontos; ersatzweise der Kontoname, aber
+ * nur wenn er wie ein voller Name aussieht — Kurznamen wie "Julian" fielen
+ * sonst halbfertig in die Grußzeile.
+ */
+export const personalisiereSignatur = (signatur: string, absenderName?: string | null): string => {
+  const name = (absenderName ?? ermittleAbsenderName())?.trim();
+  const gruss = name
+    ? `Ihr ${escapeHtml(name)}<br /><span style="font-weight:normal;">vom Team der Tennismehl GmbH</span>`
+    : 'Ihr Team der Tennismehl GmbH';
+  return signatur.replace(/\{absender\}/g, gruss);
+};
+
+const ermittleAbsenderName = (): string | null => {
+  const user = getAuditUser();
+  if (!user) return null;
+  const pref = (user.prefs as Record<string, unknown> | undefined)?.signaturName;
+  if (typeof pref === 'string' && pref.trim()) return pref;
+  return user.name?.includes(' ') ? user.name : null;
+};
+
+/**
+ * Zentrale Signatur ohne Vorlagen-Umweg — für Mails abseits der Belegvorlagen
+ * (Mahnung, Tracking, Sammelbestellung). Bereits auf den Absender personalisiert.
+ * Vorher holten sich diese Versandwege die Signatur über die Vorlage 'angebot';
+ * eine dort gepflegte Eigen-Signatur wäre still in fremde Mails gewandert.
+ */
+export const ladeStandardSignatur = async (): Promise<string> =>
+  personalisiereSignatur(ermittleSignatur(await ladeEmailTemplates(), {}));
 
 /**
  * Fallback-Templates falls Templates nicht aus Appwrite geladen werden können
@@ -215,12 +253,15 @@ export const generiereStandardEmail = async (
     kundennummer
   );
 
-  // Signatur nach der Fallback-Kette bestimmen (eigene → gemeinsame → Notnagel)
-  const signatur = ersetzePlatzhalter(
-    ermittleSignatur(templates, template),
-    dokumentNummer,
-    kundenname,
-    kundennummer
+  // Signatur nach der Fallback-Kette bestimmen (eigene → gemeinsame → Notnagel),
+  // dann auf den angemeldeten Absender personalisieren
+  const signatur = personalisiereSignatur(
+    ersetzePlatzhalter(
+      ermittleSignatur(templates, template),
+      dokumentNummer,
+      kundenname,
+      kundennummer
+    )
   );
 
   return {
