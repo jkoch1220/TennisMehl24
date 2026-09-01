@@ -111,3 +111,21 @@ function pruefeFestpreis(position: Position, artikel: Artikel, i: number): Posit
 export function formatiereWarnungen(warnungen: PositionsWarnung[]): string {
   return warnungen.map((w) => `• ${w.meldung}`).join('\n');
 }
+
+/**
+ * Kennzeichnet die beanstandeten Positionen als bewusste Freitext-Positionen.
+ *
+ * Mutiert die übergebenen Objekte ABSICHTLICH in place: die Save-Pfade der
+ * Beleg-Tabs serialisieren im Anschluss genau diese Objektreferenzen aus dem
+ * React-State — ein neues Array käme dort per setState zu spät an.
+ */
+export function kennzeichneAlsFreitext(
+  positionen: Position[],
+  warnungen: PositionsWarnung[]
+): void {
+  for (const warnung of warnungen) {
+    if (warnung.typ !== 'artikel-unbekannt') continue;
+    const position = positionen[warnung.positionsIndex];
+    if (position) position.istFreitextPosition = true;
+  }
+}

@@ -70,21 +70,29 @@ const MAX_FOTOS = 3;
  */
 const MAX_FOTO_BYTES = 1_500_000;
 
-/** Frachtkostenpauschale TM-FP — Staffel aus dem Artikelstamm. */
-const FRACHTSTAFFEL: Array<{ bisTonnen: number; preis: number }> = [
-  { bisTonnen: 5.4, preis: 59.9 },
-  { bisTonnen: 7.4, preis: 49.9 },
-  { bisTonnen: 11.4, preis: 39.9 },
-  { bisTonnen: 15.4, preis: 31.9 },
-  { bisTonnen: 19.9, preis: 24.9 },
-];
-const frachtpauschale = (tonnen: number): number =>
-  FRACHTSTAFFEL.find((s) => tonnen < s.bisTonnen)?.preis ?? 0;
+/**
+ * Frachtkostenpauschale TM-FP — Staffel aus der Preisliste.
+ *
+ * EXAKT dieselbe Grenzen-Semantik wie berechneFrachtkostenpauschale im Portal
+ * (src/utils/frachtkostenCalculations.ts): die Obergrenzen sind einschließlich
+ * („bis 19,9 t" → 24,90 €). Die frühere `<`-Variante bepreiste die exakten
+ * Staffelgrenzen eine Stufe günstiger als die spätere Rechnung — bei genau
+ * 19,9 t stand sogar 0,00 € in der Bestellbestätigung.
+ */
+const frachtpauschale = (tonnen: number): number => {
+  if (tonnen <= 0) return 59.9;
+  if (tonnen < 5.4) return 59.9;
+  if (tonnen <= 7.4) return 49.9;
+  if (tonnen <= 11.4) return 39.9;
+  if (tonnen <= 15.4) return 31.9;
+  if (tonnen <= 19.9) return 24.9;
+  return 0;
+};
 
 /**
  * Pauschalen/Dienstleistungen, die in „t" fakturiert werden, aber keine Ware
  * sind. Kopie der zentralen Liste in src/utils/tonnage.ts — die Function ist
- * bewusst self-contained (wie schon die FRACHTSTAFFEL), beide müssen synchron
+ * bewusst self-contained (wie schon die Frachtstaffel), beide müssen synchron
  * bleiben. Ohne den Ausschluss zählte z. B. eine Ladekran-Position als Tonne
  * und verschob die ±10-%-Grenzen und die Frachtstaffel.
  */

@@ -8,30 +8,36 @@
  */
 import { describe, it, expect } from 'vitest';
 
-const FRACHTSTAFFEL: Array<{ bisTonnen: number; preis: number }> = [
-  { bisTonnen: 5.4, preis: 59.9 },
-  { bisTonnen: 7.4, preis: 49.9 },
-  { bisTonnen: 11.4, preis: 39.9 },
-  { bisTonnen: 15.4, preis: 31.9 },
-  { bisTonnen: 19.9, preis: 24.9 },
-];
-const frachtpauschale = (t: number): number => FRACHTSTAFFEL.find((s) => t < s.bisTonnen)?.preis ?? 0;
+// Spiegel der Staffel in netlify/functions/bestellung.ts — seit 09/2026
+// EXAKT die Portal-Semantik (frachtkostenCalculations.ts): Obergrenzen
+// einschließlich, „bis 19,9 t" → 24,90 €. Die frühere `<`-Variante bepreiste
+// die exakten Grenzen eine Stufe günstiger als die spätere Rechnung.
+const frachtpauschale = (tonnen: number): number => {
+  if (tonnen <= 0) return 59.9;
+  if (tonnen < 5.4) return 59.9;
+  if (tonnen <= 7.4) return 49.9;
+  if (tonnen <= 11.4) return 39.9;
+  if (tonnen <= 15.4) return 31.9;
+  if (tonnen <= 19.9) return 24.9;
+  return 0;
+};
 
 const MENGEN_TOLERANZ = 0.10;
 const imRahmen = (alt: number, neu: number) =>
   neu >= alt * (1 - MENGEN_TOLERANZ) && neu <= alt * (1 + MENGEN_TOLERANZ);
 
 describe('Frachtpauschale nach Tonnage', () => {
-  it('folgt der Staffel aus dem Artikelstamm', () => {
+  it('folgt der Staffel aus der Preisliste — Obergrenzen einschließlich', () => {
     expect(frachtpauschale(3)).toBe(59.9);
     expect(frachtpauschale(5.39)).toBe(59.9);
     expect(frachtpauschale(5.4)).toBe(49.9);
-    expect(frachtpauschale(7.4)).toBe(39.9);
+    expect(frachtpauschale(7.4)).toBe(49.9); // „von 5,4 bis 7,4" schließt 7,4 ein
     expect(frachtpauschale(12)).toBe(31.9);
     expect(frachtpauschale(16)).toBe(24.9);
+    expect(frachtpauschale(19.9)).toBe(24.9); // vorher fälschlich 0,00 €
   });
 
-  it('entfällt bei großen Mengen — ab 19,9 t ist die Fracht eingepreist', () => {
+  it('entfällt erst ab 20 t — die Fracht ist dann eingepreist', () => {
     expect(frachtpauschale(20)).toBe(0);
     expect(frachtpauschale(25)).toBe(0);
   });

@@ -8,8 +8,8 @@
  *   die Tonnage → hier invertiert als istTonnageRelevant
  * - Live-Bestand vom 31.08.2026 (28 Artikel, prod == mock)
  *
- * preisTyp: bewusst KEIN Artikel auf 'fest' — welche Artikel Fixpreise sind,
- * ist Julians Entscheidung (Entscheidungsbedarf Nr. 2 im Redesign-Plan).
+ * preisTyp: TM-PE und TM-PAL sind Fixpreise (Julians Freigabe der
+ * Vorschlagsliste, 01.09.2026); die TM-ZM-Werkspreise bleiben variabel.
  * 'kalkuliert' nur dort, wo der Code den Preis nachweislich dynamisch
  * berechnet (TM-FP: Mindermengenpauschale-Staffel, TM-FK: Frachtkosten-
  * Kalkulation). Alles andere startet als 'variabel'.
@@ -70,8 +70,8 @@ export const KLASSIFIZIERUNG: Record<string, Klassifizierung> = {
   'TM-UV-VK':     { warengruppe: 'fracht', istTonnageRelevant: false, preisTyp: 'variabel' },
 
   // === Zubehör ===
-  'TM-PE':        { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'variabel' },
-  'TM-PAL':       { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'variabel' },
+  'TM-PE':        { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'fest' },
+  'TM-PAL':       { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'fest' },
   'TM-BDK':       { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'variabel' },
   'TM-BDR':       { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'variabel' },
   'TM-HYC':       { warengruppe: 'zubehoer', istTonnageRelevant: false, preisTyp: 'variabel' },

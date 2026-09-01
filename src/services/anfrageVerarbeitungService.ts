@@ -880,6 +880,20 @@ export interface ErstellePositionenErgebnis {
  *    → 0.5t 02 + 0.5t 03 = 1t total → eine Sendung
  *    → Gesamtmenge Sackware entscheidet über Beiladung vs. Spedition
  */
+/**
+ * Herkunft des Positionspreises: 'stamm' nur bei exaktem Stammpreis —
+ * eingeschmolzene Fracht und Endpreise aus dem Dialog sind 'manuell',
+ * ein fehlender Stammartikel macht die Position zum 'fallback'.
+ */
+function preisQuelleFuer(
+  artikel: { einzelpreis?: number | null } | null,
+  einzelpreis: number
+): 'stamm' | 'manuell' | 'fallback' {
+  if (!artikel) return 'fallback';
+  if (artikel.einzelpreis != null && Math.abs(artikel.einzelpreis - einzelpreis) < 0.005) return 'stamm';
+  return 'manuell';
+}
+
 export async function erstelleAnfragePositionen(
   input: ErstellePositionenInput
 ): Promise<ErstellePositionenErgebnis> {
@@ -929,6 +943,9 @@ export async function erstelleAnfragePositionen(
   // ==========================================
   // Fallbacks entsprechen dem Artikelstamm (Stand 07/2026) — sie greifen nur, wenn ein
   // Artikel dort fehlt. Preispflege gehört in den Artikelstamm, nicht in den Code.
+  // ENTSCHEIDUNG Julian (01.09.2026): 0/3 kostet bewusst dasselbe wie 0/2 —
+  // beide stehen mit 98,70 €/t im Stamm. Der 0/2-Preis gilt daher für beide
+  // Körnungen; eigene 0/3-Preispflege ist NICHT vorgesehen.
   const preisLoseMaterial = artikelLose02?.einzelpreis ?? 98.70; // Stamm: 98,70 €/t
   const preisSackwareAbWerk = artikelGesackt02?.einzelpreis ?? 155.00; // Stamm: 155,00 €/t (NUR ABWERKSPREIS!)
   const preisBigbagAbWerk = artikelBigbag02?.einzelpreis ?? 125.90; // Stamm: 125,90 €/t (günstiger als Sackware!)
@@ -970,6 +987,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelLose02?.$id,
+      preisQuelle: preisQuelleFuer(artikelLose02, einzelpreis),
       artikelnummer: 'TM-ZM-02',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung,
@@ -993,6 +1012,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelLose03?.$id,
+      preisQuelle: preisQuelleFuer(artikelLose03, einzelpreis),
       artikelnummer: 'TM-ZM-03',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung,
@@ -1023,6 +1044,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelBigbag02?.$id,
+      preisQuelle: preisQuelleFuer(artikelBigbag02, einzelpreis),
       artikelnummer: 'TM-ZM-BIG-02',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
@@ -1047,6 +1070,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelBigbag03?.$id,
+      preisQuelle: preisQuelleFuer(artikelBigbag03, einzelpreis),
       artikelnummer: 'TM-ZM-BIG-03',
       bezeichnung: info.bezeichnung,
       beschreibung: info.beschreibung || 'BigBag ca. 1t - Lieferung per Spedition',
@@ -1084,7 +1109,9 @@ export async function erstelleAnfragePositionen(
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: 'TM-ZM-02S',
+        artikelId: artikelBeiladung02?.$id,
+      preisQuelle: preisQuelleFuer(artikelBeiladung02, einzelpreis),
+      artikelnummer: 'TM-ZM-02S',
         bezeichnung: info.bezeichnung,
         beschreibung: info.beschreibung || 'Beiladung - wird mit Schüttgut auf LKW transportiert',
         menge: anzahlSaecke,
@@ -1106,7 +1133,9 @@ export async function erstelleAnfragePositionen(
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: 'TM-ZM-02St',
+        artikelId: artikelGesackt02?.$id,
+      preisQuelle: preisQuelleFuer(artikelGesackt02, einzelpreis),
+      artikelnummer: 'TM-ZM-02St',
         bezeichnung: info.bezeichnung,
         beschreibung: info.beschreibung,
         menge,
@@ -1132,7 +1161,9 @@ export async function erstelleAnfragePositionen(
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: 'TM-ZM-03S',
+        artikelId: artikelBeiladung03?.$id,
+      preisQuelle: preisQuelleFuer(artikelBeiladung03, einzelpreis),
+      artikelnummer: 'TM-ZM-03S',
         bezeichnung: info.bezeichnung,
         beschreibung: info.beschreibung || 'Beiladung - wird mit Schüttgut auf LKW transportiert',
         menge: anzahlSaecke,
@@ -1154,7 +1185,9 @@ export async function erstelleAnfragePositionen(
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
-        artikelnummer: 'TM-ZM-03St',
+        artikelId: artikelGesackt03?.$id,
+      preisQuelle: preisQuelleFuer(artikelGesackt03, einzelpreis),
+      artikelnummer: 'TM-ZM-03St',
         bezeichnung: info.bezeichnung,
         beschreibung: info.beschreibung,
         menge,
@@ -1185,6 +1218,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelPalette?.$id,
+      preisQuelle: preisQuelleFuer(artikelPalette, preis),
       artikelnummer: artikelPalette.artikelnummer,
       bezeichnung: artikelPalette.bezeichnung,
       beschreibung: artikelPalette.beschreibung,
@@ -1208,6 +1243,8 @@ export async function erstelleAnfragePositionen(
 
     positionen.push({
       id: `pos-${Date.now()}-${positionIndex++}`,
+      artikelId: artikelPE?.$id,
+      preisQuelle: preisQuelleFuer(artikelPE, preisPE),
       artikelnummer: artikelPE.artikelnummer,
       bezeichnung: artikelPE.bezeichnung,
       beschreibung: artikelPE.beschreibung,
@@ -1242,6 +1279,8 @@ export async function erstelleAnfragePositionen(
 
       positionen.push({
         id: `pos-${Date.now()}-${positionIndex++}`,
+        artikelId: artikelFP?.$id,
+        preisQuelle: preisQuelleFuer(artikelFP, mindermengenpauschale),
         artikelnummer: 'TM-FP',
         bezeichnung: infoFP.bezeichnung,
         beschreibung: infoFP.beschreibung || `Mindermengenzuschlag für Lieferungen unter 20 Tonnen`,

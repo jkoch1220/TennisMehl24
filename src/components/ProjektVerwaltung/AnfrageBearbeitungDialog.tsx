@@ -860,9 +860,24 @@ const AnfrageBearbeitungDialog = ({
         },
       });
 
+      // Plausibilitätsdeckel (Stufe 4, 09/2026): Ein KI-Preis unter dem
+      // Ab-Werk-Stammpreis wäre ein Verkauf unter Werk — der KI-Leitfaden
+      // nannte zeitweise 75–90 €/t bei 98,70 € Werkspreis. Nie stillschweigend
+      // übernehmen, sondern bewusst bestätigen lassen.
+      let kiPreis = analyse.angebot.empfohlenerPreis || undefined;
+      if (kiPreis) {
+        const werkspreis = verfuegbareArtikel.find((a) => a.artikelnummer === 'TM-ZM-02')?.einzelpreis;
+        if (werkspreis && kiPreis < werkspreis) {
+          const uebernehmen = confirm(
+            `Die KI empfiehlt ${kiPreis.toFixed(2)} €/t — das liegt UNTER dem Ab-Werk-Preis von ${werkspreis.toFixed(2)} €/t aus dem Artikelstamm.\n\nTrotzdem übernehmen? (Abbrechen behält den bisherigen Preis.)`
+          );
+          if (!uebernehmen) kiPreis = undefined;
+        }
+      }
+
       // Ein von der KI gesetzter Preis ist eine bewusste Setzung — die automatische
       // Empfehlung darf ihn nicht direkt wieder überschreiben.
-      if (analyse.angebot.empfohlenerPreis) {
+      if (kiPreis) {
         preisManuellGesetzt.current = true;
       }
 
@@ -876,7 +891,7 @@ const AnfrageBearbeitungDialog = ({
         plz: analyse.kunde.adresse.plz || editedData.plz,
         ort: analyse.kunde.adresse.ort || editedData.ort,
         menge: analyse.angebot.menge || editedData.menge,
-        preisProTonne: analyse.angebot.empfohlenerPreis || editedData.preisProTonne,
+        preisProTonne: kiPreis || editedData.preisProTonne,
         frachtkosten: analyse.angebot.frachtkosten || editedData.frachtkosten,
         emailBetreff: analyse.email.betreff || editedData.emailBetreff,
         emailText: analyse.email.volltext || editedData.emailText,

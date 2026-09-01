@@ -78,7 +78,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
 import { summiereTonnage } from '../../utils/angebotsTonnage';
-import { validierePositionen, formatiereWarnungen } from '../../utils/positionsValidierung';
+import { validierePositionen, formatiereWarnungen, kennzeichneAlsFreitext } from '../../utils/positionsValidierung';
 import { erstelleArtikelIndex } from '../../utils/tonnage';
 import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
 import { formatiereZahlungsziel, zahlungszielOptionen } from '../../utils/zahlungskonditionen';
@@ -928,13 +928,20 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
     // Zentrale Positions-Validierung (Stufe 4, 08/2026): Nummer↔Stamm↔Einheit↔Preis.
     // Warnungen blockieren nicht hart, müssen aber bewusst bestätigt werden.
+    // Sind NUR unbekannte Artikelnummern beanstandet, kennzeichnet OK die
+    // Positionen als bewusste Freitext-Positionen — sie fallen dann sichtbar
+    // aus der Artikel-Auswertung statt bei jedem Speichern erneut zu warnen.
     {
       const warnungen = validierePositionen(auftragsbestaetigungsDaten.positionen, erstelleArtikelIndex(artikel));
       if (warnungen.length > 0) {
+        const nurUnbekannt = warnungen.every((w) => w.typ === 'artikel-unbekannt');
         const weiter = confirm(
-          `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nTrotzdem speichern?`
+          nurUnbekannt
+            ? `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nOK = diese Positionen als FREITEXT kennzeichnen und speichern (sie fallen aus der Artikel-Auswertung).\nAbbrechen = zurück zum Bearbeiten.`
+            : `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nTrotzdem speichern?`
         );
         if (!weiter) return;
+        if (nurUnbekannt) kennzeichneAlsFreitext(auftragsbestaetigungsDaten.positionen, warnungen);
       }
     }
 
