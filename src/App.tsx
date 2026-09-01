@@ -118,6 +118,7 @@ const Unsubscribe = lazyWithRetry(() => import('./pages/Unsubscribe'));
 const PasswortZuruecksetzen = lazyWithRetry(() => import('./pages/PasswortZuruecksetzen'));
 const Liefernachweis = lazyWithRetry(() => import('./pages/Liefernachweis'));
 const Datenpruefung = lazyWithRetry(() => import('./pages/Datenpruefung'));
+const Bestellung = lazyWithRetry(() => import('./pages/Bestellung'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -433,6 +434,11 @@ function App() {
                 {/* ÖFFENTLICHE Route für die Datenprüfung zur AB (Kunde, ohne Login!)
                     Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify Function */}
                 <Route path="/daten-pruefung/:projektId" element={<Datenpruefung />} />
+
+                {/* ÖFFENTLICHE Route fürs Bestellportal (Kunde, ohne Login!)
+                    Muss HIER stehen, nicht in AuthenticatedContent: Dort läge sie
+                    hinter dem Login, und ein Verein sähe nur die leere Portalhülle. */}
+                <Route path="/bestellung/:projektId" element={<Bestellung />} />
 
                 {/* Alle anderen Routes benötigen Authentifizierung */}
                 <Route path="/*" element={<AppContent />} />

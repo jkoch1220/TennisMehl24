@@ -11,6 +11,7 @@ import {
   formatEntfernungsStaffel,
   ENTFERNUNGS_STAFFEL_2027,
   DIESEL_ZUSCHLAG_ARTIKELNUMMER,
+  zuschlagPositionIstAktuell,
 } from '../dieselZuschlag';
 import { DEFAULT_AGB_ABSCHNITTE } from '../../constants/vertragsklauseln';
 import { Position } from '../../types/projektabwicklung';
@@ -221,5 +222,60 @@ describe('AGB und Berechnung dürfen nicht auseinanderlaufen', () => {
     // Und der Basispreis muss zur Konfiguration passen
     const config = getBasisPreisConfig(IN_2027);
     expect(absatz2027).toContain(config.basisPreis.toFixed(3).replace('.', ','));
+  });
+});
+
+describe('Nachberechnung bei Mengenänderung (Vorschlag [37])', () => {
+  const teuer = 1.8; // deutlich über Basis, damit ein Zuschlag anfällt
+  const datum = '2026-06-15';
+
+  const ware = (menge: number): Position => ({
+    id: 'w', artikelnummer: 'TM-ZM-02', bezeichnung: 'Tennismehl 0/2',
+    menge, einheit: 't', einzelpreis: 98.7, gesamtpreis: menge * 98.7,
+  });
+
+  it('ergibt bei geänderter Tonnage einen anderen Zuschlag', () => {
+    const acht = berechneGesamtZuschlag([ware(8)], teuer, datum, 50);
+    const sechzehn = berechneGesamtZuschlag([ware(16)], teuer, datum, 50);
+    expect(acht.gesamtZuschlag).toBeGreaterThan(0);
+    expect(sechzehn.gesamtZuschlag).toBeCloseTo(acht.gesamtZuschlag * 2, 2);
+  });
+
+  it('konvergiert: die eigene Zuschlagsposition verändert das Ergebnis nicht', () => {
+    // Das ist der maschinelle Beweis, dass der neue Wertevergleich nicht
+    // endlos schleifen kann — der Fehler, gegen den der alte Ref-Guard gebaut war.
+    const ohne = berechneGesamtZuschlag([ware(8)], teuer, datum, 50);
+    const position = erstelleDieselZuschlagPosition(ohne);
+    const mit = berechneGesamtZuschlag([ware(8), position], teuer, datum, 50);
+    expect(mit.gesamtZuschlag).toBe(ohne.gesamtZuschlag);
+    expect(erstelleDieselZuschlagPosition(mit).beschreibung).toBe(position.beschreibung);
+  });
+});
+
+describe('zuschlagPositionIstAktuell', () => {
+  const ergebnisFuer = (menge: number) =>
+    berechneGesamtZuschlag(
+      [{ id: 'w', artikelnummer: 'TM-ZM-02', bezeichnung: 'Tennismehl', menge, einheit: 't', einzelpreis: 98.7, gesamtpreis: menge * 98.7 }],
+      1.8, '2026-06-15', 50
+    );
+
+  it('erkennt eine fehlende Position', () => {
+    expect(zuschlagPositionIstAktuell(undefined, erstelleDieselZuschlagPosition(ergebnisFuer(8)))).toBe(false);
+  });
+
+  it('erkennt die unveränderte Position — kein zweiter Schreibvorgang', () => {
+    const soll = erstelleDieselZuschlagPosition(ergebnisFuer(8));
+    expect(zuschlagPositionIstAktuell({ ...soll }, soll)).toBe(true);
+  });
+
+  it('erkennt den veralteten Betrag nach einer Mengenänderung', () => {
+    const alt = erstelleDieselZuschlagPosition(ergebnisFuer(8));
+    const neu = erstelleDieselZuschlagPosition(ergebnisFuer(16));
+    expect(zuschlagPositionIstAktuell(alt, neu)).toBe(false);
+  });
+
+  it('erkennt einen geänderten Belegtext bei gleichem Betrag', () => {
+    const soll = erstelleDieselZuschlagPosition(ergebnisFuer(8));
+    expect(zuschlagPositionIstAktuell({ ...soll, beschreibung: 'alter Text' }, soll)).toBe(false);
   });
 });

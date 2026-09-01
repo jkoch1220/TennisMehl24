@@ -14,8 +14,21 @@ export interface DokumentAdresse {
 interface DokumentAdresseFormularProps {
   // Die aktuelle Adresse für das Dokument (wird im PDF gedruckt)
   adresse: DokumentAdresse;
-  // Callback wenn Adresse geändert wird
-  onChange: (adresse: DokumentAdresse) => void;
+  /**
+   * Callback wenn Adresse geändert wird.
+   *
+   * `ansprechpartner` ist der z.Hd.-Empfänger, der zur neuen Adresse gehört:
+   *   - `undefined`  → unverändert lassen
+   *   - `''`         → leeren (es ist keiner bekannt)
+   *   - sonst        → auf diesen Namen setzen
+   *
+   * Nötig, weil das z.Hd. NICHT Teil von `DokumentAdresse` ist, sondern als
+   * `daten.ansprechpartner` am Dokument hängt. Wer die Anschrift auf den
+   * Platzbauer umstellte, behielt darum den Ansprechpartner des Vereins in der
+   * Adresszeile — der Brief ging an Platzbauer Vogl, zu Händen des Vorstands
+   * eines fremden Vereins (Vorschlag [50], Angebot 2026-0029 Eibelstadt).
+   */
+  onChange: (adresse: DokumentAdresse, ansprechpartner?: string) => void;
   // Kunde für Stammdaten-Übernahme
   kunde?: SaisonKunde | null;
   // Dokumenttyp bestimmt Default-Adresse und Styling
@@ -136,22 +149,43 @@ const DokumentAdresseFormular = ({
   const config = getConfig();
   const Icon = config.icon;
 
+  /**
+   * Ersten aktiven Ansprechpartner eines Kunden holen — das ist derselbe Weg,
+   * über den Angebot und AB ihr z.Hd. beim Laden befüllen.
+   *
+   * Findet sich keiner, wird bewusst '' zurückgegeben und damit das Feld
+   * geleert: ein leeres z.Hd. ist harmlos, ein fremder Name auf dem Brief nicht.
+   */
+  const ermittleAnsprechpartner = async (kundeId?: string): Promise<string> => {
+    if (!kundeId) return '';
+    try {
+      const liste = await saisonplanungService.loadAnsprechpartnerFuerKunde(kundeId);
+      return liste.find((ap) => ap.aktiv)?.name || '';
+    } catch (error) {
+      console.warn('Ansprechpartner konnten nicht geladen werden:', error);
+      return '';
+    }
+  };
+
   // Stammdaten übernehmen
-  const handleUebernehmenVonStammdaten = () => {
+  const handleUebernehmenVonStammdaten = async () => {
     if (!kunde) return;
 
     const source = config.defaultSource;
     if (source) {
-      onChange({
-        name: kunde.name || projektKundenname || '',
-        strasse: source.strasse || '',
-        plzOrt: formatAdresszeile(source.plz, source.ort, source.land),
-      });
+      onChange(
+        {
+          name: kunde.name || projektKundenname || '',
+          strasse: source.strasse || '',
+          plzOrt: formatAdresszeile(source.plz, source.ort, source.land),
+        },
+        await ermittleAnsprechpartner(kunde.id)
+      );
     }
   };
 
   // Alternative Adresse übernehmen (z.B. Lieferadresse bei Rechnung)
-  const handleAlternativeAdresse = () => {
+  const handleAlternativeAdresse = async () => {
     if (!kunde) return;
 
     // Bei Rechnung/AB/Angebot: Lieferadresse anbieten
@@ -161,38 +195,53 @@ const DokumentAdresseFormular = ({
       : kunde.lieferadresse;
 
     if (altSource) {
-      onChange({
-        name: kunde.name || projektKundenname || '',
-        strasse: altSource.strasse || '',
-        plzOrt: formatAdresszeile(altSource.plz, altSource.ort, altSource.land),
-      });
+      // Adressart wechselt, Empfänger bleibt derselbe Kunde → z.Hd. mitziehen.
+      onChange(
+        {
+          name: kunde.name || projektKundenname || '',
+          strasse: altSource.strasse || '',
+          plzOrt: formatAdresszeile(altSource.plz, altSource.ort, altSource.land),
+        },
+        await ermittleAnsprechpartner(kunde.id)
+      );
     }
   };
 
   // Platzbauer-Daten übernehmen (für Platzbauer-Projekte)
-  const handlePlatzbauerDatenUebernehmen = () => {
+  const handlePlatzbauerDatenUebernehmen = async () => {
     if (!aktiverPlatzbauer) return;
 
     const rechnungsadresse = aktiverPlatzbauer.rechnungsadresse;
     if (rechnungsadresse) {
-      onChange({
-        name: aktiverPlatzbauer.name || '',
-        strasse: rechnungsadresse.strasse || '',
-        plzOrt: formatAdresszeile(rechnungsadresse.plz, rechnungsadresse.ort, rechnungsadresse.land),
-      });
+      // Der Empfänger wechselt vom Verein zum Platzbauer — also muss auch das
+      // z.Hd. wechseln. Hat der Platzbauer keinen Ansprechpartner hinterlegt,
+      // wird das Feld geleert statt den Vereins-Ansprechpartner stehenzulassen.
+      onChange(
+        {
+          name: aktiverPlatzbauer.name || '',
+          strasse: rechnungsadresse.strasse || '',
+          plzOrt: formatAdresszeile(rechnungsadresse.plz, rechnungsadresse.ort, rechnungsadresse.land),
+        },
+        await ermittleAnsprechpartner(aktiverPlatzbauer.id)
+      );
     }
   };
 
   // Projekt-Lieferadresse übernehmen
-  const handleProjektLieferadresse = () => {
+  const handleProjektLieferadresse = async () => {
     if (!projekt?.lieferadresse) return;
 
     const lieferadr = projekt.lieferadresse;
-    onChange({
-      name: projekt.kundenname || projektKundenname || '',
-      strasse: lieferadr.strasse || '',
-      plzOrt: formatAdresszeile(lieferadr.plz, lieferadr.ort, lieferadr.land),
-    });
+    // Zurück auf den Kunden — also auch zurück auf dessen Ansprechpartner,
+    // falls vorher auf den Platzbauer umgeschaltet worden war.
+    onChange(
+      {
+        name: projekt.kundenname || projektKundenname || '',
+        strasse: lieferadr.strasse || '',
+        plzOrt: formatAdresszeile(lieferadr.plz, lieferadr.ort, lieferadr.land),
+      },
+      await ermittleAnsprechpartner(kunde?.id)
+    );
   };
 
   // Prüfen ob aktuell Stammdaten verwendet werden

@@ -164,7 +164,15 @@ async function generiereNaechsteKundennummer(): Promise<string> {
 export const saisonplanungService = {
   // ========== KUNDEN ==========
 
-  async loadAlleKunden(): Promise<SaisonKunde[]> {
+  /**
+   * Alle Kunden — ohne die archivierten.
+   *
+   * Der Filter sitzt bewusst hier und nicht in den einzelnen Ansichten: Ein
+   * archivierter Kunde soll aus Call-Liste, Massen-Angebot, Dispo und
+   * Kundenliste gleichzeitig verschwinden. Zwölf Aufrufer einzeln zu ändern
+   * hieße, den dreizehnten zu vergessen.
+   */
+  async loadAlleKunden(optionen: { mitArchivierten?: boolean } = {}): Promise<SaisonKunde[]> {
     try {
       const documents = await loadAllDocuments(
         DATABASE_ID,
@@ -192,11 +200,33 @@ export const saisonplanungService = {
           };
         }
         return parsed;
-      });
+      }).filter((k) => optionen.mitArchivierten || k.archiviert !== true);
     } catch (error) {
       console.error('Fehler beim Laden der Kunden:', error);
       return [];
     }
+  },
+
+  /**
+   * Holt einen Kunden aus dem Archiv zurück.
+   *
+   * Setzt `aktiv` wieder, entfernt aber bewusst NICHT das Opt-in fürs
+   * Massen-Angebot: Wer archiviert war, soll nicht durch das bloße
+   * Wiederherstellen im nächsten Serienlauf landen. Diese Entscheidung trifft
+   * der Bearbeiter danach getrennt.
+   */
+  async holeAusArchiv(id: string): Promise<void> {
+    const kunde = await this.loadKunde(id);
+    if (!kunde) throw new Error('Kunde nicht gefunden');
+    const hinweis = kunde.archivGrund ? ` (war archiviert: ${kunde.archivGrund})` : '';
+    await this.updateKunde(id, {
+      archiviert: false,
+      archivGrund: undefined,
+      archiviertAm: undefined,
+      aktiv: true,
+      notizen: `${kunde.notizen ? kunde.notizen + '\n' : ''}[Datenpflege] Aus dem Archiv geholt${hinweis}.`,
+    });
+    cacheService.invalidate('callliste');
   },
 
   async loadKunde(id: string): Promise<SaisonKunde | null> {
@@ -1314,7 +1344,9 @@ export const saisonplanungService = {
       saisonDatenMap,
       beziehungenMaps
     ] = await Promise.all([
-      this.loadAlleKunden(),
+      // Im Archiv-Modus werden archivierte mitgeladen und weiter unten auf sie
+      // eingeschränkt; sonst bleiben sie wie überall ausgeblendet.
+      this.loadAlleKunden({ mitArchivierten: filter.nurArchivierte === true }),
       this.loadAlleAnsprechpartner(),
       this.loadAlleSaisonDatenFuerJahr(saisonjahr),
       this.loadAlleBeziehungen()
@@ -1375,6 +1407,13 @@ export const saisonplanungService = {
 
     // Schritt 4: Weitere Filter anwenden
     let result = kundenMitDaten;
+
+    // Archiv-Ansicht: nur die archivierten. Steht bewusst als ERSTER Filter —
+    // alles Folgende soll sich auf die Archivmenge beziehen, damit man auch
+    // dort nach Typ und PLZ suchen kann.
+    if (filter.nurArchivierte) {
+      result = result.filter((k) => k.kunde.archiviert === true);
+    }
 
     // Status-Filter
     if (filter.status && filter.status.length > 0) {

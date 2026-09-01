@@ -44,6 +44,8 @@ export interface ProjektStats {
   anzahlBestellungen: number;
   anzahlBezahlt: number;
   anzahlVerloren: number;
+  /** Projekte, deren maßgeblicher Beleg noch nicht finalisiert ist — ihre Zahlen stammen aus dem Entwurf (Prognose). */
+  anzahlAusEntwurf: number;
 }
 
 // Anfragen-Statistiken

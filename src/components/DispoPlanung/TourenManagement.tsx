@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Truck,
   Plus,
@@ -31,6 +31,7 @@ import { projektService } from '../../services/projektService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
 import AlleLieferscheineModal from './AlleLieferscheineModal';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import { berechneTourennummern } from '../../utils/tourennummer';
 
 interface TourenManagementProps {
   projekte: Projekt[];
@@ -661,12 +662,15 @@ interface TourZuweisungDialogProps {
 }
 
 const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: TourZuweisungDialogProps) => {
+  // Tourennummern einmal für die ganze Liste — die laufende Nummer ergibt sich
+  // nur im Vergleich mit den anderen Touren desselben Tages.
+  const tourNummern = useMemo(() => berechneTourennummern(touren), [touren]);
   const [selectedTourId, setSelectedTourId] = useState<string>('');
   const [tonnen, setTonnen] = useState(0);
 
   useEffect(() => {
     if (projekt) {
-      setTonnen(projekt.liefergewicht || projekt.angefragteMenge || 0);
+      setTonnen(projekt.liefergewicht || projekt.beauftragteTonnen || projekt.angefragteMenge || 0);
     }
   }, [projekt]);
 
@@ -777,6 +781,10 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
                             <span className="text-blue-600">🚛</span>
                           )}
                           {tour.name}
+                          {/* Eindeutige Kennung zum Nennen — abgeleitet, siehe utils/tourennummer */}
+                          <span className="ml-2 text-xs font-mono text-gray-400 dark:text-slate-500">
+                            {tourNummern.get(tour.id)}
+                          </span>
                         </span>
                         <span className="text-sm text-gray-500">
                           {tour.lkwTyp === 'spedition'
@@ -1278,11 +1286,13 @@ const TourenManagement = ({ projekte, onProjektUpdate, onTourenChange }: TourenM
       const neueStops = [...tour.stops, neuerStop];
       await tourenService.updateTour(tourId, { stops: neueStops });
 
-      // Projekt aktualisieren
+      // Projekt aktualisieren. Die Plan-Tonnen der Zuweisung gehen in
+      // beauftragteTonnen — liefergewicht ist das gewogene Ist-Feld und
+      // gehört allein der Wiegeschein-Bestätigung (Stufe 3, 08/2026).
       await projektService.updateProjekt(projektId, {
         routeId: tourId,
         dispoStatus: 'geplant',
-        liefergewicht: tonnen,
+        beauftragteTonnen: tonnen,
       });
 
       await loadTouren();

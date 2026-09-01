@@ -91,11 +91,15 @@ const WiegescheinKarte = ({ projekt: projektProp, onAktualisiert }: WiegescheinK
   const istOffen = wiegeschein.pruefStatus === 'offen';
   const pruefer = { id: user?.$id, name: user?.name };
 
+  // Vergleichsbasis ist die PLAN-Menge: seit Stufe 3 steht sie in
+  // beauftragteTonnen; bei Altprojekten trägt noch liefergewicht den Sollwert.
+  const planTonnen = projekt.beauftragteTonnen ?? projekt.liefergewicht;
+
   // Deutsche Eingabe: Komma als Dezimaltrenner zulassen.
   const mengeAlsZahl = Number(menge.replace(',', '.').trim());
   const abweichung =
     Number.isFinite(mengeAlsZahl) && mengeAlsZahl > 0
-      ? berechneAbweichung(mengeAlsZahl, projekt.liefergewicht)
+      ? berechneAbweichung(mengeAlsZahl, planTonnen)
       : null;
   const zeigeAbweichungswarnung =
     abweichung !== null && Math.abs(abweichung) > ABWEICHUNG_WARNSCHWELLE;
@@ -259,7 +263,7 @@ const WiegescheinKarte = ({ projekt: projektProp, onAktualisiert }: WiegescheinK
                     <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                     <span>
                       Weicht um {(abweichung * 100).toFixed(1).replace('.', ',')} % vom geplanten
-                      Gewicht ({formatTonnen(projekt.liefergewicht)}) ab. Bitte prüfen, ob das so
+                      Gewicht ({formatTonnen(planTonnen)}) ab. Bitte prüfen, ob das so
                       stimmt.
                     </span>
                   </p>
@@ -317,7 +321,9 @@ const WiegescheinKarte = ({ projekt: projektProp, onAktualisiert }: WiegescheinK
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Das Liefergewicht bleibt unverändert bei {formatTonnen(projekt.liefergewicht)}.
+                  {projekt.liefergewicht
+                    ? `Das Liefergewicht bleibt unverändert bei ${formatTonnen(projekt.liefergewicht)}.`
+                    : 'Es wird kein Liefergewicht gesetzt — es zählt weiter die geplante Menge.'}
                 </p>
                 <div className="flex gap-2">
                   <button

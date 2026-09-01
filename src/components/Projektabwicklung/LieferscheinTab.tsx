@@ -140,6 +140,9 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
   // Artikel-Auswahl
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  // Stufe 4 (08/2026): Statt still eine TM-ZM-02-Position zu erfinden, wenn
+  // das Vorgängerdokument keine Positionen liefert, wird gewarnt.
+  const [keineVorgaengerPositionen, setKeineVorgaengerPositionen] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
@@ -353,21 +356,9 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
           }
         }
         
-        // Fallback: Wenn keine Positionen von AB, versuche aus Projektdaten
-        if (initialePositionen.length === 0) {
-          const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
-
-          if (angefragteMenge) {
-            initialePositionen.push({
-              id: '1',
-              artikelnummer: 'TM-ZM-02',
-              artikel: 'Tennissand 0/2',
-              beschreibung: '',
-              menge: angefragteMenge,
-              einheit: 't',
-            });
-          }
-        }
+        // BEWUSST kein Fallback mehr auf eine erfundene TM-ZM-02-Position
+        // (Stufe 4, 08/2026) — stattdessen sichtbare Warnung.
+        setKeineVorgaengerPositionen(initialePositionen.length === 0);
         
         // Lieferscheinnummer generieren, falls nicht vorhanden
         let lieferscheinnummer = projekt?.lieferscheinnummer;
@@ -580,6 +571,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
 
     const neuePosition: LieferscheinPosition = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
       artikelnummer: selectedArtikel.artikelnummer,
       artikel: selectedArtikel.bezeichnung,
       beschreibung: selectedArtikel.beschreibung,
@@ -598,6 +590,9 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
 
   // Gefilterte und sortierte Artikel für die Auswahl
   const gefilterteArtikel = artikel
+    // Archivierte Artikel sind in neuen Belegen nicht mehr auswählbar —
+    // bestehende Positionen bleiben davon unberührt (Stufe 4, 08/2026).
+    .filter((art) => art.aktiv !== false)
     .filter(art => {
       if (!artikelSuchtext.trim()) return true;
       const suchtext = artikelSuchtext.toLowerCase();
@@ -992,12 +987,15 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             strasse: lieferscheinDaten.kundenstrasse,
             plzOrt: lieferscheinDaten.kundenPlzOrt,
           }}
-          onChange={(adresse: DokumentAdresse) => {
+          onChange={(adresse: DokumentAdresse, ansprechpartner?: string) => {
             setLieferscheinDaten(prev => ({
               ...prev,
               kundenname: adresse.name,
               kundenstrasse: adresse.strasse,
               kundenPlzOrt: adresse.plzOrt,
+              // Der Lieferschein druckt zwar kein z.Hd., führt das Feld aber
+              // mit — es bleibt konsistent zu Angebot, AB und Rechnung.
+              ...(ansprechpartner !== undefined ? { ansprechpartner } : {}),
             }));
             hatGeaendert.current = true;
           }}
@@ -1424,6 +1422,16 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             </div>
           )}
 
+          {keineVorgaengerPositionen && lieferscheinDaten.positionen.length === 0 && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Keine Positionen vom Vorgängerdokument übernommen.</strong>{' '}
+                Bitte die Artikel bewusst über die Artikel-Auswahl hinzufügen — eine
+                Standard-Position (TM-ZM-02) wird seit 08/2026 nicht mehr automatisch eingesetzt.
+              </span>
+            </div>
+          )}
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}

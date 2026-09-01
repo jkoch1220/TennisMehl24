@@ -182,3 +182,187 @@ export interface EmailKlaerungsFall {
   /** Alle im System auffindbaren Adressen, ohne Duplikate. */
   kandidaten: EmailKandidat[];
 }
+
+// ===========================================================================
+// KAMPAGNEN — ein Massen-Angebot als eigener, über Tage bearbeitbarer Vorgang
+// ===========================================================================
+//
+// Bisher lebte die Vorschau nur im Browser: Wer das Fenster schloss, fing von
+// vorn an. Ein echter Lauf über mehrere hundert Vereine dauert Tage — E-Mails
+// klären, Mengen prüfen, Sonderfälle nachfragen. Deshalb ist ein Massen-Angebot
+// jetzt ein gespeicherter Vorgang mit Kopf (`MassenAngebotKampagne`) und einer
+// Zeile je Kunde (`MassenAngebotZeile`).
+//
+// Zwei Collections statt eines großen Dokuments: Eine Zeile zu ändern schreibt
+// wenige hundert Byte statt eines Megabyte-Pakets. Das macht Zwischenspeichern
+// billig — und zwei offene Tabs überschreiben sich nicht gegenseitig.
+
+/**
+ * Sortiment eines Massen-Angebots. Die drei Typen sind überschneidungsfrei und
+ * bestimmen, wo die Zielgruppe gesucht wird:
+ *
+ * - `schuettgut`             loses Ziegelmehl (TM-ZM-02/-03)
+ * - `fruehjahrsinstandsetzung` Kunden, die die ARBEIT am Platz beauftragt haben
+ *                            (Instandsetzung, Linien, sonstige Platzarbeiten) —
+ *                            nicht bloß Material. Wir schicken dafür einen
+ *                            Platzbauer hin.
+ * - `paletten`               Kunden, die AUSSCHLIESSLICH Sackware/Paletten
+ *                            bezogen haben. Sie werden anders disponiert und
+ *                            gehören deshalb in einen eigenen Lauf.
+ *
+ * Universalartikel sind in allen drei Typen ausgeschlossen.
+ */
+export type MassenAngebotTyp = 'schuettgut' | 'fruehjahrsinstandsetzung' | 'paletten' | 'abholung';
+
+export const MASSEN_ANGEBOT_TYP_LABELS: Record<MassenAngebotTyp, string> = {
+  schuettgut: 'Schüttgut',
+  fruehjahrsinstandsetzung: 'Frühjahrsinstandsetzung',
+  paletten: 'Palettenware',
+  abholung: 'Abholer',
+};
+
+export const MASSEN_ANGEBOT_TYP_BESCHREIBUNG: Record<MassenAngebotTyp, string> = {
+  schuettgut: 'Loses Ziegelmehl — der Regelfall. Beiladungs-Säcke gehören dazu.',
+  fruehjahrsinstandsetzung: 'Kunden, die die Arbeit am Platz beauftragt haben, nicht nur das Material.',
+  paletten: 'Kunden, die Sackware auf Paletten beziehen und geliefert bekommen — eigene Disposition.',
+  abholung: 'Abholer ab Werk — keine Spedition, Werkspreise. Auch wer nur Sackware holt.',
+};
+
+/**
+ * Status einer Kampagne.
+ *
+ * `versendet` ist eine Einbahnstraße: Was beim Verein im Postfach liegt, lässt
+ * sich nicht nachträglich ändern. Die Zeilen werden dann schreibgeschützt.
+ */
+export type KampagnenStatus = 'entwurf' | 'in_bearbeitung' | 'versendet' | 'abgebrochen';
+
+export const KAMPAGNEN_STATUS_LABELS: Record<KampagnenStatus, string> = {
+  entwurf: 'Entwurf',
+  in_bearbeitung: 'In Bearbeitung',
+  versendet: 'Versendet',
+  abgebrochen: 'Abgebrochen',
+};
+
+/** Bearbeitungsmarkierung einer Zeile — der Arbeitsvorrat des Nutzers. */
+export type ZeilenMarkierung =
+  | 'offen'          // noch nicht angesehen
+  | 'geprueft'       // in Ordnung, geht so raus
+  | 'kompliziert'    // braucht einen zweiten Blick / Rücksprache
+  | 'archivieren'    // Kunde gehört ins Archiv, nicht in dieses Angebot
+  | 'platzbauer'     // wird über einen Platzbauer beliefert → kein Direktangebot
+  | 'zurueckgestellt'; // diesmal nicht, aber auch kein Fehler
+
+export const ZEILEN_MARKIERUNG_LABELS: Record<ZeilenMarkierung, string> = {
+  offen: 'Offen',
+  geprueft: 'Geprüft',
+  kompliziert: 'Kompliziert',
+  archivieren: 'Ins Archiv',
+  platzbauer: 'Über Platzbauer',
+  zurueckgestellt: 'Zurückgestellt',
+};
+
+/** Der Kopf einer Kampagne — steht in `massen_angebote`. */
+export interface MassenAngebotKampagne {
+  id: string;
+  /** Frei wählbar, z. B. „Schüttgut Nordbayern" — sonst aus Typ + Saison erzeugt. */
+  name: string;
+  typ: MassenAngebotTyp;
+  /** Liefersaison, für die die Angebote gelten. */
+  saisonjahr: number;
+  status: KampagnenStatus;
+  erstelltAm: string;
+  erstelltVon?: string;
+  geaendertAm?: string;
+  /** Gesetzt, sobald der Versand gelaufen ist — ab dann schreibgeschützt. */
+  versendetAm?: string;
+  /** Verknüpft die erzeugten Projekte (siehe `erzeugungsBatchId` am Projekt). */
+  batchId?: string;
+  /** Freitext des Bearbeiters. */
+  notiz?: string;
+  /**
+   * Preissteigerung gegenüber dem Vorjahr, in Prozent.
+   *
+   * Wirkt immer auf den GESPEICHERTEN Vorjahrespreis der Zeile, nie auf den
+   * bereits angepassten. Sonst würde zweimaliges Anwenden von 4 % zu 8,16 %,
+   * und niemand könnte nachvollziehen, welcher Aufschlag tatsächlich im
+   * Angebot steht.
+   */
+  preisanpassungProzent?: number;
+  /** Wann die Anpassung zuletzt auf die Zeilen geschrieben wurde. */
+  preisanpassungAngewendetAm?: string;
+  /** Zähler für die Listenansicht, beim Speichern der Zeilen fortgeschrieben. */
+  anzahlZeilen: number;
+  anzahlGeprueft: number;
+  anzahlKompliziert: number;
+  anzahlVersendet: number;
+}
+
+/** Eine Zeile der Kampagne — ein Kunde. Steht in `massen_angebot_zeilen`. */
+export interface MassenAngebotZeile {
+  id: string;
+  kampagneId: string;
+  kundeId: string;
+  kundenname: string;
+  kundennummer?: string;
+
+  markierung: ZeilenMarkierung;
+  /** Vom Nutzer an-/abgewählt — nur Angewählte werden erzeugt. */
+  ausgewaehlt: boolean;
+
+  /** Editierbare Werte. */
+  menge: number;
+  preisProTonne: number;
+  /**
+   * Der Preis aus dem Referenzbeleg — die Basis für die Preisanpassung.
+   *
+   * Getrennt von `preisProTonne`, damit die Anpassung wiederholbar bleibt und
+   * man jederzeit sieht, was der Verein letztes Jahr gezahlt hat.
+   */
+  basisPreisProTonne?: number;
+  empfaengerEmail?: string;
+  notiz?: string;
+  positionen: Position[];
+  /**
+   * Die Position, an der Menge und Tonnenpreis hängen.
+   *
+   * Ohne sie würde eine Preisänderung ALLE Positionen treffen — auch
+   * Einwegpalette, Entladung und Frachtpauschale, die eigene Preise haben.
+   * Genau so entstand ein Angebot, in dem die Palette 161,20 € kostete.
+   */
+  primaerPositionId?: string;
+
+  /**
+   * Warum ist dieser Kunde in der Liste?
+   *
+   * Ohne diese Begründung ist die Liste eine Blackbox: Wer 500 Vereine
+   * durchgeht, muss bei jedem sehen können, worauf der Vorschlag beruht —
+   * „AB 2026 über 12 t" wiegt anders als „Mosaik-Preishistorie 2019".
+   */
+  herkunft: string;
+  quelle: AngebotsQuelle;
+  referenz?: ReferenzInfo;
+  produktprofil: Produktprofil;
+  /** Kunde holt selbst ab — keine Frachtposition, eigene Abstimmung. */
+  selbstabholer: boolean;
+
+  fehler: string[];
+  warnungen: string[];
+
+  /** Nach der Erzeugung: das entstandene Projekt. */
+  projektId?: string;
+  angebotsnummer?: string;
+  versendetAm?: string;
+
+  /**
+   * Angepasster E-Mail-Text für genau diesen Kunden.
+   *
+   * Leer heißt: Es gilt die Vorlage aus den Stammdaten. Gefüllt heißt: Jemand
+   * hat für diesen Verein bewusst etwas anderes formuliert — etwa einen Hinweis
+   * auf die letzte Lieferung oder eine offene Absprache.
+   */
+  emailBetreff?: string;
+  emailText?: string;
+
+  geaendertAm?: string;
+  geaendertVon?: string;
+}

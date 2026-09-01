@@ -421,6 +421,11 @@ const Home = () => {
                   </p>
                   <p className="text-xs text-gray-500 dark:text-dark-textMuted mt-1">
                     {dashboardStats.projektStats.anzahlBestellungen} Bestellungen
+                    {dashboardStats.projektStats.anzahlAusEntwurf > 0 && (
+                      <span className="block text-amber-600 dark:text-amber-400" title="Für diese Projekte existiert noch kein finalisierter Beleg — ihre Zahlen stammen aus dem Entwurf.">
+                        {dashboardStats.projektStats.anzahlAusEntwurf}× Prognose aus Entwurf
+                      </span>
+                    )}
                   </p>
                 </div>
 

@@ -23,6 +23,14 @@ export interface ArtikelDefinition {
 
 /**
  * Alle verfügbaren Tennismehl-Artikel
+ *
+ * @deprecated Übergangsweise Fallback (Stufe 1 Artikelverwaltung, 08/2026):
+ * Die Fach-Merkmale (lieferart, koernung, gewichtProStueckKg, Tonnage-Relevanz)
+ * leben jetzt als Felder am Artikelstamm in Appwrite (warengruppe,
+ * istTonnageRelevant, …) — gepflegt über die Artikelverwaltung, befüllt durch
+ * scripts/befuelle-artikel-stammfelder.ts. Neue Artikel werden NUR noch dort
+ * angelegt; diese Tabelle bekommt keine neuen Einträge mehr und dient nur als
+ * Fallback für Positionen, deren Artikel (noch) nicht aufgelöst werden kann.
  */
 export const TENNISMEHL_ARTIKEL: Record<string, ArtikelDefinition> = {
   // ==========================================

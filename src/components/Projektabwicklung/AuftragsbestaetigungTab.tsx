@@ -77,7 +77,11 @@ import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormu
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
+import { summiereTonnage } from '../../utils/angebotsTonnage';
+import { validierePositionen, formatiereWarnungen } from '../../utils/positionsValidierung';
+import { erstelleArtikelIndex } from '../../utils/tonnage';
 import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
+import { formatiereZahlungsziel, zahlungszielOptionen } from '../../utils/zahlungskonditionen';
 import {
   berechneRabenDieselfloater,
   erstelleRabenDieselfloaterPosition,
@@ -195,6 +199,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  // Stufe 4 (08/2026): Statt still eine TM-ZM-02-Position zu erfinden, wenn
+  // das Vorgängerdokument keine Positionen liefert, wird gewarnt.
+  const [keineVorgaengerPositionen, setKeineVorgaengerPositionen] = useState(false);
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
   
@@ -448,6 +455,8 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         let angebotsOhneMwSt: boolean | undefined;
         let angebotsMwStSatz: number | undefined;
         let angebotsKundenUstIdNr: string | undefined;
+        // Zahlungsziel: was im Angebot stand, gilt weiter (Vorschlag [7]/[48]).
+        let angebotsZahlungsziel: string | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'auftragsbestaetigung');
@@ -482,6 +491,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
             angebotsOhneMwSt = angebotsDaten?.ohneMehrwertsteuer;
             angebotsMwStSatz = angebotsDaten?.mehrwertsteuersatz;
             angebotsKundenUstIdNr = angebotsDaten?.kundenUstIdNr;
+            angebotsZahlungsziel = angebotsDaten?.zahlungsziel;
             if (angebotsOhneMwSt || angebotsMwStSatz) {
               console.log('✅ Steueroptionen vom Angebot übernommen:', { angebotsOhneMwSt, angebotsMwStSatz });
             }
@@ -490,23 +500,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           }
         }
         
-        // Fallback: Wenn keine Positionen vom Angebot, versuche aus Projektdaten
-        if (initialePositionen.length === 0) {
-          const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
-          const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
-
-          if (angefragteMenge && preisProTonne) {
-            initialePositionen.push({
-              id: '1',
-              artikelnummer: 'TM-ZM-02',
-              bezeichnung: 'Tennissand 0/2',
-              menge: angefragteMenge,
-              einheit: 't',
-              einzelpreis: preisProTonne,
-              gesamtpreis: angefragteMenge * preisProTonne,
-            });
-          }
-        }
+        // BEWUSST kein Fallback mehr auf eine erfundene TM-ZM-02-Position aus
+        // angefragteMenge (Stufe 4, 08/2026): der stille Fallback war
+        // Hauptverdächtiger für falsche Artikel und Tonnagen in Belegen.
+        // Stattdessen sichtbare Warnung — der Nutzer wählt den Artikel selbst.
+        setKeineVorgaengerPositionen(initialePositionen.length === 0);
         
         // Auftragsbestätigungsnummer generieren, falls nicht vorhanden
         let auftragsbestaetigungsnummer = projekt?.auftragsbestaetigungsnummer;
@@ -541,6 +539,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         let lieferzeitVon: string | undefined = undefined;
         let lieferzeitBis: string | undefined = undefined;
         let dispoAnsprechpartner: { name: string; telefon: string } | undefined = undefined;
+        let kundenZahlungsziel: string | undefined = undefined;
 
         // Platzbauer-Rechnungsadresse (falls bezugsweg = platzbauer)
         let platzbaurerRechnungsName: string | undefined = undefined;
@@ -555,6 +554,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               lieferzeitVon = kunde.standardLieferzeitfenster?.von;
               lieferzeitBis = kunde.standardLieferzeitfenster?.bis;
               dispoAnsprechpartner = kunde.dispoAnsprechpartner;
+              kundenZahlungsziel = formatiereZahlungsziel(kunde.zahlungsziel);
               if (belieferungsart) {
                 console.log('✅ Belieferungsart vom Kunden übernommen:', belieferungsart);
               }
@@ -579,6 +579,8 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               platzbaurerRechnungsStrasse = pb.rechnungsadresse.strasse;
               platzbaurerRechnungsPlzOrt = formatAdresszeile(pb.rechnungsadresse.plz, pb.rechnungsadresse.ort, pb.rechnungsadresse.land);
               console.log('✅ PLATZBAUER-PROJEKT: Rechnungsadresse vom Platzbauer:', platzbaurerRechnungsName, platzbaurerRechnungsStrasse, platzbaurerRechnungsPlzOrt);
+              // Rechnungsempfaenger ist der Platzbauer -> seine Zahlungsbedingungen.
+              kundenZahlungsziel = formatiereZahlungsziel(pb.zahlungsziel) ?? kundenZahlungsziel;
             }
           } catch (error) {
             console.warn('Platzbauer konnte nicht geladen werden:', error);
@@ -620,6 +622,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
           ohneMehrwertsteuer: prev.ohneMehrwertsteuer ?? angebotsOhneMwSt,
           mehrwertsteuersatz: prev.mehrwertsteuersatz ?? angebotsMwStSatz,
           kundenUstIdNr: prev.kundenUstIdNr ?? angebotsKundenUstIdNr,
+          // Reihenfolge Angebot > Kunde, wie bei Klauseln und Steueroptionen:
+          // was der Kunde im Angebot schwarz auf weiss hatte, darf die AB nicht
+          // stillschweigend aendern. prev steht hier immer auf '14 Tage' und
+          // taugt darum nicht als Vorrang-Quelle.
+          zahlungsziel: angebotsZahlungsziel || kundenZahlungsziel || prev.zahlungsziel,
+          // Das Select zeigte 'Spätestens KW' an, schrieb den Wert aber erst bei
+          // einem Klick in den State — 415 von 446 ABs hatten das Feld darum leer.
+          // Angezeigter und gespeicherter Stand stimmen jetzt von Anfang an überein.
+          lieferdatumTyp: prev.lieferdatumTyp ?? 'spaetestens_kw',
         }));
         datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
@@ -645,15 +656,12 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
 
-    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
+    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren.
+    // summiereTonnage zählt nur echte Ware — Pauschalen in „t" (TM-HYC-V,
+    // TM-LKW-KR) und Bedarfspositionen verschieben die Staffel nicht mehr
+    // (gleiche Logik wie im AngebotTab seit 08/2026).
     if (field === 'menge') {
-      // Berechne Gesamttonnage aller Positionen mit Einheit 't' oder 'to'
-      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      const gesamtTonnage = summiereTonnage(neuePositionen);
 
       // Finde und aktualisiere die Frachtkostenpauschale-Position
       const frachtkostenIndex = neuePositionen.findIndex(
@@ -701,18 +709,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
     // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
     if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
-      const gesamtTonnage = auftragsbestaetigungsDaten.positionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      const gesamtTonnage = summiereTonnage(auftragsbestaetigungsDaten.positionen);
       preis = berechneFrachtkostenpauschale(gesamtTonnage);
       console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${preis}€`);
     }
 
     const neuePosition: Position = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
+      preisQuelle: 'stamm',
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
       beschreibung: selectedArtikel.beschreibung || '',
@@ -734,6 +739,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
   // Gefilterte und sortierte Artikel für die Auswahl
   const gefilterteArtikel = artikel
+    // Archivierte Artikel sind in neuen Belegen nicht mehr auswählbar —
+    // bestehende Positionen bleiben davon unberührt (Stufe 4, 08/2026).
+    .filter((art) => art.aktiv !== false)
     .filter(art => {
       if (!artikelSuchtext.trim()) return true;
       const suchtext = artikelSuchtext.toLowerCase();
@@ -917,6 +925,19 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
     }
+
+    // Zentrale Positions-Validierung (Stufe 4, 08/2026): Nummer↔Stamm↔Einheit↔Preis.
+    // Warnungen blockieren nicht hart, müssen aber bewusst bestätigt werden.
+    {
+      const warnungen = validierePositionen(auftragsbestaetigungsDaten.positionen, erstelleArtikelIndex(artikel));
+      if (warnungen.length > 0) {
+        const weiter = confirm(
+          `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nTrotzdem speichern?`
+        );
+        if (!weiter) return;
+      }
+    }
+
     void speichereUndHinterlegeAuftragsbestaetigung();
   };
 
@@ -1442,12 +1463,14 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
             strasse: auftragsbestaetigungsDaten.kundenstrasse,
             plzOrt: auftragsbestaetigungsDaten.kundenPlzOrt,
           }}
-          onChange={(adresse: DokumentAdresse) => {
+          onChange={(adresse: DokumentAdresse, ansprechpartner?: string) => {
             setAuftragsbestaetigungsDaten(prev => ({
               ...prev,
               kundenname: adresse.name,
               kundenstrasse: adresse.strasse,
               kundenPlzOrt: adresse.plzOrt,
+              // z.Hd. folgt dem Empfänger — siehe DokumentAdresseFormular.
+              ...(ansprechpartner !== undefined ? { ansprechpartner } : {}),
             }));
             hatGeaendert.current = true;
           }}
@@ -1512,6 +1535,16 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
 
         {/* Positionen */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+          {keineVorgaengerPositionen && auftragsbestaetigungsDaten.positionen.length === 0 && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Keine Positionen vom Vorgängerdokument übernommen.</strong>{' '}
+                Bitte die Artikel bewusst über die Artikel-Auswahl hinzufügen — eine
+                Standard-Position (TM-ZM-02) wird seit 08/2026 nicht mehr automatisch eingesetzt.
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-dark-text">Positionen</h2>
             {(!gespeichertesDokument || istBearbeitungsModus) && (
@@ -2056,12 +2089,9 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
               >
-                <option value="Vorkasse">Vorkasse</option>
-                <option value="Sofort">Sofort</option>
-                <option value="7 Tage">7 Tage</option>
-                <option value="14 Tage">14 Tage</option>
-                <option value="30 Tage">30 Tage</option>
-                <option value="60 Tage">60 Tage</option>
+                {zahlungszielOptionen(auftragsbestaetigungsDaten.zahlungsziel).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
             <div>

@@ -47,10 +47,24 @@ export function tonnageQuelleLabel(quelle: TonnageQuelle): string {
  *
  * Reihenfolge nach Verbindlichkeit: Was gewogen wurde, schlägt was beauftragt
  * wurde, und das schlägt was angefragt wurde.
+ *
+ * „Gewogen" ist seit Stufe 3 (08/2026) nur noch, was die Wiegeschein-Prüfung
+ * bestätigt hat (`wiegeschein.pruefStatus`). `liefergewicht` allein reicht
+ * nicht: bis 08/2026 schrieben auch AB-Saves, Projekt-Splits, die
+ * Platzbauer-Massenanlage und zwei Dispo-Masken in das Feld — der Altbestand
+ * trägt dort also vielfach Soll-Werte. Die werden hier ehrlich als
+ * 'beauftragt' eingestuft statt als Ist ausgewiesen (Korrektur in der
+ * Lese-Schicht, keine Datenmigration).
  */
 export function projektTonnage(projekt: Projekt): ProjektTonnage | null {
-  if (projekt.liefergewicht && projekt.liefergewicht > 0) {
-    return { tonnen: projekt.liefergewicht, quelle: 'gewogen' };
+  const wiegescheinGeprueft =
+    projekt.wiegeschein?.pruefStatus === 'bestaetigt' ||
+    projekt.wiegeschein?.pruefStatus === 'korrigiert';
+  if (wiegescheinGeprueft) {
+    const gewogen = projekt.wiegeschein?.gepruefteMengeTonnen ?? projekt.liefergewicht;
+    if (gewogen && gewogen > 0) {
+      return { tonnen: gewogen, quelle: 'gewogen' };
+    }
   }
 
   // Der Parser rechnet Sackware und BigBags bereits in Tonnen um und lässt
@@ -63,6 +77,15 @@ export function projektTonnage(projekt: Projekt): ProjektTonnage | null {
   const material = parseMaterialAufschluesselung(projekt);
   if (material.gesamtTonnen > 0 && !material.ausFallback) {
     return { tonnen: material.gesamtTonnen, quelle: 'beauftragt' };
+  }
+
+  // Von AB-Save/Split/Dispo gepflegte Plan-Menge (neues Feld ab Stufe 3) —
+  // danach ungewogene liefergewicht-Werte aus dem Altbestand, gleicher Rang.
+  if (projekt.beauftragteTonnen && projekt.beauftragteTonnen > 0) {
+    return { tonnen: projekt.beauftragteTonnen, quelle: 'beauftragt' };
+  }
+  if (projekt.liefergewicht && projekt.liefergewicht > 0) {
+    return { tonnen: projekt.liefergewicht, quelle: 'beauftragt' };
   }
 
   if (projekt.angefragteMenge && projekt.angefragteMenge > 0) {

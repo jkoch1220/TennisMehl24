@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Calculator, Truck, Package, TrendingUp, Fuel, Clock, MapPin, Settings, Users, Info } from 'lucide-react';
 import { Warenart, AufschlagTyp, Lieferart, EigenlieferungStammdaten, FremdlieferungStammdaten, SpeditionskostenErgebnis, Lieferant } from '../types';
+// Die LKW-Ladung ist in der Kalkulation ein DIVISOR (calculations.ts:205-215):
+// transportkostenProTonne = transportkosten / lkwLadung. Ein zu hoch gesetzter
+// Wert rechnet die Fracht je Tonne künstlich klein — das Angebot sieht dann
+// profitabler aus, als es ist (Vorschlag [19]).
+import { MAX_LKW_LADUNG_TONNEN } from '../types/tour';
 import { berechneSpeditionskosten } from '../utils/calculations';
 import {
   getZoneFromPLZ,
@@ -636,9 +641,11 @@ const SpeditionskostenRechner = () => {
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0.1}
+                    max={MAX_LKW_LADUNG_TONNEN}
                   />
                   <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
+                    {' '}(max. {MAX_LKW_LADUNG_TONNEN} t)
                   </p>
                 </div>
               </div>
@@ -775,9 +782,11 @@ const SpeditionskostenRechner = () => {
                     className="w-full p-2 border-2 border-green-200 dark:border-green-700/50 rounded-lg focus:border-green-400 focus:outline-none bg-white dark:bg-slate-800"
                     step={0.1}
                     min={0.1}
+                    max={MAX_LKW_LADUNG_TONNEN}
                   />
                   <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     LKW Ladung in Tonnen für Kostenberechnung pro Lieferung
+                    {' '}(max. {MAX_LKW_LADUNG_TONNEN} t)
                   </p>
                 </div>
               </div>

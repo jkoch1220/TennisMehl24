@@ -37,3 +37,21 @@ dist-ssr
 
 # TypeScript-Build-Cache (lokal, gehoert nicht ins Repo)
 *.tsbuildinfo
+
+# Sicherungen aus scripts/vorschlaege-abschliessen.ts (lokale Kopien, kein Repo-Inhalt)
+vorschlaege-sicherung-*.json
+
+# Postfach-Rohdaten: 3 MB Kopfzeilen mit Kundenadressen — gehören nicht ins Repo
+postfach-adressen.json
+email-vorschlaege.csv
+
+# Lokale Session-/Editor-Konfiguration (enthält Rechner-Pfade)
+.claude/
+
+# Temp-Artefakte und Caches aus Wartungsskripten
+_wait.cjs
+scripts/.maps-cache.json
+
+# Datensicherungen und Kontaktlisten mit echten Kunden-/Firmendaten — Repo ist öffentlich
+zahlungsziele-sicherung-*.json
+scripts/dienstleister-blockliste.json

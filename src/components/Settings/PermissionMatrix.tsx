@@ -90,7 +90,10 @@ const PermissionMatrix = ({ value, onChange, mode, disabled = false }: Permissio
 
   return (
     <div className="space-y-1.5 max-h-[45vh] overflow-y-auto pr-1">
-      {ALL_TOOLS.map((tool) => {
+      {/* Admin-Tools stehen hier nicht zur Wahl: `can()` sperrt sie ohnehin für
+          jeden Nicht-Admin, ein Häkchen hier bliebe also wirkungslos. Bereits
+          gespeicherte Einträge zu diesen Tools bleiben unangetastet. */}
+      {ALL_TOOLS.filter((tool) => !tool.nurAdmin).map((tool) => {
         const entry = value[tool.id];
         const aktiv = !!entry;
         const komplettGesperrt = isDeny && entry?.enabled === false;

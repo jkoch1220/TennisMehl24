@@ -24,6 +24,8 @@ import {
   DEFAULT_SCHICHT_EINSTELLUNGEN,
   getStandardZeiten,
   berechneStunden,
+  zeitZuMinuten,
+  minutenZuZeit,
 } from '../types/schichtplanung';
 
 export const schichtplanungService = {
@@ -458,35 +460,58 @@ export const schichtplanungService = {
     const ma = mitarbeiter.find((m) => m.id === neueZuweisung.mitarbeiterId);
     const schichtConfig = getSchichtConfig(einstellungen);
 
-    // 1. Echte Doppelbelegung (gleiche Schicht am selben Tag) - nur das ist ein Fehler
-    const gleicheSchicht = bestehendeZuweisungen.filter(
+    // 1. Echte Zeitüberschneidung — nur das ist ein Fehler.
+    //
+    // Vorher galt hier „gleicher Schichttyp am selben Tag" als Fehler. Das ist
+    // aber kein fachliches Hindernis, sondern nur eine Namensgleichheit: Zwei
+    // Frühschichten mit unterschiedlichen Zeiten (06–10 und 11–15) sind eine
+    // ganz normale geteilte Schicht. Umgekehrt blieb eine echte Überschneidung
+    // zweier VERSCHIEDENER Schichttypen unbeanstandet. Maßgeblich ist die Uhr,
+    // nicht die Bezeichnung (Vorschlag [12]).
+    const zeitfenster = (z: { schichtTyp: SchichtTyp; startZeit?: string; endZeit?: string }) => {
+      const standard = getStandardZeiten(z.schichtTyp, einstellungen);
+      const start = zeitZuMinuten(z.startZeit || standard.startZeit);
+      let ende = zeitZuMinuten(z.endZeit || standard.endZeit);
+      // Nachtschicht läuft über Mitternacht — sonst wäre das Fenster negativ.
+      if (ende <= start) ende += 24 * 60;
+      return { start, ende };
+    };
+
+    const neuesFenster = zeitfenster(neueZuweisung);
+    const amGleichenTag = bestehendeZuweisungen.filter(
       (z) =>
         z.datum === neueZuweisung.datum &&
         z.mitarbeiterId === neueZuweisung.mitarbeiterId &&
-        z.schichtTyp === neueZuweisung.schichtTyp &&
         z.status !== 'krank' &&
         z.status !== 'urlaub'
     );
 
-    if (gleicheSchicht.length > 0) {
+    const ueberschneidungen = amGleichenTag.filter((z) => {
+      const fenster = zeitfenster(z);
+      return fenster.start < neuesFenster.ende && neuesFenster.start < fenster.ende;
+    });
+
+    if (ueberschneidungen.length > 0) {
+      const belegt = ueberschneidungen
+        .map((z) => {
+          const f = zeitfenster(z);
+          return `${minutenZuZeit(f.start)}–${minutenZuZeit(f.ende)}`;
+        })
+        .join(', ');
       konflikte.push({
         typ: 'doppelbelegung',
         schwere: 'fehler',
-        nachricht: `${ma?.vorname} ${ma?.nachname} ist bereits für diese Schicht eingeplant`,
+        nachricht: `${ma?.vorname} ${ma?.nachname} arbeitet zu dieser Zeit bereits (${belegt})`,
         mitarbeiterId: neueZuweisung.mitarbeiterId,
         datum: neueZuweisung.datum,
         schichtTyp: neueZuweisung.schichtTyp,
       });
     }
 
-    // 1b. Mehrfachschichten am selben Tag - nur Warnung (Doppel-/Dreifachschicht)
-    const andereSchichtenAmTag = bestehendeZuweisungen.filter(
-      (z) =>
-        z.datum === neueZuweisung.datum &&
-        z.mitarbeiterId === neueZuweisung.mitarbeiterId &&
-        z.schichtTyp !== neueZuweisung.schichtTyp &&
-        z.status !== 'krank' &&
-        z.status !== 'urlaub'
+    // 1b. Mehrfachschichten am selben Tag ohne Überschneidung — Doppel- oder
+    // Dreifachschicht. Erlaubt, aber der Planer soll es bewusst bestätigen.
+    const andereSchichtenAmTag = amGleichenTag.filter(
+      (z) => !ueberschneidungen.includes(z)
     );
 
     if (andereSchichtenAmTag.length > 0) {

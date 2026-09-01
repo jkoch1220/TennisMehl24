@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check, MapPin } from 'lucide-react';
+import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check, MapPin, History, ChevronDown, ChevronRight } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonAktivitaet,
@@ -26,6 +26,9 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const navigate = useNavigate();
   const [aktivitaeten, setAktivitaeten] = useState<SaisonAktivitaet[]>(kunde.aktivitaeten);
   const [showAddAktivitaet, setShowAddAktivitaet] = useState(false);
+  // Bestellhistorie reicht bis 2001 zurück und wäre aufgeklappt länger als der
+  // Rest des Dialogs — deshalb standardmäßig zu, mit Summe in der Kopfzeile.
+  const [historieOffen, setHistorieOffen] = useState(false);
   const [aktivitaetTyp, setAktivitaetTyp] = useState<AktivitaetsTyp>('kommentar');
   const [aktivitaetTitel, setAktivitaetTitel] = useState('');
   const [aktivitaetBeschreibung, setAktivitaetBeschreibung] = useState('');
@@ -185,6 +188,18 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
   };
+
+  // Kennzahlen der Bestellhistorie für die Kopfzeile des Abschnitts.
+  const bestellhistorie = kunde.kunde.bestellhistorie ?? [];
+  const historieAnzahl = bestellhistorie.reduce((s, e) => s + (e.anzahl || 0), 0);
+  const historieSumme = bestellhistorie.reduce((s, e) => s + (e.summeEuro || 0), 0);
+  const historieJahre = bestellhistorie.map((e) => e.jahr).sort((a, b) => a - b);
+  const historieSpanne = historieJahre.length
+    ? (historieJahre[0] === historieJahre[historieJahre.length - 1]
+        ? `${historieJahre[0]}`
+        : `${historieJahre[0]}–${historieJahre[historieJahre.length - 1]}`)
+    : '';
+  const mehrereKonten = new Set(bestellhistorie.flatMap((e) => e.quellen ?? [])).size > 1;
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -359,6 +374,97 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                 <div>
                   <span className="font-medium text-gray-700 dark:text-slate-400">Schüttstellen Anzahl:</span>{' '}
                   <span className="text-gray-900 dark:text-slate-100">{kunde.kunde.schuettstellenAnzahl}</span>
+                </div>
+              )}
+
+              {/* Zahlungskonditionen — im Kundenformular pflegbar, aber bislang
+                  nirgends sichtbar. Seit 08/2026 belegen Angebot, AB und Rechnung
+                  damit ihr Zahlungsziel vor; wer den Wert nicht sieht, versteht
+                  nicht, warum dort etwas anderes als 14 Tage steht. */}
+              {kunde.kunde.zahlungsziel !== undefined && kunde.kunde.zahlungsziel !== null && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Zahlungsziel:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">
+                    {kunde.kunde.zahlungsziel === 0 ? 'Sofort' : `${kunde.kunde.zahlungsziel} Tage`}
+                  </span>
+                  {kunde.kunde.zahlungszielQuelle && (
+                    <span className="text-xs text-gray-500 dark:text-slate-500 ml-1">
+                      ({kunde.kunde.zahlungszielQuelle})
+                    </span>
+                  )}
+                </div>
+              )}
+              {kunde.kunde.skonto && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Skonto:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">
+                    {kunde.kunde.skonto.prozent} %
+                    {kunde.kunde.skonto.tage ? ` bei Zahlung in ${kunde.kunde.skonto.tage} Tagen` : ''}
+                  </span>
+                </div>
+              )}
+              {kunde.kunde.vorkasse && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Zahlungsart:</span>{' '}
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">Vorkasse</span>
+                </div>
+              )}
+              {kunde.kunde.abwerkspreis && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Preisstellung:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">Ab-Werk-Preis</span>
+                </div>
+              )}
+
+              {/* Dispo-Angaben: stehen in der Datenbank, wurden hier aber nie gezeigt.
+                  Wer am Telefon einen Liefertermin abstimmt, braucht genau diese. */}
+              {kunde.kunde.dispoAnsprechpartner?.name && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Dispo-Ansprechpartner:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">
+                    {kunde.kunde.dispoAnsprechpartner.name}
+                    {kunde.kunde.dispoAnsprechpartner.telefon ? ` · ${kunde.kunde.dispoAnsprechpartner.telefon}` : ''}
+                  </span>
+                </div>
+              )}
+              {kunde.kunde.standardLieferzeitfenster?.von && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Lieferzeitfenster:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">
+                    {kunde.kunde.standardLieferzeitfenster.von} – {kunde.kunde.standardLieferzeitfenster.bis}
+                  </span>
+                </div>
+              )}
+              {kunde.kunde.wunschLieferwoche && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Wunsch-Lieferwoche:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">KW {kunde.kunde.wunschLieferwoche}</span>
+                </div>
+              )}
+              {kunde.kunde.anfahrtshinweise && (
+                <div className="md:col-span-2">
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Anfahrtshinweise:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100">{kunde.kunde.anfahrtshinweise}</span>
+                </div>
+              )}
+
+              {/* Verwaltung */}
+              {kunde.kunde.automatischesAngebot && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Massen-Angebot:</span>{' '}
+                  <span className="text-green-700 dark:text-green-400">bekommt Jahresangebot</span>
+                </div>
+              )}
+              {kunde.kunde.mosaikKurzname && (
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-slate-400">Mosaik-Kurzname:</span>{' '}
+                  <span className="text-gray-900 dark:text-slate-100 font-mono text-xs">{kunde.kunde.mosaikKurzname}</span>
+                </div>
+              )}
+              {kunde.kunde.archiviert && (
+                <div className="md:col-span-2">
+                  <span className="font-medium text-amber-700 dark:text-amber-400">Archiviert</span>
+                  {kunde.kunde.archivGrund ? `: ${kunde.kunde.archivGrund}` : ''}
                 </div>
               )}
             </div>
@@ -707,6 +813,71 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
               </div>
             )}
           </div>
+
+          {/* Bestellhistorie aus dem Altsystem Mosaik (2001–2025).
+              Steht bewusst unter den Projekten: die Projekte sind das laufende
+              Geschäft, das hier ist Archiv. */}
+          {bestellhistorie.length > 0 && (
+            <div>
+              <button
+                onClick={() => setHistorieOffen(!historieOffen)}
+                className="w-full flex items-center justify-between mb-4 group"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
+                  {historieOffen ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                  <History className="w-5 h-5" />
+                  Bestellhistorie (Mosaik)
+                </h3>
+                <span className="text-sm text-gray-600 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-slate-100">
+                  {historieSpanne} · {historieAnzahl} Vorgänge · {formatCurrency(historieSumme)}
+                </span>
+              </button>
+
+              {historieOffen && (
+                <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-slate-400">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-medium">Jahr</th>
+                          <th className="text-right px-4 py-2 font-medium">Vorgänge</th>
+                          <th className="text-right px-4 py-2 font-medium">Umsatz</th>
+                          <th className="text-left px-4 py-2 font-medium">Mosaik-Konto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...bestellhistorie].sort((a, b) => b.jahr - a.jahr).map((e) => (
+                          <tr key={e.jahr} className="border-t border-gray-100 dark:border-slate-700">
+                            <td className="px-4 py-2 font-medium text-gray-900 dark:text-slate-100">{e.jahr}</td>
+                            <td className="px-4 py-2 text-right text-gray-600 dark:text-slate-400">{e.anzahl}</td>
+                            <td className="px-4 py-2 text-right text-gray-900 dark:text-slate-100">
+                              {e.summeEuro > 0 ? formatCurrency(e.summeEuro) : '–'}
+                            </td>
+                            <td className="px-4 py-2 text-gray-500 dark:text-slate-400 text-xs">
+                              {(e.quellen ?? []).join(', ')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-slate-700">
+                        <tr>
+                          <td className="px-4 py-2 font-semibold text-gray-900 dark:text-slate-100">Gesamt</td>
+                          <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-slate-100">{historieAnzahl}</td>
+                          <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-slate-100">{formatCurrency(historieSumme)}</td>
+                          <td className="px-4 py-2"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <p className="px-4 py-2 text-xs text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-slate-700">
+                    Archiv aus dem abgelösten System Mosaik. Wird nicht fortgeschrieben — laufende
+                    Vorgänge stehen oben unter „Projekte".
+                    {mehrereKonten && ' Dieser Kunde wurde aus mehreren Mosaik-Konten zusammengeführt; die Jahre sind addiert.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Aktivitätsverlauf */}
           <div>

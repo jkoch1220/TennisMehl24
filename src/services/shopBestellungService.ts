@@ -12,6 +12,8 @@ import { UniversalArtikel } from '../types/universaArtikel';
 import { Projekt, NeuesProjekt } from '../types/projekt';
 import { Position, AuftragsbestaetigungsDaten } from '../types/projektabwicklung';
 import { projektService } from './projektService';
+import { getAlleArtikel } from './artikelService';
+import { erstelleArtikelIndex, findeArtikelZurPosition } from '../utils/tonnage';
 import { loadAllDocuments } from '../utils/appwritePagination';
 
 /**
@@ -660,32 +662,55 @@ class ShopBestellungService {
       );
     }
 
+    // Artikelstamm für die Zuordnung eigener Artikel (Einheit, artikelId).
+    // Schlägt das Laden fehl, greift unten der bisherige Stk-Fallback.
+    let artikelIndex: ReturnType<typeof erstelleArtikelIndex> | undefined;
+    if (typ !== 'universal') {
+      try {
+        artikelIndex = erstelleArtikelIndex(await getAlleArtikel());
+      } catch (e) {
+        console.warn('Artikelstamm für Shop-Import nicht ladbar:', e);
+      }
+    }
+
     // Konvertiere Shop-Positionen zu Projekt-Positionen
     const projektPositionen: Position[] = zuVerwendendePositionen.map(pos => {
       const universalArtikel = universalArtikelMap?.get(pos.artikelnummer);
 
-      // WICHTIG: Shop-Preise sind BRUTTO!
-      // Für Universal-Artikel: Verwende katalogPreisNetto aus Stammdaten
-      // Für eigene Artikel: Konvertiere Brutto zu Netto (/ 1.19)
+      // WICHTIG: Shop-Preise sind BRUTTO (Gambio führt Endkundenpreise)!
+      // Für Universal-Artikel: hinterlegter Netto-Katalogpreis aus Stammdaten.
+      // Für eigene Artikel seit Stufe 4 (08/2026): tatsächlich gezahlter
+      // Shop-Preis, auf Netto umgerechnet — vorher blieb der Brutto-Wert
+      // stehen und wurde überall als Netto weiterverarbeitet (AB/Rechnung
+      // schlugen die MwSt erneut auf).
       let einzelpreis = pos.einzelpreis;
       if (typ === 'universal' && universalArtikel) {
-        // Verwende den hinterlegten Netto-Katalogpreis
         einzelpreis = universalArtikel.katalogPreisNetto;
-      } else if (typ === 'universal') {
-        // Fallback: Brutto zu Netto umrechnen
+      } else {
         einzelpreis = pos.einzelpreis / 1.19;
       }
-      // Eigene Artikel bleiben Brutto (werden normal behandelt)
+
+      // Eigene Artikel: Einheit aus dem Stamm statt pauschal 'Stk' — sonst
+      // fällt Shop-Tennismehl aus jeder Tonnage-Rechnung. Bei Stamm-Einheit
+      // 't' entspricht 1 Shop-Stück nominal 1 t (BigBag ≈ 1000 kg, Palette
+      // 25 × 40 kg); Sackware (TM-ZM-02S, 'Stk') rechnet die Tonnage über
+      // gewichtProStueckKg um.
+      const stammArtikel = typ !== 'universal'
+        ? findeArtikelZurPosition({ artikelnummer: pos.artikelnummer }, artikelIndex)
+        : undefined;
+      const einheit = stammArtikel?.erlaubteEinheit || stammArtikel?.einheit || 'Stk';
 
       return {
         id: ID.unique(),
+        artikelId: stammArtikel?.$id,
+        preisQuelle: 'shop' as const,
         artikelnummer: pos.artikelnummer,
         bezeichnung: pos.artikel,
         beschreibung: typ === 'universal' ? `Universal: ${pos.artikel}` : pos.artikel,
         menge: pos.anzahl,
-        einheit: 'Stk',
+        einheit,
         einzelpreis: Math.round(einzelpreis * 100) / 100,
-        einkaufspreis: universalArtikel?.grosshaendlerPreisNetto,
+        einkaufspreis: universalArtikel?.grosshaendlerPreisNetto ?? stammArtikel?.einkaufspreis ?? undefined,
         gesamtpreis: Math.round(einzelpreis * pos.anzahl * 100) / 100,
         istUniversalArtikel: typ === 'universal',
       };

@@ -21,29 +21,22 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
-  List,
   LayoutGrid,
   Ban,
   Filter,
   Building2,
-  BarChart3,
   Mail,
   Hash,
-  Map as MapIcon,
   Droplets,
-  Download,
   Tag,
   Link2,
   AlertTriangle,
   CalendarDays,
   Plus,
-  Calculator,
   HardHat,
   ShoppingCart,
   Inbox,
   Workflow,
-  Scale,
-  Receipt,
 } from 'lucide-react';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE, ALLE_PROJEKT_STATUS } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
@@ -68,6 +61,8 @@ import MassenAngebotTool from './MassenAngebotTool';
 import SammelfakturierungTool from './SammelfakturierungTool';
 import ShopBestellungen from '../ShopBestellungen/ShopBestellungen';
 import ProjektFilterLeiste, { GespeicherteAnsicht } from './ProjektFilterLeiste';
+import AnsichtenNavigation from './AnsichtenNavigation';
+import { istViewMode, type ViewMode } from './ansichten';
 import {
   ProjektFilter,
   wendeFilterAn,
@@ -172,25 +167,16 @@ const KANBAN_GRID_KLASSEN: Record<number, string> = {
 const kanbanGridKlasse = (spalten: number): string =>
   KANBAN_GRID_KLASSEN[spalten] ?? 'xl:grid-cols-8';
 
-// Liste statt ausgeschriebenem Union: Nur so laesst sich ein `?view=`-Wert aus der
-// Adresse pruefen, bevor er als ViewMode durchgereicht wird. Ein unbekannter Wert
-// (veraltetes Lesezeichen, Tippfehler) traefe sonst keine der Render-Bedingungen
-// und die Seite bliebe unterhalb der Tab-Leiste leer.
-const VIEW_MODES = [
-  'overview', 'kanban',
-  'wochen', 'angebotsliste', 'statistik', 'anfragen', 'karte',
-  'hydrocourt', 'universal', 'wiegescheine', 'exports', 'massenangebot', 'fakturierung', 'shop',
-] as const;
+// Ansichtsliste, Reiter und Werkzeug-Menue stehen zusammen in
+// `AnsichtenNavigation`. `istViewMode` prueft dort einen `?view=`-Wert aus der
+// Adresse, bevor er durchgereicht wird: Ein unbekannter Wert (veraltetes
+// Lesezeichen, Tippfehler) traefe sonst keine der Render-Bedingungen und die
+// Seite bliebe unterhalb der Reiterleiste leer.
 
 // Ansichten, in denen Suche und Kategoriefilter tatsächlich auf die Daten wirken.
 // Bewusst als Liste statt als Ausschluss: Wer eine Ansicht ergänzt, muss sich
 // aktiv entscheiden, ob die Filterzeile dort etwas bewirkt.
 const FILTERBARE_VIEWS: readonly string[] = ['kanban', 'wochen', 'angebotsliste', 'karte'];
-
-type ViewMode = (typeof VIEW_MODES)[number];
-
-const istViewMode = (wert: string | null): wert is ViewMode =>
-  wert !== null && (VIEW_MODES as readonly string[]).includes(wert);
 
 // Die Mobilansicht rendert nur diese beiden Ansichten eigenständig; alles andere
 // fällt dort auf die allgemeine Projektliste zurück, die keinen Weg zurück zur
@@ -1302,172 +1288,14 @@ const ProjektVerwaltung = () => {
               </>
             )}
 
-            {/* Ansicht umschalten */}
-            <div className="flex border border-gray-300 dark:border-slate-600 rounded-lg overflow-x-auto max-w-full">
-              <button
-                onClick={() => setViewMode('overview')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'overview'
-                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Prozess-Übersicht: alle Tools von der Anfrage bis zur Rechnung"
-              >
-                <Workflow className="w-4 h-4" />
-                <span className="hidden sm:inline">Übersicht</span>
-              </button>
-              <button
-                onClick={() => setViewMode('anfragen')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'anfragen'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Mail className="w-4 h-4" />
-                <span className="hidden sm:inline">Anfragen</span>
-              </button>
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'kanban'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <LayoutGrid className="w-4 h-4" />
-                <span className="hidden sm:inline">Kanban</span>
-              </button>
-              <button
-                onClick={() => setViewMode('wochen')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'wochen'
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Nach Lieferwoche — die Frage der Hochsaison"
-              >
-                <CalendarDays className="w-4 h-4" />
-                <span className="hidden sm:inline">Wochen</span>
-              </button>
-              <button
-                onClick={() => setViewMode('angebotsliste')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'angebotsliste'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <List className="w-4 h-4" />
-                <span className="hidden sm:inline">Angebote</span>
-              </button>
-              <button
-                onClick={() => setViewMode('statistik')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'statistik'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Statistik</span>
-              </button>
-              <button
-                onClick={() => setViewMode('karte')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'karte'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <MapIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Karte</span>
-              </button>
-              {darfShop && (
-              <button
-                onClick={() => setViewMode('shop')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'shop'
-                    ? 'bg-orange-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Bestellungen aus dem Onlineshop"
-              >
-                <ShoppingCart className="w-4 h-4" />
-                <span className="hidden sm:inline">Shop</span>
-              </button>
-              )}
-              <button
-                onClick={() => setViewMode('hydrocourt')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'hydrocourt'
-                    ? 'bg-cyan-500 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Droplets className="w-4 h-4" />
-                <span className="hidden sm:inline">Hydrocourt</span>
-              </button>
-              <button
-                onClick={() => setViewMode('universal')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'universal'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Package className="w-4 h-4" />
-                <span className="hidden sm:inline">Universal</span>
-              </button>
-              <button
-                onClick={() => setViewMode('wiegescheine')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'wiegescheine'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Scale className="w-4 h-4" />
-                <span className="hidden sm:inline">Wiegescheine</span>
-              </button>
-              <button
-                onClick={() => setViewMode('fakturierung')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'fakturierung'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-                title="Rechnungen für gelieferte Aufträge auf einmal erzeugen"
-              >
-                <Receipt className="w-4 h-4" />
-                <span className="hidden sm:inline">Fakturierung</span>
-              </button>
-              <button
-                onClick={() => setViewMode('exports')}
-                className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                  viewMode === 'exports'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Exports</span>
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={() => setViewMode('massenangebot')}
-                  className={`px-3 py-2 flex items-center gap-2 transition-colors ${
-                    viewMode === 'massenangebot'
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-                  }`}
-                  title="Massen-Angebote für die Frühjahrsinstandsetzung"
-                >
-                  <Calculator className="w-4 h-4" />
-                  <span className="hidden sm:inline">Massen-Angebote</span>
-                </button>
-              )}
-            </div>
+            {/* Ansichten: vier Reiter fuers Tagesgeschaeft, der Rest im
+                Werkzeug-Menue. Definition der Ansichten in AnsichtenNavigation. */}
+            <AnsichtenNavigation
+              aktiv={viewMode}
+              onWechsel={setViewMode}
+              isAdmin={isAdmin}
+              darfShop={darfShop}
+            />
 
             {/* Kompakte Ansicht Toggle (nur im Kanban) */}
             {viewMode === 'kanban' && (

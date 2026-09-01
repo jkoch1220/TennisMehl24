@@ -49,14 +49,17 @@ export const parseNumberValue = (value: string): number => {
 };
 
 /**
- * Formatiert einen Zahlenwert für die Anzeige im Input-Feld
- * - Entfernt unnötige Nullen nach dem Dezimalpunkt
- * - Zeigt 0 als "0" (nicht "0.00")
+ * Formatiert einen Zahlenwert für die Anzeige im Input-Feld.
+ *
+ * Hier stand bis 08/2026 ein `.replace(/\.?0+$/, '')`, das „unnötige Nullen"
+ * entfernen sollte. Der Ausdruck war aber nicht auf den Nachkommateil begrenzt
+ * und traf jede Zahl, die auf 0 endet: 20 → 2, 100 → 1, 1000 → 1.
+ *
+ * `Number.prototype.toString()` erledigt das Gewünschte von sich aus —
+ * 20.50 wird zu "20.5", 20 bleibt "20".
  */
 export const formatNumberForInput = (value: number): string => {
-  if (value === 0) return '0';
-  // Entferne unnötige Nullen nach dem Dezimalpunkt
-  return value.toString().replace(/\.?0+$/, '');
+  return value.toString();
 };
 
 /**

@@ -8,6 +8,7 @@ import { kundenListeService } from './kundenListeService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
 import { generiereNaechsteDokumentnummer } from './nummerierungService';
 import { AuftragsbestaetigungsDaten, Position } from '../types/projektabwicklung';
+import { summierePositionsTonnen } from '../utils/tonnage';
 import { auditService, bearbeiterStempel, erstellerStempel } from './auditService';
 
 // Optionen für Projekt-Erstellung
@@ -1108,6 +1109,10 @@ class ProjektService {
         quellProjektId: quellProjektId,
         istTeilprojekt: true,
         teilprojektTyp: positionsFilter,
+
+        // Beauftragte Menge der ausgelagerten Positionen (kein liefergewicht —
+        // das Ist-Feld gehört der Wiegeschein-Bestätigung, Stufe 3)
+        beauftragteTonnen: summierePositionsTonnen(auszulagern, 'fracht') || undefined,
         teilprojektErstelltAm: jetzt,
 
         // Kein Dispo-Status für Universal/Hydrocourt (wird nicht über Dispo geliefert)
@@ -1134,14 +1139,11 @@ class ProjektService {
       const aktualisiertesQuellProjekt = await this.updateProjekt(quellProjektId, {
         auftragsbestaetigungsDaten: JSON.stringify(aktualisierteeAbDaten),
         teilprojektIds: teilprojektIds,
-        // Liefergewicht neu berechnen (nur eigene Produkte)
-        liefergewicht: verbleibend.reduce((sum, p) => {
-          const einheit = p.einheit?.toLowerCase() || '';
-          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
-            return sum + (p.menge || 0);
-          }
-          return sum;
-        }, 0) || undefined,
+        // Beauftragte Menge neu berechnen (nur eigene Produkte). Seit Stufe 3
+        // nicht mehr liefergewicht: das Ist-Feld schreibt nur die
+        // Wiegeschein-Bestätigung — der Split überschrieb vorher ggf. ein
+        // bereits gewogenes Gewicht mit der Soll-Summe.
+        beauftragteTonnen: summierePositionsTonnen(verbleibend, 'fracht') || undefined,
       });
       console.log(`✅ Quellprojekt aktualisiert: ${verbleibend.length} Positionen verbleiben`);
 

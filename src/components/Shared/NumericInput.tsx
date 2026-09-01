@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { istAbgeschlosseneEingabe, leseZahl } from '../../utils/numericInputUebernahme';
 
 interface NumericInputProps {
   value: number;
@@ -78,16 +79,19 @@ const NumericInput = ({
   }, [value, min, max, showValidationWarning]);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    let newValue = e.target.value;
+    const rohwert = e.target.value;
+    setLocalValue(rohwert);
 
-    // Bei deutschem Format: Komma zu Punkt für Parsing
-    if (formatGerman) {
-      // Erlaube Komma als Dezimaltrenner
-      newValue = newValue.replace(',', '.');
+    // Klick auf die Pfeilchen oder Pfeiltaste: fertige Eingabe, sofort melden.
+    // Ohne das blieb der Wert im Feld stehen und kam nie im Formular an — die
+    // Auftragsbestätigung wurde dann mit der alten Menge gedruckt (Vorschlag [20]).
+    // Getippte Eingaben laufen unverändert erst über handleBlur, damit
+    // Zwischenstände wie "0," nicht sofort zu 0 werden.
+    const inputType = (e.nativeEvent as InputEvent).inputType;
+    if (istAbgeschlosseneEingabe(inputType, rohwert)) {
+      onChange(leseZahl(rohwert, formatGerman));
     }
-
-    setLocalValue(e.target.value);
-  }, [formatGerman]);
+  }, [formatGerman, onChange]);
 
   const handleFocus = useCallback(() => {
     setIsFocused(true);
@@ -103,14 +107,9 @@ const NumericInput = ({
   const handleBlur = useCallback(() => {
     setIsFocused(false);
 
-    // Parse den Wert (deutsch oder englisch)
-    let parseValue = localValue;
-    if (formatGerman) {
-      // Tausendertrennzeichen entfernen, Komma zu Punkt
-      parseValue = localValue.replace(/\./g, '').replace(',', '.');
-    }
-
-    const numValue = parseFloat(parseValue) || 0;
+    // Dieselbe Lesart wie beim Spinner-Klick — eine Quelle, damit Tippen und
+    // Klicken nicht auseinanderlaufen können.
+    const numValue = leseZahl(localValue, formatGerman);
 
     // Formatierung anwenden
     if (formatGerman && numValue !== 0) {

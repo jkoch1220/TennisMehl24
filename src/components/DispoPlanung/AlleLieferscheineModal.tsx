@@ -37,6 +37,7 @@ import { generiereLieferscheinPDF } from '../../services/dokumentService';
 import { holeLiefernachweisUrlFuerProjekt } from '../../services/liefernachweisService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { projektService } from '../../services/projektService';
+import { einheitenMit } from '../../constants/einheiten';
 import {
   erkenneSonderPositionen,
   PositionWarning,
@@ -1182,12 +1183,9 @@ const LieferscheinKarte = ({
                             onChange={(e) => onUpdatePosition(idx, 'einheit', e.target.value)}
                             className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                           >
-                            <option value="t">t</option>
-                            <option value="kg">kg</option>
-                            <option value="Stk">Stk</option>
-                            <option value="Pal">Pal</option>
-                            <option value="m²">m²</option>
-                            <option value="m">m</option>
+                            {einheitenMit(pos.einheit).map((einheit) => (
+                              <option key={einheit.wert} value={einheit.wert}>{einheit.wert}</option>
+                            ))}
                           </select>
                         </td>
                         <td className="px-2 py-1.5">

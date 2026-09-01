@@ -15,8 +15,16 @@ import {
   Filter as FilterIcon,
   Info,
   MousePointerClick,
+  ChevronLeft,
+  TrendingUp,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
+import MassenAngebotKampagnen from './MassenAngebotKampagnen';
+import MassenAngebotZeilenListe from './MassenAngebotZeilenListe';
+import MassenAngebotKundeSuche from './MassenAngebotKundeSuche';
+import { massenAngebotKampagnenService } from '../../services/massenAngebotKampagnenService';
+import { MassenAngebotKampagne, MassenAngebotZeile, MASSEN_ANGEBOT_TYP_LABELS, KAMPAGNEN_STATUS_LABELS } from '../../types/massenAngebot';
 import { massenAngebotService } from '../../services/massenAngebotService';
 import { getPreisKonfiguration } from '../../services/stammdatenService';
 import {
@@ -119,7 +127,20 @@ const KandidatListenZeile = ({
   );
 };
 
-const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
+/**
+ * Arbeitsfläche eines einzelnen Massen-Angebots: Kandidaten berechnen, prüfen,
+ * erzeugen, versenden. Die Auswahl, WELCHES Massen-Angebot bearbeitet wird,
+ * trifft die Übersicht davor (`MassenAngebotKampagnen`).
+ */
+const MassenAngebotArbeitsflaeche = ({
+  saisonjahr,
+  kampagne,
+  onZurueck,
+}: {
+  saisonjahr: number;
+  kampagne?: MassenAngebotKampagne;
+  onZurueck?: () => void;
+}) => {
   const { user, isAdmin } = useAuth();
   const istTestumgebung = useMemo(() => massenAngebotService.istTestumgebung(), []);
 
@@ -136,6 +157,138 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
   useEffect(() => {
     if (!zielSaisonManuell.current) setZielSaison(saisonjahr);
   }, [saisonjahr]);
+
+  // Zeilen der Kampagne — der gespeicherte Arbeitsstand. Sie ersetzen die
+  // fluechtige Kandidatenliste, sobald eine Kampagne geoeffnet ist.
+  const [zeilen, setZeilen] = useState<MassenAngebotZeile[]>([]);
+  const [andereKampagnen, setAndereKampagnen] = useState<MassenAngebotKampagne[]>([]);
+  const [ermittelt, setErmittelt] = useState(false);
+  const [ermittleLaeuft, setErmittleLaeuft] = useState(false);
+  const [ermittlungsSchritt, setErmittlungsSchritt] = useState<{ text: string; prozent: number } | null>(null);
+  const [ausschluesse, setAusschluesse] = useState<Record<string, number> | null>(null);
+
+  const ladeZeilen = useCallback(async () => {
+    if (!kampagne) return;
+    const [geladen, alle] = await Promise.all([
+      massenAngebotKampagnenService.ladeZeilen(kampagne.id),
+      massenAngebotKampagnenService.ladeKampagnen(kampagne.saisonjahr),
+    ]);
+    setZeilen(geladen);
+    setAndereKampagnen(alle.filter((k) => k.id !== kampagne.id && k.status !== 'versendet'));
+    setErmittelt(geladen.length > 0);
+  }, [kampagne]);
+
+  useEffect(() => { void ladeZeilen(); }, [ladeZeilen]);
+
+  const ermittleZielgruppe = useCallback(async () => {
+    if (!kampagne) return;
+    setErmittleLaeuft(true);
+    setAusschluesse(null);
+    try {
+      const ergebnis = await massenAngebotKampagnenService.befuelleKampagne(kampagne, {
+        benutzer: user?.name || user?.email,
+        onFortschritt: (text, prozent) => setErmittlungsSchritt({ text, prozent }),
+      });
+      setAusschluesse(ergebnis.ausschlussGruende);
+      toast.success(
+        `${ergebnis.aufgenommen} Kunden aufgenommen` +
+          (ergebnis.bereitsVorhanden ? `, ${ergebnis.bereitsVorhanden} standen bereits drin` : '') +
+          (ergebnis.aufgefrischt ? `, ${ergebnis.aufgefrischt} Begründungen aktualisiert` : '')
+      );
+      await ladeZeilen();
+    } catch (error) {
+      toast.error(`Ermittlung fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannt'}`);
+    } finally {
+      setErmittleLaeuft(false);
+      setErmittlungsSchritt(null);
+    }
+  }, [kampagne, user, ladeZeilen]);
+
+  // Erzeugung und Versand AUS der Kampagne (nicht aus der alten Vorschau).
+  const [kampagneLaeuft, setKampagneLaeuft] = useState<'erzeugen' | 'versenden' | null>(null);
+  const [kampagneFortschritt, setKampagneFortschritt] = useState<{ erledigt: number; gesamt: number; aktueller: string } | null>(null);
+
+  // Preissteigerung der Kampagne. Getrennt vom gespeicherten Wert, damit man
+  // tippen kann, ohne dass bei jedem Tastendruck 87 Zeilen geschrieben werden.
+  const [preisProzent, setPreisProzent] = useState<string>('');
+  const [preisLaeuft, setPreisLaeuft] = useState<{ erledigt: number; gesamt: number } | null>(null);
+  useEffect(() => {
+    setPreisProzent(kampagne?.preisanpassungProzent != null ? String(kampagne.preisanpassungProzent) : '');
+  }, [kampagne?.preisanpassungProzent]);
+
+  const preisAnwenden = useCallback(async () => {
+    if (!kampagne) return;
+    const prozent = Number(preisProzent.replace(',', '.'));
+    if (!Number.isFinite(prozent)) { toast.error('Bitte eine Zahl eingeben.'); return; }
+    const offen = zeilen.filter((z) => !z.versendetAm).length;
+    if (!window.confirm(
+      `Preise um ${prozent > 0 ? '+' : ''}${prozent} % gegenüber dem Vorjahr setzen?\n\n` +
+      `Betrifft ${offen} noch nicht versendete Zeilen. Gerechnet wird immer vom Vorjahrespreis, ` +
+      `nicht vom aktuellen — mehrfaches Anwenden verändert also nichts.`
+    )) return;
+    setPreisLaeuft({ erledigt: 0, gesamt: offen });
+    try {
+      const e = await massenAngebotKampagnenService.wendePreisanpassungAn(kampagne, prozent, {
+        benutzer: user?.name || user?.email,
+        onFortschritt: (erledigt, gesamt) => setPreisLaeuft({ erledigt, gesamt }),
+      });
+      toast.success(`${e.angepasst} Preise angepasst${e.uebersprungen ? `, ${e.uebersprungen} versendet und unberührt` : ''}`);
+      await ladeZeilen();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Anpassung fehlgeschlagen');
+    } finally { setPreisLaeuft(null); }
+  }, [kampagne, preisProzent, zeilen, user, ladeZeilen]);
+
+  const erzeugeAusKampagne = useCallback(async () => {
+    if (!kampagne) return;
+    const bereit = zeilen.filter((z) => z.ausgewaehlt && !z.projektId && z.fehler.length === 0
+      && !['archivieren', 'platzbauer', 'zurueckgestellt'].includes(z.markierung));
+    if (!window.confirm(
+      `${bereit.length} Angebote für „${kampagne.name}" erzeugen?\n\n` +
+      `Es entstehen ${bereit.length} Projekte mit Angebotsnummer. Versendet wird dabei noch nichts.`
+    )) return;
+    setKampagneLaeuft('erzeugen');
+    try {
+      const e = await massenAngebotKampagnenService.erzeugeAusKampagne(kampagne, {
+        benutzer: user?.name || user?.email,
+        onFortschritt: (erledigt, gesamt, aktueller) => setKampagneFortschritt({ erledigt, gesamt, aktueller }),
+      });
+      toast.success(`${e.erzeugt.length} Angebote erzeugt${e.fehler.length ? `, ${e.fehler.length} Fehler` : ''}`);
+      await ladeZeilen();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erzeugung fehlgeschlagen');
+    } finally {
+      setKampagneLaeuft(null);
+      setKampagneFortschritt(null);
+    }
+  }, [kampagne, zeilen, user, ladeZeilen]);
+
+  const versendeAusKampagne = useCallback(async (testModus: boolean) => {
+    if (!kampagne) return;
+    const bereit = zeilen.filter((z) => z.projektId && !z.versendetAm && z.empfaengerEmail);
+    // Der Ernstfall bekommt eine deutlich andere Frage als der Test — hier gehen
+    // Mails an echte Vereine, und zurückholen kann man sie nicht.
+    const frage = testModus
+      ? `${bereit.length} Angebote im TESTMODUS verschicken?\n\nAlle Mails gehen an die Testadresse, kein Verein bekommt etwas.`
+      : `${bereit.length} Angebote SCHARF an die Vereine verschicken?\n\nDas lässt sich nicht rückgängig machen.`;
+    if (!window.confirm(frage)) return;
+    setKampagneLaeuft('versenden');
+    try {
+      const e = await massenAngebotKampagnenService.versendeAusKampagne(kampagne, {
+        testModus,
+        benutzer: user?.name || user?.email,
+        onFortschritt: (erledigt, gesamt, aktueller) => setKampagneFortschritt({ erledigt, gesamt, aktueller }),
+      });
+      toast.success(`${e.gesendet} Angebote verschickt${e.fehler.length ? `, ${e.fehler.length} Fehler` : ''}`);
+      await ladeZeilen();
+      if (e.abgeschlossen && !testModus) onZurueck?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Versand fehlgeschlagen');
+    } finally {
+      setKampagneLaeuft(null);
+      setKampagneFortschritt(null);
+    }
+  }, [kampagne, zeilen, user, ladeZeilen, onZurueck]);
 
   const [kandidaten, setKandidaten] = useState<MassenAngebotKandidat[]>([]);
   const [loading, setLoading] = useState(false);
@@ -515,6 +668,200 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
 
   return (
     <div className="space-y-5">
+      {/* Zurück zur Übersicht — sonst ist die Arbeitsfläche eine Sackgasse. */}
+      {onZurueck && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <button
+            onClick={onZurueck}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" /> Alle Massen-Angebote
+          </button>
+          {kampagne && (
+            <span className="inline-flex items-center gap-2 text-sm">
+              <span className="font-semibold text-gray-900 dark:text-dark-text">{kampagne.name}</span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                {MASSEN_ANGEBOT_TYP_LABELS[kampagne.typ]}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">
+                {KAMPAGNEN_STATUS_LABELS[kampagne.status]}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Arbeitsliste der Kampagne. Sie steht VOR der alten Vorschau: Der
+          gespeicherte Stand ist die Wahrheit, die Vorschau nur ein Werkzeug. */}
+      {kampagne && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 md:p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-dark-text">
+                Zielgruppe · {MASSEN_ANGEBOT_TYP_LABELS[kampagne.typ]}
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                {ermittelt
+                  ? `${zeilen.length} Kunden im Lauf. Jede Änderung wird sofort gespeichert.`
+                  : 'Noch nicht ermittelt. Der Lauf sucht die passenden Kunden und legt sie als Zeilen an.'}
+              </p>
+            </div>
+            <button
+              onClick={() => void ermittleZielgruppe()}
+              disabled={ermittleLaeuft || kampagne.status === 'versendet'}
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {ermittleLaeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {ermittelt ? 'Neue Kunden nachziehen' : 'Zielgruppe ermitteln'}
+            </button>
+          </div>
+
+          {ermittlungsSchritt && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
+                <span>{ermittlungsSchritt.text}</span>
+                <span>{ermittlungsSchritt.prozent} %</span>
+              </div>
+              <div className="h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${ermittlungsSchritt.prozent}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Preissteigerung gegenüber dem Vorjahr */}
+          {ermittelt && kampagne.status !== 'versendet' && (
+            <div className="flex items-end gap-3 flex-wrap rounded-lg bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 p-3">
+              <label className="text-sm">
+                <span className="block text-gray-600 dark:text-slate-400 mb-1">Preissteigerung zum Vorjahr</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number" step="0.1" value={preisProzent}
+                    onChange={(e) => setPreisProzent(e.target.value)}
+                    placeholder="z. B. 4"
+                    className="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-right"
+                  />
+                  <span className="text-gray-600 dark:text-slate-400">%</span>
+                </div>
+              </label>
+              <button
+                onClick={() => void preisAnwenden()}
+                disabled={preisLaeuft !== null || preisProzent.trim() === ''}
+                className="px-4 py-2 rounded-lg bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 hover:opacity-90 disabled:opacity-40 flex items-center gap-2"
+              >
+                {preisLaeuft ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+                Auf alle Zeilen anwenden
+              </button>
+              <p className="text-xs text-gray-500 dark:text-slate-400 flex-1 min-w-[16rem]">
+                {kampagne.preisanpassungAngewendetAm
+                  ? `Zuletzt angewendet am ${kampagne.preisanpassungAngewendetAm.slice(0, 10).split('-').reverse().join('.')}. `
+                  : ''}
+                Gerechnet wird immer vom Vorjahrespreis — zweimal 4 % ergeben 4 %, nicht 8,16 %.
+                Versendete Zeilen bleiben unberührt.
+              </p>
+              {preisLaeuft && (
+                <div className="w-full">
+                  <div className="h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-slate-700 dark:bg-slate-300 transition-all"
+                      style={{ width: `${Math.round((preisLaeuft.erledigt / Math.max(1, preisLaeuft.gesamt)) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Wer NICHT drin ist, ist genauso wichtig wie wer drin ist. */}
+          {ausschluesse && Object.keys(ausschluesse).length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
+                {Object.values(ausschluesse).reduce((a, b) => a + b, 0)} Kunden nicht aufgenommen — Gründe anzeigen
+              </summary>
+              <ul className="mt-2 space-y-1 pl-4">
+                {Object.entries(ausschluesse)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([grund, anzahl]) => (
+                    <li key={grund} className="text-gray-600 dark:text-slate-400">
+                      <span className="font-medium text-gray-900 dark:text-slate-200">{anzahl}</span> · {grund}
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          )}
+
+          <MassenAngebotKundeSuche
+            kampagne={kampagne}
+            bereitsDrin={new Set(zeilen.map((z) => z.kundeId))}
+            onHinzugefuegt={() => void ladeZeilen()}
+          />
+
+          <MassenAngebotZeilenListe
+            kampagne={kampagne}
+            zeilen={zeilen}
+            andereKampagnen={andereKampagnen}
+            onAktualisiert={() => void ladeZeilen()}
+          />
+
+          {zeilen.length > 0 && kampagne.status !== 'versendet' && (
+            <div className="border-t border-gray-200 dark:border-slate-700 pt-4 space-y-3">
+              {kampagneFortschritt && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
+                    <span className="truncate">{kampagneFortschritt.aktueller}</span>
+                    <span>{kampagneFortschritt.erledigt} / {kampagneFortschritt.gesamt}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{ width: `${Math.round((kampagneFortschritt.erledigt / Math.max(1, kampagneFortschritt.gesamt)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => void erzeugeAusKampagne()}
+                  disabled={kampagneLaeuft !== null}
+                  className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {kampagneLaeuft === 'erzeugen' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  Angebote erzeugen
+                  <span className="opacity-70">
+                    ({zeilen.filter((z) => z.ausgewaehlt && !z.projektId && z.fehler.length === 0
+                      && !['archivieren', 'platzbauer', 'zurueckgestellt'].includes(z.markierung)).length})
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => void versendeAusKampagne(true)}
+                  disabled={kampagneLaeuft !== null || !kampagne.batchId}
+                  title={kampagne.batchId ? 'Alle Mails gehen an die Testadresse' : 'Erst Angebote erzeugen'}
+                  className="px-4 py-2 rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <FlaskConical className="w-4 h-4" /> Testversand
+                </button>
+
+                <button
+                  onClick={() => void versendeAusKampagne(false)}
+                  disabled={kampagneLaeuft !== null || !kampagne.batchId}
+                  title={kampagne.batchId ? 'Geht scharf an die Vereine' : 'Erst Angebote erzeugen'}
+                  className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {kampagneLaeuft === 'versenden' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Scharf versenden
+                  <span className="opacity-70">({zeilen.filter((z) => z.projektId && !z.versendetAm && z.empfaengerEmail).length})</span>
+                </button>
+
+                <span className="text-xs text-gray-500 dark:text-slate-400">
+                  {zeilen.filter((z) => z.projektId).length} erzeugt ·{' '}
+                  {zeilen.filter((z) => z.versendetAm).length} versendet ·{' '}
+                  {zeilen.filter((z) => !z.empfaengerEmail).length} ohne E-Mail
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Kopf: Titel + Sicherheitshinweise */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
@@ -639,6 +986,14 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       )}
 
+      {/* Die alte, ungefilterte Vorschau.
+          Sie zeigt IMMER alle massenangebots-tauglichen Kunden — ohne Rücksicht
+          auf das Sortiment der Kampagne. Zwei Listen übereinander, eine
+          gefiltert und eine nicht, führen zwangsläufig zum falschen Lauf:
+          Ein Paletten-Angebot ginge an Schüttgut-Kunden. Sobald eine Kampagne
+          geöffnet ist, gilt deshalb allein deren Zeilenliste. */}
+      {!kampagne && (
+      <>
       {/* Schritt 1: Vorschau berechnen */}
       {!geladen ? (
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-8 text-center">
@@ -1131,6 +1486,9 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </div>
       )}
 
+      </>
+      )}
+
       {/* Protokoll der letzten Läufe */}
       {laeufe.length > 0 && (
         <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4">
@@ -1280,6 +1638,41 @@ const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
         </BestaetigungsDialog>
       )}
     </div>
+  );
+};
+
+/**
+ * Einstieg ins Massen-Angebots-Tool.
+ *
+ * Ohne gewähltes Massen-Angebot steht hier die Übersicht: anlegen, wiederfinden,
+ * weiterarbeiten. Erst die Auswahl öffnet die Arbeitsfläche. Vorher sprang das
+ * Tool direkt in die Kandidatenliste — bei mehreren Läufen pro Saison
+ * (Schüttgut, Instandsetzung, Paletten) war nicht mehr erkennbar, woran man
+ * gerade arbeitet.
+ */
+const MassenAngebotTool = ({ saisonjahr }: { saisonjahr: number }) => {
+  const [kampagne, setKampagne] = useState<MassenAngebotKampagne | null>(null);
+
+  // Saisonwechsel im Board schließt die offene Arbeitsfläche: Eine Kampagne der
+  // Saison 2027 hat in der Ansicht für 2026 nichts zu suchen.
+  useEffect(() => {
+    setKampagne((aktuell) => (aktuell && aktuell.saisonjahr !== saisonjahr ? null : aktuell));
+  }, [saisonjahr]);
+
+  if (!kampagne) {
+    return (
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 md:p-6">
+        <MassenAngebotKampagnen saisonjahr={saisonjahr} onOeffnen={setKampagne} />
+      </div>
+    );
+  }
+
+  return (
+    <MassenAngebotArbeitsflaeche
+      saisonjahr={saisonjahr}
+      kampagne={kampagne}
+      onZurueck={() => setKampagne(null)}
+    />
   );
 };
 

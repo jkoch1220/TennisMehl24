@@ -146,7 +146,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   useEffect(() => {
     const ladeArtikel = async () => {
       try {
-        const artikel = await getAlleArtikel();
+        const artikel = await getAlleArtikel('artikelnummer', true);
         setAlleArtikel(artikel);
         setZiegelmehlArtikel(artikel.filter(a =>
           a.artikelnummer?.startsWith('TM-ZM') ||

@@ -79,3 +79,31 @@ export function referenzKurzLabel(kandidat: MassenAngebotKandidat): string | nul
   const jahr = referenz.jahr ? `${referenz.jahr} · ` : '';
   return `${jahr}${teile.join(' · ')} (${REFERENZ_TYP_LABEL[referenz.typ]})`;
 }
+
+/**
+ * Wo stehe ich beim Durchgehen, und wer sind die Nachbarn?
+ *
+ * Zwei Listen, mit Absicht getrennt:
+ * - `zeilen` ist der volle Bestand. Die geöffnete Zeile kommt von hier, damit
+ *   sie nicht verschwindet, sobald eine Bearbeitung sie aus dem aktiven Filter
+ *   fallen lässt (E-Mail eintragen im Filter „Ohne E-Mail" ist der Normalfall,
+ *   nicht die Ausnahme).
+ * - `reihenfolge` ist der beim Öffnen eingefrorene Filterstand. Er bestimmt
+ *   Position und Nachbarn und bleibt bis zum Schließen stabil.
+ */
+export function bestimmeDurchgang<T extends { id: string }>(
+  zeilen: T[],
+  reihenfolge: string[],
+  detailId: string | null
+): { zeile: T | null; nummer: number; gesamt: number; vorherId?: string; naechsteId?: string } {
+  if (!detailId) return { zeile: null, nummer: 0, gesamt: reihenfolge.length };
+  const zeile = zeilen.find((z) => z.id === detailId) ?? null;
+  const index = reihenfolge.indexOf(detailId);
+  return {
+    zeile,
+    nummer: index + 1,
+    gesamt: reihenfolge.length,
+    vorherId: index > 0 ? reihenfolge[index - 1] : undefined,
+    naechsteId: index >= 0 && index < reihenfolge.length - 1 ? reihenfolge[index + 1] : undefined,
+  };
+}

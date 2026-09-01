@@ -552,11 +552,50 @@ app.post('/.netlify/functions/email-send', async (req, res) => {
   }
 });
 
+/**
+ * Netlify Functions lokal bedienen.
+ *
+ * Der Vite-Proxy leitet `/.netlify/functions/*` an diesen Server. Ohne die
+ * folgende Bruecke landeten alle Aufrufe auf der deployten Seite — man testet
+ * dann gegen den letzten veroeffentlichten Stand statt gegen den eigenen Code.
+ *
+ * Die Handler werden aus den echten .ts-Dateien geladen (tsx uebernimmt das
+ * Kompilieren), damit hier nichts nachgebaut wird und auseinanderlaufen kann.
+ */
+const FUNKTIONEN = ['bestellung', 'datenpruefung', 'liefernachweis'];
+
+for (const name of FUNKTIONEN) {
+  app.all(`/.netlify/functions/${name}`, async (req, res) => {
+    try {
+      const modul = await import(`../netlify/functions/${name}.ts`);
+      const ereignis = {
+        httpMethod: req.method,
+        queryStringParameters: req.query ?? {},
+        headers: req.headers,
+        body: req.body != null && Object.keys(req.body).length > 0 ? JSON.stringify(req.body) : null,
+        isBase64Encoded: false,
+      };
+      const antwort = await modul.handler(ereignis, {});
+      for (const [schluessel, wert] of Object.entries(antwort.headers ?? {})) {
+        res.setHeader(schluessel, wert);
+      }
+      const koerper = antwort.isBase64Encoded
+        ? Buffer.from(antwort.body ?? '', 'base64')
+        : antwort.body;
+      res.status(antwort.statusCode ?? 200).send(koerper);
+    } catch (fehler) {
+      console.error(`❌ Function ${name}:`, fehler);
+      res.status(500).json({ error: fehler.message });
+    }
+  });
+}
+
 // Server starten
 app.listen(PORT, () => {
   console.log(`\n📧 Email Dev Server läuft auf http://localhost:${PORT}`);
   console.log(`   ${EMAIL_ACCOUNTS.length} Email-Konten konfiguriert`);
-  console.log(`   SMTP: ${SMTP_HOST}:${SMTP_PORT}\n`);
+  console.log(`   SMTP: ${SMTP_HOST}:${SMTP_PORT}`);
+  console.log(`   Functions: ${FUNKTIONEN.join(', ')}\n`);
 
   if (EMAIL_ACCOUNTS.length === 0) {
     console.log('⚠️  Keine Email-Konten in .env gefunden!');

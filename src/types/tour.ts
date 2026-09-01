@@ -316,6 +316,22 @@ export const FAHRZEUG_KAPAZITAETEN = {
   spedition: 999, // Unbegrenzt (sammelt Aufträge für Spedition)
 };
 
+/**
+ * Obergrenze für die Ladung eines Motorwagens in der Kalkulation.
+ *
+ * ACHTUNG, der Code widerspricht sich hier: Die Konstanten oben rechnen mit
+ * 14 t, während der KI-Tourenoptimierer (`claudeRouteOptimizer.ts`) und die
+ * Beschriftungen in der Tourenplanung („Nur Motor (18t)", „Mit Hänger (28t)")
+ * von 18 t ausgehen. Wer eine Tour von Hand anlegt, bekommt also 14 t, wer sie
+ * optimieren lässt, 18 t.
+ *
+ * Für die Kostenkalkulation gilt der gemeldete Wert 18 t (Vorschlag [19]). Die
+ * Tourenkapazitäten oben bleiben unangetastet — sie zu ändern würde die
+ * Auslastungsanzeige und die Beladeplanung verschieben, das ist eine eigene
+ * Entscheidung.
+ */
+export const MAX_LKW_LADUNG_TONNEN = 18;
+
 // Tour-Kapazitäts-Konfiguration (variabel pro Tour)
 export interface TourKapazitaet {
   motorwagenTonnen: number; // z.B. 14t

@@ -701,9 +701,9 @@ const PlatzbauerlVereine = ({
           platzbauerId: platzbauerId,
           // Bezugsweg
           bezugsweg: 'ueber_platzbauer',
-          // Menge für Dispo
+          // Menge für Dispo. Bewusst KEIN liefergewicht: das ist das gewogene
+          // Ist-Feld — die Vorjahresmenge ist nur ein Planwert (Stufe 3, 08/2026).
           angefragteMenge: menge,
-          liefergewicht: menge,
           // Belieferungsart vom Verein übernehmen
           belieferungsart: verein.belieferungsart,
           // Dispo-Ansprechpartner vom Verein übernehmen

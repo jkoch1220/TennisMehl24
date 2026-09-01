@@ -608,10 +608,12 @@ const Layout = ({ children }: LayoutProps) => {
         </footer>
       )}
 
-      {/* Global Vorschlag Button - nicht auf Mobile, TODOs und Dashboard-Seite anzeigen */}
-      <div className="hidden sm:block">
-        {location.pathname !== '/todos' && location.pathname !== '/dashboard' && <VorschlagButton />}
-      </div>
+      {/* Vorschlag-Knopf auf jeder Seite und auf jedem Gerät.
+          Seit das Tool „Verbesserungen" nur noch Admins offensteht, ist dieser
+          Knopf für alle anderen der einzige Weg, einen Vorschlag loszuwerden —
+          er darf darum weder mobil noch auf einzelnen Seiten fehlen. Der Knopf
+          blendet sich selbst nur auf /vorschlaege aus, wo es einen eigenen gibt. */}
+      <VorschlagButton />
 
       {/* Settings Modal */}
       {settingsOpen && (

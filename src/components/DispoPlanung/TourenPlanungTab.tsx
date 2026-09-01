@@ -160,7 +160,7 @@ const TourenPlanungTab = ({ onNavigateToProjekt: _onNavigateToProjekt }: Props) 
             ort: adresse.ort || '',
             koordinaten: kunde?.koordinaten as [number, number] | undefined,
           },
-          tonnen: projekt.liefergewicht || projekt.angefragteMenge || 0,
+          tonnen: projekt.liefergewicht || projekt.beauftragteTonnen || projekt.angefragteMenge || 0,
           paletten: projekt.anzahlPaletten,
           belieferungsart: projekt.belieferungsart || 'mit_haenger',
           zeitfenster: projekt.lieferzeitfenster,

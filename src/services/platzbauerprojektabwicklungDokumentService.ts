@@ -274,6 +274,10 @@ export const speicherePlatzbauerAngebot = async (
     anzahlVereine: positionenFuerSummen.length,
   });
 
+  // Entwurf verwerfen: Das erzeugte Dokument ist ab jetzt der gueltige Stand.
+  // Blieb er liegen, ueberlagerte er beim naechsten Oeffnen die neuen Preise.
+  await loescheEntwurf(projekt.id, 'angebot');
+
   return {
     $id: dokument.$id,
     id: dokument.$id,
@@ -403,6 +407,9 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
     anzahlVereine: daten.positionen.length,
   });
 
+  // Entwurf verwerfen — siehe speicherePlatzbauerAngebot.
+  await loescheEntwurf(projekt.id, 'auftragsbestaetigung');
+
   return {
     $id: dokument.$id,
     id: dokument.$id,
@@ -528,6 +535,9 @@ export const speicherePlatzbauerRechnung = async (
     gesamtBrutto: bruttobetrag,
     anzahlVereine: daten.positionen.length,
   });
+
+  // Entwurf verwerfen — siehe speicherePlatzbauerAngebot.
+  await loescheEntwurf(projekt.id, 'rechnung');
 
   return {
     $id: dokument.$id,
@@ -909,10 +919,15 @@ export const speichereEntwurf = async (
     throw new Error('Keine projektId angegeben');
   }
 
+  // Beide Speicher bekommen denselben Zeitstempel. Ohne ihn liess sich beim
+  // Laden nicht entscheiden, welcher Stand der juengere ist — und der lokale
+  // gewann grundsaetzlich, auch wenn er Wochen alt war (Vorschlag [35]).
+  const umschlag: EntwurfsUmschlag = { gespeichertAm: new Date().toISOString(), daten };
+
   // === SOFORT IN LOCALSTORAGE SPEICHERN (BACKUP) ===
   const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
   try {
-    localStorage.setItem(localStorageKey, JSON.stringify(daten));
+    localStorage.setItem(localStorageKey, JSON.stringify(umschlag));
     console.log('💾 LocalStorage Backup gespeichert:', localStorageKey);
   } catch (e) {
     console.warn('LocalStorage Backup fehlgeschlagen:', e);
@@ -945,7 +960,7 @@ export const speichereEntwurf = async (
     rechnung: 'rechnungsDaten',
   }[typ];
 
-  dataObj[feldName] = daten;
+  dataObj[feldName] = umschlag;
 
   const neuesData = JSON.stringify(dataObj);
   console.log('🔧 Speichere data:', { feldName, neueDataLaenge: neuesData.length, keys: Object.keys(dataObj) });
@@ -973,68 +988,129 @@ export const speichereEntwurf = async (
 };
 
 /**
- * Lädt einen Entwurf aus dem Projekt (aus dem data-Feld)
+ * Umschlag um einen Entwurf — trägt den Speicherzeitpunkt mit.
+ *
+ * Entwürfe älteren Formats liegen ohne Umschlag da (flaches Datenobjekt); die
+ * Lesefunktion erkennt beides.
+ */
+interface EntwurfsUmschlag {
+  gespeichertAm: string;
+  daten: unknown;
+}
+
+export const istUmschlag = (wert: unknown): wert is EntwurfsUmschlag =>
+  !!wert &&
+  typeof wert === 'object' &&
+  typeof (wert as EntwurfsUmschlag).gespeichertAm === 'string' &&
+  'daten' in (wert as Record<string, unknown>);
+
+/** Zeitstempel eines Entwurfs; altes Format gilt als beliebig alt. */
+export const standAlter = (wert: unknown): number =>
+  istUmschlag(wert) ? new Date(wert.gespeichertAm).getTime() || 0 : 0;
+
+/** Nutzdaten aus beiden Formaten holen. */
+export const entwurfsDaten = <T>(wert: unknown): T | null => {
+  if (!wert) return null;
+  return (istUmschlag(wert) ? wert.daten : wert) as T;
+};
+
+const ENTWURF_FELDNAMEN = {
+  angebot: 'angebotsDaten',
+  auftragsbestaetigung: 'auftragsbestaetigungsDaten',
+  rechnung: 'rechnungsDaten',
+} as const;
+
+/**
+ * Welcher der beiden Stände gilt?
+ *
+ * Liegen beide vor, gewinnt der jüngere. Bei Gleichstand — und das ist der
+ * Normalfall, weil `speichereEntwurf` beide mit demselben Zeitstempel schreibt —
+ * gewinnt Appwrite: Es ist die geteilte Quelle, der localStorage nur das Netz
+ * für einen fehlgeschlagenen Schreibvorgang.
+ *
+ * Entwürfe im alten Format (ohne Zeitstempel) gelten als beliebig alt und
+ * verlieren damit gegen jeden datierten Stand.
+ */
+export const waehleEntwurf = (ausAppwrite: unknown, lokal: unknown): unknown => {
+  if (!ausAppwrite) return lokal ?? null;
+  if (!lokal) return ausAppwrite;
+  return standAlter(lokal) > standAlter(ausAppwrite) ? lokal : ausAppwrite;
+};
+
+/**
+ * Lädt einen Entwurf aus dem Projekt (aus dem data-Feld).
+ *
+ * Bis 08/2026 wurde ZUERST der localStorage gelesen und sofort zurückgegeben —
+ * Appwrite kam danach nie mehr zum Zug. Ein einmal lokal abgelegter Stand war
+ * damit auf Dauer die Wahrheit: Preisänderungen am Platzbauer-Angebot wurden
+ * beim nächsten Öffnen still durch den alten Entwurf ersetzt, und es sah aus,
+ * als würde das Tool nicht neu rechnen (Vorschlag [35]).
+ *
+ * Jetzt gewinnt der jüngere der beiden Stände. Der localStorage bleibt als
+ * Netz für den Fall, dass das Speichern in Appwrite fehlgeschlagen ist — genau
+ * dafür war er gedacht.
  */
 export const ladeEntwurf = async <T>(
   projektId: string,
   typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung'
 ): Promise<T | null> => {
-  console.log('🔍 ladeEntwurf aufgerufen:', { projektId, typ });
+  const feldName = ENTWURF_FELDNAMEN[typ];
 
-  // === ZUERST LOCALSTORAGE PRÜFEN (BACKUP) ===
+  let lokal: unknown = null;
   const localStorageKey = mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`);
   try {
-    const localData = localStorage.getItem(localStorageKey);
-    if (localData) {
-      const parsed = JSON.parse(localData);
-      console.log('✅ Entwurf aus LocalStorage geladen:', localStorageKey);
-      return parsed as T;
-    }
+    const rohwert = localStorage.getItem(localStorageKey);
+    if (rohwert) lokal = JSON.parse(rohwert);
   } catch (e) {
     console.warn('LocalStorage Laden fehlgeschlagen:', e);
   }
 
-  // === DANN APPWRITE VERSUCHEN ===
+  let ausAppwrite: unknown = null;
   try {
     const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
-    console.log('🔍 Projekt geladen:', projekt ? {
-      id: projekt.id,
-      hatData: !!projekt.data,
-      dataLaenge: projekt.data?.length
-    } : 'nicht gefunden');
-
-    if (!projekt) return null;
-
-    // data-Feld parsen
-    if (!projekt.data || typeof projekt.data !== 'string') {
-      console.log('🔍 Kein data-Feld in Appwrite vorhanden');
-      return null;
+    if (projekt?.data && typeof projekt.data === 'string') {
+      const dataObj = JSON.parse(projekt.data) as Record<string, unknown>;
+      ausAppwrite = dataObj[feldName] ?? null;
     }
-
-    let dataObj: Record<string, any>;
-    try {
-      dataObj = JSON.parse(projekt.data);
-      console.log('🔍 data-Objekt geparst, keys:', Object.keys(dataObj));
-    } catch (e) {
-      console.warn('🔍 Konnte data nicht parsen:', e);
-      return null;
-    }
-
-    const feldName = {
-      angebot: 'angebotsDaten',
-      auftragsbestaetigung: 'auftragsbestaetigungsDaten',
-      rechnung: 'rechnungsDaten',
-    }[typ];
-
-    const entwurf = dataObj[feldName];
-    console.log('🔍 Entwurf in Appwrite gefunden:', entwurf ? 'ja' : 'nein');
-
-    if (!entwurf) return null;
-
-    return entwurf as T;
   } catch (error) {
-    console.error('❌ Fehler beim Laden des Entwurfs:', error);
-    return null;
+    // Kein harter Fehler: unten greift der lokale Stand.
+    console.warn('Entwurf konnte nicht aus Appwrite geladen werden:', error);
+  }
+
+  return entwurfsDaten<T>(waehleEntwurf(ausAppwrite, lokal));
+};
+
+/**
+ * Entfernt einen Entwurf aus beiden Speichern.
+ *
+ * Muss nach dem Finalisieren eines Dokuments laufen. Vorher blieb der Entwurf
+ * liegen und überlagerte beim nächsten Öffnen das erzeugte Dokument.
+ */
+export const loescheEntwurf = async (
+  projektId: string,
+  typ: 'angebot' | 'auftragsbestaetigung' | 'rechnung'
+): Promise<void> => {
+  try {
+    localStorage.removeItem(mockLocalStorageKey(`platzbauer_entwurf_${projektId}_${typ}`));
+  } catch (e) {
+    console.warn('LocalStorage-Entwurf konnte nicht entfernt werden:', e);
+  }
+
+  try {
+    const projekt = await platzbauerverwaltungService.getPlatzbauerprojekt(projektId);
+    if (!projekt?.data || typeof projekt.data !== 'string') return;
+
+    const dataObj = JSON.parse(projekt.data) as Record<string, unknown>;
+    if (!(ENTWURF_FELDNAMEN[typ] in dataObj)) return;
+
+    delete dataObj[ENTWURF_FELDNAMEN[typ]];
+    await databases.updateDocument(DATABASE_ID, PLATZBAUER_PROJEKTE_COLLECTION_ID, projektId, {
+      data: JSON.stringify(dataObj),
+      geaendertAm: new Date().toISOString(),
+    });
+    console.log(`🗑️ Entwurf ${typ} entfernt für`, projektId);
+  } catch (error) {
+    console.warn('Entwurf konnte nicht aus Appwrite entfernt werden:', error);
   }
 };
 
@@ -1239,6 +1315,7 @@ export const platzbauerprojektabwicklungDokumentService = {
   // Entwürfe
   speichereEntwurf,
   ladeEntwurf,
+  loescheEntwurf,
 
   // Status
   markiereAlsBezahlt,

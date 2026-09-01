@@ -29,6 +29,7 @@ import { getProjektHerkunft, getShopBestellnummer } from '../../utils/projektHer
 import { wiegescheinVorgesehen } from '../../utils/abwicklungsweg';
 import { debitorService } from '../../services/debitorService';
 import { anfragenService } from '../../services/anfragenService';
+import SchuettstelleFotos from './SchuettstelleFotos';
 
 const DISPO_LABEL: Record<string, string> = {
   offen: 'noch nicht disponiert',
@@ -240,6 +241,10 @@ const DurchstichBlock = ({ projekt }: { projekt: Projekt }) => {
           <div>Keine Dispo-Buchung. Der Auftrag steht in keiner Tour.</div>
         )}
       </Kachel>
+
+      {/* Fotos der Schüttstelle: stehen bewusst direkt bei der Dispo — dort
+          wird entschieden, welches Fahrzeug fährt. */}
+      <SchuettstelleFotos projekt={projekt} />
 
       {/* WIEGESCHEIN — Voraussetzung für die Rechnung */}
       <Kachel

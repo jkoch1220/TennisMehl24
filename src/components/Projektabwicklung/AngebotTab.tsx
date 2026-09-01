@@ -41,6 +41,7 @@ import {
   berechneGesamtZuschlag,
   erstelleDieselZuschlagPosition,
   istDieselZuschlagPosition,
+  zuschlagPositionIstAktuell,
   istZuschlagsfaehig,
   formatDieselPreis,
   getDieselKlauselText,
@@ -78,9 +79,14 @@ import EmailFormular from './EmailFormular';
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import jsPDF from 'jspdf';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
-import { Stueckliste, getStuecklistenNachKategorie } from '../../constants/stuecklisten';
+import { Stueckliste, STUECKLISTEN, getStuecklistenNachKategorie } from '../../constants/stuecklisten';
+import { baueStuecklistenPositionen, stuecklisteFuerBezugsweg } from '../../utils/stuecklistenPositionen';
 import { berechneFremdlieferungRoute } from '../../utils/routeCalculation';
 import { FremdlieferungStammdaten, FremdlieferungRoutenBerechnung } from '../../types';
+import { formatiereZahlungsziel, zahlungszielOptionen } from '../../utils/zahlungskonditionen';
+import { summiereTonnage } from '../../utils/angebotsTonnage';
+import { validierePositionen, formatiereWarnungen } from '../../utils/positionsValidierung';
+import { erstelleArtikelIndex } from '../../utils/tonnage';
 
 // 'ENTWURF' stammt aus dem Anfragen-Dialog ("Nur Kunde und Projekt anlegen"):
 // dort wurde das Angebot mit diesem Platzhalter statt einer echten Nummer
@@ -488,65 +494,49 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           }
         }
         
-        // Für Kunden mit Bezugsweg "direkt": Standard-Artikel hinzufügen
+        // Positionen nach Bezugsweg vorbelegen.
+        //
+        // Vorher standen hier drei Artikelnummern hartkodiert und nur für
+        // Bezugsweg 'direkt'. Direkt-Instandsetzungs-Kunden bekamen gar nichts,
+        // obwohl die passende Stückliste längst gepflegt war (Vorschlag [15]).
         const bezugsweg = projekt?.bezugsweg;
-        if (bezugsweg === 'direkt') {
+        const stuecklistenId = stuecklisteFuerBezugsweg(bezugsweg);
+        if (stuecklistenId) {
           try {
-            // Lade alle Artikel aus Appwrite
-            const alleArtikel = await getAlleArtikel();
-            
-            // Suche nach den drei Standard-Artikeln anhand ihrer Artikelnummern
-            const standardArtikelNummern = [
-              'TM-ZM-02',  // Tennissand 0/2
-              'TM-PE',     // PE Folie
-              'TM-FP'      // Frachtkostenpauschale
-            ];
-            
-            // Starte Position-ID nach bereits vorhandenen Positionen
-            let positionId = initialePositionen.length + 1;
-            let hinzugefuegteArtikel = 0;
-            
-            // Berechne die Gesamttonnage für die Frachtkostenpauschale
-            const gesamtTonnage = projekt?.angefragteMenge || 0;
-
-            for (const artikelnummer of standardArtikelNummern) {
-              const artikel = alleArtikel.find(a => a.artikelnummer === artikelnummer);
-
-              if (artikel) {
-                // Für Frachtkostenpauschale: Preis automatisch basierend auf Tonnage berechnen
-                let einzelpreis = artikel.einzelpreis ?? 0;
-                if (artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
-                  einzelpreis = berechneFrachtkostenpauschale(gesamtTonnage);
-                  console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${einzelpreis}€`);
+            const stueckliste = STUECKLISTEN.find((sl) => sl.id === stuecklistenId);
+            if (stueckliste) {
+              const alleArtikel = await getAlleArtikel();
+              const { positionen, nichtGefunden } = baueStuecklistenPositionen(
+                stueckliste,
+                alleArtikel,
+                {
+                  angefragteMenge: projekt?.angefragteMenge || kundeInfo?.angefragteMenge,
+                  bestehendePositionen: initialePositionen,
+                  // Der Hauptartikel wurde oben bereits mit dem ausgehandelten
+                  // Kundenpreis eingefügt — er darf nicht ein zweites Mal mit
+                  // dem Listenpreis erscheinen.
+                  bereitsVorhanden: new Set(
+                    initialePositionen
+                      .map((pos) => (pos.artikelnummer || '').trim().toUpperCase())
+                      .filter(Boolean)
+                  ),
                 }
-
-                initialePositionen.push({
-                  id: positionId.toString(),
-                  artikelnummer: artikel.artikelnummer,
-                  bezeichnung: artikel.bezeichnung,
-                  beschreibung: artikel.beschreibung || '',
-                  menge: 1,
-                  einheit: artikel.einheit,
-                  einzelpreis: einzelpreis,
-                  streichpreis: artikel.streichpreis,
-                  gesamtpreis: einzelpreis,
+              );
+              initialePositionen.push(...positionen);
+              if (nichtGefunden.length > 0) {
+                setFehlendeStuecklistenArtikel({
+                  stueckliste: stueckliste.name,
+                  artikelnummern: nichtGefunden,
                 });
-                positionId++;
-                hinzugefuegteArtikel++;
+                console.warn('Artikel aus der Stückliste fehlen im Stamm:', nichtGefunden);
               }
-            }
-            
-            // Falls keine Artikel gefunden wurden, Warnung ausgeben
-            if (hinzugefuegteArtikel === 0) {
-              console.warn('Keine Standard-Artikel für Direkt-Kunden gefunden. Bitte legen Sie die Artikel in den Stammdaten an: TM-ZM-02 (Tennissand 0/2), TM-PE (PE Folie), TM-FP (Frachtkostenpauschale)');
-            } else {
-              console.info(`${hinzugefuegteArtikel} Standard-Artikel für Direkt-Kunden hinzugefügt`);
+              console.info(`${positionen.length} Positionen aus "${stueckliste.name}" vorbelegt`);
             }
           } catch (error) {
-            console.error('Fehler beim Laden der Standard-Artikel:', error);
+            console.error('Fehler beim Vorbelegen der Stückliste:', error);
           }
         }
-        
+
         let angebotsnummer = istPlatzhalterNummer(projekt?.angebotsnummer)
           ? undefined
           : projekt?.angebotsnummer;
@@ -589,11 +579,15 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         let kundenLieferStrasse: string | undefined = undefined;
         let kundenLieferPlzOrt: string | undefined = undefined;
         let kundenLieferadresseAbweichend = false;
+        // Zahlungsziel des Kunden statt pauschal 14 Tage (Vorschlag [7]/[48]).
+        let kundenZahlungsziel: string | undefined = undefined;
 
         if (projekt?.kundeId) {
           try {
             const kunde = await saisonplanungService.loadKunde(projekt.kundeId);
             if (kunde) {
+              kundenZahlungsziel = formatiereZahlungsziel(kunde.zahlungsziel);
+
               // RECHNUNGSADRESSE vom Kunden - hat IMMER Vorrang!
               if (kunde.rechnungsadresse) {
                 kundenRechnungsStrasse = kunde.rechnungsadresse.strasse;
@@ -658,6 +652,8 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 platzbaurerRechnungsStrasse = pb.rechnungsadresse.strasse;
                 platzbaurerRechnungsPlzOrt = formatAdresszeile(pb.rechnungsadresse.plz, pb.rechnungsadresse.ort, pb.rechnungsadresse.land);
                 console.log('✅ PLATZBAUER-PROJEKT: Rechnungsadresse vom Platzbauer verwenden:', platzbaurerRechnungsName, platzbaurerRechnungsStrasse, platzbaurerRechnungsPlzOrt);
+                // Zahlt der Platzbauer, gelten auch SEINE Zahlungsbedingungen.
+                kundenZahlungsziel = formatiereZahlungsziel(pb.zahlungsziel) ?? kundenZahlungsziel;
               }
             }
           } catch (error) {
@@ -694,6 +690,10 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
           dispoAnsprechpartner: prev.dispoAnsprechpartner || dispoAnsprechpartner,
           platzbauerId: prev.platzbauerId || platzbauerId,
           platzbauername: prev.platzbauername || platzbauername,
+          // Bewusst NICHT `prev.zahlungsziel || kundenZahlungsziel`: prev ist durch
+          // den Initial-State immer '14 Tage' und damit nie leer — die Zuweisung
+          // wäre still wirkungslos und der Kundenwert käme nie an.
+          zahlungsziel: kundenZahlungsziel || prev.zahlungsziel,
         }));
       }
     };
@@ -799,13 +799,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       const plzMatch = plzOrt?.match(/\d{5}/);
       const plz = plzMatch ? plzMatch[0] : '';
 
-      // Tonnage aus den Positionen berechnen (alle Positionen mit Einheit 't' oder 'to')
-      const tonnage = angebotsDaten.positionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      // Tonnage aus den Positionen — ohne Pauschalen und Bedarfspositionen,
+      // die zwar in 't' abgerechnet werden, aber keine Ware sind.
+      const tonnage = summiereTonnage(angebotsDaten.positionen);
 
       // Nur berechnen wenn PLZ gültig (5 Ziffern) und Tonnage > 0
       if (plz.length !== 5 || tonnage <= 0) {
@@ -893,13 +889,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
     // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
     if (field === 'menge') {
-      // Berechne Gesamttonnage aller Positionen mit Einheit 't' oder 'to'
-      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      const gesamtTonnage = summiereTonnage(neuePositionen);
 
       // Finde und aktualisiere die Frachtkostenpauschale-Position
       const frachtkostenIndex = neuePositionen.findIndex(
@@ -982,7 +972,14 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         } else {
           neuePositionen.push(zuschlagPosition);
         }
-        return { ...prev, positionen: neuePositionen };
+        return {
+          ...prev,
+          positionen: neuePositionen,
+          // Grundlage festhalten, damit der Effekt unten bei jeder spaeteren
+          // Mengenaenderung nachrechnen kann, ohne erneut ins Netz zu gehen.
+          dieselBasisPreis: preisErgebnis.preis,
+          dieselEntfernungKm: entfernung?.km,
+        };
       });
 
       // Dieselzuschlag-Text automatisch aktivieren wenn noch nicht aktiv
@@ -1002,8 +999,50 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
     setAngebotsDaten(prev => ({
       ...prev,
       positionen: prev.positionen.filter(p => !istDieselZuschlagPosition(p)),
+      // Grundlage mit entfernen — sonst rechnet der Effekt unten die gerade
+      // geloeschte Position sofort wieder herein.
+      dieselBasisPreis: undefined,
+      dieselEntfernungKm: undefined,
     }));
   };
+
+  // Dieselzuschlag nachziehen, wenn sich die Mengen aendern.
+  //
+  // Vorher war der Klick die einzige Quelle: Wer danach die Tonnage aenderte,
+  // hatte einen Zuschlag fuer die alte Menge im Angebot. Der dokumentierte
+  // Behelf war, den Zuschlag zu entfernen und neu einzufuegen (Vorschlag [37]).
+  //
+  // Rechnet ohne Netzabruf aus der gespeicherten Grundlage. Der Wertevergleich
+  // verhindert die Endlosschleife, die es hier schon einmal gab.
+  useEffect(() => {
+    if (!hatDieselPosition) return;
+    if (angebotsDaten.dieselBasisPreis === undefined) return;
+    if (gespeichertesDokument && !istBearbeitungsModus) return;
+
+    const ergebnis = berechneGesamtZuschlag(
+      angebotsDaten.positionen,
+      angebotsDaten.dieselBasisPreis,
+      angebotsDaten.gueltigBis || STANDARD_GUELTIG_BIS,
+      angebotsDaten.dieselEntfernungKm
+    );
+    const soll = erstelleDieselZuschlagPosition(ergebnis);
+    const vorhanden = angebotsDaten.positionen.find(istDieselZuschlagPosition);
+    if (zuschlagPositionIstAktuell(vorhanden, soll)) return;
+
+    hatGeaendert.current = true;
+    setAngebotsDaten(prev => ({
+      ...prev,
+      positionen: prev.positionen.map(p => (istDieselZuschlagPosition(p) ? soll : p)),
+    }));
+  }, [
+    hatDieselPosition,
+    angebotsDaten.positionen,
+    angebotsDaten.dieselBasisPreis,
+    angebotsDaten.dieselEntfernungKm,
+    angebotsDaten.gueltigBis,
+    gespeichertesDokument,
+    istBearbeitungsModus,
+  ]);
 
   // === RABEN-DIESELFLOATER als Position ===
   const [rabenLaden, setRabenLaden] = useState(false);
@@ -1088,18 +1127,15 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
     // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
     if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
-      const gesamtTonnage = angebotsDaten.positionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      const gesamtTonnage = summiereTonnage(angebotsDaten.positionen);
       preis = berechneFrachtkostenpauschale(gesamtTonnage);
       console.log(`Frachtkostenpauschale für ${gesamtTonnage}t: ${preis}€`);
     }
 
     const neuePosition: Position = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
+      preisQuelle: 'stamm',
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
       beschreibung: selectedArtikel.beschreibung || '',
@@ -1133,6 +1169,8 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
     const neuePosition: Position = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
+      preisQuelle: 'stamm',
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
       beschreibung: '',
@@ -1189,19 +1227,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       // Für Frachtkostenpauschale: Preis automatisch basierend auf Gesamttonnage berechnen
       if (selectedArtikel.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER) {
         // Berechne Tonnage inkl. der neuen Positionen
-        const bestehendeTonn = angebotsDaten.positionen.reduce((sum, p) => {
-          if (p.einheit?.toLowerCase() === 't' || p.einheit?.toLowerCase() === 'to') {
-            return sum + (p.menge || 0);
-          }
-          return sum;
-        }, 0);
-        const neueTonn = neuePositionen.reduce((sum, p) => {
-          if (p.einheit?.toLowerCase() === 't' || p.einheit?.toLowerCase() === 'to') {
-            return sum + (p.menge || 0);
-          }
-          return sum;
-        }, 0);
-        preis = berechneFrachtkostenpauschale(bestehendeTonn + neueTonn);
+        preis = berechneFrachtkostenpauschale(
+          summiereTonnage(angebotsDaten.positionen, neuePositionen)
+        );
       }
 
       const neuePosition: Position = {
@@ -1215,6 +1243,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
         einkaufspreis: selectedArtikel.einkaufspreis,
         streichpreis: selectedArtikel.streichpreis,
         gesamtpreis: menge * preis,
+        // Aus der Stueckliste uebernehmen: optionale Leistungen stehen im
+        // Angebot, zaehlen aber nicht in die Summe.
+        istBedarfsposition: pos.istBedarfsposition,
       };
 
       neuePositionen.push(neuePosition);
@@ -1244,6 +1275,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
 
   // Gefilterte und sortierte Artikel für die Auswahl
   const gefilterteArtikel = artikel
+    // Archivierte Artikel sind in neuen Belegen nicht mehr auswählbar —
+    // bestehende Positionen bleiben davon unberührt (Stufe 4, 08/2026).
+    .filter((art) => art.aktiv !== false)
     .filter(art => {
       if (!artikelSuchtext.trim()) return true;
       const suchtext = artikelSuchtext.toLowerCase();
@@ -1413,7 +1447,19 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       });
       return;
     }
-    
+
+    // Zentrale Positions-Validierung (Stufe 4, 08/2026): Nummer↔Stamm↔Einheit↔Preis.
+    // Warnungen blockieren nicht hart, müssen aber bewusst bestätigt werden.
+    {
+      const warnungen = validierePositionen(angebotsDaten.positionen, erstelleArtikelIndex(artikel));
+      if (warnungen.length > 0) {
+        const weiter = confirm(
+          `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nTrotzdem speichern?`
+        );
+        if (!weiter) return;
+      }
+    }
+
     try {
       setLadeStatus('speichern');
       setStatusMeldung(null);
@@ -2005,12 +2051,15 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             strasse: angebotsDaten.kundenstrasse,
             plzOrt: angebotsDaten.kundenPlzOrt,
           }}
-          onChange={(adresse: DokumentAdresse) => {
+          onChange={(adresse: DokumentAdresse, ansprechpartner?: string) => {
             setAngebotsDaten(prev => ({
               ...prev,
               kundenname: adresse.name,
               kundenstrasse: adresse.strasse,
               kundenPlzOrt: adresse.plzOrt,
+              // Wechselt der Empfänger (z.B. auf den Platzbauer), zieht das
+              // z.Hd. mit. undefined = Formular macht keine Vorgabe.
+              ...(ansprechpartner !== undefined ? { ansprechpartner } : {}),
             }));
             hatGeaendert.current = true;
           }}
@@ -2213,6 +2262,20 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                         Instandsetzung
                       </div>
                       {getStuecklistenNachKategorie().instandsetzung.map((sl) => (
+                        <button
+                          key={sl.id}
+                          onClick={() => addPositionenAusStueckliste(sl)}
+                          className="w-full text-left px-3 py-2 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-dark-text text-sm">{sl.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-dark-textMuted">{sl.beschreibung}</div>
+                        </button>
+                      ))}
+                      <div className="border-t border-gray-200 dark:border-slate-700 my-2" />
+                      <div className="text-xs font-semibold text-gray-500 dark:text-dark-textMuted uppercase tracking-wider px-2 py-1">
+                        Zubehör
+                      </div>
+                      {getStuecklistenNachKategorie().zubehoer.map((sl) => (
                         <button
                           key={sl.id}
                           onClick={() => addPositionenAusStueckliste(sl)}
@@ -3219,12 +3282,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               >
-                <option value="Vorkasse">Vorkasse</option>
-                <option value="Sofort">Sofort</option>
-                <option value="7 Tage">7 Tage</option>
-                <option value="14 Tage">14 Tage</option>
-                <option value="30 Tage">30 Tage</option>
-                <option value="60 Tage">60 Tage</option>
+                {zahlungszielOptionen(angebotsDaten.zahlungsziel).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
             <div>

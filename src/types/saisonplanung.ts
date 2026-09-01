@@ -114,6 +114,25 @@ export interface PreisHistorienEintrag {
   geaendertAm: string;
 }
 
+/** Ein Jahr Bestellhistorie aus dem Altsystem Mosaik (2001–2025).
+ *
+ *  Reines Archiv: Mosaik ist abgelöst, hier wird nichts mehr fortgeschrieben.
+ *  Laufende Vorgänge stehen als Projekte im Portal. Der Wert liegt darin, dass
+ *  man beim Kunden sieht, was vor der Portal-Zeit lief — gerade nach einem
+ *  Duplikat-Merge, wo mehrere Mosaik-Konten in einem Kunden zusammenfließen.
+ *
+ *  ACHTUNG bei `vorgangsarten`: der Mosaik-Export liest die Vorgangsart ab 2007
+ *  falsch und liefert überall „Sonstiges Kunde". Verlässlich sind nur `anzahl`
+ *  und `summeEuro`. */
+export interface BestellhistorieJahr {
+  jahr: number;
+  anzahl: number;
+  summeEuro: number;
+  /** Mosaik-Kurzname, aus dem dieses Jahr stammt — nach einem Merge können
+   *  mehrere Konten beitragen. */
+  quellen?: string[];
+}
+
 /** Zusätzliche Lieferadressen — z.B. Vereine mit mehreren Anlagen.
  *  Kommt häufig aus Mosaik sub_adressen + adressreferenzen. */
 export interface ZusaetzlicheLieferadresse extends Adresse {
@@ -206,10 +225,28 @@ export interface SaisonKunde {
   angebotsEmails?: string[];
   notizen?: string;
   aktiv: boolean;
+  /**
+   * Archiv statt Löschen.
+   *
+   * Karteileichen aus dem Mosaik-Import, Testdatensätze und Privatkunden, die
+   * kein Angebot bekommen sollen, verschwinden aus allen Listen — ihre Historie
+   * bleibt aber erhalten und auffindbar. Löschen wäre die Alternative und wäre
+   * falsch: An diesen Datensätzen hängen Projekte, Rechnungen und Belege.
+   *
+   * `loadAlleKunden()` blendet archivierte Kunden standardmäßig aus; wer sie
+   * braucht, ruft `loadAlleKunden({ mitArchivierten: true })`.
+   */
+  archiviert?: boolean;
+  /** Warum archiviert wurde — steht im Archiv-Filter als Erklärung. */
+  archivGrund?: string;
+  /** ISO-Zeitstempel der Archivierung. */
+  archiviertAm?: string;
   // Zuletzt gezahlter Preis (aus letzter Saison)
   zuletztGezahlterPreis?: number;
   tonnenLetztesJahr?: number; // Tonnen abgenommen im letzten Jahr
   preisHistorie?: PreisHistorienEintrag[];
+  /** Bestellhistorie aus Mosaik, ein Eintrag je Jahr. Siehe BestellhistorieJahr. */
+  bestellhistorie?: BestellhistorieJahr[];
   standardBezugsweg?: Bezugsweg;
   standardPlatzbauerId?: string;
   // Falls Verein: bezieht über Platzbauer, die von uns gestellt werden
@@ -219,6 +256,24 @@ export interface SaisonKunde {
    *  (zusammen mit aktiv). undefined/false = ausgeschlossen. */
   automatischesAngebot?: boolean;
   zahlungsziel?: number; // Zahlungsziel in Tagen (z.B. 14, 30)
+  /**
+   * Skonto-Vereinbarung. Kommt überwiegend aus dem Mosaik-Altbestand, wo sie
+   * als Kürzel im Feld `Zahlungsart` stand (etwa „SKTO209" = 2 % bei 9 Tagen).
+   * Wird nicht automatisch auf Belege gedruckt — Skonto einzuräumen ist eine
+   * Entscheidung, keine Ableitung aus Stammdaten.
+   */
+  skonto?: {
+    prozent: number;
+    tage?: number;
+  };
+  /**
+   * Ware geht erst nach Zahlungseingang raus. Bewusst getrennt vom
+   * Zahlungsziel: bei Vorkasse entsteht keine offene Forderung, die fällig
+   * werden könnte.
+   */
+  vorkasse?: boolean;
+  /** Woher das Zahlungsziel stammt, z.B. „Mosaik: NETTO14". Nur zur Herkunft. */
+  zahlungszielQuelle?: string;
   schuettstellenAnzahl?: number; // Anzahl der Schüttstellen
   belieferungsart?: Belieferungsart; // Art der Belieferung
 
@@ -311,6 +366,15 @@ export interface SaisonKundeMitDaten {
 
 // Filter-Optionen für Call-Liste
 export interface CallListeFilter {
+  /**
+   * Archiv-Ansicht: zeigt AUSSCHLIESSLICH archivierte Kunden.
+   *
+   * Ohne dieses Flag sind archivierte Kunden aus jeder Liste verschwunden —
+   * das ist der Zweck des Archivs. Sie müssen aber wiederfindbar bleiben:
+   * Wer „privat" sucht und nichts findet, obwohl er den Datensatz vor einem
+   * Jahr selbst angelegt hat, hält das für Datenverlust.
+   */
+  nurArchivierte?: boolean;
   typ?: KundenTyp[];
   bundesland?: string[];
   status?: GespraechsStatus[];

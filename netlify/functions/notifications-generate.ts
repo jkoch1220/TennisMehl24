@@ -642,6 +642,7 @@ const raeumeErledigteAnfrageNotifications = async (databases: Databases): Promis
       ),
     ];
     const status = new Map<string, string>();
+    const emailDatum = new Map<string, string | undefined>();
     for (let i = 0; i < refIds.length; i += PAGE_SIZE) {
       const block = refIds.slice(i, i + PAGE_SIZE);
       const response = await databases.listDocuments(DATABASE_ID, ANFRAGEN_COLLECTION_ID, [
@@ -649,17 +650,25 @@ const raeumeErledigteAnfrageNotifications = async (databases: Databases): Promis
         Query.limit(block.length),
       ]);
       response.documents.forEach((doc) => {
-        status.set(doc.$id, ((doc as Record<string, unknown>).status as string) || 'neu');
+        const d = doc as Record<string, unknown>;
+        status.set(doc.$id, (d.status as string) || 'neu');
+        emailDatum.set(doc.$id, d.emailDatum as string | undefined);
       });
     }
 
-    // 3. Abgearbeitetes (und Verwaistes) löschen
+    // 3. Abgearbeitetes, Verwaistes und Nachzügler löschen
     for (const meldung of meldungen) {
       const refId = (meldung as Record<string, unknown>).refId as string;
       if (!refId) continue;
       const s = status.get(refId);
       // s === undefined -> Anfrage existiert nicht mehr (hart gelöscht)
-      if (s !== undefined && !ANFRAGE_ERLEDIGT_STATUS.includes(s)) continue;
+      const erledigt = s === undefined || ANFRAGE_ERLEDIGT_STATUS.includes(s);
+      // Nachzügler: Der Sync hat eine Monate alte Postfach-Nachricht nachgezogen.
+      // Angelegt werden solche Meldungen seit der Alterprüfung nicht mehr — was
+      // vorher entstand, steht aber weiter offen, weil die Anfrage Status 'neu'
+      // hat. Hier fliegt es raus.
+      const nachzuegler = !erledigt && !emailIstFrisch(emailDatum.get(refId));
+      if (!erledigt && !nachzuegler) continue;
       try {
         await databases.deleteDocument(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, meldung.$id);
         geloescht++;

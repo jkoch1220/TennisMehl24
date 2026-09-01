@@ -624,7 +624,7 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
       initialLaden.current = true;
       try {
         // Artikel laden
-        const artikelListe = await getAlleArtikel();
+        const artikelListe = await getAlleArtikel('artikelnummer', true);
         setAlleArtikel(artikelListe); // Alle Artikel für Zusatzpositionen
         const ziegelmehl = artikelListe.filter(a => ZIEGELMEHL_ARTIKEL_NUMMERN.includes(a.artikelnummer));
         setZiegelmehlArtikel(ziegelmehl);

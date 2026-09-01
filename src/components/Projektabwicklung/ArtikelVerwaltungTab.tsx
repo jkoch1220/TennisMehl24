@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Search, ArrowUpDown } from 'lucide-react';
-import { Artikel, ArtikelInput } from '../../types/artikel';
+import { Plus, Edit2, Trash2, Save, X, Search, ArrowUpDown, Archive, RotateCcw } from 'lucide-react';
+import { Artikel, ArtikelInput, WARENGRUPPEN, PREIS_TYPEN, LIEFERARTEN, Warengruppe, PreisTyp, Lieferart, Koernung } from '../../types/artikel';
 import { useCan } from '../../hooks/useCan';
+import { einheitenMit } from '../../constants/einheiten';
 import {
   getAlleArtikel,
   erstelleArtikel,
   aktualisiereArtikel,
+  archiviereArtikel,
+  reaktiviereArtikel,
   loescheArtikel,
   sucheArtikel,
 } from '../../services/artikelService';
@@ -21,7 +24,8 @@ const ArtikelVerwaltungTab = () => {
   const [neuerArtikel, setNeuerArtikel] = useState(false);
   const [suchtext, setSuchtext] = useState('');
   const [sortField, setSortField] = useState<SortField>('artikelnummer');
-  const [formData, setFormData] = useState<ArtikelInput>({
+  const [zeigeArchivierte, setZeigeArchivierte] = useState(false);
+  const leeresFormular: ArtikelInput = {
     artikelnummer: '',
     bezeichnung: '',
     beschreibung: '',
@@ -29,7 +33,14 @@ const ArtikelVerwaltungTab = () => {
     einzelpreis: undefined,
     einkaufspreis: undefined,
     streichpreis: undefined,
-  });
+    warengruppe: null,
+    istTonnageRelevant: false,
+    preisTyp: 'variabel',
+    gewichtProStueckKg: null,
+    lieferart: null,
+    koernung: null,
+  };
+  const [formData, setFormData] = useState<ArtikelInput>(leeresFormular);
 
   // Artikel laden
   const ladeArtikel = async () => {
@@ -69,15 +80,7 @@ const ArtikelVerwaltungTab = () => {
   const handleNeuerArtikel = () => {
     setNeuerArtikel(true);
     setBearbeitungsModus(null);
-    setFormData({
-      artikelnummer: '',
-      bezeichnung: '',
-      beschreibung: '',
-      einheit: 't',
-      einzelpreis: undefined,
-      einkaufspreis: undefined,
-      streichpreis: undefined,
-    });
+    setFormData(leeresFormular);
   };
 
   // Artikel bearbeiten
@@ -92,6 +95,12 @@ const ArtikelVerwaltungTab = () => {
       einzelpreis: art.einzelpreis,
       einkaufspreis: art.einkaufspreis,
       streichpreis: art.streichpreis,
+      warengruppe: art.warengruppe ?? null,
+      istTonnageRelevant: art.istTonnageRelevant ?? false,
+      preisTyp: art.preisTyp ?? 'variabel',
+      gewichtProStueckKg: art.gewichtProStueckKg ?? null,
+      lieferart: art.lieferart ?? null,
+      koernung: art.koernung ?? null,
     });
   };
 
@@ -103,8 +112,27 @@ const ArtikelVerwaltungTab = () => {
       return;
     }
 
-    if (formData.einzelpreis !== undefined && formData.einzelpreis < 0) {
+    if (formData.einzelpreis != null && formData.einzelpreis < 0) {
       alert('Der Einzelpreis darf nicht negativ sein');
+      return;
+    }
+
+    if (!formData.warengruppe) {
+      alert('Bitte eine Warengruppe wählen — sie steuert Tonnage-Zählung und Auswertungen.');
+      return;
+    }
+
+    // Stück-Artikel, die in die Tonnage zählen, brauchen die Umrechnung
+    // Stück → Tonnen. Tonnen- und kg-Einheiten rechnet die zentrale
+    // Zähllogik (tonnage.ts) ohne Stückgewicht um.
+    if (
+      formData.istTonnageRelevant &&
+      !['t', 'to', 'kg'].includes(formData.einheit) &&
+      !formData.gewichtProStueckKg
+    ) {
+      alert(
+        `Tonnage-relevanter Artikel mit Einheit "${formData.einheit}": Bitte Gewicht pro Stück (kg) angeben, sonst kann die Menge nicht in Tonnen umgerechnet werden.`
+      );
       return;
     }
 
@@ -130,18 +158,42 @@ const ArtikelVerwaltungTab = () => {
     setBearbeitungsModus(null);
   };
 
-  // Löschen
-  const handleLoeschen = async (id: string) => {
-    if (!confirm('Möchten Sie diesen Artikel wirklich löschen?')) {
+  // Archivieren (der Normalweg — Artikel verschwindet aus Auswahllisten, bleibt für Altbelege lesbar)
+  const handleArchivieren = async (art: Artikel) => {
+    if (!confirm(`Artikel "${art.artikelnummer}" archivieren? Er ist dann in neuen Belegen nicht mehr auswählbar, bestehende Belege bleiben unverändert.`)) {
+      return;
+    }
+    try {
+      await archiviereArtikel(art.$id!);
+      ladeArtikel();
+    } catch (error) {
+      console.error('Fehler beim Archivieren:', error);
+      alert('Fehler beim Archivieren des Artikels');
+    }
+  };
+
+  const handleReaktivieren = async (art: Artikel) => {
+    try {
+      await reaktiviereArtikel(art.$id!);
+      ladeArtikel();
+    } catch (error) {
+      console.error('Fehler beim Reaktivieren:', error);
+      alert('Fehler beim Reaktivieren des Artikels');
+    }
+  };
+
+  // Endgültig löschen — nur für archivierte Artikel ohne Belegreferenzen
+  const handleLoeschen = async (art: Artikel) => {
+    if (!confirm(`Artikel "${art.artikelnummer}" ENDGÜLTIG löschen? Das ist nur möglich, wenn er in keinem Beleg vorkommt.`)) {
       return;
     }
 
     try {
-      await loescheArtikel(id);
+      await loescheArtikel(art.$id!);
       ladeArtikel();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fehler beim Löschen:', error);
-      alert('Fehler beim Löschen des Artikels');
+      alert(error.message || 'Fehler beim Löschen des Artikels');
     }
   };
 
@@ -185,6 +237,16 @@ const ArtikelVerwaltungTab = () => {
             </button>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 mt-4 text-sm text-gray-600 dark:text-dark-textMuted cursor-pointer w-fit">
+          <input
+            type="checkbox"
+            checked={zeigeArchivierte}
+            onChange={(e) => setZeigeArchivierte(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Archivierte Artikel anzeigen
+        </label>
       </div>
 
       {/* Formular für neuen/bearbeiteten Artikel */}
@@ -204,8 +266,15 @@ const ArtikelVerwaltungTab = () => {
                 value={formData.artikelnummer}
                 onChange={(e) => setFormData({ ...formData, artikelnummer: e.target.value })}
                 placeholder="z.B. TM-ZM"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={!!bearbeitungsModus}
+                title={bearbeitungsModus ? 'Artikelnummern sind nach der Anlage gesperrt — sie stehen auf versandten Kundenbelegen.' : undefined}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 disabled:cursor-not-allowed"
               />
+              {bearbeitungsModus && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Gesperrt — Artikelnummern stehen auf versandten Belegen und werden nie umbenannt.
+                </p>
+              )}
             </div>
 
             <div>
@@ -243,14 +312,9 @@ const ArtikelVerwaltungTab = () => {
                 onChange={(e) => setFormData({ ...formData, einheit: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="t">t (Tonnen)</option>
-                <option value="kg">kg (Kilogramm)</option>
-                <option value="Stk">Stk (Stück)</option>
-                <option value="m">m (Meter)</option>
-                <option value="m²">m² (Quadratmeter)</option>
-                <option value="m³">m³ (Kubikmeter)</option>
-                <option value="Std">Std (Stunden)</option>
-                <option value="Pkt">Pkt (Pauschal)</option>
+                {einheitenMit(formData.einheit).map((einheit) => (
+                  <option key={einheit.wert} value={einheit.wert}>{einheit.label}</option>
+                ))}
               </select>
             </div>
 
@@ -262,7 +326,7 @@ const ArtikelVerwaltungTab = () => {
                 type="number"
                 step="0.01"
                 value={formData.einzelpreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
+                onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : null })}
                 placeholder="Optional - für Angebote auf Anfrage"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -277,7 +341,7 @@ const ArtikelVerwaltungTab = () => {
                 type="number"
                 step="0.01"
                 value={formData.einkaufspreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, einkaufspreis: e.target.value ? parseFloat(e.target.value) : undefined })}
+                onChange={(e) => setFormData({ ...formData, einkaufspreis: e.target.value ? parseFloat(e.target.value) : null })}
                 placeholder="Direkte Kosten für Deckungsbeitrag"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -292,10 +356,99 @@ const ArtikelVerwaltungTab = () => {
                 type="number"
                 step="0.01"
                 value={formData.streichpreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, streichpreis: e.target.value ? parseFloat(e.target.value) : undefined })}
+                onChange={(e) => setFormData({ ...formData, streichpreis: e.target.value ? parseFloat(e.target.value) : null })}
                 placeholder="Ursprünglicher Preis bei Rabattaktionen"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Warengruppe *
+              </label>
+              <select
+                value={formData.warengruppe ?? ''}
+                onChange={(e) => setFormData({ ...formData, warengruppe: (e.target.value || null) as Warengruppe | null })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">– bitte wählen –</option>
+                {WARENGRUPPEN.map((wg) => (
+                  <option key={wg.wert} value={wg.wert}>{wg.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Preistyp
+              </label>
+              <select
+                value={formData.preisTyp ?? 'variabel'}
+                onChange={(e) => setFormData({ ...formData, preisTyp: e.target.value as PreisTyp })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {PREIS_TYPEN.map((pt) => (
+                  <option key={pt.wert} value={pt.wert}>{pt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Lieferart <span className="text-gray-400 dark:text-gray-500 text-xs">(nur Tennismehl)</span>
+              </label>
+              <select
+                value={formData.lieferart ?? ''}
+                onChange={(e) => setFormData({ ...formData, lieferart: (e.target.value || null) as Lieferart | null })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">–</option>
+                {LIEFERARTEN.map((la) => (
+                  <option key={la.wert} value={la.wert}>{la.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Körnung <span className="text-gray-400 dark:text-gray-500 text-xs">(nur Tennismehl)</span>
+              </label>
+              <select
+                value={formData.koernung ?? ''}
+                onChange={(e) => setFormData({ ...formData, koernung: (e.target.value || null) as Koernung | null })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">–</option>
+                <option value="0-2">0/2 mm</option>
+                <option value="0-3">0/3 mm</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
+                Gewicht pro Stück (kg) <span className="text-gray-400 dark:text-gray-500 text-xs">(für Stück-Artikel mit Tonnage, z. B. 40-kg-Sack)</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.gewichtProStueckKg ?? ''}
+                onChange={(e) => setFormData({ ...formData, gewichtProStueckKg: e.target.value ? parseFloat(e.target.value) : null })}
+                placeholder="z.B. 40"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 md:col-span-2">
+              <input
+                id="istTonnageRelevant"
+                type="checkbox"
+                checked={formData.istTonnageRelevant ?? false}
+                onChange={(e) => setFormData({ ...formData, istTonnageRelevant: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="istTonnageRelevant" className="text-sm text-gray-700 dark:text-dark-textMuted">
+                Zählt in die Saison-Tonnage (nur echte Ware — Pauschalen und Zuschläge in Tonnen-Einheit bleiben draußen)
+              </label>
             </div>
           </div>
 
@@ -357,6 +510,9 @@ const ArtikelVerwaltungTab = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
                     Einheit
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-dark-textMuted uppercase tracking-wider">
+                    Warengruppe
+                  </th>
                   <th className="px-6 py-3 text-right">
                     <button
                       onClick={() => handleSortieren('einzelpreis')}
@@ -377,10 +533,13 @@ const ArtikelVerwaltungTab = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {artikel.map((art) => (
-                  <tr key={art.$id} className="hover:bg-gray-50 dark:hover:bg-slate-700 dark:bg-slate-800 transition-colors">
+                {artikel.filter((art) => zeigeArchivierte || art.aktiv !== false).map((art) => (
+                  <tr key={art.$id} className={`hover:bg-gray-50 dark:hover:bg-slate-700 dark:bg-slate-800 transition-colors ${art.aktiv === false ? 'opacity-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900 dark:text-dark-text">{art.artikelnummer}</span>
+                      {art.aktiv === false && (
+                        <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-gray-300">archiviert</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-gray-900 dark:text-dark-text">{art.bezeichnung}</span>
@@ -392,6 +551,20 @@ const ArtikelVerwaltungTab = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-900 dark:text-dark-text">{art.einheit}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {art.warengruppe ? (
+                        <span className="text-sm text-gray-900 dark:text-dark-text">
+                          {WARENGRUPPEN.find((wg) => wg.wert === art.warengruppe)?.label ?? art.warengruppe}
+                          {art.istTonnageRelevant && (
+                            <span className="ml-1 text-xs text-blue-600 dark:text-blue-400" title="Zählt in die Saison-Tonnage">⚖</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" title="Beim nächsten Bearbeiten klassifizieren">
+                          nicht klassifiziert
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <span className="text-sm font-semibold text-gray-900 dark:text-dark-text">
@@ -413,20 +586,41 @@ const ArtikelVerwaltungTab = () => {
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleBearbeiten(art)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Bearbeiten"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleLoeschen(art.$id!)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Löschen"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {art.aktiv !== false ? (
+                          <>
+                            <button
+                              onClick={() => handleBearbeiten(art)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Bearbeiten"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleArchivieren(art)}
+                              className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Archivieren (aus Auswahllisten entfernen, Belege bleiben unverändert)"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleReaktivieren(art)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Reaktivieren"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleLoeschen(art)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Endgültig löschen (nur möglich, wenn kein Beleg den Artikel referenziert)"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

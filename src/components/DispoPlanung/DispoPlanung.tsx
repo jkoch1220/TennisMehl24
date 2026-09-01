@@ -590,7 +590,7 @@ const DispoPlanung = () => {
         'Komm. Datum': kommDatum,
         'Dispo-Status': dispoStatusLabel,
         'Belieferungsart': belieferungsart,
-        'Gewicht (t)': projekt.liefergewicht || material.gesamtTonnen || '',
+        'Gewicht (t)': projekt.liefergewicht || projekt.beauftragteTonnen || material.gesamtTonnen || '',
         '0-2 lose (t)': material.lose02 || '',
         '0-3 lose (t)': material.lose03 || '',
         '0-2 gesackt (t)': material.gesackt02 || '',
@@ -1915,7 +1915,10 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
     lieferzeitfensterBis: projekt.lieferzeitfenster?.bis || '16:00',
     fahrzeugId: projekt.fahrzeugId || '',
     anzahlPaletten: projekt.anzahlPaletten || 0,
-    liefergewicht: projekt.liefergewicht || projekt.angefragteMenge || 0,
+    // Plan-Menge für die Dispo. liefergewicht fließt nur als Vorbelegung ein
+    // (Altbestand) — geschrieben wird ausschließlich beauftragteTonnen, das
+    // Ist-Feld gehört der Wiegeschein-Bestätigung (Stufe 3, 08/2026).
+    beauftragteTonnen: projekt.beauftragteTonnen || projekt.liefergewicht || projekt.angefragteMenge || 0,
     dispoStatus: projekt.dispoStatus || 'offen' as DispoStatus,
   });
   const [neueNotiz, setNeueNotiz] = useState('');
@@ -2002,7 +2005,7 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
       } : undefined,
       fahrzeugId: formData.fahrzeugId || undefined,
       anzahlPaletten: formData.anzahlPaletten || undefined,
-      liefergewicht: formData.liefergewicht || undefined,
+      beauftragteTonnen: formData.beauftragteTonnen || undefined,
       dispoStatus: formData.dispoStatus,
       dispoNotizen: notizen,
       anhaenge: anhaenge,
@@ -2148,15 +2151,20 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Liefergewicht (Tonnen)
+                    Plan-Tonnen (beauftragt)
                   </label>
                   <input
                     type="number"
                     step="0.1"
-                    value={formData.liefergewicht}
-                    onChange={(e) => setFormData({ ...formData, liefergewicht: parseFloat(e.target.value) || 0 })}
+                    value={formData.beauftragteTonnen}
+                    onChange={(e) => setFormData({ ...formData, beauftragteTonnen: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
                   />
+                  {projekt.wiegeschein?.gepruefteMengeTonnen !== undefined && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Gewogen: {projekt.wiegeschein.gepruefteMengeTonnen} t (aus Wiegeschein-Prüfung — hier nicht änderbar)
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

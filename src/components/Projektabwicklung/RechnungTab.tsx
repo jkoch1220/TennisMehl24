@@ -49,6 +49,9 @@ import DokumentVerlauf from './DokumentVerlauf';
 import EmailFormular from './EmailFormular';
 import { holeDieselPreisFuerDatum, getAktuellerDurchschnittspreis, DieselPreisErgebnis } from '../../utils/dieselPreisAPI';
 import { berechneFrachtkostenpauschale, FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER } from '../../utils/frachtkostenCalculations';
+import { summiereTonnage } from '../../utils/angebotsTonnage';
+import { validierePositionen, formatiereWarnungen } from '../../utils/positionsValidierung';
+import { erstelleArtikelIndex } from '../../utils/tonnage';
 import {
   berechneRabenDieselfloater,
   erstelleRabenDieselfloaterPosition,
@@ -65,6 +68,7 @@ import {
   erstelleDieselZuschlagPosition,
   getDieselPreisStatus,
   istDieselZuschlagPosition,
+  zuschlagPositionIstAktuell,
   istZuschlagsfaehig,
   formatDieselPreis,
   formatEntfernungsStaffel,
@@ -82,6 +86,7 @@ import {
 import DokumentAdresseFormular, { DokumentAdresse } from './DokumentAdresseFormular';
 import { SaisonKunde } from '../../types/saisonplanung';
 import jsPDF from 'jspdf';
+import { formatiereZahlungsziel, zahlungszielOptionen } from '../../utils/zahlungskonditionen';
 
 interface RechnungTabProps {
   projekt?: Projekt;
@@ -238,6 +243,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
   const [artikel, setArtikel] = useState<Artikel[]>([]);
   const [universalArtikel, setUniversalArtikel] = useState<UniversalArtikel[]>([]);
   const [showArtikelAuswahl, setShowArtikelAuswahl] = useState(false);
+  // Stufe 4 (08/2026): Statt still eine TM-ZM-02-Position zu erfinden, wenn
+  // das Vorgängerdokument keine Positionen liefert, wird gewarnt.
+  const [keineVorgaengerPositionen, setKeineVorgaengerPositionen] = useState(false);
   const [artikelTab, setArtikelTab] = useState<'eigene' | 'universa'>('eigene');
   const [artikelSuchtext, setArtikelSuchtext] = useState('');
   const [artikelSortierung, setArtikelSortierung] = useState<'bezeichnung' | 'artikelnummer' | 'einzelpreis'>('bezeichnung');
@@ -631,38 +639,34 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     setDieselZuschlagErgebnis(dieselZuschlagBerechnet);
   }, [dieselZuschlagBerechnet]);
 
-  // === DIESELPREISZUSCHLAG: Position NUR bei Dieselpreis/Leistungsdatum-Änderung einfügen ===
-  // Separater useEffect, der NICHT auf Positionsänderungen reagiert (verhindert Infinite Loop)
-  const letzterDieselPreisRef = useRef<number | null>(null);
-  const letztesLeistungsdatumRef = useRef<string>('');
-  // Die Entfernung trifft asynchron ein (Routing) und kann von Hand korrigiert werden. Ohne
-  // sie in der Auslöseprüfung bliebe eine bereits eingefügte Position auf der Grundstaffel
-  // stehen, obwohl inzwischen ein höherer Satz gilt.
-  const letzteEntfernungRef = useRef<number | null>(null);
-
+  // === DIESELPREISZUSCHLAG: Position aktuell halten ===
+  //
+  // Früher entschied hier ein Ref-Vergleich auf Dieselpreis, Leistungsdatum und
+  // Entfernung, ob geschrieben wird. Eine reine MENGENÄNDERUNG fiel damit durch:
+  // Das Banner zeigte den neuen Betrag, die Position behielt den alten — und die
+  // Position ist das, was der Kunde bekommt (Vorschlag [37]).
+  //
+  // Jetzt entscheidet der Vergleich mit dem SOLL-Zustand. Das schleift nicht,
+  // weil berechneGesamtZuschlag die Zuschlagsposition aus der eigenen Tonnage
+  // herausfiltert — siehe zuschlagPositionIstAktuell.
   useEffect(() => {
-    // Nur ausführen wenn sich Dieselpreis, Leistungsdatum oder Entfernung tatsächlich geändert haben
-    if (
-      dieselPreis === letzterDieselPreisRef.current &&
-      rechnungsDaten.leistungsdatum === letztesLeistungsdatumRef.current &&
-      entfernungKm === letzteEntfernungRef.current
-    ) {
-      return;
-    }
+    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) return;
+    if (dieselZuschlagManuellEntfernt.current || !dieselZuschlagBerechnet) return;
 
-    letzterDieselPreisRef.current = dieselPreis;
-    letztesLeistungsdatumRef.current = rechnungsDaten.leistungsdatum || '';
-    letzteEntfernungRef.current = entfernungKm;
+    const soll = erstelleDieselZuschlagPosition(dieselZuschlagBerechnet);
+    const vorhanden = rechnungsDaten.positionen.find(istDieselZuschlagPosition);
+    if (zuschlagPositionIstAktuell(vorhanden, soll)) return;
 
-    if (!dieselPreis || !rechnungsDaten.leistungsdatum || gespeichertesDokument) {
-      return;
-    }
-
-    // Position automatisch einfügen/aktualisieren (wenn nicht manuell entfernt)
-    if (!dieselZuschlagManuellEntfernt.current && dieselZuschlagBerechnet) {
-      aktualisiereZuschlagPosition(dieselZuschlagBerechnet);
-    }
-  }, [dieselPreis, rechnungsDaten.leistungsdatum, entfernungKm, gespeichertesDokument, dieselZuschlagBerechnet, aktualisiereZuschlagPosition]);
+    aktualisiereZuschlagPosition(dieselZuschlagBerechnet);
+  }, [
+    dieselPreis,
+    rechnungsDaten.leistungsdatum,
+    rechnungsDaten.positionen,
+    entfernungKm,
+    gespeichertesDokument,
+    dieselZuschlagBerechnet,
+    aktualisiereZuschlagPosition,
+  ]);
 
   // === DIESELPREISZUSCHLAG: Manuellen Preis setzen ===
   const setzeManuellenDieselPreis = () => {
@@ -703,6 +707,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
         let abOhneMwSt: boolean | undefined;
         let abMwStSatz: number | undefined;
         let abKundenUstIdNr: string | undefined;
+        // Zahlungsziel: was in der AB bestaetigt wurde, gilt fuer die Rechnung.
+        // Daran haengt die Faelligkeit im Debitorentool (Vorschlag [7]/[48]).
+        let abZahlungsziel: string | undefined;
+        let empfaengerZahlungsziel: string | undefined;
 
         if (projekt?.$id) {
           const positionen = await ladePositionenVonVorherigem(projekt.$id, 'rechnung');
@@ -719,6 +727,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               ohneMehrwertsteuer?: boolean;
               mehrwertsteuersatz?: number;
               kundenUstIdNr?: string;
+              zahlungsziel?: string;
             } | null = null;
             const finalisierteAB = await ladeDokumentNachTyp(projekt.$id, 'auftragsbestaetigung');
             if (finalisierteAB) {
@@ -736,6 +745,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             abOhneMwSt = abDaten?.ohneMehrwertsteuer;
             abMwStSatz = abDaten?.mehrwertsteuersatz;
             abKundenUstIdNr = abDaten?.kundenUstIdNr;
+            abZahlungsziel = abDaten?.zahlungsziel;
             if (abOhneMwSt || abMwStSatz) {
               console.log('✅ Steueroptionen von Auftragsbestätigung übernommen:', { abOhneMwSt, abMwStSatz });
             }
@@ -744,23 +754,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           }
         }
 
-        // Fallback: Wenn keine Positionen von AB, versuche aus Projektdaten
-        if (initialePositionen.length === 0) {
-          const angefragteMenge = projekt?.angefragteMenge || kundeInfo?.angefragteMenge;
-          const preisProTonne = projekt?.preisProTonne || kundeInfo?.preisProTonne;
-
-          if (angefragteMenge && preisProTonne) {
-            initialePositionen.push({
-              id: '1',
-              artikelnummer: 'TM-ZM-02',
-              bezeichnung: 'Tennissand 0/2',
-              menge: angefragteMenge,
-              einheit: 't',
-              einzelpreis: preisProTonne,
-              gesamtpreis: angefragteMenge * preisProTonne,
-            });
-          }
-        }
+        // BEWUSST kein Fallback mehr auf eine erfundene TM-ZM-02-Position
+        // (Stufe 4, 08/2026) — stattdessen sichtbare Warnung.
+        setKeineVorgaengerPositionen(initialePositionen.length === 0);
 
         // Rechnungsnummer generieren, falls nicht vorhanden
         let rechnungsnummer = projekt?.rechnungsnummer;
@@ -811,6 +807,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 pb.rechnungsadresse.land
               );
               console.log('✅ Bezugsweg Platzbauer: Rechnungsadresse vom Platzbauer geladen:', pb.name);
+              // Rechnungsempfaenger ist der Platzbauer -> seine Zahlungsbedingungen.
+              empfaengerZahlungsziel = formatiereZahlungsziel(pb.zahlungsziel);
 
               // Lieferadresse = Verein (Kunde)
               if (kunde) {
@@ -841,6 +839,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               ? formatAdresszeile(projekt.lieferadresse.plz, projekt.lieferadresse.ort, projekt.lieferadresse.land)
               : formatAdresszeile(kunde.lieferadresse.plz, kunde.lieferadresse.ort, kunde.lieferadresse.land);
             console.log('✅ Platzbauer-Projekt: Rechnungsadresse bleibt vom Platzbauer, Lieferadresse vom Verein:', kunde.name);
+            // Auch hier zahlt der Platzbauer, nicht der Verein.
+            empfaengerZahlungsziel = formatiereZahlungsziel(platzbauer?.zahlungsziel);
           } else {
             // NORMALE PROJEKTE: Rechnungsadresse vom Kunden übernehmen!
             kundenname = kunde.name;
@@ -893,6 +893,14 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           ohneMehrwertsteuer: prev.ohneMehrwertsteuer ?? abOhneMwSt,
           mehrwertsteuersatz: prev.mehrwertsteuersatz ?? abMwStSatz,
           kundenUstIdNr: prev.kundenUstIdNr ?? abKundenUstIdNr,
+          // AB > Rechnungsempfaenger > Kunde. prev taugt nicht als Vorrang-Quelle,
+          // weil der Initial-State immer '14 Tage' setzt. Aus diesem Feld liest
+          // speichereRechnung spaeter die Faelligkeit fuer die Debitorenliste.
+          zahlungsziel:
+            abZahlungsziel ||
+            empfaengerZahlungsziel ||
+            formatiereZahlungsziel(kunde?.zahlungsziel) ||
+            prev.zahlungsziel,
         }));
         datenBereitsVorhandenRef.current = true; // Initialisierung abgeschlossen – kein zweiter Durchlauf
       }
@@ -973,14 +981,10 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
         neuePositionen[index].menge * neuePositionen[index].einzelpreis;
     }
 
-    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren
+    // Bei Mengenänderung: Frachtkostenpauschale automatisch aktualisieren.
+    // summiereTonnage zählt nur echte Ware — gleiche Logik wie Angebot/AB.
     if (field === 'menge') {
-      const gesamtTonnage = neuePositionen.reduce((sum, pos) => {
-        if (pos.einheit?.toLowerCase() === 't' || pos.einheit?.toLowerCase() === 'to') {
-          return sum + (pos.menge || 0);
-        }
-        return sum;
-      }, 0);
+      const gesamtTonnage = summiereTonnage(neuePositionen);
 
       const frachtkostenIndex = neuePositionen.findIndex(
         pos => pos.artikelnummer === FRACHTKOSTENPAUSCHALE_ARTIKELNUMMER
@@ -1027,6 +1031,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
     const neuePosition: Position = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
+      preisQuelle: 'stamm',
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
       beschreibung: selectedArtikel.beschreibung || '',
@@ -1060,6 +1066,8 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
     const neuePosition: Position = {
       id: Date.now().toString(),
+      artikelId: selectedArtikel.$id,
+      preisQuelle: 'stamm',
       artikelnummer: selectedArtikel.artikelnummer,
       bezeichnung: selectedArtikel.bezeichnung,
       beschreibung: '',
@@ -1129,6 +1137,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
 
   // Gefilterte Artikel basierend auf Suchtext
   const gefilterteArtikel = artikel
+    // Archivierte Artikel sind in neuen Belegen nicht mehr auswählbar —
+    // bestehende Positionen bleiben davon unberührt (Stufe 4, 08/2026).
+    .filter((art) => art.aktiv !== false)
     .filter(art => {
       if (!artikelSuchtext) return true;
       const suchtext = artikelSuchtext.toLowerCase();
@@ -1310,6 +1321,18 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
     if (!projekt?.$id) {
       setStatusMeldung({ typ: 'fehler', text: 'Kein Projekt ausgewählt. Bitte wählen Sie zuerst ein Projekt aus.' });
       return;
+    }
+
+    // Zentrale Positions-Validierung (Stufe 4, 08/2026): Nummer↔Stamm↔Einheit↔Preis.
+    // Warnungen blockieren nicht hart, müssen aber bewusst bestätigt werden.
+    {
+      const warnungen = validierePositionen(rechnungsDaten.positionen, erstelleArtikelIndex(artikel));
+      if (warnungen.length > 0) {
+        const weiter = confirm(
+          `Positions-Prüfung gegen den Artikelstamm:\n\n${formatiereWarnungen(warnungen)}\n\nTrotzdem speichern?`
+        );
+        if (!weiter) return;
+      }
     }
 
     try {
@@ -1880,6 +1903,16 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
           {/* Positionen - Read Only Tabelle */}
           {rechnungsDaten.positionen.length > 0 && (
             <div className="mt-6">
+{keineVorgaengerPositionen && rechnungsDaten.positionen.length === 0 && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>
+                <strong>Keine Positionen vom Vorgängerdokument übernommen.</strong>{' '}
+                Bitte die Artikel bewusst über die Artikel-Auswahl hinzufügen — eine
+                Standard-Position (TM-ZM-02) wird seit 08/2026 nicht mehr automatisch eingesetzt.
+              </span>
+            </div>
+          )}
               <h4 className="text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-3">Positionen</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -2239,12 +2272,14 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
             strasse: rechnungsDaten.kundenstrasse,
             plzOrt: rechnungsDaten.kundenPlzOrt,
           }}
-          onChange={(adresse: DokumentAdresse) => {
+          onChange={(adresse: DokumentAdresse, ansprechpartner?: string) => {
             setRechnungsDaten(prev => ({
               ...prev,
               kundenname: adresse.name,
               kundenstrasse: adresse.strasse,
               kundenPlzOrt: adresse.plzOrt,
+              // z.Hd. folgt dem Empfänger — siehe DokumentAdresseFormular.
+              ...(ansprechpartner !== undefined ? { ansprechpartner } : {}),
             }));
             hatGeaendert.current = true;
           }}
@@ -3358,12 +3393,9 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 onChange={(e) => handleInputChange('zahlungsziel', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
               >
-                <option value="Vorkasse">Vorkasse</option>
-                <option value="Sofort">Sofort</option>
-                <option value="7 Tage">7 Tage</option>
-                <option value="14 Tage">14 Tage</option>
-                <option value="30 Tage">30 Tage</option>
-                <option value="60 Tage">60 Tage</option>
+                {zahlungszielOptionen(rechnungsDaten.zahlungsziel).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
             <div>

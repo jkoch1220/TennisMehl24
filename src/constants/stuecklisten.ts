@@ -14,15 +14,22 @@
 
 export interface StuecklistenPosition {
   artikelnummer: string;
-  menge?: number; // Default: 1
+  /** Default: 1. Eine 0 bleibt eine 0 — der Einbau nutzt `??`, nicht `||`. */
+  menge?: number;
   mengeAusProjekt?: 'angefragteMenge'; // Optional: Menge aus Projekt übernehmen
+  /**
+   * Als Bedarfsposition einfügen: steht im Angebot, zählt aber nicht in die
+   * Summe. Für Leistungen, die nur nach Aufwand anfallen — der Kunde sieht den
+   * Satz, zahlt ihn aber nur, wenn er gebraucht wird.
+   */
+  istBedarfsposition?: boolean;
 }
 
 export interface Stueckliste {
   id: string;
   name: string;
   beschreibung: string;
-  kategorie: 'lieferung' | 'instandsetzung';
+  kategorie: 'lieferung' | 'instandsetzung' | 'zubehoer';
   positionen: StuecklistenPosition[];
 }
 
@@ -73,10 +80,30 @@ export const STUECKLISTEN: Stueckliste[] = [
       { artikelnummer: 'ZM-FI', menge: 1 }, // Instandsetzung des Tennisplatzes
       // OFFEN: ZM-FA (58,95 €/Std) vs. TM-ZSH (58,50 €/Std) — beide im Stamm, beide
       // im Einsatz. ZM-FA gewinnt vorerst, weil deutlich häufiger verwendet.
-      { artikelnummer: 'ZM-FA', menge: 1 }, // Facharbeiter für Zusatzarbeiten
+      //
+      // Menge 0 und Bedarfsposition: Zusatzarbeiten fallen nur nach Aufwand an.
+      // Bis 08/2026 stand hier Menge 1 als reguläre Zeile — damit wanderten
+      // 58,95 € ungefragt in jede Angebotssumme (Vorschlag [16]).
+      { artikelnummer: 'ZM-FA', menge: 0, istBedarfsposition: true }, // Facharbeiter für Zusatzarbeiten
       { artikelnummer: 'TM-ZM-02', mengeAusProjekt: 'angefragteMenge' }, // Tennismehl 0/2 Schüttgut
       { artikelnummer: 'TM-PE', menge: 1 }, // PE-Folie zum Abdecken und Unterlegen
       { artikelnummer: 'TM-FP', menge: 1 }, // Frachtkostenpauschale
+    ],
+  },
+
+  // === ZUBEHÖR ===
+  {
+    id: 'hydrocourt',
+    name: 'Hydrocourt (optional)',
+    beschreibung: 'HYDROcourt© als optionale Bedarfsposition, inklusive Versandpauschale',
+    kategorie: 'zubehoer',
+    positionen: [
+      // Belegt gegen die Collection `artikel` (Stand 08/2026): TM-HYC 220,00 €/Stk,
+      // TM-HYC-V 13,50 €. Dieselben Nummern filtert HydrocourtView.tsx und kennt
+      // dispoMaterialParser.ts. Erfundene Nummern haben hier schon einmal dazu
+      // geführt, dass Stücklisten ihr Hauptprodukt gar nicht einfügten — siehe oben.
+      { artikelnummer: 'TM-HYC', menge: 1, istBedarfsposition: true },
+      { artikelnummer: 'TM-HYC-V', menge: 1, istBedarfsposition: true },
     ],
   },
 ];
@@ -86,5 +113,6 @@ export const getStuecklistenNachKategorie = () => {
   return {
     lieferung: STUECKLISTEN.filter(s => s.kategorie === 'lieferung'),
     instandsetzung: STUECKLISTEN.filter(s => s.kategorie === 'instandsetzung'),
+    zubehoer: STUECKLISTEN.filter(s => s.kategorie === 'zubehoer'),
   };
 };

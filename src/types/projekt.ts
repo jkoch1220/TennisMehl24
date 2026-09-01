@@ -256,6 +256,43 @@ export interface Projekt {
 
   // === DATENPRÜFUNG (Änderungsformular-Link in der AB-E-Mail) ===
   // Alle Felder liegen NUR im data-JSON des Projekts — keine Appwrite-Spalten.
+  /**
+   * Token für das öffentliche Bestellportal /bestellung/:projektId?token=…
+   *
+   * Getrennt vom Datenprüfungs-Token: Die beiden Seiten können unterschiedlich
+   * lange gültig sein, und wer einen Link weitergibt, gibt nicht beide her.
+   */
+  bestellToken?: string;
+  bestellTokenErstelltAm?: string;
+  /**
+   * Der Kunde hat über das Portal verbindlich bestellt.
+   *
+   * Löst KEINE automatische Auftragsbestätigung aus — die bleibt eine bewusste
+   * Entscheidung im Büro. Der Status springt auf `auftragsbestaetigung`, die AB
+   * selbst wird von Hand ausgelöst.
+   */
+  bestellungEingegangenAm?: string;
+  /** Was der Kunde beim Bestellen angepasst hat — als Nachweis, was er sah. */
+  bestellungDaten?: string;
+  /**
+   * An wen das Angebot ging — dorthin geht auch die Bestellbestätigung.
+   * Steht am Projekt, damit die Netlify Function keinen Zugriff auf den
+   * Kundenstamm braucht.
+   */
+  bestellEmpfaenger?: string;
+  /**
+   * Fotos der Schüttstelle, vom Kunden über das Bestellportal hochgeladen.
+   *
+   * Der eigentliche Nutzen liegt in der Dispo: Der Fahrer sieht vor der Abfahrt,
+   * wo abgeschüttet werden soll — statt vor Ort zu telefonieren.
+   */
+  schuettstelleFotos?: Array<{
+    fileId: string;
+    hochgeladenAm: string;
+    /** Freitext des Kunden zu genau diesem Bild. */
+    hinweis?: string;
+  }>;
+
   /** Zufälliges, nicht erratbares Token für den öffentlichen Link /daten-pruefung/:projektId?token=... */
   datenpruefungToken?: string;
   /** ISO-Datum der Token-Erzeugung (Ablauf nach 90 Tagen, Prüfung in der Netlify Function) */
@@ -356,11 +393,22 @@ export interface Projekt {
   // Lieferdetails
   anzahlPaletten?: number;
   /**
-   * Liefergewicht in Tonnen. Zunächst das geplante Gewicht aus der Dispo; nach
-   * der Prüfung des Wiegescheins wird es auf die tatsächlich verwogene Menge
-   * gesetzt (siehe wiegeschein.gepruefteMengeTonnen).
+   * Ist-Menge in Tonnen. Seit Stufe 3 (08/2026) schreibt NUR noch die
+   * Wiegeschein-Bestätigung dieses Feld (wiegescheinService) — vorher
+   * überschrieben es auch AB-Saves, Projekt-Splits, die Platzbauer-Massenanlage
+   * und zwei Dispo-Masken, sodass eine AB-Korrektur nach der Verwiegung das
+   * gewogene Gewicht löschte. Altbestand kann daher ungewogene Werte tragen:
+   * ob ein Wert wirklich gewogen ist, entscheidet wiegeschein.pruefStatus
+   * (siehe projektTonnage.ts), nicht dieses Feld allein.
    */
   liefergewicht?: number;
+  /**
+   * Beauftragte Waren-Tonnen laut aktueller AB (zentrale Zähllogik, ohne
+   * Pauschalen/Bedarfspositionen). Wird von AB-Save, Projekt-Split und der
+   * Dispo-Planung gepflegt — die ehrliche Plan-Menge, getrennt vom Ist.
+   * Lebt wie liefergewicht/angefragteMenge im data-JSON, nicht als Spalte.
+   */
+  beauftragteTonnen?: number;
 
   // DISPO-Ansprechpartner (z.B. Platzwart für diese Lieferung)
   dispoAnsprechpartner?: {

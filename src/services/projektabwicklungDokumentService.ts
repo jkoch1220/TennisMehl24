@@ -23,6 +23,7 @@ import {
   LieferscheinPosition
 } from '../types/projektabwicklung';
 import { Projekt, DispoStatus, LieferdatumTyp, Belieferungsart, Wochentag } from '../types/projekt';
+import { summierePositionsTonnen } from '../utils/tonnage';
 import { projektService } from './projektService';
 import { generiereAngebotPDF, generiereAuftragsbestaetigungPDF, generiereLieferscheinPDF, berechneAngebotsSummen } from './dokumentService';
 import { holeLiefernachweisUrlFuerProjekt } from './liefernachweisService';
@@ -154,24 +155,42 @@ const sanitizeFilename = (text: string): string => {
     .trim();
 };
 
+/**
+ * Dateiname eines Belegs.
+ *
+ * Das Versions-Suffix ist der Grund, warum es diese Funktion in dieser Form
+ * gibt: Bis 08/2026 hießen alle Versionen einer Auftragsbestätigung gleich
+ * („Auftragsbestaetigung Wiener Parkclub 2026.pdf"), und Appwrite liefert den
+ * Namen per Content-Disposition aus. Der Browser legte die zweite Version
+ * daneben als „… (1).pdf" ab — die schlicht benannte Datei im Download-Ordner
+ * war also die ÄLTESTE. Genau das war als „lädt die ganz alte PDF" gemeldet
+ * (Vorschlag [6]).
+ *
+ * Version 1 bleibt ohne Suffix: sonst änderten sich die Namen des gesamten
+ * Bestands, und der Normalfall (nur eine Version) bekäme ein Suffix ohne Nutzen.
+ *
+ * Rechnung und Stornorechnung übergeben bewusst KEINE Version — dieser Name
+ * geht als Anhang an den Kunden (siehe rechnungVersandService).
+ */
 const generiereLesDatname = (
   dokumentTyp: 'Angebot' | 'Auftragsbestaetigung' | 'Lieferschein' | 'Rechnung' | 'Stornorechnung' | 'Proformarechnung',
   kundenname: string,
   datum: string,
-  _version?: number,
+  version?: number,
   lieferadresseName?: string // Optionaler Vereinsname bei Platzbauer-Projekten
 ): string => {
   const jahr = generiereLesbaresDatatum(datum);
   const saubererKundenname = sanitizeFilename(kundenname);
+  const versionsSuffix = version && version > 1 ? ` v${version}` : '';
 
   // Wenn Lieferadresse abweicht (z.B. Verein bei Platzbauer-Projekt), beide Namen verwenden
   if (lieferadresseName && lieferadresseName !== kundenname) {
     const saubererLiefername = sanitizeFilename(lieferadresseName);
     // Format: "Rechnung Vereinsname - Platzbauername 2024.pdf"
-    return `${dokumentTyp} ${saubererLiefername} - ${saubererKundenname} ${jahr}.pdf`;
+    return `${dokumentTyp} ${saubererLiefername} - ${saubererKundenname} ${jahr}${versionsSuffix}.pdf`;
   }
 
-  return `${dokumentTyp} ${saubererKundenname} ${jahr}.pdf`;
+  return `${dokumentTyp} ${saubererKundenname} ${jahr}${versionsSuffix}.pdf`;
 };
 
 // Helper: URLs generieren
@@ -253,8 +272,10 @@ export const ladeDokumentNachTyp = async (
   dokumentTyp: DokumentTyp
 ): Promise<GespeichertesDokument | null> => {
   try {
-    // Lade nur das neueste Dokument dieses Typs (Performance-Optimierung)
-    // Sortiere nach version DESC, dann nach $createdAt DESC als Fallback
+    // Lade nur das neueste Dokument dieses Typs (Performance-Optimierung).
+    // Sortierung nach $createdAt DESC — bewusst NICHT nach `version`: das Feld
+    // wird nur bei der Auftragsbestätigung geschrieben, Angebot, Lieferschein,
+    // Rechnung, Proforma und Storno lassen es leer.
     const response = await databases.listDocuments(
       DATABASE_ID,
       BESTELLABWICKLUNG_DOKUMENTE_COLLECTION_ID,
@@ -446,7 +467,7 @@ export const speichereAuftragsbestaetigung = async (
     // PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, undefined, daten.lieferadresseName);
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, neueVersion, daten.lieferadresseName);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -507,14 +528,12 @@ export const speichereAuftragsbestaetigung = async (
         lieferzeitfenster: lieferzeitfenster,
         // Belieferungsart aus AB übernehmen
         belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
-        // Menge aus Positionen berechnen (nur Tonnen-Einheiten)
-        liefergewicht: daten.positionen?.reduce((sum, p) => {
-          const einheit = p.einheit?.toLowerCase() || '';
-          if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
-            return sum + (p.menge || 0);
-          }
-          return sum;
-        }, 0) || undefined,
+        // Beauftragte Waren-Tonnen aus den AB-Positionen (zentrale Zähllogik:
+        // ohne Pauschalen in „t" und ohne Bedarfspositionen). Seit Stufe 3
+        // NICHT mehr liefergewicht — das Ist-Feld gehört der Wiegeschein-
+        // Bestätigung; eine AB-Korrektur nach der Verwiegung löschte vorher
+        // das gewogene Gewicht.
+        beauftragteTonnen: summierePositionsTonnen(daten.positionen, 'fracht') || undefined,
         // DISPO-Ansprechpartner aus AB übernehmen
         dispoAnsprechpartner: daten.dispoAnsprechpartner?.name ? daten.dispoAnsprechpartner : undefined,
         // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
@@ -585,7 +604,7 @@ export const aktualisiereAuftragsbestaetigung = async (
     // Neues PDF generieren
     const pdf = await generiereAuftragsbestaetigungPDF(daten);
     const blob = pdfToBlob(pdf);
-    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, undefined, daten.lieferadresseName);
+    const dateiname = generiereLesDatname('Auftragsbestaetigung', daten.kundenname, daten.auftragsbestaetigungsdatum, neueVersion, daten.lieferadresseName);
 
     // Neue Datei hochladen (alte bleibt erhalten!)
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -636,13 +655,7 @@ export const aktualisiereAuftragsbestaetigung = async (
           bevorzugterTag: daten.bevorzugterTag || undefined,
           lieferzeitfenster: lieferzeitfenster,
           belieferungsart: (daten.belieferungsart as Belieferungsart) || undefined,
-          liefergewicht: daten.positionen?.reduce((sum, p) => {
-            const einheit = p.einheit?.toLowerCase() || '';
-            if (einheit === 't' || einheit === 'to' || einheit === 'tonnen') {
-              return sum + (p.menge || 0);
-            }
-            return sum;
-          }, 0) || undefined,
+          beauftragteTonnen: summierePositionsTonnen(daten.positionen, 'fracht') || undefined,
           // WICHTIG: AB-Daten JSON zum Projekt speichern (für Dispo-Planung Material-Erkennung!)
           auftragsbestaetigungsDaten: JSON.stringify(daten),
         });

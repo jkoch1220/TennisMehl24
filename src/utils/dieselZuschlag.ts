@@ -588,3 +588,32 @@ export function formatZuschlagProTonne(zuschlag: number): string {
 export function formatGesamtZuschlag(zuschlag: number): string {
   return zuschlag.toFixed(2).replace('.', ',') + ' €';
 }
+
+/**
+ * Steht die Zuschlagsposition schon genau so im Beleg?
+ *
+ * Das ist der Ersatz für den früheren Schleifenschutz, der über Refs prüfte, ob
+ * sich Dieselpreis, Leistungsdatum oder Entfernung geändert hatten. Der Ansatz
+ * verglich den AUSLÖSER statt des ERGEBNISSES — eine reine Mengenänderung fiel
+ * dadurch hindurch. Der Betrag im Hinweisbanner stimmte, die Positionszeile
+ * blieb auf dem alten Stand, und genau die ging an den Kunden (Vorschlag [37]).
+ *
+ * Der Wertevergleich kann nicht endlos schleifen: `berechneGesamtZuschlag`
+ * filtert die Zuschlagsposition selbst aus der Tonnage heraus. Das Ergebnis
+ * hängt also nicht von der Position ab, die es erzeugt — nach einem Durchlauf
+ * steht der Wert fest und der Vergleich greift.
+ *
+ * Ein Cent Toleranz, weil der Betrag durch Rundung auf zwei Stellen läuft und
+ * ein Fließkomma-Vergleich auf Gleichheit sonst ständig „ungleich" meldet.
+ */
+export function zuschlagPositionIstAktuell(
+  vorhanden: Position | undefined,
+  soll: Position
+): boolean {
+  if (!vorhanden) return false;
+  return (
+    Math.abs((vorhanden.gesamtpreis ?? 0) - (soll.gesamtpreis ?? 0)) < 0.005 &&
+    Math.abs((vorhanden.einzelpreis ?? 0) - (soll.einzelpreis ?? 0)) < 0.005 &&
+    vorhanden.beschreibung === soll.beschreibung
+  );
+}

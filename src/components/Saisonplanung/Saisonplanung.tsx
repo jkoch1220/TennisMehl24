@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X, FileX } from 'lucide-react';
+import { Plus, RefreshCw, Phone, Users, Building2, TrendingUp, CheckCircle2, Clock, Filter, Search, X, FileX, Archive, ArchiveRestore } from 'lucide-react';
 import {
   SaisonKundeMitDaten,
   SaisonplanungStatistik,
@@ -27,6 +27,11 @@ const Saisonplanung = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [saisonjahr] = useState(2026); // Aktuelle Saison
   const [searchText, setSearchText] = useState('');
+  // Archiv-Ansicht. Archivierte Kunden sind aus jeder Liste verschwunden — das
+  // ist gewollt. Auffindbar müssen sie trotzdem bleiben: Wer „privat" sucht und
+  // nichts findet, hält das für Datenverlust statt für Ordnung.
+  const [zeigeArchiv, setZeigeArchiv] = useState(false);
+  const [archivAnzahl, setArchivAnzahl] = useState<number | null>(null);
 
   // Filter-States
   const [filterOhneProjekt, setFilterOhneProjekt] = useState(false);
@@ -51,6 +56,17 @@ const Saisonplanung = () => {
     }
   }, [saisonjahr]);
 
+  const handleAusArchiv = async (kunde: SaisonKundeMitDaten) => {
+    if (!window.confirm(`„${kunde.kunde.name}" zurück in die Kundenliste holen?`)) return;
+    try {
+      await saisonplanungService.holeAusArchiv(kunde.kunde.id);
+      await loadData();
+    } catch (error) {
+      console.error('Kunde konnte nicht aus dem Archiv geholt werden:', error);
+      alert('Der Kunde konnte nicht zurückgeholt werden.');
+    }
+  };
+
   // OPTIMIERT: useCallback verhindert unnötige Re-Renders
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -58,10 +74,24 @@ const Saisonplanung = () => {
       // OPTIMIERT: Eine kombinierte Abfrage statt zwei separate
       // Reduziert von ~1.200 Queries auf nur ~4 Queries!
       const { callListe, statistik: statistikData } =
-        await saisonplanungService.loadSaisonplanungDashboard({}, saisonjahr);
+        await saisonplanungService.loadSaisonplanungDashboard(
+          { nurArchivierte: zeigeArchiv },
+          saisonjahr
+        );
 
       setKunden(callListe);
       setStatistik(statistikData);
+
+      // Anzahl fürs Archiv-Etikett — sonst wüsste niemand, ob dort überhaupt
+      // etwas liegt, und der Umschalter bliebe ein Sprung ins Leere.
+      if (!zeigeArchiv) {
+        saisonplanungService
+          .loadAlleKunden({ mitArchivierten: true })
+          .then((alle) => setArchivAnzahl(alle.filter((k) => k.archiviert === true).length))
+          .catch(() => setArchivAnzahl(null));
+      } else {
+        setArchivAnzahl(callListe.length);
+      }
 
       // Projekte laden für Filter
       await ladeProjekte();
@@ -70,7 +100,7 @@ const Saisonplanung = () => {
     } finally {
       setLoading(false);
     }
-  }, [saisonjahr, ladeProjekte]);
+  }, [saisonjahr, ladeProjekte, zeigeArchiv]);
 
   useEffect(() => {
     loadData();
@@ -246,10 +276,31 @@ const Saisonplanung = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Kundenliste {saisonjahr}</h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">Verwaltung der Kundenliste und Telefonaktion</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">
+              {zeigeArchiv ? 'Archiv' : `Kundenliste ${saisonjahr}`}
+            </h1>
+            <p className="text-gray-600 dark:text-slate-400 mt-1">
+              {zeigeArchiv
+                ? 'Aussortierte Kunden — bleiben auffindbar, erscheinen aber in keiner Liste und in keinem Massen-Angebot.'
+                : 'Verwaltung der Kundenliste und Telefonaktion'}
+            </p>
           </div>
           <div className="flex gap-3 items-center flex-wrap">
+            <button
+              onClick={() => setZeigeArchiv((v) => !v)}
+              title={zeigeArchiv ? 'Zurück zur Kundenliste' : 'Aussortierte Kunden anzeigen'}
+              className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
+                zeigeArchiv
+                  ? 'border-transparent bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
+                  : 'border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800'
+              }`}
+            >
+              <Archive className="w-5 h-5" />
+              {zeigeArchiv ? 'Zur Kundenliste' : 'Archiv'}
+              {!zeigeArchiv && archivAnzahl !== null && archivAnzahl > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-xs bg-gray-200 dark:bg-slate-700">{archivAnzahl}</span>
+              )}
+            </button>
             <button
               onClick={loadData}
               className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2"
@@ -617,6 +668,7 @@ const Saisonplanung = () => {
                     onEdit={() => handleEdit(kunde)}
                     onDelete={() => handleDelete(kunde.kunde.id)}
                     onOpenDetail={() => handleOpenDetail(kunde)}
+                    onAusArchiv={zeigeArchiv ? () => handleAusArchiv(kunde) : undefined}
                   />
                 ))}
               </div>
@@ -703,9 +755,11 @@ interface KundenKarteProps {
   onEdit: () => void;
   onDelete: () => void;
   onOpenDetail: () => void;
+  /** Nur in der Archiv-Ansicht: Kunde zurück in die Kundenliste holen. */
+  onAusArchiv?: () => void;
 }
 
-const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps) => {
+const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail, onAusArchiv }: KundenKarteProps) => {
   const statusConfig: Record<GespraechsStatus, { bg: string; text: string; dot: string }> = {
     offen: { bg: 'bg-amber-50 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-400' },
     in_bearbeitung: { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-400' },
@@ -722,11 +776,24 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
       className="group bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-xl p-4 hover:bg-gray-50/50 dark:hover:bg-slate-700/30 hover:border-gray-200 dark:hover:border-slate-600 transition-all duration-200 cursor-pointer"
       onClick={onOpenDetail}
     >
+      {/* Der Archivgrund gehört sichtbar an den Datensatz: Nach Monaten weiß
+          niemand mehr, warum ein Verein aussortiert wurde. */}
+      {kunde.kunde.archiviert && kunde.kunde.archivGrund && (
+        <p className="mb-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/40 rounded-md px-2 py-1">
+          {kunde.kunde.archivGrund}
+          {kunde.kunde.archiviertAm && ` · ${kunde.kunde.archiviertAm.slice(0, 10).split('-').reverse().join('.')}`}
+        </p>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {/* Header */}
           <div className="flex items-center gap-2.5 mb-2 flex-wrap">
             <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 truncate">{kunde.kunde.name}</h3>
+            {kunde.kunde.archiviert && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                <Archive className="w-3 h-3" /> Archiv
+              </span>
+            )}
             <div className="flex items-center gap-2">
               <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md ${
                 kunde.kunde.typ === 'platzbauer'
@@ -786,6 +853,15 @@ const KundenKarte = ({ kunde, onEdit, onDelete, onOpenDetail }: KundenKarteProps
             appearOnGroupHover={false}
             className="p-2"
           />
+          {onAusArchiv && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAusArchiv(); }}
+              className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors duration-200"
+              title="Zurück in die Kundenliste holen"
+            >
+              <ArchiveRestore className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={onEdit}
             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"

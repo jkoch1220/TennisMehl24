@@ -4,6 +4,55 @@ import { Query } from 'appwrite';
 import type { LagerBestand, DashboardStats, ProjektStats, AnfragenStats } from '../types/dashboard';
 import type { Projekt } from '../types/projekt';
 import { loadAllDocuments } from '../utils/appwritePagination';
+import { getAlleArtikel } from './artikelService';
+import { erstelleArtikelIndex, summierePositionsTonnen, TonnagePosition, ArtikelIndex } from '../utils/tonnage';
+
+/**
+ * Lädt je Projekt die daten-JSONs der jeweils NEUESTEN finalisierten Belege
+ * (Angebot/AB/Lieferschein/Rechnung). Stornierte Rechnungen und ihre Stornos
+ * fallen raus, Proforma zählt nicht als Rechnung. Chunked über projektId,
+ * damit nur die Belege der gewählten Saison geladen werden.
+ */
+export async function ladeFinalisierteBelege(
+  projektIds: string[]
+): Promise<Map<string, Partial<Record<'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung', string>>>> {
+  interface BelegDoc {
+    $id: string;
+    $createdAt: string;
+    projektId?: string;
+    dokumentTyp?: string;
+    daten?: string;
+    stornoRechnungId?: string | null;
+  }
+
+  const ergebnis = new Map<string, Partial<Record<'angebot' | 'auftragsbestaetigung' | 'lieferschein' | 'rechnung', string>>>();
+  const neuestes = new Map<string, string>(); // `${projektId}|${typ}` -> $createdAt
+
+  for (let i = 0; i < projektIds.length; i += 100) {
+    const chunk = projektIds.slice(i, i + 100);
+    const docs = (await loadAllDocuments(DATABASE_ID, COLLECTIONS.BESTELLABWICKLUNG_DOKUMENTE, {
+      queries: [Query.equal('projektId', chunk)],
+    })) as unknown as BelegDoc[];
+
+    for (const doc of docs) {
+      const typ = doc.dokumentTyp;
+      if (!doc.projektId || !doc.daten) continue;
+      if (typ !== 'angebot' && typ !== 'auftragsbestaetigung' && typ !== 'lieferschein' && typ !== 'rechnung') continue;
+      if (typ === 'rechnung' && doc.stornoRechnungId) continue; // storniert
+
+      const key = `${doc.projektId}|${typ}`;
+      const bisher = neuestes.get(key);
+      if (bisher && bisher >= doc.$createdAt) continue;
+      neuestes.set(key, doc.$createdAt);
+
+      const eintrag = ergebnis.get(doc.projektId) ?? {};
+      eintrag[typ] = doc.daten;
+      ergebnis.set(doc.projektId, eintrag);
+    }
+  }
+
+  return ergebnis;
+}
 
 export const LAGER_COLLECTION_ID = 'lager_bestand';
 export const LAGER_DOCUMENT_ID = 'lager_data';
@@ -126,6 +175,23 @@ export const dashboardService = {
 
       const projekte = documents as unknown as Projekt[];
 
+      // Kennzahlen-Quelle sind seit 09/2026 die FINALISIERTEN Belege
+      // (bestellabwicklung_dokumente), nicht mehr der letzte Auto-Save der
+      // Tabs (Julians Entscheidung vom 01.09.2026). Nur wo (noch) kein
+      // finalisiertes Dokument existiert, zählt der Entwurf — als Prognose,
+      // ausgewiesen über anzahlAusEntwurf.
+      const belegeJeProjekt = await ladeFinalisierteBelege(projekte.map((p) => p.$id!).filter(Boolean));
+
+      // Artikelstamm einmal laden: die Tonnage-Zählung entscheidet über
+      // istTonnageRelevant statt über Einheiten-Raten. Schlägt das Laden fehl,
+      // greift der Code-Fallback in tonnage.ts.
+      let artikelIndex: ArtikelIndex | undefined;
+      try {
+        artikelIndex = erstelleArtikelIndex(await getAlleArtikel());
+      } catch (e) {
+        console.warn('Artikelstamm für Tonnage-Zählung nicht ladbar — Code-Fallback aktiv:', e);
+      }
+
       let verkaufteTonnen = 0;
       let bestellteTonnen = 0;
       let angebotTonnen = 0;
@@ -139,6 +205,7 @@ export const dashboardService = {
       let anzahlBestellungen = 0;
       let anzahlBezahlt = 0;
       let anzahlVerloren = 0;
+      let anzahlAusEntwurf = 0;
 
       for (const projekt of projekte) {
         // Parse Projekt-Daten falls in data-Feld (Appwrite-Pattern: JSON-Blob im 'data'-String)
@@ -151,6 +218,27 @@ export const dashboardService = {
             // Fallback auf Original
           }
         }
+
+        // Finalisierte Belege verdrängen das Entwurfs-JSON als Datenquelle;
+        // der restliche Rechenweg (Status-Switch unten) bleibt unverändert.
+        const belege = belegeJeProjekt.get(projekt.$id!);
+        const massgeblicherTyp: Record<string, 'angebot' | 'auftragsbestaetigung' | 'rechnung' | undefined> = {
+          angebot: 'angebot',
+          angebot_versendet: 'angebot',
+          auftragsbestaetigung: 'auftragsbestaetigung',
+          lieferschein: 'auftragsbestaetigung',
+          geliefert: 'auftragsbestaetigung',
+          rechnung: 'rechnung',
+          bezahlt: 'rechnung',
+        };
+        const noetig = massgeblicherTyp[projektDaten.status as string];
+        if (noetig && !belege?.[noetig]) {
+          anzahlAusEntwurf++;
+        }
+        if (belege?.angebot) projektDaten.angebotsDaten = belege.angebot;
+        if (belege?.auftragsbestaetigung) projektDaten.auftragsbestaetigungsDaten = belege.auftragsbestaetigung;
+        if (belege?.lieferschein) projektDaten.lieferscheinDaten = belege.lieferschein;
+        if (belege?.rechnung) projektDaten.rechnungsDaten = belege.rechnung;
 
         const menge = projektDaten.angefragteMenge || 0;
         const preis = projektDaten.preisProTonne || 0;
@@ -196,23 +284,18 @@ export const dashboardService = {
           return 0;
         };
 
-        // Hilfsfunktion: Extrahiere Tonnen aus Dokument-Daten
+        // Hilfsfunktion: Extrahiere Waren-Tonnen aus Dokument-Daten.
+        // Zentrale Zähllogik (Stufe 2, 08/2026): vorher zählte hier
+        // `einheit.includes('t')` — das matchte auch „Stk", „Std" und „Pkt",
+        // sodass Folie, Paletten und Stunden als Tonnen in die Kennzahlen
+        // liefen. Jetzt entscheidet der Artikelstamm (istTonnageRelevant);
+        // Sackware in Stück wird über gewichtProStueckKg in Tonnen umgerechnet.
         const extrahiereTonnen = (datenString: string | undefined): number => {
           if (!datenString) return 0;
           try {
             const daten = typeof datenString === 'string' ? JSON.parse(datenString) : datenString;
             if (daten.positionen && Array.isArray(daten.positionen)) {
-              // Suche nach Positionen die Tonnen enthalten (typischerweise Ziegelmehl)
-              return daten.positionen.reduce((sum: number, pos: { menge?: number; einzelpreis?: number; einheit?: string; bezeichnung?: string }) => {
-                // Prüfe ob es sich um Tonnen handelt (Einheit oder Bezeichnung)
-                const einheit = (pos.einheit || '').toLowerCase();
-                const bezeichnung = (pos.bezeichnung || '').toLowerCase();
-                if (einheit.includes('t') || einheit.includes('tonne') ||
-                    bezeichnung.includes('ziegelmehl') || bezeichnung.includes('schütt')) {
-                  return sum + (pos.menge || 0);
-                }
-                return sum;
-              }, 0);
+              return summierePositionsTonnen(daten.positionen as TonnagePosition[], 'auswertung', artikelIndex);
             }
           } catch {
             // Ignorieren
@@ -255,7 +338,11 @@ export const dashboardService = {
             anzahlBestellungen++;
             break;
           }
-          case 'lieferschein': {
+          // 'geliefert' (Fahrer hat per QR-Scan bestätigt) fehlte hier bis
+          // 08/2026 komplett — gelieferte, noch nicht fakturierte Projekte
+          // verschwanden aus Tonnen UND Umsatz.
+          case 'lieferschein':
+          case 'geliefert': {
             const lsSumme = extrahiereSumme(projektDaten.lieferscheinDaten);
             const abSumme = extrahiereSumme(projektDaten.auftragsbestaetigungsDaten);
             const angebotSumme = extrahiereSumme(projektDaten.angebotsDaten);
@@ -328,6 +415,7 @@ export const dashboardService = {
         anzahlBestellungen,
         anzahlBezahlt,
         anzahlVerloren,
+        anzahlAusEntwurf,
       };
     } catch (error) {
       console.error('Fehler beim Laden der Projektstatistiken:', error);
@@ -345,6 +433,7 @@ export const dashboardService = {
         anzahlBestellungen: 0,
         anzahlBezahlt: 0,
         anzahlVerloren: 0,
+        anzahlAusEntwurf: 0,
       };
     }
   },

@@ -39,6 +39,16 @@ export interface ToolConfig {
   href: string;
   icon: typeof BarChart3;
   color: string;
+  /**
+   * Hartes Admin-Gate, unabhängig vom Rollensystem.
+   *
+   * Nötig, weil ein User ohne zugewiesene Rolle über `legacyAllowedTools = null`
+   * sonst ALLE Tools sieht (siehe permissionResolution.ts). Eine Rolle, die das
+   * Tool nicht enthält, würde also nicht reichen — es müsste jedem Bestandsuser
+   * einzeln entzogen werden. `nurAdmin` schließt das Tool stattdessen an der
+   * Wurzel: keine Kachel, kein Menüpunkt, keine Route.
+   */
+  nurAdmin?: boolean;
 }
 
 export const ALL_TOOLS: ToolConfig[] = [
@@ -173,10 +183,13 @@ export const ALL_TOOLS: ToolConfig[] = [
   {
     id: 'vorschlaege',
     name: 'Verbesserungen',
-    description: 'Vorschläge zur Verbesserung des Online-Tools anlegen und verwalten',
+    description: 'Eingegangene Verbesserungsvorschläge sichten und abarbeiten (nur Admin)',
     href: '/vorschlaege',
     icon: MessageSquare,
     color: 'from-green-500 to-emerald-500',
+    // Anlegen darf jeder — über den Vorschlag-Knopf, der in Layout.tsx auf jeder
+    // Seite hängt und ohne Tool-Recht auskommt. Nur die Auswertung ist Admin-Sache.
+    nurAdmin: true,
   },
   {
     id: 'todos',

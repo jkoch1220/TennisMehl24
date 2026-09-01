@@ -1590,7 +1590,9 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
     'samstag': 'Samstag'
   };
   const belieferungsartLabels: Record<string, string> = {
-    'nur_motorwagen': 'Mit Motorwagen',
+    // „Motorwagen", nicht „Mit Motorwagen" — so steht es im Auftrag und so
+    // erwartet es der Kunde neben „Motorwagen mit Hänger" (Vorschlag [2]).
+    'nur_motorwagen': 'Motorwagen',
     'mit_haenger': 'Motorwagen mit Hänger',
     'abholung_ab_werk': 'Abholung ab Werk',
     'palette_mit_ladekran': 'Palette mit Ladekran',
@@ -1640,9 +1642,12 @@ export const generiereAuftragsbestaetigungPDF = async (daten: Auftragsbestaetigu
   if (daten.lieferKW) {
     // KW-basierter Liefertermin
     const jahr = daten.lieferKWJahr || new Date().getFullYear();
+    // „spätestens", nicht „bevorzugt": Die Oberfläche beschriftet dasselbe Feld
+    // mit „Spätestens KW", und eine Auftragsbestätigung ist verbindlich — ein
+    // „bevorzugt" liest sich wie ein Wunsch (Vorschlag [2]).
     const kwText = daten.lieferdatumTyp === 'kw'
       ? `Lieferung in KW ${daten.lieferKW}/${jahr}`
-      : `Lieferung bevorzugt bis KW ${daten.lieferKW}/${jahr}`;
+      : `Lieferung spätestens bis KW ${daten.lieferKW}/${jahr}`;
     doc.text(kwText, 25, summenY);
     summenY += 4;
 

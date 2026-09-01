@@ -32,6 +32,9 @@ export const loginMitKachel = async (userId: string, password: string): Promise<
   if (!response.ok || !data.secret || !data.userId) {
     throw new Error((data.error as string) || 'Anmeldung fehlgeschlagen');
   }
+  // Reste einer toten Session (z. B. serverseitig beendet) blockieren sonst den
+  // Token-Tausch und jeden Folge-Call: "user (role: guests) missing scope (account)".
+  await account.deleteSession('current').catch(() => {});
   await account.createSession(data.userId, data.secret);
   const user = (await account.get()) as User;
   console.log('✅ Login erfolgreich (Kachel):', user.name, user.labels);
@@ -113,11 +116,13 @@ export const changePassword = async (oldPassword: string, newPassword: string): 
 export const mustChangePassword = (user: User | null): boolean =>
   (user?.prefs as Record<string, unknown> | undefined)?.mustChangePassword === true;
 
-// Flag nach erfolgreichem Wechsel entfernen.
+// Flag nach erfolgreichem Wechsel abräumen.
 // WICHTIG: updatePrefs ersetzt das GESAMTE Prefs-Objekt — bestehende Prefs mergen!
+// Das Feld wird auf false GESETZT statt gelöscht: enthielten die Prefs nur dieses
+// eine Feld, ginge sonst ein leeres Objekt raus — und der Nutzer säße nach dem
+// Wechsel erneut im Zwangs-Screen fest, dessen Einmalpasswort nicht mehr gilt.
 export const clearMustChangePasswordFlag = async (user: User): Promise<void> => {
-  const prefs = { ...(user.prefs ?? {}) } as Record<string, unknown>;
-  delete prefs.mustChangePassword;
+  const prefs = { ...(user.prefs ?? {}), mustChangePassword: false } as Record<string, unknown>;
   await account.updatePrefs(prefs);
   console.log('✅ mustChangePassword-Flag entfernt');
 };

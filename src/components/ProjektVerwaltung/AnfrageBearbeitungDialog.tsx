@@ -397,7 +397,7 @@ const AnfrageBearbeitungDialog = ({
   useEffect(() => {
     const ladeArtikel = async () => {
       try {
-        const artikel = await getAlleArtikel();
+        const artikel = await getAlleArtikel('artikelnummer', true);
         setVerfuegbareArtikel(artikel);
       } catch (error) {
         console.error('Fehler beim Laden der Artikel:', error);

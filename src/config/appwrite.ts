@@ -119,6 +119,10 @@ export const NOTIFICATIONS_COLLECTION_ID = 'notifications';
 
 // Protokoll der Massen-Angebots-Läufe (Frühjahrsinstandsetzung)
 export const ANGEBOTS_LAEUFE_COLLECTION_ID = 'angebots_laeufe';
+/** Kampagnen-Kopf: ein Massen-Angebot als über Tage bearbeitbarer Vorgang. */
+export const MASSEN_ANGEBOTE_COLLECTION_ID = 'massen_angebote';
+/** Eine Zeile je Kunde innerhalb einer Kampagne. */
+export const MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID = 'massen_angebot_zeilen';
 
 // Archiv der Kunden-Merges (Wiederherstellung nach Duplikat-Zusammenführung)
 export const KUNDEN_MERGE_ARCHIV_COLLECTION_ID = 'kunden_merge_archiv';
@@ -225,6 +229,8 @@ export const COLLECTIONS = {
   // Benachrichtigungen
   NOTIFICATIONS: NOTIFICATIONS_COLLECTION_ID,
   ANGEBOTS_LAEUFE: ANGEBOTS_LAEUFE_COLLECTION_ID,
+  MASSEN_ANGEBOTE: MASSEN_ANGEBOTE_COLLECTION_ID,
+  MASSEN_ANGEBOT_ZEILEN: MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID,
   KUNDEN_MERGE_ARCHIV: KUNDEN_MERGE_ARCHIV_COLLECTION_ID,
   // Mindmap-Planungstool
   MINDMAP_NODES: MINDMAP_NODES_COLLECTION_ID,
@@ -242,6 +248,12 @@ export const KONKURRENTEN_DATEIEN_BUCKET_ID = 'konkurrenten-dateien'; // Für Ko
 export const PLATZBAUER_DATEIEN_BUCKET_ID = 'platzbauer-dateien'; // Für Platzbauer: Angebote, ABs, Rechnungen, Lieferscheine
 export const SHOP_PRODUKTBILDER_BUCKET_ID = 'shop-produktbilder'; // Für Shop: Produktbilder
 export const MINDMAP_BILDER_BUCKET_ID = 'mindmap-bilder'; // Für Mindmap: Task-Bilder
+/**
+ * Fotos der Schüttstelle, die Kunden über das Bestellportal hochladen.
+ * Bewusst OHNE öffentliche Leserechte — die Auslieferung läuft über die
+ * Netlify Function, die vorher den Bestell-Token prüft.
+ */
+export const BESTELLUNG_FOTOS_BUCKET_ID = 'bestellung-fotos';
 
 // Dokument-ID für die einzigen Datensätze (wir speichern jeweils nur einen Datensatz)
 export const FIXKOSTEN_DOCUMENT_ID = 'fixkosten_data';

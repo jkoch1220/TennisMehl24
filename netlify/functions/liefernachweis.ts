@@ -151,6 +151,8 @@ interface ProjektDaten {
   geplantesDatum?: string;
   kommuniziertesDatum?: string;
   liefergewicht?: number;
+  /** Plan-Menge aus AB/Dispo (Stufe 3) — liefergewicht ist nur noch das gewogene Ist. */
+  beauftragteTonnen?: number;
   anzahlPaletten?: number;
   dispoAnsprechpartner?: { name?: string; telefon?: string };
   liefernachweisToken?: string;
@@ -830,7 +832,7 @@ const handler: Handler = async (event: HandlerEvent) => {
             lieferadresse: lieferadresseText(daten),
             lieferscheinnummer: daten.lieferscheinnummer || '',
             geplantesDatum: daten.kommuniziertesDatum || daten.geplantesDatum || null,
-            liefergewicht: daten.liefergewicht ?? null,
+            liefergewicht: daten.liefergewicht ?? daten.beauftragteTonnen ?? null,
             anzahlPaletten: daten.anzahlPaletten ?? null,
             positionen: extrahierePositionen(daten),
             bereitsBestaetigt: Boolean(daten.liefernachweisAm),

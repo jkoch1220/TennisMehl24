@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PartyCanvas from './PartyCanvas';
+import { titelAusBeschreibung } from '../../utils/vorschlagTitel';
 
 // Drag & Drop State
 interface DragState {
@@ -275,13 +276,18 @@ const VorschlaegeNeu = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.titel.trim()) {
-      alert('Bitte füllen Sie den Titel aus.');
+
+    // Titel notfalls aus der Beschreibung ableiten. Vorher war er Pflicht und
+    // die Eingabe brach mit einer Fehlermeldung ab — wer einfach lostippte,
+    // verlor den Vorschlag (Vorschlag [14]).
+    const titel = formData.titel.trim() || titelAusBeschreibung(formData.beschreibung);
+    if (!titel) {
+      alert('Bitte Titel oder Beschreibung ausfüllen.');
       return;
     }
 
     try {
-      await ticketService.createTicket(formData, user?.$id, user?.name);
+      await ticketService.createTicket({ ...formData, titel }, user?.$id, user?.name);
       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
       setShowForm(false);
       loadTickets();
@@ -733,15 +739,14 @@ const VorschlaegeNeu = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
-                      Titel *
+                      Titel
                     </label>
                     <input
                       type="text"
                       value={formData.titel}
                       onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
                       className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                      placeholder="Kurze Beschreibung des Vorschlags"
-                      required
+                      placeholder="Optional — sonst aus der Beschreibung"
                     />
                   </div>
                   <div>

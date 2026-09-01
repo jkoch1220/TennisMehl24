@@ -4,6 +4,7 @@ import { ticketService } from '../../services/ticketService';
 import { NeuesTicket, TicketPrioritaet } from '../../types/ticket';
 import { MessageSquare, X, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { titelAusBeschreibung } from '../../utils/vorschlagTitel';
 
 const VorschlagButton = () => {
   const location = useLocation();
@@ -23,14 +24,17 @@ const VorschlagButton = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.titel.trim()) {
-      alert('Bitte füllen Sie den Titel aus.');
+
+    // Titel notfalls aus der Beschreibung ableiten — siehe utils/vorschlagTitel.
+    const titel = formData.titel.trim() || titelAusBeschreibung(formData.beschreibung);
+    if (!titel) {
+      alert('Bitte Titel oder Beschreibung ausfüllen.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await ticketService.createTicket(formData, user?.$id, user?.name);
+      await ticketService.createTicket({ ...formData, titel }, user?.$id, user?.name);
       setFormData({ titel: '', beschreibung: '', prioritaet: 'normal' });
       setShowForm(false);
     } catch (error) {
@@ -44,13 +48,17 @@ const VorschlagButton = () => {
   return (
     <>
       {/* Floating Action Button */}
+      {/* Mobil sitzt der Knopf über der Bottom-Navigation (die ist fixed bottom-0,
+          sm:hidden) und zeigt nur das Icon — sonst verdeckt er die Navigation.
+          Ab sm rutscht er nach unten und bekommt seine Beschriftung zurück. */}
       <button
         onClick={() => setShowForm(true)}
-        className="fixed bottom-8 right-8 bg-red-600 hover:bg-red-700 text-white rounded-full px-4 py-3 shadow-lg dark:shadow-slate-900/50 hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-50"
+        className="fixed bottom-24 right-4 sm:bottom-8 sm:right-8 bg-red-600 hover:bg-red-700 text-white rounded-full p-3 sm:px-4 sm:py-3 shadow-lg dark:shadow-slate-900/50 hover:shadow-xl transition-all duration-200 flex items-center gap-2 z-50"
         title="Verbesserung anlegen"
+        aria-label="Verbesserung anlegen"
       >
         <MessageSquare className="w-5 h-5" />
-        <span className="text-sm font-medium whitespace-nowrap">
+        <span className="hidden sm:inline text-sm font-medium whitespace-nowrap">
           Vorschlag
         </span>
       </button>
@@ -77,15 +85,14 @@ const VorschlagButton = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
-                    Titel *
+                    Titel
                   </label>
                   <input
                     type="text"
                     value={formData.titel}
                     onChange={(e) => setFormData({ ...formData, titel: e.target.value })}
                     className="w-full border border-gray-300 dark:border-slate-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Kurze Beschreibung des Vorschlags"
-                    required
+                    placeholder="Optional — sonst aus der Beschreibung"
                     disabled={isSubmitting}
                   />
                 </div>

@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Datenpflege · Tennismehl</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Farbwelt: eine Tennisanlage nach Sonnenuntergang. Der Hintergrund ist das
+   Dunkelgrün der Umzäunung, die Karte das Ziegelmehl selbst. Weiß nur dort,
+   wo auf dem Platz Linien wären.
+   --------------------------------------------------------------------------- */
+:root {
+  --nacht:    #101b17;
+  --zaun:     #1a2a24;
+  --zaun-alt: #223429;
+  --linie:    #f3efe6;
+  --linie-ab: #9aa79f;
+  --mehl:     #b4472b;
+  --mehl-tief:#8e3520;
+  --mehl-hell:#d86a45;
+  --bernstein:#e0912f;
+  --ruhe:     #5c8f7b;
+  --radius: 14px;
+  --karte-b: min(640px, 94vw);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--nacht);
+  color: var(--linie);
+  font: 400 16px/1.5 "Helvetica Neue", Helvetica, Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+/* --- Gerüst --- */
+.huelle { height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; max-width: 900px; margin: 0 auto; }
+
+header { padding: 18px 20px 10px; }
+.kopfzeile { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.marke {
+  font-size: 13px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--linie-ab);
+}
+.marke b { color: var(--mehl-hell); font-weight: 700; }
+.zaehler { font-size: 13px; color: var(--linie-ab); letter-spacing: .04em; }
+.zaehler strong { color: var(--linie); font-weight: 600; }
+
+/* Fortschritt als Platzlinie */
+.bahn { height: 3px; background: var(--zaun); margin-top: 14px; border-radius: 2px; overflow: hidden; }
+.bahn i { display: block; height: 100%; width: 0; background: var(--mehl-hell); transition: width .35s ease; }
+
+/* --- Kartenbühne --- */
+.buehne { position: relative; display: grid; place-items: center; padding: 8px 20px; min-height: 0; }
+.stapel { position: relative; width: var(--karte-b); height: 100%; max-height: 680px; }
+
+.karte {
+  position: absolute; inset: 0;
+  padding-bottom: 46px;
+  background: linear-gradient(168deg, var(--mehl) 0%, var(--mehl-tief) 100%);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.14);
+  padding: 20px 22px;
+  display: flex; flex-direction: column; gap: 11px;
+  overflow-y: auto;
+  cursor: grab;
+  touch-action: pan-y;
+  will-change: transform;
+}
+.karte:active { cursor: grabbing; }
+.karte.hinten { pointer-events: none; }
+/* Der Inhalt kann länger sein als die Karte. Ein Verlauf am unteren Rand zeigt
+   das an, ohne eine Scrollleiste über den Ziegelton zu legen. */
+.stapel::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 46px;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: linear-gradient(to bottom, rgba(142,53,32,0) 0%, rgba(120,44,26,.92) 100%);
+  pointer-events: none; z-index: 11; opacity: 0; transition: opacity .2s ease;
+}
+.stapel.mehr::after { opacity: 1; }
+.karte:focus-visible { outline: 3px solid var(--bernstein); outline-offset: 3px; }
+
+/* Der Stempel: erscheint beim Ziehen, wie auf einem abgezeichneten Vorgang */
+.stempel {
+  position: absolute; top: 26px; z-index: 3;
+  font-size: 20px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  padding: 8px 14px; border: 3px solid currentColor; border-radius: 6px;
+  opacity: 0; pointer-events: none;
+}
+.stempel.ja  { right: 24px; color: #ffd9a3; transform: rotate(11deg); }
+.stempel.nein{ left: 24px;  color: #bfe3d2; transform: rotate(-11deg); }
+
+/* --- Karteninhalt --- */
+.stufe {
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+  font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  background: rgba(0,0,0,.28); padding: 5px 10px; border-radius: 999px;
+}
+.stufe b { font-size: 13px; }
+.titel { font-size: clamp(22px, 4.4vw, 30px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 0; }
+.unterzeile { font-size: 13px; color: rgba(255,255,255,.78); margin: -6px 0 0; }
+
+.trenn { height: 1px; background: rgba(255,255,255,.22); }
+
+.grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.grid dt { color: rgba(255,255,255,.66); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; padding-top: 2px; }
+.grid dd { margin: 0; }
+
+.hinweis { background: rgba(0,0,0,.24); border-radius: 10px; padding: 10px 13px; font-size: 13.5px; }
+.hinweis h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.66); font-weight: 700; }
+.hinweis ul { margin: 0; padding-left: 18px; }
+.hinweis li + li { margin-top: 3px; }
+.hinweis.schutz { background: rgba(92,143,123,.26); }
+
+/* Duplikat-Vergleich: der Überlebende zuerst, abgesetzt */
+.partei { background: rgba(0,0,0,.2); border-radius: 10px; padding: 10px 13px; }
+
+.parteien { display: grid; gap: 8px; }
+.parteien.paar { grid-template-columns: 1fr 1fr; }
+@media (max-width: 620px) { .parteien.paar { grid-template-columns: 1fr; } }
+.partei.bleibt { background: rgba(255,255,255,.14); box-shadow: inset 3px 0 0 var(--bernstein); }
+.partei .rolle { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.7); }
+.partei .pname { font-size: 16px; font-weight: 700; margin: 1px 0 3px; }
+.partei .zeile { font-size: 13px; color: rgba(255,255,255,.84); }
+.partei .zahlen { font-size: 12px; color: rgba(255,255,255,.66); margin-top: 4px; }
+
+/* --- Steuerung --- */
+footer { padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); }
+.tasten { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+button {
+  font: inherit; font-size: 14px; font-weight: 600;
+  border-radius: 10px; border: 1px solid transparent; padding: 12px 18px;
+  cursor: pointer; background: var(--zaun-alt); color: var(--linie);
+  transition: transform .1s ease, background .15s ease;
+}
+button:hover { background: #2b4237; }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: 3px solid var(--bernstein); outline-offset: 2px; }
+button[disabled] { opacity: .4; cursor: not-allowed; }
+.b-nein { background: var(--ruhe); color: #06120d; }
+.b-nein:hover { background: #6ea78f; }
+.b-ja { background: var(--bernstein); color: #241403; }
+.b-ja:hover { background: #efa245; }
+.b-klein { font-size: 13px; padding: 9px 14px; background: transparent; border-color: var(--zaun-alt); color: var(--linie-ab); }
+.b-klein:hover { background: var(--zaun); color: var(--linie); }
+
+.legende { text-align: center; font-size: 12px; color: var(--linie-ab); margin-top: 10px; }
+kbd {
+  font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+  background: var(--zaun); border: 1px solid #2f4a3d; border-radius: 4px; padding: 1px 5px;
+}
+
+/* --- Startbildschirm / Abschluss --- */
+.tafel { display: grid; place-items: center; text-align: center; padding: 24px; gap: 18px; }
+.tafel h1 { font-size: clamp(28px, 6vw, 44px); margin: 0; letter-spacing: -.03em; font-weight: 700; }
+.tafel h1 em { font-style: normal; color: var(--mehl-hell); }
+.tafel p { margin: 0; color: var(--linie-ab); max-width: 46ch; }
+.ablage {
+  border: 2px dashed #2f4a3d; border-radius: var(--radius); padding: 30px 26px;
+  background: var(--zaun); width: min(520px, 92vw); transition: border-color .15s, background .15s;
+}
+.ablage.drueber { border-color: var(--bernstein); background: var(--zaun-alt); }
+input[type=file] { display: none; }
+.dateiname { font-size: 13px; color: var(--mehl-hell); }
+
+.gruppenliste { display: grid; gap: 9px; width: min(780px, 94vw); align-content: start; overflow-y: auto; padding: 4px 0 20px; }
+.gruppenkopf { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 2px 2px 8px; }
+.gruppenkopf h2 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.gruppenkopf p { margin: 0; font-size: 13px; color: var(--linie-ab); }
+.gruppe {
+  background: var(--zaun); border: 1px solid #2b4237; border-radius: var(--radius);
+  padding: 14px 16px; display: grid; gap: 8px;
+}
+.gruppe.fertig { opacity: .45; }
+.gruppe .zeile1 { display: flex; align-items: baseline; gap: 12px; justify-content: space-between; }
+.gruppe .titel2 { font-size: 16px; font-weight: 700; }
+.gruppe .menge { font-size: 20px; font-weight: 700; color: var(--bernstein); white-space: nowrap; }
+.gruppe .menge small { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--linie-ab); font-weight: 600; margin-left: 5px; }
+.gruppe .proben { font-size: 12.5px; color: var(--linie-ab); line-height: 1.45; }
+.gruppe .tasten { justify-content: flex-start; }
+.gruppe button { padding: 8px 13px; font-size: 13px; }
+.gruppe .erledigt { font-size: 13px; color: var(--ruhe); font-weight: 600; }
+.listen { display: grid; gap: 10px; width: min(560px, 92vw); }
+.liste-knopf {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%; text-align: left; padding: 16px 18px; background: var(--zaun);
+  border: 1px solid #2b4237; border-radius: var(--radius);
+}
+.liste-knopf:hover { background: var(--zaun-alt); border-color: var(--bernstein); }
+.liste-knopf .was { font-size: 17px; font-weight: 700; }
+.liste-knopf .wo { font-size: 12px; color: var(--linie-ab); margin-top: 2px; }
+.liste-knopf .offen { font-size: 22px; font-weight: 700; color: var(--bernstein); white-space: nowrap; }
+.liste-knopf .offen small { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--linie-ab); font-weight: 600; }
+.manuell { width: min(560px, 92vw); }
+.manuell summary { cursor: pointer; font-size: 13px; color: var(--linie-ab); padding: 6px; }
+.manuell summary:hover { color: var(--linie); }
+.gesichert {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--zaun-alt); color: var(--linie-ab); font-size: 12px;
+  padding: 6px 12px; border-radius: 999px; opacity: 0; transition: opacity .2s ease;
+  pointer-events: none; z-index: 50;
+}
+.gesichert.an { opacity: 1; }
+.bilanz { display: flex; gap: 26px; justify-content: center; flex-wrap: wrap; }
+.bilanz div { text-align: center; }
+.bilanz .zahl { font-size: 34px; font-weight: 700; letter-spacing: -.02em; display: block; }
+.bilanz .was { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--linie-ab); }
+
+.massen {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: rgba(8,14,11,.82); backdrop-filter: blur(3px); padding: 24px; text-align: center;
+}
+.massen p { max-width: 40ch; margin: 0 0 18px; font-size: 17px; }
+.verborgen { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+@media (max-height: 640px) {
+  .karte { padding: 16px 18px; gap: 10px; }
+  .titel { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="huelle">
+
+  <header>
+    <div class="kopfzeile">
+      <span class="marke">Tennismehl · <b>Datenpflege</b></span>
+      <span class="zaehler" id="zaehler"></span>
+    </div>
+    <div class="bahn"><i id="balken"></i></div>
+  </header>
+
+  <!-- Start -->
+  <main class="buehne" id="start">
+    <div class="tafel">
+      <h1>Eine Karte, <em>eine Entscheidung</em>.</h1>
+      <p>Was entschieden wird, steht sofort in der Liste — kein Hoch- oder Herunterladen.
+        Die Daten bleiben auf diesem Rechner.</p>
+      <div id="listen" class="listen"></div>
+      <details id="manuell" class="manuell">
+        <summary>Andere Datei öffnen</summary>
+        <label class="ablage" id="ablage">
+          <input type="file" id="datei" accept=".csv,text/csv">
+          <div><strong>CSV hierher ziehen</strong> oder klicken</div>
+          <p style="margin-top:8px;font-size:13px">Entscheidungen landen dann im Download, nicht in der Datei.</p>
+        </label>
+      </details>
+      <p id="fehler" style="color:var(--mehl-hell)"></p>
+    </div>
+  </main>
+
+  <!-- Regelgruppen: Blockentscheidungen statt tausend Einzelkarten -->
+  <main class="buehne verborgen" id="gruppen">
+    <div class="gruppenliste" id="gruppenliste"></div>
+  </main>
+
+  <!-- Karten -->
+  <main class="buehne verborgen" id="buehne">
+    <div class="stapel" id="stapel"></div>
+  </main>
+
+  <!-- Abschluss -->
+  <main class="buehne verborgen" id="ende">
+    <div class="tafel">
+      <h1>Durch.</h1>
+      <div class="bilanz" id="bilanz"></div>
+      <p><span id="abschlusstext">Lade die Liste herunter und gib sie zurück.</span>
+        Die Entscheidungen stehen in der Spalte <span class="mono" id="spaltenname">entscheidung</span>.</p>
+      <button class="b-ja" id="herunterladen">Liste herunterladen</button>
+      <button class="b-klein" id="nochmal">Andere Datei laden</button>
+    </div>
+  </main>
+
+  <div id="massen" class="massen verborgen"></div>
+  <div id="gesichert" class="gesichert">gespeichert</div>
+
+  <footer id="steuerung" class="verborgen">
+    <div class="tasten">
+      <button class="b-klein" id="zurueck" title="Letzte Entscheidung zurücknehmen">↶ Zurück</button>
+      <button class="b-nein" id="nein">← <span id="neinText">Getrennt lassen</span></button>
+      <button class="b-ja" id="ja"><span id="jaText">Zusammenführen</span> →</button>
+      <button class="b-klein" id="spaeter" title="Unentschieden lassen">Später ↑</button>
+      <button class="b-klein verborgen" id="zurUebersicht">Zur Übersicht</button>
+    </div>
+    <p class="legende">
+      <kbd>←</kbd> nein &nbsp; <kbd>→</kbd> ja &nbsp; <kbd>↑</kbd> später &nbsp; <kbd>⌫</kbd> zurück
+      &nbsp;·&nbsp; <button class="b-klein" id="restStufe" style="padding:2px 8px">Rest dieser Stufe entscheiden</button>
+      &nbsp;·&nbsp; <button class="b-klein" id="jetztLaden" style="padding:2px 8px" id="jetztLadenText">Jetzt sichern</button>
+    </p>
+  </footer>
+</div>
+
+<script>
+'use strict';
+
+// ---------------------------------------------------------------------------
+// CSV
+// ---------------------------------------------------------------------------
+function csvLesen(text) {
+  const t = text.replace(/^﻿/, '');
+  const zeilen = [];
+  let feld = '', zeile = [], inQ = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inQ) {
+      if (c === '"') { if (t[i + 1] === '"') { feld += '"'; i++; } else inQ = false; }
+      else feld += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ';') { zeile.push(feld); feld = ''; }
+    else if (c === '\n') { zeile.push(feld); zeilen.push(zeile); zeile = []; feld = ''; }
+    else if (c !== '\r') feld += c;
+  }
+  if (feld || zeile.length) { zeile.push(feld); zeilen.push(zeile); }
+  const kopf = zeilen.shift();
+  return { kopf, reihen: zeilen.filter((z) => z.some((f) => f !== '')) };
+}
+function csvSchreiben(kopf, reihen) {
+  const q = (v) => (/[";]/.test(v ?? '') ? '"' + String(v).replace(/"/g, '""') + '"' : (v ?? ''));
+  return '﻿' + [kopf.map(q).join(';'), ...reihen.map((r) => r.map(q).join(';'))].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Zustand
+// ---------------------------------------------------------------------------
+const S = {
+  art: null,          // 'duplikate' | 'archiv'
+  kopf: [], reihen: [],
+  karten: [],         // { schluessel, zeilen[] }
+  pos: 0,
+  verlauf: [],        // { pos, vorher: Map<zeilenIndex, wert> }
+  dateiname: '',
+  spalte: '',         // Spalte, in die die Entscheidung geschrieben wird
+  jaWert: '', neinWert: '',
+  vomServer: false,   // true = Entscheidungen gehen direkt in die Datei zurück
+  filter: null,       // auf eine Regelgruppe eingeschränkt
+};
+const $ = (id) => document.getElementById(id);
+const spalte = (name) => S.kopf.indexOf(name);
+const wert = (zeile, name) => { const i = spalte(name); return i >= 0 ? (zeile[i] ?? '') : ''; };
+
+const SPEICHER = 'tm_swiper_v1';
+
+function erkennen() {
+  if (spalte('cluster') >= 0 && spalte('einstufung') >= 0) {
+    S.art = 'duplikate'; S.spalte = 'einstufung'; S.jaWert = 'sicher'; S.neinWert = 'getrennt';
+  } else if (spalte('gruende') >= 0 && spalte('entscheidung') >= 0) {
+    S.art = 'archiv'; S.spalte = 'entscheidung'; S.jaWert = 'archivieren'; S.neinWert = 'behalten';
+  } else return false;
+
+  // Duplikate: mehrere Zeilen je Cluster gehören auf EINE Karte.
+  const gruppen = new Map();
+  S.reihen.forEach((z, i) => {
+    const key = S.art === 'duplikate' ? wert(z, 'cluster') : String(i);
+    if (!gruppen.has(key)) gruppen.set(key, []);
+    gruppen.get(key).push(i);
+  });
+  S.karten = [...gruppen.entries()].map(([schluessel, zeilen]) => ({ schluessel, zeilen }));
+  return true;
+}
+
+function offen(karte) {
+  return karte.zeilen.some((i) => !S.reihen[i][spalte(S.spalte)]);
+}
+function imFilter(karte) {
+  if (!S.filter) return true;
+  return wert(S.reihen[karte.zeilen[0]], 'regel') === S.filter;
+}
+
+/** Regelgruppen mit Zahl, Stichprobe und Restbestand. */
+function gruppenBilden() {
+  const iR = spalte('regel');
+  if (iR < 0) return [];
+  const map = new Map();
+  for (const k of S.karten) {
+    const r = S.reihen[k.zeilen[0]][iR] || '(ohne Regel)';
+    const g = map.get(r) ?? { regel: r, stufe: wert(S.reihen[k.zeilen[0]], 'stufe'), karten: [], offen: 0, namen: [] };
+    g.karten.push(k);
+    if (offen(k)) { g.offen++; if (g.namen.length < 4) g.namen.push(wert(S.reihen[k.zeilen[0]], 'name')); }
+    map.set(r, g);
+  }
+  return [...map.values()].sort((a, b) => b.offen - a.offen || b.karten.length - a.karten.length);
+}
+
+function gruppenZeichnen() {
+  const gruppen = gruppenBilden();
+  const nochOffen = gruppen.reduce((s2, g) => s2 + g.offen, 0);
+  const kasten = $('gruppenliste');
+  kasten.innerHTML = `<div class="gruppenkopf">
+      <h2>${nochOffen} offen in ${gruppen.filter((g) => g.offen).length} Gruppen</h2>
+      <p>Gleiche Begründung, eine Entscheidung. <button class="b-klein" id="alleEinzeln" style="padding:4px 10px">Alle einzeln durchgehen</button></p>
+    </div>`;
+  for (const g of gruppen) {
+    const el = document.createElement('section');
+    el.className = 'gruppe' + (g.offen ? '' : ' fertig');
+    el.innerHTML = `
+      <div class="zeile1">
+        <span class="titel2">${esc(g.regel)}</span>
+        <span class="menge">${g.offen || g.karten.length}<small>${g.offen ? 'offen' : 'erledigt'}</small></span>
+      </div>
+      ${g.namen.length ? `<div class="proben">${esc(g.namen.join(' · '))}${g.offen > g.namen.length ? ` und ${g.offen - g.namen.length} weitere` : ''}</div>` : ''}
+      ${g.offen ? `<div class="tasten">
+        <button class="b-nein" data-w="nein">Alle behalten</button>
+        <button class="b-ja" data-w="ja">Alle archivieren</button>
+        <button class="b-klein" data-w="einzeln">Einzeln ansehen</button>
+      </div>` : '<span class="erledigt">entschieden</span>'}`;
+    el.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.w === 'einzeln') { S.filter = g.regel; S.pos = 0; kartenAnsicht(); return; }
+      const i = spalte(S.spalte);
+      const vorher = new Map();
+      for (const k of g.karten) {
+        if (!offen(k)) continue;
+        for (const zi of k.zeilen) { vorher.set(zi, S.reihen[zi][i]); S.reihen[zi][i] = b.dataset.w === 'ja' ? S.jaWert : S.neinWert; }
+      }
+      S.verlauf.push({ pos: S.pos, vorher });
+      sichern();
+      gruppenZeichnen();
+    }));
+    kasten.appendChild(el);
+  }
+  const alle = $('alleEinzeln');
+  if (alle) alle.addEventListener('click', () => { S.filter = null; S.pos = 0; kartenAnsicht(); });
+  $('balken').style.width = S.karten.length ? ((S.karten.length - nochOffen) / S.karten.length) * 100 + '%' : '0';
+  $('zaehler').innerHTML = `<strong>${S.karten.length - nochOffen}</strong> von ${S.karten.length} entschieden`;
+}
+
+function gruppenAnsicht() {
+  $('start').classList.add('verborgen');
+  $('buehne').classList.add('verborgen');
+  $('ende').classList.add('verborgen');
+  $('steuerung').classList.add('verborgen');
+  $('gruppen').classList.remove('verborgen');
+  gruppenZeichnen();
+}
+function kartenAnsicht() {
+  $('start').classList.add('verborgen');
+  $('gruppen').classList.add('verborgen');
+  $('ende').classList.add('verborgen');
+  $('buehne').classList.remove('verborgen');
+  $('steuerung').classList.remove('verborgen');
+  zeichnen();
+}
+function naechsteOffene(ab) {
+  for (let i = ab; i < S.karten.length; i++) if (offen(S.karten[i]) && imFilter(S.karten[i])) return i;
+  return S.karten.length;
+}
+
+// ---------------------------------------------------------------------------
+// Karten zeichnen
+// ---------------------------------------------------------------------------
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const stufenFarbe = { A: '#ffd9a3', B: '#f0c98a', C: '#cfd8d2' };
+
+/** Höchstens drei Punkte je Block — auf einer Entscheidungskarte zählt das
+ *  Wesentliche, der Rest steht in der CSV. */
+function liste(titel, roh, extra) {
+  const punkte = String(roh || '').split('|').map((s) => s.trim()).filter(Boolean);
+  if (!punkte.length) return '';
+  const zeigen = punkte.slice(0, 3);
+  const rest = punkte.length - zeigen.length;
+  return `<div class="hinweis${extra}"><h4>${esc(titel)}</h4><ul>${
+    zeigen.map((s) => `<li>${esc(s)}</li>`).join('')
+  }${rest > 0 ? `<li style="opacity:.7">und ${rest} weitere${rest === 1 ? 'r' : ''} Punkt${rest === 1 ? '' : 'e'}</li>` : ''}</ul></div>`;
+}
+
+function inhaltDuplikate(karte) {
+  const zeilen = karte.zeilen.map((i) => S.reihen[i]);
+  const kopfz = zeilen[0];
+  const stufe = wert(kopfz, 'stufe');
+  const parteien = zeilen.map((z) => {
+    const bleibt = wert(z, 'rolle').startsWith('BEHALTEN');
+    const ort = [wert(z, 'plz'), wert(z, 'ort')].filter(Boolean).join(' ');
+    const hist = wert(z, 'historieJahre')
+      ? `${wert(z, 'historieJahre')} Jahre Historie · ${Number(wert(z, 'historieUmsatz') || 0).toLocaleString('de-DE')} €`
+      : 'keine Bestellhistorie';
+    const proj = wert(z, 'projekte') !== '0'
+      ? `${wert(z, 'projekte')} Projekte, zuletzt ${wert(z, 'letztesJahr') || '—'}`
+      : 'keine Projekte';
+    return `<div class="partei ${bleibt ? 'bleibt' : ''}">
+      <div class="rolle">${bleibt ? 'bleibt bestehen' : 'wird aufgelöst'}</div>
+      <div class="pname">${esc(wert(z, 'name'))}</div>
+      <div class="zeile mono">${esc(wert(z, 'kundennummer') || '—')} · ${esc(ort || 'keine Anschrift')}</div>
+      <div class="zeile">${esc(wert(z, 'strasse') || '—')}</div>
+      <div class="zahlen">${esc(proj)} · ${esc(hist)}</div>
+      ${wert(z, 'email') ? `<div class="zahlen">${esc(wert(z, 'email'))}</div>` : ''}
+    </div>`;
+  }).join('');
+  const nebeneinander = zeilen.length === 2 ? ' paar' : '';
+  const warnung = wert(kopfz, 'warnung');
+  const ort = [wert(kopfz, 'plz'), wert(kopfz, 'ort')].filter(Boolean).join(' ');
+  return `
+    <span class="stufe" style="color:${stufenFarbe[stufe] || '#fff'}">Stufe <b>${esc(stufe)}</b> · Sicherheit ${esc(wert(kopfz, 'score'))} · Cluster ${esc(karte.schluessel)}</span>
+    <h2 class="titel">${esc(wert(kopfz, 'name'))}</h2>
+    <p class="unterzeile">${zeilen.length} Datensätze${ort ? ' · ' + esc(ort) : ''}</p>
+    <div class="parteien${nebeneinander}">${parteien}</div>
+    ${liste('Dafür spricht', wert(kopfz, 'signale'), '')}
+    ${liste('Dagegen spricht', warnung, ' schutz')}
+  `;
+}
+
+function inhaltArchiv(karte) {
+  const z = S.reihen[karte.zeilen[0]];
+  const stufe = wert(z, 'stufe');
+  const ort = [wert(z, 'plz'), wert(z, 'ort')].filter(Boolean).join(' ');
+  const schutz = wert(z, 'schutz');
+  const hist = wert(z, 'historieJahre')
+    ? `${wert(z, 'historieJahre')} Jahre · ${Number(wert(z, 'historieUmsatz') || 0).toLocaleString('de-DE')} €`
+    : 'keine';
+  return `
+    <span class="stufe" style="color:${stufenFarbe[stufe] || '#fff'}">Stufe <b>${esc(stufe)}</b>${wert(z, 'regel') ? ' · ' + esc(wert(z, 'regel')) : ''}</span>
+    <h2 class="titel">${esc(wert(z, 'name') || '(ohne Namen)')}</h2>
+    <p class="unterzeile mono">${esc(wert(z, 'kundennummer') || 'keine Nummer')} · ${esc(ort || 'keine Anschrift')}</p>
+    <div class="trenn"></div>
+    <dl class="grid">
+      <dt>Letzte Bestellung</dt><dd class="mono">${esc(wert(z, 'letzteAktivitaet'))}</dd>
+      <dt>Historie</dt><dd class="mono">${esc(hist)}</dd>
+      <dt>Projekte</dt><dd class="mono">${esc(wert(z, 'projekte'))}${wert(z, 'letztesProjekt') ? ' · zuletzt ' + esc(wert(z, 'letztesProjekt')) : ''}</dd>
+      <dt>Kontakt</dt><dd>${esc(wert(z, 'email') || wert(z, 'telefon') || '—')}</dd>
+      <dt>Anschrift</dt><dd>${esc(wert(z, 'strasse') || '—')}</dd>
+      <dt>Gruppe</dt><dd>${esc(wert(z, 'gruppe') || '—')}</dd>
+    </dl>
+    ${liste('Spricht fürs Archiv', wert(z, 'gruende'), '')}
+    ${liste('Spricht dagegen', schutz, ' schutz')}
+    ${wert(z, 'notizen') ? `<div class="hinweis"><h4>Notiz</h4><div>${esc(wert(z, 'notizen'))}</div></div>` : ''}
+  `;
+}
+
+function zeichnen() {
+  const stapel = $('stapel');
+  stapel.innerHTML = '';
+  S.pos = naechsteOffene(S.pos);
+  if (S.pos >= S.karten.length) {
+    if (S.filter) { S.filter = null; return gruppenAnsicht(); }
+    if (spalte('regel') >= 0 && S.karten.length > 60) return gruppenAnsicht();
+    return abschluss();
+  }
+
+  // Zwei Karten dahinter andeuten — man soll sehen, dass es weitergeht.
+  for (let t = 2; t >= 0; t--) {
+    const idx = naechsteOffeneAb(S.pos, t);
+    if (idx === null) continue;
+    const karte = S.karten[idx];
+    const el = document.createElement('article');
+    el.className = 'karte' + (t > 0 ? ' hinten' : '');
+    el.style.transform = `translateY(${t * 16}px) scale(${1 - t * 0.045})`;
+    el.style.opacity = t > 0 ? 0.5 - (t - 1) * 0.22 : 1;
+    el.style.zIndex = 10 - t;
+    el.innerHTML = (S.art === 'duplikate' ? inhaltDuplikate(karte) : inhaltArchiv(karte));
+    if (t === 0) {
+      el.tabIndex = 0;
+      el.insertAdjacentHTML('afterbegin',
+        `<span class="stempel ja">${S.art === 'duplikate' ? 'Zusammen' : 'Archiv'}</span>
+         <span class="stempel nein">${S.art === 'duplikate' ? 'Getrennt' : 'Behalten'}</span>`);
+      ziehenAktivieren(el);
+    }
+    stapel.appendChild(el);
+  }
+  fortschritt();
+  $('zurUebersicht').classList.toggle('verborgen', spalte('regel') < 0);
+  const vorn = stapel.querySelector('.karte:not(.hinten)');
+  const pruefen = () => stapel.classList.toggle('mehr',
+    !!vorn && vorn.scrollHeight - vorn.clientHeight - vorn.scrollTop > 12);
+  if (vorn) { pruefen(); vorn.addEventListener('scroll', pruefen, { passive: true }); }
+}
+function naechsteOffeneAb(start, versatz) {
+  let n = 0;
+  for (let i = start; i < S.karten.length; i++) {
+    if (!offen(S.karten[i]) || !imFilter(S.karten[i])) continue;
+    if (n === versatz) return i;
+    n++;
+  }
+  return null;
+}
+
+function fortschritt() {
+  const gesamt = S.karten.length;
+  const erledigt = S.karten.filter((k) => !offen(k)).length;
+  $('balken').style.width = (gesamt ? (erledigt / gesamt) * 100 : 0) + '%';
+  const stufe = S.karten[S.pos] ? wert(S.reihen[S.karten[S.pos].zeilen[0]], 'stufe') : '';
+  $('zaehler').innerHTML = `<strong>${erledigt}</strong> von ${gesamt} entschieden${stufe ? ' · Stufe ' + stufe : ''}`;
+  $('zurueck').disabled = S.verlauf.length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Entscheiden
+// ---------------------------------------------------------------------------
+function entscheiden(ja, still) {
+  const karte = S.karten[S.pos];
+  if (!karte) return;
+  const i = spalte(S.spalte);
+  const vorher = new Map();
+  for (const zi of karte.zeilen) { vorher.set(zi, S.reihen[zi][i]); S.reihen[zi][i] = ja ? S.jaWert : S.neinWert; }
+  S.verlauf.push({ pos: S.pos, vorher });
+  sichern();
+  if (still) return;
+  wegfliegen(ja ? 1 : -1, () => { S.pos++; zeichnen(); });
+}
+function spaeter() {
+  // Unentschieden: Karte bleibt offen, wir gehen nur weiter.
+  const naechste = naechsteOffeneAb(S.pos + 1, 0);
+  wegfliegen(0, () => { S.pos = naechste === null ? S.karten.length : naechste; zeichnen(); });
+}
+function zurueck() {
+  const letzte = S.verlauf.pop();
+  if (!letzte) return;
+  const i = spalte(S.spalte);
+  for (const [zi, w] of letzte.vorher) S.reihen[zi][i] = w;
+  S.pos = letzte.pos;
+  sichern();
+  zeichnen();
+}
+function restDieserStufe() {
+  // Kein confirm(): dort hieße „Abbrechen" entweder nichts tun oder alles auf
+  // nein setzen — bei 1186 Karten ist das eine Falle. Drei klare Schaltflächen.
+  const aktuelle = wert(S.reihen[S.karten[S.pos].zeilen[0]], 'stufe');
+  const betroffen = S.karten.filter((k) => offen(k) && wert(S.reihen[k.zeilen[0]], 'stufe') === aktuelle);
+  const panel = $('massen');
+  panel.innerHTML = `
+    <p><strong>${betroffen.length}</strong> offene Karten der Stufe ${esc(aktuelle)} auf einmal entscheiden:</p>
+    <div class="tasten">
+      <button class="b-nein" data-wahl="nein">Alle ${S.art === 'duplikate' ? 'getrennt lassen' : 'behalten'}</button>
+      <button class="b-ja" data-wahl="ja">Alle ${S.art === 'duplikate' ? 'zusammenführen' : 'archivieren'}</button>
+      <button class="b-klein" data-wahl="ab">Abbrechen</button>
+    </div>`;
+  panel.classList.remove('verborgen');
+  panel.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    const wahl = b.dataset.wahl;
+    panel.classList.add('verborgen');
+    if (wahl === 'ab') return;
+    const i = spalte(S.spalte);
+    const vorher = new Map();
+    for (const k of betroffen) for (const zi of k.zeilen) { vorher.set(zi, S.reihen[zi][i]); S.reihen[zi][i] = wahl === 'ja' ? S.jaWert : S.neinWert; }
+    S.verlauf.push({ pos: S.pos, vorher });
+    sichern();
+    zeichnen();
+  }));
+}
+
+// --- Ziehen mit Maus und Finger ---
+function ziehenAktivieren(el) {
+  let startX = 0, startY = 0, dx = 0, dy = 0, zieht = false;
+  const schwelle = 90;
+  const runter = (x, y) => { zieht = true; startX = x; startY = y; el.style.transition = 'none'; };
+  const bewegen = (x, y) => {
+    if (!zieht) return;
+    dx = x - startX; dy = y - startY;
+    el.style.transform = `translate(${dx}px, ${dy * 0.25}px) rotate(${dx / 26}deg)`;
+    const s = Math.min(Math.abs(dx) / schwelle, 1);
+    el.querySelector('.stempel.ja').style.opacity = dx > 0 ? s : 0;
+    el.querySelector('.stempel.nein').style.opacity = dx < 0 ? s : 0;
+  };
+  const hoch = () => {
+    if (!zieht) return;
+    zieht = false;
+    el.style.transition = 'transform .28s ease, opacity .28s ease';
+    if (Math.abs(dx) > schwelle) entscheiden(dx > 0);
+    else {
+      el.style.transform = '';
+      el.querySelectorAll('.stempel').forEach((s) => (s.style.opacity = 0));
+    }
+    dx = dy = 0;
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, a')) return;
+    el.setPointerCapture(e.pointerId); runter(e.clientX, e.clientY);
+  });
+  el.addEventListener('pointermove', (e) => bewegen(e.clientX, e.clientY));
+  el.addEventListener('pointerup', hoch);
+  el.addEventListener('pointercancel', hoch);
+}
+function wegfliegen(richtung, danach) {
+  const el = $('stapel').querySelector('.karte:not(.hinten)');
+  if (!el || matchMedia('(prefers-reduced-motion: reduce)').matches) return danach();
+  el.style.transition = 'transform .26s ease, opacity .26s ease';
+  el.style.transform = richtung === 0
+    ? 'translateY(-120%) scale(.9)'
+    : `translate(${richtung * 130}%, 40px) rotate(${richtung * 18}deg)`;
+  el.style.opacity = '0';
+  setTimeout(danach, 240);
+}
+
+// ---------------------------------------------------------------------------
+// Speichern und Abschluss
+// ---------------------------------------------------------------------------
+let sicherTimer = null;
+function sichern() {
+  try {
+    localStorage.setItem(SPEICHER, JSON.stringify({
+      dateiname: S.dateiname, kopf: S.kopf, reihen: S.reihen, art: S.art, zeit: Date.now(),
+    }));
+  } catch (e) { /* voll oder gesperrt — der Download bleibt der sichere Weg */ }
+  if (!S.vomServer) return;
+  // Gesammelt zurückschreiben: bei schnellem Durchswipen wäre ein Schreibvorgang
+  // je Karte unnötig viel Verkehr, eine halbe Sekunde Verzug reicht.
+  clearTimeout(sicherTimer);
+  sicherTimer = setTimeout(zurueckschreiben, 400);
+}
+async function zurueckschreiben() {
+  const i = spalte(S.spalte), iId = spalte('kundeId');
+  if (iId < 0) return;
+  const werte = {};
+  for (const z of S.reihen) werte[z[iId]] = z[i] ?? '';
+  try {
+    const r = await fetch('/api/entscheidung', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ datei: S.dateiname, spalte: S.spalte, werte }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    melden('in ' + S.dateiname + ' gespeichert');
+  } catch (e) {
+    melden('⚠ nicht gespeichert — bitte herunterladen', 6000);
+  }
+}
+let meldeTimer = null;
+function melden(text, dauer = 1600) {
+  const el = $('gesichert');
+  el.textContent = text;
+  el.classList.add('an');
+  clearTimeout(meldeTimer);
+  meldeTimer = setTimeout(() => el.classList.remove('an'), dauer);
+}
+function abschluss() {
+  $('buehne').classList.add('verborgen');
+  $('steuerung').classList.add('verborgen');
+  $('ende').classList.remove('verborgen');
+  const i = spalte(S.spalte);
+  const ja = S.karten.filter((k) => S.reihen[k.zeilen[0]][i] === S.jaWert).length;
+  const nein = S.karten.filter((k) => S.reihen[k.zeilen[0]][i] === S.neinWert).length;
+  const offenZ = S.karten.length - ja - nein;
+  $('bilanz').innerHTML = `
+    <div><span class="zahl" style="color:var(--bernstein)">${ja}</span><span class="was">${S.art === 'duplikate' ? 'zusammenführen' : 'archivieren'}</span></div>
+    <div><span class="zahl" style="color:var(--ruhe)">${nein}</span><span class="was">${S.art === 'duplikate' ? 'getrennt lassen' : 'behalten'}</span></div>
+    <div><span class="zahl">${offenZ}</span><span class="was">offen</span></div>`;
+  $('spaltenname').textContent = S.spalte;
+  $('herunterladen').classList.toggle('verborgen', S.vomServer);
+  $('abschlusstext').textContent = S.vomServer
+    ? `Alles steht schon in ${S.dateiname}. Sag Bescheid, dann verarbeite ich es.`
+    : 'Lade die Liste herunter und gib sie zurück.';
+  $('balken').style.width = '100%';
+  $('zaehler').innerHTML = `<strong>${ja + nein}</strong> von ${S.karten.length} entschieden`;
+}
+function herunterladen() {
+  const blob = new Blob([csvSchreiben(S.kopf, S.reihen)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = S.dateiname.replace(/\.csv$/i, '') + '-entschieden.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------------------------------------------------------------------------
+// Laden
+// ---------------------------------------------------------------------------
+function starten(text, name) {
+  const { kopf, reihen } = csvLesen(text);
+  S.kopf = kopf; S.reihen = reihen; S.dateiname = name; S.pos = 0; S.verlauf = [];
+  if (!erkennen()) {
+    $('fehler').textContent = 'Unbekanntes Format. Erwartet wird eine Prüfliste mit den Spalten „cluster/einstufung" oder „gruende/entscheidung".';
+    return;
+  }
+  $('fehler').textContent = '';
+  S.filter = null;
+  $('jaText').textContent = S.art === 'duplikate' ? 'Zusammenführen' : 'Archivieren';
+  $('neinText').textContent = S.art === 'duplikate' ? 'Getrennt lassen' : 'Behalten';
+  document.title = (S.art === 'duplikate' ? 'Duplikate' : 'Archiv') + ' · Datenpflege';
+  // Bei großen Archivlisten führt Karte-für-Karte nicht zum Ziel — dort beginnt
+  // die Arbeit in den Regelgruppen. Einzeln geht von dort aus jederzeit.
+  if (spalte('regel') >= 0 && S.karten.length > 60) gruppenAnsicht();
+  else kartenAnsicht();
+}
+
+async function listenHolen() {
+  const kasten = $('listen');
+  try {
+    const r = await fetch('/api/listen');
+    if (!r.ok) throw new Error('kein Server');
+    const { listen } = await r.json();
+    if (!listen.length) {
+      kasten.innerHTML = `<p style="color:var(--linie-ab)">Keine Prüfliste im Portal-Ordner gefunden.
+        Erst <span class="mono">node scripts/duplikat-analyse.mjs</span> oder
+        <span class="mono">node scripts/archiv-analyse.mjs</span> laufen lassen.</p>`;
+      return;
+    }
+    kasten.innerHTML = '';
+    for (const l of listen) {
+      const b = document.createElement('button');
+      b.className = 'liste-knopf';
+      b.innerHTML = `<span>
+          <span class="was">${l.art === 'duplikate' ? 'Duplikate prüfen' : 'Archiv prüfen'}</span>
+          <span class="wo mono">${esc(l.datei)}</span>
+        </span>
+        <span class="offen">${l.offen}<small>offen</small></span>`;
+      b.addEventListener('click', async () => {
+        const t = await (await fetch('/api/liste?datei=' + encodeURIComponent(l.datei))).text();
+        S.vomServer = true;
+        starten(t, l.datei);
+      });
+      kasten.appendChild(b);
+    }
+    $('manuell').classList.remove('verborgen');
+  } catch (e) {
+    // Ohne Server bleibt der Weg über die Datei — dann aber mit Download.
+    kasten.innerHTML = `<p style="color:var(--linie-ab)">Kein Server erreichbar.
+      Starte ihn mit <span class="mono">npm run swiper</span>, dann erscheinen die Listen hier
+      und jede Entscheidung landet direkt in der Datei.</p>`;
+    $('manuell').open = true;
+  }
+}
+listenHolen();
+
+$('datei').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (f) f.text().then((t) => { S.vomServer = false; starten(t, f.name); });
+});
+const ablage = $('ablage');
+['dragenter', 'dragover'].forEach((ev) => ablage.addEventListener(ev, (e) => { e.preventDefault(); ablage.classList.add('drueber'); }));
+['dragleave', 'drop'].forEach((ev) => ablage.addEventListener(ev, (e) => { e.preventDefault(); ablage.classList.remove('drueber'); }));
+ablage.addEventListener('drop', (e) => {
+  const f = e.dataTransfer.files[0];
+  if (f) f.text().then((t) => { S.vomServer = false; starten(t, f.name); });
+});
+
+$('ja').addEventListener('click', () => entscheiden(true));
+$('nein').addEventListener('click', () => entscheiden(false));
+$('spaeter').addEventListener('click', spaeter);
+$('zurUebersicht').addEventListener('click', () => { S.filter = null; gruppenAnsicht(); });
+$('zurueck').addEventListener('click', zurueck);
+$('restStufe').addEventListener('click', restDieserStufe);
+$('jetztLaden').addEventListener('click', () => (S.vomServer ? zurueckschreiben() : herunterladen()));
+$('herunterladen').addEventListener('click', herunterladen);
+$('nochmal').addEventListener('click', () => {
+  $('ende').classList.add('verborgen');
+  $('start').classList.remove('verborgen');
+  $('balken').style.width = '0';
+  $('zaehler').textContent = '';
+});
+
+document.addEventListener('keydown', (e) => {
+  if ($('buehne').classList.contains('verborgen')) return;
+  if (e.target instanceof Element && e.target.matches('input, textarea, select')) return;
+  // `key` und `code` beide prüfen: manche Eingabequellen liefern nur eins davon.
+  const taste = e.key || e.code || '';
+  if (taste === 'ArrowRight') { e.preventDefault(); entscheiden(true); }
+  else if (taste === 'ArrowLeft') { e.preventDefault(); entscheiden(false); }
+  else if (taste === 'ArrowUp') { e.preventDefault(); spaeter(); }
+  else if (taste === 'Backspace') { e.preventDefault(); zurueck(); }
+});
+
+// Zwischenstand anbieten
+try {
+  const roh = localStorage.getItem(SPEICHER);
+  if (roh) {
+    const alt = JSON.parse(roh);
+    const alter = Math.round((Date.now() - alt.zeit) / 60000);
+    const el = document.createElement('div');
+    el.innerHTML = `<button class="b-klein" id="weiter">Zwischenstand fortsetzen — ${esc(alt.dateiname)} (vor ${alter} Min.)</button>`;
+    $('start').querySelector('.tafel').appendChild(el);
+    $('weiter').addEventListener('click', () => {
+      S.kopf = alt.kopf; S.reihen = alt.reihen; S.dateiname = alt.dateiname; S.pos = 0; S.verlauf = []; S.vomServer = false;
+      if (erkennen()) {
+        $('start').classList.add('verborgen');
+        $('buehne').classList.remove('verborgen');
+        $('steuerung').classList.remove('verborgen');
+        $('jaText').textContent = S.art === 'duplikate' ? 'Zusammenführen' : 'Archivieren';
+        $('neinText').textContent = S.art === 'duplikate' ? 'Getrennt lassen' : 'Behalten';
+        zeichnen();
+      }
+    });
+  }
+} catch (e) { /* kein Zwischenstand */ }
+</script>
+</body>
+</html>

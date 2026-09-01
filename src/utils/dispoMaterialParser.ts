@@ -15,26 +15,18 @@ import { Position, AuftragsbestaetigungsDaten } from '../types/projektabwicklung
 import { TENNISMEHL_ARTIKEL, SACKWARE } from '../constants/artikelPreise';
 
 /**
- * Positionen, die zwar in Tonnen fakturiert werden, aber keine Ware sind:
- * Pauschalen, Zuschläge, Dienstleistungen.
+ * Ohne die NICHT_MATERIAL-Blockliste zählt der Fallback am Ende der Schleife
+ * jede Position mit Einheit „t" als loses Material. Gemessen an Saison 2026
+ * sind das 48,2 t Phantom-Tonnage — und schlimmer als die Zahl ist die Folge
+ * für die Wegzuordnung: `TM-LKW-KR` ist der Ladekran-Zuschlag für SACKWARE,
+ * macht den Auftrag aber zu einem Schüttgut-Auftrag. Er verschwindet damit aus
+ * dem Palettenfilter und taucht in der eigenen Dispo auf, wo er nicht hingehört.
  *
- * Ohne diese Liste zählt der Fallback am Ende der Schleife jede Position mit
- * Einheit „t" als loses Material. Gemessen an Saison 2026 sind das 48,2 t
- * Phantom-Tonnage — und schlimmer als die Zahl ist die Folge für die
- * Wegzuordnung: `TM-LKW-KR` ist der Ladekran-Zuschlag für SACKWARE, macht den
- * Auftrag aber zu einem Schüttgut-Auftrag. Er verschwindet damit aus dem
- * Palettenfilter und taucht in der eigenen Dispo auf, wo er nicht hingehört.
- *
- * Nur exakte Artikelnummern, bewusst keine Textsuche: „Tennismehl 0/2 Schüttgut
- * inkl. Frachtkosten" enthält das Wort Frachtkosten und ist trotzdem 8 t Ware.
+ * Die Liste selbst lebt seit Stufe 2 (08/2026) in `tonnage.ts` — hier nur
+ * re-exportiert, damit bestehende Importe weiter funktionieren.
  */
-const NICHT_MATERIAL_ARTIKEL = new Set([
-  'TM-PE',      // PE-Folie
-  'TM-FP',      // Frachtkostenpauschale
-  'TM-HYC-V',   // Hydrocourt Versand Standard Pauschal
-  'TM-LKW-KR',  // Entladung Sackware mit LKW-Ladekran (Dienstleistung)
-  'TM-SK',      // Zuschlag Sonderkommissionierung
-]);
+import { NICHT_MATERIAL_ARTIKEL, normalisiereArtikelnummer } from './tonnage';
+export { NICHT_MATERIAL_ARTIKEL };
 
 /**
  * Transport-Typ für Dispo-Planung
@@ -179,7 +171,9 @@ export function parseMaterialAufschluesselung(projekt: Projekt): MaterialAufschl
   // Positionen durchgehen und kategorisieren
   for (const pos of positionen) {
     const artikelnummerRaw = pos.artikelnummer || '';
-    const artikelnummerUpper = artikelnummerRaw.toUpperCase();
+    // Aliasse (z. B. TM-ZM-02BB → TM-ZM-BIG-02) auflösen, damit Altbelege
+    // aus der BigBag-Fehlverkabelung korrekt kategorisiert werden.
+    const artikelnummerUpper = normalisiereArtikelnummer(artikelnummerRaw);
     const menge = pos.menge || 0;
     const einheit = pos.einheit?.toLowerCase() || '';
 
@@ -435,7 +429,7 @@ export function parseMaterialAufschluesselung(projekt: Projekt): MaterialAufschl
 
   // Fallback: Wenn keine Positionen gefunden, nutze liefergewicht/angefragteMenge
   if (result.gesamtTonnen === 0) {
-    const fallbackMenge = projekt.liefergewicht || projekt.angefragteMenge || 0;
+    const fallbackMenge = projekt.liefergewicht || projekt.beauftragteTonnen || projekt.angefragteMenge || 0;
     result.ausFallback = fallbackMenge > 0;
 
     // Prüfe Belieferungsart für korrekte Klassifizierung

@@ -844,8 +844,9 @@ class PlatzbauerverwaltungService {
       try {
         const projekt = await projektService.getProjektFuerKunde(vereinId, vorjahr);
         if (projekt) {
-          // Priorität: liefergewicht (tatsächlich geliefert) > angefragteMenge
-          const menge = projekt.liefergewicht || projekt.angefragteMenge || 0;
+          // Priorität: liefergewicht (gewogen bzw. Altbestand) >
+          // beauftragteTonnen (Plan-Menge, Stufe 3) > angefragteMenge
+          const menge = projekt.liefergewicht || projekt.beauftragteTonnen || projekt.angefragteMenge || 0;
           if (menge > 0) {
             mengenMap.set(vereinId, menge);
           }

@@ -18,11 +18,24 @@ const mitPositionen = (positionen: unknown[], teil: Partial<Projekt> = {}) =>
   } as Partial<Projekt>);
 
 describe('projektTonnage', () => {
-  it('nimmt das gewogene Liefergewicht, wenn es vorliegt', () => {
+  it('nimmt das gewogene Liefergewicht, wenn die Wiegeschein-Prüfung es bestätigt hat', () => {
     const p = mitPositionen([{ artikelnummer: 'TM-ZM-02', menge: 10, einheit: 't' }], {
       liefergewicht: 9.8,
-    });
+      wiegeschein: { pruefStatus: 'bestaetigt', gepruefteMengeTonnen: 9.8 },
+    } as Partial<Projekt>);
     expect(projektTonnage(p)).toEqual({ tonnen: 9.8, quelle: 'gewogen' });
+  });
+
+  it('stuft ein ungeprüftes liefergewicht ehrlich als beauftragt ein (Altbestand)', () => {
+    // Bis 08/2026 schrieben auch AB-Saves und Dispo-Masken in liefergewicht —
+    // ohne geprüften Wiegeschein ist der Wert eine Soll-, keine Ist-Menge.
+    const p = projekt({ liefergewicht: 9.8 });
+    expect(projektTonnage(p)).toEqual({ tonnen: 9.8, quelle: 'beauftragt' });
+  });
+
+  it('nutzt die von AB-Save/Dispo gepflegte Plan-Menge beauftragteTonnen', () => {
+    const p = projekt({ beauftragteTonnen: 12 });
+    expect(projektTonnage(p)).toEqual({ tonnen: 12, quelle: 'beauftragt' });
   });
 
   it('nimmt vor der Lieferung die beauftragte Menge aus den Positionen', () => {
@@ -78,14 +91,23 @@ describe('summiereTonnage', () => {
   });
 
   it('markiert eine Summe als Prognose, sobald ein Wert nicht gewogen ist', () => {
+    const gewogen = projekt({
+      liefergewicht: 10,
+      wiegeschein: { pruefStatus: 'bestaetigt', gepruefteMengeTonnen: 10 },
+    } as Partial<Projekt>);
+
     const gemischt = summiereTonnage([
-      projekt({ liefergewicht: 10 }),
+      gewogen,
       mitPositionen([{ artikelnummer: 'TM-ZM-02', menge: 5, einheit: 't' }]),
     ]);
     expect(gemischt.enthaeltPrognose).toBe(true);
 
-    const nurGewogen = summiereTonnage([projekt({ liefergewicht: 10 })]);
+    const nurGewogen = summiereTonnage([gewogen]);
     expect(nurGewogen.enthaeltPrognose).toBe(false);
+
+    // Ungeprüftes liefergewicht (Altbestand) ist keine gewogene Zahl mehr.
+    const altbestand = summiereTonnage([projekt({ liefergewicht: 10 })]);
+    expect(altbestand.enthaeltPrognose).toBe(true);
   });
 
   it('meldet eine leere Gruppe als vollständig, nicht als lückenhaft', () => {

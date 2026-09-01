@@ -168,6 +168,9 @@ export const can = (user: User | null, toolId: string, action: PermissionAction)
   if (!user) return false;
   if (isAdmin(user)) return true;
 
+  // Admin-Tools sind für alle anderen zu, egal was Rollen oder Overrides sagen.
+  if (ALL_TOOLS.some((tool) => tool.id === toolId && tool.nurAdmin)) return false;
+
   const effective = getEffectivePermissions(user.$id);
   return [toolId, ...(TOOL_ALIASES[toolId] ?? [])].some((id) => {
     const entry = effective[id];

@@ -1,6 +1,24 @@
+/**
+ * Woher der Preis einer Position stammt (Stufe 4 Artikelverwaltung, 08/2026).
+ * 'stamm' = unverändert aus dem Artikelstamm übernommen; 'manuell' = vom
+ * Benutzer eingegeben/überschrieben; 'fallback' = aus einer Code-Tabelle
+ * (stammdatenService-Fallback); 'ki' = aus der Claude-Preisempfehlung;
+ * 'shop' = aus einer Gambio-Shop-Bestellung übernommen.
+ */
+export type PreisQuelle = 'stamm' | 'manuell' | 'fallback' | 'ki' | 'shop';
+
 // Gemeinsame Basis-Datentypen
 export interface Position {
   id: string;
+  /**
+   * Appwrite-$id des Stammartikels (Stufe 4, 08/2026). Wird beim Einfügen aus
+   * dem Stamm gesetzt; alte Positionen tragen nur die artikelnummer und werden
+   * über das Nummern-Mapping (tonnage.ts) aufgelöst.
+   */
+  artikelId?: string;
+  preisQuelle?: PreisQuelle;
+  /** Bewusst ohne Stammartikel angelegt — fällt sichtbar aus der Artikel-Auswertung. */
+  istFreitextPosition?: boolean;
   artikelnummer?: string;
   bezeichnung: string;
   beschreibung?: string;
@@ -24,6 +42,8 @@ export interface Position {
 
 export interface LieferscheinPosition {
   id: string;
+  artikelId?: string;
+  istFreitextPosition?: boolean;
   artikelnummer?: string;
   artikel: string;
   beschreibung?: string;
@@ -94,6 +114,15 @@ export interface AngebotsDaten extends BaseDokument {
   // Zahlungsbedingungen
   zahlungsbedingungenAusblenden?: boolean; // Zahlungsbedingungen im PDF ausblenden
   zahlungsziel: string; // z.B. "Vorkasse", "14 Tage", "30 Tage"
+  /**
+   * Dieselpreis (€/L), auf dessen Grundlage der Zuschlag berechnet wurde.
+   *
+   * Ohne diesen Wert lässt sich der Zuschlag nach einer Mengenänderung nicht
+   * nachrechnen, ohne erneut den Tagespreis abzurufen — er blieb deshalb auf
+   * dem Stand des Klicks stehen (Vorschlag [37]). Die zugehörige Entfernung
+   * steht weiter unten in `dieselEntfernungKm`.
+   */
+  dieselBasisPreis?: number;
   zahlungsart?: string;
   skontoAktiviert?: boolean;
   skonto?: {

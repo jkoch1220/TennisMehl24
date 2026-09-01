@@ -25,6 +25,7 @@ import {
   Package,
 } from 'lucide-react';
 import { Projekt , ALLE_PROJEKT_STATUS, ProjektStatus } from '../../types/projekt';
+import ArtikelAuswertung from './ArtikelAuswertung';
 
 interface ProjektStatistikProps {
   /**
@@ -69,7 +70,7 @@ const getAngebotsdatum = (projekt: Projekt): Date | null => {
   }
 
   // 3. Fallback: erstelltAm wenn Status angebot oder höher
-  if (['angebot', 'angebot_versendet', 'auftragsbestaetigung', 'lieferschein', 'rechnung', 'bezahlt'].includes(projekt.status)) {
+  if (['angebot', 'angebot_versendet', 'auftragsbestaetigung', 'lieferschein', 'geliefert', 'rechnung', 'bezahlt'].includes(projekt.status)) {
     return parseDate(projekt.erstelltAm);
   }
   return null;
@@ -149,6 +150,12 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
   const alleProjekte = useMemo(
     () => ALLE_PROJEKT_STATUS.flatMap((status) => projekteGruppiert[status] ?? []),
     [projekteGruppiert]
+  );
+
+  // Saison für die Artikel-Auswertung: die jüngste Saison der übergebenen Projekte
+  const auswertungsSaison = useMemo(
+    () => alleProjekte.reduce((max, p) => Math.max(max, p.saisonjahr || 0), 0),
+    [alleProjekte]
   );
 
   // Statistik-Daten berechnen (mit Fallbacks aus JSON-Daten und erstelltAm)
@@ -423,6 +430,7 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     { name: 'Angebot', value: projekteGruppiert.angebot.length + projekteGruppiert.angebot_versendet.length, color: COLORS.angebot },
     { name: 'AB', value: projekteGruppiert.auftragsbestaetigung.length, color: COLORS.ab },
     { name: 'Lieferschein', value: projekteGruppiert.lieferschein.length, color: COLORS.lieferschein },
+    { name: 'Geliefert', value: (projekteGruppiert.geliefert ?? []).length, color: COLORS.lieferschein },
     { name: 'Rechnung', value: projekteGruppiert.rechnung.length, color: COLORS.rechnung },
     { name: 'Bezahlt', value: projekteGruppiert.bezahlt.length, color: COLORS.bezahlt },
     { name: 'Verloren', value: projekteGruppiert.verloren.length, color: COLORS.verloren },
@@ -434,7 +442,9 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     let bezahlterUmsatz = 0;
     let offenerUmsatz = 0;
 
-    [...projekteGruppiert.rechnung, ...projekteGruppiert.bezahlt].forEach(projekt => {
+    // 'geliefert' zählt mit: die Ware ist raus, nur die Rechnung fehlt noch —
+    // ohne diesen Status verschwanden gelieferte Projekte aus dem Umsatz.
+    [...(projekteGruppiert.geliefert ?? []), ...projekteGruppiert.rechnung, ...projekteGruppiert.bezahlt].forEach(projekt => {
       const menge = projekt.angefragteMenge || 0;
       const preis = projekt.preisProTonne || 0;
       const umsatz = menge * preis;
@@ -447,7 +457,7 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
       bezahlterUmsatz += menge * preis;
     });
 
-    projekteGruppiert.rechnung.forEach(projekt => {
+    [...(projekteGruppiert.geliefert ?? []), ...projekteGruppiert.rechnung].forEach(projekt => {
       const menge = projekt.angefragteMenge || 0;
       const preis = projekt.preisProTonne || 0;
       offenerUmsatz += menge * preis;
@@ -463,7 +473,7 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
 
     alleProjekte.forEach(projekt => {
       const menge = projekt.angefragteMenge || 0;
-      if (['lieferschein', 'rechnung', 'bezahlt'].includes(projekt.status)) {
+      if (['lieferschein', 'geliefert', 'rechnung', 'bezahlt'].includes(projekt.status)) {
         geliefert += menge;
       } else if (['angebot', 'angebot_versendet', 'auftragsbestaetigung'].includes(projekt.status)) {
         geplant += menge;
@@ -897,6 +907,10 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
           </div>
         </div>
       </div>
+
+      {/* Saison-Auswertung je Artikel (Stufe 6 Artikelverwaltung) — lädt
+          eigenständig aus den finalisierten Belegen. */}
+      {auswertungsSaison > 0 && <ArtikelAuswertung saisonjahr={auswertungsSaison} />}
     </div>
   );
 };

@@ -18,6 +18,21 @@ import type { Benachrichtigung, NeueNotification } from '../types/notification';
 export const MAX_OFFENE_NOTIFICATIONS = 100;
 
 /**
+ * Fenster für das DATUM DER E-MAIL. Muss zu `ANFRAGE_MAX_EMAIL_ALTER_TAGE` in
+ * `netlify/functions/email-sync.ts` und `netlify/functions/notifications-generate.ts`
+ * passen — dort entscheidet dieselbe Grenze, ob eine Meldung überhaupt entsteht.
+ *
+ * Warum hier noch einmal: Der Postfach-Sync zieht laufend Monate alte
+ * Nachrichten nach (das Abrufkriterium ist die Position in der INBOX, nicht das
+ * Datum). Deren `erstelltAm` ist von heute, die E-Mail selbst aber uralt. Die
+ * Erzeugungspfade überspringen solche Nachzügler — Meldungen, die vor dieser
+ * Regel entstanden sind, stehen aber weiter in der Glocke, denn die Anfrage
+ * dahinter hat Status `neu` und fällt damit nicht unter ANFRAGE_ERLEDIGT_STATUS.
+ * Deshalb wird das Alter auch beim Anzeigen geprüft.
+ */
+const ANFRAGE_MAX_EMAIL_ALTER_TAGE = 30;
+
+/**
  * Anfrage-Status, die den Vorgang als abgearbeitet ausweisen. Deckungsgleich mit
  * `ERLEDIGT_STATUS` in der Anfragen-Verarbeitung (ProjektVerwaltung) — plus
  * `geloescht`, denn eine weggeräumte Anfrage will erst recht niemand gemeldet
@@ -178,21 +193,35 @@ class NotificationService {
         // Anfragen samt HTML-Mail mit — bei einem Rückstand von einigen Dutzend
         // Anfragen sind das schnell mehrere MB, die jeder Seitenaufruf zusätzlich
         // zieht, bevor die Glocke steht.
-        Query.select(['$id', 'status']),
+        Query.select(['$id', 'status', 'emailDatum']),
       ]);
 
-      // Status je Anfrage. Was die Abfrage nicht liefert, ist hart gelöscht —
-      // solche Meldungen fliegen ebenfalls raus.
+      // Status und E-Mail-Datum je Anfrage. Was die Abfrage nicht liefert, ist
+      // hart gelöscht — solche Meldungen fliegen ebenfalls raus.
       const status = new Map<string, string>();
+      const emailDatum = new Map<string, string | undefined>();
       response.documents.forEach((doc) => {
-        status.set(doc.$id, ((doc as unknown as Record<string, unknown>).status as string) || 'neu');
+        const d = doc as unknown as Record<string, unknown>;
+        status.set(doc.$id, (d.status as string) || 'neu');
+        emailDatum.set(doc.$id, d.emailDatum as string | undefined);
       });
+
+      const altersgrenze = Date.now() - ANFRAGE_MAX_EMAIL_ALTER_TAGE * 24 * 60 * 60 * 1000;
 
       return notifications.filter((n) => {
         if (n.refTyp !== ANFRAGEN_COLLECTION_ID || !n.refId) return true;
         const s = status.get(n.refId);
         if (s === undefined) return false;
-        return !ANFRAGE_ERLEDIGT_STATUS.includes(s);
+        if (ANFRAGE_ERLEDIGT_STATUS.includes(s)) return false;
+        // Nachzügler aus dem Postfach: die Anfrage ist im Portal von heute, die
+        // E-Mail dahinter Monate alt. Sie steht in der Anfragen-Liste, taugt
+        // aber nicht als „neu"-Meldung auf der Startseite.
+        const datum = emailDatum.get(n.refId);
+        if (datum) {
+          const zeit = new Date(datum).getTime();
+          if (!Number.isNaN(zeit) && zeit < altersgrenze) return false;
+        }
+        return true;
       });
     } catch (error) {
       // Im Zweifel lieber eine Meldung zu viel als eine übersehene Anfrage.

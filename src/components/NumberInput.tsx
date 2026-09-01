@@ -37,7 +37,11 @@ export const NumberInput = ({
     } else {
       const currentDisplay = displayValue === '' ? '' : parseFloat(displayValue).toString();
       if (parseFloat(currentDisplay) !== value) {
-        setDisplayValue(value.toString().replace(/\.?0+$/, ''));
+        // Kein .replace(/\.?0+$/, '') mehr: Der Regex war nicht auf Nachkomma-
+        // stellen begrenzt und fraß echte Nullen — aus 20 wurde 2, aus 1000
+        // eine 1. In der Dispo hieß das: 1000 kg eingetragen, 1 angezeigt.
+        // toString() liefert ohnehin schon die kürzeste Darstellung (20.50 → "20.5").
+        setDisplayValue(value.toString());
       }
     }
   }, [value]);
@@ -93,9 +97,11 @@ export const NumberInput = ({
       setDisplayValue('0');
       onChange(0);
     } else {
-      // Entferne unnötige Nullen
       const numValue = parseFloat(displayValue);
-      setDisplayValue(numValue.toString().replace(/\.?0+$/, ''));
+      setDisplayValue(numValue.toString());
+      // Auch melden, nicht nur anzeigen: sonst konnten Anzeige und Datenmodell
+      // nach dem Verlassen des Feldes dauerhaft auseinanderlaufen.
+      onChange(numValue);
     }
   };
 
