@@ -62,6 +62,7 @@ const EmailDashboard = lazyWithRetry(() => import('./components/EmailDashboard/E
 const Instandhaltung = lazyWithRetry(() => import('./components/Instandhaltung/Instandhaltung'));
 const Schichtplanung = lazyWithRetry(() => import('./components/Schichtplanung/Schichtplanung'));
 const ProduktionsTracker = lazyWithRetry(() => import('./components/ProduktionsTracker/ProduktionsTracker'));
+const Zeiterfassung = lazyWithRetry(() => import('./components/Zeiterfassung/Zeiterfassung'));
 
 // Shop Bestellungen
 
@@ -300,6 +301,11 @@ function AuthenticatedContent() {
                   <Route path="/produktion" element={
                     <ProtectedRoute toolId="produktion">
                       <ProduktionsTracker />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/zeiterfassung" element={
+                    <ProtectedRoute toolId="zeiterfassung">
+                      <Zeiterfassung />
                     </ProtectedRoute>
                   } />
                   <Route path="/shop-bestellungen" element={<ShopRedirect />} />

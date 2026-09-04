@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Calendar,
+  Timer,
   Receipt,
   BookOpen,
   MapPin,
@@ -288,6 +289,14 @@ export const ALL_TOOLS: ToolConfig[] = [
     color: 'from-orange-500 to-amber-600',
   },
   {
+    id: 'zeiterfassung',
+    name: 'Zeiterfassung',
+    description: 'Arbeitszeit stempeln: Kommen, Pause, Gehen — mit Monatsjournal',
+    href: '/zeiterfassung',
+    icon: Timer,
+    color: 'from-emerald-500 to-teal-600',
+  },
+  {
     id: 'shop-bestellungen',
     name: 'Shop Bestellungen',
     description: 'Gambio Online-Shop Bestellungen verwalten und bearbeiten',
@@ -339,7 +348,7 @@ export const DEFAULT_TOOL_VISIBILITY = ALL_TOOLS.reduce<Record<string, boolean>>
  * genau dieser Reihenfolge. Alles Weitere folgt in der Reihenfolge von
  * ALL_TOOLS. Betrifft nur die Navigation, nicht die Kacheln der Startseite.
  */
-export const NAVIGATION_PRIORITAET = ['saisonplanung', 'projekt-verwaltung'];
+export const NAVIGATION_PRIORITAET = ['saisonplanung', 'projekt-verwaltung', 'zeiterfassung'];
 
 /** Sortiert Tools für die Menüleiste: NAVIGATION_PRIORITAET zuerst, Rest unverändert. */
 export const sortiereFuerNavigation = <T extends { id: string }>(tools: T[]): T[] => [
