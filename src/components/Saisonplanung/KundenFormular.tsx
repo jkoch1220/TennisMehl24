@@ -13,6 +13,8 @@ import {
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { kundennummerService } from '../../services/kundennummerService';
 import AdressAutocomplete from './AdressAutocomplete.tsx';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { emailAdressenFehler, normalisiereEmailAdressen } from '../../utils/emailAdressen';
 
 interface KundenFormularProps {
   kunde?: SaisonKundeMitDaten | null;
@@ -226,6 +228,16 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
         return;
       }
 
+      // E-Mail-Felder: mehrere Adressen sind erlaubt, aber jeder Eintrag muss eine sein
+      const emailFehler =
+        emailAdressenFehler(formData.email, 'E-Mail') ??
+        emailAdressenFehler(formData.rechnungsEmail, 'Rechnungs-E-Mail');
+      if (emailFehler) {
+        setError(emailFehler);
+        setLoading(false);
+        return;
+      }
+
       // Duplikatsprüfung nur bei neuen Kunden (nutzt Lieferadresse)
       if (!kunde && !ignoreDuplikate) {
         const gefundeneDuplikate = await saisonplanungService.pruefeDuplikat(
@@ -244,6 +256,11 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
 
       // Automatische Kundennummernvergabe für neue Kunden ohne Nummer
       let kundenDaten = { ...formData };
+      // Kanonisch speichern („a@x.de, b@y.de") — so verstehen Versand und mailto: das Feld
+      if (kundenDaten.email) kundenDaten.email = normalisiereEmailAdressen(kundenDaten.email);
+      if (kundenDaten.rechnungsEmail) {
+        kundenDaten.rechnungsEmail = normalisiereEmailAdressen(kundenDaten.rechnungsEmail);
+      }
       if (!kunde && !kundenDaten.kundennummer) {
         const neueNummer = await kundennummerService.generiereNaechsteKundennummer();
         kundenDaten.kundennummer = neueNummer;
@@ -530,11 +547,12 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
                 <div className="flex gap-2">
-                  <input
-                    type="email"
+                  <EmailAdressenInput
                     value={formData.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    onChange={(wert) => setFormData({ ...formData, email: wert })}
+                    feldname="E-Mail"
+                    wrapperClassName="flex-1"
+                    className="border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                   {formData.email && (
                     <button
@@ -556,15 +574,16 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                   Rechnungs-E-Mail
-                  <span className="text-xs text-gray-500 dark:text-slate-500 ml-1">(optional, abweichend)</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-500 ml-1">(optional, abweichend, mehrere möglich)</span>
                 </label>
                 <div className="flex gap-2">
-                  <input
-                    type="email"
+                  <EmailAdressenInput
                     value={formData.rechnungsEmail || ''}
-                    onChange={(e) => setFormData({ ...formData, rechnungsEmail: e.target.value })}
-                    placeholder="z.B. buchhaltung@verein.de"
-                    className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    onChange={(wert) => setFormData({ ...formData, rechnungsEmail: wert })}
+                    feldname="Rechnungs-E-Mail"
+                    placeholder="z.B. buchhaltung@verein.de, kassier@verein.de"
+                    wrapperClassName="flex-1"
+                    className="border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                   {formData.rechnungsEmail && (
                     <button
@@ -582,7 +601,8 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">
-                  Falls Rechnungen an eine andere Adresse gehen sollen (z.B. Geschäftsführer, Buchhaltung)
+                  Falls Rechnungen an eine andere Adresse gehen sollen (z.B. Geschäftsführer, Buchhaltung).
+                  Mehrere Adressen mit Semikolon oder Komma trennen — alle erhalten die Rechnung.
                 </p>
               </div>
 
@@ -1143,13 +1163,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
-                    <input
-                      type="email"
+                    <EmailAdressenInput
                       value={neuerAnsprechpartner.email || ''}
-                      onChange={(e) =>
-                        setNeuerAnsprechpartner({ ...neuerAnsprechpartner, email: e.target.value })
+                      onChange={(wert) =>
+                        setNeuerAnsprechpartner({ ...neuerAnsprechpartner, email: wert })
                       }
-                      className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                      mehrere={false}
+                      feldname="E-Mail des Ansprechpartners"
+                      className="border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                     />
                   </div>
                   <div>
@@ -1228,15 +1249,17 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">E-Mail</label>
                           <div className="flex gap-2">
-                            <input
-                              type="email"
+                            <EmailAdressenInput
                               value={ap.email || ''}
-                              onChange={(e) => {
+                              onChange={(wert) => {
                                 const updated = [...ansprechpartner];
-                                updated[apIndex] = { ...updated[apIndex], email: e.target.value };
+                                updated[apIndex] = { ...updated[apIndex], email: wert };
                                 setAnsprechpartner(updated);
                               }}
-                              className="flex-1 border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                              mehrere={false}
+                              feldname="E-Mail des Ansprechpartners"
+                              wrapperClassName="flex-1"
+                              className="border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
                             />
                             {ap.email && (
                               <button

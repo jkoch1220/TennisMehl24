@@ -43,6 +43,8 @@ import DokumentAdresseFormular, { DokumentAdresse } from '../Projektabwicklung/D
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
 import { getBucketId } from '../../config/mockModus';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { trenneEmailAdressen } from '../../utils/emailAdressen';
 
 interface PlatzbauerRechnungTabProps {
   projekt: PlatzbauerProjekt;
@@ -657,12 +659,12 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Empfänger E-Mail
                   </label>
-                  <input
-                    type="email"
+                  <EmailAdressenInput
                     value={emailEmpfaenger}
-                    onChange={(e) => setEmailEmpfaenger(e.target.value)}
-                    placeholder="email@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                    onChange={setEmailEmpfaenger}
+                    feldname="Empfänger"
+                    placeholder="email@example.com, weitere@example.com"
+                    className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                   />
                 </div>
 
@@ -693,7 +695,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                     setTimeout(() => {
                       const subject = encodeURIComponent(`Rechnung ${gespeicherteRechnung.dokumentNummer} - ${platzbauer?.name || 'Platzbauer'}`);
                       const body = encodeURIComponent(`Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung ${gespeicherteRechnung.dokumentNummer}.\n\nMit freundlichen Grüßen\nIhr Team der Tennismehl GmbH`);
-                      window.location.href = `mailto:${emailEmpfaenger}?subject=${subject}&body=${body}`;
+                      window.location.href = `mailto:${trenneEmailAdressen(emailEmpfaenger).join(',')}?subject=${subject}&body=${body}`;
                       setShowEmailDialog(false);
                     }, 500);
                   }}

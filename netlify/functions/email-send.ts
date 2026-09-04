@@ -311,8 +311,15 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
+    // Mehrere Empfänger: Semikolon/Leerzeichen (Outlook-Schreibweise) auf das
+    // Komma vereinheitlichen — nur das ist im To-Header (RFC 5322) zulässig.
+    const empfaengerListe = request.to
+      .split(/[\s,;]+/)
+      .filter((t) => t.length > 0)
+      .join(', ');
+
     // Testmodus - echten Empfänger ersetzen
-    const actualRecipient = request.testMode ? TEST_EMAIL_ADDRESS : request.to;
+    const actualRecipient = request.testMode ? TEST_EMAIL_ADDRESS : empfaengerListe || request.to;
     const testModeActive = request.testMode === true;
 
     // Betreff im Testmodus anpassen

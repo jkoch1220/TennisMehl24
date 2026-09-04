@@ -90,6 +90,7 @@ import {
 } from '../../utils/dieselZuschlag';
 import { holeDieselPreisFuerDatum } from '../../utils/dieselPreisAPI';
 import { ermittleEntfernungAbWerkKm } from '../../utils/lieferEntfernung';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
 
 // Konstanten
 const FREMDLIEFERUNG_STUNDENLOHN = 108;
@@ -1661,11 +1662,11 @@ const AnfrageBearbeitungDialog = ({
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         E-Mail <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="email"
+                      <EmailAdressenInput
                         value={editedData.email}
-                        onChange={(e) => setEditedData({ ...editedData, email: e.target.value })}
-                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        onChange={(wert) => setEditedData({ ...editedData, email: wert })}
+                        feldname="E-Mail"
+                        className="px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       />
                     </div>
                     <div className="sm:col-span-2">

@@ -22,6 +22,8 @@ import {
   wrapInEmailTemplate,
 } from '../../services/emailSendService';
 import { generiereStandardEmail } from '../../utils/emailHelpers';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { emailAdressenFehler, normalisiereEmailAdressen } from '../../utils/emailAdressen';
 import { EmailAccount, EmailProtokoll, DokumentTyp, TEST_EMAIL_ADDRESS } from '../../types/email';
 
 // Formatiert einen ISO-Zeitstempel als deutsches Datum mit Uhrzeit
@@ -270,6 +272,14 @@ const EmailFormular = ({
       return;
     }
 
+    const empfaengerFehler = emailAdressenFehler(empfaenger, 'Empfänger');
+    if (empfaengerFehler) {
+      setFehlerMeldung(empfaengerFehler);
+      return;
+    }
+    // Mehrere Adressen kommagetrennt — die Form, die der Versand versteht
+    const zielEmpfaenger = normalisiereEmailAdressen(empfaenger);
+
     if (!absender) {
       setFehlerMeldung('Bitte wählen Sie einen Absender.');
       return;
@@ -292,7 +302,7 @@ const EmailFormular = ({
 
       // E-Mail senden
       const result = await sendeEmailMitPdf({
-        empfaenger: empfaenger.trim(),
+        empfaenger: zielEmpfaenger,
         absender,
         betreff: betreff.trim(),
         htmlBody: vollstaendigesHtml,
@@ -309,7 +319,7 @@ const EmailFormular = ({
         setStatus('erfolg');
         const ziel = result.testModeActive
           ? `Test-Adresse (${TEST_EMAIL_ADDRESS})`
-          : empfaenger;
+          : zielEmpfaenger;
         setErfolgsMeldung(`E-Mail erfolgreich an ${ziel} gesendet!`);
 
         // Verlauf sofort aktualisieren (der neue Protokoll-Eintrag existiert bereits)
@@ -323,7 +333,7 @@ const EmailFormular = ({
           // Status-/Zeitstempel-Updates der Aufrufer dürfen dann nicht auslösen.
           onSend({
             testModus: testModus || result.testModeActive === true,
-            empfaenger: empfaenger.trim(),
+            empfaenger: zielEmpfaenger,
           });
         }
 
@@ -513,12 +523,12 @@ const EmailFormular = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
                 An <span className="text-red-500">*</span>
               </label>
-              <input
-                type="email"
+              <EmailAdressenInput
                 value={empfaenger}
-                onChange={(e) => setEmpfaenger(e.target.value)}
-                placeholder="kunde@example.com"
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={setEmpfaenger}
+                feldname="Empfänger"
+                placeholder="kunde@example.com, buchhaltung@example.com"
+                className="px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>

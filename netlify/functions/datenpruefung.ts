@@ -34,6 +34,8 @@ const SAISON_ANSPRECHPARTNER_COLLECTION_ID = 'saison_ansprechpartner';
 
 const TOKEN_GUELTIGKEIT_TAGE = 90;
 const MAX_KURZFELD_LAENGE = 200;
+/** Rechnungs-E-Mail darf mehrere Empfänger fassen */
+const MAX_EMAILLISTE_LAENGE = 500;
 const MAX_HINWEIS_LAENGE = 1000;
 
 const APPWRITE_ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT || '';
@@ -358,6 +360,26 @@ const kuerze = (text: unknown, maxLaenge: number): string | undefined => {
 const istGueltigeEmail = (email: string): boolean =>
   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 
+/**
+ * Rechnungs-E-Mail mit mehreren Empfängern („a@x.de; b@y.de", Komma, Leerzeichen).
+ * Liefert die kanonische Form „a@x.de, b@y.de" — oder undefined, sobald ein
+ * Eintrag keine Adresse ist. (Spiegel von src/utils/emailAdressen.ts; die
+ * Function kann nicht aus src importieren.)
+ */
+const normalisiereEmailListe = (liste: string): string | undefined => {
+  const teile = liste.split(/[\s,;]+/).filter((t) => t.length > 0);
+  if (teile.length === 0 || !teile.every(istGueltigeEmail)) return undefined;
+  const gesehen = new Set<string>();
+  const ergebnis: string[] = [];
+  for (const t of teile) {
+    const schluessel = t.toLowerCase();
+    if (gesehen.has(schluessel)) continue;
+    gesehen.add(schluessel);
+    ergebnis.push(t);
+  }
+  return ergebnis.join(', ');
+};
+
 /** Zusammenfassung der Rückmeldung als Dispo-Notiz-Text */
 const baueNotizText = (r: DatenpruefungRueckmeldung): string => {
   const zeilen: string[] = ['Kunde hat die AB-Daten über das Datenprüfungs-Formular geprüft:'];
@@ -523,9 +545,8 @@ const handler: Handler = async (event: HandlerEvent) => {
     const dispoTelefon = kuerze(request.dispoKontakt?.telefon, MAX_KURZFELD_LAENGE);
     const dispoEmailRoh = kuerze(request.dispoKontakt?.email, MAX_KURZFELD_LAENGE);
     const dispoEmail = dispoEmailRoh && istGueltigeEmail(dispoEmailRoh) ? dispoEmailRoh : undefined;
-    const rechnungsEmailRoh = kuerze(request.rechnungsEmail, MAX_KURZFELD_LAENGE);
-    const rechnungsEmail =
-      rechnungsEmailRoh && istGueltigeEmail(rechnungsEmailRoh) ? rechnungsEmailRoh : undefined;
+    const rechnungsEmailRoh = kuerze(request.rechnungsEmail, MAX_EMAILLISTE_LAENGE);
+    const rechnungsEmail = rechnungsEmailRoh ? normalisiereEmailListe(rechnungsEmailRoh) : undefined;
 
     if (dispoEmailRoh && !dispoEmail) {
       return {
@@ -538,7 +559,7 @@ const handler: Handler = async (event: HandlerEvent) => {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Die E-Mail-Adresse für den Rechnungsversand ist ungültig.' }),
+        body: JSON.stringify({ error: 'Mindestens eine E-Mail-Adresse für den Rechnungsversand ist ungültig.' }),
       };
     }
 

@@ -38,6 +38,7 @@ import { debitorService } from './debitorService';
 import { projektService } from './projektService';
 import { saisonplanungService } from './saisonplanungService';
 import { platzbauerverwaltungService } from './platzbauerverwaltungService';
+import { normalisiereEmailAdressen } from '../utils/emailAdressen';
 import {
   addDIN5008Header,
   addDIN5008Footer,
@@ -841,7 +842,9 @@ const mahnTypZuMahnstufe = (typ: MahnwesenDokumentTyp): DebitorMahnstufe =>
 
 /** Empfänger-Adresse bestimmen: rechnungsEmail zuerst, sonst kundenEmail */
 export const bestimmeMahnEmpfaenger = (debitor: DebitorView): string | undefined =>
-  debitor.rechnungsEmail?.trim() || debitor.kundenEmail?.trim() || undefined;
+  normalisiereEmailAdressen(debitor.rechnungsEmail) ||
+  normalisiereEmailAdressen(debitor.kundenEmail) ||
+  undefined;
 
 export interface MahnEmailKandidat {
   email: string;
@@ -928,7 +931,7 @@ export const ladeMahnEmailKandidaten = async (debitor: DebitorView): Promise<Mah
  * den Versand) und am Kunden (für künftige Projekte). Kunden-Update ist best-effort.
  */
 export const hinterlegeRechnungsEmail = async (debitor: DebitorView, email: string): Promise<void> => {
-  const sauber = email.trim();
+  const sauber = normalisiereEmailAdressen(email);
   if (!sauber) return;
   await projektService.updateProjekt(debitor.projektId, { rechnungsEmail: sauber });
   try {

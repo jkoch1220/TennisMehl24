@@ -3,6 +3,8 @@ import { X, Send, Loader2, CheckCircle2, XCircle, AlertTriangle, Mail } from 'lu
 import { DebitorView } from '../../types/debitor';
 import { MahnwesenDokumentTyp, MahnwesenTextVorlagen } from '../../types/mahnwesen';
 import { TEST_EMAIL_ADDRESS } from '../../types/email';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { sindGueltigeEmailAdressen } from '../../utils/emailAdressen';
 import {
   ladeMahnEmailKandidaten,
   hinterlegeRechnungsEmail,
@@ -41,7 +43,8 @@ interface RowState {
   ergebnis?: SendeMahnungErgebnis;
 }
 
-const istValideEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+// Mehrere Empfänger („a@x.de, b@y.de") sind erlaubt — jede Adresse muss gültig sein.
+const istValideEmail = (email: string) => sindGueltigeEmailAdressen(email);
 
 // Felder enthalten oft mehrere Adressen oder E-Mail + Telefon/Name im selben Feld
 // → nur die gültigen E-Mail-Adressen per Regex extrahieren.
@@ -282,13 +285,14 @@ const MahnVersandDialog = ({ entries, testModus, onClose, onFinished }: MahnVers
                   {row.loadingKandidaten && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
 
                   {row.auswahl === MANUELL && (
-                    <input
-                      type="email"
+                    <EmailAdressenInput
                       value={row.manuellEmail}
                       disabled={sending || fertig}
-                      onChange={(e) => updateRow(i, { manuellEmail: e.target.value })}
+                      onChange={(wert) => updateRow(i, { manuellEmail: wert })}
+                      feldname="E-Mail"
                       placeholder="email@kunde.de"
-                      className="text-sm px-2 py-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-200 flex-1 min-w-[180px]"
+                      wrapperClassName="flex-1 min-w-[180px]"
+                      className="text-sm px-2 py-1.5 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-200"
                     />
                   )}
 

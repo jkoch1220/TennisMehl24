@@ -45,6 +45,8 @@ import { DATABASE_ID } from '../../config/appwrite';
 import { loadAllDocuments } from '../../utils/appwritePagination';
 import { Query } from 'appwrite';
 import { useCan } from '../../hooks/useCan';
+import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { emailAdressenFehler, normalisiereEmailAdressen } from '../../utils/emailAdressen';
 
 // Universal-Bestellung Interface
 interface UniversalBestellung {
@@ -979,6 +981,12 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
       return;
     }
 
+    const empfaengerFehler = emailAdressenFehler(trackingEmailDaten.empfaenger, 'Empfänger');
+    if (empfaengerFehler) {
+      alert(empfaengerFehler);
+      return;
+    }
+
     if (!trackingEmailDaten.trackingNummer.trim()) {
       alert('Bitte geben Sie eine Tracking-Nummer ein.');
       return;
@@ -998,7 +1006,7 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
 
       // Email senden (ohne PDF-Anhang)
       const result = await sendeEmail({
-        to: empfaenger,
+        to: normalisiereEmailAdressen(empfaenger),
         from: TENNISMEHL_ABSENDER,
         subject: betreff,
         htmlBody,
@@ -2340,12 +2348,12 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       E-Mail
                     </label>
-                    <input
-                      type="email"
+                    <EmailAdressenInput
                       value={emailVorschauDaten.kundenEmail || ''}
-                      onChange={(e) => setEmailVorschauDaten(prev => prev ? { ...prev, kundenEmail: e.target.value } : null)}
+                      onChange={(wert) => setEmailVorschauDaten(prev => prev ? { ...prev, kundenEmail: wert } : null)}
+                      feldname="E-Mail"
                       placeholder="z.B. kunde@email.de"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                   </div>
                 </div>
@@ -2500,12 +2508,12 @@ ${lieferKWText ? `<p>${lieferKWText}</p>` : ''}`;
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Empfänger <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="email"
+                <EmailAdressenInput
                   value={trackingEmailDaten.empfaenger}
-                  onChange={(e) => setTrackingEmailDaten(prev => prev ? { ...prev, empfaenger: e.target.value } : null)}
+                  onChange={(wert) => setTrackingEmailDaten(prev => prev ? { ...prev, empfaenger: wert } : null)}
+                  feldname="Empfänger"
                   placeholder="kunde@example.com"
-                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  className="px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   disabled={testModus}
                 />
                 {!trackingEmailDaten.empfaenger && !testModus && (

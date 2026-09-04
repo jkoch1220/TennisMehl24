@@ -27,13 +27,16 @@ import { generiereStandardEmail } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
 import { GespeichertesDokument, RechnungsDaten } from '../types/projektabwicklung';
 import { Projekt } from '../types/projekt';
+import { normalisiereEmailAdressen } from '../utils/emailAdressen';
 
 const EMAIL_PROTOKOLL_COLLECTION_ID = 'email_protokoll';
 const RECHNUNG_ABSENDER = 'info@tennismehl.com';
 
 /** Empfänger-Regel: rechnungsEmail zuerst, sonst kundenEmail */
 export const bestimmeRechnungEmpfaenger = (projekt: Projekt): string | undefined =>
-  projekt.rechnungsEmail?.trim() || projekt.kundenEmail?.trim() || undefined;
+  normalisiereEmailAdressen(projekt.rechnungsEmail) ||
+  normalisiereEmailAdressen(projekt.kundenEmail) ||
+  undefined;
 
 /** Projekt-IDs, für die bereits eine Rechnung erfolgreich per E-Mail versendet wurde */
 const ladeVersendeteProjektIds = async (): Promise<Set<string>> => {

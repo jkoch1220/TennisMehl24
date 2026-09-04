@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 
 import { blockiereImMockModus } from '../config/mockModus';
+import EmailAdressenInput from '../components/Shared/EmailAdressenInput';
+import { emailAdressenFehler, normalisiereEmailAdressen } from '../utils/emailAdressen';
 
 const FUNCTION_URL = '/.netlify/functions/datenpruefung';
 
@@ -158,7 +160,9 @@ const Datenpruefung = () => {
       dispoName.trim() !== auftrag.dispoKontakt.name ||
       dispoTelefon.trim() !== auftrag.dispoKontakt.telefon ||
       dispoEmail.trim() !== auftrag.dispoKontakt.email;
-    const rechnungsEmailGeaendert = rechnungsEmail.trim() !== auftrag.rechnungsEmail;
+    const rechnungsEmailNeu = normalisiereEmailAdressen(rechnungsEmail);
+    const rechnungsEmailGeaendert =
+      rechnungsEmailNeu !== normalisiereEmailAdressen(auftrag.rechnungsEmail);
     const allesKorrekt =
       !dispoGeaendert &&
       !rechnungsEmailGeaendert &&
@@ -166,6 +170,14 @@ const Datenpruefung = () => {
       !befahrbarkeitHinweis.trim() &&
       !mengeLieferanschriftHinweis.trim() &&
       !rechnungsadresseHinweis.trim();
+
+    const emailFehler =
+      emailAdressenFehler(dispoEmail, 'E-Mail des Ansprechpartners', false) ??
+      emailAdressenFehler(rechnungsEmail, 'E-Mail für den Rechnungsversand');
+    if (emailFehler) {
+      setFehlerText(emailFehler);
+      return;
+    }
 
     setStatus('senden');
     setFehlerText('');
@@ -192,7 +204,7 @@ const Datenpruefung = () => {
           befahrbarkeitHinweis: befahrbarkeitHinweis.trim() || undefined,
           mengeLieferanschriftHinweis: mengeLieferanschriftHinweis.trim() || undefined,
           rechnungsadresseHinweis: rechnungsadresseHinweis.trim() || undefined,
-          rechnungsEmail: rechnungsEmailGeaendert ? rechnungsEmail.trim() || undefined : undefined,
+          rechnungsEmail: rechnungsEmailGeaendert ? rechnungsEmailNeu || undefined : undefined,
           testModus: testModus || undefined,
         }),
       });
@@ -343,11 +355,13 @@ const Datenpruefung = () => {
                 </div>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="email"
+                  <EmailAdressenInput
                     value={dispoEmail}
-                    onChange={(e) => setDispoEmail(e.target.value)}
+                    onChange={setDispoEmail}
+                    mehrere={false}
+                    feldname="E-Mail des Ansprechpartners"
                     placeholder="E-Mail-Adresse *"
+                    hinweis={false}
                     disabled={status === 'senden'}
                     className={`${eingabeKlasse} pl-10`}
                   />
@@ -427,15 +441,19 @@ const Datenpruefung = () => {
               </p>
               <div className="relative mt-3">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="email"
+                <EmailAdressenInput
                   value={rechnungsEmail}
-                  onChange={(e) => setRechnungsEmail(e.target.value)}
-                  placeholder="E-Mail-Adresse für den Rechnungsversand"
+                  onChange={setRechnungsEmail}
+                  feldname="E-Mail für den Rechnungsversand"
+                  placeholder="E-Mail-Adresse(n) für den Rechnungsversand"
+                  hinweis={false}
                   disabled={status === 'senden'}
                   className={`${eingabeKlasse} pl-10`}
                 />
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Mehrere Empfänger mit Komma oder Semikolon trennen.
+              </p>
               <textarea
                 value={rechnungsadresseHinweis}
                 onChange={(e) => setRechnungsadresseHinweis(e.target.value)}

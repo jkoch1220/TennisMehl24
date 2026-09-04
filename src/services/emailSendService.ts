@@ -16,6 +16,7 @@ import {
   TEST_EMAIL_ADDRESS,
 } from '../types/email';
 import { Query } from 'appwrite';
+import { normalisiereEmailAdressen } from '../utils/emailAdressen';
 
 // Collection ID für E-Mail-Protokoll
 const EMAIL_PROTOKOLL_COLLECTION_ID = 'email_protokoll';
@@ -115,6 +116,11 @@ export const sendeEmail = async (request: EmailSendRequest): Promise<EmailSendRe
   // läuft, die `testMode` noch nicht kennt — dieser Fall wäre sonst genau der
   // Weg, auf dem eine Sandbox-Mail bei einem echten Kunden landet.
   const mockAktiv = istMockModusAktiv();
+  // Empfänger vereinheitlichen: Felder enthalten oft mehrere Adressen in
+  // Outlook-Schreibweise („a@x.de; b@y.de"). nodemailer versteht das zwar,
+  // der von Hand gebaute To-Header der IMAP-„Gesendet"-Kopie aber nicht —
+  // dort ist nur das Komma zulässig. Deshalb hier zentral „a@x.de, b@y.de".
+  const zielAdressen = normalisiereEmailAdressen(request.to) || request.to;
   const effektiverRequest: EmailSendRequest = mockAktiv
     ? {
         ...request,
@@ -122,9 +128,9 @@ export const sendeEmail = async (request: EmailSendRequest): Promise<EmailSendRe
         to: TEST_EMAIL_ADDRESS,
         subject: request.subject.startsWith('[MOCK')
           ? request.subject
-          : `[MOCK → ${request.to}] ${request.subject}`,
+          : `[MOCK → ${zielAdressen}] ${request.subject}`,
       }
-    : request;
+    : { ...request, to: zielAdressen };
 
   if (mockAktiv) {
     console.warn(
