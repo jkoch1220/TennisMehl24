@@ -84,8 +84,12 @@ export default function TeamUebersicht({
           const tage = werteZeitraumAus(von, bis, m.id, events, jetzt);
           return { mitarbeiter: m, tage, summe: summiere(tage) };
         })
-        // Wer im Monat nichts gestempelt hat und auch keine Lücke hat, ist keine
-        // Zeile wert — sonst besteht die Tabelle aus Nullen.
+        // Zwei Ausschlüsse, beide bewusst: Wer im Monat nichts gestempelt hat und
+        // keine Lücke aufweist, wäre eine Zeile aus Nullen. Und wer nicht der
+        // Erfassungspflicht unterliegt (Geschäftsführung), gehört gar nicht in
+        // diese Auswertung — solange dort nichts steht. Steht doch etwas drin,
+        // wird es gezeigt: eine stille Lücke wäre schlimmer als eine Zeile zu viel.
+        .filter((z) => !(z.mitarbeiter.keineErfassungspflicht && z.summe.arbeitstage === 0))
         .filter((z) => z.summe.arbeitstage > 0 || z.summe.unvollstaendigeTage > 0)
         .sort((a, b) => a.mitarbeiter.name.localeCompare(b.mitarbeiter.name, 'de'));
 

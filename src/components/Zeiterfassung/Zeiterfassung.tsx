@@ -22,6 +22,7 @@ import {
   TriangleAlert,
   UserX,
   Users,
+  BadgeCheck,
 } from 'lucide-react';
 import {
   type StempelStatus,
@@ -129,6 +130,14 @@ export default function Zeiterfassung() {
       : null);
   const fuerFremden = !!effektiveId && effektiveId !== eigenId;
   const istLeitung = statusAntwort?.istLeitung ?? false;
+
+  /**
+   * Gesellschafter-Geschäftsführer sind keine Arbeitnehmer und unterliegen weder
+   * dem ArbZG noch der Aufzeichnungspflicht aus § 3 Abs. 2 Nr. 1 ArbSchG. Für sie
+   * wird gar nicht erst eine Stempelkarte angeboten — ein Knopf, den man nicht
+   * drücken soll, ist eine schlechte Erklärung.
+   */
+  const ohneErfassungspflicht = zielMitarbeiter?.keineErfassungspflicht === true;
 
   const auswertung = useMemo(() => {
     if (!statusAntwort || !effektiveId) return null;
@@ -312,8 +321,27 @@ export default function Zeiterfassung() {
           </div>
         )}
 
+        {/* Von der Erfassung befreit — Hinweis statt Stempelkarte */}
+        {effektiveId && ohneErfassungspflicht && ansicht !== 'team' && (
+          <div className="bg-white dark:bg-dark-surface rounded-2xl border border-gray-200 dark:border-dark-border p-6 text-center">
+            <BadgeCheck className="w-10 h-10 mx-auto text-emerald-500" />
+            <h2 className="mt-3 font-semibold text-gray-900 dark:text-white">
+              Keine Zeiterfassung erforderlich
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-dark-textMuted">
+              {fuerFremden ? `${zielMitarbeiter?.name} unterliegt` : 'Du unterliegst'} als
+              Geschäftsführung nicht der Arbeitszeiterfassung. Die Pflicht aus dem
+              BAG-Beschluss vom 13.09.2022 gilt für Arbeitnehmer; Organvertreter einer GmbH
+              fallen weder unter das Arbeitsschutz- noch unter das Arbeitszeitgesetz.
+            </p>
+            <p className="mt-2 text-xs text-gray-500 dark:text-dark-textSubtle">
+              Sollen hier trotzdem Zeiten erscheinen, kann die Zeitleitung sie nachtragen.
+            </p>
+          </div>
+        )}
+
         {/* Heute */}
-        {ansicht === 'heute' && effektiveId && auswertung && (
+        {ansicht === 'heute' && effektiveId && auswertung && !ohneErfassungspflicht && (
           <>
             <StempelKarte
               mitarbeiterName={zielMitarbeiter?.name ?? 'Unbekannt'}
@@ -338,7 +366,7 @@ export default function Zeiterfassung() {
         )}
 
         {/* Monat */}
-        {ansicht === 'monat' && effektiveId && (
+        {ansicht === 'monat' && effektiveId && !ohneErfassungspflicht && (
           <MonatsUebersicht
             mitarbeiterId={effektiveId}
             mitarbeiterName={zielMitarbeiter?.name ?? 'Unbekannt'}

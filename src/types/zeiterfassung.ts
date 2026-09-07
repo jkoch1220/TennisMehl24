@@ -153,6 +153,20 @@ export interface ZeitMitarbeiter {
   maxStundenProWoche: number;
   /** Appwrite-User-ID, falls dem Mitarbeiter ein Portal-Konto zugeordnet ist. */
   userId?: string;
+  /**
+   * Unterliegt nicht der Arbeitszeiterfassung — typischerweise
+   * Gesellschafter-Geschäftsführer.
+   *
+   * Die Pflicht aus dem BAG-Beschluss vom 13.09.2022 stützt sich auf
+   * § 3 Abs. 2 Nr. 1 ArbSchG; das Arbeitsschutzgesetz gilt für Beschäftigte.
+   * Organvertreter einer GmbH sind keine Arbeitnehmer und fallen weder darunter
+   * noch unter das ArbZG.
+   *
+   * Das ist kein kosmetisches Ausblenden: Wer nicht der Höchstarbeitszeit
+   * unterliegt, darf auch keine Verstoßmeldungen dagegen erzeugen — sonst
+   * ertrinken die echten Warnungen bei den Angestellten im Rauschen.
+   */
+  keineErfassungspflicht?: boolean;
 }
 
 /* ------------------------------------------------------------------ *

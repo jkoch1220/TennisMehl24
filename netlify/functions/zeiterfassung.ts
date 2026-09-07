@@ -113,6 +113,8 @@ interface ZeitMitarbeiter {
   istAktiv: boolean;
   maxStundenProWoche: number;
   userId?: string;
+  /** Gesellschafter-Geschäftsführer o.ä. — kein Arbeitnehmer, keine Erfassungspflicht. */
+  keineErfassungspflicht?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -142,6 +144,7 @@ interface ZeitEventDoc extends Models.Document {
 interface MitarbeiterDoc extends Models.Document {
   istAktiv?: boolean;
   userId?: string | null;
+  keineErfassungspflicht?: boolean | null;
   data?: string | null;
 }
 
@@ -366,6 +369,7 @@ const mapMitarbeiter = (doc: MitarbeiterDoc): ZeitMitarbeiter => {
     istAktiv: doc.istAktiv !== false,
     maxStundenProWoche: maxStunden,
     ...(doc.userId ? { userId: doc.userId } : {}),
+    ...(doc.keineErfassungspflicht === true ? { keineErfassungspflicht: true } : {}),
   };
 };
 

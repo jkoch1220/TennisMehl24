@@ -140,6 +140,33 @@ async function vorhandeneAttribute(coll) {
  * die Pflichtfelder von `zeit_events` direkt beim Erstanlegen. `default` ist
  * bei required verboten und wird hier nie mitgegeben.
  */
+async function ensureBooleanAttr(coll, key, required = false, vorhanden = null) {
+  const attrs = vorhanden ?? (await vorhandeneAttribute(coll));
+  if (attrs.some((a) => a.key === key)) {
+    console.log(`OK   ${coll}.${key} existiert`);
+    bilanz.vorhanden.push(`${coll}.${key}`);
+    return;
+  }
+  if (DRY_RUN) {
+    console.log(`DRY  ${coll}.${key} würde angelegt (boolean${required ? ', PFLICHT' : ', optional'})`);
+    return;
+  }
+  try {
+    await db.createBooleanAttribute(DB, coll, key, required);
+    console.log(`NEU  ${coll}.${key} (boolean${required ? ', PFLICHT' : ', optional'})`);
+    bilanz.neu.push(`${coll}.${key}`);
+    await sleep(800);
+  } catch (e) {
+    if (e.code === 409) {
+      console.log(`OK   ${coll}.${key} existiert (parallel angelegt)`);
+      bilanz.vorhanden.push(`${coll}.${key}`);
+      return;
+    }
+    console.warn(`⚠️   ${coll}.${key} nicht angelegt: ${e.message}`);
+    bilanz.fehler.push(`${coll}.${key}: ${e.message}`);
+  }
+}
+
 async function ensureStringAttr(coll, key, size, required = false, vorhanden = null) {
   const attrs = vorhanden ?? (await vorhandeneAttribute(coll));
   if (attrs.some((a) => a.key === key)) {
@@ -303,7 +330,7 @@ async function main() {
   await ensureIndex(ABSCHLUESSE, 'idx_ma_monat', ['mitarbeiterId', 'monat'], 'unique');
 
   // ---------------------------------------------------------------- 3
-  console.log(`\n— Erweiterung ${MITARBEITER}.userId —`);
+  console.log(`\n— Erweiterung ${MITARBEITER}: userId + keineErfassungspflicht —`);
   // Nur dieses eine Attribut plus Index. Die Collection selbst (Permissions,
   // `data`-Blob, `istAktiv`) wird bewusst nicht angefasst.
   if (!(await collectionExists(MITARBEITER))) {
@@ -313,6 +340,15 @@ async function main() {
     // Optional, nicht required: die Collection enthält bereits Mitarbeiter
     // ohne Portal-Konto, und die sollen es auch bleiben dürfen.
     await ensureStringAttr(MITARBEITER, 'userId', 64, false);
+
+    // Wer nicht der Erfassungspflicht unterliegt — Gesellschafter-Geschäftsführer
+    // sind keine Arbeitnehmer i.S.d. ArbSchG/ArbZG. Ohne dieses Kennzeichen
+    // erzeugte das Tool für sie Verstoßmeldungen gegen Grenzen, die für sie
+    // gar nicht gelten, und entwertete damit die Warnungen bei den Angestellten.
+    // Optional statt required mit Default: die Collection ist bereits gefüllt,
+    // und `default` ist bei required-Attributen ohnehin unzulässig.
+    await ensureBooleanAttr(MITARBEITER, 'keineErfassungspflicht', false);
+
     await waitForAttributes(MITARBEITER);
     await ensureIndex(MITARBEITER, 'idx_userid', ['userId']);
   }

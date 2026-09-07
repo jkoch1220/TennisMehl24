@@ -14,10 +14,20 @@
  * Nicht jeder braucht eine Zuordnung. Wer kein Portal-Konto hat — etwa eine
  * Aushilfe ohne Bildschirmarbeitsplatz — wird von der Zeitleitung miterfasst.
  *
+ * Zweitens steuert das Skript, WER überhaupt der Erfassungspflicht unterliegt.
+ * Gesellschafter-Geschäftsführer sind keine Arbeitnehmer: die Pflicht aus dem
+ * BAG-Beschluss vom 13.09.2022 stützt sich auf § 3 Abs. 2 Nr. 1 ArbSchG, und das
+ * Arbeitsschutzgesetz gilt für Beschäftigte. Wer befreit ist, bekommt keine
+ * Stempelkarte und taucht nicht in der Team-Auswertung auf — sonst entstünden
+ * dort laufend "Verstöße" gegen Grenzen, die für diese Person nicht gelten, und
+ * die echten Warnungen bei den Angestellten gingen darin unter.
+ *
  * Verwendung:
  *   node scripts/zeiterfassung-zuordnung.mjs                        Übersicht
  *   node scripts/zeiterfassung-zuordnung.mjs --set <maId> <userId>  verknüpfen
  *   node scripts/zeiterfassung-zuordnung.mjs --clear <maId>         Zuordnung lösen
+ *   node scripts/zeiterfassung-zuordnung.mjs --befreien <maId>      keine Erfassungspflicht
+ *   node scripts/zeiterfassung-zuordnung.mjs --pflichtig <maId>     Befreiung zurücknehmen
  *   ... zusätzlich --dry-run für eine Vorschau, --mock für die Sandbox
  */
 
@@ -28,6 +38,8 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const MOCK = process.argv.includes('--mock');
 const setIdx = process.argv.indexOf('--set');
 const clearIdx = process.argv.indexOf('--clear');
+const befreienIdx = process.argv.indexOf('--befreien');
+const pflichtigIdx = process.argv.indexOf('--pflichtig');
 
 // Muss zu MOCK_DATABASE_ID / PRODUKTIONS_DATABASE_ID aus src/config/appwriteEnv.ts passen.
 const DB = MOCK ? 'tennismehl24_db_mock' : 'tennismehl24_db';
@@ -84,8 +96,12 @@ async function uebersicht() {
       : konto
         ? `→ ${konto.name || konto.email}  (${m.userId})`
         : `⚠️  verweist auf ein gelöschtes Konto (${m.userId})`;
-    console.log(`  ${m.istAktiv ? '●' : '○'} ${nameVon(m).padEnd(26)} ${m.$id}`);
+    const befreit = m.keineErfassungspflicht === true;
+    console.log(`  ${befreit ? '⊘' : m.istAktiv ? '●' : '○'} ${nameVon(m).padEnd(26)} ${m.$id}`);
     console.log(`     ${zustand}`);
+    if (befreit) {
+      console.log('     ⊘ keine Erfassungspflicht (Geschäftsführung) — kein Stempeln, nicht in der Auswertung');
+    }
   }
 
   const zugeordnet = new Set(mitarbeiter.map((m) => m.userId).filter(Boolean));
@@ -97,7 +113,7 @@ async function uebersicht() {
     }
   }
 
-  console.log('\n● = aktiv   ○ = inaktiv');
+  console.log('\n● = aktiv   ○ = inaktiv   ⊘ = keine Erfassungspflicht');
   console.log('Verknüpfen:  node scripts/zeiterfassung-zuordnung.mjs --set <mitarbeiterId> <userId>\n');
 }
 
@@ -138,6 +154,33 @@ async function setzeZuordnung(mitarbeiterId, userId) {
   }
 }
 
+async function setzeBefreiung(mitarbeiterId, befreit) {
+  const alle = await ladeMitarbeiter();
+  const ziel = alle.find((m) => m.$id === mitarbeiterId);
+  if (!ziel) {
+    console.error(`❌ Kein Mitarbeiter mit der ID ${mitarbeiterId} in ${DB}.`);
+    process.exit(1);
+  }
+
+  if ((ziel.keineErfassungspflicht === true) === befreit) {
+    console.log(`✓ ${nameVon(ziel)} ist bereits ${befreit ? 'befreit' : 'erfassungspflichtig'} — nichts zu tun.`);
+    return;
+  }
+
+  if (DRY_RUN) {
+    console.log(`🔍 DRY-RUN — ${nameVon(ziel)} würde ${befreit ? 'von der Erfassung befreit' : 'wieder erfassungspflichtig'}.`);
+    return;
+  }
+
+  await db.updateDocument(DB, COLL, mitarbeiterId, { keineErfassungspflicht: befreit });
+  if (befreit) {
+    console.log(`✅ ${nameVon(ziel)}: keine Erfassungspflicht mehr.`);
+    console.log('   Bereits erfasste Stempel bleiben erhalten und werden weiterhin angezeigt.');
+  } else {
+    console.log(`✅ ${nameVon(ziel)}: wieder erfassungspflichtig.`);
+  }
+}
+
 console.log(`${DRY_RUN ? '🔍 DRY-RUN — es wird nichts geschrieben' : '✏️  SCHREIBMODUS'}  ·  Datenbank: ${DB}`);
 
 if (setIdx > -1) {
@@ -147,6 +190,20 @@ if (setIdx > -1) {
     process.exit(1);
   }
   await setzeZuordnung(maId, userId);
+} else if (befreienIdx > -1) {
+  const maId = process.argv[befreienIdx + 1];
+  if (!maId) {
+    console.error('❌ Aufruf: --befreien <mitarbeiterId>');
+    process.exit(1);
+  }
+  await setzeBefreiung(maId, true);
+} else if (pflichtigIdx > -1) {
+  const maId = process.argv[pflichtigIdx + 1];
+  if (!maId) {
+    console.error('❌ Aufruf: --pflichtig <mitarbeiterId>');
+    process.exit(1);
+  }
+  await setzeBefreiung(maId, false);
 } else if (clearIdx > -1) {
   const maId = process.argv[clearIdx + 1];
   if (!maId) {
