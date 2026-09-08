@@ -73,20 +73,48 @@ export interface ProjektAnhang {
   groesse: number; // Bytes
 }
 
-// Referenzen des digitalen Liefernachweises (QR-Scan durch den Fahrer)
+/**
+ * Wie der Liefernachweis zustande kam.
+ * - 'fahrer': Der Speditionsfahrer scannt den QR-Code beim Abladen (Foto Pflicht,
+ *   Unterschrift optional — bei Schüttgut ist oft niemand vor Ort).
+ * - 'abholung': Der Kunde holt selbst ab und unterschreibt bei der Übergabe im
+ *   Werk auf dem Handy (Unterschrift Pflicht, Foto optional). Der unterschriebene
+ *   Lieferschein geht danach automatisch per E-Mail an den Kunden.
+ * Fehlt das Feld (Altbestand vor 09/2026), gilt 'fahrer'.
+ */
+export type LiefernachweisArt = 'fahrer' | 'abholung';
+
+/** Ergebnis des automatischen Lieferschein-Versands nach einer Abholung */
+export interface LieferscheinVersandInfo {
+  /** Empfänger, wie auf der Bestätigungsseite eingetragen (kommagetrennt bei mehreren) */
+  an: string;
+  /** ISO-Zeitpunkt des (letzten) Versandversuchs */
+  am: string;
+  status: 'gesendet' | 'fehler';
+  /** Klartext, warum der Versand scheiterte — dann im Portal erneut auslösen */
+  fehler?: string;
+}
+
+// Referenzen des digitalen Liefernachweises (QR-Scan durch den Fahrer bzw. Abholung im Werk)
 export interface LiefernachweisInfo {
-  /** Datei-ID des Pflichtfotos im Bucket liefernachweis-dateien */
+  /** Fahrer-Scan oder Abholung im Werk — siehe LiefernachweisArt */
+  art?: LiefernachweisArt;
+  /** Datei-ID des Fotos im Bucket liefernachweis-dateien (Pflicht beim Fahrer, optional bei Abholung) */
   fotoDateiId?: string;
-  /** Datei-ID der optionalen Unterschrift (PNG) im Bucket liefernachweis-dateien */
+  /** Datei-ID der Unterschrift (PNG) im Bucket liefernachweis-dateien (optional beim Fahrer, Pflicht bei Abholung) */
   unterschriftDateiId?: string;
   /** Name des Fahrers (Pflichtfeld auf der Bestätigungsseite) */
   fahrerName?: string;
-  /** Name des Unterzeichners (optional, bei Schüttgut oft niemand vor Ort) */
+  /** Name des Unterzeichners — beim Fahrer optional, bei Abholung der Abholer (Pflicht) */
   unterzeichnerName?: string;
+  /** Kfz-Kennzeichen des abholenden Fahrzeugs (nur Abholung, optional) */
+  kennzeichen?: string;
   /** GPS-Position beim Bestätigen (nur nach Browser-Freigabe) */
   geo?: { lat: number; lng: number };
   /** $id des archivierten Liefernachweis-Dokuments in bestellabwicklung_dokumente */
   dokumentId?: string;
+  /** Automatischer Versand des unterschriebenen Lieferscheins an den Kunden (nur Abholung) */
+  lieferscheinVersand?: LieferscheinVersandInfo;
 }
 
 /**
@@ -208,6 +236,13 @@ export interface Projekt {
   kundenname: string;
   kundenstrasse: string;
   kundenPlzOrt: string;
+  /**
+   * Zeitpunkt, zu dem der Kunde die Rechnungsanschrift im Bestellportal selbst
+   * gesetzt hat. Ist er gesetzt, gilt für diesen Vorgang `kundenstrasse`/
+   * `kundenPlzOrt` am Projekt und NICHT die Anschrift aus dem Kundenstamm
+   * (siehe services/rechnungsadressenService.ts, Fall „Direktgeschäft").
+   */
+  rechnungsadresseVomKundenAm?: string;
   kundenEmail?: string;
   /** Telefonnummer des Kunden (z.B. aus Shop-Bestellung) */
   kundenTelefon?: string;

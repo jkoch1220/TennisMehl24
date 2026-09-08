@@ -14,6 +14,26 @@
  *          bestellabwicklung_dokumente, legt Fotos/Unterschrift im Bucket
  *          liefernachweis-dateien ab und setzt dispoStatus='geliefert' +
  *          liefernachweisAm am Projekt (im data-JSON).
+ *   POST { projektId, token, aktion: 'lieferschein-erneut-senden', empfaenger }
+ *        → schickt den bereits archivierten, unterschriebenen Lieferschein
+ *          noch einmal (nur nach einer Abholung; vom Portal ausgelöst).
+ *
+ * ===========================================================================
+ * ZWEI WEGE: FAHRER ODER ABHOLUNG
+ * ===========================================================================
+ * Dieselbe Seite, derselbe Token, aber zwei verschiedene Abläufe — welcher
+ * gilt, entscheidet der SERVER an der Belieferungsart des Projekts:
+ *
+ * - FAHRER (Standard): Der Speditionsfahrer bestätigt beim Abladen. Foto der
+ *   Ware Pflicht, Wiegeschein Pflicht (WIEGESCHEIN_PFLICHT), Unterschrift
+ *   optional — bei Schüttgut ist oft niemand vor Ort.
+ * - ABHOLUNG AB WERK: Der Kunde holt selbst ab und unterschreibt bei der
+ *   Übergabe im Werk auf dem Handy. Unterschrift und Name des Abholers sind
+ *   Pflicht, Fotos optional. Danach hängt die Function die Empfangsbestätigung
+ *   (Unterschrift, Name, Kennzeichen, Zeitpunkt, Positionen) als letzte Seite
+ *   an den archivierten Lieferschein und schickt das Ganze per E-Mail an den
+ *   Kunden — ein Ausdruck ist nicht mehr nötig. Scheitert nur der Versand,
+ *   ist die Abholung trotzdem bestätigt; das Portal kann erneut senden.
  *
  * Sicherheit:
  *   - Token-Gleichheit (timing-safe) + Ablauf nach 30 Tagen
@@ -44,6 +64,7 @@
 import { Handler, HandlerEvent } from '@netlify/functions';
 import { timingSafeEqual } from 'node:crypto';
 import { jsPDF } from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
 
 // === Konfiguration (identisch zu src/config/appwrite.ts) ===
 const PRODUKTIONS_DATABASE_ID = 'tennismehl24_db';
@@ -52,6 +73,32 @@ const PROJEKTE_COLLECTION_ID = 'projekte';
 const DOKUMENTE_COLLECTION_ID = 'bestellabwicklung_dokumente';
 const DOKUMENTE_BUCKET_BASIS = 'bestellabwicklung_dateien';
 const LIEFERNACHWEIS_BUCKET_BASIS = 'liefernachweis-dateien';
+const EMAIL_PROTOKOLL_COLLECTION_ID = 'email_protokoll';
+const STAMMDATEN_COLLECTION_ID = 'stammdaten';
+const STAMMDATEN_DOCUMENT_ID = 'stammdaten_data';
+
+/**
+ * Absender für den unterschriebenen Lieferschein nach einer Abholung.
+ * Erster Treffer in EMAIL_ACCOUNTS gewinnt — dieselbe Vorzugsreihenfolge wie
+ * das E-Mail-Formular im Lieferschein-Tab (logistik@, sonst info@).
+ * Überschreibbar per Umgebungsvariable LIEFERSCHEIN_ABSENDER.
+ */
+const ABSENDER_KANDIDATEN = [
+  process.env.LIEFERSCHEIN_ABSENDER || '',
+  'logistik@tennismehl.com',
+  'info@tennismehl.com',
+].filter(Boolean);
+
+/** Höchstens so viele Adressen darf der Abholer für den Lieferschein angeben */
+const MAX_EMPFAENGER = 3;
+const MAX_KURZFELD_LAENGE = 120;
+
+/**
+ * Wo `email-send` erreichbar ist — auf Netlify die eigene Deploy-URL, lokal
+ * der Dev-Mailserver aus `npm run dev:full` (Muster wie bestellung.ts).
+ */
+const basisUrl = (): string =>
+  process.env.URL || process.env.DEPLOY_PRIME_URL || 'http://localhost:8888';
 
 /**
  * ===========================================================================
@@ -155,14 +202,49 @@ interface ProjektDaten {
   beauftragteTonnen?: number;
   anzahlPaletten?: number;
   dispoAnsprechpartner?: { name?: string; telefon?: string };
+  /** 'abholung_ab_werk' schaltet die Function in den Abholungs-Ablauf */
+  belieferungsart?: string;
+  /** Vorschlag für den Lieferschein-Empfänger bei einer Abholung */
+  kundenEmail?: string;
+  bestellEmpfaenger?: string;
   liefernachweisToken?: string;
   liefernachweisTokenErstelltAm?: string;
   liefernachweisAm?: string;
-  liefernachweis?: Record<string, unknown>;
+  liefernachweis?: LiefernachweisInfo;
   wiegeschein?: Record<string, unknown>;
   lieferscheinDaten?: string;
   auftragsbestaetigungsDaten?: string;
   [key: string]: unknown;
+}
+
+/** Ergebnis des automatischen Lieferschein-Versands (Spiegel von types/projekt.ts) */
+interface LieferscheinVersandInfo {
+  an: string;
+  am: string;
+  status: 'gesendet' | 'fehler';
+  fehler?: string;
+}
+
+/** Spiegel von LiefernachweisInfo in src/types/projekt.ts */
+interface LiefernachweisInfo {
+  art?: 'fahrer' | 'abholung';
+  fotoDateiId?: string;
+  unterschriftDateiId?: string;
+  fahrerName?: string;
+  unterzeichnerName?: string;
+  kennzeichen?: string;
+  geo?: { lat: number; lng: number; genauigkeitM?: number };
+  dokumentId?: string;
+  lieferscheinVersand?: LieferscheinVersandInfo;
+}
+
+interface DokumentEintrag {
+  $id: string;
+  dateiId?: string;
+  dateiname?: string;
+  dokumentNummer?: string;
+  dokumentTyp?: string;
+  daten?: string;
 }
 
 interface ProjektDokument {
@@ -180,11 +262,16 @@ interface PositionOhnePreis {
 interface BestaetigungsRequest {
   projektId?: string;
   token?: string;
-  fotoBase64?: string; // JPEG der abgeladenen Ware, Pflicht (Data-URL oder roher Base64-String)
-  wiegescheinBase64?: string; // JPEG des Wiegescheins, Pflicht solange WIEGESCHEIN_PFLICHT
+  /** Ohne Angabe: Lieferung/Abholung bestätigen. */
+  aktion?: 'bestaetigen' | 'lieferschein-erneut-senden';
+  fotoBase64?: string; // JPEG der abgeladenen Ware — Pflicht beim Fahrer, optional bei Abholung
+  wiegescheinBase64?: string; // JPEG des Wiegescheins — Pflicht beim Fahrer (WIEGESCHEIN_PFLICHT), optional bei Abholung
   fahrerName?: string; // Name des Fahrers (von der Seite als Pflichtfeld erhoben)
-  unterschriftBase64?: string; // PNG, optional
-  unterzeichnerName?: string; // optional
+  unterschriftBase64?: string; // PNG — optional beim Fahrer, Pflicht bei Abholung
+  unterzeichnerName?: string; // optional beim Fahrer; bei Abholung der Name des Abholers (Pflicht)
+  // --- nur Abholung ---
+  kennzeichen?: string; // Kfz-Kennzeichen des abholenden Fahrzeugs, optional
+  empfaenger?: string; // E-Mail(s) für den unterschriebenen Lieferschein, optional (leer = kein Versand)
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
   testModus?: boolean;
 }
@@ -317,6 +404,107 @@ const ladeDateiHoch = async (
   return (await res.json()) as { $id: string };
 };
 
+/**
+ * Neuestes archiviertes Dokument eines Typs zum Projekt — z. B. der zuletzt
+ * gespeicherte Lieferschein, an den die Empfangsbestätigung angehängt wird.
+ */
+const ladeNeuestesDokument = async (
+  projektId: string,
+  dokumentTyp: string
+): Promise<DokumentEintrag | null> => {
+  const queries = [
+    JSON.stringify({ method: 'equal', attribute: 'projektId', values: [projektId] }),
+    JSON.stringify({ method: 'equal', attribute: 'dokumentTyp', values: [dokumentTyp] }),
+    JSON.stringify({ method: 'orderDesc', attribute: '$createdAt' }),
+    JSON.stringify({ method: 'limit', values: [1] }),
+  ];
+  const params = queries.map((q) => `queries[]=${encodeURIComponent(q)}`).join('&');
+  const res = await fetch(
+    `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${DOKUMENTE_COLLECTION_ID}/documents?${params}`,
+    { headers: appwriteHeaders() }
+  );
+  if (!res.ok) return null;
+  const json = (await res.json()) as { documents?: DokumentEintrag[] };
+  return json.documents?.[0] ?? null;
+};
+
+const ladeDokument = async (dokumentId: string): Promise<DokumentEintrag | null> => {
+  const res = await fetch(
+    `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${DOKUMENTE_COLLECTION_ID}/documents/${encodeURIComponent(dokumentId)}`,
+    { headers: appwriteHeaders() }
+  );
+  if (!res.ok) return null;
+  return (await res.json()) as DokumentEintrag;
+};
+
+/** Rohbytes einer Datei aus dem Storage (Server-Key, kein SDK) */
+const ladeDateiBytes = async (bucketId: string, dateiId: string): Promise<Uint8Array | null> => {
+  const res = await fetch(
+    `${APPWRITE_ENDPOINT}/storage/buckets/${bucketId}/files/${encodeURIComponent(dateiId)}/download`,
+    {
+      headers: {
+        'X-Appwrite-Project': APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': APPWRITE_API_KEY,
+      },
+    }
+  );
+  if (!res.ok) {
+    console.warn(`Datei ${dateiId} aus Bucket ${bucketId} nicht ladbar (HTTP ${res.status})`);
+    return null;
+  }
+  return new Uint8Array(await res.arrayBuffer());
+};
+
+/**
+ * Versandprotokoll — derselbe Eintrag, den das Portal beim manuellen Versand
+ * schreibt (emailSendService.protokolliereEmail). So sieht der Lieferschein-Tab
+ * den automatischen Versand im Verlauf und warnt vor einem Doppelversand.
+ * Best Effort: Ein Protokollfehler darf die Bestätigung nicht kippen.
+ */
+const protokolliereMail = async (eintrag: {
+  projektId: string;
+  dokumentNummer: string;
+  empfaenger: string;
+  absender: string;
+  betreff: string;
+  htmlContent: string;
+  pdfDateiname: string;
+  status: 'gesendet' | 'fehler';
+  fehlerMeldung?: string;
+  messageId?: string;
+}): Promise<void> => {
+  try {
+    const res = await fetch(
+      `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${EMAIL_PROTOKOLL_COLLECTION_ID}/documents`,
+      {
+        method: 'POST',
+        headers: appwriteHeaders(),
+        body: JSON.stringify({
+          documentId: 'unique()',
+          data: {
+            projektId: eintrag.projektId,
+            dokumentTyp: 'lieferschein',
+            dokumentNummer: eintrag.dokumentNummer.slice(0, 50),
+            empfaenger: eintrag.empfaenger.slice(0, 200),
+            absender: eintrag.absender,
+            betreff: eintrag.betreff.slice(0, 500),
+            // Attribut-Limit 65535 — die Vorlage ist klein, die Grenze nur ein Sicherheitsnetz
+            htmlContent: eintrag.htmlContent.slice(0, 60000),
+            pdfDateiname: eintrag.pdfDateiname.slice(0, 255),
+            gesendetAm: new Date().toISOString(),
+            status: eintrag.status,
+            ...(eintrag.fehlerMeldung ? { fehlerMeldung: eintrag.fehlerMeldung.slice(0, 1000) } : {}),
+            ...(eintrag.messageId ? { messageId: eintrag.messageId.slice(0, 255) } : {}),
+          },
+        }),
+      }
+    );
+    if (!res.ok) console.warn('E-Mail-Protokoll nicht geschrieben (HTTP', res.status, ')');
+  } catch (fehler) {
+    console.warn('E-Mail-Protokoll nicht geschrieben:', fehler);
+  }
+};
+
 // === Token-Validierung ===
 const tokenGleich = (a: string, b: string): boolean => {
   const bufA = Buffer.from(a, 'utf8');
@@ -401,6 +589,53 @@ const extrahierePositionen = (daten: ProjektDaten): PositionOhnePreis[] => {
 const bereinigeBase64 = (input: string): string =>
   input.replace(/^data:[a-zA-Z0-9/+.-]+;base64,/, '').replace(/\s/g, '');
 
+/**
+ * Holt der Kunde ab Werk ab? Dann unterschreibt er im Werk statt dass ein
+ * Fahrer abliefert. Maßgeblich ist die Belieferungsart am Projekt; der
+ * Lieferschein-Datensatz dient als Rückfall für Altprojekte, bei denen sie
+ * nur dort steht.
+ */
+export const istAbholungAbWerk = (daten: ProjektDaten): boolean => {
+  if (daten.belieferungsart === 'abholung_ab_werk') return true;
+  if (daten.belieferungsart) return false;
+  try {
+    const ls = JSON.parse(daten.lieferscheinDaten || '{}') as { belieferungsart?: string };
+    return ls.belieferungsart === 'abholung_ab_werk';
+  } catch {
+    return false;
+  }
+};
+
+export const kurzfeld = (wert: unknown): string | undefined => {
+  if (typeof wert !== 'string') return undefined;
+  const bereinigt = wert.replace(/\s+/g, ' ').trim().slice(0, MAX_KURZFELD_LAENGE);
+  return bereinigt || undefined;
+};
+
+const EMAIL_MUSTER = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]{2,}$/;
+
+/**
+ * Empfängerliste des Abholers prüfen und auf die Form bringen, die
+ * `email-send` versteht (kommagetrennt). Leer ist erlaubt (kein Versand),
+ * ungültig liefert null — dann bekommt die Seite eine klare Meldung, statt
+ * dass der Lieferschein still ins Leere geht.
+ */
+export const normalisiereEmpfaenger = (roh: unknown): string | null => {
+  if (typeof roh !== 'string') return '';
+  const teile = roh
+    .split(/[\s,;]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (teile.length === 0) return '';
+  if (teile.length > MAX_EMPFAENGER) return null;
+  if (!teile.every((t) => t.length <= 120 && EMAIL_MUSTER.test(t))) return null;
+  return teile.join(', ');
+};
+
+/** Vorschlag für den Lieferschein-Empfänger: Kunden-E-Mail, sonst Angebots-Empfänger */
+export const empfaengerVorschlag = (daten: ProjektDaten): string =>
+  normalisiereEmpfaenger(daten.kundenEmail) || normalisiereEmpfaenger(daten.bestellEmpfaenger) || '';
+
 const lieferadresseText = (daten: ProjektDaten): string => {
   if (daten.lieferadresse?.strasse || daten.lieferadresse?.ort) {
     const teile = [
@@ -428,6 +663,8 @@ const formatDatumZeit = (iso: string): string => {
  * Bild ins PDF einbetten. WICHTIG: Im Node-Build von jsPDF müssen Bilddaten als
  * Uint8Array übergeben werden (Strings werden als Dateipfade interpretiert!).
  * Höhe wird aus dem Seitenverhältnis berechnet (getImageProperties).
+ *
+ * NUR FÜR JPEG. Für PNG gibt es pngNachtrag() — siehe dort.
  */
 const bettePdfBildEin = (
   doc: jsPDF,
@@ -443,6 +680,80 @@ const bettePdfBildEin = (
   const breite = props.width * skalierung;
   const hoehe = props.height * skalierung;
   doc.addImage(bytes, format, x, y, breite, hoehe);
+};
+
+// ===========================================================================
+// PNG-NACHTRAG — warum die Unterschrift nicht mit jsPDF ins PDF kommt
+// ===========================================================================
+/**
+ * jsPDF kann in dieser Node-Umgebung KEINE PNGs einbetten: `addImage` bricht
+ * beim Entpacken der Bilddaten ab ("Error while decompressing the data: -3").
+ * JPEG geht, weil es unverändert durchgereicht wird — PNG muss jsPDF selbst
+ * dekomprimieren, und genau das schlägt hier fehl.
+ *
+ * Folge vor 09/2026: Jede Unterschrift landete im Fallback-Text
+ * „Unterschrift konnte nicht eingebettet werden" — im Fahrer-Nachweis war das
+ * ein Schönheitsfehler (dort ist das Foto der Beleg), für die Abholung wäre es
+ * fatal: Dort IST die Unterschrift der Beleg, und der Kunde bekommt das
+ * Dokument per E-Mail.
+ *
+ * Lösung: jsPDF lässt an der vorgesehenen Stelle Platz und meldet ihn als
+ * `UnterschriftPlatz` zurück; pdf-lib zeichnet das PNG anschließend hinein.
+ * pdf-lib beherrscht PNG zuverlässig und ist ohnehin schon im Einsatz, um den
+ * Lieferschein voranzustellen.
+ */
+interface UnterschriftPlatz {
+  /** 0-basierter Index der Seite, auf der die Unterschrift steht */
+  seite: number;
+  /** Linke obere Ecke des Platzes in Millimetern (jsPDF-Koordinaten) */
+  xMm: number;
+  yMm: number;
+  maxBreiteMm: number;
+  maxHoeheMm: number;
+}
+
+/** Millimeter in PDF-Punkte (72 dpi) */
+const mmZuPt = (mm: number): number => (mm * 72) / 25.4;
+
+/**
+ * Zeichnet die Unterschrift mit pdf-lib an den von jsPDF freigehaltenen Platz.
+ *
+ * Achtung Koordinatensysteme: jsPDF misst Millimeter von OBEN links, pdf-lib
+ * Punkte von UNTEN links. Die Umrechnung passiert hier an einer Stelle, damit
+ * sie nicht an jedem Aufrufer erneut schiefgehen kann.
+ *
+ * Wirft nie: Kommt das Bild nicht hinein, bleibt das PDF wie es war. Der
+ * Nachweis trägt dann weiterhin Name, Zeitpunkt und Positionen — und die
+ * Unterschrift liegt zusätzlich als eigene Datei im Bucket.
+ */
+export const zeichneUnterschriftEin = async (
+  pdfBytes: Uint8Array,
+  pngBytes: Uint8Array,
+  platz: UnterschriftPlatz
+): Promise<Uint8Array> => {
+  try {
+    const pdf = await PDFDocument.load(pdfBytes);
+    const seite = pdf.getPage(platz.seite);
+    const bild = await pdf.embedPng(pngBytes);
+
+    const maxBreitePt = mmZuPt(platz.maxBreiteMm);
+    const maxHoehePt = mmZuPt(platz.maxHoeheMm);
+    const skalierung = Math.min(maxBreitePt / bild.width, maxHoehePt / bild.height, 1);
+    const breite = bild.width * skalierung;
+    const hoehe = bild.height * skalierung;
+
+    seite.drawImage(bild, {
+      x: mmZuPt(platz.xMm),
+      // Von oben gemessen: Seitenhöhe minus Abstand minus Bildhöhe.
+      y: seite.getHeight() - mmZuPt(platz.yMm) - hoehe,
+      width: breite,
+      height: hoehe,
+    });
+    return await pdf.save();
+  } catch (fehler) {
+    console.warn('Unterschrift konnte nicht ins PDF gezeichnet werden:', fehler);
+    return pdfBytes;
+  }
 };
 
 // ===========================================================================
@@ -636,8 +947,9 @@ const generiereLiefernachweisPdf = (options: {
   geo?: { lat?: number; lng?: number; genauigkeitM?: number };
   fotoJpegBytes: Uint8Array;
   wiegescheinJpegBytes?: Uint8Array;
-  unterschriftPngBytes?: Uint8Array;
-}): Uint8Array => {
+  /** Nur als Kennzeichen, DASS unterschrieben wurde — das Bild trägt pdf-lib nach. */
+  hatUnterschrift?: boolean;
+}): { pdf: Uint8Array; unterschriftPlatz?: UnterschriftPlatz } => {
   const { daten, positionen, zeitstempel, fahrerName, unterzeichnerName, geo } = options;
   const doc = new jsPDF();
   const links = 20;
@@ -736,8 +1048,9 @@ const generiereLiefernachweisPdf = (options: {
     }
   }
 
-  // Unterschrift (optional)
-  if (options.unterschriftPngBytes) {
+  // Unterschrift (optional) — Platz freihalten, Bild trägt pdf-lib nach
+  let unterschriftPlatz: UnterschriftPlatz | undefined;
+  if (options.hatUnterschrift) {
     doc.addPage();
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
@@ -747,15 +1060,432 @@ const generiereLiefernachweisPdf = (options: {
       doc.setFontSize(10);
       doc.text(`Name: ${unterzeichnerName}`, links, 27);
     }
-    try {
-      bettePdfBildEin(doc, options.unterschriftPngBytes, 'PNG', links, 34, 100, 60);
-    } catch {
-      doc.setFontSize(10);
-      doc.text('Unterschrift konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 34);
+    unterschriftPlatz = {
+      seite: doc.getNumberOfPages() - 1,
+      xMm: links,
+      yMm: 34,
+      maxBreiteMm: 100,
+      maxHoeheMm: 60,
+    };
+  }
+
+  return { pdf: new Uint8Array(doc.output('arraybuffer')), unterschriftPlatz };
+};
+
+// ===========================================================================
+// ABHOLUNG AB WERK — Empfangsbestätigung, Lieferschein-Anhang, E-Mail
+// ===========================================================================
+
+/**
+ * Empfangsbestätigung für eine Abholung (jsPDF in Node).
+ *
+ * Wird als letzte Seite an den archivierten Lieferschein gehängt — der
+ * Lieferschein selbst (DIN-5008-Kopf, Logo, Positionen) entsteht im Portal
+ * und liegt als Datei vor; hier wird nur ergänzt, was bei der Übergabe
+ * passiert ist: wer wann unterschrieben hat, mit welchem Fahrzeug, wofür.
+ */
+export const generiereAbholungNachweisPdf = (options: {
+  daten: ProjektDaten;
+  positionen: PositionOhnePreis[];
+  zeitstempel: string;
+  abholerName: string;
+  kennzeichen?: string;
+  fotoJpegBytes?: Uint8Array;
+  wiegescheinJpegBytes?: Uint8Array;
+}): { pdf: Uint8Array; unterschriftPlatz: UnterschriftPlatz } => {
+  const { daten, positionen, zeitstempel, abholerName, kennzeichen } = options;
+  const doc = new jsPDF();
+  const links = 20;
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Empfangsbestätigung — Abholung ab Werk', links, y);
+  doc.setFont('helvetica', 'normal');
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Digital unterschrieben bei der Übergabe im Werk der Tennismehl GmbH', links, y);
+  doc.setTextColor(0, 0, 0);
+  y += 10;
+
+  const zeile = (label: string, wert: string) => {
+    if (!wert) return;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${label}:`, links, y);
+    doc.setFont('helvetica', 'normal');
+    const wrapped = doc.splitTextToSize(wert, 115) as string[];
+    doc.text(wrapped, links + 55, y);
+    y += wrapped.length * 5 + 1;
+  };
+
+  zeile('Kunde', daten.kundenname || '');
+  zeile('Kundennummer', daten.kundennummer || '');
+  zeile('Lieferschein-Nr.', daten.lieferscheinnummer || '');
+  zeile('Abgeholt am', `${formatDatumZeit(zeitstempel)} Uhr`);
+  zeile('Abholer', abholerName);
+  zeile('Kfz-Kennzeichen', kennzeichen || '');
+
+  if (positionen.length > 0) {
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Übergebene Positionen (ohne Preise):', links, y);
+    doc.setFont('helvetica', 'normal');
+    y += 6;
+    for (const pos of positionen) {
+      const text = `• ${pos.bezeichnung} — ${pos.menge} ${pos.einheit}`;
+      const wrapped = doc.splitTextToSize(text, 170) as string[];
+      if (y + wrapped.length * 5 > 200) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(wrapped, links, y);
+      y += wrapped.length * 5;
     }
   }
 
-  return new Uint8Array(doc.output('arraybuffer'));
+  // Erklärung + Unterschrift — auf derselben Seite wie die Angaben, damit
+  // niemand die Unterschrift von den Positionen trennen kann.
+  if (y > 190) {
+    doc.addPage();
+    y = 20;
+  }
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(60, 60, 60);
+  const erklaerung = doc.splitTextToSize(
+    'Der Abholer bestätigt mit seiner Unterschrift, die oben aufgeführte Ware vollständig ' +
+      'und in einwandfreiem Zustand im Werk übernommen zu haben. Ab Übergabe trägt der Abholer ' +
+      'Gefahr und Ladungssicherung.',
+    170
+  ) as string[];
+  doc.text(erklaerung, links, y);
+  y += erklaerung.length * 4 + 8;
+  doc.setTextColor(0, 0, 0);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Unterschrift Abholer', links, y);
+  doc.setFont('helvetica', 'normal');
+  y += 4;
+
+  // Hier bleibt Platz — das PNG zeichnet pdf-lib nach (siehe pngNachtrag oben).
+  const unterschriftPlatz: UnterschriftPlatz = {
+    seite: doc.getNumberOfPages() - 1,
+    xMm: links,
+    yMm: y,
+    maxBreiteMm: 90,
+    maxHoeheMm: 38,
+  };
+
+  y += 42;
+  doc.setDrawColor(120, 120, 120);
+  doc.line(links, y, links + 90, y);
+  y += 5;
+  doc.setFontSize(9);
+  doc.text(`${abholerName} · ${formatDatumZeit(zeitstempel)} Uhr`, links, y);
+  y += 10;
+  doc.setTextColor(120, 120, 120);
+  doc.setFontSize(8);
+  doc.text(
+    'Elektronisch erfasst über die digitale Empfangsbestätigung der Tennismehl GmbH. ' +
+      'Unterschrift, Name und Zeitpunkt sind mit dem Vorgang verknüpft archiviert.',
+    links,
+    y,
+    { maxWidth: 170 }
+  );
+  doc.setTextColor(0, 0, 0);
+
+  if (options.fotoJpegBytes) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Foto der Ladung', links, 20);
+    doc.setFont('helvetica', 'normal');
+    try {
+      bettePdfBildEin(doc, options.fotoJpegBytes, 'JPEG', links, 28, 170, 240);
+    } catch {
+      doc.setFontSize(10);
+      doc.text('Foto konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 32);
+    }
+  }
+
+  if (options.wiegescheinJpegBytes) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Wiegeschein', links, 20);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Bei der Übergabe im Werk fotografiert. Massgeblich ist der abgebildete Beleg.', links, 26);
+    doc.setTextColor(0, 0, 0);
+    try {
+      bettePdfBildEin(doc, options.wiegescheinJpegBytes, 'JPEG', links, 32, 170, 236);
+    } catch {
+      doc.setFontSize(10);
+      doc.text('Wiegeschein konnte nicht eingebettet werden (liegt separat im Storage vor).', links, 36);
+    }
+  }
+
+  return { pdf: new Uint8Array(doc.output('arraybuffer')), unterschriftPlatz };
+};
+
+/** Hängt die Seiten von `anhang` hinter `basis` (pdf-lib, wie der Sammeldruck im Portal) */
+export const haengeSeitenAn = async (basis: Uint8Array, anhang: Uint8Array): Promise<Uint8Array> => {
+  const ziel = await PDFDocument.load(basis);
+  const quelle = await PDFDocument.load(anhang);
+  const seiten = await ziel.copyPages(quelle, quelle.getPageIndices());
+  seiten.forEach((seite) => ziel.addPage(seite));
+  return await ziel.save();
+};
+
+/**
+ * Unterschriebener Lieferschein = archivierter Lieferschein + Empfangsbestätigung.
+ * Gibt es (noch) keinen archivierten Lieferschein, geht die Empfangsbestätigung
+ * allein raus — sie trägt Kunde, Nummer und Positionen und ist damit für sich
+ * ein vollständiger Nachweis.
+ */
+const baueUnterschriebenenLieferschein = async (
+  projektId: string,
+  nachweisPdf: Uint8Array
+): Promise<{ pdf: Uint8Array; lieferscheinAngehaengt: boolean }> => {
+  try {
+    const lieferschein = await ladeNeuestesDokument(projektId, 'lieferschein');
+    if (!lieferschein?.dateiId) return { pdf: nachweisPdf, lieferscheinAngehaengt: false };
+    const bytes = await ladeDateiBytes(DOKUMENTE_BUCKET_ID, lieferschein.dateiId);
+    if (!bytes) return { pdf: nachweisPdf, lieferscheinAngehaengt: false };
+    return { pdf: await haengeSeitenAn(bytes, nachweisPdf), lieferscheinAngehaengt: true };
+  } catch (fehler) {
+    // Ein kaputtes Alt-PDF darf die Abholung nicht blockieren.
+    console.warn('Lieferschein konnte nicht angehängt werden — Empfangsbestätigung geht allein raus:', fehler);
+    return { pdf: nachweisPdf, lieferscheinAngehaengt: false };
+  }
+};
+
+const htmlEscape = (wert: unknown): string =>
+  String(wert ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/**
+ * Lieferschein-Vorlage und Signatur aus den Stammdaten — dieselbe Quelle wie
+ * das E-Mail-Formular im Portal (emailTemplates.lieferschein / standardSignatur).
+ * Die Function läuft ohne Login, deshalb bleibt die neutrale Team-Grußzeile.
+ */
+const ladeLieferscheinVorlage = async (): Promise<{
+  betreff?: string;
+  html?: string;
+  signatur: string;
+}> => {
+  try {
+    const res = await fetch(
+      `${APPWRITE_ENDPOINT}/databases/${DATABASE_ID}/collections/${STAMMDATEN_COLLECTION_ID}/documents/${STAMMDATEN_DOCUMENT_ID}`,
+      { headers: appwriteHeaders() }
+    );
+    if (!res.ok) return { signatur: '' };
+    const doc = (await res.json()) as { emailTemplates?: string };
+    const templates = JSON.parse(doc.emailTemplates ?? '{}') as Record<string, unknown>;
+    const vorlage = (templates.lieferschein ?? {}) as {
+      betreff?: string;
+      htmlContent?: string;
+      emailContent?: string;
+      signatur?: string;
+    };
+    const eigene = typeof vorlage.signatur === 'string' ? vorlage.signatur.trim() : '';
+    const gemeinsame =
+      typeof templates.standardSignatur === 'string' ? templates.standardSignatur.trim() : '';
+    const signatur = (eigene || gemeinsame).replace(/\{absender\}/g, 'Ihr Team der Tennismehl GmbH');
+    return {
+      betreff: typeof vorlage.betreff === 'string' ? vorlage.betreff : undefined,
+      html:
+        typeof vorlage.htmlContent === 'string' && vorlage.htmlContent.trim()
+          ? vorlage.htmlContent
+          : typeof vorlage.emailContent === 'string' && vorlage.emailContent.trim()
+            ? vorlage.emailContent
+                .split('\n')
+                .map((z) => (z.trim() ? `<p>${htmlEscape(z)}</p>` : ''))
+                .join('')
+            : undefined,
+      signatur,
+    };
+  } catch {
+    return { signatur: '' };
+  }
+};
+
+/** Platzhalter wie im Portal (emailSendService.ersetzePlatzhalter) */
+const ersetzePlatzhalter = (text: string, daten: ProjektDaten): string =>
+  text
+    .replace(/\{dokumentNummer\}/g, htmlEscape(daten.lieferscheinnummer || ''))
+    .replace(/\{kundenname\}/g, htmlEscape(daten.kundenname || ''))
+    .replace(/\{kundennummer\}/g, htmlEscape(daten.kundennummer || ''))
+    .replace(/\{datum\}/g, new Date().toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }))
+    .replace(/\{ansprechpartner\}/g, '')
+    .replace(/\{projektnummer\}/g, htmlEscape(daten.projektName || ''));
+
+const baueLieferscheinMail = async (
+  daten: ProjektDaten,
+  nachweis: { abholerName: string; zeitstempel: string; lieferscheinAngehaengt: boolean }
+): Promise<{ betreff: string; html: string }> => {
+  const vorlage = await ladeLieferscheinVorlage();
+  const nummer = daten.lieferscheinnummer || '';
+  const betreff = vorlage.betreff
+    ? ersetzePlatzhalter(vorlage.betreff, daten)
+    : `Lieferschein ${nummer} — Abholung ab Werk`;
+  const einleitung = vorlage.html
+    ? ersetzePlatzhalter(vorlage.html, daten)
+    : `<p>Sehr geehrte Damen und Herren,</p><p>anbei erhalten Sie Ihren Lieferschein${nummer ? ` Nr. ${htmlEscape(nummer)}` : ''}.</p>`;
+  const wann = formatDatumZeit(nachweis.zeitstempel);
+  const abholBlock = `<p style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:6px;">
+  <strong>Abholung ab Werk:</strong> Der Lieferschein wurde bei der Übergabe im Werk am ${htmlEscape(wann)} Uhr
+  von <strong>${htmlEscape(nachweis.abholerName)}</strong> digital unterschrieben.
+  ${
+    nachweis.lieferscheinAngehaengt
+      ? 'Die Empfangsbestätigung mit Unterschrift finden Sie auf der letzten Seite des angehängten Lieferscheins.'
+      : 'Die Empfangsbestätigung mit Unterschrift finden Sie im Anhang.'
+  }
+</p>`;
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+           line-height: 1.6; color: #333333; max-width: 650px; margin: 0 auto; padding: 20px; background-color: #ffffff; }
+    p { margin: 0 0 16px 0; font-size: 14px; }
+    a { color: #c41e3a; text-decoration: none; }
+    img { max-width: 100%; height: auto; }
+    .signature { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb; }
+    .signature p { margin: 0 0 8px 0; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="email-content">
+    ${einleitung}
+    ${abholBlock}
+  </div>
+  ${vorlage.signatur ? `<div class="signature">${vorlage.signatur}</div>` : ''}
+</body>
+</html>`;
+  return { betreff, html };
+};
+
+/**
+ * Schickt eine Mail mit PDF über `email-send`. Probiert die Absender der
+ * Reihe nach durch, falls ein Konto in EMAIL_ACCOUNTS fehlt.
+ */
+const sendeMailMitPdf = async (opts: {
+  an: string;
+  betreff: string;
+  html: string;
+  pdfBase64: string;
+  pdfDateiname: string;
+  testMode: boolean;
+}): Promise<{ ok: boolean; absender: string; messageId?: string; fehler?: string }> => {
+  let letzterFehler = 'Kein Absenderkonto konfiguriert.';
+  for (const absender of ABSENDER_KANDIDATEN) {
+    try {
+      const res = await fetch(`${basisUrl()}/.netlify/functions/email-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: opts.an,
+          from: absender,
+          subject: opts.betreff,
+          htmlBody: opts.html,
+          pdfBase64: opts.pdfBase64,
+          pdfFilename: opts.pdfDateiname,
+          testMode: opts.testMode || undefined,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        messageId?: string;
+        error?: string;
+        message?: string;
+      };
+      if (res.ok && json.success) {
+        return { ok: true, absender, messageId: json.messageId };
+      }
+      const fehler = json.message || json.error || `HTTP ${res.status}`;
+      // Konto fehlt → nächsten Absender probieren; jeder andere Fehler ist endgültig.
+      if (res.status === 400 && /Sender account not found/i.test(fehler)) {
+        letzterFehler = fehler;
+        continue;
+      }
+      return { ok: false, absender, fehler };
+    } catch (fehler) {
+      return {
+        ok: false,
+        absender,
+        fehler: `Mailserver nicht erreichbar: ${fehler instanceof Error ? fehler.message : String(fehler)}`,
+      };
+    }
+  }
+  return { ok: false, absender: ABSENDER_KANDIDATEN[0] || '', fehler: letzterFehler };
+};
+
+/**
+ * Unterschriebenen Lieferschein an den Kunden schicken und den Versand am
+ * Projekt festhalten. Wirft nie — der Nachweis ist zu diesem Zeitpunkt
+ * archiviert, ein Mailfehler wird gespeichert und im Portal angezeigt.
+ */
+const versendeUnterschriebenenLieferschein = async (opts: {
+  projektId: string;
+  daten: ProjektDaten;
+  empfaenger: string;
+  pdfBytes: Uint8Array;
+  pdfDateiname: string;
+  abholerName: string;
+  zeitstempel: string;
+  lieferscheinAngehaengt: boolean;
+  sandbox: boolean;
+}): Promise<LieferscheinVersandInfo> => {
+  const jetzt = new Date().toISOString();
+  try {
+    const mail = await baueLieferscheinMail(opts.daten, {
+      abholerName: opts.abholerName,
+      zeitstempel: opts.zeitstempel,
+      lieferscheinAngehaengt: opts.lieferscheinAngehaengt,
+    });
+    const betreff = `${opts.sandbox ? '[SANDBOX] ' : ''}${mail.betreff}`;
+    const ergebnis = await sendeMailMitPdf({
+      an: opts.empfaenger,
+      betreff,
+      html: mail.html,
+      pdfBase64: Buffer.from(opts.pdfBytes).toString('base64'),
+      pdfDateiname: opts.pdfDateiname,
+      // Sandbox: nie an einen echten Verein — email-send biegt auf die Testadresse um.
+      testMode: opts.sandbox,
+    });
+    await protokolliereMail({
+      projektId: opts.projektId,
+      dokumentNummer: opts.daten.lieferscheinnummer || `LN-${opts.projektId.slice(0, 8)}`,
+      empfaenger: opts.empfaenger,
+      absender: ergebnis.absender,
+      betreff,
+      htmlContent: mail.html,
+      pdfDateiname: opts.pdfDateiname,
+      status: ergebnis.ok ? 'gesendet' : 'fehler',
+      fehlerMeldung: ergebnis.fehler,
+      messageId: ergebnis.messageId,
+    });
+    return ergebnis.ok
+      ? { an: opts.empfaenger, am: jetzt, status: 'gesendet' }
+      : { an: opts.empfaenger, am: jetzt, status: 'fehler', fehler: ergebnis.fehler };
+  } catch (fehler) {
+    console.error('Lieferschein-Versand fehlgeschlagen:', fehler);
+    return {
+      an: opts.empfaenger,
+      am: jetzt,
+      status: 'fehler',
+      fehler: fehler instanceof Error ? fehler.message : String(fehler),
+    };
+  }
 };
 
 // === Handler ===
@@ -823,6 +1553,11 @@ const handler: Handler = async (event: HandlerEvent) => {
         return { statusCode: 403, headers, body: JSON.stringify({ error: validierung.grund }) };
       }
 
+      // Abholung ab Werk: Der Kunde unterschreibt im Werk, statt dass ein
+      // Fahrer abliefert. Der Server entscheidet das — die Seite passt nur
+      // ihre Führung an; die Pflichtfelder werden unten erneut geprüft.
+      const abholung = istAbholungAbWerk(daten);
+
       return {
         statusCode: 200,
         headers,
@@ -837,10 +1572,22 @@ const handler: Handler = async (event: HandlerEvent) => {
             positionen: extrahierePositionen(daten),
             bereitsBestaetigt: Boolean(daten.liefernachweisAm),
             liefernachweisAm: daten.liefernachweisAm || null,
+            // 'abholung' = Unterschrift des Abholers im Werk (Fotos optional),
+            // 'fahrer'   = Bestätigung beim Abladen (Foto + Wiegeschein Pflicht).
+            modus: abholung ? 'abholung' : 'fahrer',
             // Steuert, ob die Fahrer-Seite das Wiegeschein-Foto erzwingt.
             // Server ist die Quelle der Wahrheit — die Prüfung unten läuft
             // ohnehin serverseitig, die Seite passt nur ihre Führung an.
-            wiegescheinPflicht: WIEGESCHEIN_PFLICHT,
+            // Bei einer Abholung ist der Wiegeschein freiwillig: Sackware und
+            // Paletten werden gezählt, nicht gewogen.
+            wiegescheinPflicht: abholung ? false : WIEGESCHEIN_PFLICHT,
+            // Vorbelegung des Empfängerfeldes für den unterschriebenen
+            // Lieferschein. Nur bei Abholung — sonst gäbe die Seite eine
+            // Kundenadresse an einen fremden Speditionsfahrer preis.
+            empfaengerVorschlag: abholung ? empfaengerVorschlag(daten) : '',
+            ...(abholung && daten.liefernachweis?.lieferscheinVersand
+              ? { lieferscheinVersand: daten.liefernachweis.lieferscheinVersand }
+              : {}),
           },
         }),
       };
@@ -869,8 +1616,113 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
+    // Projekt und Token ZUERST: Erst danach steht fest, ob dieser Vorgang eine
+    // Abholung ist — und davon hängt ab, welche Felder Pflicht sind. Vorher zu
+    // prüfen hieße, einem Abholer ein Warenfoto abzuverlangen, das es nicht gibt.
+    const dokument = await ladeProjekt(projektId);
+    if (!dokument) {
+      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Auftrag nicht gefunden.' }) };
+    }
+    const daten = parseProjektDaten(dokument);
+    const validierung = validiereToken(daten, token);
+    if (!validierung.ok) {
+      return { statusCode: 403, headers, body: JSON.stringify({ error: validierung.grund }) };
+    }
+
+    const abholung = istAbholungAbWerk(daten);
+
+    // ============ Sonderaktion: unterschriebenen Lieferschein erneut senden ============
+    // Für den Fall, dass der Abholer die Adresse vertippt hat oder der
+    // Mailserver beim ersten Versuch nicht erreichbar war. Verschickt AUSSCHLIESSLICH
+    // das bereits archivierte PDF — es entsteht kein neuer Nachweis und nichts
+    // am Vorgang ändert sich.
+    if (request.aktion === 'lieferschein-erneut-senden') {
+      if (!abholung) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Der Lieferschein-Versand gilt nur für Abholungen ab Werk.' }),
+        };
+      }
+      if (!daten.liefernachweisAm || !daten.liefernachweis?.dokumentId) {
+        return {
+          statusCode: 409,
+          headers,
+          body: JSON.stringify({ error: 'Für diesen Auftrag ist noch keine Abholung bestätigt.' }),
+        };
+      }
+      const empfaenger = normalisiereEmpfaenger(request.empfaenger);
+      if (empfaenger === null || !empfaenger) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            error: `Bitte eine gültige E-Mail-Adresse angeben (höchstens ${MAX_EMPFAENGER}).`,
+          }),
+        };
+      }
+
+      const archiv = await ladeDokument(daten.liefernachweis.dokumentId);
+      if (!archiv?.dateiId) {
+        return {
+          statusCode: 404,
+          headers,
+          body: JSON.stringify({ error: 'Das archivierte Dokument wurde nicht gefunden.' }),
+        };
+      }
+      const pdfBytes = await ladeDateiBytes(DOKUMENTE_BUCKET_ID, archiv.dateiId);
+      if (!pdfBytes) {
+        return {
+          statusCode: 502,
+          headers,
+          body: JSON.stringify({ error: 'Das archivierte Dokument konnte nicht geladen werden.' }),
+        };
+      }
+
+      const versand = await versendeUnterschriebenenLieferschein({
+        projektId,
+        daten,
+        empfaenger,
+        pdfBytes,
+        pdfDateiname: archiv.dateiname || `Lieferschein ${daten.lieferscheinnummer || projektId}.pdf`,
+        abholerName: daten.liefernachweis.unterzeichnerName || 'Abholer',
+        zeitstempel: daten.liefernachweisAm,
+        // Das Archiv-PDF enthält den Lieferschein bereits, wenn er beim
+        // Bestätigen vorlag — der Hinweistext in der Mail bleibt so korrekt.
+        lieferscheinAngehaengt: (archiv.daten || '').includes('"lieferscheinAngehaengt":true'),
+        sandbox: istMockAufruf(event),
+      });
+
+      // Versandstand am Projekt fortschreiben (Best Effort — die Mail ist raus).
+      try {
+        await aktualisiereProjekt(projektId, {
+          data: JSON.stringify({
+            ...daten,
+            liefernachweis: { ...daten.liefernachweis, lieferscheinVersand: versand },
+            geaendertAm: new Date().toISOString(),
+          }),
+        });
+      } catch (fehler) {
+        console.warn('Versandstand konnte nicht gespeichert werden:', fehler);
+      }
+
+      return {
+        statusCode: versand.status === 'gesendet' ? 200 : 502,
+        headers,
+        body: JSON.stringify(
+          versand.status === 'gesendet'
+            ? { success: true, lieferscheinVersand: versand }
+            : { error: versand.fehler || 'Der Lieferschein konnte nicht versendet werden.', lieferscheinVersand: versand }
+        ),
+      };
+    }
+
+    // ============ Pflichtfelder je nach Ablauf ============
     const fotoBase64 = request.fotoBase64 ? bereinigeBase64(request.fotoBase64) : '';
-    if (!fotoBase64) {
+    // Beim Fahrer belegt das Foto, dass und wo abgeladen wurde. Bei einer
+    // Abholung steht der Abholer mit seiner Unterschrift dafür ein — ein Foto
+    // der eigenen Ladefläche belegt nichts, was die Unterschrift nicht schon sagt.
+    if (!abholung && !fotoBase64) {
       return {
         statusCode: 400,
         headers,
@@ -887,7 +1739,7 @@ const handler: Handler = async (event: HandlerEvent) => {
     const wiegescheinBase64 = request.wiegescheinBase64
       ? bereinigeBase64(request.wiegescheinBase64)
       : '';
-    if (WIEGESCHEIN_PFLICHT && !wiegescheinBase64) {
+    if (!abholung && WIEGESCHEIN_PFLICHT && !wiegescheinBase64) {
       return {
         statusCode: 400,
         headers,
@@ -913,14 +1765,32 @@ const handler: Handler = async (event: HandlerEvent) => {
       };
     }
 
-    const dokument = await ladeProjekt(projektId);
-    if (!dokument) {
-      return { statusCode: 404, headers, body: JSON.stringify({ error: 'Auftrag nicht gefunden.' }) };
+    // Die Abholung lebt von der Unterschrift: Sie ersetzt die Quittung auf dem
+    // Papierlieferschein. Ohne sie und ohne Namen gäbe es keinen Nachweis,
+    // wer die Ware übernommen hat.
+    const abholerName = abholung ? kurzfeld(request.unterzeichnerName) : undefined;
+    if (abholung && (!unterschriftBase64 || !abholerName)) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Name und Unterschrift des Abholers sind erforderlich.',
+        }),
+      };
     }
-    const daten = parseProjektDaten(dokument);
-    const validierung = validiereToken(daten, token);
-    if (!validierung.ok) {
-      return { statusCode: 403, headers, body: JSON.stringify({ error: validierung.grund }) };
+
+    // Leere Angabe ist erlaubt: Dann wird nichts verschickt, der Nachweis
+    // entsteht trotzdem. Ungültige Adressen werden abgewiesen, statt die Mail
+    // still verpuffen zu lassen.
+    const lieferscheinEmpfaenger = abholung ? normalisiereEmpfaenger(request.empfaenger) : '';
+    if (lieferscheinEmpfaenger === null) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: `Bitte gültige E-Mail-Adressen angeben (höchstens ${MAX_EMPFAENGER}) oder das Feld leer lassen.`,
+        }),
+      };
     }
 
     // Idempotenz: bereits bestätigt → 200, KEINE Änderungen
@@ -948,8 +1818,10 @@ const handler: Handler = async (event: HandlerEvent) => {
           }
         : undefined;
     const fahrerName = request.fahrerName?.trim() || undefined;
-    const unterzeichnerName = request.unterzeichnerName?.trim() || undefined;
-    const fotoBytes = Uint8Array.from(Buffer.from(fotoBase64, 'base64'));
+    const unterzeichnerName = abholung ? abholerName : request.unterzeichnerName?.trim() || undefined;
+    const kennzeichen = abholung ? kurzfeld(request.kennzeichen) : undefined;
+    // Bei einer Abholung ist das Foto freiwillig — dann gibt es keine Bytes.
+    const fotoBytes = fotoBase64 ? Uint8Array.from(Buffer.from(fotoBase64, 'base64')) : undefined;
     const wiegescheinBytes = wiegescheinBase64
       ? Uint8Array.from(Buffer.from(wiegescheinBase64, 'base64'))
       : undefined;
@@ -957,44 +1829,72 @@ const handler: Handler = async (event: HandlerEvent) => {
       ? Uint8Array.from(Buffer.from(unterschriftBase64, 'base64'))
       : undefined;
 
+    /**
+     * Erzeugt das zum Ablauf passende Nachweis-PDF (Abholung oder Fahrer) und
+     * zeichnet die Unterschrift mit pdf-lib nach — jsPDF kann in Node keine
+     * PNGs einbetten (siehe PNG-NACHTRAG oben).
+     */
+    const baueNachweisPdf = async (positionen: PositionOhnePreis[]): Promise<Uint8Array> => {
+      const { pdf, unterschriftPlatz } = abholung
+        ? generiereAbholungNachweisPdf({
+            daten,
+            positionen,
+            zeitstempel,
+            // Oben erzwungen — der Cast hält nur TypeScript bei Laune.
+            abholerName: abholerName as string,
+            kennzeichen,
+            fotoJpegBytes: fotoBytes,
+            wiegescheinJpegBytes: wiegescheinBytes,
+          })
+        : generiereLiefernachweisPdf({
+            daten,
+            positionen,
+            zeitstempel,
+            fahrerName,
+            unterzeichnerName,
+            geo,
+            // Beim Fahrer ist das Foto Pflicht und oben geprüft.
+            fotoJpegBytes: fotoBytes as Uint8Array,
+            wiegescheinJpegBytes: wiegescheinBytes,
+            hatUnterschrift: Boolean(unterschriftBytes),
+          });
+
+      if (!unterschriftPlatz || !unterschriftBytes) return pdf;
+      return await zeichneUnterschriftEin(pdf, unterschriftBytes, unterschriftPlatz);
+    };
+
     // ---- TESTMODUS: alles durchlaufen, aber KEIN Statuswechsel, KEINE Archivierung ----
     if (request.testModus === true) {
       // PDF probeweise erzeugen (validiert die Bilddaten), aber nichts speichern
-      generiereLiefernachweisPdf({
-        daten,
-        positionen: extrahierePositionen(daten),
-        zeitstempel,
-        fahrerName,
-        unterzeichnerName,
-        geo,
-        fotoJpegBytes: fotoBytes,
-        wiegescheinJpegBytes: wiegescheinBytes,
-        unterschriftPngBytes: unterschriftBytes,
-      });
+      await baueNachweisPdf(extrahierePositionen(daten));
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           success: true,
           testModus: true,
-          hinweis:
-            '[TEST] Bestätigung erfolgreich durchlaufen — es wurde NICHTS gespeichert und kein Status geändert.',
+          hinweis: abholung
+            ? '[TEST] Abholung erfolgreich durchlaufen — es wurde NICHTS gespeichert, kein Status geändert und keine E-Mail verschickt.'
+            : '[TEST] Bestätigung erfolgreich durchlaufen — es wurde NICHTS gespeichert und kein Status geändert.',
         }),
       };
     }
 
     // ---- 1. Foto + Unterschrift im Storage-Bucket ablegen (Best Effort) ----
     const jahr = new Date().getFullYear();
-    const basisname = `Liefernachweis ${daten.kundenname || projektId} ${jahr}`.replace(
+    const basisname = `${abholung ? 'Abholung' : 'Liefernachweis'} ${daten.kundenname || projektId} ${jahr}`.replace(
       /[<>:"/\\|?*]/g,
       ''
     );
-    const fotoDatei = await ladeDateiHoch(
-      LIEFERNACHWEIS_BUCKET_ID,
-      `${basisname} Foto.jpg`,
-      fotoBytes,
-      'image/jpeg'
-    );
+    let fotoDatei: { $id: string } | null = null;
+    if (fotoBytes) {
+      fotoDatei = await ladeDateiHoch(
+        LIEFERNACHWEIS_BUCKET_ID,
+        `${basisname} Foto.jpg`,
+        fotoBytes,
+        'image/jpeg'
+      );
+    }
     let wiegescheinDatei: { $id: string } | null = null;
     if (wiegescheinBytes) {
       wiegescheinDatei = await ladeDateiHoch(
@@ -1014,22 +1914,27 @@ const handler: Handler = async (event: HandlerEvent) => {
       );
     }
 
-    // ---- 2. Liefernachweis-PDF erzeugen und GoBD-konform archivieren ----
+    // ---- 2. Nachweis-PDF erzeugen und GoBD-konform archivieren ----
     const positionen = extrahierePositionen(daten);
-    const pdfBytes = generiereLiefernachweisPdf({
-      daten,
-      positionen,
-      zeitstempel,
-      fahrerName,
-      unterzeichnerName,
-      geo,
-      fotoJpegBytes: fotoBytes,
-      wiegescheinJpegBytes: wiegescheinBytes,
-      unterschriftPngBytes: unterschriftBytes,
-    });
+    const nachweisPdf = await baueNachweisPdf(positionen);
+
+    // Bei einer Abholung wird der archivierte Lieferschein vorangestellt: Was
+    // archiviert wird, ist damit exakt das Dokument, das der Kunde per Mail
+    // bekommt — ein Beleg, nicht zwei Fassungen desselben Vorgangs.
+    const { pdf: pdfBytes, lieferscheinAngehaengt } = abholung
+      ? await baueUnterschriebenenLieferschein(projektId, nachweisPdf)
+      : { pdf: nachweisPdf, lieferscheinAngehaengt: false };
+
+    const dateiname = abholung
+      ? `Lieferschein ${daten.lieferscheinnummer || projektId.slice(0, 8)} unterschrieben.pdf`.replace(
+          /[<>:"/\\|?*]/g,
+          ''
+        )
+      : `${basisname}.pdf`;
+
     const pdfDatei = await ladeDateiHoch(
       DOKUMENTE_BUCKET_ID,
-      `${basisname}.pdf`,
+      dateiname,
       pdfBytes,
       'application/pdf'
     );
@@ -1045,18 +1950,21 @@ const handler: Handler = async (event: HandlerEvent) => {
 
     const archivDaten = {
       art: 'liefernachweis',
+      nachweisArt: abholung ? 'abholung' : 'fahrer',
       kundenname: daten.kundenname || '',
       lieferadresse: lieferadresseText(daten),
       lieferscheinnummer: daten.lieferscheinnummer || '',
       bestaetigtAm: zeitstempel,
       fahrerName: fahrerName || null,
       unterzeichnerName: unterzeichnerName || null,
+      kennzeichen: kennzeichen || null,
+      lieferscheinAngehaengt,
       geo: geo || null,
       positionen, // ohne Preise
       fotoDateiId: fotoDatei?.$id || null,
       wiegescheinDateiId: wiegescheinDatei?.$id || null,
       unterschriftDateiId: unterschriftDatei?.$id || null,
-      quelle: 'qr-scan-fahrer',
+      quelle: abholung ? 'unterschrift-abholung-werk' : 'qr-scan-fahrer',
     };
 
     const archivEintrag = await erstelleDokumentEintrag({
@@ -1064,10 +1972,29 @@ const handler: Handler = async (event: HandlerEvent) => {
       dokumentTyp: 'liefernachweis',
       dokumentNummer: `LN-${daten.lieferscheinnummer || projektId.slice(0, 8)}`,
       dateiId: pdfDatei.$id,
-      dateiname: `${basisname}.pdf`,
+      dateiname,
       istFinal: true, // Nachweis ist unveränderbar (GoBD)
       daten: JSON.stringify(archivDaten),
     });
+
+    // ---- 2b. Unterschriebenen Lieferschein an den Kunden schicken (nur Abholung) ----
+    // Bewusst VOR dem Projekt-Update: Der Versandstand soll im selben Schreibvorgang
+    // landen wie der Nachweis. Ein Mailfehler ist hier kein Abbruch — der Beleg
+    // ist archiviert, und das Portal kann den Versand erneut auslösen.
+    let lieferscheinVersand: LieferscheinVersandInfo | undefined;
+    if (abholung && lieferscheinEmpfaenger) {
+      lieferscheinVersand = await versendeUnterschriebenenLieferschein({
+        projektId,
+        daten,
+        empfaenger: lieferscheinEmpfaenger,
+        pdfBytes,
+        pdfDateiname: dateiname,
+        abholerName: abholerName as string,
+        zeitstempel,
+        lieferscheinAngehaengt,
+        sandbox: istMockAufruf(event),
+      });
+    }
 
     // ---- 3. Projekt aktualisieren: Status 'geliefert' + dispoStatus + liefernachweisAm ----
     let statusGesetzt = true;
@@ -1091,12 +2018,15 @@ const handler: Handler = async (event: HandlerEvent) => {
         dispoStatus: 'geliefert',
         liefernachweisAm: zeitstempel,
         liefernachweis: {
+          art: abholung ? 'abholung' : 'fahrer',
           fotoDateiId: fotoDatei?.$id,
           unterschriftDateiId: unterschriftDatei?.$id,
           fahrerName,
           unterzeichnerName,
+          kennzeichen,
           geo,
           dokumentId: archivEintrag.$id,
+          ...(lieferscheinVersand ? { lieferscheinVersand } : {}),
         },
         // Wiegeschein zunächst OHNE Maschinenlesung: Foto und offener Prüfstatus
         // reichen, damit die Lieferung sofort in der Prüfliste auftaucht. Die
@@ -1160,6 +2090,11 @@ const handler: Handler = async (event: HandlerEvent) => {
         statusGesetzt,
         wiegescheinGespeichert: Boolean(wiegescheinDatei),
         wiegescheinGelesen,
+        modus: abholung ? 'abholung' : 'fahrer',
+        // Der Abholer sieht auf der Bestätigungsseite, ob der Lieferschein
+        // wirklich unterwegs ist — ein stiller Fehlschlag wäre genau das,
+        // was ihn später zum Anrufen zwingt.
+        ...(lieferscheinVersand ? { lieferscheinVersand } : {}),
         ...(statusGesetzt
           ? {}
           : {

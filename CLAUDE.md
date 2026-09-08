@@ -320,6 +320,7 @@ VITE_BACKEND_APPWRITE=false  # Appwrite-Proxy
 | `email-send.ts` | E-Mails versenden |
 | `email-sync.ts` | Kundenanfragen aus Postfach synchronisieren |
 | `kalender-ics.ts` | Kalender-Export als ICS |
+| `liefernachweis.ts` | Digitale Lieferbestätigung — QR-Scan des Fahrers **oder** Unterschrift des Abholers im Werk |
 | `notifications-generate.ts` | Scheduled (alle 5 Min): erzeugt Benachrichtigungen für neue Anfragen, Shop-Bestellungen und frisch fällige Rechnungen — und räumt Anfrage-Meldungen ab, deren Anfrage abgearbeitet ist |
 
 **Benachrichtigungen — „Rechnung frisch fällig"**
@@ -332,6 +333,47 @@ stornierte/reklamierte Forderungen. Pro Rechnung entsteht über `refTyp: 'rechnu
 + `refId: projektId` genau **eine** Meldung (Unique-Index), sie wiederholt sich nicht täglich.
 
 Grenzfälle prüfen (ohne Datenbank): `npx tsx scripts/test-rechnung-faellig.ts`
+
+### Digitale Lieferbestätigung — zwei Abläufe, ein QR-Code
+
+`netlify/functions/liefernachweis.ts` bedient beide Wege. Welcher gilt, entscheidet
+**der Server** an der Belieferungsart des Projekts (`abholung_ab_werk`), nie die
+öffentliche Seite — die läuft auf einem fremden Handy.
+
+| | Fahrer (Standard) | Abholung ab Werk |
+|---|---|---|
+| Wer bestätigt | Speditionsfahrer beim Abladen | Kunde bei der Übergabe im Werk |
+| Pflicht | Foto der Ware + Wiegeschein | Name + Unterschrift |
+| Optional | Unterschrift | Fotos, Wiegeschein |
+| Danach | Nachweis-PDF archiviert | Lieferschein **+ Empfangsbestätigung** archiviert und per E-Mail an den Kunden |
+
+**Der Beleg ist genau das, was der Kunde bekommt:** Bei einer Abholung wird die
+Empfangsbestätigung an den archivierten Lieferschein gehängt und dieses eine
+kombinierte PDF sowohl archiviert als auch versendet — keine zwei Fassungen
+desselben Vorgangs. Fehlt der Lieferschein noch, geht die Empfangsbestätigung
+allein raus; sie trägt Kunde, Nummer und Positionen.
+
+**Scheitert nur die E-Mail**, ist die Abholung trotzdem bestätigt. Der Fehler steht
+als `liefernachweis.lieferscheinVersand` am Projekt, die `LiefernachweisKarte` zeigt
+ihn im Lieferschein-Tab an, und von dort lässt sich der Versand erneut auslösen
+(Aktion `lieferschein-erneut-senden` — verschickt nur das archivierte PDF, erzeugt
+keinen neuen Nachweis).
+
+**Ohne Ausdruck:** `AbholungQrKarte` zeigt denselben QR-Code am Bildschirm, solange
+die Abholung aussteht. Sonst müsste für einen papierlosen Vorgang erst Papier entstehen.
+
+#### jsPDF kann in Node keine PNGs einbetten
+
+`addImage` bricht dort mit „Error while decompressing the data: -3" ab — JPEG geht,
+PNG nicht. Bis 09/2026 landete deshalb **jede** Unterschrift im Fallback-Text
+„Unterschrift konnte nicht eingebettet werden".
+
+Deshalb hält jsPDF nur den Platz frei (`UnterschriftPlatz`), und **pdf-lib zeichnet
+das PNG nach** (`zeichneUnterschriftEin`). Wer dort etwas ändert: jsPDF misst
+Millimeter von oben links, pdf-lib Punkte von unten links.
+
+Prüfen: `npx vitest run netlify/functions/__tests__/` — der Test zählt die
+eingebetteten Bild-Objekte, nicht nur die PDF-Größe.
 
 **Frontend-Aufruf:**
 ```typescript

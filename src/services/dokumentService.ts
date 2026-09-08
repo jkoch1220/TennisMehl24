@@ -2185,29 +2185,46 @@ export const generiereLieferscheinPDF = async (daten: LieferscheinDaten, stammda
       // QR-Code links im Rahmen
       doc.addImage(qrDataUrl, 'PNG', 30, signY + 5, qrGroesse, qrGroesse);
 
-      // Hinweistext rechts neben dem QR-Code
+      // Hinweistext rechts neben dem QR-Code.
+      // Abholer und Fahrer tun beim Scannen Verschiedenes: Der eine
+      // unterschreibt den Empfang im Werk, der andere bestätigt das Abladen
+      // beim Verein. Ein Text für beide würde jeweils die Hälfte in die Irre
+      // führen — die Seite hinter dem Code führt ohnehin den passenden Ablauf.
+      const istAbholung = daten.belieferungsart === 'abholung_ab_werk';
       const textX = 30 + qrGroesse + 8;
       let textY = signY + 12;
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
       doc.text(
-        liefernachweis.testModus
-          ? '[TEST] Digitale Lieferbestätigung'
-          : 'Digitale Lieferbestätigung',
+        `${liefernachweis.testModus ? '[TEST] ' : ''}${
+          istAbholung ? 'Digitale Empfangsbestätigung' : 'Digitale Lieferbestätigung'
+        }`,
         textX,
         textY
       );
       doc.setFont('helvetica', 'normal');
       textY += 7;
       doc.setFontSize(10);
-      doc.text('Beim Abladen scannen und Lieferung bestätigen.', textX, textY);
+      doc.text(
+        istAbholung
+          ? 'Hier scannen und Empfang der Ware unterschreiben.'
+          : 'Beim Abladen scannen und Lieferung bestätigen.',
+        textX,
+        textY
+      );
       textY += 5;
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text('Mit dem Smartphone – keine App, keine Anmeldung nötig.', textX, textY);
       textY += 4;
-      doc.text('1 Foto der abgeladenen Ware genügt (unter 20 Sekunden).', textX, textY);
+      doc.text(
+        istAbholung
+          ? 'Der unterschriebene Lieferschein kommt sofort per E-Mail.'
+          : '1 Foto der abgeladenen Ware genügt (unter 20 Sekunden).',
+        textX,
+        textY
+      );
       doc.setTextColor(0, 0, 0);
 
       signY += boxHoehe;

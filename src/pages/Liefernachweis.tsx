@@ -1,12 +1,24 @@
 /**
- * Liefernachweis.tsx — Öffentliche Seite für den Speditionsfahrer (KEIN Login!)
+ * Liefernachweis.tsx — Öffentliche Seite zur Lieferbestätigung (KEIN Login!)
  *
  * Aufruf über den QR-Code auf dem Lieferschein:
  *   /liefernachweis/:projektId?token=<token>[&test=1]
  *
- * Leitprinzip: maximal einfach — Scan → Auftrag kompakt sehen → „Abgeladen ✓"
- * → Foto der Ware → Foto des Wiegescheins → fertig, unter 30 Sekunden.
- * Unterschrift bleibt optional.
+ * ZWEI ABLÄUFE, EINE SEITE. Welcher gilt, sagt der Server (`auftrag.modus`) —
+ * nie die Seite selbst, denn die läuft auf einem fremden Handy:
+ *
+ * 1. FAHRER (Standard, Belieferung durch uns):
+ *    Scan → Auftrag kompakt sehen → „Abgeladen ✓" → Foto der Ware → Foto des
+ *    Wiegescheins → fertig, unter 30 Sekunden. Unterschrift optional.
+ *
+ * 2. ABHOLUNG AB WERK (der Kunde holt selbst):
+ *    Scan im Werk → Auftrag prüfen → Name des Abholers und E-Mail → mit dem
+ *    Finger unterschreiben → fertig. Der unterschriebene Lieferschein geht
+ *    sofort per E-Mail an den Kunden; ein Ausdruck ist nicht mehr nötig.
+ *    Hier ist die Unterschrift Pflicht und die Fotos sind freiwillig — genau
+ *    umgekehrt zum Fahrer-Ablauf, weil der Abholer selbst quittiert, was er
+ *    mitnimmt, und niemand ein Abladen fotografieren kann, das erst später
+ *    beim Kunden stattfindet.
  *
  * Der Wiegeschein trägt die Menge, nach der abgerechnet wird. Deshalb wird er
  * als eigener, deutlich angekündigter Schritt abgefragt und nicht als Zusatz
@@ -21,15 +33,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   Camera,
   CheckCircle2,
   Loader2,
+  Mail,
   MapPin,
   Package,
   PenLine,
   RefreshCw,
   Scale,
   Truck,
+  User,
   XCircle,
 } from 'lucide-react';
 
@@ -39,6 +54,14 @@ interface AuftragsPosition {
   bezeichnung: string;
   menge: number;
   einheit: string;
+}
+
+/** Ergebnis des automatischen Lieferschein-Versands nach einer Abholung */
+interface LieferscheinVersand {
+  an: string;
+  am: string;
+  status: 'gesendet' | 'fehler';
+  fehler?: string;
 }
 
 interface AuftragsInfo {
@@ -53,19 +76,31 @@ interface AuftragsInfo {
   liefernachweisAm: string | null;
   /** Server-Vorgabe: muss der Fahrer den Wiegeschein fotografieren? */
   wiegescheinPflicht?: boolean;
+  /**
+   * Welcher Ablauf gilt. Kommt ausschliesslich vom Server (aus der
+   * Belieferungsart des Auftrags) — fehlt er, gilt der Fahrer-Ablauf, weil
+   * der die strengeren Pflichtfelder hat.
+   */
+  modus?: 'fahrer' | 'abholung';
+  /** Vorbelegung des E-Mail-Feldes bei einer Abholung (leer beim Fahrer) */
+  empfaengerVorschlag?: string;
+  /** Stand eines früheren Versands, falls die Abholung schon bestätigt ist */
+  lieferscheinVersand?: LieferscheinVersand;
 }
 
 /**
- * Schritte des Ablaufs:
- *   auftrag     → Auftrag prüfen, Name eintragen, Warenfoto auslösen
- *   wiegeschein → Wiegeschein fotografieren
- *   abschluss   → beide Fotos ansehen, optional unterschreiben, absenden
+ * Schritte des Ablaufs.
+ *
+ * Fahrer:   auftrag → wiegeschein → abschluss → senden → fertig
+ * Abholung: auftrag → unterschrift → senden → fertig
+ *           (die Fotos sind dort freiwillig und hängen im Unterschrift-Schritt)
  */
 type SeitenStatus =
   | 'laden'
   | 'fehler'
   | 'auftrag'
   | 'wiegeschein'
+  | 'unterschrift'
   | 'abschluss'
   | 'senden'
   | 'fertig';
@@ -127,11 +162,19 @@ const holePosition = (): Promise<{ lat: number; lng: number; genauigkeitM?: numb
     );
   });
 
-/** Einfaches Unterschriften-Canvas (optional, Pointer Events) */
+/**
+ * Einfaches Unterschriften-Canvas (Pointer Events).
+ *
+ * `gross` für die Abholung: Dort ist die Unterschrift der eigentliche Zweck
+ * der Seite und wird mit dem Finger auf einem Handy geleistet — ein
+ * briefmarkengrosses Feld erzeugt eine Unterschrift, die niemand wiedererkennt.
+ */
 const UnterschriftCanvas = ({
   onChange,
+  gross,
 }: {
   onChange: (dataUrl: string | null) => void;
+  gross?: boolean;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const zeichnetRef = useRef(false);
@@ -205,7 +248,7 @@ const UnterschriftCanvas = ({
         ref={canvasRef}
         width={600}
         height={200}
-        className="w-full h-32 bg-white dark:bg-gray-100 border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg touch-none"
+        className={`w-full ${gross ? 'h-56' : 'h-32'} bg-white dark:bg-gray-100 border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-lg touch-none`}
         onPointerDown={start}
         onPointerMove={bewege}
         onPointerUp={ende}
@@ -245,12 +288,18 @@ const Liefernachweis = () => {
   const [unterschriftDataUrl, setUnterschriftDataUrl] = useState<string | null>(null);
   const [unterzeichnerName, setUnterzeichnerName] = useState('');
   const [fahrerName, setFahrerName] = useState('');
+  // nur Abholung
+  const [kennzeichen, setKennzeichen] = useState('');
+  const [empfaenger, setEmpfaenger] = useState('');
+  const [zeigeFotos, setZeigeFotos] = useState(false);
 
   const [ergebnis, setErgebnis] = useState<{
     bereitsBestaetigt?: boolean;
     testModus?: boolean;
     statusGesetzt?: boolean;
     liefernachweisAm?: string | null;
+    modus?: 'fahrer' | 'abholung';
+    lieferscheinVersand?: LieferscheinVersand;
   } | null>(null);
 
   const fotoInputRef = useRef<HTMLInputElement | null>(null);
@@ -259,6 +308,22 @@ const Liefernachweis = () => {
   // Standard ist Pflicht: Antwortet ein älterer Server das Feld nicht mit,
   // wird der Wiegeschein trotzdem verlangt statt still übersprungen.
   const wiegescheinPflicht = auftrag?.wiegescheinPflicht !== false;
+
+  // Abholung nur, wenn der Server sie ausdrücklich meldet. Ein alter Server
+  // ohne dieses Feld führt zum Fahrer-Ablauf — dem mit den strengeren
+  // Pflichtfeldern; im Zweifel lieber ein Foto zu viel als ein Nachweis zu wenig.
+  const istAbholung = auftrag?.modus === 'abholung';
+  const abholerName = unterzeichnerName.trim();
+  // Die Prüfung ist bewusst grob: Sie fängt Tippfehler wie fehlendes @ ab.
+  // Die verbindliche Prüfung macht der Server, der die Mail auch verschickt.
+  const empfaengerGefuellt = empfaenger.trim().length > 0;
+  const empfaengerPlausibel =
+    !empfaengerGefuellt ||
+    empfaenger
+      .split(/[\s,;]+/)
+      .filter(Boolean)
+      .every((adresse) => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(adresse));
+  const abholungAbsendbar = Boolean(abholerName && unterschriftDataUrl && empfaengerPlausibel);
 
   // Dark Mode: Auf dieser öffentlichen Seite folgt das Theme der System-
   // Einstellung des Fahrer-Smartphones (das Portal-Theme ist class-basiert und
@@ -297,10 +362,17 @@ const Liefernachweis = () => {
         return;
       }
       setAuftrag(json.auftrag);
+      // Vorschlag nur setzen, solange der Nutzer nichts eigenes eingetippt hat
+      // (das Neuladen nach einem Fehler darf keine Korrektur überschreiben).
+      if (json.auftrag.empfaengerVorschlag) {
+        setEmpfaenger((bisher) => bisher || json.auftrag!.empfaengerVorschlag || '');
+      }
       if (json.auftrag.bereitsBestaetigt) {
         setErgebnis({
           bereitsBestaetigt: true,
           liefernachweisAm: json.auftrag.liefernachweisAm,
+          modus: json.auftrag.modus,
+          lieferscheinVersand: json.auftrag.lieferscheinVersand,
         });
         setStatus('fertig');
       } else {
@@ -326,6 +398,9 @@ const Liefernachweis = () => {
     try {
       const dataUrl = await komprimiereFoto(datei);
       setFotoDataUrl(dataUrl);
+      // Bei der Abholung ist das Foto ein freiwilliger Zusatz im laufenden
+      // Schritt — der Abholer soll dadurch nicht aus seinem Ablauf fliegen.
+      if (istAbholung) return;
       // Ist der Wiegeschein schon im Kasten (Foto neu aufgenommen), bleibt der
       // Fahrer im Abschluss-Schritt statt erneut durch den Ablauf geschickt zu werden.
       setStatus(wiegescheinDataUrl ? 'abschluss' : 'wiegeschein');
@@ -346,6 +421,7 @@ const Liefernachweis = () => {
     try {
       const dataUrl = await komprimiereFoto(datei);
       setWiegescheinDataUrl(dataUrl);
+      if (istAbholung) return;
       setStatus('abschluss');
     } catch {
       setFehlerText('Das Foto konnte nicht verarbeitet werden. Bitte erneut aufnehmen.');
@@ -354,10 +430,18 @@ const Liefernachweis = () => {
     }
   };
 
-  // Bestätigung absenden
+  // Bestätigung absenden — beide Abläufe, unterschiedliche Pflichtfelder
   const sendeBestaetigung = async () => {
-    if (!projektId || !fotoDataUrl || !fahrerName.trim()) return;
-    if (wiegescheinPflicht && !wiegescheinDataUrl) return;
+    if (!projektId) return;
+    // Wohin es zurückgeht, wenn etwas schiefläuft: der Schritt, in dem der
+    // Nutzer gerade stand. Sonst landet ein Abholer im Fahrer-Bildschirm.
+    const rueckfallSchritt: SeitenStatus = istAbholung ? 'unterschrift' : 'abschluss';
+    if (istAbholung) {
+      if (!abholungAbsendbar) return;
+    } else {
+      if (!fotoDataUrl || !fahrerName.trim()) return;
+      if (wiegescheinPflicht && !wiegescheinDataUrl) return;
+    }
     setStatus('senden');
     setFehlerText('');
     try {
@@ -368,11 +452,17 @@ const Liefernachweis = () => {
         body: JSON.stringify({
           projektId,
           token,
-          fotoBase64: fotoDataUrl,
+          fotoBase64: fotoDataUrl || undefined,
           wiegescheinBase64: wiegescheinDataUrl || undefined,
-          fahrerName: fahrerName.trim(),
+          fahrerName: istAbholung ? undefined : fahrerName.trim(),
           unterschriftBase64: unterschriftDataUrl || undefined,
           unterzeichnerName: unterzeichnerName.trim() || undefined,
+          ...(istAbholung
+            ? {
+                kennzeichen: kennzeichen.trim() || undefined,
+                empfaenger: empfaenger.trim() || undefined,
+              }
+            : {}),
           geo,
           testModus: testModus || undefined,
           mock: mockModus || undefined,
@@ -384,18 +474,20 @@ const Liefernachweis = () => {
         testModus?: boolean;
         statusGesetzt?: boolean;
         liefernachweisAm?: string | null;
+        modus?: 'fahrer' | 'abholung';
+        lieferscheinVersand?: LieferscheinVersand;
         error?: string;
       };
       if (!res.ok || !json.success) {
         setFehlerText(json.error || 'Die Bestätigung ist fehlgeschlagen. Bitte erneut versuchen.');
-        setStatus('abschluss');
+        setStatus(rueckfallSchritt);
         return;
       }
       setErgebnis(json);
       setStatus('fertig');
     } catch {
       setFehlerText('Keine Verbindung. Bitte Empfang prüfen und erneut versuchen.');
-      setStatus('abschluss');
+      setStatus(rueckfallSchritt);
     }
   };
 
@@ -424,7 +516,7 @@ const Liefernachweis = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-dark-text">
-              Lieferung bestätigen
+              {istAbholung ? 'Abholung bestätigen' : 'Lieferung bestätigen'}
             </h1>
             <p className="text-sm text-gray-600 dark:text-dark-textMuted">Tennismehl GmbH</p>
           </div>
@@ -501,24 +593,255 @@ const Liefernachweis = () => {
               )}
             </div>
 
-            {/* Fahrer-Name (Pflicht): wer bestätigt die Lieferung? */}
-            <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
-              <label
-                htmlFor="fahrerName"
-                className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+            {/* ===================== ABHOLUNG AB WERK ===================== */}
+            {istAbholung ? (
+              <>
+                <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5 space-y-4">
+                  <div>
+                    <label
+                      htmlFor="abholerName"
+                      className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+                    >
+                      <User className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                      Name des Abholers
+                    </label>
+                    <input
+                      id="abholerName"
+                      type="text"
+                      value={unterzeichnerName}
+                      onChange={(e) => setUnterzeichnerName(e.target.value)}
+                      placeholder="Vor- und Nachname"
+                      autoComplete="name"
+                      className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="kennzeichen"
+                      className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+                    >
+                      <Truck className="h-5 w-5 text-gray-500 dark:text-dark-textMuted" />
+                      Kennzeichen
+                      <span className="text-xs font-normal text-gray-500 dark:text-dark-textMuted">
+                        optional
+                      </span>
+                    </label>
+                    <input
+                      id="kennzeichen"
+                      type="text"
+                      value={kennzeichen}
+                      onChange={(e) => setKennzeichen(e.target.value)}
+                      placeholder="z. B. WÜ-AB 123"
+                      autoCapitalize="characters"
+                      className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Wohin der unterschriebene Lieferschein geht.
+                    Kein type="email": Das Feld nimmt auch mehrere Adressen auf,
+                    und die Browser-Prüfung würde sie als ungültig abweisen. */}
+                <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
+                  <label
+                    htmlFor="empfaenger"
+                    className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+                  >
+                    <Mail className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                    Lieferschein per E-Mail an
+                  </label>
+                  <input
+                    id="empfaenger"
+                    type="text"
+                    inputMode="email"
+                    value={empfaenger}
+                    onChange={(e) => setEmpfaenger(e.target.value)}
+                    placeholder="name@verein.de"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
+                  />
+                  <p className="mt-2 text-sm text-gray-500 dark:text-dark-textMuted">
+                    Der unterschriebene Lieferschein wird sofort dorthin geschickt. Mehrere
+                    Adressen mit Komma trennen. Feld leer lassen, wenn keine E-Mail gewünscht ist.
+                  </p>
+                  {!empfaengerPlausibel && (
+                    <p className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                      Diese Adresse sieht nicht vollständig aus — bitte prüfen.
+                    </p>
+                  )}
+                </div>
+
+                {fehlerText && (
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">{fehlerText}</p>
+                )}
+
+                <button
+                  onClick={() => setStatus('unterschrift')}
+                  disabled={!abholerName || !empfaengerPlausibel}
+                  className="w-full rounded-2xl bg-green-600 py-6 text-2xl font-bold text-white shadow-lg transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-60"
+                >
+                  Weiter zur Unterschrift
+                </button>
+                <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
+                  {abholerName
+                    ? 'Im nächsten Schritt mit dem Finger unterschreiben — das ersetzt die Quittung auf Papier.'
+                    : 'Bitte zuerst den Namen des Abholers eintragen.'}
+                </p>
+              </>
+            ) : (
+              <>
+                {/* ===================== BELIEFERUNG DURCH FAHRER ===================== */}
+                {/* Fahrer-Name (Pflicht): wer bestätigt die Lieferung? */}
+                <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
+                  <label
+                    htmlFor="fahrerName"
+                    className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text"
+                  >
+                    <Truck className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                    Ihr Name (Fahrer)
+                  </label>
+                  <input
+                    id="fahrerName"
+                    type="text"
+                    value={fahrerName}
+                    onChange={(e) => setFahrerName(e.target.value)}
+                    placeholder="Vor- und Nachname"
+                    autoComplete="name"
+                    className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
+                  />
+                </div>
+
+                {fehlerText && (
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">{fehlerText}</p>
+                )}
+
+                <button
+                  onClick={() => fotoInputRef.current?.click()}
+                  disabled={fotoVerarbeitet || !fahrerName.trim()}
+                  className="w-full rounded-2xl bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white text-2xl font-bold py-6 shadow-lg transition-colors"
+                >
+                  {fotoVerarbeitet ? (
+                    <span className="inline-flex items-center gap-3">
+                      <Loader2 className="h-7 w-7 animate-spin" />
+                      Foto wird verarbeitet …
+                    </span>
+                  ) : (
+                    'Abgeladen ✓'
+                  )}
+                </button>
+                <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
+                  {fahrerName.trim()
+                    ? wiegescheinPflicht
+                      ? 'Danach 2 Fotos: die abgeladene Ware und der Wiegeschein.'
+                      : 'Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.'
+                    : 'Bitte zuerst Ihren Namen eintragen, dann Fotos aufnehmen.'}
+                </p>
+                {wiegescheinPflicht && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-4 py-3">
+                    <p className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                      <Scale className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                      <span>
+                        <span className="font-semibold">Wiegeschein bereithalten.</span> Er wird im
+                        nächsten Schritt fotografiert — bitte noch nicht weglegen.
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ============ ABHOLUNG: Unterschrift des Abholers (Pflicht) ============ */}
+        {(status === 'unterschrift' || (status === 'senden' && istAbholung)) && (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-white dark:bg-dark-surface p-5 shadow-lg">
+              <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
+                <PenLine className="h-5 w-5 text-red-600 dark:text-dark-accent" />
+                Empfang mit Unterschrift bestätigen
+              </p>
+              <p className="mt-2 text-sm text-gray-600 dark:text-dark-textMuted">
+                <span className="font-semibold">{abholerName}</span> bestätigt, die Ware
+                vollständig und in einwandfreiem Zustand im Werk übernommen zu haben.
+              </p>
+
+              {auftrag && auftrag.positionen.length > 0 && (
+                <ul className="mt-3 space-y-1 rounded-xl bg-gray-50 dark:bg-gray-800/60 px-3 py-2">
+                  {auftrag.positionen.map((pos, i) => (
+                    <li
+                      key={i}
+                      className="flex justify-between gap-3 text-sm text-gray-800 dark:text-dark-text"
+                    >
+                      <span className="break-words">{pos.bezeichnung}</span>
+                      <span className="whitespace-nowrap font-semibold">
+                        {pos.menge} {pos.einheit}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="mt-4">
+                <UnterschriftCanvas gross onChange={setUnterschriftDataUrl} />
+              </div>
+            </div>
+
+            {/* Fotos sind bei der Abholung freiwillig — eingeklappt, damit sie
+                den Ablauf nicht verlängern, aber greifbar, wenn jemand die
+                Ladung oder den Wiegeschein dokumentieren will. */}
+            <div className="rounded-2xl bg-white dark:bg-dark-surface p-5 shadow-lg">
+              <button
+                type="button"
+                onClick={() => setZeigeFotos((v) => !v)}
+                disabled={status === 'senden'}
+                className="flex w-full items-center justify-between text-left"
               >
-                <Truck className="h-5 w-5 text-red-600 dark:text-dark-accent" />
-                Ihr Name (Fahrer)
-              </label>
-              <input
-                id="fahrerName"
-                type="text"
-                value={fahrerName}
-                onChange={(e) => setFahrerName(e.target.value)}
-                placeholder="Vor- und Nachname"
-                autoComplete="name"
-                className="mt-3 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-3 text-lg text-gray-900 dark:text-dark-text placeholder-gray-400"
-              />
+                <span className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
+                  <Camera className="h-5 w-5 text-gray-500 dark:text-dark-textMuted" />
+                  Fotos hinzufügen
+                </span>
+                <span className="text-xs text-gray-500 dark:text-dark-textMuted">
+                  {fotoDataUrl || wiegescheinDataUrl
+                    ? `${[fotoDataUrl, wiegescheinDataUrl].filter(Boolean).length} aufgenommen`
+                    : 'optional'}
+                </span>
+              </button>
+              {zeigeFotos && (
+                <div className="mt-4 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => fotoInputRef.current?.click()}
+                    disabled={fotoVerarbeitet || status === 'senden'}
+                    className="w-full rounded-xl border border-gray-300 py-3 font-medium text-gray-800 dark:border-gray-600 dark:text-dark-text disabled:opacity-60"
+                  >
+                    {fotoDataUrl ? 'Foto der Ladung neu aufnehmen' : 'Foto der Ladung aufnehmen'}
+                  </button>
+                  {fotoDataUrl && (
+                    <img
+                      src={fotoDataUrl}
+                      alt="Foto der Ladung"
+                      className="max-h-48 w-full rounded-xl bg-gray-50 object-contain dark:bg-gray-800"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => wiegescheinInputRef.current?.click()}
+                    disabled={fotoVerarbeitet || status === 'senden'}
+                    className="w-full rounded-xl border border-gray-300 py-3 font-medium text-gray-800 dark:border-gray-600 dark:text-dark-text disabled:opacity-60"
+                  >
+                    {wiegescheinDataUrl ? 'Wiegeschein neu aufnehmen' : 'Wiegeschein fotografieren'}
+                  </button>
+                  {wiegescheinDataUrl && (
+                    <img
+                      src={wiegescheinDataUrl}
+                      alt="Foto des Wiegescheins"
+                      className="max-h-48 w-full rounded-xl bg-gray-50 object-contain dark:bg-gray-800"
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             {fehlerText && (
@@ -526,37 +849,32 @@ const Liefernachweis = () => {
             )}
 
             <button
-              onClick={() => fotoInputRef.current?.click()}
-              disabled={fotoVerarbeitet || !fahrerName.trim()}
-              className="w-full rounded-2xl bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white text-2xl font-bold py-6 shadow-lg transition-colors"
+              onClick={() => void sendeBestaetigung()}
+              disabled={status === 'senden' || !abholungAbsendbar}
+              className="w-full rounded-2xl bg-green-600 py-5 text-xl font-bold text-white shadow-lg transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-60"
             >
-              {fotoVerarbeitet ? (
+              {status === 'senden' ? (
                 <span className="inline-flex items-center gap-3">
-                  <Loader2 className="h-7 w-7 animate-spin" />
-                  Foto wird verarbeitet …
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  Wird übermittelt …
                 </span>
               ) : (
-                'Abgeladen ✓'
+                'Abholung bestätigen ✓'
               )}
             </button>
-            <p className="text-center text-sm text-gray-500 dark:text-dark-textMuted">
-              {fahrerName.trim()
-                ? wiegescheinPflicht
-                  ? 'Danach 2 Fotos: die abgeladene Ware und der Wiegeschein.'
-                  : 'Danach nur noch 1 Foto der abgeladenen Ware aufnehmen — fertig.'
-                : 'Bitte zuerst Ihren Namen eintragen, dann Fotos aufnehmen.'}
-            </p>
-            {wiegescheinPflicht && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 px-4 py-3">
-                <p className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
-                  <Scale className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                  <span>
-                    <span className="font-semibold">Wiegeschein bereithalten.</span> Er wird im
-                    nächsten Schritt fotografiert — bitte noch nicht weglegen.
-                  </span>
-                </p>
-              </div>
+            {!unterschriftDataUrl && (
+              <p className="text-center text-sm font-medium text-amber-700 dark:text-amber-400">
+                Zum Bestätigen fehlt noch die Unterschrift.
+              </p>
             )}
+            <button
+              type="button"
+              onClick={() => setStatus('auftrag')}
+              disabled={status === 'senden'}
+              className="w-full rounded-xl px-4 py-3 text-sm font-medium text-gray-600 underline dark:text-dark-textMuted"
+            >
+              Zurück zu Name und E-Mail
+            </button>
           </div>
         )}
 
@@ -620,8 +938,10 @@ const Liefernachweis = () => {
           </div>
         )}
 
-        {/* Abschluss: beide Fotos prüfen, optional unterschreiben, absenden */}
-        {(status === 'abschluss' || status === 'senden') && fotoDataUrl && (
+        {/* Abschluss (nur Fahrer): beide Fotos prüfen, optional unterschreiben, absenden.
+            Der Abholer hat seinen eigenen Abschluss im Unterschrift-Schritt — ohne
+            die Bedingung stünden bei ihm während des Sendens beide Ansichten übereinander. */}
+        {!istAbholung && (status === 'abschluss' || status === 'senden') && fotoDataUrl && (
           <div className="space-y-4">
             <div className="bg-white dark:bg-dark-surface rounded-2xl shadow-lg p-5">
               <p className="flex items-center gap-2 font-semibold text-gray-900 dark:text-dark-text">
@@ -737,7 +1057,9 @@ const Liefernachweis = () => {
             {ergebnis?.bereitsBestaetigt ? (
               <>
                 <p className="mt-4 text-xl font-bold text-gray-900 dark:text-dark-text">
-                  Diese Lieferung wurde bereits bestätigt.
+                  {istAbholung
+                    ? 'Diese Abholung wurde bereits bestätigt.'
+                    : 'Diese Lieferung wurde bereits bestätigt.'}
                 </p>
                 {ergebnis.liefernachweisAm && (
                   <p className="mt-2 text-gray-600 dark:text-dark-textMuted">
@@ -753,12 +1075,16 @@ const Liefernachweis = () => {
                 <p className="mt-4 text-xl font-bold text-gray-900 dark:text-dark-text">
                   {ergebnis?.testModus
                     ? '[TEST] Ablauf erfolgreich durchlaufen!'
-                    : 'Vielen Dank! Lieferung bestätigt.'}
+                    : istAbholung
+                      ? 'Vielen Dank! Abholung bestätigt.'
+                      : 'Vielen Dank! Lieferung bestätigt.'}
                 </p>
                 <p className="mt-2 text-gray-600 dark:text-dark-textMuted">
                   {ergebnis?.testModus
-                    ? 'Es wurde nichts gespeichert und kein Status geändert.'
-                    : 'Der Liefernachweis wurde übermittelt. Sie können die Seite jetzt schließen.'}
+                    ? 'Es wurde nichts gespeichert, kein Status geändert und keine E-Mail verschickt.'
+                    : istAbholung
+                      ? 'Der unterschriebene Lieferschein ist archiviert. Sie können die Seite jetzt schließen.'
+                      : 'Der Liefernachweis wurde übermittelt. Sie können die Seite jetzt schließen.'}
                 </p>
                 {ergebnis && ergebnis.statusGesetzt === false && (
                   <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
@@ -766,6 +1092,29 @@ const Liefernachweis = () => {
                   </p>
                 )}
               </>
+            )}
+
+            {/* Wohin der Lieferschein ging — oder warum nicht. Ein stiller
+                Fehlschlag wäre genau das, was später zum Anruf führt. */}
+            {ergebnis?.lieferscheinVersand?.status === 'gesendet' && (
+              <div className="mt-5 flex items-start gap-2 rounded-xl bg-green-50 px-4 py-3 text-left dark:bg-green-950/40">
+                <Mail className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                <p className="text-sm text-green-900 dark:text-green-200">
+                  Der unterschriebene Lieferschein wurde an{' '}
+                  <span className="font-semibold break-all">{ergebnis.lieferscheinVersand.an}</span>{' '}
+                  geschickt.
+                </p>
+              </div>
+            )}
+            {ergebnis?.lieferscheinVersand?.status === 'fehler' && (
+              <div className="mt-5 flex items-start gap-2 rounded-xl bg-amber-50 px-4 py-3 text-left dark:bg-amber-950/40">
+                <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm text-amber-900 dark:text-amber-200">
+                  Die Abholung ist bestätigt und archiviert. Der E-Mail-Versand an{' '}
+                  <span className="font-semibold break-all">{ergebnis.lieferscheinVersand.an}</span>{' '}
+                  hat nicht geklappt — das Büro sieht das und schickt den Lieferschein nach.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -791,7 +1140,9 @@ const Liefernachweis = () => {
         />
 
         <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
-          Tennismehl GmbH · Digitaler Liefernachweis · Keine Anmeldung erforderlich
+          Tennismehl GmbH ·{' '}
+          {istAbholung ? 'Digitale Empfangsbestätigung' : 'Digitaler Liefernachweis'} · Keine
+          Anmeldung erforderlich
         </p>
       </div>
     </div>

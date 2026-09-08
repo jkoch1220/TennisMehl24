@@ -14,7 +14,7 @@
  * gedruckten Lieferschein landet).
  */
 
-import { Projekt } from '../types/projekt';
+import { LieferscheinVersandInfo, Projekt } from '../types/projekt';
 import { projektService } from './projektService';
 import { getBucketId, istMockModusAktiv } from '../config/mockModus';
 
@@ -131,4 +131,60 @@ export const holeLiefernachweisUrlFuerProjekt = async (
     console.warn('Liefernachweis-Token konnte nicht gesichert werden — Lieferschein wird ohne QR-Code erzeugt:', error);
     return null;
   }
+};
+
+/**
+ * Schickt den bereits archivierten, unterschriebenen Lieferschein einer
+ * Abholung noch einmal per E-Mail.
+ *
+ * Für die zwei Fälle, in denen der automatische Versand im Werk nicht ankam:
+ * Der Abholer hat sich vertippt, oder der Mailserver war gerade nicht
+ * erreichbar. Es entsteht dabei KEIN neuer Nachweis — verschickt wird exakt
+ * das archivierte Dokument, und am Vorgang ändert sich nur der Versandstand.
+ *
+ * Der Versand läuft über dieselbe Netlify Function wie die Bestätigung selbst:
+ * Der Server hält das PDF, den Mailzugang und die Empfängerprüfung, und der
+ * Token am Projekt ist der Ausweis dafür — im Browser liegt nichts davon.
+ */
+export const sendeLieferscheinErneut = async (
+  projekt: Projekt,
+  empfaenger: string
+): Promise<LieferscheinVersandInfo> => {
+  const projektId = projekt.$id || projekt.id;
+  const token = projekt.liefernachweisToken;
+  if (!token) {
+    throw new Error(
+      'Für diesen Auftrag ist kein Bestätigungs-Token hinterlegt — der Lieferschein kann nicht erneut versendet werden.'
+    );
+  }
+
+  const res = await fetch('/.netlify/functions/liefernachweis', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projektId,
+      token,
+      aktion: 'lieferschein-erneut-senden',
+      empfaenger,
+      mock: istMockModusAktiv() || undefined,
+    }),
+  });
+
+  const json = (await res.json().catch(() => ({}))) as {
+    success?: boolean;
+    error?: string;
+    lieferscheinVersand?: LieferscheinVersandInfo;
+  };
+
+  if (!res.ok || !json.success) {
+    throw new Error(json.error || `Versand fehlgeschlagen (HTTP ${res.status})`);
+  }
+
+  return (
+    json.lieferscheinVersand ?? {
+      an: empfaenger,
+      am: new Date().toISOString(),
+      status: 'gesendet',
+    }
+  );
 };

@@ -38,6 +38,7 @@ import { getAlleArtikel } from '../../services/artikelService';
 import { Artikel } from '../../types/artikel';
 import { Projekt } from '../../types/projekt';
 import DokumentVerlauf from './DokumentVerlauf';
+import AbholungQrKarte from './AbholungQrKarte';
 import LiefernachweisKarte from './LiefernachweisKarte';
 import WiegescheinKarte from './WiegescheinKarte';
 import EmailFormular from './EmailFormular';
@@ -46,6 +47,7 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
+import { erwartetAbholungsNachweis } from '../../utils/liefernachweisArt';
 
 interface LieferscheinTabProps {
   projekt?: Projekt;
@@ -1645,7 +1647,23 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
             )}
           </div>
           
-          {/* Rückmeldung des Fahrers aus dem QR-Scan */}
+          {/* Abholung ab Werk: Code für die Unterschrift bei der Übergabe.
+              Nur solange nichts bestätigt ist — danach steht das Ergebnis
+              in der LiefernachweisKarte, und ein zweiter Scan liefe ins Leere
+              (die Function ist idempotent).
+              Maßgeblich ist die Belieferungsart im gerade bearbeiteten
+              Lieferschein: Wer sie oben umstellt, sieht die Karte sofort. */}
+          {projekt?.$id &&
+            !projekt.liefernachweisAm &&
+            erwartetAbholungsNachweis({
+              belieferungsart: lieferscheinDaten.belieferungsart ?? projekt.belieferungsart,
+            }) && (
+              <div className="mt-6">
+                <AbholungQrKarte projekt={projekt} />
+              </div>
+            )}
+
+          {/* Rückmeldung des Fahrers bzw. des Abholers */}
           {projekt && (
             <div className="mt-6 space-y-6">
               <LiefernachweisKarte projekt={projekt} />
