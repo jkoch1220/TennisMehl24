@@ -108,11 +108,53 @@ interface Position {
   id?: string;
   artikelnummer?: string;
   bezeichnung?: string;
+  beschreibung?: string;
   menge?: number;
   einheit?: string;
   einzelpreis?: number;
   gesamtpreis?: number;
   istBedarfsposition?: boolean;
+  /** Nur intern — darf den Kunden nie erreichen (siehe oeffentlichePosition). */
+  einkaufspreis?: number;
+  preisQuelle?: string;
+  [k: string]: unknown;
+}
+
+/**
+ * Was von einer Position zum Kunden darf.
+ *
+ * Bis 09/2026 reichte die Antwort die Positionsobjekte unverändert durch. Im
+ * Angebots-JSON stehen aber auch `einkaufspreis` (im Portal-Typ ausdrücklich
+ * „nur intern") und `preisQuelle` — beides lag damit im Browser des Kunden,
+ * sichtbar in den Entwicklerwerkzeugen. Eine Whitelist ist hier richtig: Neue
+ * interne Felder im Angebot landen so nicht automatisch beim Empfänger.
+ */
+const oeffentlichePosition = (p: Position) => ({
+  artikelnummer: p.artikelnummer,
+  bezeichnung: p.bezeichnung,
+  beschreibung: p.beschreibung,
+  menge: p.menge,
+  einheit: p.einheit,
+  einzelpreis: p.einzelpreis,
+  gesamtpreis: p.gesamtpreis,
+  istBedarfsposition: p.istBedarfsposition,
+});
+
+/** Angebotsdaten, die die Bestellseite anzeigt. */
+interface AngebotsKopf {
+  positionen: Position[];
+  angebotsdatum?: string;
+  gueltigBis?: string;
+  mehrwertsteuersatz?: number;
+  ohneMehrwertsteuer?: boolean;
+  zahlungsziel?: string;
+  lieferzeit?: string;
+  lieferbedingungenAktiviert?: boolean;
+  lieferbedingungen?: string;
+  /** Achtung: Das Flag heißt `aktiviert` (types/projektabwicklung.ts), nicht `aktiv`. */
+  vertragsklauseln?: Array<{ titel?: string; text?: string; aktiviert?: boolean }>;
+  dieselpreiszuschlagAktiviert?: boolean;
+  dieselpreiszuschlagText?: string;
 }
 
 interface Adresse { strasse?: string; plz?: string; ort?: string; land?: string }
@@ -135,6 +177,19 @@ interface ProjektDaten {
   rechnungsadresse?: Adresse;
   dispoNotizen?: Array<{ id: string; text: string; erstelltAm: string; wichtig?: boolean }>;
   schuettstelleFotos?: SchuettstelleFoto[];
+  /** Bezugsweg 'platzbauer': Die Rechnung geht an den Platzbauer, nicht an den Verein. */
+  bezugsweg?: string;
+  platzbauerId?: string;
+  istPlatzbauerprojekt?: boolean;
+  /** Freitext-Änderungswunsch, wenn die Adresse nicht mehr übernommen werden darf. */
+  rechnungsadresseHinweis?: string;
+  /**
+   * Zeitpunkt, zu dem der Kunde die Rechnungsanschrift über das Portal gesetzt hat.
+   * Gesetzt heißt: Für DIESEN Vorgang gilt die Anschrift am Projekt, nicht die aus
+   * dem Kundenstamm (siehe rechnungsadressenService.ts). Der Stammsatz bleibt
+   * unangetastet — ein einzelner Verein soll ihn nicht für alle Vorgänge umschreiben.
+   */
+  rechnungsadresseVomKundenAm?: string;
   /** An wen das Angebot ging — dorthin geht auch die Bestätigung. */
   bestellEmpfaenger?: string;
   [k: string]: unknown;
@@ -213,8 +268,8 @@ const speichereProjekt = async (
   }
 };
 
-/** Das gespeicherte Angebot — Grundlage für Positionen und Preise. */
-const ladeAngebot = async (projektId: string, db: string): Promise<{ positionen: Position[] } | null> => {
+/** Das gespeicherte Angebot — Grundlage für Positionen, Preise und Konditionen. */
+const ladeAngebot = async (projektId: string, db: string): Promise<AngebotsKopf | null> => {
   // Appwrite-REST erwartet `attribute` als eigenes Feld. Steckt der Name im
   // values-Array, kommt er leer an und die Abfrage scheitert mit
   // „Attribute not found in schema" — still, denn der Fehler landet im catch.
@@ -228,9 +283,111 @@ const ladeAngebot = async (projektId: string, db: string): Promise<{ positionen:
   const angebot = documents.filter((d) => d.dokumentTyp === 'angebot').pop();
   if (!angebot) return null;
   try {
-    const daten = JSON.parse(String(angebot.daten ?? '{}')) as { positionen?: Position[] };
-    return { positionen: daten.positionen ?? [] };
+    const daten = JSON.parse(String(angebot.daten ?? '{}')) as Partial<AngebotsKopf>;
+    return {
+      positionen: daten.positionen ?? [],
+      angebotsdatum: daten.angebotsdatum,
+      gueltigBis: daten.gueltigBis,
+      mehrwertsteuersatz: daten.mehrwertsteuersatz,
+      ohneMehrwertsteuer: daten.ohneMehrwertsteuer,
+      zahlungsziel: daten.zahlungsziel,
+      lieferzeit: daten.lieferzeit,
+      lieferbedingungenAktiviert: daten.lieferbedingungenAktiviert,
+      lieferbedingungen: daten.lieferbedingungen,
+      vertragsklauseln: daten.vertragsklauseln,
+      dieselpreiszuschlagAktiviert: daten.dieselpreiszuschlagAktiviert,
+      dieselpreiszuschlagText: daten.dieselpreiszuschlagText,
+    };
   } catch { return null; }
+};
+
+/**
+ * Darf der Kunde die Rechnungsadresse hier selbst ändern?
+ *
+ * Ja im Regelfall: Das Bestellportal steht VOR der Bestellung — das ist genau
+ * der Zeitpunkt, an dem eine falsche Anschrift auffällt und korrigiert gehört,
+ * sonst tippt sie jemand im Büro ab. Zwei Ausnahmen:
+ *
+ *  - Rechnung schon geschrieben: Eine Änderung würde die Rechnung und den
+ *    Beleg auseinanderlaufen lassen (Storno/Neuausstellung ist Bürosache).
+ *  - Bezugsweg Platzbauer: Die Rechnung geht an den Platzbauer, nicht an den
+ *    Verein. Der Verein darf dessen Anschrift nicht überschreiben.
+ *
+ * In beiden Fällen wird der Wunsch als Notiz festgehalten statt übernommen —
+ * dasselbe Muster wie im AB-Änderungsformular (datenpruefung.ts).
+ */
+const rechnungsadresseAenderbar = (daten: ProjektDaten): boolean => {
+  if (daten.rechnungsnummer) return false;
+  if (daten.bezugsweg === 'platzbauer' || daten.istPlatzbauerprojekt) return false;
+  return true;
+};
+
+/**
+ * Vergleichsform einer Adresszeile: Leerraum vereinheitlicht.
+ *
+ * Im Bestand steht „PLZ Ort" oft mit unregelmäßigem Leerraum — `formatAdresszeile`
+ * baut die Zeile als `${plz} ${ort}` ohne Trimmen, bei fehlender PLZ bleibt also
+ * ein führendes Leerzeichen stehen. Ohne diese Normalisierung meldete der
+ * Vergleich unten eine Änderung, obwohl der Kunde nichts angefasst hat: Notiz
+ * und Alarm-Mail bei jedem Speichern, im gesperrten Fall sogar dauerhaft, weil
+ * dort nie zurückgeschrieben wird.
+ */
+const vergleichbar = (s: string): string => s.replace(/\s+/g, ' ').trim();
+
+/**
+ * „Straße, PLZ Ort" für Notizen, Mails und den Änderungsvergleich.
+ *
+ * Jeder Bestandteil wird EINZELN normalisiert, bevor die Zeile entsteht — sonst
+ * überlebt ein Leerzeichen am Ende der Straße als „Am Sportpark 4 , 97070 …"
+ * und der Vergleich meldet eine Änderung, die keine ist.
+ */
+const adressZeile = (a?: Adresse | null): string => {
+  const teile = [a?.strasse, a?.plz, a?.ort].map((t) => vergleichbar(String(t ?? '')));
+  const plzOrt = [teile[1], teile[2]].filter(Boolean).join(' ');
+  return [teile[0], plzOrt].filter(Boolean).join(', ');
+};
+
+/**
+ * Zerlegt die gewachsene Schreibweise „97070 Würzburg" in PLZ und Ort.
+ *
+ * Am Projekt stehen Straße und „PLZ Ort" in zwei Feldern; die Bestellseite
+ * braucht drei Eingabefelder. Ohne die Trennung landete die komplette Zeile im
+ * Ortsfeld und beim Speichern stand dort „97070 Würzburg Würzburg".
+ * Nicht erkannte Formate (Auslands-PLZ, fehlende Zahl) wandern vollständig ins
+ * Ortsfeld — dann korrigiert der Kunde von Hand, statt dass etwas verloren geht.
+ */
+const trenneAdresse = (strasse?: string, plzOrt?: string): Adresse => {
+  const rest = (plzOrt ?? '').trim();
+  const treffer = /^(\d{4,5})\s+(.*)$/.exec(rest);
+  return {
+    strasse: strasse ?? '',
+    plz: treffer ? treffer[1] : '',
+    ort: treffer ? treffer[2] : rest,
+  };
+};
+
+/** Standardsatz, wenn das Angebot keinen eigenen trägt. */
+const MWST_STANDARD = 19;
+
+/**
+ * Netto, Steuer und Brutto für die Anzeige.
+ *
+ * Der Satz kommt aus dem Angebot, nicht aus einer Konstante im Browser: Bei
+ * Reverse Charge oder einem abweichenden Satz stand auf der Seite sonst
+ * „zzgl. 19 % MwSt.", während die Rechnung etwas anderes auswies.
+ */
+const summenBlock = (nettoSumme: number, angebot: AngebotsKopf | null) => {
+  const ohne = angebot?.ohneMehrwertsteuer === true;
+  const satz = ohne ? 0 : angebot?.mehrwertsteuersatz ?? MWST_STANDARD;
+  const netto = Math.round(nettoSumme * 100) / 100;
+  const steuer = Math.round(netto * (satz / 100) * 100) / 100;
+  return {
+    netto,
+    mehrwertsteuersatz: satz,
+    ohneMehrwertsteuer: ohne,
+    steuer,
+    brutto: Math.round((netto + steuer) * 100) / 100,
+  };
 };
 
 const parseDaten = (doc: ProjektDokument): ProjektDaten => {
@@ -278,6 +435,22 @@ const text = (wert: unknown, max = MAX_TEXT): string | undefined => {
   const t = wert.trim();
   return t ? t.slice(0, max) : undefined;
 };
+
+/**
+ * Maskiert Text für den Einbau in HTML-Mails.
+ *
+ * Adressen, Namen und Hinweise tippt der Kunde selbst. Ohne Maskierung landet
+ * sein `<` unmaskiert im Mail-Quelltext: Im harmlosen Fall zerlegt das die
+ * Darstellung, im unangenehmen Fall schiebt jemand einen fremden Link in eine
+ * Mail, die aussieht, als käme sie von uns.
+ */
+const html = (wert: unknown): string =>
+  String(wert ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const adresse = (wert: unknown): Adresse | undefined => {
   if (!wert || typeof wert !== 'object') return undefined;
@@ -438,8 +611,10 @@ const versendeBestellmails = async (
   const basis = oeffentlicheUrl();
   const link = `${basis}/bestellung/${projektId}?token=${token}${sandbox ? '&sandbox=1' : ''}`;
   const liefer = daten.lieferadresse;
+  // Maskiert, weil die Adresse aus dem Kundenformular stammt und hier in
+  // HTML-Mails eingesetzt wird — an den Kunden UND an uns.
   const lieferZeile = liefer?.strasse
-    ? `${liefer.strasse}, ${liefer.plz ?? ''} ${liefer.ort ?? ''}`
+    ? html(`${liefer.strasse}, ${liefer.plz ?? ''} ${liefer.ort ?? ''}`)
     : 'wie Rechnungsanschrift';
 
   // --- an den Kunden ---
@@ -585,26 +760,69 @@ export const handler: Handler = async (event: HandlerEvent) => {
       }
 
       const angebot = await ladeAngebot(projektId, db);
-      const positionen = (angebot?.positionen ?? []).filter((p) => !p.istBedarfsposition);
+
+      // Nach der Bestellung zählt, was bestellt wurde – nicht das ursprüngliche
+      // Angebot. Vorher zeigte die Seite unter „Ihre Bestellung" weiter die
+      // Angebotsmenge, obwohl der Kunde sie vor dem Klick geändert hatte.
+      const bestellung = (() => {
+        if (!daten.bestellungDaten) return null;
+        try {
+          return JSON.parse(daten.bestellungDaten) as { positionen?: Position[]; summe?: number; tonnage?: number };
+        } catch { return null; }
+      })();
+
+      const allePositionen = bestellung?.positionen ?? angebot?.positionen ?? [];
+      const positionen = allePositionen.filter((p) => !p.istBedarfsposition);
+      const bedarfspositionen = allePositionen.filter((p) => p.istBedarfsposition);
       const summe = positionen.reduce((s, p) => s + Number(p.gesamtpreis ?? 0), 0);
       const tonnage = positionen
+        .filter(istWarenTonnenPosition)
+        .reduce((s, p) => s + Number(p.menge ?? 0), 0);
+      // Spielraum immer am ursprünglichen Angebot messen: Sonst wandert die
+      // Grenze mit jeder Anpassung mit und ±10 % werden über die Zeit beliebig.
+      const angebotsTonnage = (angebot?.positionen ?? [])
+        .filter((p) => !p.istBedarfsposition)
         .filter(istWarenTonnenPosition)
         .reduce((s, p) => s + Number(p.menge ?? 0), 0);
 
       return antwort(200, {
         kundenname: daten.kundenname,
         angebotsnummer: daten.angebotsnummer,
+        angebotsdatum: angebot?.angebotsdatum ?? null,
+        gueltigBis: angebot?.gueltigBis ?? null,
         status: doc.status,
         bestelltAm: daten.bestellungEingegangenAm ?? null,
         rechnungsnummer: daten.rechnungsnummer ?? null,
         rechnungsdatum: daten.rechnungsdatum ?? null,
         lieferwoche: daten.lieferwoche ?? null,
-        positionen,
+        positionen: positionen.map(oeffentlichePosition),
+        bedarfspositionen: bedarfspositionen.map(oeffentlichePosition),
+        ...summenBlock(summe, angebot),
+        // `summe` bleibt für ältere Clients erhalten (Netto).
         summe: Math.round(summe * 100) / 100,
         tonnage,
-        mengeMin: Math.round(tonnage * (1 - MENGEN_TOLERANZ) * 100) / 100,
-        mengeMax: Math.round(tonnage * (1 + MENGEN_TOLERANZ) * 100) / 100,
-        rechnungsadresse: daten.rechnungsadresse ?? { strasse: daten.kundenstrasse, ort: daten.kundenPlzOrt },
+        mengeMin: Math.round(angebotsTonnage * (1 - MENGEN_TOLERANZ) * 100) / 100,
+        mengeMax: Math.round(angebotsTonnage * (1 + MENGEN_TOLERANZ) * 100) / 100,
+        konditionen: {
+          zahlungsziel: angebot?.zahlungsziel ?? null,
+          lieferzeit: angebot?.lieferzeit ?? null,
+          lieferbedingungen: angebot?.lieferbedingungenAktiviert ? angebot?.lieferbedingungen ?? null : null,
+          // Exakt dieselbe Bedingung wie im Angebots-PDF (dokumentService.ts:116):
+          // nur aktivierte Klauseln MIT Text. Bewusst `=== true` statt `!== false` —
+          // fehlt das Flag, ist Nichtanzeigen die sichere Richtung. Abgewählte
+          // Klauseln bleiben als Schnappschuss im Angebot stehen; sie hier
+          // auszugeben hieße, den Kunden gegen Bedingungen bestellen zu lassen,
+          // die auf seinem PDF nicht stehen.
+          klauseln: (angebot?.vertragsklauseln ?? [])
+            .filter((k) => k?.aktiviert === true && !!k?.text?.trim())
+            .map((k) => ({ titel: k.titel ?? '', text: (k.text ?? '').trim() })),
+          dieselpreiszuschlag: angebot?.dieselpreiszuschlagAktiviert ? angebot?.dieselpreiszuschlagText ?? null : null,
+        },
+        // Die Anschrift kommt aus den Feldern, die AB und Rechnung lesen —
+        // nicht mehr aus dem toten Feld `rechnungsadresse`. PLZ und Ort stecken
+        // im Bestand gemeinsam in `kundenPlzOrt`, deshalb hier getrennt.
+        rechnungsadresse: trenneAdresse(daten.kundenstrasse, daten.kundenPlzOrt),
+        rechnungsadresseAenderbar: rechnungsadresseAenderbar(daten),
         lieferadresse: daten.lieferadresse ?? null,
         dispoAnsprechpartner: daten.dispoAnsprechpartner ?? null,
         fotos: (daten.schuettstelleFotos ?? []).map((f) => ({ fileId: f.fileId, hinweis: f.hinweis })),
@@ -628,14 +846,104 @@ export const handler: Handler = async (event: HandlerEvent) => {
       const zugang = pruefeZugang(daten, token);
       if (!zugang.ok) return antwort(zugang.abgelaufen ? 410 : 403, { error: zugang.grund });
 
+      // Vorschau: rechnet eine geänderte Menge durch, ohne etwas zu speichern.
+      // Damit sieht der Kunde Fracht und Summe VOR dem verbindlichen Klick –
+      // und die Frachtstaffel bleibt an einer Stelle, statt ein drittes Mal in
+      // den Browser kopiert zu werden.
+      if (aktion === 'vorschau') {
+        const angebot = await ladeAngebot(projektId, db);
+        if (!angebot) return antwort(404, { error: 'Angebot nicht gefunden.' });
+        const gewuenscht = Number(req.menge);
+        if (!Number.isFinite(gewuenscht) || gewuenscht <= 0) {
+          return antwort(400, { error: 'Bitte eine Menge größer als 0 angeben.' });
+        }
+        const basis = angebot.positionen.filter((p) => !p.istBedarfsposition);
+        const alteTonnage = basis.filter(istWarenTonnenPosition).reduce((s, p) => s + Number(p.menge ?? 0), 0);
+        const min = Math.round(alteTonnage * (1 - MENGEN_TOLERANZ) * 100) / 100;
+        const max = Math.round(alteTonnage * (1 + MENGEN_TOLERANZ) * 100) / 100;
+        if (alteTonnage > 0 && (gewuenscht < min || gewuenscht > max)) {
+          return antwort(400, { error: `Bitte eine Menge zwischen ${min} und ${max} t angeben.` });
+        }
+        const gerechnet = rechneUm(angebot.positionen, gewuenscht);
+        const sichtbar = gerechnet.positionen.filter((p) => !p.istBedarfsposition);
+        return antwort(200, {
+          positionen: sichtbar.map(oeffentlichePosition),
+          ...summenBlock(gerechnet.summe, angebot),
+          summe: gerechnet.summe,
+          tonnage: sichtbar.filter(istWarenTonnenPosition).reduce((s, p) => s + Number(p.menge ?? 0), 0),
+        });
+      }
+
       const neu: ProjektDaten = { ...daten };
       const jetzt = new Date().toISOString();
 
-      // Adressen und Dispo-Kontakt darf der Kunde jederzeit pflegen.
+      // ---------- Adressen ----------
+      // Bis 09/2026 landete die Rechnungsadresse in `neu.rechnungsadresse` —
+      // einem Feld, das KEIN Portal-Code liest. AB und Rechnung nehmen
+      // `kundenstrasse`/`kundenPlzOrt`. Die Änderung sah für den Kunden also
+      // erfolgreich aus und verpuffte. Jetzt wird sie dorthin geschrieben, wo
+      // sie wirkt — oder als Änderungswunsch hinterlegt, wenn das zu spät ist.
+      const adressAenderungen: string[] = [];
       const rechnungsadresse = adresse(req.rechnungsadresse);
       const lieferadresse = adresse(req.lieferadresse);
-      if (rechnungsadresse) neu.rechnungsadresse = rechnungsadresse;
-      if (lieferadresse) neu.lieferadresse = lieferadresse;
+      // Der Kunde hat das Feld ausdrücklich mitgeschickt (statt es wegzulassen).
+      const lieferadresseGesendet = Object.prototype.hasOwnProperty.call(req, 'lieferadresse');
+
+      if (rechnungsadresse) {
+        const vorher = adressZeile({ strasse: daten.kundenstrasse, ort: daten.kundenPlzOrt });
+        const nachher = adressZeile(rechnungsadresse);
+        // Eine Rechnungsanschrift ohne Straße oder ohne Ort ist keine Anschrift.
+        // Ohne diese Prüfung leerte eine halb ausgefüllte Eingabe die Felder, aus
+        // denen Auftragsbestätigung und Rechnung ihren Empfänger nehmen.
+        const vollstaendig = !!rechnungsadresse.strasse?.trim() && !!rechnungsadresse.ort?.trim();
+        if (vorher !== nachher && !vollstaendig) {
+          return antwort(400, {
+            error: 'Bitte geben Sie die Rechnungsanschrift vollständig an: Straße, PLZ und Ort.',
+          });
+        }
+        if (vorher !== nachher) {
+          if (rechnungsadresseAenderbar(daten)) {
+            // Dorthin, wo AB und Rechnung wirklich lesen.
+            neu.kundenstrasse = rechnungsadresse.strasse ?? '';
+            neu.kundenPlzOrt = vergleichbar(
+              [rechnungsadresse.plz, rechnungsadresse.ort].filter(Boolean).join(' ')
+            );
+            // Merker für die Rechnungsstellung: Diese Anschrift kommt vom Kunden
+            // und darf nicht wieder aus dem Kundenstamm überschrieben werden
+            // (rechnungsadressenService.ts, Fall „Direktgeschäft").
+            neu.rechnungsadresseVomKundenAm = jetzt;
+            adressAenderungen.push(`Rechnungsanschrift geändert: „${vorher}" → „${nachher}"`);
+          } else {
+            const grund = daten.rechnungsnummer
+              ? `Rechnung ${daten.rechnungsnummer} ist bereits geschrieben`
+              : 'Rechnung läuft über den Platzbauer';
+            neu.rechnungsadresseHinweis = nachher;
+            adressAenderungen.push(
+              `⚠ Änderungswunsch Rechnungsanschrift (NICHT übernommen, ${grund}): „${vorher}" → „${nachher}"`
+            );
+          }
+        }
+      }
+
+      if (lieferadresse) {
+        const vorher = adressZeile(daten.lieferadresse);
+        const nachher = adressZeile(lieferadresse);
+        if (vorher !== nachher) {
+          neu.lieferadresse = lieferadresse;
+          adressAenderungen.push(
+            vorher
+              ? `Lieferanschrift geändert: „${vorher}" → „${nachher}"`
+              : `Abweichende Lieferanschrift: „${nachher}"`
+          );
+        }
+      } else if (lieferadresseGesendet && daten.lieferadresse) {
+        // Alle Felder geleert = „wie Rechnungsanschrift". Vorher wurde eine
+        // geleerte Adresse verworfen, der Kunde kam nicht mehr zurück.
+        delete neu.lieferadresse;
+        adressAenderungen.push(
+          `Abweichende Lieferanschrift entfernt („${adressZeile(daten.lieferadresse)}") — Lieferung an die Rechnungsanschrift.`
+        );
+      }
       if (req.dispoAnsprechpartner && typeof req.dispoAnsprechpartner === 'object') {
         const d = req.dispoAnsprechpartner as Record<string, unknown>;
         neu.dispoAnsprechpartner = {
@@ -646,11 +954,23 @@ export const handler: Handler = async (event: HandlerEvent) => {
       if (wunschwoche) neu.lieferwoche = wunschwoche;
 
       const hinweis = text(req.hinweis, MAX_NOTIZ);
+      // Adressänderungen kommen als eigene, wichtige Notiz ins Projekt — mit
+      // Vorher/Nachher. Ohne sie ließe sich später nicht mehr feststellen, wer
+      // die Anschrift geändert hat und was vorher dort stand.
+      const neueNotizen = [...(daten.dispoNotizen ?? [])];
       if (hinweis) {
-        neu.dispoNotizen = [
-          ...(daten.dispoNotizen ?? []),
-          { id: randomUUID(), text: `[Kundenportal] ${hinweis}`, erstelltAm: jetzt, wichtig: true },
-        ];
+        neueNotizen.push({ id: randomUUID(), text: `[Kundenportal] ${hinweis}`, erstelltAm: jetzt, wichtig: true });
+      }
+      if (adressAenderungen.length) {
+        neueNotizen.push({
+          id: randomUUID(),
+          text: `[Kundenportal] ${adressAenderungen.join('\n')}`,
+          erstelltAm: jetzt,
+          wichtig: true,
+        });
+      }
+      if (neueNotizen.length !== (daten.dispoNotizen ?? []).length) {
+        neu.dispoNotizen = neueNotizen;
       }
 
       if (aktion === 'foto-hochladen') {
@@ -734,10 +1054,40 @@ export const handler: Handler = async (event: HandlerEvent) => {
         await versendeBestellmails(
           { ...neu, angebotsnummer: daten.angebotsnummer }, projektId, token, sandbox, tonnage, summe
         );
-        return antwort(200, { bestelltAm: jetzt, tonnage, summe, positionen });
+        // Auch hier durch die Whitelist: `rechneUm` reicht die Angebotsobjekte
+        // durch, samt `einkaufspreis`. Ohne diese Zeile wäre das Leck nur beim
+        // Laden geschlossen und beim Bestellen weiter offen.
+        return antwort(200, {
+          bestelltAm: jetzt,
+          tonnage,
+          summe,
+          positionen: positionen.filter((p) => !p.istBedarfsposition).map(oeffentlichePosition),
+        });
       }
 
       await speichereProjekt(projektId, neu, db);
+
+      // Eine geänderte Anschrift muss jemand sehen: Sie entscheidet, wohin die
+      // Rechnung geht und wo der LKW hinfährt. Bisher lief „Angaben speichern"
+      // vollkommen stumm — die Änderung stand nur im Projekt und fiel erst auf,
+      // wenn jemand zufällig hinsah. Andere Angaben lösen weiterhin keine Mail
+      // aus, sonst wird die Meldung zum Rauschen.
+      if (adressAenderungen.length) {
+        await sendeMail(
+          INTERN_EMPFAENGER,
+          // Kennzeichnung wie bei den Bestellmails: Diese Meldung geht auch aus
+          // der Sandbox echt raus und wäre sonst nicht von einem Kundenvorgang
+          // zu unterscheiden.
+          `${sandbox ? '[SANDBOX] ' : ''}Adressänderung über das Bestellportal — ${daten.kundenname ?? 'Kunde'} (${daten.angebotsnummer ?? '—'})`,
+          `${sandbox ? '<p><strong>Testlauf aus der Sandbox — kein echter Vorgang.</strong></p>' : ''}
+           <p><strong>${html(daten.kundenname ?? 'Kunde')}</strong> hat im Bestellportal Angaben geändert.</p>
+           <ul>${adressAenderungen.map((z) => `<li>${html(z)}</li>`).join('')}</ul>
+           <p>Angebot: ${html(daten.angebotsnummer ?? '—')}<br>Projekt: ${html(projektId)}</p>
+           ${neu.rechnungsadresseHinweis
+             ? '<p><strong>Achtung:</strong> Die Rechnungsanschrift wurde NICHT übernommen und muss im Portal geprüft werden.</p>'
+             : ''}`
+        );
+      }
       return antwort(200, { gespeichert: true });
     }
 

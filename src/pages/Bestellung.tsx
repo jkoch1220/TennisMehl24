@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2, Loader2, Package, MapPin, Truck, Phone, AlertTriangle,
   ChevronDown, ChevronUp, ShoppingCart, FileText, CalendarDays, Camera, X, ImagePlus,
 } from 'lucide-react';
 import { verkleinereBild } from '../utils/bildVerkleinern';
+import { OptionalNumberInput } from '../components/NumberInput';
 
 /**
  * Bestellseite für Kunden — öffentlich, ohne Login, über einen Token geschützt.
@@ -19,22 +20,44 @@ import { verkleinereBild } from '../utils/bildVerkleinern';
 const API = '/.netlify/functions/bestellung';
 
 interface Position {
-  artikelnummer?: string; bezeichnung?: string; menge?: number;
-  einheit?: string; einzelpreis?: number; gesamtpreis?: number;
+  artikelnummer?: string; bezeichnung?: string; beschreibung?: string; menge?: number;
+  einheit?: string; einzelpreis?: number; gesamtpreis?: number; istBedarfsposition?: boolean;
 }
 interface Adresse { strasse?: string; plz?: string; ort?: string }
-interface Daten {
+interface Konditionen {
+  zahlungsziel?: string | null; lieferzeit?: string | null; lieferbedingungen?: string | null;
+  klauseln?: Array<{ titel: string; text: string }>; dieselpreiszuschlag?: string | null;
+}
+/** Netto, Steuer, Brutto – kommt vom Server, damit der Satz aus dem Angebot gilt. */
+interface Summen {
+  netto: number; steuer: number; brutto: number;
+  mehrwertsteuersatz: number; ohneMehrwertsteuer: boolean;
+}
+interface Daten extends Summen {
+  rechnungsadresseAenderbar?: boolean;
   kundenname?: string; angebotsnummer?: string; status?: string;
+  angebotsdatum?: string | null; gueltigBis?: string | null;
   bestelltAm?: string | null; rechnungsnummer?: string | null; rechnungsdatum?: string | null;
-  lieferwoche?: string | null; positionen: Position[]; summe: number; tonnage: number;
+  lieferwoche?: string | null; positionen: Position[]; bedarfspositionen?: Position[];
+  summe: number; tonnage: number;
   mengeMin: number; mengeMax: number;
+  konditionen?: Konditionen;
   rechnungsadresse?: Adresse | null; lieferadresse?: Adresse | null;
   dispoAnsprechpartner?: { name?: string; telefon?: string; email?: string } | null;
   fotos: Array<{ fileId: string; hinweis?: string }>;
   maxFotos: number;
 }
+/** Ergebnis der Server-Vorschau für eine geänderte Menge. */
+interface Vorschau extends Summen { positionen: Position[]; summe: number; tonnage: number }
 
 const euro = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const zahl = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+const datum = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+
+/** Fracht und Verpackung stehen im Summenblock, nicht zwischen der Ware. */
+const FRACHT_ARTIKEL = new Set(['TM-FP']);
+const istFracht = (p: Position) => FRACHT_ARTIKEL.has(String(p.artikelnummer ?? '').toUpperCase());
 
 export default function Bestellung() {
   const { projektId = '' } = useParams();
@@ -58,6 +81,12 @@ export default function Bestellung() {
   const [dispo, setDispo] = useState({ name: '', telefon: '', email: '' });
   const [hinweis, setHinweis] = useState('');
   const [fotoLaeuft, setFotoLaeuft] = useState(false);
+  const [konditionenOffen, setKonditionenOffen] = useState(false);
+  const [rechnungBearbeiten, setRechnungBearbeiten] = useState(false);
+  const [lieferungBearbeiten, setLieferungBearbeiten] = useState(false);
+  // Ergebnis der Server-Vorschau, solange die Menge vom Angebot abweicht.
+  const [vorschau, setVorschau] = useState<Vorschau | null>(null);
+  const [vorschauFehler, setVorschauFehler] = useState<string | null>(null);
 
   /**
    * Bild auswählen, verkleinern, hochladen.
@@ -120,6 +149,52 @@ export default function Bestellung() {
 
   useEffect(() => { void laden(); }, [laden]);
 
+  /**
+   * Vorschau für eine geänderte Menge — gerechnet wird auf dem Server.
+   *
+   * Der Kunde sah bisher erst in der Bestätigungsmail, was seine Mengenänderung
+   * kostet: Die Frachtpauschale ist gestaffelt, aus 5 t werden 6 t und die
+   * Fracht sinkt von 59,90 auf 49,90 €. Die Staffel bleibt bewusst auf dem
+   * Server, statt ein drittes Mal in den Browser kopiert zu werden.
+   */
+  useEffect(() => {
+    if (!daten) return;
+    // Nach der Bestellung zählt nur noch der bestellte Stand. Ohne dieses
+    // Leeren überlebte eine offene Vorschau den Klick — und wenn jemand aus
+    // demselben Verteiler zuerst bestellt hat, stünden unter „Ihre Bestellung"
+    // die Zahlen einer Menge, die nie jemand bestellt hat.
+    if (daten.bestelltAm) {
+      setVorschau(null);
+      setVorschauFehler(null);
+      return;
+    }
+    const gewuenscht = Number(menge.replace(',', '.'));
+    if (!Number.isFinite(gewuenscht) || gewuenscht <= 0 || Math.abs(gewuenscht - daten.tonnage) < 0.001) {
+      setVorschau(null);
+      setVorschauFehler(null);
+      return;
+    }
+    const abbruch = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abbruch.signal,
+          body: JSON.stringify({ projektId, token, sandbox, aktion: 'vorschau', menge: gewuenscht }),
+        });
+        const body = await res.json();
+        if (!res.ok) { setVorschau(null); setVorschauFehler(body.error ?? null); return; }
+        setVorschau(body as Vorschau);
+        setVorschauFehler(null);
+      } catch {
+        /* Abgebrochen oder offline: die Seite bleibt beim Angebotsstand. */
+      }
+    }, 400);
+    return () => { clearTimeout(timer); abbruch.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menge, daten?.tonnage, daten?.bestelltAm, projektId, token, sandbox]);
+
   const senden = async (aktion: 'bestellen' | 'aktualisieren') => {
     setSendet(true);
     setFehler(null);
@@ -168,6 +243,22 @@ export default function Bestellung() {
   if (!daten) return null;
   const bestellt = !!daten.bestelltAm;
 
+  // Solange eine Vorschau vorliegt, zeigt die Seite deren Zahlen — sonst das
+  // Angebot. Nach der Bestellung gilt ausnahmslos der bestellte Stand; die
+  // Prüfung auf `bestellt` steht hier zusätzlich zum Leeren im Effekt oben,
+  // damit zwischen Bestellung und nächstem Rendern nichts durchrutscht.
+  const geaendert = !bestellt && !!vorschau;
+  const anzeigePositionen = geaendert ? vorschau!.positionen : daten.positionen;
+  const summen: Summen = geaendert ? vorschau! : daten;
+  const anzeigeTonnage = geaendert ? vorschau!.tonnage : daten.tonnage;
+  const warenPositionen = anzeigePositionen.filter((p) => !istFracht(p));
+  const frachtPositionen = anzeigePositionen.filter(istFracht);
+
+  const k = daten.konditionen;
+  const hatKonditionen = !!(
+    k?.zahlungsziel || k?.lieferzeit || k?.lieferbedingungen || k?.klauseln?.length || k?.dieselpreiszuschlag
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-4">
@@ -195,24 +286,42 @@ export default function Bestellung() {
             {daten.rechnungsnummer && (
               <p className="text-sm text-green-800 mt-2 flex items-center justify-center gap-1.5">
                 <FileText className="w-4 h-4" /> Rechnung {daten.rechnungsnummer}
-                {daten.rechnungsdatum && ` vom ${new Date(daten.rechnungsdatum).toLocaleDateString('de-DE')}`}
+                {daten.rechnungsdatum && ` vom ${datum(daten.rechnungsdatum)}`}
               </p>
             )}
           </div>
         )}
 
-        {/* Was bestellt wird */}
+        {/* Was bestellt wird. Zeigt die Vorschau, sobald die Menge geändert wurde —
+            der Kunde soll vor dem verbindlichen Klick sehen, was er zahlt. */}
         <section className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
-            <Package className="w-5 h-5 text-gray-400" /> Leistungen
-          </h2>
+          <div className="flex items-baseline justify-between gap-3 mb-3">
+            <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Package className="w-5 h-5 text-gray-400" /> {bestellt ? 'Ihre Bestellung' : 'Leistungen'}
+            </h2>
+            {!bestellt && daten.gueltigBis && (
+              <span className="text-sm text-gray-500 whitespace-nowrap">
+                gültig bis {datum(daten.gueltigBis)}
+              </span>
+            )}
+          </div>
+
+          {geaendert && (
+            <p className="mb-3 text-sm rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">
+              Vorschau für {zahl(anzeigeTonnage)} t. Verbindlich wird sie mit Ihrer Bestellung.
+            </p>
+          )}
+
           <ul className="divide-y divide-gray-100">
-            {daten.positionen.map((p, i) => (
+            {warenPositionen.map((p, i) => (
               <li key={p.artikelnummer ?? i} className="py-2.5 flex justify-between gap-4">
                 <span className="text-gray-800">
                   {p.bezeichnung}
+                  {p.beschreibung && (
+                    <span className="block text-sm text-gray-500 whitespace-pre-line">{p.beschreibung}</span>
+                  )}
                   <span className="block text-sm text-gray-500">
-                    {p.menge} {p.einheit} × {euro(Number(p.einzelpreis ?? 0))} €
+                    {zahl(Number(p.menge ?? 0))} {p.einheit} × {euro(Number(p.einzelpreis ?? 0))} €
                   </span>
                 </span>
                 <span className="font-medium text-gray-900 whitespace-nowrap">
@@ -221,34 +330,216 @@ export default function Bestellung() {
               </li>
             ))}
           </ul>
-          <div className="border-t border-gray-200 mt-3 pt-3 flex justify-between items-baseline">
-            <span className="text-gray-600">Summe netto</span>
-            <span className="text-xl font-bold text-gray-900">{euro(daten.summe)} €</span>
+
+          {/* Summenblock: Fracht abgesetzt, Steuer und Bruttobetrag ausgewiesen.
+              Für einen Verein ist der Bruttobetrag die Zahl, die zählt. */}
+          <div className="border-t border-gray-200 mt-3 pt-3 space-y-1.5 text-sm">
+            {frachtPositionen.map((p, i) => (
+              <div key={i} className="flex justify-between text-gray-600">
+                <span>{p.bezeichnung ?? 'Frachtkostenpauschale'}</span>
+                <span className="whitespace-nowrap">{euro(Number(p.gesamtpreis ?? 0))} €</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-gray-600">
+              <span>Summe netto</span>
+              <span className="whitespace-nowrap">{euro(summen.netto)} €</span>
+            </div>
+            {!summen.ohneMehrwertsteuer && (
+              <div className="flex justify-between text-gray-600">
+                <span>zzgl. {zahl(summen.mehrwertsteuersatz)} % MwSt.</span>
+                <span className="whitespace-nowrap">{euro(summen.steuer)} €</span>
+              </div>
+            )}
+            <div className="flex justify-between items-baseline border-t border-gray-200 pt-2 mt-1">
+              <span className="font-semibold text-gray-900">
+                {summen.ohneMehrwertsteuer ? 'Gesamtbetrag' : 'Gesamtbetrag brutto'}
+              </span>
+              <span className="text-xl font-bold text-gray-900 whitespace-nowrap">{euro(summen.brutto)} €</span>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-1">zzgl. 19 % MwSt. · Es gelten unsere AGB.</p>
+
+          {summen.ohneMehrwertsteuer && (
+            <p className="text-xs text-gray-500 mt-2">
+              Ohne Umsatzsteuer (Steuerschuldnerschaft des Leistungsempfängers).
+            </p>
+          )}
+
+          {/* Optionales, das nicht in der Summe steckt — im PDF eine eigene Tabelle. */}
+          {!!daten.bedarfspositionen?.length && (
+            <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
+              <p className="text-sm font-medium text-gray-700">Optional, nicht im Gesamtbetrag</p>
+              <ul className="mt-1 space-y-1">
+                {daten.bedarfspositionen.map((p, i) => (
+                  <li key={i} className="flex justify-between gap-4 text-sm text-gray-600">
+                    <span>
+                      {p.bezeichnung}
+                      <span className="text-gray-400 whitespace-nowrap"> · {zahl(Number(p.menge ?? 0))} {p.einheit}</span>
+                    </span>
+                    <span className="whitespace-nowrap">{euro(Number(p.gesamtpreis ?? 0))} €</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-gray-500 mt-1.5">
+                Auf Wunsch — sagen Sie uns einfach Bescheid.
+              </p>
+            </div>
+          )}
         </section>
 
-        {/* Adressen — der Kunde muss sehen, wohin geliefert wird */}
-        <section className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 grid sm:grid-cols-2 gap-4">
+        {/* Adressen — beide direkt hier änderbar. Vorher lag nur die
+            Lieferadresse zugeklappt unter „Etwas stimmt nicht?", und für die
+            Rechnungsanschrift gab es überhaupt kein Feld, obwohl die
+            Angebotsmail „Adressen … können Sie dort anpassen" verspricht. */}
+        <section className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5 grid sm:grid-cols-2 gap-5">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-1">
-              <FileText className="w-4 h-4 text-gray-400" /> Rechnung an
-            </h3>
-            <p className="text-sm text-gray-700">
-              {rechnung.strasse}<br />{rechnung.plz} {rechnung.ort}
-            </p>
+            <div className="flex items-baseline justify-between gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-gray-400" /> Rechnung an
+              </h3>
+              {daten.rechnungsadresseAenderbar && !rechnungBearbeiten && (
+                <button onClick={() => setRechnungBearbeiten(true)}
+                  className="text-sm text-slate-700 underline underline-offset-2">Ändern</button>
+              )}
+            </div>
+            {rechnungBearbeiten ? (
+              <div className="space-y-2">
+                <input value={rechnung.strasse ?? ''} onChange={(e) => setRechnung({ ...rechnung, strasse: e.target.value })}
+                  placeholder="Straße und Hausnummer" aria-label="Rechnungsanschrift, Straße und Hausnummer"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300" />
+                <div className="grid grid-cols-3 gap-2">
+                  <input value={rechnung.plz ?? ''} onChange={(e) => setRechnung({ ...rechnung, plz: e.target.value })}
+                    placeholder="PLZ" aria-label="Rechnungsanschrift, PLZ" inputMode="numeric"
+                    className="px-3 py-2 rounded-xl border border-gray-300" />
+                  <input value={rechnung.ort ?? ''} onChange={(e) => setRechnung({ ...rechnung, ort: e.target.value })}
+                    placeholder="Ort" aria-label="Rechnungsanschrift, Ort"
+                    className="col-span-2 px-3 py-2 rounded-xl border border-gray-300" />
+                </div>
+                <p className="text-xs text-gray-500">Wird mit „Adressen speichern“ übernommen.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-700">
+                {rechnung.strasse}<br />{rechnung.plz} {rechnung.ort}
+              </p>
+            )}
+            {!daten.rechnungsadresseAenderbar && (
+              <p className="text-xs text-gray-500 mt-1">
+                Änderungen bitte telefonisch — die Rechnung ist bereits erstellt
+                oder läuft über Ihren Platzbauer.
+              </p>
+            )}
           </div>
+
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-1">
-              <MapPin className="w-4 h-4 text-gray-400" /> Lieferung an
-            </h3>
-            <p className="text-sm text-gray-700">
-              {lieferung.strasse
-                ? <>{lieferung.strasse}<br />{lieferung.plz} {lieferung.ort}</>
-                : <span className="text-gray-500">wie Rechnungsanschrift</span>}
-            </p>
+            <div className="flex items-baseline justify-between gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-gray-400" /> Lieferung an
+              </h3>
+              {!lieferungBearbeiten && (
+                <button onClick={() => setLieferungBearbeiten(true)}
+                  className="text-sm text-slate-700 underline underline-offset-2">Ändern</button>
+              )}
+            </div>
+            {lieferungBearbeiten ? (
+              <div className="space-y-2">
+                <input value={lieferung.strasse ?? ''} onChange={(e) => setLieferung({ ...lieferung, strasse: e.target.value })}
+                  placeholder="Straße und Hausnummer" aria-label="Lieferanschrift, Straße und Hausnummer"
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300" />
+                <div className="grid grid-cols-3 gap-2">
+                  <input value={lieferung.plz ?? ''} onChange={(e) => setLieferung({ ...lieferung, plz: e.target.value })}
+                    placeholder="PLZ" aria-label="Lieferanschrift, PLZ" inputMode="numeric"
+                    className="px-3 py-2 rounded-xl border border-gray-300" />
+                  <input value={lieferung.ort ?? ''} onChange={(e) => setLieferung({ ...lieferung, ort: e.target.value })}
+                    placeholder="Ort" aria-label="Lieferanschrift, Ort"
+                    className="col-span-2 px-3 py-2 rounded-xl border border-gray-300" />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-gray-500">Wird mit „Adressen speichern“ übernommen.</p>
+                  {(lieferung.strasse || lieferung.plz || lieferung.ort) && (
+                    <button onClick={() => setLieferung({})}
+                      className="text-xs text-slate-700 underline underline-offset-2 whitespace-nowrap">
+                      Wie Rechnungsanschrift
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-700">
+                {lieferung.strasse
+                  ? <>{lieferung.strasse}<br />{lieferung.plz} {lieferung.ort}</>
+                  : <span className="text-gray-500">wie Rechnungsanschrift</span>}
+              </p>
+            )}
           </div>
+
+          {/* Der Knopf gehört hierher: „Angaben speichern" liegt weiter unten im
+              zugeklappten Bereich und wäre von hier aus nicht auffindbar. */}
+          {(rechnungBearbeiten || lieferungBearbeiten) && (
+            <div className="sm:col-span-2 flex flex-wrap gap-2 pt-1">
+              <button
+                onClick={async () => {
+                  await senden('aktualisieren');
+                  setRechnungBearbeiten(false);
+                  setLieferungBearbeiten(false);
+                }}
+                disabled={sendet}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {sendet ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Adressen speichern
+              </button>
+              <button
+                onClick={() => {
+                  // Verworfen heißt: zurück auf den Stand vom Server.
+                  setRechnung(daten.rechnungsadresse ?? {});
+                  setLieferung(daten.lieferadresse ?? {});
+                  setRechnungBearbeiten(false);
+                  setLieferungBearbeiten(false);
+                }}
+                disabled={sendet}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-medium disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+            </div>
+          )}
         </section>
+
+        {/* Konditionen — im Angebots-PDF stehen sie, hier fehlten sie ganz.
+            Zugeklappt, damit der Regelfall ein Klick bleibt. */}
+        {hatKonditionen && (
+          <section className="rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setKonditionenOffen((v) => !v)}
+              className="w-full px-5 py-4 flex items-center justify-between text-left"
+            >
+              <span className="font-medium text-gray-900">Liefer- und Zahlungsbedingungen</span>
+              {konditionenOffen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+            </button>
+            {konditionenOffen && (
+              <div className="px-5 pb-5 pt-1 border-t border-gray-100 space-y-3 text-sm text-gray-700">
+                {k?.zahlungsziel && (
+                  <p><span className="font-medium text-gray-900">Zahlungsziel:</span> {k.zahlungsziel}</p>
+                )}
+                {k?.lieferzeit && (
+                  <p><span className="font-medium text-gray-900">Lieferzeit:</span> {k.lieferzeit}</p>
+                )}
+                {k?.lieferbedingungen && (
+                  <p className="whitespace-pre-line">{k.lieferbedingungen}</p>
+                )}
+                {k?.klauseln?.map((kl, i) => (
+                  <div key={i}>
+                    {kl.titel && <p className="font-medium text-gray-900">{kl.titel}</p>}
+                    <p className="whitespace-pre-line text-gray-600">{kl.text}</p>
+                  </div>
+                ))}
+                {k?.dieselpreiszuschlag && (
+                  <p className="whitespace-pre-line text-gray-600">{k.dieselpreiszuschlag}</p>
+                )}
+                <p className="text-xs text-gray-500 pt-1">Es gelten unsere Allgemeinen Geschäftsbedingungen.</p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Der eine Knopf */}
         {!bestellt && (
@@ -283,11 +574,21 @@ export default function Bestellung() {
               {!bestellt && (
                 <label className="block">
                   <span className="text-sm font-medium text-gray-700">Menge (Tonnen)</span>
-                  <input type="number" step="0.25" value={menge} onChange={(e) => setMenge(e.target.value)}
+                  <OptionalNumberInput step="0.25" value={menge === '' ? null : Number(menge)}
+                    onChange={(v) => setMenge(v === null ? '' : String(v))}
                     className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-300" />
                   <span className="text-xs text-gray-500">
-                    Anpassbar zwischen {daten.mengeMin} und {daten.mengeMax} t. Für größere Änderungen rufen Sie uns an.
+                    Anpassbar zwischen {zahl(daten.mengeMin)} und {zahl(daten.mengeMax)} t. Für größere Änderungen rufen Sie uns an.
                   </span>
+                  {vorschauFehler && (
+                    <span className="block text-xs text-red-700 mt-1">{vorschauFehler}</span>
+                  )}
+                  {geaendert && !vorschauFehler && (
+                    <span className="block text-xs text-gray-700 mt-1">
+                      Neuer Gesamtbetrag: <strong>{euro(summen.brutto)} €</strong>
+                      {summen.ohneMehrwertsteuer ? '' : ' brutto'}
+                    </span>
+                  )}
                 </label>
               )}
 
@@ -310,17 +611,9 @@ export default function Bestellung() {
                   placeholder="Telefon" className="px-3 py-2.5 rounded-xl border border-gray-300" />
               </fieldset>
 
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gray-700 mb-1">Lieferadresse</legend>
-                <input value={lieferung.strasse ?? ''} onChange={(e) => setLieferung({ ...lieferung, strasse: e.target.value })}
-                  placeholder="Straße und Hausnummer" className="w-full px-3 py-2.5 rounded-xl border border-gray-300" />
-                <div className="grid grid-cols-3 gap-2">
-                  <input value={lieferung.plz ?? ''} onChange={(e) => setLieferung({ ...lieferung, plz: e.target.value })}
-                    placeholder="PLZ" className="px-3 py-2.5 rounded-xl border border-gray-300" />
-                  <input value={lieferung.ort ?? ''} onChange={(e) => setLieferung({ ...lieferung, ort: e.target.value })}
-                    placeholder="Ort" className="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300" />
-                </div>
-              </fieldset>
+              {/* Die Adressfelder stehen jetzt oben an den Karten „Rechnung an" /
+                  „Lieferung an" — dort, wo der Kunde sie sucht. Hier stünden sie
+                  ein zweites Mal und liefen mit demselben Zustand auseinander. */}
 
               {/* Fotos der Schüttstelle — der eigentliche Zeitgewinn: Der Fahrer
                   sieht vor der Abfahrt, wo er hinsoll, statt vor Ort anzurufen. */}
@@ -377,6 +670,18 @@ export default function Bestellung() {
                   className="mt-1 w-full px-3 py-2.5 rounded-xl border border-gray-300" />
               </label>
 
+              {/* Die Menge wandert nur mit der Bestellung ins System (der Server
+                  speichert sie ausschließlich bei `bestellen`). Ohne diesen Hinweis
+                  verschwände die eben gezeigte Vorschau nach dem Speichern wieder,
+                  und der Kunde hielte seine Änderung für übernommen. */}
+              {geaendert && (
+                <p className="text-sm rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2">
+                  Ihre Mengenänderung auf {zahl(anzeigeTonnage)} t wird erst mit
+                  „Verbindlich bestellen“ übernommen. „Angaben speichern“ sichert nur
+                  Lieferwoche, Adresse, Kontakt, Fotos und Hinweise.
+                </p>
+              )}
+
               <button onClick={() => void senden('aktualisieren')} disabled={sendet}
                 className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2">
                 {sendet ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -393,6 +698,17 @@ export default function Bestellung() {
           </a>
           <p className="mt-3 text-xs text-gray-400">
             Tennismehl GmbH · Raiffeisenweg 1 · 97232 Giebelstadt
+          </p>
+          {/* Pflichtangaben nach § 5 DDG — auf jeder Seite erreichbar, die ein
+              Kunde ohne Login zu sehen bekommt. */}
+          <p className="mt-2 text-xs text-gray-400">
+            <Link to="/impressum" className="hover:text-gray-600 underline underline-offset-2">
+              Impressum
+            </Link>
+            <span className="mx-2">·</span>
+            <Link to="/datenschutz" className="hover:text-gray-600 underline underline-offset-2">
+              Datenschutz
+            </Link>
           </p>
         </footer>
       </div>
