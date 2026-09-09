@@ -27,6 +27,27 @@ export const STANDARD_LIEFERBEDINGUNGEN =
   'Breite und 4,00 m Höhe betragen. Für ungenügende Zufahrt (auch Untergrund) ist der ' +
   'Empfänger verantwortlich.\n\nMindestabnahmemenge für loses Material sind 3 Tonnen.';
 
+/**
+ * Hinweis auf den öffentlichen Frachtkostenrechner (/frachtrechner).
+ *
+ * Steht auf Platzbauer-Angeboten unter den Lieferbedingungen. Der Rechner ist
+ * frei zugänglich, deshalb genügt die nackte Adresse — kein Token, kein Login,
+ * nichts, was der Empfänger erst anfordern müsste.
+ *
+ * Die Basis-URL wird bewusst ÜBERGEBEN und nicht hier aus `import.meta.env`
+ * gelesen: `getPortalPublicUrl()` in services/liefernachweisService.ts ist die
+ * einzige Stelle, die VITE_PORTAL_PUBLIC_URL auswertet. Ein zweiter Leser würde
+ * beim nächsten Domainwechsel übersehen. Direkt importieren lässt sie sich hier
+ * nicht, ohne über projektService die halbe Service-Schicht in jede Datei zu
+ * ziehen, die diese Konstanten braucht.
+ */
+export const frachtrechnerHinweis = (portalUrl: string): string =>
+  'Frachtkosten selbst berechnen: Unter ' +
+  `${portalUrl.replace(/\/+$/, '')}/frachtrechner ` +
+  'ermitteln Sie die Speditionskosten für Palettenlieferungen jederzeit selbst. ' +
+  'Die Berechnung ist unverbindlich; der Dieselzuschlag wird zum Tag der ' +
+  'Auslieferung neu ermittelt.';
+
 /** Standard-Zahlungsziel auf Angeboten aus Anfragen. */
 export const STANDARD_ZAHLUNGSZIEL = '14 Tage';
 

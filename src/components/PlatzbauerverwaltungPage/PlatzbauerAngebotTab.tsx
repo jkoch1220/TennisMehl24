@@ -74,6 +74,8 @@ import { SaisonKunde } from '../../types/saisonplanung';
 import { Artikel } from '../../types/artikel';
 import { getAlleArtikel } from '../../services/artikelService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
+import { frachtrechnerHinweis } from '../../constants/vertragsklauseln';
+import { getPortalPublicUrl } from '../../services/liefernachweisService';
 import {
   speicherePlatzbauerAngebot,
   speichereEntwurf,
@@ -1088,7 +1090,11 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         frachtkosten: 0,
         verpackungskosten: 0,
         lieferbedingungenAktiviert: true,
-        lieferbedingungen: 'Frei Baustelle, abgeladen',
+        // Der Frachtrechner-Link hängt an den Lieferbedingungen, weil er dort
+        // inhaltlich hingehört und weil der PDF-Service diesen Block bereits
+        // umbricht und über Seitenwechsel trägt. Ein eigener Textblock im
+        // Dokument-Service müsste dieselbe Logik noch einmal nachbauen.
+        lieferbedingungen: `Frei Baustelle, abgeladen\n\n${frachtrechnerHinweis(getPortalPublicUrl())}`,
         bemerkung: formData.bemerkung,
         ihreAnsprechpartner: '',
       };
