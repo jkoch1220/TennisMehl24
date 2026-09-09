@@ -120,6 +120,9 @@ const PasswortZuruecksetzen = lazyWithRetry(() => import('./pages/PasswortZuruec
 const Liefernachweis = lazyWithRetry(() => import('./pages/Liefernachweis'));
 const Datenpruefung = lazyWithRetry(() => import('./pages/Datenpruefung'));
 const Bestellung = lazyWithRetry(() => import('./pages/Bestellung'));
+const Frachtrechner = lazyWithRetry(() => import('./pages/Frachtrechner'));
+const Impressum = lazyWithRetry(() => import('./pages/Impressum'));
+const Datenschutz = lazyWithRetry(() => import('./pages/Datenschutz'));
 
 // Loading-Komponente für Suspense
 const PageLoader = () => (
@@ -445,6 +448,17 @@ function App() {
                     Muss HIER stehen, nicht in AuthenticatedContent: Dort läge sie
                     hinter dem Login, und ein Verein sähe nur die leere Portalhülle. */}
                 <Route path="/bestellung/:projektId" element={<Bestellung />} />
+
+                {/* ÖFFENTLICHE Route für den Frachtkostenrechner (Platzbauer, ohne Login!)
+                    Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify
+                    Function; die Preislogik (Zone, Basispreis, Aufschlag) bleibt dort. */}
+                <Route path="/frachtrechner/:kundeId" element={<Frachtrechner />} />
+
+                {/* ÖFFENTLICHE Pflichtangaben (§ 5 DDG, Art. 13 DSGVO).
+                    Müssen ohne Login erreichbar sein — die Fußzeile jeder Kundenseite
+                    verlinkt hierher, und der Leser hat kein Portal-Konto. */}
+                <Route path="/impressum" element={<Impressum />} />
+                <Route path="/datenschutz" element={<Datenschutz />} />
 
                 {/* Alle anderen Routes benötigen Authentifizierung */}
                 <Route path="/*" element={<AppContent />} />

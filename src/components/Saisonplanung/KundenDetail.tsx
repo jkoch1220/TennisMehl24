@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check, MapPin, History, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Edit, Plus, Calendar, TrendingUp, Users, Phone, Mail, Building2, FileCheck, FileSignature, Truck, FileText, CheckCircle2, Layers, Copy, Check, MapPin, History, ChevronDown, ChevronRight, Calculator, Loader2, AlertTriangle } from 'lucide-react';
 import {
+  SaisonKunde,
   SaisonKundeMitDaten,
   SaisonAktivitaet,
   NeueSaisonAktivitaet,
@@ -14,6 +15,10 @@ import { Projekt, NeuesProjekt } from '../../types/projekt';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import {
+  sichereFrachtrechnerToken,
+  baueFrachtrechnerUrl,
+} from '../../services/frachtrechnerTokenService';
 
 interface KundenDetailProps {
   kunde: SaisonKundeMitDaten;
@@ -57,6 +62,62 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
       setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 2000);
     } catch (err) {
       console.error('Kopieren fehlgeschlagen:', err);
+    }
+  };
+
+  // === FRACHTRECHNER-LINK (nur Platzbauer) ===
+  // Der Link geht per E-Mail an den Platzbauer, der sich damit selbst ausrechnet,
+  // was eine Lieferung kostet. Erzeugt wird er erst auf Knopfdruck, weil dabei
+  // ein Token am Kunden gespeichert wird — das soll nicht beim blossen Oeffnen
+  // des Dialogs passieren.
+  const [frachtrechnerLaeuft, setFrachtrechnerLaeuft] = useState(false);
+  const [frachtrechnerFehler, setFrachtrechnerFehler] = useState<string | null>(null);
+  // Nur gesetzt, wenn das Token sicher gespeichert ist, das Kopieren aber
+  // scheiterte (z.B. Browser ohne Clipboard-Freigabe). Dann ist der Link gueltig
+  // und darf zum Abschreiben gezeigt werden. Bei einem Token-Fehler bleibt er
+  // leer: ein toter Link ist schlimmer als kein Link.
+  const [frachtrechnerLink, setFrachtrechnerLink] = useState<string | null>(null);
+  // Zuletzt in diesem Dialog erzeugter Kundenstand. Ohne ihn erzeugte ein
+  // zweiter Klick ein NEUES Token, weil der `kunde`-Prop erst nach dem
+  // Nachladen des Elternteils das gespeicherte traegt — und der Link, den der
+  // Kollege gerade in die Mail geklebt hat, waere damit sofort tot.
+  const frischerKunde = useRef<SaisonKunde | null>(null);
+
+  const erzeugeFrachtrechnerLink = async () => {
+    setFrachtrechnerLaeuft(true);
+    setFrachtrechnerFehler(null);
+    setFrachtrechnerLink(null);
+    try {
+      const basis =
+        frischerKunde.current && frischerKunde.current.id === kunde.kunde.id
+          ? frischerKunde.current
+          : kunde.kunde;
+      const { kunde: gespeichert, token } = await sichereFrachtrechnerToken(basis);
+      frischerKunde.current = gespeichert;
+      const url = baueFrachtrechnerUrl(kunde.kunde.id, token);
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedKey('frachtrechner');
+        setTimeout(
+          () => setCopiedKey((current) => (current === 'frachtrechner' ? null : current)),
+          3000
+        );
+      } catch (clipErr) {
+        // Das Token liegt am Kunden, der Link funktioniert — nur die Zwischenablage
+        // war nicht erreichbar. Also zum Abschreiben anzeigen statt Fehler melden.
+        console.error('Kopieren des Frachtrechner-Links fehlgeschlagen:', clipErr);
+        setFrachtrechnerLink(url);
+      }
+      onUpdate();
+    } catch (err) {
+      console.error('Frachtrechner-Link konnte nicht erzeugt werden:', err);
+      setFrachtrechnerFehler(
+        err instanceof Error
+          ? `Link konnte nicht erzeugt werden: ${err.message}`
+          : 'Link konnte nicht erzeugt werden. Bitte erneut versuchen.'
+      );
+    } finally {
+      setFrachtrechnerLaeuft(false);
     }
   };
 
@@ -520,6 +581,58 @@ const KundenDetail = ({ kunde, onClose, onEdit, onUpdate }: KundenDetailProps) =
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Frachtrechner-Link — nur fuer Platzbauer.
+              Vereine bestellen ueber uns oder ihren Platzbauer; der Selbstrechner
+              ist das Werkzeug fuer den, der Fracht selbst kalkuliert. */}
+          {kunde.kunde.typ === 'platzbauer' && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+                <Calculator className="w-5 h-5" />
+                Frachtkostenrechner
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+                Persoenlicher Link, mit dem dieser Platzbauer sich Frachtkosten selbst
+                ausrechnen kann. Der Link gilt ein Jahr und wird beim Erzeugen am Kunden
+                gespeichert.
+              </p>
+              <button
+                onClick={() => void erzeugeFrachtrechnerLink()}
+                disabled={frachtrechnerLaeuft}
+                className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-60"
+              >
+                {frachtrechnerLaeuft ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : copiedKey === 'frachtrechner' ? (
+                  <Check className="w-5 h-5 text-green-600" />
+                ) : (
+                  <Copy className="w-5 h-5" />
+                )}
+                {copiedKey === 'frachtrechner'
+                  ? 'Link kopiert'
+                  : 'Frachtrechner-Link erzeugen & kopieren'}
+              </button>
+
+              {frachtrechnerFehler && (
+                <p className="mt-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  {frachtrechnerFehler}
+                </p>
+              )}
+
+              {frachtrechnerLink && (
+                <div className="mt-3 text-sm text-gray-700 dark:text-slate-300">
+                  <p className="mb-1">
+                    Der Link ist gespeichert, das Kopieren hat der Browser abgelehnt — bitte
+                    von Hand uebernehmen:
+                  </p>
+                  <code className="block break-all select-all bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded p-2 text-xs">
+                    {frachtrechnerLink}
+                  </code>
+                </div>
+              )}
             </div>
           )}
 

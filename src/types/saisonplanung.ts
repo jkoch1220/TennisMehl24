@@ -345,6 +345,15 @@ export interface SaisonKunde {
    *  Beispiel: Verein hat Hauptanlage + Außenplatz. Kommt aus Mosaik sub_adressen. */
   lieferadressen?: ZusaetzlicheLieferadresse[];
 
+  // === ÖFFENTLICHER FRACHTKOSTENRECHNER ===
+  // Beide Felder liegen NUR im data-JSON des Kunden — keine Appwrite-Spalten.
+  // Erzeugt und geprüft in services/frachtrechnerTokenService.ts, validiert in
+  // netlify/functions/frachtrechner.ts.
+  /** Token für den öffentlichen Frachtkostenrechner. Liegt im data-JSON, keine eigene Appwrite-Spalte. */
+  frachtrechnerToken?: string;
+  /** ISO-Datum der Token-Erzeugung (Ablauf nach 365 Tagen, Prüfung in der Netlify Function) */
+  frachtrechnerTokenErstelltAm?: string;
+
   erstelltAm: string;
   geaendertAm: string;
 }

@@ -31,7 +31,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Camera,
@@ -1143,6 +1143,18 @@ const Liefernachweis = () => {
           Tennismehl GmbH ·{' '}
           {istAbholung ? 'Digitale Empfangsbestätigung' : 'Digitaler Liefernachweis'} · Keine
           Anmeldung erforderlich
+        </p>
+
+        {/* Pflichtangaben nach § 5 DDG — auf jeder Seite erreichbar, die ein
+            Kunde oder Fahrer ohne Login zu sehen bekommt. */}
+        <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
+          <Link to="/impressum" className="hover:text-gray-600 dark:hover:text-gray-300 underline underline-offset-2">
+            Impressum
+          </Link>
+          <span className="mx-2">·</span>
+          <Link to="/datenschutz" className="hover:text-gray-600 dark:hover:text-gray-300 underline underline-offset-2">
+            Datenschutz
+          </Link>
         </p>
       </div>
     </div>
