@@ -62,6 +62,8 @@ interface PlatzbauerAuftragsbestaetigungTabProps {
 interface ABEntwurf {
   positionen: PlatzbauerPosition[];
   staffelPositionen?: PlatzbauerAngebotPosition[];
+  /** Standard-Preisliste aus dem Angebot – wird mitbestätigt. */
+  preislistenPositionen?: PlatzbauerAngebotPosition[];
   staffelKonditionen?: StaffelKonditionen;
   angebotsbezug?: Angebotsbezug;
   formData: {
@@ -78,6 +80,8 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
   const [positionen, setPositionen] = useState<PlatzbauerPosition[]>([]);
   // Staffelzeilen aus dem Angebot: hier nur bestätigt, nicht gepflegt.
   const [staffelPositionen, setStaffelPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+  /** Standard-Preisliste des Angebots (ohne Menge, ohne Summe). */
+  const [preislistenPositionen, setPreislistenPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
   const [staffelKonditionen, setStaffelKonditionen] = useState<StaffelKonditionen | null>(null);
   const [angebotsbezug, setAngebotsbezug] = useState<Angebotsbezug | null>(null);
   /** Das Angebot ist neuer als die übernommenen Staffeln – Hinweis statt stiller Übernahme. */
@@ -171,6 +175,12 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
             console.warn('Aktuelles Angebot konnte nicht gelesen werden:', e);
           }
 
+          if (gespeicherterEntwurf.preislistenPositionen?.length) {
+            setPreislistenPositionen(gespeicherterEntwurf.preislistenPositionen);
+          } else if (nachgezogen?.preislistenPositionen.length) {
+            setPreislistenPositionen(nachgezogen.preislistenPositionen);
+          }
+
           if (gespeicherterEntwurf.staffelPositionen?.length) {
             setStaffelPositionen(gespeicherterEntwurf.staffelPositionen);
             setStaffelKonditionen(gespeicherterEntwurf.staffelKonditionen || null);
@@ -194,6 +204,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               setAngebotNeuer(aktuellerBezug);
             } else {
               setStaffelPositionen(uebernommen.staffelPositionen);
+              setPreislistenPositionen(uebernommen.preislistenPositionen);
               setStaffelKonditionen(uebernommen.konditionen);
               setAngebotsbezug(aktuellerBezug);
             }
@@ -217,6 +228,9 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
 
             // Staffeln aus dem Angebot übernehmen (Saisonvereinbarung ohne Menge)
             const staffelStand = leseStaffelStand(angebotDaten, projekt.saisonjahr);
+            // Die Preisliste hängt nicht an der Staffel: Auch ein Angebot ohne
+            // Staffelvereinbarung trägt die Standardkonditionen.
+            setPreislistenPositionen(staffelStand.preislistenPositionen);
             if (staffelStand.hatStaffel) {
               const uebernommen = uebernehmeStaffelnFuerAB(staffelStand);
               setStaffelPositionen(uebernommen.staffelPositionen);
@@ -277,6 +291,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
       const entwurf: ABEntwurf = {
         positionen,
         staffelPositionen: staffelPositionen.length > 0 ? staffelPositionen : undefined,
+        preislistenPositionen: preislistenPositionen.length > 0 ? preislistenPositionen : undefined,
         staffelKonditionen: staffelKonditionen || undefined,
         angebotsbezug: angebotsbezug || undefined,
         formData,
@@ -288,7 +303,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.id, initialLaden, positionen, staffelPositionen, staffelKonditionen, angebotsbezug, formData]);
+  }, [projekt?.id, initialLaden, positionen, staffelPositionen, preislistenPositionen, staffelKonditionen, angebotsbezug, formData]);
 
   // Debounced Auto-Save
   useEffect(() => {
@@ -307,7 +322,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [positionen, staffelPositionen, formData, speichereAutomatisch, initialLaden]);
+  }, [positionen, staffelPositionen, preislistenPositionen, formData, speichereAutomatisch, initialLaden]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
@@ -364,6 +379,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
       const uebernommen = uebernehmeStaffelnFuerAB(stand);
       markiereGeaendert();
       setStaffelPositionen(uebernommen.staffelPositionen);
+      setPreislistenPositionen(uebernommen.preislistenPositionen);
       setStaffelKonditionen(uebernommen.konditionen);
       setAngebotsbezug({
         nummer: angebot.dokumentNummer || '',
@@ -420,7 +436,10 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         lieferbedingungen: 'Frei Baustelle, abgeladen',
         bemerkung: formData.bemerkung,
         ihreAnsprechpartner: '',
-        abPositionen: staffelPositionen.length > 0 ? staffelPositionen : undefined,
+        abPositionen:
+          staffelPositionen.length + preislistenPositionen.length > 0
+            ? [...staffelPositionen, ...preislistenPositionen]
+            : undefined,
         staffelKonditionen: staffelKonditionen || undefined,
         angebotsbezug: angebotsbezug || undefined,
       };

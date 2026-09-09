@@ -48,6 +48,11 @@ export interface Angebotsbezug {
 export interface StaffelStand {
   hatStaffel: boolean;
   staffelPositionen: PlatzbauerAngebotPosition[];
+  /**
+   * Standard-Preisliste des Belegs. Sie wird wie die Staffel übernommen: Was
+   * im Angebot als Kondition stand, muss auch die AB bestätigen.
+   */
+  preislistenPositionen: PlatzbauerAngebotPosition[];
   konditionen: StaffelKonditionen;
   angebotsdatum?: string;
   /** Version des Belegs – steht nur im JSON, nicht am Dokument. */
@@ -168,6 +173,7 @@ export const leseStaffelStand = (daten: unknown, saisonjahr: number): StaffelSta
   return {
     hatStaffel: staffelPositionen.length > 0,
     staffelPositionen,
+    preislistenPositionen: positionen.filter((p) => p.positionsTyp === 'preisliste'),
     konditionen: { ...standardStaffelKonditionen(saisonjahr), ...(gespeicherteKonditionen || {}) },
     angebotsdatum: typeof geparst?.angebotsdatum === 'string' ? (geparst.angebotsdatum as string) : undefined,
     version: typeof geparst?.version === 'number' ? (geparst.version as number) : undefined,
@@ -185,7 +191,11 @@ export const leseStaffelStand = (daten: unknown, saisonjahr: number): StaffelSta
  */
 export const uebernehmeStaffelnFuerAB = (
   stand: StaffelStand
-): { staffelPositionen: PlatzbauerAngebotPosition[]; konditionen: StaffelKonditionen } => {
+): {
+  staffelPositionen: PlatzbauerAngebotPosition[];
+  preislistenPositionen: PlatzbauerAngebotPosition[];
+  konditionen: StaffelKonditionen;
+} => {
   // grenzenGekoppelt ist eine Pflegehilfe der Maske, kein Vertragsinhalt.
   const konditionen: StaffelKonditionen = { ...stand.konditionen };
   delete konditionen.grenzenGekoppelt;
@@ -196,6 +206,7 @@ export const uebernehmeStaffelnFuerAB = (
   }));
   return {
     staffelPositionen: stand.staffelPositionen,
+    preislistenPositionen: stand.preislistenPositionen,
     konditionen: {
       ...konditionen,
       hinweistext: konditionen.hinweistext?.trim()
@@ -305,6 +316,7 @@ export const leseAngebotsStand = (daten: unknown, saisonjahr: number): AngebotsS
       stand.hatStaffel ||
       vereinsPositionen.length > 0 ||
       zusatzPositionen.length > 0 ||
+      stand.preislistenPositionen.length > 0 ||
       bedarfsPositionen.length > 0,
     // Staffelzeilen entstehen ausschließlich im Staffelmodus – ein eigenes Feld
     // dafür gibt es im Dokument nicht.

@@ -192,6 +192,13 @@ const zeitraumText = (k: StaffelKonditionen): string => {
   return 'während der Saison';
 };
 
+/**
+ * Rückverweis auf den Zeitraum. Ohne benannten Zeitraum liefe „in diesem
+ * Zeitraum" ins Leere – dann wird die Saison genannt.
+ */
+const zeitraumRueckverweis = (k: StaffelKonditionen): string =>
+  hatZeitraum(k) ? 'in diesem Zeitraum' : 'in der Saison';
+
 const hatZeitraum = (k: StaffelKonditionen): boolean => !!(k.zeitraumVon || k.zeitraumBis);
 
 /** „Zum Stichtag 31.10.2026" bzw. ohne Datum „Nach Saisonende". */
@@ -299,12 +306,13 @@ export const erzeugeStaffelHinweistext = (
       : '';
   const gutschriftForm =
     ' Die Gutschrift weist die Umsatzsteuer aus, nennt die betroffenen Rechnungen und wird mit offenen Forderungen verrechnet. Ein verbleibender Betrag wird innerhalb von 14 Tagen nach Gutschriftsdatum ausgezahlt.';
+  const rueckverweis = zeitraumRueckverweis(k);
   const absaetze: string[] = [];
 
   switch (k.abrechnungsmodell) {
     case 'saisonbonus':
       absaetze.push(
-        `So funktioniert die Staffelung:\nMaßgeblich ist die Gesamtabnahmemenge ${zeitraum}. Die erreichte Preisstufe gilt rückwirkend für die gesamte in diesem Zeitraum gelieferte Menge, nicht nur für die Mehrmenge.${GRENZREGEL}${basis}${ausserhalb}`
+        `So funktioniert die Staffelung:\nMaßgeblich ist die Gesamtabnahmemenge ${zeitraum}. Die erreichte Preisstufe gilt rückwirkend für die gesamte ${rueckverweis} gelieferte Menge, nicht nur für die Mehrmenge.${GRENZREGEL}${basis}${ausserhalb}`
       );
       absaetze.push(
         `Abrechnung:\nJede Lieferung berechnen wir zunächst zum Preis der ersten Stufe. ${stichtagSatzanfang(k)} stellen wir die Gesamtabnahmemenge fest. Liegt sie in einer höheren Stufe, erhalten Sie die Differenz zwischen dem berechneten Preis und dem erreichten Staffelpreis für alle gelieferten Tonnen als Gutschrift (Staffelbonus).${jeSorte}${gutschriftForm}`
@@ -312,7 +320,7 @@ export const erzeugeStaffelHinweistext = (
       break;
     case 'sofortumstellung':
       absaetze.push(
-        `So funktioniert die Staffelung:\nMaßgeblich ist die Gesamtabnahmemenge ${zeitraum}. Die erreichte Preisstufe gilt rückwirkend für die gesamte in diesem Zeitraum gelieferte Menge.${GRENZREGEL}${basis}${ausserhalb}`
+        `So funktioniert die Staffelung:\nMaßgeblich ist die Gesamtabnahmemenge ${zeitraum}. Die erreichte Preisstufe gilt rückwirkend für die gesamte ${rueckverweis} gelieferte Menge.${GRENZREGEL}${basis}${ausserhalb}`
       );
       absaetze.push(
         `Abrechnung:\nJede Lieferung berechnen wir zum Preis der Stufe, die mit ihr erreicht ist. Die Lieferung, mit der die Gesamtabnahmemenge eine Stufengrenze erreicht oder überschreitet, berechnen wir bereits vollständig zum Preis der neuen Stufe. Für alle davor gelieferten Tonnen erhalten Sie die Differenz zum neuen Preis zeitnah als Ausgleichsgutschrift.${jeSorte}${gutschriftForm}`

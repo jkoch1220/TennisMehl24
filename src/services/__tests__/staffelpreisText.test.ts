@@ -211,6 +211,14 @@ describe('erzeugeStaffelBeispiel', () => {
     expect(text).not.toContain('100,00 €');
   });
 
+  it('verweist ohne benannten Zeitraum nicht auf „diesen Zeitraum“', () => {
+    const ohneZeitraum = konditionen({ zeitraumVon: undefined, zeitraumBis: '' });
+    const text = erzeugeStaffelHinweistext(ohneZeitraum, artikel);
+    expect(text).toContain('während der Saison');
+    expect(text).toContain('in der Saison gelieferte Menge');
+    expect(text).not.toContain('in diesem Zeitraum');
+  });
+
   it('liefert kein Beispiel, wenn die erste Stufe eine Mindestabnahme trägt', () => {
     // Die Tabelle im Angebot begänne bei „ab 20 t", die Beispielrechnung rechnet
     // die erste Stufe ab 0 t – zwei verschiedene Zahlen auf einem Beleg.
