@@ -15,6 +15,7 @@ import { AuftragsbestaetigungsDaten } from '../../types/projektabwicklung';
 import { ladeDokumentNachTyp, ladeDokumentDaten } from '../../services/projektabwicklungDokumentService';
 import * as XLSX from 'xlsx';
 import { useCan } from '../../hooks/useCan';
+import { formatProjektTonnen, projektTonnen } from '../../utils/projektTonnage';
 
 // Props
 interface ExportsViewProps {
@@ -357,6 +358,8 @@ const ExportsView = ({ projekteGruppiert, onProjektClick }: ExportsViewProps) =>
                   .sort((a, b) => (b.auftragsbestaetigungsnummer || '').localeCompare(a.auftragsbestaetigungsnummer || ''))
                   .map((projekt) => {
                     const statusConfig = getStatusConfig(projekt.status);
+                    // Einmal auswerten: projektTonnen parst das Positions-JSON.
+                    const tonnen = projektTonnen(projekt);
                     return (
                       <tr
                         key={(projekt as any).$id || projekt.id}
@@ -385,7 +388,7 @@ const ExportsView = ({ projekteGruppiert, onProjektClick }: ExportsViewProps) =>
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
-                          {projekt.angefragteMenge ? `${projekt.angefragteMenge}` : '-'}
+                          {tonnen > 0 ? formatProjektTonnen(tonnen) : '-'}
                         </td>
                       </tr>
                     );

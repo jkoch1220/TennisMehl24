@@ -41,6 +41,7 @@ import {
 import { Projekt, ProjektStatus } from '../../types/projekt';
 import { getKoordinatenFuerPLZ } from '../../data/plzKoordinaten';
 import { geocodeCache, createAdresseKey } from '../../utils/geocodeCache';
+import { formatProjektTonnen, projektTonnen } from '../../utils/projektTonnage';
 
 // Konstanten
 const WERK_POSITION = { lat: 49.85, lng: 9.60 }; // Marktheidenfeld
@@ -537,13 +538,13 @@ const ProjektKartenansicht = ({
                 </div>
 
                 {/* Menge und Preis */}
-                {(selectedMarker.projekt.angefragteMenge || selectedMarker.projekt.preisProTonne) && (
+                {(projektTonnen(selectedMarker.projekt) > 0 || selectedMarker.projekt.preisProTonne) && (
                   <div className="flex items-center gap-3 pt-1 border-t border-gray-100">
-                    {selectedMarker.projekt.angefragteMenge && (
+                    {projektTonnen(selectedMarker.projekt) > 0 && (
                       <div className="flex items-center gap-1">
                         <Package className="w-3.5 h-3.5 text-amber-500" />
                         <span className="font-medium text-amber-700">
-                          {selectedMarker.projekt.angefragteMenge}t
+                          {formatProjektTonnen(projektTonnen(selectedMarker.projekt))}t
                         </span>
                       </div>
                     )}

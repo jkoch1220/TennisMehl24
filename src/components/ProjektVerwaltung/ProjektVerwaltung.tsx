@@ -38,6 +38,7 @@ import {
   Inbox,
   Workflow,
 } from 'lucide-react';
+import { formatProjektTonnen, projektTonnage, projektTonnen, tonnageQuelleLabel } from '../../utils/projektTonnage';
 import { Projekt, ProjektStatus, VerlorenGrund, VERLOREN_GRUENDE, ALLE_PROJEKT_STATUS } from '../../types/projekt';
 import { projektService } from '../../services/projektService';
 import { saisonplanungService, type SaisonRolloverErgebnis } from '../../services/saisonplanungService';
@@ -58,6 +59,7 @@ import WiegescheinPruefliste from './WiegescheinPruefliste';
 import UniversalView from './UniversalView';
 import ExportsView from './ExportsView';
 import MassenAngebotTool from './MassenAngebotTool';
+import { NumberInput } from '../NumberInput';
 import SammelfakturierungTool from './SammelfakturierungTool';
 import ShopBestellungen from '../ShopBestellungen/ShopBestellungen';
 import ProjektFilterLeiste, { GespeicherteAnsicht } from './ProjektFilterLeiste';
@@ -1841,6 +1843,8 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
   const termin = useMemo(() => lieferterminEffektiv(projekt), [projekt]);
   const ueberfaellig = useMemo(() => istUeberfaellig(projekt), [projekt]);
   const wege = useMemo(() => [...getAbwicklungswege(projekt)], [projekt]);
+  // Aus demselben Grund: projektTonnage parst dieselben Positions-JSONs.
+  const tonnage = useMemo(() => projektTonnage(projekt), [projekt]);
   // Herkunfts-Badge: beim Platzbauer das Kürzel, sonst der Kanalname
   const platzbauerKuerzel = getPlatzbauerKuerzel(platzbauerName);
   const shopBestellnummer = herkunft === 'shop' ? getShopBestellnummer(projekt) : undefined;
@@ -2165,12 +2169,12 @@ const ProjektCard = ({ projekt, status, kompakt, aktuellerKundenname, herkunft, 
       )}
 
       {/* Mengen- und Preis-Info */}
-      {(projekt.angefragteMenge || projekt.preisProTonne) && (
+      {(tonnage || projekt.preisProTonne) && (
         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-dark-textMuted mt-1.5 ml-6 pt-1.5 border-t border-gray-100 dark:border-slate-700">
-          {projekt.angefragteMenge && (
-            <div className="flex items-center gap-1">
+          {tonnage && (
+            <div className="flex items-center gap-1" title={`Quelle: ${tonnageQuelleLabel(tonnage.quelle)}`}>
               <Package className="w-3 h-3" />
-              <span>{projekt.angefragteMenge}t</span>
+              <span>{formatProjektTonnen(tonnage.tonnen)}t</span>
             </div>
           )}
           {projekt.preisProTonne && (
@@ -2283,7 +2287,7 @@ const AngebotListeView = ({ projekte, onProjektClick }: AngebotListeViewProps) =
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
-                      {projekt.angefragteMenge ? `${projekt.angefragteMenge}t` : '-'}
+                      {projektTonnen(projekt) > 0 ? `${formatProjektTonnen(projektTonnen(projekt))}t` : '-'}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
                       {projekt.preisProTonne ? `${projekt.preisProTonne.toFixed(2)} €` : '-'}
@@ -2312,6 +2316,12 @@ interface ProjektEditModalProps {
 }
 
 const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) => {
+  // Steht die angezeigte Menge aus Positionen oder Wiegeschein fest, ist das
+  // Feld unten wirkungslos — der Hinweis sagt das, statt es stumm zu schlucken.
+  const tonnageAusBeleg = useMemo(() => {
+    const t = projektTonnage(projekt);
+    return t && t.quelle !== 'angefragt' ? t : null;
+  }, [projekt]);
   const [formData, setFormData] = useState({
     projektName: projekt.projektName || projekt.kundenname,
     kundenname: projekt.kundenname,
@@ -2474,13 +2484,22 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               Angefragte Menge (Tonnen)
             </label>
-            <input
-              type="number"
+            <NumberInput
               step="0.1"
               value={formData.angefragteMenge}
-              onChange={(e) => setFormData({ ...formData, angefragteMenge: parseFloat(e.target.value) || 0 })}
+              onChange={(v) => setFormData({ ...formData, angefragteMenge: v })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
             />
+            {/* Sobald ein Angebot oder eine AB existiert, zeigen Karte und Statistik
+                die Menge aus deren Positionen — ein hier eingetragener Wert bliebe
+                sonst unbemerkt wirkungslos. */}
+            {tonnageAusBeleg && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                Angezeigt wird die {tonnageQuelleLabel(tonnageAusBeleg.quelle)}{' '}
+                ({formatProjektTonnen(tonnageAusBeleg.tonnen)} t). Dieses Feld greift erst,
+                wenn es dazu weder Positionen noch ein Wiegeergebnis gibt.
+              </p>
+            )}
           </div>
 
           {/* Preis pro Tonne */}
@@ -2488,11 +2507,11 @@ const ProjektEditModal = ({ projekt, onSave, onCancel }: ProjektEditModalProps) 
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
               Preis pro Tonne (€)
             </label>
-            <input
-              type="number"
+            <NumberInput
               step="0.01"
+              dezimalstellen={2}
               value={formData.preisProTonne}
-              onChange={(e) => setFormData({ ...formData, preisProTonne: parseFloat(e.target.value) || 0 })}
+              onChange={(v) => setFormData({ ...formData, preisProTonne: v })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
             />
           </div>

@@ -1,4 +1,4 @@
-import { useState, useRef, TouchEvent } from 'react';
+import { useMemo, useState, useRef, TouchEvent } from 'react';
 import {
   FileCheck,
   FileSignature,
@@ -20,6 +20,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { Projekt, ProjektStatus } from '../../types/projekt';
+import { formatProjektTonnen, projektTonnen } from '../../utils/projektTonnage';
 
 // Alle Status-Tabs für Mobile (inkl. "Alle")
 const MOBILE_TABS: { id: ProjektStatus | 'alle'; label: string; shortLabel: string; icon: React.ComponentType<any>; color: string; bgColor: string }[] = [
@@ -43,6 +44,8 @@ interface MobileProjektCardProps {
 }
 
 const MobileProjektCard = ({ projekt, onTap, onEdit, onDelete }: MobileProjektCardProps) => {
+  // Einmal auswerten statt dreimal: projektTonnage parst das Positions-JSON.
+  const tonnen = useMemo(() => projektTonnen(projekt), [projekt]);
   const [swipeX, setSwipeX] = useState(0);
   const [startX, setStartX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -173,12 +176,12 @@ const MobileProjektCard = ({ projekt, onTap, onEdit, onDelete }: MobileProjektCa
         </div>
 
         {/* Menge & Preis */}
-        {(projekt.angefragteMenge || projekt.preisProTonne) && (
+        {(tonnen > 0 || projekt.preisProTonne) && (
           <div className="flex items-center gap-4 pt-3 border-t border-gray-100 dark:border-slate-700">
-            {projekt.angefragteMenge && (
+            {tonnen > 0 && (
               <div className="flex items-center gap-1.5">
                 <Package className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-bold text-gray-900 dark:text-white">{projekt.angefragteMenge} t</span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">{formatProjektTonnen(tonnen)} t</span>
               </div>
             )}
             {projekt.preisProTonne && (

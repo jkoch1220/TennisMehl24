@@ -24,6 +24,7 @@ import {
   Euro,
   Package,
 } from 'lucide-react';
+import { projektTonnen } from '../../utils/projektTonnage';
 import { Projekt , ALLE_PROJEKT_STATUS, ProjektStatus } from '../../types/projekt';
 import ArtikelAuswertung from './ArtikelAuswertung';
 
@@ -445,20 +446,20 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     // 'geliefert' zählt mit: die Ware ist raus, nur die Rechnung fehlt noch —
     // ohne diesen Status verschwanden gelieferte Projekte aus dem Umsatz.
     [...(projekteGruppiert.geliefert ?? []), ...projekteGruppiert.rechnung, ...projekteGruppiert.bezahlt].forEach(projekt => {
-      const menge = projekt.angefragteMenge || 0;
+      const menge = projektTonnen(projekt);
       const preis = projekt.preisProTonne || 0;
       const umsatz = menge * preis;
       gesamtUmsatz += umsatz;
     });
 
     projekteGruppiert.bezahlt.forEach(projekt => {
-      const menge = projekt.angefragteMenge || 0;
+      const menge = projektTonnen(projekt);
       const preis = projekt.preisProTonne || 0;
       bezahlterUmsatz += menge * preis;
     });
 
     [...(projekteGruppiert.geliefert ?? []), ...projekteGruppiert.rechnung].forEach(projekt => {
-      const menge = projekt.angefragteMenge || 0;
+      const menge = projektTonnen(projekt);
       const preis = projekt.preisProTonne || 0;
       offenerUmsatz += menge * preis;
     });
@@ -472,7 +473,7 @@ const ProjektStatistik = ({ projekteGruppiert }: ProjektStatistikProps) => {
     let geliefert = 0;
 
     alleProjekte.forEach(projekt => {
-      const menge = projekt.angefragteMenge || 0;
+      const menge = projektTonnen(projekt);
       if (['lieferschein', 'geliefert', 'rechnung', 'bezahlt'].includes(projekt.status)) {
         geliefert += menge;
       } else if (['angebot', 'angebot_versendet', 'auftragsbestaetigung'].includes(projekt.status)) {

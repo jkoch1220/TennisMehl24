@@ -7,6 +7,7 @@ import { projektService } from '../../services/projektService';
 import AngebotTab from './AngebotTab';
 import LieferscheinTab from './LieferscheinTab';
 import RechnungTab from './RechnungTab';
+import { formatProjektTonnen, projektTonnen } from '../../utils/projektTonnage';
 
 // Hook für Mobile-Erkennung
 const useIsMobile = () => {
@@ -148,11 +149,11 @@ const Projektabwicklung = () => {
                     </span>
                   </div>
                 )}
-                {projekt.angefragteMenge && (
+                {projektTonnen(projekt) > 0 && (
                   <div className="flex items-center gap-2">
                     <Package className="h-4 w-4 text-purple-500" />
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                      {projekt.angefragteMenge} t
+                      {formatProjektTonnen(projektTonnen(projekt))} t
                     </span>
                   </div>
                 )}
