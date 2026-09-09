@@ -1,5 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { istAbgeschlosseneEingabe, leseZahl } from '../../utils/numericInputUebernahme';
+/**
+ * NumericInput – Kompatibilitätshülle um das zentrale Zahlenfeld.
+ *
+ * Bis 09/2026 war das eine zweite, eigenständige Zahlenfeld-Implementierung
+ * (natives `type="number"`, Wert erst bei Blur gemeldet, Spinner-Sonderfall aus
+ * Vorschlag [20]). Beide Komponenten verhielten sich unterschiedlich, und beide
+ * hatten die Komma-/Null-Probleme aus dem Vorschlag „Komma in Staffelpreisangeboten".
+ *
+ * Jetzt läuft alles über `NumberInput`; die Props bleiben, damit die Aufrufer in
+ * Angebot/AB/Lieferschein/Rechnung unverändert weiterlaufen. `formatGerman` ist
+ * wirkungslos – die Anzeige ist immer deutsch.
+ *
+ * `dezimalstellen` fehlte hier zunächst und ließ sich auch nicht nachreichen (die
+ * Hülle spreadet nichts). Damit lief jedes Geldfeld der vier Belegtabs ohne
+ * Rundung: ein Einzelpreis von 12,3456 € blieb so stehen, während das PDF 12,35 €
+ * druckte. Beim Ergänzen einer Prop deshalb immer beide Seiten anfassen.
+ */
+import { NumberInput } from '../NumberInput';
 
 interface NumericInputProps {
   value: number;
@@ -14,26 +30,18 @@ interface NumericInputProps {
   suffix?: string;
   /** Zeigt Min/Max-Verletzungen mit rotem Ring an (Default: true) */
   showValidationWarning?: boolean;
-  /** Formatiert Werte mit deutschem Dezimalformat bei blur (Default: false) */
+  /** Ohne Wirkung – Anzeige ist immer deutsch. Bleibt für alte Aufrufer. */
   formatGerman?: boolean;
   /** ID für das Input-Element */
   id?: string;
   /** Readonly-Modus */
   readOnly?: boolean;
+  /** Höchstzahl Nachkommastellen; 0 = nur ganze Zahlen. */
+  dezimalstellen?: number;
+  /** Negative Zahlen erlauben (Standard: nur wenn min fehlt oder < 0). */
+  negativ?: boolean;
 }
 
-/**
- * NumericInput - Ein verbessertes Zahlenfeld mit besserer UX
- *
- * Features:
- * - ANTI-SCROLL: Mausrad ändert nicht versehentlich den Wert
- * - Erlaubt das Leeren des Feldes während der Bearbeitung
- * - Setzt erst beim Verlassen (onBlur) den Wert auf 0, wenn das Feld leer ist
- * - Verhindert das nervige "080"-Problem beim Eingeben nach dem Löschen
- * - Optional: Suffix-Anzeige (€, t, Stk etc.)
- * - Optional: Min/Max-Validierung mit visuellem Feedback
- * - Optional: Deutsche Zahlenformatierung (Komma statt Punkt)
- */
 const NumericInput = ({
   value,
   onChange,
@@ -45,130 +53,28 @@ const NumericInput = ({
   disabled,
   suffix,
   showValidationWarning = true,
-  formatGerman = false,
   id,
   readOnly,
-}: NumericInputProps) => {
-  const [localValue, setLocalValue] = useState(String(value));
-  const [isFocused, setIsFocused] = useState(false);
-  const [isInvalid, setIsInvalid] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync wenn sich der externe Wert ändert und das Feld nicht fokussiert ist
-  useEffect(() => {
-    if (!isFocused) {
-      if (formatGerman && value !== 0) {
-        setLocalValue(value.toLocaleString('de-DE', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2,
-        }));
-      } else {
-        setLocalValue(String(value));
-      }
-    }
-  }, [value, isFocused, formatGerman]);
-
-  // Validierung bei Wertänderung
-  useEffect(() => {
-    if (showValidationWarning) {
-      const isOutOfRange =
-        (min !== undefined && value < min) ||
-        (max !== undefined && value > max);
-      setIsInvalid(isOutOfRange);
-    }
-  }, [value, min, max, showValidationWarning]);
-
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const rohwert = e.target.value;
-    setLocalValue(rohwert);
-
-    // Klick auf die Pfeilchen oder Pfeiltaste: fertige Eingabe, sofort melden.
-    // Ohne das blieb der Wert im Feld stehen und kam nie im Formular an — die
-    // Auftragsbestätigung wurde dann mit der alten Menge gedruckt (Vorschlag [20]).
-    // Getippte Eingaben laufen unverändert erst über handleBlur, damit
-    // Zwischenstände wie "0," nicht sofort zu 0 werden.
-    const inputType = (e.nativeEvent as InputEvent).inputType;
-    if (istAbgeschlosseneEingabe(inputType, rohwert)) {
-      onChange(leseZahl(rohwert, formatGerman));
-    }
-  }, [formatGerman, onChange]);
-
-  const handleFocus = useCallback(() => {
-    setIsFocused(true);
-    // Wenn 0, leere das Feld für bessere UX
-    if (localValue === '0' || value === 0) {
-      setLocalValue('');
-    } else if (formatGerman) {
-      // Bei Focus: Zurück zu Roh-Format für einfache Bearbeitung
-      setLocalValue(String(value).replace('.', ','));
-    }
-  }, [localValue, value, formatGerman]);
-
-  const handleBlur = useCallback(() => {
-    setIsFocused(false);
-
-    // Dieselbe Lesart wie beim Spinner-Klick — eine Quelle, damit Tippen und
-    // Klicken nicht auseinanderlaufen können.
-    const numValue = leseZahl(localValue, formatGerman);
-
-    // Formatierung anwenden
-    if (formatGerman && numValue !== 0) {
-      setLocalValue(numValue.toLocaleString('de-DE', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      }));
-    } else {
-      setLocalValue(String(numValue));
-    }
-
-    onChange(numValue);
-  }, [localValue, formatGerman, onChange]);
-
-  // ANTI-SCROLL: Bei Mausrad das Feld verlassen um versehentliche Änderungen zu verhindern
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLInputElement>) => {
-    e.currentTarget.blur();
-  }, []);
-
-  // Validation-Styling
-  const validationClasses = isInvalid
-    ? 'ring-2 ring-red-500 border-red-500 dark:ring-red-400 dark:border-red-400'
-    : '';
-
-  // Basis-Input Element
-  const inputElement = (
-    <input
-      ref={inputRef}
-      id={id}
-      type="number"
-      value={localValue}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      onWheel={handleWheel}
-      className={`${className} ${validationClasses} ${suffix ? 'pr-10' : ''}`}
-      step={step}
-      placeholder={placeholder}
-      min={min}
-      max={max}
-      disabled={disabled}
-      readOnly={readOnly}
-    />
-  );
-
-  // Ohne Suffix: Einfaches Input zurückgeben
-  if (!suffix) {
-    return inputElement;
-  }
-
-  // Mit Suffix: Wrapper mit absolut positioniertem Suffix
-  return (
-    <div className="relative">
-      {inputElement}
-      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm pointer-events-none select-none">
-        {suffix}
-      </span>
-    </div>
-  );
-};
+  dezimalstellen,
+  negativ,
+}: NumericInputProps) => (
+  <NumberInput
+    id={id}
+    value={value}
+    onChange={onChange}
+    className={className}
+    step={step}
+    placeholder={placeholder}
+    min={min}
+    max={max}
+    disabled={disabled}
+    readOnly={readOnly}
+    suffix={suffix}
+    dezimalstellen={dezimalstellen}
+    negativ={negativ}
+    bereichWarnung={showValidationWarning}
+    nullAlsLeer={false}
+  />
+);
 
 export default NumericInput;
