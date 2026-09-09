@@ -37,6 +37,16 @@ vi.mock('../projektService', () => ({
 vi.mock('../rechnungsadressenService', () => ({
   ermittleRechnungsAdressen: (...a: unknown[]) => ermittleAdressen(...a),
 }));
+// Der Dieselzuschlag hängt an zwei Netzabrufen. Ungemockt liefen die Tests in
+// echte Timeouts (Appwrite → Backend → Tankerkönig, dazu Google-Entfernung).
+const holeDieselPreis = vi.fn();
+vi.mock('../../utils/dieselPreisAPI', () => ({
+  holeDieselPreisFuerDatum: (...a: unknown[]) => holeDieselPreis(...a),
+}));
+vi.mock('../../utils/lieferEntfernung', () => ({
+  ermittleEntfernungAbWerkKm: vi.fn(async () => ({ km: 80 })),
+}));
+
 vi.mock('../rechnungService', () => ({
   berechneRechnungsSummen: (positionen: { gesamtpreis?: number }[]) => {
     const netto = positionen.reduce((s, p) => s + (p.gesamtpreis ?? 0), 0);
@@ -49,6 +59,7 @@ import {
   sammleFakturierbare,
   erzeugeRechnungen,
   fasseZusammen,
+  _internals,
 } from '../sammelfakturierungService';
 import { Projekt } from '../../types/projekt';
 
@@ -85,6 +96,8 @@ const POSITIONEN = [{ id: '1', bezeichnung: 'Tennissand 0/2', menge: 10, gesamtp
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Der Preis-Puffer lebt im Modul und überlebt sonst den einzelnen Test.
+  _internals.leereDieselPreisPuffer();
   ladeDokumentNachTyp.mockResolvedValue(null);
   ladePositionenVonVorherigem.mockResolvedValue(POSITIONEN);
   ladeEntwurf.mockResolvedValue(null);
@@ -95,6 +108,9 @@ beforeEach(() => {
     lieferadresseAbweichend: false,
     regel: 'direkt',
   });
+  // Unter dem Basispreis 1,749 €/L fällt kein Zuschlag an — die vorhandenen
+  // Tests prüfen die Sperrlogik und sollen davon unberührt bleiben.
+  holeDieselPreis.mockResolvedValue({ preis: 1.6, quelle: 'test' });
   speichereRechnung.mockResolvedValue({ $id: 'dok1' });
   generiereNummer.mockResolvedValue('RE-2026-0001');
   updateProjektStatus.mockResolvedValue({});
@@ -296,5 +312,66 @@ describe('fasseZusammen', () => {
     expect(z.gesperrt).toBe(1);
     expect(z.summe).toBe(1190);
     expect(z.proSperre.wiegeschein_fehlt).toBe(1);
+  });
+});
+
+describe('Dieselpreiszuschlag', () => {
+  /**
+   * Seit Vorschlag 4 (09/2026) trägt das Angebot keine bezifferte TM-DZ-Position
+   * mehr — der Zuschlag entsteht erst zur Rechnung. Der Rechnungs-Tab rechnet ihn
+   * selbst; die Sammelfakturierung tat das NIE und hätte ihn damit ersatzlos
+   * verloren. Bei rund 25 Lieferungen je Saisonwoche wäre das eine stille Lücke.
+   */
+  const positionenMitTonnen = [
+    { id: '1', artikelnummer: 'TM-ZM-02', bezeichnung: 'Ziegelmehl 0/2', menge: 25, einheit: 't', einzelpreis: 98.7, gesamtpreis: 2467.5 },
+    { id: '2', artikelnummer: 'TM-FP', bezeichnung: 'Frachtkostenpauschale', menge: 1, einheit: 'Stk', einzelpreis: 0, gesamtpreis: 0 },
+  ];
+
+  it('ergänzt den Zuschlag, wenn der Dieselpreis über dem Basiswert liegt', async () => {
+    ladePositionenVonVorherigem.mockResolvedValue(positionenMitTonnen);
+    // 2,10 €/L bei Basis 1,749 → 7 Stufen à 0,45 €/t = 3,15 €/t auf 25 t = 78,75 €
+    holeDieselPreis.mockResolvedValue({ preis: 2.1, quelle: 'test' });
+
+    const kandidat = await pruefeKandidat(projekt({ liefernachweisAm: '2026-06-15T00:00:00.000Z' }));
+
+    const zuschlag = kandidat.daten?.positionen.find((p) => p.artikelnummer === 'TM-DZ');
+    expect(zuschlag).toBeDefined();
+    expect(zuschlag?.gesamtpreis).toBeCloseTo(78.75, 2);
+  });
+
+  it('setzt den Zuschlag vor die Frachtkostenpauschale', async () => {
+    ladePositionenVonVorherigem.mockResolvedValue(positionenMitTonnen);
+    holeDieselPreis.mockResolvedValue({ preis: 2.1, quelle: 'test' });
+
+    const kandidat = await pruefeKandidat(projekt({ liefernachweisAm: '2026-06-15T00:00:00.000Z' }));
+    const nummern = (kandidat.daten?.positionen ?? []).map((p) => p.artikelnummer);
+    expect(nummern.indexOf('TM-DZ')).toBeLessThan(nummern.indexOf('TM-FP'));
+  });
+
+  it('rechnet zum Leistungsdatum, nicht zum Rechnungsdatum', async () => {
+    ladePositionenVonVorherigem.mockResolvedValue(positionenMitTonnen);
+    holeDieselPreis.mockResolvedValue({ preis: 2.1, quelle: 'test' });
+
+    await pruefeKandidat(projekt({ liefernachweisAm: '2026-06-15T00:00:00.000Z' }));
+
+    expect(holeDieselPreis).toHaveBeenCalledWith('2026-06-15', expect.any(String));
+  });
+
+  it('lässt die Positionen unangetastet, wenn kein Zuschlag anfällt', async () => {
+    ladePositionenVonVorherigem.mockResolvedValue(positionenMitTonnen);
+    holeDieselPreis.mockResolvedValue({ preis: 1.5, quelle: 'test' });
+
+    const kandidat = await pruefeKandidat(projekt({ liefernachweisAm: '2026-06-15T00:00:00.000Z' }));
+    expect(kandidat.daten?.positionen.some((p) => p.artikelnummer === 'TM-DZ')).toBe(false);
+  });
+
+  it('erzeugt trotzdem eine Rechnung, wenn der Preisabruf scheitert', async () => {
+    // Lieber eine Rechnung ohne Zuschlag als gar keine.
+    ladePositionenVonVorherigem.mockResolvedValue(positionenMitTonnen);
+    holeDieselPreis.mockRejectedValue(new Error('Tankerkönig nicht erreichbar'));
+
+    const kandidat = await pruefeKandidat(projekt({ liefernachweisAm: '2026-06-15T00:00:00.000Z' }));
+    expect(kandidat.sperren).toHaveLength(0);
+    expect(kandidat.daten?.positionen).toHaveLength(2);
   });
 });

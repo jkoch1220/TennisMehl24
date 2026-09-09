@@ -55,7 +55,12 @@ export function setzeMengeAufPrimaer(
 ): Position[] {
   const primaer = positionen.find((p) => p.id === primaerId);
   const alteMenge = Number(primaer?.menge ?? 0);
-  const faktor = alteMenge > 0 ? neueMenge / alteMenge : 1;
+  // Ohne Bezugsgröße (alte Menge 0) oder ohne Zielmenge gibt es kein Verhältnis.
+  // Mit `faktor = 0` wurden früher alle Nebenpositionen auf 0 multipliziert —
+  // und blieben es, weil danach auch die alte Menge 0 war. Beim Tippen reichte
+  // ein Backspace, um die Anbruch-Palette dauerhaft aus dem Angebot zu rechnen.
+  // Nebenpositionen bleiben deshalb unberührt, bis wieder eine Menge dasteht.
+  const faktor = alteMenge > 0 && neueMenge > 0 ? neueMenge / alteMenge : 1;
   return positionen.map((p) => {
     if (p.istBedarfsposition) return p;
     if (p.id === primaerId) {

@@ -14,6 +14,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { kundennummerService } from '../../services/kundennummerService';
 import AdressAutocomplete from './AdressAutocomplete.tsx';
 import EmailAdressenInput from '../Shared/EmailAdressenInput';
+import { OptionalNumberInput } from '../NumberInput';
 import { emailAdressenFehler, normalisiereEmailAdressen } from '../../utils/emailAdressen';
 
 interface KundenFormularProps {
@@ -640,14 +641,14 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                   Zuletzt gezahlter Preis (€/t)
                 </label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
-                  value={formData.zuletztGezahlterPreis ?? ''}
-                  onChange={(e) =>
+                  dezimalstellen={2}
+                  value={formData.zuletztGezahlterPreis ?? null}
+                  onChange={(v) =>
                     setFormData({
                       ...formData,
-                      zuletztGezahlterPreis: e.target.value ? parseFloat(e.target.value) : undefined,
+                      zuletztGezahlterPreis: v ?? undefined,
                     })
                   }
                   className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -658,14 +659,13 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                   Tonnen abgenommen letztes Jahr
                 </label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.1"
-                  value={formData.tonnenLetztesJahr ?? ''}
-                  onChange={(e) =>
+                  value={formData.tonnenLetztesJahr ?? null}
+                  onChange={(v) =>
                     setFormData({
                       ...formData,
-                      tonnenLetztesJahr: e.target.value ? parseFloat(e.target.value) : undefined,
+                      tonnenLetztesJahr: v ?? undefined,
                     })
                   }
                   className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -676,15 +676,15 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                   Schüttstellen Anzahl
                 </label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="1"
                   min="0"
-                  value={formData.schuettstellenAnzahl ?? ''}
-                  onChange={(e) =>
+                  dezimalstellen={0}
+                  value={formData.schuettstellenAnzahl ?? null}
+                  onChange={(v) =>
                     setFormData({
                       ...formData,
-                      schuettstellenAnzahl: e.target.value ? parseInt(e.target.value) : undefined,
+                      schuettstellenAnzahl: v ?? undefined,
                     })
                   }
                   className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -943,15 +943,15 @@ const KundenFormular = ({ kunde, onSave, onCancel }: KundenFormularProps) => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                   Zahlungsziel (Tage)
                 </label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   min="0"
                   step="1"
+                  dezimalstellen={0}
                   value={formData.zahlungsziel ?? 14}
-                  onChange={(e) =>
+                  onChange={(v) =>
                     setFormData({
                       ...formData,
-                      zahlungsziel: e.target.value ? parseInt(e.target.value) : 14,
+                      zahlungsziel: v ?? 14,
                     })
                   }
                   className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"

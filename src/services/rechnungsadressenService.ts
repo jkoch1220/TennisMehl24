@@ -145,12 +145,19 @@ export async function ermittleRechnungsAdressen(
   // zweimal dieselbe Anschrift.
   kundenname = kunde.name;
   kundennummer = kunde.kundennummer;
-  kundenstrasse = kunde.rechnungsadresse.strasse;
-  kundenPlzOrt = formatAdresszeile(
-    kunde.rechnungsadresse.plz,
-    kunde.rechnungsadresse.ort,
-    kunde.rechnungsadresse.land
-  );
+
+  // Ausnahme: Hat der Kunde die Rechnungsanschrift im Bestellportal für DIESEN
+  // Vorgang selbst gesetzt, gilt sie — sonst überschriebe der Stammsatz sie hier
+  // wieder, und die Änderung im Portal bliebe folgenlos. Der Stamm wird bewusst
+  // nicht angefasst: Er gilt für alle Vorgänge, die Portal-Eingabe nur für diesen.
+  if (!projekt.rechnungsadresseVomKundenAm) {
+    kundenstrasse = kunde.rechnungsadresse.strasse;
+    kundenPlzOrt = formatAdresszeile(
+      kunde.rechnungsadresse.plz,
+      kunde.rechnungsadresse.ort,
+      kunde.rechnungsadresse.land
+    );
+  }
 
   const lieferAdresseIstAnders =
     kunde.lieferadresse.strasse !== kunde.rechnungsadresse.strasse ||

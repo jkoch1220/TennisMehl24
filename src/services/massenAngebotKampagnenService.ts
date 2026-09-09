@@ -277,26 +277,44 @@ export const massenAngebotKampagnenService = {
     }
     const zeilen = await ladeAlle(MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, [Query.equal('kampagneId', id)]);
 
-    // Gedrosselt löschen. Appwrite Cloud drosselt schreibende Zugriffe; 89
-    // Löschbefehle ohne Pause laufen in ein HTTP 429, und die Kampagne bleibt
-    // halb gelöscht zurück — löschbar nur noch über die Konsole.
+    /*
+     * Gedrosselt löschen. Appwrite Cloud begrenzt schreibende Zugriffe je
+     * SITZUNG, und zwar pro Minute — nicht pro Sekunde. Kurze Pausen zwischen
+     * den Aufrufen helfen deshalb nur bis zum Kontingent; danach hilft nur
+     * warten. Ein Lauf über 623 Zeilen lief so in ein HTTP 429 und ließ die
+     * Kampagne halb gelöscht zurück.
+     *
+     * Ab hier gilt: erst geduldig warten (bis zu einer Minute), und wenn das
+     * Kontingent dann immer noch erschöpft ist, sauber abbrechen MIT dem
+     * Hinweis auf `scripts/kampagne-loeschen.ts`. Das Skript läuft über den
+     * Server-Key, der ein eigenes, weit höheres Kontingent hat — 300 Zeilen
+     * gehen dort in rund 20 Sekunden durch.
+     */
+    const WARTEN_NACH_429 = [5000, 15000, 30000, 60000];
     let geloescht = 0;
     for (const [index, z] of zeilen.entries()) {
-      for (let versuch = 1; versuch <= 4; versuch++) {
+      let erledigt = false;
+      for (let versuch = 0; versuch <= WARTEN_NACH_429.length; versuch++) {
         try {
           await databases.deleteDocument(DATABASE_ID, MASSEN_ANGEBOT_ZEILEN_COLLECTION_ID, String(z.$id));
           geloescht++;
+          erledigt = true;
           break;
         } catch (error) {
           const status = (error as { code?: number })?.code;
           // 404: schon weg (etwa aus einem abgebrochenen Vorlauf) — kein Fehler.
-          if (status === 404) break;
-          if (status === 429 && versuch < 4) {
-            await new Promise((r) => setTimeout(r, versuch * 2000));
-            continue;
-          }
-          if (versuch === 4) throw error;
+          if (status === 404) { erledigt = true; break; }
+          if (status !== 429) throw error;
+          if (versuch === WARTEN_NACH_429.length) break;
+          await new Promise((r) => setTimeout(r, WARTEN_NACH_429[versuch]));
         }
+      }
+      if (!erledigt) {
+        throw new Error(
+          `Appwrite drosselt: ${geloescht} von ${zeilen.length} Zeilen gelöscht, dann war das ` +
+          'Schreibkontingent erschöpft. Die Kampagne ist jetzt unvollständig — der Rest geht über ' +
+          `„npx tsx scripts/kampagne-loeschen.ts ${id} --apply" in einem Zug durch.`
+        );
       }
       optionen.onFortschritt?.(index + 1, zeilen.length);
       await new Promise((r) => setTimeout(r, 320));
@@ -328,7 +346,7 @@ export const massenAngebotKampagnenService = {
       benutzer?: string;
       onFortschritt?: (schritt: string, prozent: number) => void;
     } = {}
-  ): Promise<{ aufgenommen: number; uebersprungen: number; bereitsVorhanden: number; aufgefrischt: number; ausschlussGruende: Record<string, number> }> {
+  ): Promise<{ aufgenommen: number; uebersprungen: number; bereitsVorhanden: number; aufgefrischt: number; nichtGespeichert: number; ausschlussGruende: Record<string, number> }> {
     const melde = optionen.onFortschritt ?? (() => {});
 
     const kandidaten = await massenAngebotService.sammleKandidaten(kampagne.saisonjahr, melde);
@@ -506,12 +524,18 @@ export const massenAngebotKampagnenService = {
       await this.speichereZeilen(kampagne.id, aufzufrischen, { benutzer: optionen.benutzer });
     }
 
+    // Fehlgeschlagene Zeilen dürfen NICHT im Rauschen untergehen: Der Lauf
+    // meldete „658 Kunden aufgenommen", während 534 davon am Rate-Limit
+    // gescheitert waren. Wer das nicht erfährt, verschickt eine Kampagne mit
+    // einem Fünftel der Vereine.
+    let nichtGespeichert = 0;
     if (neueZeilen.length > 0) {
-      await this.speichereZeilen(kampagne.id, neueZeilen, {
+      const ergebnis = await this.speichereZeilen(kampagne.id, neueZeilen, {
         benutzer: optionen.benutzer,
         onFortschritt: (erledigt, gesamt) =>
           melde(`Speichere Zeilen… ${erledigt}/${gesamt}`, 95 + Math.round((erledigt / gesamt) * 5)),
       });
+      nichtGespeichert = ergebnis.fehler;
     }
 
     if (kampagne.status === 'entwurf' && neueZeilen.length > 0) {
@@ -522,11 +546,16 @@ export const massenAngebotKampagnenService = {
       action: 'update',
       entityType: 'massen_angebot',
       entityId: kampagne.id,
-      summary: `„${kampagne.name}": ${neueZeilen.length} Kunden aufgenommen, ${uebersprungen} nicht zugeordnet`,
+      summary: `„${kampagne.name}": ${neueZeilen.length - nichtGespeichert} Kunden aufgenommen, ${uebersprungen} nicht zugeordnet`
+        + (nichtGespeichert > 0 ? `, ${nichtGespeichert} am Rate-Limit gescheitert` : ''),
     });
 
     melde('Fertig', 100);
-    return { aufgenommen: neueZeilen.length, uebersprungen, bereitsVorhanden, aufgefrischt: aufzufrischen.length, ausschlussGruende };
+    return {
+      aufgenommen: neueZeilen.length - nichtGespeichert,
+      uebersprungen, bereitsVorhanden, aufgefrischt: aufzufrischen.length,
+      nichtGespeichert, ausschlussGruende,
+    };
   },
 
   /**
@@ -1138,32 +1167,70 @@ export const massenAngebotKampagnenService = {
   async speichereZeilen(
     kampagneId: string,
     zeilen: Array<Partial<MassenAngebotZeile>>,
-    optionen: { benutzer?: string; onFortschritt?: (erledigt: number, gesamt: number) => void } = {}
+    optionen: {
+      benutzer?: string;
+      onFortschritt?: (erledigt: number, gesamt: number) => void;
+      /** Nur für Tests: Startpause zwischen den Schreibrunden in ms. */
+      startPauseMs?: number;
+    } = {}
   ): Promise<{ erstellt: number; aktualisiert: number; fehler: number }> {
     const jetzt = new Date().toISOString();
     let erstellt = 0, aktualisiert = 0, fehler = 0;
-    // 4 parallel alle 600 ms ≈ 400 Schreibzugriffe/Minute Spitze — Appwrite
-    // Cloud drosselt darüber mit HTTP 429. Ein 429 mitten in einem Lauf über
-    // 700 Zeilen hinterlässt eine halb befüllte Kampagne, deshalb zusätzlich
-    // Wiederholung mit wachsender Wartezeit.
-    const BATCH = 4;
 
+    /*
+     * Adaptive Drosselung.
+     *
+     * Fest eingestellte 4 parallel alle 600 ms sind rund 400 Schreibzugriffe je
+     * Minute — mehr, als Appwrite Cloud einer Browsersitzung zugesteht. Bei 658
+     * Zeilen brach der Lauf reproduzierbar ab: 124 gespeichert, der Rest lief in
+     * HTTP 429 und wurde stillschweigend verworfen, während die Anzeige 96 %
+     * meldete.
+     *
+     * Das Limit gilt pro MINUTE, nicht pro Sekunde. Kurze Pausen helfen deshalb
+     * nur bis zum Kontingent — danach muss man langsamer werden und warten. Die
+     * Drossel geht bei jedem 429 auf die Hälfte herunter und erholt sich erst
+     * nach einer Strecke ohne Fehler wieder.
+     */
+    // VORSICHTIG starten, dann steigern — nicht umgekehrt. Wer mit 3 parallel
+    // beginnt, produziert erst einen Schwung 429er und drosselt danach; jede
+    // dieser Zeilen fehlt am Ende in der Kampagne. Eine Zeile pro Sekunde geht
+    // sicher durch und braucht für 658 Zeilen rund elf Minuten — akzeptabel für
+    // einen Aufbau, der einmal je Saison läuft.
+    let gleichzeitig = 1;
+    let pause = optionen.startPauseMs ?? 900;
+    let ruhig = 0;
+    const drosseln = () => {
+      gleichzeitig = 1;
+      pause = Math.min(5000, Math.round(pause * 1.8));
+      ruhig = 0;
+    };
+    const erholen = () => {
+      if (++ruhig < 25) return;
+      // Erst nach 25 fehlerfreien Runden einen Schritt schneller — und nie über
+      // zwei parallel hinaus. Das Kontingent gilt pro Minute; Spitzen bringen
+      // nichts, sie kosten nur den nächsten Fehlschlag.
+      if (gleichzeitig < 2) gleichzeitig++;
+      else pause = Math.max(Math.min(700, pause), Math.round(pause * 0.85));
+      ruhig = 0;
+    };
+
+    /** Bei 429 geduldig warten: Das Kontingent füllt sich erst zur nächsten Minute. */
+    const WARTEN_NACH_429 = [5000, 15000, 30000, 60000];
     const mitRetry = async (aufgabe: () => Promise<unknown>): Promise<void> => {
-      for (let versuch = 1; versuch <= 4; versuch++) {
+      for (let versuch = 0; versuch <= WARTEN_NACH_429.length; versuch++) {
         try { await aufgabe(); return; }
         catch (error) {
-          const status = (error as { code?: number })?.code;
-          if (status === 429 && versuch < 4) {
-            await new Promise((r) => setTimeout(r, versuch * 2000));
-            continue;
-          }
-          throw error;
+          if ((error as { code?: number })?.code !== 429) throw error;
+          drosseln();
+          if (versuch === WARTEN_NACH_429.length) throw error;
+          await new Promise((r) => setTimeout(r, WARTEN_NACH_429[versuch]));
         }
       }
     };
 
-    for (let i = 0; i < zeilen.length; i += BATCH) {
-      const teil = zeilen.slice(i, i + BATCH);
+    for (let i = 0; i < zeilen.length; ) {
+      const teil = zeilen.slice(i, i + gleichzeitig);
+      i += teil.length;
       const ergebnisse = await Promise.allSettled(
         teil.map((z) => {
           const payload = zeileZuPayload({
@@ -1186,8 +1253,11 @@ export const massenAngebotKampagnenService = {
         } else if (teil[idx].id) aktualisiert++;
         else erstellt++;
       });
-      optionen.onFortschritt?.(Math.min(i + BATCH, zeilen.length), zeilen.length);
-      await new Promise((r) => setTimeout(r, 600));
+      if (ergebnisse.every((r) => r.status === 'fulfilled')) erholen();
+      // Der Fortschritt zählt GESPEICHERTE Zeilen, nicht Versuche — sonst steht
+      // die Anzeige bei 96 %, während drei Viertel fehlen.
+      optionen.onFortschritt?.(erstellt + aktualisiert, zeilen.length);
+      await new Promise((r) => setTimeout(r, pause));
     }
 
     await this.aktualisiereZaehler(kampagneId);

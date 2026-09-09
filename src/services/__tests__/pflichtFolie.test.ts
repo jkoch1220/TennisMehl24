@@ -102,3 +102,53 @@ describe('fehltPflichtFolie', () => {
     expect(fehltPflichtFolie([pos({ artikelnummer: 'TM-ZM-02St' })])).toBe(false);
   });
 });
+
+/**
+ * Beim Selbstabholer sieht das Angebot anders aus.
+ *
+ * Er lädt auf den eigenen Hänger: Die Folie braucht er nicht zwingend, also ist
+ * sie eine Bedarfsposition — angeboten, aber nicht berechnet. Dafür belegt er
+ * beim Laden Personal und Radlader; die Verladepauschale ist die Gegenleistung
+ * zum entfallenden Frachtanteil und gehört fest aufs Angebot.
+ */
+describe('Zusatzpositionen beim Abholer', () => {
+  const ware = [pos({ id: 'w', artikelnummer: 'TM-ZM-02', menge: 8, einheit: 't', einzelpreis: 98.7, gesamtpreis: 789.6 })];
+  const preise = { folienPreis: 18.2, verladepauschalePreis: 50 };
+
+  it('berechnet die Folie bei Lieferung', () => {
+    const neu = internals.ergaenzeZusatzpositionen(ware, preise, false);
+    const folie = neu.find((p) => p.artikelnummer === 'TM-PE');
+    expect(folie?.istBedarfsposition).toBeFalsy();
+    expect(neu.some((p) => p.artikelnummer === 'TM-VP')).toBe(false);
+  });
+
+  it('bietet die Folie beim Abholer nur als Bedarf an', () => {
+    const neu = internals.ergaenzeZusatzpositionen(ware, preise, true);
+    expect(neu.find((p) => p.artikelnummer === 'TM-PE')?.istBedarfsposition).toBe(true);
+  });
+
+  it('setzt beim Abholer die Verladepauschale', () => {
+    const neu = internals.ergaenzeZusatzpositionen(ware, preise, true);
+    const vp = neu.find((p) => p.artikelnummer === 'TM-VP');
+    expect(vp).toMatchObject({ menge: 1, einheit: 'Stk', einzelpreis: 50, gesamtpreis: 50 });
+    expect(vp?.istBedarfsposition).toBeFalsy();
+  });
+
+  it('legt keine zweite Verladepauschale an', () => {
+    const schonDrin = [...ware, pos({ id: 'vp', artikelnummer: 'TM-VP', menge: 1, einheit: 'Stk', einzelpreis: 50, gesamtpreis: 50 })];
+    const neu = internals.ergaenzeZusatzpositionen(schonDrin, preise, true);
+    expect(neu.filter((p) => p.artikelnummer === 'TM-VP')).toHaveLength(1);
+  });
+
+  it('legt ohne Preis keine Verladepauschale an', () => {
+    // Eine Position zu 0,00 € wäre schlimmer als die fehlende Zeile.
+    const neu = internals.ergaenzeZusatzpositionen(ware, { folienPreis: 18.2, verladepauschalePreis: 0 }, true);
+    expect(neu.some((p) => p.artikelnummer === 'TM-VP')).toBe(false);
+  });
+
+  it('rührt ein reines Paletten-Angebot nicht an', () => {
+    const paletten = [pos({ id: 'p', artikelnummer: 'TM-ZM-02St', menge: 2, einheit: 't', einzelpreis: 155, gesamtpreis: 310 })];
+    const neu = internals.ergaenzeZusatzpositionen(paletten, preise, false);
+    expect(neu).toEqual(paletten);
+  });
+});

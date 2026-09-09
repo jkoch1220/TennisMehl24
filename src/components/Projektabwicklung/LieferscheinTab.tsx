@@ -1479,6 +1479,7 @@ const LieferscheinTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: Liefersc
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
                             <NumericInput
+                              dezimalstellen={3}
                               value={position.menge}
                               onChange={(val) => handlePositionChange(index, 'menge', val)}
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}

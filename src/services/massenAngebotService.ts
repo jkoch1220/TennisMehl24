@@ -74,6 +74,7 @@ import {
 import { loadAllDocuments } from '../utils/appwritePagination';
 import { auditService } from './auditService';
 import { getPortalPublicUrl } from './liefernachweisService';
+import { summierePositionsTonnen } from '../utils/tonnage';
 
 // Standard-Menge (Tonnen) für PLZ-Kalkulation, wenn keine Referenzmenge vorliegt.
 export const STANDARD_MENGE_DEFAULT = 10;
@@ -268,11 +269,65 @@ function baueFolienPosition(preis: number): Position {
  * Ergänzt die Folie, wenn lose Ware im Angebot steht und noch keine drin ist.
  * Ohne Preis wird nichts angelegt — eine Position zu 0,00 € im Angebot wäre
  * schlimmer als die fehlende Zeile.
+ *
+ * Beim SELBSTABHOLER ist die Folie eine Bedarfsposition: Er lädt auf seinen
+ * eigenen Hänger und braucht sie nicht zwingend — wer sie will, bestellt sie
+ * mit. Angeboten wird sie trotzdem, sonst fällt sie unter den Tisch.
  */
-function ergaenzePflichtFolie(positionen: Position[], folienPreis: number): Position[] {
+function ergaenzePflichtFolie(
+  positionen: Position[],
+  folienPreis: number,
+  selbstabholer = false
+): Position[] {
   if (folienPreis <= 0) return positionen;
   if (!hatLoseWare(positionen) || hatFolie(positionen)) return positionen;
-  return [...positionen, baueFolienPosition(folienPreis)];
+  const folie = baueFolienPosition(folienPreis);
+  return [...positionen, selbstabholer ? { ...folie, istBedarfsposition: true } : folie];
+}
+
+/**
+ * Die Verladepauschale gehört auf jedes Abholer-Angebot.
+ *
+ * Wer ab Werk lädt, belegt bei uns Personal und Radlader — das ist die
+ * Gegenleistung zum entfallenden Frachtanteil. Ohne diese Zeile steht im
+ * Angebot nur der Werkspreis, und die Verladung ist verschenkt.
+ */
+const VERLADEPAUSCHALE_ARTIKELNUMMER = 'TM-VP';
+const VERLADEPAUSCHALE_BEZEICHNUNG = 'Verladepauschale bei Abholung "ab Werk" (siehe Rückseite)';
+
+function hatVerladepauschale(positionen: Position[]): boolean {
+  return positionen.some(
+    (p) => (p.artikelnummer || '').toUpperCase() === VERLADEPAUSCHALE_ARTIKELNUMMER
+  );
+}
+
+function ergaenzeVerladepauschale(positionen: Position[], preis: number): Position[] {
+  if (preis <= 0 || hatVerladepauschale(positionen)) return positionen;
+  return [...positionen, {
+    id: naechstePositionId(),
+    artikelnummer: VERLADEPAUSCHALE_ARTIKELNUMMER,
+    bezeichnung: VERLADEPAUSCHALE_BEZEICHNUNG,
+    menge: 1,
+    einheit: 'Stk',
+    einzelpreis: round2(preis),
+    gesamtpreis: round2(preis),
+  }];
+}
+
+/**
+ * Baut die Zusatzpositionen für ein Angebot auf — je nachdem, ob geliefert
+ * oder abgeholt wird. Eine Stelle für beide Fälle, damit die Regeln nicht an
+ * drei Aufbauwegen auseinanderlaufen.
+ */
+function ergaenzeZusatzpositionen(
+  positionen: Position[],
+  lookup: { folienPreis: number; verladepauschalePreis: number },
+  selbstabholer: boolean
+): Position[] {
+  const mitFolie = ergaenzePflichtFolie(positionen, lookup.folienPreis, selbstabholer);
+  return selbstabholer
+    ? ergaenzeVerladepauschale(mitFolie, lookup.verladepauschalePreis)
+    : mitFolie;
 }
 
 /** Lose Ware im Angebot, aber keine Folie? Dann fehlt eine Pflichtzeile. */
@@ -638,6 +693,7 @@ interface KandidatenLookup {
   vorjahrSaisonDaten: Map<string, SaisonDaten>; // kundeId → SaisonDaten der Vorsaison (Bezugsweg-Prüfung)
   halbePaletteAufschlagEuro: number; // Fester Anbruch-Aufschlag (€) aus der Preis-Konfiguration
   folienPreis: number; // TM-PE aus dem Artikelstamm — Pflichtzeile bei loser Ware
+  verladepauschalePreis: number; // TM-VP — Pflichtzeile bei Abholung ab Werk
 }
 
 // Bezieht der Kunde über einen Platzbauer? Dann darf KEIN automatisches
@@ -797,6 +853,9 @@ function bestimmeKandidat(
   lookup: KandidatenLookup
 ): MassenAngebotKandidat {
   const base = basisKandidat(kunde);
+  // Abholer bekommen andere Zusatzpositionen: Verladepauschale statt Fracht,
+  // und die Folie nur als Bedarfsposition (sie laden auf den eigenen Hänger).
+  const istSelbstabholer = kunde.belieferungsart === 'abholung_ab_werk';
 
   // Idempotenz: existiert bereits ein Projekt für die Zielsaison? → niemals doppelt anlegen.
   const existierendes = lookup.zielProjekte.get(kunde.id)?.[0];
@@ -841,7 +900,7 @@ function bestimmeKandidat(
       // Vorjahresbeleg fehlte. Ohne sie kann nicht gekippt werden.
       const aufgebaut = {
         ...roh,
-        positionen: ergaenzePflichtFolie(roh.positionen, lookup.folienPreis),
+        positionen: ergaenzeZusatzpositionen(roh.positionen, lookup, istSelbstabholer),
       };
       const warnungen = [...aufgebaut.warnungen];
       if (referenz.verloren) {
@@ -912,7 +971,7 @@ function bestimmeKandidat(
     const menge = kunde.tonnenLetztesJahr;
     const preis = kunde.zuletztGezahlterPreis;
     const position = baueZiegelmehlPosition(menge, preis);
-    const mosaikPositionen = ergaenzePflichtFolie([position], lookup.folienPreis);
+    const mosaikPositionen = ergaenzeZusatzpositionen([position], lookup, istSelbstabholer);
     return validiere({
       ...base,
       quelle: 'mosaik',
@@ -942,7 +1001,7 @@ function bestimmeKandidat(
         : STANDARD_MENGE_DEFAULT;
     const preis = berechnePlzPreisProTonne(plz, menge, werkspreisProTonne);
     const position = baueZiegelmehlPosition(menge, preis);
-    const plzPositionen = ergaenzePflichtFolie([position], lookup.folienPreis);
+    const plzPositionen = ergaenzeZusatzpositionen([position], lookup, istSelbstabholer);
     const kandidat = validiere({
       ...base,
       quelle: 'plz_kalkulation',
@@ -989,6 +1048,7 @@ async function sammleKandidaten(
   const { halbePaletteAufschlagEuro } = await getPreisKonfiguration();
   // Einmal je Lauf statt einmal je Kunde — bei 700 Vereinen wären das 700 Abfragen.
   const folienPreis = await getArtikelPreis(FOLIE_ARTIKELNUMMER);
+  const verladepauschalePreis = await getArtikelPreis(VERLADEPAUSCHALE_ARTIKELNUMMER);
 
   melde(`Lade Projekte der Saison ${saisonjahr}…`, 25);
   const zielProjekte = await ladeProjekteFuerSaison(saisonjahr);
@@ -1026,6 +1086,7 @@ async function sammleKandidaten(
     vorjahrSaisonDaten,
     halbePaletteAufschlagEuro,
     folienPreis,
+    verladepauschalePreis,
   };
   const kandidaten = berechtigte.map((kunde) =>
     bestimmeKandidat(kunde, saisonjahr, werkspreisProTonne, lookup)
@@ -1649,6 +1710,11 @@ async function erzeugeBatch(
       const heute = new Date().toISOString().split('T')[0];
 
       const adresse = flacheKundenadresse(kandidat.kunde);
+      // Angebotsdaten vor dem Projekt bauen: Daraus kommt die Menge, die auf der
+      // Kanban-Karte steht. `speichereAngebot` legt die Positionen nur in der
+      // Dokumente-Collection ab, nicht am Projekt — ohne diese Zeile blieben
+      // Massenangebot-Projekte ohne jede Tonnage (Vorschlag 2).
+      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten, saisonjahr);
       const projekt = await projektService.createProjekt(
         {
           projektName: kandidat.kundenname,
@@ -1668,13 +1734,13 @@ async function erzeugeBatch(
           preisProTonne: kandidat.preisProTonne,
           angebotsnummer,
           angebotsdatum: heute,
+          angefragteMenge: summierePositionsTonnen(angebotsDaten.positionen, 'auswertung') || undefined,
         },
         // Im Massenlauf keine kaskadierende Platzbauer-Projekt-Zuordnung auslösen.
         { skipPlatzbauerProjektZuordnung: true }
       );
 
       const projektId = projekt.id;
-      const angebotsDaten = baueAngebotsDaten(kandidat, angebotsnummer, stammdaten, saisonjahr);
       await speichereAngebot(projektId, angebotsDaten);
 
       ergebnis.erzeugt.push({
@@ -2144,6 +2210,7 @@ export const _massenAngebotInternals = {
   baueAnbruchAufschlagPosition,
   klassifizierePosition,
   ergaenzePflichtFolie,
+  ergaenzeZusatzpositionen,
   hatLoseWare,
   fehltPflichtFolie,
   berechneSchuettgutTonnage,

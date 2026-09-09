@@ -8,8 +8,27 @@ import { ordneZu, bestimmeProfilAusBelegen, istUniversalartikel, Kundenkontext }
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Position } from '../../types/projektabwicklung';
 
-const pos = (artikelnummer: string, extra: Partial<Position> = {}): Position =>
-  ({ id: artikelnummer, artikelnummer, bezeichnung: artikelnummer, menge: 10, einheit: 't', einzelpreis: 100, gesamtpreis: 1000, ...extra } as Position);
+/**
+ * Standardpreis je Artikel = Werkspreis PLUS eingerechnete Fracht, also der
+ * Regelfall LIEFERUNG. Ein fester Preis für alle Artikel taugt nicht: 130 €/t
+ * sind bei Schüttgut (Werk 98,70) ein Lieferpreis, bei Palettenware (Werk 155)
+ * dagegen unter Werkspreis — der Kunde gälte damit als Abholer.
+ */
+const LIEFERPREIS: Record<string, number> = {
+  'TM-ZM-02': 130, 'TM-ZM-03': 130,
+  'TM-ZM-02ST': 175, 'TM-ZM-03ST': 175,
+  'TM-ZM-02S': 10.5, 'TM-ZM-03S': 10.5,
+  'TM-ZM-BIG-02': 150, 'TM-ZM-BIG-03': 150,
+  'TM-ZM-02BB': 150, 'TM-ZM-03BB': 150,
+};
+
+const pos = (artikelnummer: string, extra: Partial<Position> = {}): Position => {
+  const preis = LIEFERPREIS[artikelnummer.toUpperCase()] ?? 130;
+  return {
+    id: artikelnummer, artikelnummer, bezeichnung: artikelnummer, menge: 10, einheit: 't',
+    einzelpreis: preis, gesamtpreis: preis * 10, ...extra,
+  } as Position;
+};
 
 const kunde = (extra: Partial<SaisonKunde> = {}): SaisonKunde =>
   ({
@@ -212,5 +231,130 @@ describe('Beiladungs-Säcke sind keine Palettenware', () => {
       const k = kontext({ belege: [{ jahr: 2026, positionen: [pos(artikel)], typ: 'rechnung' }] });
       expect(ordneZu(k, 'paletten').passt).toBe(true);
     }
+  });
+});
+
+/**
+ * Die Verladepauschale ist der härteste Beweis für einen Abholer.
+ *
+ * Aufgefallen an Eva Maria Lang: Sie stand im Schüttgut-Lauf, obwohl ihr
+ * Vorjahresbeleg die Position „Verladepauschale bei Abholung ab Werk" trägt.
+ * Ihr Kundenfeld `belieferungsart` war leer — wie bei 2033 von 2183 Kunden.
+ * Ohne diese Regel bekäme sie ein Lieferangebot samt Frachtkosten für Ware,
+ * die sie selbst abholt.
+ */
+describe('Verladepauschale erkennt Abholer', () => {
+  const mitPauschale = (extra: Partial<SaisonKunde> = {}) => kontext({
+    kunde: kunde(extra),
+    belege: [{ jahr: 2026, typ: 'auftragsbestaetigung', positionen: [
+      pos('TM-ZM-02', { menge: 3, einzelpreis: 98.7, gesamtpreis: 296.1 }),
+      pos('TM-VP', { menge: 1, einheit: 'Stk', einzelpreis: 50, gesamtpreis: 50 }),
+    ] }],
+  });
+
+  it('holt den Kunden in den Abholer-Lauf, auch ohne gepflegtes Kundenfeld', () => {
+    const z = ordneZu(mitPauschale(), 'abholung');
+    expect(z.passt).toBe(true);
+    expect(z.selbstabholer).toBe(true);
+    expect(z.herkunft).toContain('Verladepauschale im Beleg');
+  });
+
+  it('hält ihn damit aus dem Schüttgut-Lauf heraus', () => {
+    expect(ordneZu(mitPauschale(), 'schuettgut').passt).toBe(false);
+  });
+
+  it('nennt die Pauschale nicht, wenn das Kundenfeld ohnehin stimmt', () => {
+    const z = ordneZu(mitPauschale({ belieferungsart: 'abholung_ab_werk' }), 'abholung');
+    expect(z.passt).toBe(true);
+    expect(z.herkunft).not.toContain('Verladepauschale im Beleg');
+  });
+
+  it('lässt eine ausdrückliche Lieferart schwerer wiegen als die Pauschale', () => {
+    // DJK Gänheim: `nur_motorwagen` gesetzt UND Verladepauschale im Beleg. Das
+    // ist ein Widerspruch für den Menschen, keine Entscheidung für die Regel —
+    // der Kunde bleibt im Liefer-Lauf.
+    const beliefert = mitPauschale({ belieferungsart: 'nur_motorwagen' });
+    expect(ordneZu(beliefert, 'abholung').passt).toBe(false);
+    expect(ordneZu(beliefert, 'schuettgut').passt).toBe(true);
+  });
+
+  it('macht ohne Pauschale keinen Abholer', () => {
+    const ohne = kontext({ belege: [{ jahr: 2026, typ: 'auftragsbestaetigung', positionen: [pos('TM-ZM-02')] }] });
+    expect(ordneZu(ohne, 'abholung').passt).toBe(false);
+    expect(ordneZu(ohne, 'schuettgut').passt).toBe(true);
+  });
+});
+
+/**
+ * Werkspreis ohne Frachtposition — das zweite Abholer-Signal.
+ *
+ * Die Fracht steckt bei uns IM Tonnenpreis, nicht in einer eigenen Zeile. Eine
+ * fehlende Frachtzeile beweist deshalb nichts; erst zusammen mit dem Preis
+ * wird daraus ein Abholer. Werkspreise: Schüttgut 98,70 €/t, Sackware auf
+ * Palette 155 €/t, Einzelsack 8,50 €/Stk, BigBag 125,90 €/t.
+ */
+describe('Werkspreis ohne Fracht erkennt Abholer', () => {
+  const mit = (positionen: Position[], extra: Partial<SaisonKunde> = {}) => kontext({
+    kunde: kunde(extra),
+    belege: [{ jahr: 2026, typ: 'auftragsbestaetigung', positionen }],
+  });
+
+  it('erkennt Schüttgut zum Werkspreis ohne Fracht', () => {
+    const z = ordneZu(mit([pos('TM-ZM-02', { menge: 5, einzelpreis: 98.7, gesamtpreis: 493.5 })]), 'abholung');
+    expect(z.passt).toBe(true);
+    expect(z.herkunft).toContain('Werkspreis ohne Frachtposition');
+  });
+
+  it('erkennt Sackware und BigBag zu ihren eigenen Werkspreisen', () => {
+    // 155 €/t für Palettenware ist Werkspreis, nicht „teuer".
+    expect(ordneZu(mit([pos('TM-ZM-02St', { menge: 2, einzelpreis: 155 })]), 'abholung').passt).toBe(true);
+    expect(ordneZu(mit([pos('TM-ZM-02S', { menge: 20, einheit: 'Stk', einzelpreis: 8.5 })]), 'abholung').passt).toBe(true);
+    expect(ordneZu(mit([pos('TM-ZM-BIG-02', { menge: 1, einzelpreis: 125.9 })]), 'abholung').passt).toBe(true);
+  });
+
+  it('macht keinen Abholer, sobald eine Frachtposition im Beleg steht', () => {
+    const mitFracht = mit([
+      pos('TM-ZM-02', { menge: 5, einzelpreis: 98.7 }),
+      pos('TM-FP', { menge: 1, einheit: 'Stk', einzelpreis: 39.9 }),
+    ]);
+    expect(ordneZu(mitFracht, 'abholung').passt).toBe(false);
+    expect(ordneZu(mitFracht, 'schuettgut').passt).toBe(true);
+  });
+
+  it('erkennt auch Frachtkosten und Kleinmengenzuschlag als Lieferung', () => {
+    for (const nr of ['TM-FK', 'TM-FKZ']) {
+      const b = mit([pos('TM-ZM-02', { menge: 5, einzelpreis: 98.7 }), pos(nr, { einheit: 'Pkt', einzelpreis: 24.9 })]);
+      expect(ordneZu(b, 'abholung').passt).toBe(false);
+    }
+  });
+
+  it('macht keinen Abholer bei eingerechneter Fracht im Tonnenpreis', () => {
+    // 132,34 €/t ist Werkspreis plus Fracht — der Regelfall bei Lieferung.
+    const geliefert = mit([pos('TM-ZM-02', { menge: 9, einzelpreis: 132.34 })]);
+    expect(ordneZu(geliefert, 'abholung').passt).toBe(false);
+    expect(ordneZu(geliefert, 'schuettgut').passt).toBe(true);
+  });
+
+  it('lässt ein paar Cent Luft nach oben', () => {
+    expect(ordneZu(mit([pos('TM-ZM-02', { menge: 5, einzelpreis: 99.9 })]), 'abholung').passt).toBe(true);
+    expect(ordneZu(mit([pos('TM-ZM-02', { menge: 5, einzelpreis: 105 })]), 'abholung').passt).toBe(false);
+  });
+
+  it('wertet einen Preis von 0 nicht als Werkspreis', () => {
+    // Ein unvollständiger Beleg ist kein Abholer-Beweis (Fall TC Dietenhofen).
+    expect(ordneZu(mit([pos('TM-ZM-02', { menge: 5, einzelpreis: 0 })]), 'abholung').passt).toBe(false);
+  });
+
+  it('verlangt Werkspreis bei ALLEN Warenpositionen', () => {
+    const gemischt = mit([
+      pos('TM-ZM-02', { menge: 5, einzelpreis: 98.7 }),
+      pos('TM-ZM-03', { menge: 3, einzelpreis: 130 }),   // hier steckt Fracht drin
+    ]);
+    expect(ordneZu(gemischt, 'abholung').passt).toBe(false);
+  });
+
+  it('greift nicht ohne Warenposition', () => {
+    const nurZubehoer = mit([pos('TM-PE', { menge: 1, einheit: 'Stk', einzelpreis: 18.2 })]);
+    expect(ordneZu(nurZubehoer, 'abholung').passt).toBe(false);
   });
 });
