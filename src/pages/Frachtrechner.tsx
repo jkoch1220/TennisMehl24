@@ -328,7 +328,13 @@ const Frachtrechner = () => {
               >
                 Anzahl Paletten
               </label>
-              <div className="mt-2">
+              {/* Bewusst nur die Basis-Props von NumberInput (value/onChange/min/max/
+                  step/placeholder/className). Die reichhaltigere Fassung mit `suffix`,
+                  `dezimalstellen` und `bereichWarnung` liegt derzeit als unfertiger
+                  Umbau im Arbeitsbaum, ist aber nicht committet — diese Seite würde
+                  damit auf dem Build-Server nicht übersetzen. Das Suffix zeichnen wir
+                  deshalb selbst; `pointer-events-none` lässt den Klick ins Feld durch. */}
+              <div className="relative mt-2">
                 <NumberInput
                   id="frachtrechner-paletten"
                   value={paletten}
@@ -336,12 +342,12 @@ const Frachtrechner = () => {
                   min={1}
                   max={maxPaletten}
                   step={1}
-                  dezimalstellen={0}
-                  suffix="Paletten"
-                  bereichWarnung
                   placeholder="z. B. 5"
-                  className={feldKlasse}
+                  className={`${feldKlasse} pr-24`}
                 />
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-gray-400 dark:text-gray-500">
+                  Paletten
+                </span>
               </div>
               <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 Eine Palette = 25 Säcke à 40 kg = 1 Tonne
