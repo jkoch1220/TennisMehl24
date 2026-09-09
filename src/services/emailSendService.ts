@@ -290,16 +290,23 @@ export const istTestversand = (eintrag: EmailProtokoll): boolean => {
 
 /**
  * Lädt alle E-Mail-Protokolle (für Admin-Übersicht)
+ *
+ * @param dokumentTyp Serverseitig auf einen Typ einschränken. Ohne diesen Filter
+ *   füllen Belegmails das Limit und ältere Mahn-Mails fallen still heraus.
+ *   (Index idx_dokumentTyp existiert, siehe scripts/setup-email-protokoll.ts)
  */
-export const ladeAlleEmailProtokolle = async (limit = 100): Promise<EmailProtokoll[]> => {
+export const ladeAlleEmailProtokolle = async (
+  limit = 100,
+  dokumentTyp?: ProtokollDokumentTyp
+): Promise<EmailProtokoll[]> => {
   try {
+    const queries = [Query.orderDesc('gesendetAm'), Query.limit(limit)];
+    if (dokumentTyp) queries.push(Query.equal('dokumentTyp', dokumentTyp));
+
     const response = await databases.listDocuments(
       DATABASE_ID,
       EMAIL_PROTOKOLL_COLLECTION_ID,
-      [
-        Query.orderDesc('gesendetAm'),
-        Query.limit(limit),
-      ]
+      queries
     );
 
     return response.documents as unknown as EmailProtokoll[];

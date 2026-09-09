@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X,
   Mail,
@@ -10,6 +10,8 @@ import {
   FileText,
   TestTube2,
   ChevronDown,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import TipTapEditor from '../Shared/TipTapEditor';
@@ -24,7 +26,17 @@ import {
 import { generiereStandardEmail } from '../../utils/emailHelpers';
 import EmailAdressenInput from '../Shared/EmailAdressenInput';
 import { emailAdressenFehler, normalisiereEmailAdressen } from '../../utils/emailAdressen';
-import { EmailAccount, EmailProtokoll, DokumentTyp, TEST_EMAIL_ADDRESS } from '../../types/email';
+import {
+  EmailAccount,
+  EmailProtokoll,
+  DokumentTyp,
+  ProtokollDokumentTyp,
+  TEST_EMAIL_ADDRESS,
+} from '../../types/email';
+
+// Belegtypen haben eine Stammdaten-Vorlage, 'mahnwesen' nicht — dessen Texte kommen
+// aus den Mahnwesen-Vorlagen und werden per `inhaltVorgabe` hereingereicht.
+const istBelegTyp = (typ: ProtokollDokumentTyp): typ is DokumentTyp => typ !== 'mahnwesen';
 
 // Formatiert einen ISO-Zeitstempel als deutsches Datum mit Uhrzeit
 const formatiereZeitpunkt = (iso: string): string => {
@@ -39,7 +51,7 @@ const formatiereZeitpunkt = (iso: string): string => {
 interface EmailFormularProps {
   pdf: jsPDF;
   dateiname: string;
-  dokumentTyp: DokumentTyp;
+  dokumentTyp: ProtokollDokumentTyp;
   dokumentNummer: string;
   kundenname: string;
   kundennummer?: string;
@@ -53,8 +65,49 @@ interface EmailFormularProps {
    * erscheint die Auswahl; der erste Eintrag ist die Voreinstellung.
    */
   vorlagen?: EmailVorlagenOption[];
+  /**
+   * Fertiger Inhalt statt Stammdaten-Vorlage — für Dokumenttypen, deren Texte
+   * anderswo gepflegt werden (Mahnwesen: `stammdaten.mahnwesenVorlagen`).
+   * Ist er gesetzt, wird `generiereStandardEmail` nicht aufgerufen.
+   */
+  inhaltVorgabe?: { betreff: string; htmlBody: string; signatur?: string };
+  /** Absender fest vorgeben statt über den Dokumenttyp zu ermitteln */
+  absenderVorgabe?: string;
+  /**
+   * Anklickbare Empfänger-Vorschläge unter dem An-Feld (Projekt, Kunde,
+   * Ansprechpartner …). Bei Platzbauer-Projekten der einzige verlässliche Weg
+   * zur richtigen Adresse.
+   */
+  empfaengerVorschlaege?: { email: string; quelle: string }[];
+  /** Hinweis oben im Dialog, z.B. „Empfänger ist der Platzbauer, nicht der Verein" */
+  hinweisText?: string;
+  /** Testmodus-Schalter vorbelegen (z.B. aus dem Testmodus des Mahnungen-Tabs) */
+  testModusVorgabe?: boolean;
+  /**
+   * Abweichende Bezeichnung im Kopf, wenn der Dokumenttyp zu grob ist
+   * (z.B. „Zahlungserinnerung" / „1. Mahnung" statt „Mahnung").
+   */
+  dokumentLabel?: string;
+  /**
+   * Dokumentnummer für die Verlaufs-/Doppelversandprüfung, falls sie von
+   * `dokumentNummer` abweicht. Leerstring = alle Mails dieses Typs im Projekt
+   * (Mahnwesen: die Nummer entsteht erst beim Senden, wäre also nie im Verlauf).
+   */
+  verlaufNummer?: string;
   onClose: () => void;
   onSend?: (info: { testModus: boolean; empfaenger: string }) => void;
+  /**
+   * Eigener Sendeweg. Ist er gesetzt, versendet das Formular NICHT selbst,
+   * sondern übergibt den fertigen Inhalt an den Aufrufer — im Mahnwesen hängen
+   * am Versand Archivierung (GoBD), Mahnstufe und Audit-Eintrag.
+   */
+  onSenden?: (daten: {
+    empfaenger: string;
+    absender: string;
+    betreff: string;
+    htmlBody: string;
+    testModus: boolean;
+  }) => Promise<{ success: boolean; error?: string; testModeActive?: boolean }>;
 }
 
 export interface EmailVorlagenOption {
@@ -80,8 +133,16 @@ const EmailFormular = ({
   pdfVersion,
   zusatzHtml,
   vorlagen,
+  inhaltVorgabe,
+  absenderVorgabe,
+  empfaengerVorschlaege,
+  hinweisText,
+  testModusVorgabe,
+  dokumentLabel,
+  verlaufNummer,
   onClose,
   onSend,
+  onSenden,
 }: EmailFormularProps) => {
   // Gewählte Vorlagen-Variante (Index in `vorlagen`); ohne Auswahl immer die erste/Basis.
   const [vorlagenIndex, setVorlagenIndex] = useState(0);
@@ -94,7 +155,7 @@ const EmailFormular = ({
   // Signatur bleibt außerhalb des Editors: TipTap kennt keine Tabellen und würde
   // das Tabellen-Layout der Signatur zerlegen; angehängt wird sie erst beim Versand.
   const [signatur, setSignatur] = useState('');
-  const [testModus, setTestModus] = useState(false);
+  const [testModus, setTestModus] = useState(testModusVorgabe ?? false);
 
   // UI-State
   const [emailKonten, setEmailKonten] = useState<EmailAccount[]>([]);
@@ -102,9 +163,23 @@ const EmailFormular = ({
   const [fehlerMeldung, setFehlerMeldung] = useState<string | null>(null);
   const [erfolgsMeldung, setErfolgsMeldung] = useState<string | null>(null);
   const [showAbsenderDropdown, setShowAbsenderDropdown] = useState(false);
+  const [zeigePdfVorschau, setZeigePdfVorschau] = useState(false);
 
-  // PDF-Vorschau
+  // PDF-Vorschau (Blob-URL zusätzlich im Ref, damit der Unmount-Cleanup sie
+  // freigeben kann, ohne in einer veralteten Closure zu landen)
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const pdfPreviewUrlRef = useRef<string | null>(null);
+
+  // Blob-URL beim Schließen des Dialogs freigeben
+  useEffect(
+    () => () => {
+      if (pdfPreviewUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewUrlRef.current);
+        pdfPreviewUrlRef.current = null;
+      }
+    },
+    []
+  );
 
   // Doppelversand-Schutz: bisheriger Versand-Verlauf dieses Dokuments
   // null = Verlauf (noch) nicht geladen bzw. Laden fehlgeschlagen
@@ -113,19 +188,26 @@ const EmailFormular = ({
   const [erneutSendenBestaetigt, setErneutSendenBestaetigt] = useState(false);
 
   // Dokumenttyp-Labels
-  const dokumentTypLabels: Record<DokumentTyp, string> = {
+  const dokumentTypLabels: Record<ProtokollDokumentTyp, string> = {
     angebot: 'Angebot',
     auftragsbestaetigung: 'Auftragsbestätigung',
     lieferschein: 'Lieferschein',
     rechnung: 'Rechnung',
+    mahnwesen: 'Mahnung',
   };
 
+  // Was im Kopf und in den Meldungen steht — `dokumentLabel` schlägt den Typ,
+  // damit „Zahlungserinnerung" nicht als „Mahnung" angekündigt wird.
+  const anzeigeLabel = dokumentLabel || dokumentTypLabels[dokumentTyp];
+
   // "Diese Rechnung wurde…" / "Dieser Lieferschein wurde…" (korrekter Artikel)
-  const dokumentTypMitArtikel: Record<DokumentTyp, string> = {
+  const dokumentTypMitArtikel: Record<ProtokollDokumentTyp, string> = {
     angebot: 'Dieses Angebot',
     auftragsbestaetigung: 'Diese Auftragsbestätigung',
     lieferschein: 'Dieser Lieferschein',
     rechnung: 'Diese Rechnung',
+    // Der Mahn-Verlauf umfasst alle Stufen dieses Projekts, nicht nur diese eine
+    mahnwesen: 'Eine Mahnung an diesen Kunden',
   };
 
   // Versand-Verlauf für genau dieses Dokument laden (Projekt + Typ + Nummer)
@@ -136,7 +218,9 @@ const EmailFormular = ({
       setVerlaufFehler(false);
       return;
     }
-    const eintraege = await ladeEmailProtokollFuerDokument(projektId, dokumentTyp, dokumentNummer);
+    // verlaufNummer schlägt die Dokumentnummer; '' bedeutet: alle Mails dieses Typs
+    const nummerFuerVerlauf = verlaufNummer ?? dokumentNummer;
+    const eintraege = await ladeEmailProtokollFuerDokument(projektId, dokumentTyp, nummerFuerVerlauf);
     if (eintraege === null) {
       setVerlaufFehler(true);
       setVerlauf(null);
@@ -144,7 +228,7 @@ const EmailFormular = ({
       setVerlaufFehler(false);
       setVerlauf(eintraege);
     }
-  }, [projektId, dokumentTyp, dokumentNummer]);
+  }, [projektId, dokumentTyp, dokumentNummer, verlaufNummer]);
 
   useEffect(() => {
     void ladeVerlauf();
@@ -169,48 +253,58 @@ const EmailFormular = ({
         const konten = await ladeEmailKonten();
         setEmailKonten(konten);
 
-        // Standard-Absender setzen (nach Dokumenttyp)
-        const defaultAbsender = getDefaultAbsender(dokumentTyp, konten);
-        setAbsender(defaultAbsender);
+        // Standard-Absender setzen (Vorgabe des Aufrufers schlägt den Dokumenttyp)
+        setAbsender(absenderVorgabe || getDefaultAbsender(dokumentTyp, konten));
 
-        // E-Mail-Template laden
-        const emailDaten = await generiereStandardEmail(
-          dokumentTyp,
-          dokumentNummer,
-          kundenname,
-          kundennummer,
-          aktiveVorlage?.key
-        );
-        setBetreff(emailDaten.betreff);
+        if (inhaltVorgabe) {
+          // Fertiger Inhalt vom Aufrufer (Mahnwesen) — keine Stammdaten-Vorlage laden
+          setBetreff(inhaltVorgabe.betreff);
+          setSignatur(inhaltVorgabe.signatur || '');
+          setHtmlContent(inhaltVorgabe.htmlBody);
+        } else if (istBelegTyp(dokumentTyp)) {
+          // E-Mail-Template laden
+          const emailDaten = await generiereStandardEmail(
+            dokumentTyp,
+            dokumentNummer,
+            kundenname,
+            kundennummer,
+            aktiveVorlage?.key
+          );
+          setBetreff(emailDaten.betreff);
 
-        // HTML-Content verwenden wenn verfügbar, sonst Plain-Text konvertieren
-        let htmlText: string;
-        if (emailDaten.html) {
-          // Neues HTML-Format - direkt verwenden
-          htmlText = emailDaten.html;
-        } else {
-          // Altes Plain-Text Format - zu HTML konvertieren
-          htmlText = emailDaten.text
-            .split('\n')
-            .map((line) => (line.trim() ? `<p>${line}</p>` : '<p><br></p>'))
-            .join('');
+          // HTML-Content verwenden wenn verfügbar, sonst Plain-Text konvertieren
+          let htmlText: string;
+          if (emailDaten.html) {
+            // Neues HTML-Format - direkt verwenden
+            htmlText = emailDaten.html;
+          } else {
+            // Altes Plain-Text Format - zu HTML konvertieren
+            htmlText = emailDaten.text
+              .split('\n')
+              .map((line) => (line.trim() ? `<p>${line}</p>` : '<p><br></p>'))
+              .join('');
+          }
+
+          // Zusatz-Block (z.B. AB-Datenprüfung) vor der Signatur einfügen.
+          // Varianten können ihn abwählen — die schlanke AB kommt ohne Prüf-Block aus.
+          const zusatzErwuenscht = aktiveVorlage ? aktiveVorlage.mitZusatzHtml !== false : true;
+          if (zusatzHtml && zusatzErwuenscht) {
+            htmlText += '\n' + zusatzHtml;
+          }
+
+          // Signatur getrennt halten — sie wird unter dem Editor angezeigt
+          // und erst beim Versand angehängt
+          setSignatur(emailDaten.signatur || '');
+          setHtmlContent(htmlText);
         }
 
-        // Zusatz-Block (z.B. AB-Datenprüfung) vor der Signatur einfügen.
-        // Varianten können ihn abwählen — die schlanke AB kommt ohne Prüf-Block aus.
-        const zusatzErwuenscht = aktiveVorlage ? aktiveVorlage.mitZusatzHtml !== false : true;
-        if (zusatzHtml && zusatzErwuenscht) {
-          htmlText += '\n' + zusatzHtml;
+        // PDF-Vorschau erstellen (alte Blob-URL vorher freigeben)
+        if (pdfPreviewUrlRef.current) {
+          URL.revokeObjectURL(pdfPreviewUrlRef.current);
         }
-
-        // Signatur getrennt halten — sie wird unter dem Editor angezeigt
-        // und erst beim Versand angehängt
-        setSignatur(emailDaten.signatur || '');
-        setHtmlContent(htmlText);
-
-        // PDF-Vorschau erstellen
         const blob = pdf.output('blob');
         const url = URL.createObjectURL(blob);
+        pdfPreviewUrlRef.current = url;
         setPdfPreviewUrl(url);
 
         setStatus('bereit');
@@ -222,23 +316,35 @@ const EmailFormular = ({
     };
 
     init();
-
-    // Cleanup PDF-Preview URL
-    return () => {
-      if (pdfPreviewUrl) {
-        URL.revokeObjectURL(pdfPreviewUrl);
-      }
-    };
     // aktiveVorlage?.key in den Dependencies: ein Vorlagenwechsel lädt Betreff und Text neu.
-  }, [dokumentTyp, dokumentNummer, kundenname, kundennummer, pdf, zusatzHtml, aktiveVorlage?.key, aktiveVorlage?.mitZusatzHtml]);
+    // inhaltVorgabe wird über seine Felder beobachtet — das Objekt selbst ist bei
+    // jedem Render neu und würde eine Endlosschleife auslösen. Gleiches gilt für
+    // aktiveVorlage (Objekt aus dem vorlagen-Array).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dokumentTyp,
+    dokumentNummer,
+    kundenname,
+    kundennummer,
+    pdf,
+    zusatzHtml,
+    aktiveVorlage?.key,
+    aktiveVorlage?.mitZusatzHtml,
+    absenderVorgabe,
+    inhaltVorgabe?.betreff,
+    inhaltVorgabe?.htmlBody,
+    inhaltVorgabe?.signatur,
+  ]);
 
   // Standard-Absender basierend auf Dokumenttyp
-  const getDefaultAbsender = (typ: DokumentTyp, konten: EmailAccount[]): string => {
-    const mappings: Record<DokumentTyp, string[]> = {
+  const getDefaultAbsender = (typ: ProtokollDokumentTyp, konten: EmailAccount[]): string => {
+    const mappings: Record<ProtokollDokumentTyp, string[]> = {
       angebot: ['anfrage@tennismehl.com', 'info@tennismehl.com'],
       auftragsbestaetigung: ['bestellung@tennismehl24.com', 'info@tennismehl.com'],
       lieferschein: ['logistik@tennismehl.com', 'info@tennismehl.com'],
       rechnung: ['rechnung@tennismehl.com', 'info@tennismehl.com'],
+      // MAHNWESEN_ABSENDER (mahnwesenService) — info@ ist der etablierte Mahn-Absender
+      mahnwesen: ['info@tennismehl.com', 'rechnung@tennismehl.com'],
     };
 
     const preferredEmails = mappings[typ];
@@ -294,26 +400,32 @@ const EmailFormular = ({
       setStatus('senden');
       setFehlerMeldung(null);
 
-      // PDF zu Base64 konvertieren
-      const pdfBase64 = pdfZuBase64(pdf);
-
       // HTML in E-Mail-Template wrappen
       const vollstaendigesHtml = wrapInEmailTemplate(htmlContent, signatur);
 
-      // E-Mail senden
-      const result = await sendeEmailMitPdf({
-        empfaenger: zielEmpfaenger,
-        absender,
-        betreff: betreff.trim(),
-        htmlBody: vollstaendigesHtml,
-        pdfBase64,
-        pdfDateiname: dateiname,
-        projektId: projektId || 'unbekannt',
-        dokumentTyp,
-        dokumentNummer,
-        pdfVersion,
-        testModus,
-      });
+      // Eigener Sendeweg des Aufrufers (Mahnwesen: archivieren + Mahnstufe +
+      // Audit) — sonst versendet und protokolliert das Formular selbst.
+      const result = onSenden
+        ? await onSenden({
+            empfaenger: zielEmpfaenger,
+            absender,
+            betreff: betreff.trim(),
+            htmlBody: vollstaendigesHtml,
+            testModus,
+          })
+        : await sendeEmailMitPdf({
+            empfaenger: zielEmpfaenger,
+            absender,
+            betreff: betreff.trim(),
+            htmlBody: vollstaendigesHtml,
+            pdfBase64: pdfZuBase64(pdf),
+            pdfDateiname: dateiname,
+            projektId: projektId || 'unbekannt',
+            dokumentTyp,
+            dokumentNummer,
+            pdfVersion,
+            testModus,
+          });
 
       if (result.success) {
         setStatus('erfolg');
@@ -379,7 +491,7 @@ const EmailFormular = ({
             <div>
               <h2 className="text-xl font-semibold text-white">E-Mail senden</h2>
               <p className="text-sm text-blue-100">
-                {dokumentTypLabels[dokumentTyp]} {dokumentNummer}
+                {anzeigeLabel} {dokumentNummer}
               </p>
             </div>
           </div>
@@ -393,6 +505,14 @@ const EmailFormular = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Kontext-Hinweis des Aufrufers (z.B. Platzbauer-Regel) */}
+          {hinweisText && (
+            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-purple-800 dark:text-purple-300">{hinweisText}</p>
+            </div>
+          )}
+
           {/* Doppelversand-Warnung: Dokument wurde bereits erfolgreich versendet */}
           {bereitsVersendet && (
             <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-700 rounded-lg p-4">
@@ -530,6 +650,26 @@ const EmailFormular = ({
                 placeholder="kunde@example.com, buchhaltung@example.com"
                 className="px-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              {empfaengerVorschlaege && empfaengerVorschlaege.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {empfaengerVorschlaege.map((vorschlag) => (
+                    <button
+                      key={vorschlag.email}
+                      type="button"
+                      onClick={() => setEmpfaenger(vorschlag.email)}
+                      title={vorschlag.quelle}
+                      className={`px-2 py-1 rounded-full text-xs border transition-colors ${
+                        empfaenger.trim().toLowerCase() === vorschlag.email.toLowerCase()
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {vorschlag.email}
+                      <span className="opacity-60"> · {vorschlag.quelle}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -617,7 +757,46 @@ const EmailFormular = ({
                 {pdfVersion && ` (Version ${pdfVersion})`}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setZeigePdfVorschau((v) => !v)}
+              className="flex-shrink-0 self-center flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+            >
+              {zeigePdfVorschau ? (
+                <>
+                  <EyeOff className="h-4 w-4" /> Vorschau ausblenden
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4" /> PDF ansehen
+                </>
+              )}
+            </button>
           </div>
+
+          {/* PDF-Vorschau: genau das Dokument, das gleich rausgeht */}
+          {zeigePdfVorschau && pdfPreviewUrl && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted">
+                  Vorschau des Anhangs
+                </label>
+                <a
+                  href={pdfPreviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  In neuem Tab öffnen
+                </a>
+              </div>
+              <iframe
+                title={`Vorschau ${dateiname}`}
+                src={pdfPreviewUrl}
+                className="w-full h-[60vh] rounded-lg border border-gray-300 dark:border-slate-700 bg-white"
+              />
+            </div>
+          )}
 
           {/* Testmodus */}
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">

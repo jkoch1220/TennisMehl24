@@ -30,6 +30,7 @@ import {
   sendeEmailMitPdf,
   wrapInEmailTemplate,
   blobZuBase64,
+  textToHtml,
 } from './emailSendService';
 import { ladeStandardSignatur } from '../utils/emailHelpers';
 import { TEST_EMAIL_ADDRESS } from '../types/email';
@@ -647,23 +648,34 @@ export const erstelleMahnwesenDokumentDaten = async (
 };
 
 /**
- * Speichert ein Mahnwesen-Dokument (generiert PDF und speichert in Appwrite)
+ * Dateiname eines Mahn-PDFs — eine einzige Quelle, weil die Stufenerkennung im
+ * Tab „Versendete Mahnungen" das Präfix dieses Namens liest.
+ * Format: „1. Mahnung Musterverein MA-2026-004.pdf"
+ */
+export const mahnDokumentDateiname = (daten: MahnwesenDokumentDaten): string =>
+  `${mahnTypLabel(daten.dokumentTyp)} ${daten.kundenname} ${daten.dokumentNummer}.pdf`
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Speichert ein Mahnwesen-Dokument (PDF in den Storage, Eintrag in die Collection).
+ *
+ * @param pdfVorgerendert Bereits erzeugtes PDF (aus `bereiteMahnungVersandVor`).
+ *   Ohne dieses Argument wird neu gerendert — so bleiben Altaufrufer gültig. Mit ihm
+ *   sind Archiv-PDF und E-Mail-Anhang garantiert dieselbe Datei (vorher wurde zweimal
+ *   gerendert, inklusive zweitem QR-Code).
  */
 export const speichereMahnwesenDokument = async (
-  daten: MahnwesenDokumentDaten
+  daten: MahnwesenDokumentDaten,
+  pdfVorgerendert?: jsPDF
 ): Promise<GespeichertesMahnwesenDokument> => {
   try {
-    // PDF generieren
-    const pdf = await generiereMahnwesenPDF(daten);
+    const pdf = pdfVorgerendert || (await generiereMahnwesenPDF(daten));
     const blob = pdf.output('blob');
 
-    // Dateiname generieren
-    const typLabel = daten.dokumentTyp === 'zahlungserinnerung' ? 'Zahlungserinnerung' :
-      daten.dokumentTyp === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung';
-    const dateiname = `${typLabel} ${daten.kundenname} ${daten.dokumentNummer}.pdf`
-      .replace(/[<>:"/\\|?*]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const typLabel = mahnTypLabel(daten.dokumentTyp);
+    const dateiname = mahnDokumentDateiname(daten);
 
     // Datei in Storage hochladen
     const file = new File([blob], dateiname, { type: 'application/pdf' });
@@ -837,7 +849,7 @@ export const mahnTypLabel = (typ: MahnwesenDokumentTyp): string =>
   typ === 'zahlungserinnerung' ? 'Zahlungserinnerung' : typ === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung';
 
 /** Mahn-Dokumenttyp → resultierende Mahnstufe nach Versand */
-const mahnTypZuMahnstufe = (typ: MahnwesenDokumentTyp): DebitorMahnstufe =>
+export const mahnTypZuMahnstufe = (typ: MahnwesenDokumentTyp): DebitorMahnstufe =>
   typ === 'zahlungserinnerung' ? 1 : typ === 'mahnung_1' ? 2 : 3;
 
 /** Empfänger-Adresse bestimmen: rechnungsEmail zuerst, sonst kundenEmail */
@@ -995,23 +1007,236 @@ export interface SendeMahnungErgebnis {
   fehler?: string;
 }
 
+/** Alles, was für den Versand einer Mahnung bereitliegt — noch nichts davon gespeichert. */
+export interface MahnVersandVorbereitung {
+  daten: MahnwesenDokumentDaten;
+  /** Fertig gerendertes PDF — genau diese Datei wird später archiviert UND angehängt */
+  pdf: jsPDF;
+  dateiname: string;
+  betreff: string;
+  /** E-Mail-Text als HTML (ohne Signatur) — direkt in den TipTap-Editor ladbar */
+  htmlBody: string;
+  signatur: string;
+  empfaenger?: string;
+  absender: string;
+}
+
 /**
- * Versendet eine Mahnung halbautomatisch per E-Mail:
- *  1. Empfänger bestimmen (rechnungsEmail → kundenEmail; im Testmodus zur Not Testadresse)
- *  2. Mahn-PDF erzeugen + archivieren (GoBD) → Base64
- *  3. E-Mail-Body aus der Vorlage bauen
- *  4. Versand via sendeEmailMitPdf (Testmodus: an Testadresse, [TEST]-Präfix, kein Protokoll)
- *  5. Nur bei echtem Versand: Mahnstufe hochsetzen + Aktivität loggen
+ * Bereitet den Versand einer Mahnung vor: Dokumentdaten, PDF, Betreff, E-Mail-Text
+ * und Signatur — für Vorschau und Bearbeitung im E-Mail-Client.
  *
- * Wirft NICHT — Fehler werden als { success:false, fehler } zurückgegeben (Bulk-tauglich).
+ * PERSISTIERT NICHTS: keine Storage-Datei, kein Datenbankeintrag, keine Mahnstufe,
+ * keine Aktivität. Das bloße Öffnen des Dialogs bleibt folgenlos; erst
+ * `sendeVorbereiteteMahnung` schreibt. (Die Dokumentnummer wird hier nur
+ * VORGESCHLAGEN — beim Senden wird sie erneut auf Kollision geprüft.)
+ */
+export const bereiteMahnungVersandVor = async (
+  debitor: DebitorView,
+  dokumentTyp: MahnwesenDokumentTyp,
+  vorlagen?: MahnwesenTextVorlagen,
+  empfaengerOverride?: string,
+  /** Anschrift explizit vorgeben, wenn der Aufrufer sie besser kennt als der Debitor */
+  adresseOverride?: { strasse?: string; plzOrt?: string }
+): Promise<MahnVersandVorbereitung> => {
+  const daten = await erstelleMahnwesenDokumentDaten(
+    debitor,
+    dokumentTyp,
+    vorlagen || (await ladeTextVorlagen())
+  );
+  // Anschrift nachtragen — erstelleMahnwesenDokumentDaten lässt sie leer
+  daten.kundenstrasse = adresseOverride?.strasse || debitor.kundenstrasse || daten.kundenstrasse;
+  daten.kundenPlzOrt = adresseOverride?.plzOrt || debitor.kundenPlzOrt || daten.kundenPlzOrt;
+
+  const pdf = await generiereMahnwesenPDF(daten);
+  const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
+
+  return {
+    daten,
+    pdf,
+    dateiname: mahnDokumentDateiname(daten),
+    betreff,
+    // Der Editor braucht Absätze als HTML; wrapInEmailTemplate ließe den Text sonst
+    // erst beim Versand umwandeln und der Nutzer säße vor einem einzigen Textblock.
+    htmlBody: textToHtml(bodyText),
+    signatur: await ladeStandardSignatur(),
+    empfaenger: normalisiereEmailAdressen(empfaengerOverride || '') || bestimmeMahnEmpfaenger(debitor),
+    absender: MAHNWESEN_ABSENDER,
+  };
+};
+
+/**
+ * Prüft, ob eine Mahn-Dokumentnummer bereits vergeben ist. Zwischen dem Öffnen des
+ * E-Mail-Dialogs und dem Senden kann ein Bulk-Lauf dieselbe Nummer verbraucht haben.
+ * Schlägt die Prüfung selbst fehl, gilt die Nummer als frei — eine Vorsichtsmaßnahme
+ * darf einen berechtigten Versand nicht blockieren.
+ */
+const istDokumentNummerVergeben = async (nummer: string): Promise<boolean> => {
+  try {
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.MAHNWESEN_DOKUMENTE,
+      [Query.equal('dokumentNummer', nummer), Query.limit(1)]
+    );
+    return response.documents.length > 0;
+  } catch (error) {
+    console.warn('Dokumentnummer konnte nicht geprüft werden:', error);
+    return false;
+  }
+};
+
+/** Prüft, ob für diesen Debitor heute bereits gemahnt wurde (Doppelversand-Sperre) */
+const istHeuteGemahnt = (debitor: DebitorView): boolean => {
+  if (!debitor.letzteMahnungAm) return false;
+  const letzte = new Date(debitor.letzteMahnungAm);
+  const heute = new Date();
+  return (
+    letzte.getFullYear() === heute.getFullYear() &&
+    letzte.getMonth() === heute.getMonth() &&
+    letzte.getDate() === heute.getDate()
+  );
+};
+
+export interface SendeVorbereiteteMahnungParams {
+  debitor: DebitorView;
+  dokumentTyp: MahnwesenDokumentTyp;
+  /** Dokumentdaten aus `bereiteMahnungVersandVor` */
+  daten: MahnwesenDokumentDaten;
+  /** Bereits gerendertes PDF — wird archiviert und angehängt */
+  pdf: jsPDF;
+  /** Betreff, ggf. vom Nutzer bearbeitet */
+  betreff: string;
+  /** Vollständiges Mail-HTML inklusive Signatur (kommt fertig aus dem E-Mail-Client) */
+  htmlBody: string;
+  empfaenger: string;
+  absender?: string;
+  testModus: boolean;
+}
+
+/**
+ * Versendet eine vorbereitete Mahnung — hier und nur hier passiert das Schreibende:
+ *  1. Doppelversand-Sperre (nur Echtversand): heute schon gemahnt?
+ *  2. Dokumentnummer gegen Kollision absichern (ggf. neu ziehen + PDF neu rendern)
+ *  3. PDF archivieren (GoBD) und als Anhang anfügen — dieselbe Datei
+ *  4. Versand via sendeEmailMitPdf (protokolliert auch Testversände)
+ *  5. Nur bei echtem Versand: Audit-Eintrag + Mahnstufe/Zeitstempel fortschreiben
+ *
+ * Wirft NICHT — Fehler kommen als { success:false, fehler } zurück (Bulk-tauglich).
+ */
+export const sendeVorbereiteteMahnung = async (
+  params: SendeVorbereiteteMahnungParams
+): Promise<SendeMahnungErgebnis> => {
+  const { debitor, dokumentTyp, testModus } = params;
+  const absender = params.absender || MAHNWESEN_ABSENDER;
+  const empfaenger = normalisiereEmailAdressen(params.empfaenger);
+  const typLabel = mahnTypLabel(dokumentTyp);
+
+  if (!empfaenger) {
+    return { success: false, empfaenger: '', fehler: 'Keine E-Mail-Adresse angegeben' };
+  }
+
+  if (!testModus && istHeuteGemahnt(debitor)) {
+    return {
+      success: false,
+      empfaenger,
+      fehler: 'Heute wurde für diesen Debitor bereits eine Mahnung versendet',
+    };
+  }
+
+  try {
+    // Nummer kann seit dem Vorbereiten vergeben worden sein → neu ziehen und
+    // das PDF mit der korrigierten Nummer neu rendern.
+    let daten = params.daten;
+    let pdf = params.pdf;
+    if (await istDokumentNummerVergeben(daten.dokumentNummer)) {
+      const neueNummer = await generiereNaechsteDokumentNummer(dokumentTyp);
+      console.warn(
+        `Dokumentnummer ${daten.dokumentNummer} war bereits vergeben — verwende ${neueNummer}`
+      );
+      daten = { ...daten, dokumentNummer: neueNummer };
+      pdf = await generiereMahnwesenPDF(daten);
+    }
+
+    // Archivieren (GoBD) und denselben PDF-Stand anhängen
+    const gespeichert = await speichereMahnwesenDokument(daten, pdf);
+    const pdfBase64 = await blobZuBase64(pdf.output('blob'));
+
+    const betreff = params.betreff.trim() || mahnTypLabel(dokumentTyp);
+    const finalBetreff = testModus && !betreff.startsWith('[TEST]') ? `[TEST] ${betreff}` : betreff;
+
+    const result = await sendeEmailMitPdf({
+      empfaenger,
+      absender,
+      betreff: finalBetreff,
+      htmlBody: params.htmlBody,
+      pdfBase64,
+      pdfDateiname: gespeichert.dateiname,
+      projektId: debitor.projektId,
+      dokumentTyp: 'mahnwesen',
+      dokumentNummer: daten.dokumentNummer,
+      testModus,
+      // Bewusst OHNE skipProtokoll: auch Testversände gehören in den Verlauf.
+      // sendeEmailMitPdf schreibt dabei die Test-Adresse als Empfänger, sodass
+      // istTestversand() sie erkennt und die Ansichten sie ausblenden können.
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        empfaenger,
+        dokumentNummer: daten.dokumentNummer,
+        fehler:
+          `${result.error || 'Unbekannter Fehler beim Versand'} ` +
+          `(Hinweis: ${typLabel} ${daten.dokumentNummer} wurde bereits archiviert, die E-Mail ging nicht raus)`,
+      };
+    }
+
+    if (!testModus) {
+      auditService.logAktion({
+        action: 'update',
+        entityType: 'mahnwesen',
+        entityId: gespeichert.$id,
+        summary: `${typLabel} ${daten.dokumentNummer} per E-Mail an ${empfaenger} versendet`,
+      });
+      // Immer fortschreiben, auch bei einer Wiederholmahnung derselben Stufe:
+      // sonst fehlt der Timeline-Eintrag UND letzteMahnungAm bliebe alt, womit die
+      // Tagessperre oben ins Leere liefe. Math.max verhindert ein Zurückstufen.
+      const zielMahnstufe = Math.max(
+        mahnTypZuMahnstufe(dokumentTyp),
+        debitor.mahnstufe
+      ) as DebitorMahnstufe;
+      await debitorService.markiereMahnungVersendet(
+        debitor.projektId,
+        zielMahnstufe,
+        `${typLabel} per E-Mail an ${empfaenger} versendet: ${daten.dokumentNummer}`
+      );
+    }
+
+    return { success: true, empfaenger, dokumentNummer: daten.dokumentNummer };
+  } catch (error) {
+    console.error('Fehler beim Mahnungs-Versand:', error);
+    return {
+      success: false,
+      empfaenger,
+      fehler: error instanceof Error ? error.message : 'Unbekannter Fehler beim Versand',
+    };
+  }
+};
+
+/**
+ * Versendet eine Mahnung in einem Rutsch — ohne Vorschau, für den Massenversand.
+ *
+ * Dünner Wrapper über `bereiteMahnungVersandVor` + `sendeVorbereiteteMahnung`, damit
+ * Einzelversand (mit E-Mail-Client) und Massenversand nicht auseinanderlaufen können:
+ * Archivierung, Nummernvergabe, Doppelversand-Sperre und Mahnstufen-Fortschreibung
+ * stecken für beide Wege an derselben Stelle.
+ *
+ * Wirft NICHT — Fehler werden als { success:false, fehler } zurückgegeben.
  */
 export const sendeMahnungPerEmail = async (
   params: SendeMahnungParams
 ): Promise<SendeMahnungErgebnis> => {
   const { debitor, dokumentTyp, testModus } = params;
   const testEmpfaenger = params.testEmpfaenger || TEST_EMAIL_ADDRESS;
-  const absender = params.absender || MAHNWESEN_ABSENDER;
-  const typLabel = mahnTypLabel(dokumentTyp);
 
   const kundenEmpfaenger = params.empfaengerOverride?.trim() || bestimmeMahnEmpfaenger(debitor);
 
@@ -1020,86 +1245,36 @@ export const sendeMahnungPerEmail = async (
   if (!testModus && !kundenEmpfaenger) {
     return { success: false, empfaenger: '', fehler: 'Keine E-Mail-Adresse hinterlegt' };
   }
-  const empfaenger = testModus ? (kundenEmpfaenger || testEmpfaenger) : (kundenEmpfaenger as string);
+  const empfaenger = testModus ? kundenEmpfaenger || testEmpfaenger : (kundenEmpfaenger as string);
 
-  // Idempotenz: bei echtem Versand nicht zweimal am selben Tag mahnen.
-  if (!testModus && debitor.letzteMahnungAm) {
-    const letzte = new Date(debitor.letzteMahnungAm);
-    const heute = new Date();
-    const gleicherTag =
-      letzte.getFullYear() === heute.getFullYear() &&
-      letzte.getMonth() === heute.getMonth() &&
-      letzte.getDate() === heute.getDate();
-    if (gleicherTag) {
-      return {
-        success: false,
-        empfaenger,
-        fehler: 'Heute wurde für diesen Debitor bereits eine Mahnung versendet',
-      };
-    }
+  // Tagessperre vor dem PDF-Rendern prüfen — spart im Bulk unnötige Arbeit.
+  if (!testModus && istHeuteGemahnt(debitor)) {
+    return {
+      success: false,
+      empfaenger,
+      fehler: 'Heute wurde für diesen Debitor bereits eine Mahnung versendet',
+    };
   }
 
   try {
-    // Vorlagen + Dokumentdaten
-    const vorlagen = params.vorlagen || (await ladeTextVorlagen());
-    const daten = await erstelleMahnwesenDokumentDaten(debitor, dokumentTyp, vorlagen);
-    daten.kundenstrasse = debitor.kundenstrasse || daten.kundenstrasse;
-    daten.kundenPlzOrt = debitor.kundenPlzOrt || daten.kundenPlzOrt;
+    const vorbereitung = await bereiteMahnungVersandVor(
+      debitor,
+      dokumentTyp,
+      params.vorlagen,
+      empfaenger
+    );
 
-    // PDF erzeugen + archivieren (GoBD) — speichereMahnwesenDokument nutzt dieselbe Nummer.
-    const gespeichert = await speichereMahnwesenDokument(daten);
-
-    // Base64 für den E-Mail-Anhang (PDF einmal neu rendern — identischer Inhalt).
-    const pdf = await generiereMahnwesenPDF(daten);
-    const pdfBase64 = await blobZuBase64(pdf.output('blob'));
-
-    // E-Mail-Body — zentrale Signatur direkt laden (kein Umweg über die Angebots-Vorlage)
-    const { betreff, bodyText } = baueMahnungEmailInhalt(daten);
-    const finalBetreff = testModus ? `[TEST] ${betreff}` : betreff;
-    const htmlBody = wrapInEmailTemplate(bodyText, await ladeStandardSignatur());
-
-    const result = await sendeEmailMitPdf({
+    return await sendeVorbereiteteMahnung({
+      debitor,
+      dokumentTyp,
+      daten: vorbereitung.daten,
+      pdf: vorbereitung.pdf,
+      betreff: vorbereitung.betreff,
+      htmlBody: wrapInEmailTemplate(vorbereitung.htmlBody, vorbereitung.signatur),
       empfaenger,
-      absender,
-      betreff: finalBetreff,
-      htmlBody,
-      pdfBase64,
-      pdfDateiname: gespeichert.dateiname,
-      projektId: debitor.projektId,
-      dokumentTyp: 'mahnwesen',
-      dokumentNummer: daten.dokumentNummer,
+      absender: params.absender || vorbereitung.absender,
       testModus,
-      skipProtokoll: testModus,
     });
-
-    if (!result.success) {
-      return {
-        success: false,
-        empfaenger,
-        dokumentNummer: daten.dokumentNummer,
-        fehler: result.error || 'Unbekannter Fehler beim Versand',
-      };
-    }
-
-    // Nur bei echtem Versand: Mahnstufe hochsetzen.
-    if (!testModus) {
-      auditService.logAktion({
-        action: 'update',
-        entityType: 'mahnwesen',
-        entityId: gespeichert.$id,
-        summary: `${typLabel} ${daten.dokumentNummer} per E-Mail an ${empfaenger} versendet`,
-      });
-      const neueMahnstufe = mahnTypZuMahnstufe(dokumentTyp);
-      if (neueMahnstufe > debitor.mahnstufe) {
-        await debitorService.markiereMahnungVersendet(
-          debitor.projektId,
-          neueMahnstufe,
-          `${typLabel} per E-Mail an ${empfaenger} versendet: ${daten.dokumentNummer}`
-        );
-      }
-    }
-
-    return { success: true, empfaenger, dokumentNummer: daten.dokumentNummer };
   } catch (error) {
     console.error('Fehler beim Mahnungs-Versand:', error);
     return {

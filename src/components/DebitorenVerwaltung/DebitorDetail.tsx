@@ -43,7 +43,11 @@ import {
   getMahnwesenDokumentUrl,
   getMahnwesenDokumentDownloadUrl,
   regeneriereMahnwesenDokument,
+  mahnTypLabel,
+  mahnTypZuMahnstufe,
 } from '../../services/mahnwesenService';
+import MahnEmailDialog from './MahnEmailDialog';
+import ProjektEmailVerlauf from '../Shared/ProjektEmailVerlauf';
 import { projektService } from '../../services/projektService';
 import { ladeDokumentVerlauf } from '../../services/projektabwicklungDokumentService';
 import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
@@ -65,6 +69,10 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
   const [showZahlungFormular, setShowZahlungFormular] = useState(false);
   const [showAktivitaetFormular, setShowAktivitaetFormular] = useState(false);
   const [showMahnwesenDialog, setShowMahnwesenDialog] = useState(false);
+  // Offener E-Mail-Client für eine Mahnung (null = zu)
+  const [mahnEmailTyp, setMahnEmailTyp] = useState<MahnwesenDokumentTyp | null>(null);
+  // Postweg: PDF nur erstellen und archivieren, ohne E-Mail
+  const [nurPdfErstellen, setNurPdfErstellen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Zahlung Formular State
@@ -325,13 +333,15 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
       // Dokument speichern (generiert PDF und speichert in Appwrite)
       const gespeichertesDokument = await speichereMahnwesenDokument(dokumentDaten);
 
-      // Mahnstufe im Debitor aktualisieren
-      const neueMahnstufe = typ === 'zahlungserinnerung' ? 1 : typ === 'mahnung_1' ? 2 : 3;
+      // Mahnstufe im Debitor aktualisieren. Hier ging KEINE E-Mail raus — der
+      // Aktivitätstext sagt das auch, damit „versendet" im Verlauf verlässlich
+      // einen tatsächlichen Versand bedeutet.
+      const neueMahnstufe = mahnTypZuMahnstufe(typ);
       if (neueMahnstufe > debitor.mahnstufe) {
         await debitorService.markiereMahnungVersendet(
           debitor.projektId,
-          neueMahnstufe as 0 | 1 | 2 | 3 | 4,
-          `${typ === 'zahlungserinnerung' ? 'Zahlungserinnerung' : typ === 'mahnung_1' ? '1. Mahnung' : '2. Mahnung'} erstellt: ${dokumentDaten.dokumentNummer}`
+          neueMahnstufe,
+          `${mahnTypLabel(typ)} erstellt (Postversand, keine E-Mail): ${dokumentDaten.dokumentNummer}`
         );
       }
 
@@ -354,6 +364,29 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
       setLoading(false);
       setErstellenTyp(null);
     }
+  };
+
+  /**
+   * Einstieg aus dem Mahnwesen-Dialog: standardmäßig der E-Mail-Client (Text prüfen,
+   * PDF ansehen, senden). Mit „nur PDF" bleibt der bisherige Postweg erhalten.
+   */
+  const handleMahnwesenAktion = (typ: MahnwesenDokumentTyp) => {
+    if (nurPdfErstellen) {
+      void handleErstelleMahnwesenDokument(typ);
+      return;
+    }
+    if (!can('debitoren', 'edit')) {
+      alert('Keine Berechtigung zum Versenden von Mahnungen');
+      return;
+    }
+    // Gleiche Adressprüfung wie beim reinen PDF — ein Anschreiben ohne Anschrift
+    // darf auch per E-Mail nicht ins Archiv wandern.
+    if (!kundenAdresse.strasse || !kundenAdresse.plzOrt) {
+      alert('Kundenadresse fehlt. Bitte prüfen Sie die Projektdaten.');
+      return;
+    }
+    setShowMahnwesenDialog(false);
+    setMahnEmailTyp(typ);
   };
 
   // Mahnwesen-Dokument neu generieren (z.B. um QR-Code hinzuzufügen)
@@ -840,14 +873,26 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                     <h4 className="font-medium text-gray-900 dark:text-slate-100 mb-3">
                       Mahnwesen-Dokument erstellen
                     </h4>
-                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-                      Wählen Sie den Dokumenttyp. Das PDF wird automatisch generiert und gespeichert.
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mb-3">
+                      {nurPdfErstellen
+                        ? 'Das PDF wird sofort erzeugt und archiviert — ohne E-Mail (Postversand).'
+                        : 'Der E-Mail-Client öffnet sich mit fertigem Text und dem PDF zur Ansicht. Gesendet wird erst auf Knopfdruck.'}
                     </p>
+
+                    <label className="flex items-center gap-2 mb-4 text-sm text-gray-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={nurPdfErstellen}
+                        onChange={(e) => setNurPdfErstellen(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      Nur PDF erstellen (Postversand, keine E-Mail)
+                    </label>
 
                     <div className="space-y-2 mb-4">
                       {/* Zahlungserinnerung */}
                       <button
-                        onClick={() => handleErstelleMahnwesenDokument('zahlungserinnerung')}
+                        onClick={() => handleMahnwesenAktion('zahlungserinnerung')}
                         disabled={loading || mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')}
                         className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
                           mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung')
@@ -886,7 +931,7 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
                       {/* 1. Mahnung */}
                       <button
-                        onClick={() => handleErstelleMahnwesenDokument('mahnung_1')}
+                        onClick={() => handleMahnwesenAktion('mahnung_1')}
                         disabled={loading || !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')}
                         className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
                           !mahnwesenDokumente.some(d => d.dokumentTyp === 'zahlungserinnerung') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1')
@@ -926,7 +971,7 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
                       {/* 2. Mahnung */}
                       <button
-                        onClick={() => handleErstelleMahnwesenDokument('mahnung_2')}
+                        onClick={() => handleMahnwesenAktion('mahnung_2')}
                         disabled={loading || !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')}
                         className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
                           !mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_1') || mahnwesenDokumente.some(d => d.dokumentTyp === 'mahnung_2')
@@ -1188,11 +1233,29 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                     Noch keine Aktivitäten erfasst
                   </p>
                 )}
+
+                {/* Nachweis, welche E-Mails tatsächlich rausgegangen sind */}
+                <ProjektEmailVerlauf projektId={debitor.projektId} initialOffen />
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* E-Mail-Client für Zahlungserinnerung/Mahnung */}
+      {mahnEmailTyp && (
+        <MahnEmailDialog
+          debitor={debitor}
+          typ={mahnEmailTyp}
+          adresse={kundenAdresse}
+          onClose={() => setMahnEmailTyp(null)}
+          onSent={async () => {
+            const dokumente = await ladeMahnwesenDokumenteFuerProjekt(debitor.projektId);
+            setMahnwesenDokumente(dokumente);
+            onUpdate();
+          }}
+        />
+      )}
     </div>
   );
 };

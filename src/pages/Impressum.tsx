@@ -29,10 +29,27 @@ import KundenseiteLayout from '../components/Public/KundenseiteLayout';
  * ║  § 27 a UStG vorhanden ist. Solange diese Konstante leer ist, fehlt sie   ║
  * ║  im Impressum — und ein unvollständiges Impressum ist abmahnfähig.        ║
  * ║                                                                           ║
- * ║  Zum Beheben: hier die echte Nummer eintragen (Format: DE123456789).      ║
+ * ║  NICHT "DE 320 029 255" EINTRAGEN, OHNE SIE VORHER ZU PRUEFEN.            ║
+ * ║  Diese Nummer steht in tennismehl_website und dachziegelrueckgabe_website ║
+ * ║  als vatId — im zweiten Repo aber neben der Anschrift der Vorgaengerfirma ║
+ * ║  (Hundsberg 13, Grossrinderfeld). Der Handelsregisterauszug vom 09.09.2026║
+ * ║  weist HRB 18235 als NEUGRUENDUNG aus (1 Eintragung, Gesellschaftsvertrag ║
+ * ║  vom 02.12.2025) — eine neu gegruendete GmbH fuehrt die USt-IdNr einer    ║
+ * ║  anderen Gesellschaft nicht fort. Die Nummer ist beim EU-Dienst gueltig,  ║
+ * ║  Deutschland gibt den Inhaber aber nicht preis. Sie gehoert daher         ║
+ * ║  vermutlich der Vorgaengerin. Eine fremde USt-IdNr im Impressum ist       ║
+ * ║  schlimmer als gar keine: sie gefaehrdet zusaetzlich den Vorsteuerabzug   ║
+ * ║  der Kunden.                                                              ║
+ * ║                                                                           ║
+ * ║  Richtige Quelle: Vergabebescheid des Bundeszentralamts fuer Steuern fuer ║
+ * ║  HRB 18235, oder Rueckfrage bei der Kanzlei (Bachmann & Holley).          ║
+ * ║                                                                           ║
+ * ║  Zum Beheben: die geprüfte Nummer hier eintragen (Format: DE123456789).   ║
  * ║  Der Abschnitt "Umsatzsteuer" erscheint dann automatisch auf der Seite.   ║
- * ║  Solange die Konstante leer ist, bleibt er ausgeblendet — der Kunde sieht  ║
- * ║  kein unfertiges Impressum, der Mangel besteht aber fort.                 ║
+ * ║  Solange die Konstante leer ist, bleibt er ausgeblendet.                  ║
+ * ║                                                                           ║
+ * ║  Hat die GmbH noch KEINE USt-IdNr, ist das Impressum so vollstaendig:     ║
+ * ║  § 5 Abs. 1 Nr. 6 DDG verlangt die Angabe nur, sofern eine vorhanden ist. ║
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 const UST_ID_NR = '';

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useCan } from '../../hooks/useCan';
 import {
   AlertTriangle,
@@ -6,12 +6,9 @@ import {
   MailX,
   FileText,
   ExternalLink,
-  Eye,
   Send,
-  Loader2,
   CheckCircle2,
   FlaskConical,
-  X,
 } from 'lucide-react';
 import {
   DebitorView,
@@ -20,17 +17,12 @@ import {
   MAHN_EMPFEHLUNG_LABEL,
   istForderungGeschlossen,
 } from '../../types/debitor';
-import { MahnwesenDokumentTyp, MahnwesenTextVorlagen } from '../../types/mahnwesen';
+import { MahnwesenDokumentTyp } from '../../types/mahnwesen';
 import { TEST_EMAIL_ADDRESS } from '../../types/email';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
-import {
-  erstelleMahnungEmailVorschau,
-  generiereMahnwesenPDF,
-  ladeTextVorlagen,
-  bestimmeMahnEmpfaenger,
-  mahnTypLabel,
-} from '../../services/mahnwesenService';
+import { bestimmeMahnEmpfaenger } from '../../services/mahnwesenService';
 import MahnVersandDialog, { MahnVersandEntry } from './MahnVersandDialog';
+import MahnEmailDialog from './MahnEmailDialog';
 import HerkunftBadges from './HerkunftBadges';
 
 interface MahnungenTabProps {
@@ -70,14 +62,10 @@ interface FaelligEntry {
   heuteVersendet: boolean;
 }
 
-interface PreviewState {
+/** Offener E-Mail-Dialog für genau einen Debitor */
+interface MailDialogState {
   debitor: DebitorView;
   typ: MahnwesenDokumentTyp;
-  loading: boolean;
-  betreff?: string;
-  bodyText?: string;
-  empfaenger?: string;
-  pdfUrl?: string;
 }
 
 /**
@@ -90,22 +78,16 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
   // Sicherheit zuerst: Testmodus ist Default-AN, echter Versand erst nach bewusstem Umschalten.
   const [testModus, setTestModus] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [mailDialog, setMailDialog] = useState<MailDialogState | null>(null);
   // Versand-Dialog (Empfänger-Auswahl je Debitor). null = geschlossen.
   const [versandEntries, setVersandEntries] = useState<MahnVersandEntry[] | null>(null);
 
-  // Vorlagen einmal laden und für alle Versände/Vorschauen wiederverwenden.
-  const vorlagenRef = useRef<MahnwesenTextVorlagen | null>(null);
-  const getVorlagen = async (): Promise<MahnwesenTextVorlagen> => {
-    if (!vorlagenRef.current) vorlagenRef.current = await ladeTextVorlagen();
-    return vorlagenRef.current;
-  };
-
   const offene = useMemo(() => debitoren.filter((d) => d.status !== 'bezahlt' && !istForderungGeschlossen(d.status)), [debitoren]);
 
-  // Fällige Mahnschritte (inkl. Inkasso-Hinweis). Heute bereits versendete werden
-  // NICHT mehr gelistet — sie stehen im Tab "Versendete Mahnungen". Doppelversand bleibt
-  // service-seitig (gleicher Tag) blockiert.
+  // Fällige Mahnschritte (inkl. Inkasso-Hinweis). Heute bereits versendete bleiben
+  // sichtbar — grün markiert mit Datum und ohne Sendeknopf. Sie verschwinden zu lassen
+  // sah aus, als sei nichts passiert; der Doppelversand bleibt service-seitig (gleicher
+  // Tag) blockiert und die Zeile lässt sich auch nicht auswählen.
   const faellig = useMemo<FaelligEntry[]>(
     () =>
       offene
@@ -119,7 +101,7 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
             heuteVersendet: istHeute(d.letzteMahnungAm),
           };
         })
-        .filter((e) => e.empfehlung !== 'keine' && !e.heuteVersendet),
+        .filter((e) => e.empfehlung !== 'keine'),
     [offene]
   );
 
@@ -171,13 +153,17 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
       .filter((e) => e.typ !== null)
       .map((e) => ({ debitor: e.debitor, typ: e.typ as MahnwesenDokumentTyp }));
 
-  const handleSendOne = (entry: FaelligEntry) => {
+  /**
+   * Einzelversand läuft über den E-Mail-Client: Text prüfen/bearbeiten, PDF ansehen,
+   * dann senden. Beim Öffnen wird noch nichts gespeichert.
+   */
+  const handleMailOeffnen = (entry: FaelligEntry) => {
     if (!can('debitoren', 'edit')) {
       alert('Keine Berechtigung zum Versenden von Mahnungen');
       return;
     }
     if (!entry.typ) return;
-    setVersandEntries(toEntries([entry]));
+    setMailDialog({ debitor: entry.debitor, typ: entry.typ });
   };
 
   const handleSendSelected = () => {
@@ -195,36 +181,6 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
       setSelected(new Set());
       onReload?.();
     }
-  };
-
-  // ---- Vorschau ----
-  const handlePreview = async (entry: FaelligEntry) => {
-    if (!entry.typ) return;
-    setPreview({ debitor: entry.debitor, typ: entry.typ, loading: true });
-    try {
-      const vorlagen = await getVorlagen();
-      const v = await erstelleMahnungEmailVorschau(entry.debitor, entry.typ, vorlagen);
-      const pdf = await generiereMahnwesenPDF(v.daten);
-      const pdfUrl = URL.createObjectURL(pdf.output('blob'));
-      setPreview({
-        debitor: entry.debitor,
-        typ: entry.typ,
-        loading: false,
-        betreff: v.betreff,
-        bodyText: v.bodyText,
-        empfaenger: v.empfaenger,
-        pdfUrl,
-      });
-    } catch (error) {
-      console.error('Fehler bei der Mahnungs-Vorschau:', error);
-      setPreview(null);
-      alert('Fehler beim Erstellen der Vorschau.');
-    }
-  };
-
-  const closePreview = () => {
-    if (preview?.pdfUrl) URL.revokeObjectURL(preview.pdfUrl);
-    setPreview(null);
   };
 
   if (offene.length === 0) {
@@ -419,24 +375,15 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
                         manuell prüfen
                       </span>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => handlePreview(entry)}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-40"
-                          title="Vorschau"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Vorschau
-                        </button>
-                        <button
-                          onClick={() => handleSendOne(entry)}
-                          disabled={!versendbar}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Senden"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Senden
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleMailOeffnen(entry)}
+                        disabled={!versendbar}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="E-Mail öffnen: Text prüfen, PDF ansehen, dann senden"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        E-Mail öffnen
+                      </button>
                     )}
                   </div>
                 </div>
@@ -549,63 +496,21 @@ const MahnungenTab = ({ debitoren, onOpenDetail, onReload }: MahnungenTabProps) 
         );
       })}
 
-      {/* === Vorschau-Modal === */}
-      {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closePreview}>
-          <div
-            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="font-semibold text-gray-900 dark:text-slate-100">
-                Vorschau: {mahnTypLabel(preview.typ)} – {preview.debitor.kundenname}
-              </h3>
-              <button onClick={closePreview} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-700">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {preview.loading ? (
-              <div className="flex items-center justify-center p-12 gap-3 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin" /> Vorschau wird erstellt…
-              </div>
-            ) : (
-              <div className="flex flex-col md:flex-row gap-4 p-5 overflow-auto">
-                {/* E-Mail-Text */}
-                <div className="md:w-1/2 space-y-2">
-                  <div className="text-xs text-gray-500 dark:text-slate-400">
-                    An:{' '}
-                    {preview.empfaenger ? (
-                      <span className="font-medium text-gray-700 dark:text-slate-200">
-                        {testModus ? `${TEST_EMAIL_ADDRESS} (Testmodus)` : preview.empfaenger}
-                      </span>
-                    ) : (
-                      <span className="font-medium text-red-600">
-                        {testModus ? `${TEST_EMAIL_ADDRESS} (Testmodus)` : 'keine E-Mail hinterlegt'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-slate-100">
-                    {testModus ? '[TEST] ' : ''}
-                    {preview.betreff}
-                  </div>
-                  <div className="text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap bg-gray-50 dark:bg-slate-900/40 rounded-lg p-3 border border-gray-200 dark:border-slate-700">
-                    {preview.bodyText}
-                  </div>
-                </div>
-                {/* PDF */}
-                <div className="md:w-1/2 min-h-[400px]">
-                  {preview.pdfUrl && (
-                    <iframe title="Mahn-PDF Vorschau" src={preview.pdfUrl} className="w-full h-[60vh] rounded-lg border border-gray-200 dark:border-slate-700" />
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* === E-Mail-Client für den Einzelversand === */}
+      {mailDialog && (
+        <MahnEmailDialog
+          debitor={mailDialog.debitor}
+          typ={mailDialog.typ}
+          testModusVorgabe={testModus}
+          onClose={() => setMailDialog(null)}
+          onSent={() => {
+            setSelected(new Set());
+            onReload?.();
+          }}
+        />
       )}
 
-      {/* === Versand-Dialog mit Empfänger-Auswahl === */}
+      {/* === Massenversand-Dialog mit Empfänger-Auswahl === */}
       {versandEntries && (
         <MahnVersandDialog
           entries={versandEntries}

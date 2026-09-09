@@ -11,10 +11,17 @@ import {
   Search,
   RefreshCw,
   Inbox,
+  FileText,
+  TestTube2,
 } from 'lucide-react';
 import { DebitorView } from '../../types/debitor';
 import { EmailProtokoll } from '../../types/email';
-import { ladeAlleEmailProtokolle } from '../../services/emailSendService';
+import { GespeichertesMahnwesenDokument } from '../../types/mahnwesen';
+import { ladeAlleEmailProtokolle, istTestversand } from '../../services/emailSendService';
+import {
+  ladeMahnwesenDokumenteFuerProjekt,
+  getMahnwesenDokumentUrl,
+} from '../../services/mahnwesenService';
 
 interface VersendeteMailsTabProps {
   /** Aktuelle Debitoren – um projektId → Kundenname/Rechnungsnummer aufzulösen */
@@ -80,6 +87,10 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
   const [suche, setSuche] = useState('');
   const [offen, setOffen] = useState<Set<string>>(new Set());
   const [vorschau, setVorschau] = useState<EmailProtokoll | null>(null);
+  // Testversände werden mitprotokolliert, sind aber kein Kundenversand → standardmäßig aus
+  const [zeigeTests, setZeigeTests] = useState(false);
+  // Archivierte Mahn-PDFs je Projekt, damit „Anhang" anklickbar wird (beim Aufklappen geladen)
+  const [dokumente, setDokumente] = useState<Map<string, GespeichertesMahnwesenDokument[]>>(new Map());
 
   const projektInfo = useMemo(() => {
     const m = new Map<string, { kundenname: string; rechnungsnummer?: string }>();
@@ -90,8 +101,8 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
   const laden_ = async () => {
     setLaden(true);
     try {
-      const alle = await ladeAlleEmailProtokolle(500);
-      setProtokolle(alle.filter((e) => e.dokumentTyp === 'mahnwesen'));
+      // Serverseitig auf Mahn-Mails filtern — sonst verdrängen Belegmails die älteren
+      setProtokolle(await ladeAlleEmailProtokolle(500, 'mahnwesen'));
     } finally {
       setLaden(false);
     }
@@ -102,10 +113,18 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const testAnzahl = useMemo(() => protokolle.filter(istTestversand).length, [protokolle]);
+
+  // Sichtbare Mails: Testversände nur auf Wunsch
+  const sichtbare = useMemo(
+    () => (zeigeTests ? protokolle : protokolle.filter((e) => !istTestversand(e))),
+    [protokolle, zeigeTests]
+  );
+
   // Nach Projekt (= Kunde/Rechnung) gruppieren
   const gruppen: Gruppe[] = useMemo(() => {
     const map = new Map<string, EmailProtokoll[]>();
-    for (const e of protokolle) {
+    for (const e of sichtbare) {
       const key = e.projektId || e.dokumentNummer || e.$id || 'unbekannt';
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(e);
@@ -122,7 +141,7 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
     // jüngste Aktivität zuerst
     result.sort((a, b) => new Date(b.letzteAm).getTime() - new Date(a.letzteAm).getTime());
     return result;
-  }, [protokolle, projektInfo]);
+  }, [sichtbare, projektInfo]);
 
   const gefiltert = useMemo(() => {
     const q = suche.trim().toLowerCase();
@@ -135,7 +154,7 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
     );
   }, [gruppen, suche]);
 
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
     setOffen((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -143,7 +162,30 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
       return next;
     });
 
-  const gesamtMails = protokolle.length;
+    // Archivierte Mahn-PDFs einmalig je Projekt nachladen
+    if (!dokumente.has(id)) {
+      void (async () => {
+        try {
+          const liste = await ladeMahnwesenDokumenteFuerProjekt(id);
+          setDokumente((prev) => new Map(prev).set(id, liste));
+        } catch (error) {
+          // Ohne Archiv-Treffer bleibt der Anhang reiner Text — kein Grund zu scheitern
+          console.warn('Archivierte Mahn-Dokumente konnten nicht geladen werden:', error);
+          setDokumente((prev) => new Map(prev).set(id, []));
+        }
+      })();
+    }
+  };
+
+  /** URL des archivierten PDFs zu einem Protokolleintrag (über die Dokumentnummer) */
+  const pdfUrlZuMail = (m: EmailProtokoll): string | undefined => {
+    const treffer = (dokumente.get(m.projektId) || []).find(
+      (d) => d.dokumentNummer === m.dokumentNummer
+    );
+    return treffer ? getMahnwesenDokumentUrl(treffer.dateiId) : undefined;
+  };
+
+  const gesamtMails = sichtbare.length;
 
   return (
     <div className="space-y-4">
@@ -159,14 +201,28 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
             {gesamtMails === 1 ? '' : 'en'} · {gefiltert.length} Kunde{gefiltert.length === 1 ? '' : 'n'}
           </p>
         </div>
-        <button
-          onClick={laden_}
-          disabled={laden}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50"
-        >
-          {laden ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Aktualisieren
-        </button>
+        <div className="flex items-center gap-2">
+          {testAnzahl > 0 && (
+            <label className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={zeigeTests}
+                onChange={(e) => setZeigeTests(e.target.checked)}
+                className="w-4 h-4 rounded border-amber-300"
+              />
+              <TestTube2 className="w-4 h-4" />
+              {testAnzahl} Testversand{testAnzahl === 1 ? '' : 'e'} anzeigen
+            </label>
+          )}
+          <button
+            onClick={laden_}
+            disabled={laden}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50"
+          >
+            {laden ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            Aktualisieren
+          </button>
+        </div>
       </div>
 
       {/* Suche */}
@@ -191,7 +247,9 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
           <Inbox className="w-10 h-10 mb-3" />
           <p className="text-sm">
             {gesamtMails === 0
-              ? 'Noch keine Mahn-E-Mails versendet (Testversand wird nicht protokolliert).'
+              ? testAnzahl > 0
+                ? 'Noch keine echten Mahn-E-Mails versendet — nur Testversände (oben einblendbar).'
+                : 'Noch keine Mahn-E-Mails versendet.'
               : 'Keine Treffer für die Suche.'}
           </p>
         </div>
@@ -241,6 +299,8 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
                   <div className="border-t border-gray-100 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-700">
                     {g.mails.map((m) => {
                       const typ = mahnTyp(m);
+                      const pdfUrl = pdfUrlZuMail(m);
+                      const istTest = istTestversand(m);
                       return (
                         <div
                           key={m.$id}
@@ -260,6 +320,11 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
                             >
                               {typ}
                             </span>
+                            {istTest && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                TEST
+                              </span>
+                            )}
                             <span className="text-xs text-gray-500 dark:text-slate-400 truncate hidden sm:inline">
                               an {m.empfaenger}
                             </span>
@@ -269,12 +334,25 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
                               </span>
                             )}
                           </div>
-                          <button
-                            onClick={() => setVorschau(m)}
-                            className="flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 whitespace-nowrap"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Ansehen
-                          </button>
+                          <div className="flex items-center gap-3 whitespace-nowrap">
+                            {pdfUrl && (
+                              <a
+                                href={pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
+                                title={m.pdfDateiname}
+                              >
+                                <FileText className="w-3.5 h-3.5" /> PDF
+                              </a>
+                            )}
+                            <button
+                              onClick={() => setVorschau(m)}
+                              className="flex items-center gap-1 text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Ansehen
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -332,7 +410,19 @@ const VersendeteMailsTab = ({ debitoren }: VersendeteMailsTabProps) => {
 
             {vorschau.pdfDateiname && (
               <div className="px-5 py-3 border-t border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5" /> Anhang: {vorschau.pdfDateiname}
+                <FileText className="w-3.5 h-3.5" /> Anhang:{' '}
+                {pdfUrlZuMail(vorschau) ? (
+                  <a
+                    href={pdfUrlZuMail(vorschau)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-600 dark:text-orange-400 hover:underline"
+                  >
+                    {vorschau.pdfDateiname}
+                  </a>
+                ) : (
+                  vorschau.pdfDateiname
+                )}
               </div>
             )}
           </div>
