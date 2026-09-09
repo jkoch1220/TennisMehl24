@@ -746,12 +746,15 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                         <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
                           Betrag (€)
                         </label>
+                        {/* Nur die committeten NumberInput-Props: step ist dort als
+                            number typisiert und dezimalstellen existiert noch nicht.
+                            Sobald die erweiterte Fassung committet ist, kann
+                            dezimalstellen={2} hier wieder dazu. */}
                         <NumberInput
                           value={zahlungBetrag}
                           onChange={setZahlungBetrag}
-                          dezimalstellen={2}
                           min={0}
-                          step="0.01"
+                          step={0.01}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm"
                           placeholder="0,00"
                         />
