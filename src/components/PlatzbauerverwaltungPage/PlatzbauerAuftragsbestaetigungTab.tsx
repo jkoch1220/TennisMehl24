@@ -9,7 +9,7 @@
  * - Auto-Save mit hatGeaendert.current Flag
  * - Dateiverlauf
  * - PDF-Generierung
- * - E-Mail-Versand
+ * - Staffelvereinbarungen aus dem Angebot (schreibgeschützt, gepflegt wird im Angebot)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -23,7 +23,26 @@ import {
   Trash2,
   Plus,
 } from 'lucide-react';
-import { PlatzbauerProjekt, PlatzbauerPosition, PlatzbauerABFormularDaten } from '../../types/platzbauer';
+import {
+  PlatzbauerProjekt,
+  PlatzbauerPosition,
+  PlatzbauerABFormularDaten,
+  PlatzbauerAngebotPosition,
+  StaffelKonditionen,
+} from '../../types/platzbauer';
+import {
+  Angebotsbezug,
+  bezugIstAktuell,
+  leseStaffelStand,
+  uebernehmeStaffelnFuerAB,
+} from '../../utils/staffelUebernahme';
+import {
+  STAFFEL_MENGENBASEN,
+  STAFFEL_MODELLE,
+  formatDatumDe,
+  formatTonnen,
+  staffelKurzfassung,
+} from '../../utils/staffelpreisText';
 import { SaisonKunde } from '../../types/saisonplanung';
 import {
   speicherePlatzbauerAuftragsbestaetigung,
@@ -32,6 +51,7 @@ import {
   ladeAktuellesDokument,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
+import { NumberInput } from '../NumberInput';
 
 interface PlatzbauerAuftragsbestaetigungTabProps {
   projekt: PlatzbauerProjekt;
@@ -41,6 +61,9 @@ interface PlatzbauerAuftragsbestaetigungTabProps {
 // Entwurfsdaten für Auto-Save
 interface ABEntwurf {
   positionen: PlatzbauerPosition[];
+  staffelPositionen?: PlatzbauerAngebotPosition[];
+  staffelKonditionen?: StaffelKonditionen;
+  angebotsbezug?: Angebotsbezug;
   formData: {
     auftragsbestaetigungsnummer: string;
     auftragsbestaetigungsdatum: string;
@@ -53,6 +76,20 @@ interface ABEntwurf {
 const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAuftragsbestaetigungTabProps) => {
   // === STATE ===
   const [positionen, setPositionen] = useState<PlatzbauerPosition[]>([]);
+  // Staffelzeilen aus dem Angebot: hier nur bestätigt, nicht gepflegt.
+  const [staffelPositionen, setStaffelPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+  const [staffelKonditionen, setStaffelKonditionen] = useState<StaffelKonditionen | null>(null);
+  const [angebotsbezug, setAngebotsbezug] = useState<Angebotsbezug | null>(null);
+  /** Das Angebot ist neuer als die übernommenen Staffeln – Hinweis statt stiller Übernahme. */
+  const [angebotNeuer, setAngebotNeuer] = useState<Angebotsbezug | null>(null);
+  /** Bereits erstellte AB (aus dem Dokument, überlebt den Tabwechsel). */
+  const [bestehendeAB, setBestehendeAB] = useState<{ nummer: string; datum?: string } | null>(null);
+  /**
+   * Gesperrt, solange eine AB vorliegt und seither nichts geändert wurde –
+   * gespeist aus dem Dokument (überlebt den Tabwechsel) und aus dem Erstellen.
+   */
+  const [abGesperrt, setAbGesperrt] = useState(false);
+  const [abErstellt, setAbErstellt] = useState(false);
   const [formData, setFormData] = useState({
     auftragsbestaetigungsnummer: '',
     auftragsbestaetigungsdatum: new Date().toISOString().split('T')[0],
@@ -84,10 +121,83 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         // Erst prüfen ob ein Entwurf existiert
         const gespeicherterEntwurf = await ladeEntwurf<ABEntwurf>(projekt.id, 'auftragsbestaetigung');
 
-        if (gespeicherterEntwurf && gespeicherterEntwurf.positionen && gespeicherterEntwurf.positionen.length > 0) {
+        // Existiert bereits eine AB? Der Knopfzustand darf nicht nur im
+        // flüchtigen State leben – nach einem Tabwechsel entstünde sonst
+        // unbemerkt eine zweite Fassung.
+        try {
+          const vorhandeneAB = await ladeAktuellesDokument(projekt.id, 'auftragsbestaetigung');
+          if (vorhandeneAB) {
+            let abDatum: string | undefined;
+            try {
+              const abDaten =
+                typeof vorhandeneAB.daten === 'string' ? JSON.parse(vorhandeneAB.daten) : vorhandeneAB.daten;
+              abDatum = abDaten?.auftragsbestaetigungsdatum;
+            } catch {
+              abDatum = undefined;
+            }
+            setBestehendeAB({ nummer: vorhandeneAB.dokumentNummer, datum: abDatum });
+            setAbGesperrt(true);
+          }
+        } catch (e) {
+          console.warn('Vorhandene AB konnte nicht geladen werden:', e);
+        }
+
+        // Ein Entwurf zählt auch ohne Vereinszeilen: Eine reine
+        // Staffelvereinbarung ginge sonst bei jedem Tabwechsel verloren.
+        const entwurfHatInhalt =
+          !!gespeicherterEntwurf?.positionen?.length || !!gespeicherterEntwurf?.staffelPositionen?.length;
+
+        if (gespeicherterEntwurf && entwurfHatInhalt) {
           // Entwurf wiederherstellen
-          console.log('✅ AB-Entwurf geladen mit', gespeicherterEntwurf.positionen.length, 'Positionen');
-          setPositionen(gespeicherterEntwurf.positionen);
+          console.log('✅ AB-Entwurf geladen mit', gespeicherterEntwurf.positionen?.length || 0, 'Positionen');
+          setPositionen(gespeicherterEntwurf.positionen || []);
+          // Das aktuelle Angebot wird IMMER mitgelesen: Ein Entwurf kann
+          // Staffeln aus einem inzwischen überholten Angebot tragen, und eine
+          // AB, die veraltete Preise bestätigt, ist der teuerste Fehler hier.
+          let aktuellerBezug: Angebotsbezug | null = null;
+          let nachgezogen: ReturnType<typeof leseStaffelStand> | null = null;
+          try {
+            const angebot = await ladeAktuellesDokument(projekt.id, 'angebot');
+            if (angebot?.daten) {
+              nachgezogen = leseStaffelStand(angebot.daten, projekt.saisonjahr);
+              aktuellerBezug = {
+                nummer: angebot.dokumentNummer || '',
+                datum: nachgezogen.angebotsdatum,
+                dokumentId: angebot.$id || angebot.id,
+                version: nachgezogen.version,
+              };
+            }
+          } catch (e) {
+            console.warn('Aktuelles Angebot konnte nicht gelesen werden:', e);
+          }
+
+          if (gespeicherterEntwurf.staffelPositionen?.length) {
+            setStaffelPositionen(gespeicherterEntwurf.staffelPositionen);
+            setStaffelKonditionen(gespeicherterEntwurf.staffelKonditionen || null);
+            setAngebotsbezug(gespeicherterEntwurf.angebotsbezug || null);
+            // Gehört der Entwurf noch zum aktuellen Angebot? Wenn nicht, wird
+            // nichts stillschweigend ersetzt, sondern angeboten.
+            if (
+              nachgezogen?.hatStaffel &&
+              !bezugIstAktuell(gespeicherterEntwurf.angebotsbezug, aktuellerBezug)
+            ) {
+              setAngebotNeuer(aktuellerBezug);
+            }
+          } else if (nachgezogen?.hatStaffel) {
+            // Ein Entwurf ohne Staffeln (etwa aus der Zeit vor dieser Maske
+            // oder mit nur einer manuell angelegten Zeile) darf die
+            // Staffelvereinbarung nicht dauerhaft verdecken. Trägt er
+            // Vereinszeilen aus einem anderen Angebot, wird nicht still
+            // gemischt, sondern gefragt.
+            const uebernommen = uebernehmeStaffelnFuerAB(nachgezogen);
+            if (gespeicherterEntwurf.positionen?.length) {
+              setAngebotNeuer(aktuellerBezug);
+            } else {
+              setStaffelPositionen(uebernommen.staffelPositionen);
+              setStaffelKonditionen(uebernommen.konditionen);
+              setAngebotsbezug(aktuellerBezug);
+            }
+          }
           if (gespeicherterEntwurf.formData) {
             setFormData(prev => ({ ...prev, ...gespeicherterEntwurf.formData }));
           }
@@ -105,6 +215,30 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               angebotDaten = {};
             }
 
+            // Staffeln aus dem Angebot übernehmen (Saisonvereinbarung ohne Menge)
+            const staffelStand = leseStaffelStand(angebotDaten, projekt.saisonjahr);
+            if (staffelStand.hatStaffel) {
+              const uebernommen = uebernehmeStaffelnFuerAB(staffelStand);
+              setStaffelPositionen(uebernommen.staffelPositionen);
+              setStaffelKonditionen(uebernommen.konditionen);
+              setAngebotsbezug({
+                nummer: angebot.dokumentNummer || angebotDaten.angebotsnummer || '',
+                datum: staffelStand.angebotsdatum,
+                dokumentId: angebot.$id || angebot.id,
+                version: staffelStand.version,
+              });
+              setHatAngebot(true);
+            }
+
+            // Zahlungsbedingungen übernehmen – unabhängig von den Positionen,
+            // eine reine Staffel-AB hat keine.
+            if (angebotDaten.zahlungsziel) {
+              setFormData(prev => ({ ...prev, zahlungsziel: angebotDaten.zahlungsziel }));
+            }
+            if (angebotDaten.lieferzeit) {
+              setFormData(prev => ({ ...prev, lieferzeit: angebotDaten.lieferzeit }));
+            }
+
             // Positionen vom Angebot übernehmen
             if (angebotDaten.positionen && angebotDaten.positionen.length > 0) {
               const uebernommenePositionen: PlatzbauerPosition[] = angebotDaten.positionen.map((p: any) => ({
@@ -118,15 +252,6 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               }));
               setPositionen(uebernommenePositionen);
               setHatAngebot(true);
-
-              // Zahlungsbedingungen übernehmen
-              if (angebotDaten.zahlungsziel) {
-                setFormData(prev => ({
-                  ...prev,
-                  zahlungsziel: angebotDaten.zahlungsziel,
-                  lieferzeit: angebotDaten.lieferzeit || prev.lieferzeit,
-                }));
-              }
             }
           }
         }
@@ -151,6 +276,9 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
       setSpeicherStatus('speichern');
       const entwurf: ABEntwurf = {
         positionen,
+        staffelPositionen: staffelPositionen.length > 0 ? staffelPositionen : undefined,
+        staffelKonditionen: staffelKonditionen || undefined,
+        angebotsbezug: angebotsbezug || undefined,
         formData,
       };
       await speichereEntwurf(projekt.id, 'auftragsbestaetigung', entwurf);
@@ -160,7 +288,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
       console.error('Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.id, initialLaden, positionen, formData]);
+  }, [projekt?.id, initialLaden, positionen, staffelPositionen, staffelKonditionen, angebotsbezug, formData]);
 
   // Debounced Auto-Save
   useEffect(() => {
@@ -179,11 +307,13 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [positionen, formData, speichereAutomatisch, initialLaden]);
+  }, [positionen, staffelPositionen, formData, speichereAutomatisch, initialLaden]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
     hatGeaendert.current = true;
+    setAbErstellt(false);
+    setAbGesperrt(false);
   };
 
   const updatePosition = (index: number, updates: Partial<PlatzbauerPosition>) => {
@@ -224,16 +354,49 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
     setFormData(prev => ({ ...prev, ...updates }));
   };
 
+  /** Staffeln (und den Bezug) aus dem inzwischen neueren Angebot holen. */
+  const uebernehmeAktuellesAngebot = async () => {
+    try {
+      const angebot = await ladeAktuellesDokument(projekt.id, 'angebot');
+      if (!angebot?.daten) return;
+      const stand = leseStaffelStand(angebot.daten, projekt.saisonjahr);
+      if (!stand.hatStaffel) return;
+      const uebernommen = uebernehmeStaffelnFuerAB(stand);
+      markiereGeaendert();
+      setStaffelPositionen(uebernommen.staffelPositionen);
+      setStaffelKonditionen(uebernommen.konditionen);
+      setAngebotsbezug({
+        nummer: angebot.dokumentNummer || '',
+        datum: stand.angebotsdatum,
+        dokumentId: angebot.$id || angebot.id,
+        version: stand.version,
+      });
+      setAngebotNeuer(null);
+    } catch (e) {
+      console.error('Übernahme fehlgeschlagen:', e);
+      alert('Das Angebot konnte nicht gelesen werden.');
+    }
+  };
+
   // === BERECHNUNGEN ===
   const gesamtNetto = positionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
   const gesamtBrutto = gesamtNetto * 1.19;
 
   // === AB ERSTELLEN ===
   const handleABErstellen = async () => {
-    if (positionen.length === 0) {
+    if (positionen.length === 0 && staffelPositionen.length === 0) {
       alert('Bitte fügen Sie mindestens eine Position hinzu.');
       return;
     }
+
+    // Den laufenden Entwurfs-Debounce abbrechen: Sonst schreibt er nach dem
+    // Erstellen weiter auf dieselbe Projektspalte und kann Status und
+    // AB-Metadaten wieder überschreiben.
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    hatGeaendert.current = false;
 
     setSpeichern(true);
     try {
@@ -257,13 +420,26 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         lieferbedingungen: 'Frei Baustelle, abgeladen',
         bemerkung: formData.bemerkung,
         ihreAnsprechpartner: '',
+        abPositionen: staffelPositionen.length > 0 ? staffelPositionen : undefined,
+        staffelKonditionen: staffelKonditionen || undefined,
+        angebotsbezug: angebotsbezug || undefined,
       };
 
-      await speicherePlatzbauerAuftragsbestaetigung(projekt, formularDaten);
+      const dokument = await speicherePlatzbauerAuftragsbestaetigung(projekt, formularDaten);
+      // Nummer zurückschreiben: Sonst zieht ein zweiter Klick eine zweite AB.
+      if (dokument?.dokumentNummer) {
+        setFormData(prev => ({ ...prev, auftragsbestaetigungsnummer: dokument.dokumentNummer }));
+      }
+      setAbErstellt(true);
+      setAbGesperrt(true);
       setVerlaufLadeZaehler(prev => prev + 1);
       alert('Auftragsbestätigung wurde erfolgreich erstellt!');
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error);
+      // Der Debounce wurde vor dem Erstellen abgeschaltet – nach einem
+      // Fehlschlag muss er wieder greifen, sonst gehen die Eingaben verloren.
+      hatGeaendert.current = true;
+      setSpeicherStatus('idle');
       alert('Fehler: ' + (error.message || 'Unbekannter Fehler'));
     } finally {
       setSpeichern(false);
@@ -280,7 +456,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
     );
   }
 
-  if (!hatAngebot && positionen.length === 0) {
+  if (!hatAngebot && positionen.length === 0 && staffelPositionen.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
         <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
@@ -367,6 +543,91 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         </div>
       </div>
 
+      {/* Während des Erstellens sind Eingaben gesperrt: Eine Änderung in diesem
+          Fenster landet weder im erzeugten Beleg noch verlässlich im Entwurf. */}
+      <fieldset disabled={speichern} className="contents">
+
+      {/* Das Angebot wurde nach diesem Entwurf neu erstellt */}
+      {angebotNeuer && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Angebot {angebotNeuer.nummer}
+            {angebotNeuer.datum ? ` vom ${formatDatumDe(angebotNeuer.datum)}` : ''} ist neuer als die hier
+            übernommenen Daten. Ohne Übernahme bestätigt die Auftragsbestätigung den älteren Stand.
+          </p>
+          <button
+            type="button"
+            onClick={uebernehmeAktuellesAngebot}
+            className="mt-2 px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50"
+            disabled={speichern}
+          >
+            Staffeln aus Angebot {angebotNeuer.nummer} übernehmen
+          </button>
+        </div>
+      )}
+
+      {/* Staffelvereinbarung aus dem Angebot – hier nur bestätigt, gepflegt wird im Angebot */}
+      {staffelPositionen.length > 0 && staffelKonditionen && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <FileSignature className="w-5 h-5 text-amber-500" />
+              Staffelpreisvereinbarung
+            </h3>
+            {angebotsbezug?.nummer && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                aus Angebot {angebotsbezug.nummer}
+                {angebotsbezug.datum ? ` vom ${formatDatumDe(angebotsbezug.datum)}` : ''}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {staffelPositionen.map(sp => (
+              <div
+                key={sp.id}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg"
+              >
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {sp.artikelnummer} – {sp.bezeichnung}
+                </span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {(sp.staffelpreise?.staffeln ?? [])
+                    .map(st =>
+                      st.bisMenge
+                        ? `${formatTonnen(st.vonMenge)} bis unter ${formatTonnen(st.bisMenge)}: ${st.einzelpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/t`
+                        : `ab ${formatTonnen(st.vonMenge)}: ${st.einzelpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/t`
+                    )
+                    .join(' · ')}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-amber-200 dark:border-amber-800 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+            <p>
+              <span className="font-medium text-gray-900 dark:text-white">
+                {STAFFEL_MODELLE.find(m => m.wert === staffelKonditionen.abrechnungsmodell)?.titel}
+              </span>
+              {' · '}
+              {STAFFEL_MENGENBASEN.find(b => b.wert === staffelKonditionen.mengenbasis)?.titel}
+            </p>
+            {(staffelKonditionen.zeitraumVon || staffelKonditionen.zeitraumBis) && (
+              <p>
+                Abnahmezeitraum: {formatDatumDe(staffelKonditionen.zeitraumVon) || '–'} bis{' '}
+                {formatDatumDe(staffelKonditionen.zeitraumBis) || '–'}
+              </p>
+            )}
+            {staffelKurzfassung(staffelKonditionen).map(zeile => (
+              <p key={zeile}>{zeile}</p>
+            ))}
+            <p className="text-xs text-gray-500 dark:text-gray-500 pt-1">
+              Die Staffeln werden im Angebot gepflegt. Die Auftragsbestätigung bestätigt sie unverändert.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Positionen */}
       <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
@@ -384,6 +645,13 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
           </button>
         </div>
 
+        {positionen.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
+            Keine Einzelpositionen. Bei einer Staffelpreisvereinbarung wird ohne feste Menge
+            abgerufen – Positionen sind hier nur nötig, wenn zusätzlich konkrete Lieferungen
+            bestätigt werden sollen.
+          </p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -398,7 +666,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
             </thead>
             <tbody>
               {positionen.map((pos, index) => (
-                <tr key={pos.vereinId} className="border-b border-gray-100 dark:border-slate-800">
+                <tr key={pos.vereinId || `pos-${index}`} className="border-b border-gray-100 dark:border-slate-800">
                   <td className="py-3 px-2 text-gray-500 dark:text-gray-400">{index + 1}</td>
                   <td className="py-3 px-2">
                     <input
@@ -414,23 +682,22 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
                     )}
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={pos.menge || ''}
-                      onChange={(e) => updatePosition(index, { menge: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={pos.menge}
+                      onChange={(v) => updatePosition(index, { menge: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.1"
                       min="0"
                     />
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={pos.einzelpreis || ''}
-                      onChange={(e) => updatePosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={pos.einzelpreis}
+                      onChange={(v) => updatePosition(index, { einzelpreis: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.01"
                       min="0"
+                      dezimalstellen={2}
                     />
                   </td>
                   <td className="py-3 px-2 text-right font-medium text-gray-900 dark:text-white">
@@ -450,6 +717,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Zusammenfassung & Aktionen */}
@@ -494,6 +762,18 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
         {/* Summen & Button */}
         <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
           <h4 className="font-semibold text-gray-900 dark:text-white mb-4">Zusammenfassung</h4>
+          {positionen.length === 0 && staffelPositionen.length > 0 ? (
+            <div className="space-y-2 mb-6 text-sm text-gray-600 dark:text-gray-400">
+              <p>
+                {staffelPositionen.length} Sorte{staffelPositionen.length === 1 ? '' : 'n'} mit
+                Staffelpreisen, keine feste Abnahmemenge.
+              </p>
+              <p>
+                Es wird keine Gesamtsumme ausgewiesen. Abgerechnet wird je Lieferung nach dem
+                tatsächlichen Gewicht laut Wiegeschein.
+              </p>
+            </div>
+          ) : (
           <div className="space-y-2 mb-6">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">Positionen:</span>
@@ -518,16 +798,26 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               </span>
             </div>
           </div>
+          )}
 
           <button
             onClick={handleABErstellen}
-            disabled={speichern || positionen.length === 0}
+            disabled={
+              speichern ||
+              abGesperrt ||
+              (positionen.length === 0 && staffelPositionen.length === 0)
+            }
             className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white font-semibold rounded-xl hover:from-orange-700 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {speichern ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Erstelle AB...
+              </>
+            ) : abGesperrt ? (
+              <>
+                <FileCheck className="w-5 h-5" />
+                Auftragsbestätigung erstellt
               </>
             ) : (
               <>
@@ -536,6 +826,14 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
               </>
             )}
           </button>
+          {abGesperrt && (
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+              {bestehendeAB && !abErstellt
+                ? `Auftragsbestätigung ${bestehendeAB.nummer}${bestehendeAB.datum ? ` vom ${formatDatumDe(bestehendeAB.datum)}` : ''} liegt bereits vor.`
+                : 'Die Auftragsbestätigung liegt im Verlauf.'}{' '}
+              Eine Änderung an den Daten gibt den Knopf für eine neue Fassung wieder frei.
+            </p>
+          )}
         </div>
       </div>
 
@@ -549,6 +847,7 @@ const PlatzbauerAuftragsbestaetigungTab = ({ projekt, platzbauer }: PlatzbauerAu
           ladeZaehler={verlaufLadeZaehler}
         />
       </div>
+    </fieldset>
     </div>
   );
 };

@@ -206,6 +206,17 @@ const PlatzbauerDokumentVerlauf = ({
                       Final
                     </span>
                   )}
+
+                  {/*
+                    Sichtbarer Hinweis statt eines nur ausgegrauten Buttons: In der
+                    Sandbox liegen die Dokumentzeilen ohne PDF vor. Wer den Verlauf
+                    dort öffnet, soll sofort sehen, warum „Anzeigen" nicht geht.
+                  */}
+                  {!eintrag.viewUrl && (
+                    <span className="text-xs px-1.5 py-0.5 bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-400 rounded">
+                      kein PDF
+                    </span>
+                  )}
                 </div>
 
                 {/* Datum, Menge und Betrag */}

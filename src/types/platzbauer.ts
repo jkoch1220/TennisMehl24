@@ -127,6 +127,41 @@ export interface StaffelpreisKonfiguration {
   staffeln: Preisstaffel[];      // Die Preisstaffeln
   basisArtikel: string;          // Basisartikel-Nummer (z.B. "TM-ZM-02")
   basisBezeichnung: string;      // Basisartikel-Bezeichnung
+  /**
+   * Lieferregion und Bemerkung zusätzlich strukturiert. Gedruckt wird
+   * weiterhin die zusammengesetzte `beschreibung` der Position; diese Felder
+   * dienen dem verlustfreien Zurücklesen (Rehydrierung, AB-Übernahme).
+   */
+  lieferregion?: string;
+  bemerkung?: string;
+}
+
+/**
+ * Wie die Staffel abgerechnet wird (Vorschlag „Hinweistext Staffelpreisangebot", 09/2026):
+ *  - saisonbonus:      laufend zum Preis der 1. Stufe, zum Stichtag Gutschrift für die gesamte Menge
+ *  - sofortumstellung: ab Erreichen einer Stufe sofort günstiger, Ausgleichsgutschrift für vorherige Tonnen
+ *  - stufenpreis:      nur die Mehrmenge ab der Grenze wird günstiger, keine Gutschrift
+ */
+export type StaffelAbrechnungsmodell = 'saisonbonus' | 'sofortumstellung' | 'stufenpreis';
+
+/** Zählt für die Einstufung die Menge aller Sorten zusammen oder jede Sorte für sich? */
+export type StaffelMengenbasis = 'gesamt' | 'je-artikel';
+
+// Konditionen eines Staffelpreis-Angebots (gilt für alle Staffelpositionen des Angebots)
+export interface StaffelKonditionen {
+  abrechnungsmodell: StaffelAbrechnungsmodell;
+  mengenbasis: StaffelMengenbasis;
+  zeitraumVon?: string;          // ISO-Datum, Beginn des Abnahmezeitraums
+  zeitraumBis: string;           // ISO-Datum, Stichtag für die Gesamtabnahmemenge
+  gutschriftNurBeiZahlung: boolean; // Gutschrift setzt fristgerechte Zahlung voraus
+  hinweistext?: string;          // manuell überschriebener Text; leer = automatisch erzeugt
+  /**
+   * Pflegehilfe (kein Vertragsinhalt, erscheint NICHT auf dem PDF): Die
+   * Stufengrenzen gelten für alle Sorten des Angebots und werden einmal
+   * gepflegt. Die Preise bleiben je Sorte verschieden.
+   * undefined = noch nicht entschieden, wird aus den Daten abgeleitet.
+   */
+  grenzenGekoppelt?: boolean;
 }
 
 // Positionstyp: Normal, Staffelpreis oder Bedarf
@@ -342,6 +377,9 @@ export interface PlatzbauerAngebotFormularDaten extends PlatzbauerDokumentBasis 
   // Erweiterte Positionen mit Artikel-Auswahl (optional - überschreibt positionen wenn vorhanden)
   angebotPositionen?: PlatzbauerAngebotPosition[];
 
+  // Abrechnungsmodell und Hinweistext für Staffelpreis-Angebote
+  staffelKonditionen?: StaffelKonditionen;
+
   // Zahlungsbedingungen
   zahlungsziel: string;
   zahlungsart?: string;
@@ -379,6 +417,15 @@ export interface PlatzbauerABFormularDaten extends PlatzbauerDokumentBasis {
   verpackungskosten?: number;
   lieferbedingungenAktiviert?: boolean;
   lieferbedingungen?: string;
+  /**
+   * Staffelzeilen aus dem bestätigten Angebot. Eigenes Feld, weil sie keine
+   * Menge tragen und in keine Summe gehören (Rechnung und Lieferschein lesen
+   * bewusst weiterhin nur `positionen`).
+   */
+  abPositionen?: PlatzbauerAngebotPosition[];
+  staffelKonditionen?: StaffelKonditionen;
+  /** Bezug auf das bestätigte Angebot. */
+  angebotsbezug?: { nummer: string; datum?: string };
 }
 
 // Formular-Daten für Rechnung

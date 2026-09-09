@@ -29,9 +29,9 @@ import {
   speicherePlatzbauerLieferschein,
   ladeAktuellesDokument,
   ladeLieferscheineFuerProjekt,
+  getFileViewUrl,
+  getFileDownloadUrl,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
-import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
-import { getBucketId } from '../../config/mockModus';
 
 interface PlatzbauerLieferscheinTabProps {
   projekt: PlatzbauerProjekt;
@@ -160,9 +160,9 @@ const PlatzbauerLieferscheinTab = ({ projekt, platzbauer }: PlatzbauerLiefersche
         )
       );
 
-      // PDF öffnen
-      const viewUrl = `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${neuerLieferschein.dateiId}/view?project=${PROJECT_ID}`;
-      window.open(viewUrl, '_blank');
+      // PDF öffnen — in der Sandbox wird keine Datei hochgeladen, dann bleibt es beim Datensatz
+      const viewUrl = getFileViewUrl(neuerLieferschein.dateiId);
+      if (viewUrl) window.open(viewUrl, '_blank');
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error);
       alert('Fehler: ' + (error.message || 'Unbekannter Fehler'));
@@ -278,17 +278,19 @@ const PlatzbauerLieferscheinTab = ({ projekt, platzbauer }: PlatzbauerLiefersche
                   {istErstellt && verein.lieferschein ? (
                     <>
                       <a
-                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${verein.lieferschein.dateiId}/view?project=${PROJECT_ID}`}
+                        href={getFileViewUrl(verein.lieferschein.dateiId) || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+                        title={getFileViewUrl(verein.lieferschein.dateiId) ? 'Anzeigen' : 'Kein PDF vorhanden'}
+                        className={`flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700${verein.lieferschein.dateiId ? '' : ' opacity-40 pointer-events-none'}`}
                       >
                         <Eye className="w-4 h-4" />
                         Anzeigen
                       </a>
                       <a
-                        href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${verein.lieferschein.dateiId}/download?project=${PROJECT_ID}`}
-                        className="flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50"
+                        href={getFileDownloadUrl(verein.lieferschein.dateiId) || undefined}
+                        title={getFileDownloadUrl(verein.lieferschein.dateiId) ? 'Herunterladen' : 'Kein PDF vorhanden'}
+                        className={`flex items-center gap-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50${verein.lieferschein.dateiId ? '' : ' opacity-40 pointer-events-none'}`}
                       >
                         <Download className="w-4 h-4" />
                         Download

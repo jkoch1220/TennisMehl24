@@ -12,7 +12,22 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import { Stammdaten } from '../types/stammdaten';
-import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition } from '../types/platzbauer';
+import { PlatzbauerPosition, PlatzbauerProjekt, PlatzbauerAngebotPosition, StaffelKonditionen } from '../types/platzbauer';
+import {
+  STAFFEL_KEINE_SUMME,
+  StaffelBelegart,
+  erzeugeStaffelHinweistext,
+  formatTonnen,
+  staffelAbrufhinweis,
+  staffelBestaetigungssatz,
+  staffelBetreffzeile,
+  staffelEinleitung,
+  staffelInfoblockZeilen,
+  staffelKopfzeile,
+  staffelKurzfassung,
+  staffelKurzfassungTitel,
+  standardStaffelKonditionen,
+} from '../utils/staffelpreisText';
 import { getStammdatenOderDefault } from './stammdatenService';
 import {
   addDIN5008Header,
@@ -22,6 +37,7 @@ import {
   ensureSpace,
   formatWaehrung,
   formatDatum,
+  getMaxContentY,
   getTextHeight,
   formatStrasseHausnummer
 } from './pdfHelpers';
@@ -92,6 +108,9 @@ export interface PlatzbauerAngebotsDaten {
   // Erweiterte Positionen mit Artikel-Auswahl (bevorzugt falls vorhanden)
   angebotPositionen?: PlatzbauerAngebotPosition[];
 
+  // Abrechnungsmodell und Hinweistext für Staffelpreise (fehlt bei Altbelegen → Standard)
+  staffelKonditionen?: StaffelKonditionen;
+
   // Zahlungsbedingungen
   zahlungsziel: string;
   zahlungsart?: string;
@@ -154,6 +173,14 @@ export interface PlatzbauerAuftragsbestaetigungsDaten {
 
   // Ihr Ansprechpartner (bei TennisMehl)
   ihreAnsprechpartner?: string;
+  /**
+   * Staffel- und Zusatzzeilen aus dem Angebot. Sie tragen keine Menge und
+   * gehen NIE in Summen ein – deshalb ein eigenes Feld statt `positionen`.
+   */
+  abPositionen?: PlatzbauerAngebotPosition[];
+  staffelKonditionen?: StaffelKonditionen;
+  /** Bezug auf das bestätigte Angebot (Nummer und Datum). */
+  angebotsbezug?: { nummer: string; datum?: string };
 }
 
 export interface PlatzbauerRechnungsDaten {
@@ -268,6 +295,284 @@ export interface PlatzbauerLieferscheinDaten {
 }
 
 // ==================== ANGEBOT ====================
+
+/** Zeilenhöhe in mm für den 8-pt-Hinweistext. */
+const HINWEIS_ZEILENHOEHE = 3.6;
+
+/**
+ * Zeichnet den Staffel-Hinweistext als Box mit dynamischer Höhe.
+ * Absätze sind durch Leerzeilen getrennt; eine kurze erste Absatzzeile, die auf
+ * „:" endet, wird fett gesetzt (Überschrift). Die frühere Box war fest 14 mm hoch
+ * und zwei Zeilen lang — jeder längere Text lief aus dem Rahmen.
+ *
+ * Passt der Text nicht mehr auf die Seite, wird er auf mehrere Boxen verteilt
+ * (eine je Seite), statt über den Fuß hinauszulaufen.
+ */
+const zeichneStaffelHinweisBox = async (
+  doc: jsPDF,
+  yPos: number,
+  text: string,
+  stammdaten: Stammdaten
+): Promise<number> => {
+  doc.setFontSize(8);
+  const absaetze = text
+    .split(/\n\s*\n/)
+    .map((a) => a.trim())
+    .filter(Boolean);
+
+  type Zeile = { text: string; fett: boolean; abstandDavor: number };
+  const zeilen: Zeile[] = [];
+  absaetze.forEach((absatz, absatzIdx) => {
+    absatz.split('\n').forEach((roh, zeilenIdx) => {
+      const getrimmt = roh.trim();
+      const fett = zeilenIdx === 0 && getrimmt.endsWith(':') && getrimmt.length <= 80;
+      doc.setFont('helvetica', fett ? 'bold' : 'normal');
+      const umgebrochen: string[] = doc.splitTextToSize(getrimmt, 152);
+      umgebrochen.forEach((zeile, i) => {
+        zeilen.push({
+          text: zeile,
+          fett,
+          abstandDavor: i === 0 && zeilenIdx === 0 && absatzIdx > 0 ? 2 : 0,
+        });
+      });
+    });
+  });
+
+  const RAHMEN = 7; // Innenabstand oben + unten
+  const hoeheVon = (teil: Zeile[]) => teil.reduce((s, z) => s + HINWEIS_ZEILENHOEHE + z.abstandDavor, 0) + RAHMEN;
+
+  let rest = zeilen;
+  while (rest.length > 0) {
+    // Erst auf die aktuelle Seite, wenn mindestens vier Zeilen Platz haben,
+    // sonst frische Seite. Dann so viele Zeilen wie auf die Seite passen.
+    const mindestens = hoeheVon(rest.slice(0, Math.min(4, rest.length))) + 5;
+    yPos = await ensureSpace(doc, yPos, mindestens, stammdaten);
+    // Der Seitenfuß stellt die Schriftgröße auf 6 pt und setzt sie nicht
+    // zurück – ohne das stünde der Text nach einem Umbruch verkleinert in
+    // einer für 8 pt bemessenen Box.
+    doc.setFontSize(8);
+    yPos += 5;
+    const verfuegbar = getMaxContentY(doc) - yPos;
+
+    let anzahl = rest.length;
+    while (anzahl > 1 && hoeheVon(rest.slice(0, anzahl)) > verfuegbar) anzahl--;
+    const teil = rest.slice(0, anzahl);
+    rest = rest.slice(anzahl);
+    const hoehe = hoeheVon(teil);
+
+    doc.setFillColor(254, 252, 232); // amber-50
+    doc.setDrawColor(217, 119, 6); // amber-600
+    doc.setLineWidth(0.3);
+    doc.roundedRect(25, yPos - 2, 160, hoehe, 2, 2, 'FD');
+    doc.setTextColor(120, 53, 15); // amber-900
+
+    let textY = yPos + 3;
+    for (const zeile of teil) {
+      textY += zeile.abstandDavor;
+      doc.setFont('helvetica', zeile.fett ? 'bold' : 'normal');
+      doc.text(zeile.text, 29, textY);
+      textY += HINWEIS_ZEILENHOEHE;
+    }
+    yPos += hoehe + 2;
+
+    // Nächster Teil beginnt auf einer neuen Seite
+    if (rest.length > 0) {
+      yPos = await ensureSpace(doc, yPos, Number.POSITIVE_INFINITY, stammdaten);
+      doc.setFontSize(8);
+    }
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  return yPos;
+};
+
+/**
+ * Der Staffelblock (Kopfbox, Einleitung, Staffeltabelle je Sorte, Hinweisbox).
+ * Angebot und Auftragsbestätigung zeichnen ihn identisch – nur der
+ * Einleitungssatz bestätigt statt anzubieten. Der Kunde soll beide Belege
+ * nebeneinanderlegen können.
+ */
+const zeichneStaffelBlock = async (
+  doc: jsPDF,
+  startY: number,
+  staffelpreisPositionen: PlatzbauerAngebotPosition[],
+  staffelKonditionen: StaffelKonditionen,
+  stammdaten: Stammdaten,
+  belegart: StaffelBelegart = 'angebot'
+): Promise<number> => {
+  if (staffelpreisPositionen.length === 0) return startY;
+  let yPos = startY;
+  yPos = await ensureSpace(doc, yPos, 60, stammdaten);
+
+  // Überschrift mit Box
+  doc.setFillColor(251, 191, 36); // amber-400
+  doc.rect(25, yPos - 2, 160, 8, 'F');
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(120, 53, 15); // amber-900
+  doc.text(staffelKopfzeile(staffelKonditionen), 27, yPos + 4);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  yPos += 12;
+
+  // Einleitungstext
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(staffelEinleitung(staffelKonditionen, belegart), 25, yPos);
+  doc.setTextColor(0, 0, 0);
+  yPos += 8;
+
+  for (let spIdx = 0; spIdx < staffelpreisPositionen.length; spIdx++) {
+    const staffelPos = staffelpreisPositionen[spIdx];
+    yPos = await ensureSpace(doc, yPos, 55, stammdaten);
+
+    // Artikel-Box mit Hintergrund
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.setDrawColor(217, 119, 6); // amber-600
+    doc.setLineWidth(0.3);
+    doc.rect(25, yPos - 2, 160, 10, 'FD');
+
+    // Artikel-Header
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(120, 53, 15); // amber-900
+    doc.text(`${staffelPos.artikelnummer} - ${staffelPos.bezeichnung}`, 28, yPos + 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    yPos += 12;
+
+    // Beschreibung (Lieferregion und Bemerkung)
+    if (staffelPos.beschreibung) {
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      const beschreibungLines = doc.splitTextToSize(staffelPos.beschreibung, 155);
+      doc.text(beschreibungLines, 28, yPos);
+      yPos += beschreibungLines.length * 4 + 2;
+      doc.setTextColor(0, 0, 0);
+    }
+
+    if (staffelPos.staffelpreise && staffelPos.staffelpreise.staffeln) {
+      const staffelTableData = staffelPos.staffelpreise.staffeln.map((staffel, idx) => {
+        // „unter 300 t": Die Grenze selbst gehört schon zur nächsten Stufe (ab 300 t).
+        // Vorher stand 300 t in zwei Zeilen und der Kunde konnte nicht wissen, welche gilt.
+        const vonText = formatTonnen(staffel.vonMenge);
+        const bisText = staffel.bisMenge ? `unter ${formatTonnen(staffel.bisMenge)}` : 'unbegrenzt';
+        return [
+          `${idx + 1}`,
+          vonText,
+          bisText,
+          formatWaehrung(staffel.einzelpreis) + ' / t'
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        margin: { left: 30, right: 25, top: 45, bottom: 35 },
+        head: [['Staffel', 'Ab Menge', 'Bis Menge', 'Preis pro Tonne']],
+        body: staffelTableData,
+        theme: 'grid',
+        rowPageBreak: 'avoid',
+        tableWidth: 150,
+        headStyles: {
+          fillColor: [217, 119, 6] as [number, number, number], // amber-600
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        styles: {
+          fontSize: 9,
+          cellPadding: 4,
+          lineColor: [217, 119, 6] as [number, number, number],
+          lineWidth: 0.2
+        },
+        columnStyles: {
+          0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          1: { cellWidth: 40, halign: 'center' },
+          2: { cellWidth: 40, halign: 'center' },
+          3: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
+        },
+        alternateRowStyles: {
+          fillColor: [254, 249, 195] as [number, number, number] // amber-50
+        },
+        didDrawPage: function(data) {
+          if (data.pageNumber > 1) {
+            addFollowPageHeader(doc, stammdaten);
+            addDIN5008Footer(doc, stammdaten);
+          }
+        }
+      });
+      yPos = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Trennlinie zwischen Artikeln (außer beim letzten)
+    if (spIdx < staffelpreisPositionen.length - 1) {
+      yPos = await ensureSpace(doc, yPos, 15, stammdaten);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(25, yPos, 185, yPos);
+      yPos += 8;
+    }
+  }
+
+  // Staffelpreis-Hinweis: manuell gepflegter Text oder aus dem Abrechnungsmodell erzeugt
+  const hinweistext =
+    staffelKonditionen.hinweistext?.trim() ||
+    erzeugeStaffelHinweistext(
+      staffelKonditionen,
+      staffelpreisPositionen.map((p) => ({
+        artikelnummer: p.artikelnummer,
+        bezeichnung: p.bezeichnung,
+        staffeln: p.staffelpreise?.staffeln ?? [],
+      }))
+    );
+  yPos = await zeichneStaffelHinweisBox(doc, yPos, hinweistext, stammdaten);
+  return yPos;
+};
+
+/**
+ * Die grüne Box, die bei reinen Staffelbelegen an die Stelle der Summe tritt.
+ * Auf der Auftragsbestätigung steht zusätzlich, warum dort keine Summe steht.
+ */
+const zeichneStaffelKonditionsBox = async (
+  doc: jsPDF,
+  startY: number,
+  staffelKonditionen: StaffelKonditionen,
+  stammdaten: Stammdaten,
+  belegart: StaffelBelegart = 'angebot'
+): Promise<number> => {
+  let summenY = startY;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const zeilenQuelle =
+    belegart === 'auftragsbestaetigung'
+      ? [...staffelKurzfassung(staffelKonditionen), STAFFEL_KEINE_SUMME]
+      : staffelKurzfassung(staffelKonditionen);
+  const kurzZeilen: string[] = zeilenQuelle.flatMap(
+    (zeile) => doc.splitTextToSize(zeile, 150) as string[]
+  );
+  const boxHoehe = 9 + kurzZeilen.length * 4 + 3;
+  summenY = await ensureSpace(doc, summenY, boxHoehe + 5, stammdaten);
+  doc.setFillColor(240, 253, 244); // green-50
+  doc.setDrawColor(34, 197, 94); // green-500
+  doc.setLineWidth(0.3);
+  doc.roundedRect(25, summenY, 160, boxHoehe, 2, 2, 'FD');
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(21, 128, 61); // green-700
+  doc.text(staffelKurzfassungTitel(belegart), 30, summenY + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  let kurzY = summenY + 12;
+  for (const zeile of kurzZeilen) {
+    doc.text(zeile, 30, kurzY);
+    kurzY += 4;
+  }
+  doc.setTextColor(0, 0, 0);
+  return summenY + boxHoehe + 7;
+};
 
 export const generierePlatzbauerAngebotPDF = async (
   daten: PlatzbauerAngebotsDaten,
@@ -502,136 +807,12 @@ export const generierePlatzbauerAngebotPDF = async (
     yPos = (doc as any).lastAutoTable.finalY + 5;
   }
 
+  // Konditionen: Altbelege ohne gespeichertes Modell bekommen den Saison-Standard
+  const staffelKonditionen: StaffelKonditionen =
+    daten.staffelKonditionen ?? standardStaffelKonditionen(daten.projekt.saisonjahr);
+
   // === STAFFELPREISE ===
-  if (staffelpreisPositionen.length > 0) {
-    yPos = await ensureSpace(doc, yPos, 60, stammdaten);
-
-    // Überschrift mit Box
-    doc.setFillColor(251, 191, 36); // amber-400
-    doc.rect(25, yPos - 2, 160, 8, 'F');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(120, 53, 15); // amber-900
-    doc.text('STAFFELPREISE - Mengenrabatt nach Gesamtabnahme', 27, yPos + 4);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    yPos += 12;
-
-    // Einleitungstext
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    doc.text('Die folgenden Staffelpreise gelten für die Gesamtabnahmemenge während der Saison:', 25, yPos);
-    doc.setTextColor(0, 0, 0);
-    yPos += 8;
-
-    for (let spIdx = 0; spIdx < staffelpreisPositionen.length; spIdx++) {
-      const staffelPos = staffelpreisPositionen[spIdx];
-      yPos = await ensureSpace(doc, yPos, 55, stammdaten);
-
-      // Artikel-Box mit Hintergrund
-      doc.setFillColor(254, 243, 199); // amber-100
-      doc.setDrawColor(217, 119, 6); // amber-600
-      doc.setLineWidth(0.3);
-      doc.rect(25, yPos - 2, 160, 10, 'FD');
-
-      // Artikel-Header
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(120, 53, 15); // amber-900
-      doc.text(`${staffelPos.artikelnummer} - ${staffelPos.bezeichnung}`, 28, yPos + 4);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      yPos += 12;
-
-      // Beschreibung (Lieferregion und Bemerkung)
-      if (staffelPos.beschreibung) {
-        doc.setFontSize(9);
-        doc.setTextColor(80, 80, 80);
-        const beschreibungLines = doc.splitTextToSize(staffelPos.beschreibung, 155);
-        doc.text(beschreibungLines, 28, yPos);
-        yPos += beschreibungLines.length * 4 + 2;
-        doc.setTextColor(0, 0, 0);
-      }
-
-      if (staffelPos.staffelpreise && staffelPos.staffelpreise.staffeln) {
-        const staffelTableData = staffelPos.staffelpreise.staffeln.map((staffel, idx) => {
-          const vonText = staffel.vonMenge.toFixed(0) + ' t';
-          const bisText = staffel.bisMenge ? staffel.bisMenge.toFixed(0) + ' t' : 'unbegrenzt';
-          return [
-            `${idx + 1}`,
-            vonText,
-            bisText,
-            formatWaehrung(staffel.einzelpreis) + ' / t'
-          ];
-        });
-
-        autoTable(doc, {
-          startY: yPos,
-          margin: { left: 30, right: 25, top: 45, bottom: 35 },
-          head: [['Staffel', 'Ab Menge', 'Bis Menge', 'Preis pro Tonne']],
-          body: staffelTableData,
-          theme: 'grid',
-          rowPageBreak: 'avoid',
-          tableWidth: 150,
-          headStyles: {
-            fillColor: [217, 119, 6] as [number, number, number], // amber-600
-            textColor: [255, 255, 255],
-            fontSize: 9,
-            fontStyle: 'bold',
-            halign: 'center'
-          },
-          styles: {
-            fontSize: 9,
-            cellPadding: 4,
-            lineColor: [217, 119, 6] as [number, number, number],
-            lineWidth: 0.2
-          },
-          columnStyles: {
-            0: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-            1: { cellWidth: 40, halign: 'center' },
-            2: { cellWidth: 40, halign: 'center' },
-            3: { cellWidth: 50, halign: 'right', fontStyle: 'bold' }
-          },
-          alternateRowStyles: {
-            fillColor: [254, 249, 195] as [number, number, number] // amber-50
-          },
-          didDrawPage: function(data) {
-            if (data.pageNumber > 1) {
-              addFollowPageHeader(doc, stammdaten);
-              addDIN5008Footer(doc, stammdaten);
-            }
-          }
-        });
-        yPos = (doc as any).lastAutoTable.finalY + 8;
-      }
-
-      // Trennlinie zwischen Artikeln (außer beim letzten)
-      if (spIdx < staffelpreisPositionen.length - 1) {
-        yPos = await ensureSpace(doc, yPos, 15, stammdaten);
-        doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.2);
-        doc.line(25, yPos, 185, yPos);
-        yPos += 8;
-      }
-    }
-
-    // Staffelpreis-Hinweis Box
-    yPos = await ensureSpace(doc, yPos, 25, stammdaten);
-    yPos += 5;
-    doc.setFillColor(254, 252, 232); // amber-50
-    doc.setDrawColor(217, 119, 6); // amber-600
-    doc.setLineWidth(0.3);
-    doc.roundedRect(25, yPos - 2, 160, 14, 2, 2, 'FD');
-    doc.setFontSize(8);
-    doc.setTextColor(120, 53, 15); // amber-900
-    doc.setFont('helvetica', 'bold');
-    doc.text('Hinweis:', 28, yPos + 4);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Der endgültige Preis richtet sich nach der Gesamtabnahmemenge während der Saison.', 45, yPos + 4);
-    doc.text('Die Abrechnung erfolgt nach Saisonende zum jeweils erreichten Staffelpreis.', 28, yPos + 9);
-    doc.setTextColor(0, 0, 0);
-    yPos += 18;
-  }
+  yPos = await zeichneStaffelBlock(doc, yPos, staffelpreisPositionen, staffelKonditionen, stammdaten);
 
   // === BEDARFSPOSITIONEN ===
   if (bedarfsPositionen.length > 0) {
@@ -735,23 +916,8 @@ export const generierePlatzbauerAngebotPDF = async (
   doc.setTextColor(0, 0, 0);
 
   if (hatNurStaffelpreise) {
-    // Bei reinen Staffelpreis-Angeboten: Info-Box statt Summe
-    summenY = await ensureSpace(doc, summenY, 30, stammdaten);
-    doc.setFillColor(240, 253, 244); // green-50
-    doc.setDrawColor(34, 197, 94); // green-500
-    doc.setLineWidth(0.3);
-    doc.roundedRect(25, summenY, 160, 18, 2, 2, 'FD');
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(21, 128, 61); // green-700
-    doc.text('Preisberechnung nach Staffel', 30, summenY + 6);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Der Gesamtbetrag ergibt sich aus der tatsächlichen Abnahmemenge', 30, summenY + 12);
-    doc.text('während der Saison und wird zum erreichten Staffelpreis berechnet.', 30, summenY + 16);
-    doc.setTextColor(0, 0, 0);
-    summenY += 25;
+    // Bei reinen Staffelpreis-Angeboten: Info-Box statt Summe, Wortlaut passend zum Abrechnungsmodell
+    summenY = await zeichneStaffelKonditionsBox(doc, summenY, staffelKonditionen, stammdaten);
   } else {
     // Summenblock mit Rahmen
     doc.setFillColor(249, 250, 251); // gray-50
@@ -895,6 +1061,17 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
 
   const doc = new jsPDF();
 
+  // Staffelzeilen stehen in einem eigenen Feld und tragen keine Menge; die
+  // Positionstabelle und alle Summen bleiben den Vereinszeilen vorbehalten.
+  const staffelPositionen = (daten.abPositionen ?? []).filter(
+    (p) => p.positionsTyp === 'staffelpreis'
+  );
+  const hatVereine = daten.positionen.length > 0;
+  const nurStaffel = !hatVereine && staffelPositionen.length > 0;
+  // Altbelege ohne gespeichertes Modell bekommen den Saison-Standard.
+  const staffelKonditionen: StaffelKonditionen =
+    daten.staffelKonditionen ?? standardStaffelKonditionen(daten.projekt.saisonjahr);
+
   // DIN 5008 Header
   await addDIN5008Header(doc, stammdaten);
 
@@ -930,6 +1107,18 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
     doc.text(daten.ihreAnsprechpartner, infoX, infoYPos + 4);
   }
 
+  // Abnahmezeitraum und Stichtag – nicht zu verwechseln mit der Bindefrist
+  // eines Angebots, die auf einer Bestätigung nichts verloren hat.
+  if (staffelPositionen.length > 0) {
+    for (const zeile of staffelInfoblockZeilen(staffelKonditionen)) {
+      infoYPos += 10;
+      doc.setTextColor(100, 100, 100);
+      doc.text(zeile.label, infoX, infoYPos);
+      doc.setTextColor(0, 0, 0);
+      doc.text(zeile.wert, infoX, infoYPos + 4);
+    }
+  }
+
   // DIN 5008 Absenderzeile
   addAbsenderzeile(doc, stammdaten);
 
@@ -963,11 +1152,40 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   doc.setFont('helvetica', 'normal');
 
   // Untertitel mit Projektname
+  // Breite begrenzt: Der Informationsblock rechts (x = 130) reicht bei
+  // Staffelbelegen bis in diese Höhe – ein langer Projektname liefe sonst in
+  // „Abnahmezeitraum" hinein.
   yPos += 5;
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Projekt: ${daten.projekt.projektName}`, 25, yPos);
+  const projektZeilen = doc.splitTextToSize(`Projekt: ${daten.projekt.projektName}`, 100) as string[];
+  doc.text(projektZeilen, 25, yPos);
+  yPos += (projektZeilen.length - 1) * 5;
   doc.setTextColor(0, 0, 0);
+
+  if (staffelPositionen.length > 0) {
+    yPos += 5;
+    doc.setTextColor(100, 100, 100);
+    const betreffZeilen = doc.splitTextToSize(
+      staffelBetreffzeile(staffelKonditionen, daten.projekt.saisonjahr),
+      100
+    ) as string[];
+    doc.text(betreffZeilen, 25, yPos);
+    yPos += (betreffZeilen.length - 1) * 5;
+    if (daten.angebotsbezug?.nummer) {
+      yPos += 5;
+      const datumZusatz = daten.angebotsbezug.datum
+        ? ` vom ${formatDatum(daten.angebotsbezug.datum)}`
+        : '';
+      const bezugZeilen = doc.splitTextToSize(
+        `zu unserem Angebot Nr. ${daten.angebotsbezug.nummer}${datumZusatz}`,
+        100
+      ) as string[];
+      doc.text(bezugZeilen, 25, yPos);
+      yPos += (bezugZeilen.length - 1) * 5;
+    }
+    doc.setTextColor(0, 0, 0);
+  }
 
   // === Anrede ===
   yPos += 10;
@@ -976,101 +1194,141 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
 
   // === Einleitungstext ===
   yPos += 8;
-  doc.text('vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit folgende Lieferungen:', 25, yPos);
+  if (staffelPositionen.length > 0) {
+    const satz = staffelBestaetigungssatz(staffelKonditionen, hatVereine);
+    const satzZeilen = doc.splitTextToSize(satz, 160) as string[];
+    doc.text(satzZeilen, 25, yPos);
+    yPos += (satzZeilen.length - 1) * 4;
+  } else {
+    doc.text('vielen Dank für Ihren Auftrag. Wir bestätigen Ihnen hiermit folgende Lieferungen:', 25, yPos);
+  }
 
   // === Positionen Tabelle (Vereine) ===
   yPos += 8;
 
-  const tableData = daten.positionen.map((pos, index) => {
-    let adresseText = pos.vereinsname;
-    if (pos.lieferadresse) {
-      adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
-    }
-
-    return [
-      (index + 1).toString(),
-      adresseText,
-      pos.menge.toFixed(1),
-      't',
-      formatWaehrung(pos.einzelpreis),
-      formatWaehrung(pos.gesamtpreis)
-    ];
-  });
-
-  autoTable(doc, {
-    startY: yPos,
-    margin: { left: 25, right: 20, top: 45, bottom: 30 },
-    head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
-    body: tableData,
-    theme: 'striped',
-    rowPageBreak: 'avoid',
-    headStyles: {
-      fillColor: primaryColor,
-      textColor: [255, 255, 255],
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    styles: {
-      fontSize: 9,
-      cellPadding: 3
-    },
-    columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
-      1: { cellWidth: 70, valign: 'top' },
-      2: { cellWidth: 18, halign: 'right' },
-      3: { cellWidth: 14 },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 24, halign: 'right' }
-    },
-    didDrawPage: function(data) {
-      if (data.pageNumber > 1) {
-        addFollowPageHeader(doc, stammdaten);
-        addDIN5008Footer(doc, stammdaten);
+  let summenY = yPos;
+  if (hatVereine) {
+    const tableData = daten.positionen.map((pos, index) => {
+      let adresseText = pos.vereinsname;
+      if (pos.lieferadresse) {
+        adresseText += `\n${pos.lieferadresse.plz} ${pos.lieferadresse.ort}`;
       }
-    }
-  });
 
-  // === Summen ===
-  let summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
-  summenY = await ensureSpace(doc, summenY, 35, stammdaten);
+      return [
+        (index + 1).toString(),
+        adresseText,
+        pos.menge.toFixed(1),
+        't',
+        formatWaehrung(pos.einzelpreis),
+        formatWaehrung(pos.gesamtpreis)
+      ];
+    });
 
-  const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
-  const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
-  const nettoGesamt = nettobetrag + frachtUndVerpackung;
-  const umsatzsteuer = nettoGesamt * 0.19;
-  const bruttobetrag = nettoGesamt + umsatzsteuer;
-
-  const summenX = 125;
-  summenY += 6;
-
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-
-  doc.text('Nettobetrag:', summenX, summenY);
-  doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
-
-  if (frachtUndVerpackung > 0) {
-    summenY += 6;
-    doc.text('Fracht/Verpackung:', summenX, summenY);
-    doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    autoTable(doc, {
+      startY: yPos,
+      margin: { left: 25, right: 20, top: 45, bottom: 30 },
+      head: [['Pos.', 'Verein / Lieferort', 'Menge', 'Einh.', 'Preis/t', 'Gesamt']],
+      body: tableData,
+      theme: 'striped',
+      rowPageBreak: 'avoid',
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontSize: 9,
+        fontStyle: 'bold'
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 70, valign: 'top' },
+        2: { cellWidth: 18, halign: 'right' },
+        3: { cellWidth: 14 },
+        4: { cellWidth: 22, halign: 'right' },
+        5: { cellWidth: 24, halign: 'right' }
+      },
+      didDrawPage: function(data) {
+        if (data.pageNumber > 1) {
+          addFollowPageHeader(doc, stammdaten);
+          addDIN5008Footer(doc, stammdaten);
+        }
+      }
+    });
+    summenY = (doc as any).lastAutoTable.finalY || yPos + 40;
   }
 
-  summenY += 6;
-  doc.text('MwSt. (19%):', summenX, summenY);
-  doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+  // Staffeln stehen als eigener Block unter den Lieferungen – dieselbe
+  // Darstellung wie im Angebot, damit der Kunde beide vergleichen kann.
+  if (staffelPositionen.length > 0) {
+    summenY = await zeichneStaffelBlock(
+      doc,
+      summenY + 5,
+      staffelPositionen,
+      staffelKonditionen,
+      stammdaten,
+      'auftragsbestaetigung'
+    );
+  }
 
-  // Trennlinie
-  summenY += 2;
-  doc.setLineWidth(0.5);
-  doc.line(summenX, summenY, 180, summenY);
+  // === Summen ===
+  summenY = await ensureSpace(doc, summenY, 35, stammdaten);
 
-  // Bruttobetrag
-  summenY += 6;
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Auftragssumme:', summenX, summenY);
-  doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
+  // Wird nur im Summenzweig belegt; eine Saisonvereinbarung hat keinen Betrag,
+  // auf den sich ein Skontosatz beziehen könnte.
+  let bruttobetrag = 0;
+  if (nurStaffel) {
+    // Eine Saisonvereinbarung hat keine Auftragssumme: An die Stelle des
+    // Summenblocks tritt dieselbe Box wie im Angebot, ergänzt um den Satz,
+    // warum hier nichts summiert wird.
+    summenY = await zeichneStaffelKonditionsBox(
+      doc,
+      summenY,
+      staffelKonditionen,
+      stammdaten,
+      'auftragsbestaetigung'
+    );
+  } else {
+    const nettobetrag = daten.positionen.reduce((sum, pos) => sum + pos.gesamtpreis, 0);
+    const frachtUndVerpackung = (daten.frachtkosten || 0) + (daten.verpackungskosten || 0);
+    const nettoGesamt = nettobetrag + frachtUndVerpackung;
+    const umsatzsteuer = nettoGesamt * 0.19;
+    bruttobetrag = nettoGesamt + umsatzsteuer;
+
+    const summenX = 125;
+    summenY += 6;
+
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+
+    doc.text('Nettobetrag:', summenX, summenY);
+    doc.text(formatWaehrung(nettobetrag), 180, summenY, { align: 'right' });
+
+    if (frachtUndVerpackung > 0) {
+      summenY += 6;
+      doc.text('Fracht/Verpackung:', summenX, summenY);
+      doc.text(formatWaehrung(frachtUndVerpackung), 180, summenY, { align: 'right' });
+    }
+
+    summenY += 6;
+    doc.text('MwSt. (19%):', summenX, summenY);
+    doc.text(formatWaehrung(umsatzsteuer), 180, summenY, { align: 'right' });
+
+    // Trennlinie
+    summenY += 2;
+    doc.setLineWidth(0.5);
+    doc.line(summenX, summenY, 180, summenY);
+
+    // Bruttobetrag
+    summenY += 6;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Auftragssumme:', summenX, summenY);
+    doc.text(formatWaehrung(bruttobetrag), 180, summenY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+
+  }
 
   // === Lieferbedingungen ===
   summenY += 10;
@@ -1084,14 +1342,28 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
 
   summenY += 5;
   if (daten.lieferzeit) {
+    // Bei einer reinen Staffelvereinbarung ist der Abrufhinweis weiter unten die
+  // Lieferzeitaussage – eine zweite Zeile daneben widerspräche ihr.
+  if (nurStaffel) {
+    summenY -= 5;
+  } else {
     doc.text(`Lieferzeit: ${daten.lieferzeit}`, 25, summenY);
+  }
     summenY += 4;
   }
 
-  doc.text(`Anzahl Vereine: ${daten.positionen.length}`, 25, summenY);
-  summenY += 4;
+  if (hatVereine) {
+    doc.text(`Anzahl Vereine: ${daten.positionen.length}`, 25, summenY);
+    summenY += 4;
 
-  doc.text('Lieferung erfolgt direkt an die jeweiligen Vereine laut Adressliste.', 25, summenY);
+    doc.text('Lieferung erfolgt direkt an die jeweiligen Vereine laut Adressliste.', 25, summenY);
+  } else {
+    // Ohne feste Lieferliste: Abrufregel statt Vereinsliste.
+    for (const zeile of staffelAbrufhinweis(staffelKonditionen)) {
+      doc.text(zeile, 25, summenY);
+      summenY += 5;
+    }
+  }
   summenY += 4;
 
   if (daten.lieferbedingungenAktiviert && daten.lieferbedingungen) {
@@ -1116,7 +1388,7 @@ export const generierePlatzbauerAuftragsbestaetigungPDF = async (
   summenY += 5;
   doc.text(`Zahlungsziel: ${daten.zahlungsziel}`, 25, summenY);
 
-  if (daten.skontoAktiviert && daten.skonto) {
+  if (daten.skontoAktiviert && daten.skonto && !nurStaffel) {
     summenY += 4;
     const skontoBetrag = bruttobetrag * (1 - daten.skonto.prozent / 100);
     doc.text(

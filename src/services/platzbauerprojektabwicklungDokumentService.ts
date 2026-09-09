@@ -20,10 +20,9 @@ import {
   PLATZBAUER_LIEFERSCHEINE_COLLECTION_ID,
   PLATZBAUER_PROJEKTE_COLLECTION_ID,
   PLATZBAUER_DATEIEN_BUCKET_ID,
-  APPWRITE_ENDPOINT,
-  PROJECT_ID,
+  dateiUrl,
 } from '../config/appwrite';
-import { getBucketId, mockLocalStorageKey } from '../config/mockModus';
+import { mockLocalStorageKey } from '../config/mockModus';
 import {
   PlatzbauerProjekt,
   PlatzbauerPosition,
@@ -38,6 +37,11 @@ import {
   PlatzbauerLieferscheinFormularDaten,
   PlatzbauerProformaRechnungFormularDaten,
 } from '../types/platzbauer';
+import {
+  abProjektDatenUpdates,
+  abStatusNachErstellen,
+  berechneABKennzahlen,
+} from '../utils/staffelUebernahme';
 import {
   generierePlatzbauerAngebotPDF,
   generierePlatzbauerAuftragsbestaetigungPDF,
@@ -63,18 +67,25 @@ const pdfToBlob = (pdf: any): Blob => {
 };
 
 /**
- * Generiert eine URL zum Anzeigen einer Datei
+ * URLs zum Anzeigen/Herunterladen einer Datei.
+ *
+ * Leere `dateiId` → leerer String. Das ist der Normalfall in der Sandbox:
+ * dorthin werden die Dokumentzeilen kopiert (Nummern, Beträge und Mengen
+ * braucht die Anzeige), die zugehörigen PDFs aber bewusst NICHT. Ein aus der
+ * Produktion kopiertes Platzbauer-Projekt hat dort also seinen Angebotsverlauf,
+ * aber kein PDF — nur was in der Sandbox erzeugt wird, hat eins.
+ *
+ * Ohne diese Prüfung entstand `…/files//view`, und der Nutzer landete beim
+ * Klick auf „Anzeigen" in einem neuen Tab mit Appwrites 400er-JSON
+ * ("Invalid `fileId` param") statt bei einem sauber deaktivierten Link.
+ * Der Vereins-Zweig (`projektabwicklungDokumentService`) prüft das seit jeher —
+ * hier fehlte es.
  */
-const getFileViewUrl = (dateiId: string): string => {
-  return `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${dateiId}/view?project=${PROJECT_ID}`;
-};
+export const getFileViewUrl = (dateiId: string): string =>
+  dateiUrl(PLATZBAUER_DATEIEN_BUCKET_ID, dateiId, 'view');
 
-/**
- * Generiert eine URL zum Herunterladen einer Datei
- */
-const getFileDownloadUrl = (dateiId: string): string => {
-  return `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${dateiId}/download?project=${PROJECT_ID}`;
-};
+export const getFileDownloadUrl = (dateiId: string): string =>
+  dateiUrl(PLATZBAUER_DATEIEN_BUCKET_ID, dateiId, 'download');
 
 /**
  * Generiert eine Dokumentnummer
@@ -203,6 +214,7 @@ export const speicherePlatzbauerAngebot = async (
     platzbauerAnsprechpartner: daten.platzbauerAnsprechpartner,
     positionen: daten.positionen,
     angebotPositionen: daten.angebotPositionen, // Erweiterte Positionen mit Artikel-Auswahl
+    staffelKonditionen: daten.staffelKonditionen, // Abrechnungsmodell + Hinweistext der Staffelpreise
     zahlungsziel: daten.zahlungsziel,
     zahlungsart: daten.zahlungsart,
     skontoAktiviert: daten.skontoAktiviert,
@@ -339,6 +351,11 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
     lieferbedingungen: daten.lieferbedingungen,
     bemerkung: daten.bemerkung,
     ihreAnsprechpartner: daten.ihreAnsprechpartner,
+    // Staffelzeilen stehen in einem eigenen Feld: Sie tragen keine Menge und
+    // dürfen in keine Summe geraten.
+    abPositionen: daten.abPositionen,
+    staffelKonditionen: daten.staffelKonditionen,
+    angebotsbezug: daten.angebotsbezug,
   };
 
   // PDF generieren
@@ -356,10 +373,11 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
     file
   );
 
-  // Summen berechnen
-  const nettobetrag = daten.positionen.reduce((sum, p) => sum + p.gesamtpreis, 0);
+  // Summen berechnen – Staffelzeilen zählen nie mit (sie tragen keine Menge).
+  const kennzahlen = berechneABKennzahlen(daten.positionen, daten.abPositionen ?? []);
+  const nettobetrag = kennzahlen.nettobetrag;
   const bruttobetrag = nettobetrag * 1.19;
-  const gesamtMenge = daten.positionen.reduce((sum, p) => sum + p.menge, 0);
+  const gesamtMenge = kennzahlen.gesamtMenge;
 
   // Metadaten in DB speichern (nur Pflichtfelder + daten-JSON für den Rest)
   const dokumentDaten = {
@@ -386,25 +404,32 @@ export const speicherePlatzbauerAuftragsbestaetigung = async (
     }
   );
 
+  // Eine reine Staffelvereinbarung springt nicht in die Lieferphase: Der
+  // Lieferschein-Tab braucht Vereinspositionen und bliebe leer.
+  const neuerStatus = abStatusNachErstellen(kennzahlen);
+
   // Status direkt aktualisieren (ist als Spalte vorhanden)
   await databases.updateDocument(
     DATABASE_ID,
     PLATZBAUER_PROJEKTE_COLLECTION_ID,
     projekt.id,
     {
-      status: 'lieferschein',
+      status: neuerStatus,
       geaendertAm: new Date().toISOString(),
     }
   );
 
-  // Weitere Metadaten im data-Feld speichern
+  // Weitere Metadaten im data-Feld speichern. Der Status muss hier mit: Beim
+  // Lesen gewinnt das data-JSON gegen die Spalte, und jede Vereinszuordnung
+  // schreibt dort einen Status – sonst wäre der Wechsel danach wieder weg.
+  // Menge, Betrag und Vereinszahl bleiben bei einer reinen Staffel-AB außen
+  // vor, sonst überschreibt sie die Projektzahlen mit 0.
   await aktualisiereProjektDaten(projekt.id, {
     auftragsbestaetigungId: dokument.$id,
     auftragsbestaetigungsnummer: daten.auftragsbestaetigungsnummer,
     auftragsbestaetigungsdatum: daten.auftragsbestaetigungsdatum,
-    gesamtMenge,
-    gesamtBrutto: bruttobetrag,
-    anzahlVereine: daten.positionen.length,
+    status: neuerStatus,
+    ...abProjektDatenUpdates(kennzahlen),
   });
 
   // Entwurf verwerfen — siehe speicherePlatzbauerAngebot.

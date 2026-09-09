@@ -29,7 +29,9 @@ import {
   ChevronUp,
   Info,
   BarChart3,
+  RotateCcw,
 } from 'lucide-react';
+import { NumberInput, OptionalNumberInput } from '../NumberInput';
 import {
   PlatzbauerProjekt,
   PlatzbauerAngebotPosition,
@@ -37,7 +39,37 @@ import {
   Preisstaffel,
   PositionsTyp,
   BedarfsStatus,
+  StaffelKonditionen,
 } from '../../types/platzbauer';
+import {
+  STAFFEL_MENGENBASEN,
+  STAFFEL_MODELLE,
+  erzeugeStaffelHinweistext,
+  staffelGrenzenIdentisch,
+  staffelnLueckenlos,
+  standardStaffelKonditionen,
+} from '../../utils/staffelpreisText';
+import { leseAngebotsStand, mischeVereinPositionen } from '../../utils/staffelUebernahme';
+import {
+  ermittleAngleichBefunde,
+  gleicheGrenzenAn,
+  gleicheStufenzahl,
+  grenzenEinheitlich,
+  haengeStufeAn,
+  koppleGrenzen,
+  leseGrenzen,
+  loescheStufe,
+  neueStaffelId,
+  preisAbstaende,
+  preisLuecken,
+  pruefeObergrenze,
+  pruefeUntergrenze,
+  rasterFuerNeueSorte,
+  setzeObergrenze,
+  setzeUntergrenze,
+  spiegleGrenzen,
+  waehleLeitIndex,
+} from '../../utils/staffelGrenzen';
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Artikel } from '../../types/artikel';
 import { getAlleArtikel } from '../../services/artikelService';
@@ -46,6 +78,7 @@ import {
   speicherePlatzbauerAngebot,
   speichereEntwurf,
   ladeEntwurf,
+  ladeAktuellesDokument,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 
@@ -98,6 +131,7 @@ interface AngebotEntwurf {
   staffelpreisPositionen?: StaffelpreisPosition[];
   bedarfsPositionen?: BedarfsPosition[];
   angebotsModus?: 'standard' | 'staffelpreis';
+  staffelKonditionen?: StaffelKonditionen;
   formData: {
     angebotsnummer: string;
     angebotsdatum: string;
@@ -118,6 +152,32 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   const [staffelpreisPositionen, setStaffelpreisPositionen] = useState<StaffelpreisPosition[]>([]);
   const [bedarfsPositionen, setBedarfsPositionen] = useState<BedarfsPosition[]>([]);
   const [staffelpreisExpanded, setStaffelpreisExpanded] = useState<Record<string, boolean>>({});
+  // Abrechnungsmodell + Hinweistext der Staffelpreise (Vorschlag 09/2026)
+  const [staffelKonditionen, setStaffelKonditionen] = useState<StaffelKonditionen>(() =>
+    standardStaffelKonditionen(projekt.saisonjahr)
+  );
+  // Abgelehnte Grenzeneingabe: „unter 40 t" bei „ab 50 t" springt zurück – das
+  // muss am Feld stehen, sonst hält der Sachbearbeiter das Feld für kaputt.
+  const [grenzenHinweis, setGrenzenHinweis] = useState<{ posIndex: number; stufenIndex: number; text: string } | null>(null);
+  /** Woher der angezeigte Stand kommt, wenn kein Entwurf mehr existiert. */
+  const [ausAngebotGeladen, setAusAngebotGeladen] = useState<{
+    nummer: string;
+    datum?: string;
+    version?: number;
+    nichtZugeordnet: string[];
+  } | null>(null);
+  // Während getippt wird, bleiben die roten Banner weg (der Submit bleibt gesperrt).
+  const [staffelEingabeAktiv, setStaffelEingabeAktiv] = useState(false);
+  /** Der Wert im „unter"-Feld, bevor der Nutzer es angefasst hat – Rückfall bei Ablehnung. */
+  const bisVorEingabeRef = useRef<number | null>(null);
+  /** Dasselbe für die Mindestabnahme im „ab"-Feld der ersten Stufe. */
+  const vonVorEingabeRef = useRef<number>(0);
+  /**
+   * Spiegel des Staffel-States. Das Zahlenfeld meldet seinen Wert erst und ruft
+   * dann das durchgereichte onBlur; ein Handler, der aus dem Blur heraus läuft,
+   * sähe über die Closure noch den Stand von vor der Eingabe.
+   */
+  const staffelpreisPositionenRef = useRef<StaffelpreisPosition[]>([]);
 
   const [formData, setFormData] = useState({
     angebotsnummer: '',
@@ -179,10 +239,20 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           formData: gespeicherterEntwurf?.formData ? 'vorhanden' : 'fehlt'
         });
 
-        if (gespeicherterEntwurf && gespeicherterEntwurf.vereinPositionen && gespeicherterEntwurf.vereinPositionen.length > 0) {
+        // Ein Entwurf zählt auch dann, wenn er keine Vereine trägt: Ein reines
+        // Staffelpreis-Angebot für einen Platzbauer ohne zugeordnete Vereine
+        // ging sonst bei jedem Öffnen verloren.
+        const entwurfHatVereine = !!gespeicherterEntwurf?.vereinPositionen?.length;
+        const entwurfHatInhalt =
+          entwurfHatVereine ||
+          !!gespeicherterEntwurf?.zusatzPositionen?.length ||
+          !!gespeicherterEntwurf?.staffelpreisPositionen?.length ||
+          !!gespeicherterEntwurf?.bedarfsPositionen?.length ||
+          gespeicherterEntwurf?.angebotsModus === 'staffelpreis';
+
+        if (gespeicherterEntwurf && entwurfHatInhalt) {
           // Entwurf wiederherstellen
-          console.log('✅ Stelle gespeicherten Entwurf wieder her mit', gespeicherterEntwurf.vereinPositionen.length, 'Vereinen');
-          setVereinPositionen(gespeicherterEntwurf.vereinPositionen);
+          console.log('✅ Stelle gespeicherten Entwurf wieder her mit', gespeicherterEntwurf.vereinPositionen?.length || 0, 'Vereinen');
           setZusatzPositionen(gespeicherterEntwurf.zusatzPositionen || []);
           // Staffelpreise und Bedarfspositionen wiederherstellen
           if (gespeicherterEntwurf.staffelpreisPositionen) {
@@ -194,10 +264,59 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           if (gespeicherterEntwurf.angebotsModus) {
             setAngebotsModus(gespeicherterEntwurf.angebotsModus);
           }
+          if (gespeicherterEntwurf.staffelKonditionen) {
+            // prev = Standard der Saison; ältere Entwürfe ohne einzelne Felder bleiben vollständig
+            const gespeicherteKonditionen = gespeicherterEntwurf.staffelKonditionen;
+            setStaffelKonditionen(prev => ({ ...prev, ...gespeicherteKonditionen }));
+          }
           if (gespeicherterEntwurf.formData) {
             setFormData(prev => ({ ...prev, ...gespeicherterEntwurf.formData }));
           }
           setSpeicherStatus('gespeichert');
+        }
+
+        // Kein Entwurf? Dann den Stand aus dem zuletzt erstellten Angebot
+        // zurückholen: Das Erstellen löscht den Entwurf, und ohne diesen Weg
+        // stünde die Maske beim nächsten Öffnen leer da.
+        let standAusDokument: ReturnType<typeof leseAngebotsStand> | null = null;
+        let dokumentNummer = '';
+        let dokumentVersion: number | undefined;
+        if (!(gespeicherterEntwurf && entwurfHatInhalt)) {
+          try {
+            const dokument = await ladeAktuellesDokument(projekt.id, 'angebot');
+            if (dokument?.daten) {
+              const stand = leseAngebotsStand(dokument.daten, projekt.saisonjahr);
+              if (stand.hatInhalt) {
+                standAusDokument = stand;
+                dokumentNummer = dokument.dokumentNummer || stand.formData.angebotsnummer;
+                // Die Version steht im daten-JSON, nicht als Dokumentfeld.
+                dokumentVersion = stand.version ?? dokument.version;
+                // Bewusst die rohen Setter: Der Schreibpfad der Maske würde
+                // „geändert" melden und 1,5 s später einen Entwurf aus dem
+                // Dokument schreiben, der ab dann dauerhaft gewinnt.
+                setAngebotsModus(stand.angebotsModus);
+                setStaffelpreisPositionen(stand.staffelSorten);
+                setStaffelpreisExpanded(
+                  Object.fromEntries(stand.staffelSorten.map(sorte => [sorte.id, true]))
+                );
+                setStaffelKonditionen(prev => ({ ...prev, ...stand.konditionen }));
+                setZusatzPositionen(stand.zusatzPositionen);
+                setBedarfsPositionen(stand.bedarfsPositionen);
+                setFormData(prev => ({
+                  ...prev,
+                  zahlungsziel: stand.formData.zahlungsziel || prev.zahlungsziel,
+                  lieferzeit: stand.formData.lieferzeit || prev.lieferzeit,
+                  bemerkung: stand.formData.bemerkung || prev.bemerkung,
+                }));
+              }
+            }
+          } catch (e) {
+            console.warn('Angebot konnte nicht zurückgelesen werden:', e);
+          }
+        }
+
+        if (gespeicherterEntwurf && entwurfHatVereine) {
+          setVereinPositionen(gespeicherterEntwurf.vereinPositionen);
         } else {
           // Vereine direkt vom Platzbauer laden (über standardPlatzbauerId)
           const vereineMitDaten = await platzbauerverwaltungService.loadVereineFuerPlatzbauer(projekt.platzbauerId);
@@ -235,7 +354,21 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
               einzelpreis: defaultArtikel?.einzelpreis || 0,
             };
           });
-          setVereinPositionen(initialePositionen);
+          if (standAusDokument) {
+            const { positionen, nichtZugeordnet } = mischeVereinPositionen(
+              initialePositionen,
+              standAusDokument.vereinsPositionen
+            );
+            setVereinPositionen(positionen);
+            setAusAngebotGeladen({
+              nummer: dokumentNummer,
+              datum: standAusDokument.angebotsdatum,
+              version: dokumentVersion,
+              nichtZugeordnet,
+            });
+          } else {
+            setVereinPositionen(initialePositionen);
+          }
         }
       } catch (error) {
         console.error('Fehler beim Laden:', error);
@@ -271,6 +404,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         staffelpreisPositionen,
         bedarfsPositionen,
         angebotsModus,
+        staffelKonditionen,
         formData,
       };
       console.log('💾 Speichere Entwurf:', {
@@ -289,7 +423,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       console.error('❌ Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, formData]);
+  }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData]);
 
   // Debounced Auto-Save - reagiert auf Änderungen
   useEffect(() => {
@@ -319,7 +453,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, formData, speichereAutomatisch, initialLaden]);
+  }, [vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData, speichereAutomatisch, initialLaden]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
@@ -378,89 +512,331 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   };
 
   // === STAFFELPREIS-HANDLER ===
-  const addStaffelpreisPosition = () => {
+  //
+  // Die Grenzenlogik liegt vollständig in utils/staffelGrenzen.ts. Hier wird sie
+  // nur aufgerufen – jede Regel gehört an EINE Stelle, nicht an jeden Auslöser.
+
+  const staffelArtikelFuerText = staffelpreisPositionen.map(sp => ({
+    artikelnummer: sp.artikelnummer,
+    bezeichnung: sp.artikelBezeichnung,
+    staffeln: sp.staffeln,
+  }));
+
+  /**
+   * Gelten die Stufengrenzen für alle Sorten? Ohne ausdrückliche Entscheidung
+   * wird sie aus den Daten abgeleitet: Ein Angebot, dessen Sorten schon heute
+   * dasselbe Raster haben, wird gekoppelt gepflegt.
+   */
+  const grenzenGekoppelt =
+    staffelKonditionen.grenzenGekoppelt ?? grenzenEinheitlich(staffelpreisPositionen);
+  const grenzenGekoppeltRef = useRef(grenzenGekoppelt);
+  useEffect(() => {
+    grenzenGekoppeltRef.current = grenzenGekoppelt;
+  }, [grenzenGekoppelt]);
+
+  /**
+   * Schreibt die abgeleitete Entscheidung beim ersten Eingriff fest. Sonst
+   * schlägt der Schalter mitten in der Sitzung um, sobald der Nutzer die
+   * Grenzen von Hand angleicht.
+   */
+  const sichereKopplungZu = () => {
+    setStaffelKonditionen(prev =>
+      prev.grenzenGekoppelt === undefined
+        ? { ...prev, grenzenGekoppelt: grenzenGekoppeltRef.current }
+        : prev
+    );
+  };
+
+  /**
+   * Einziger Schreibpfad für die Staffelpositionen – hält die Ref synchron.
+   * Ändert die Utility nichts (identische Referenz), passiert auch sonst
+   * nichts: kein Autosave, kein Festschreiben des Kopplungsschalters. Sonst
+   * würde schon ein Tab durch ein unverändertes Feld den Entwurf speichern.
+   */
+  const setzeStaffelpreisPositionen = (
+    aenderung: (prev: StaffelpreisPosition[]) => StaffelpreisPosition[]
+  ) => {
+    const neu = aenderung(staffelpreisPositionenRef.current);
+    if (neu === staffelpreisPositionenRef.current) return;
     markiereGeaendert();
+    sichereKopplungZu();
+    staffelpreisPositionenRef.current = neu;
+    setStaffelpreisPositionen(neu);
+  };
+
+  useEffect(() => {
+    staffelpreisPositionenRef.current = staffelpreisPositionen;
+  }, [staffelpreisPositionen]);
+
+  /**
+   * Nach jeder abgeschlossenen Änderung: koppeln und – wenn gewünscht – spiegeln.
+   * Ohne Kopplung wird ausschließlich die bearbeitete Sorte angefasst; eine
+   * fremde Altleiter gehört in den bestätigten Angleich-Pfad, nicht in den
+   * Seiteneffekt eines Blurs in einer ganz anderen Sorte.
+   */
+  const richteAus = (positionen: StaffelpreisPosition[], leitIndex: number): StaffelpreisPosition[] => {
+    let ergebnis = positionen;
+    const gekoppelt = positionen.map((pos, i) => {
+      if (!grenzenGekoppeltRef.current && i !== leitIndex) return pos;
+      const staffeln = koppleGrenzen(pos.staffeln);
+      return staffeln === pos.staffeln ? pos : { ...pos, staffeln };
+    });
+    if (gekoppelt.some((pos, i) => pos !== positionen[i])) ergebnis = gekoppelt;
+    // Gespiegelt wird nur, wenn die Sorten dieselbe Stufenzahl haben. Sonst
+    // würde das indexweise Übertragen die Preise auf andere Mengen schieben –
+    // dafür ist der bestätigte Angleich (gleicheGrenzenAn) zuständig.
+    return grenzenGekoppeltRef.current && gleicheStufenzahl(ergebnis)
+      ? spiegleGrenzen(ergebnis, leitIndex)
+      : ergebnis;
+  };
+
+  const addStaffelpreisPosition = () => {
     const defaultArtikel = ziegelmehlArtikel.find(a => a.artikelnummer === 'TM-ZM-02') || ziegelmehlArtikel[0];
-    const neuePosition: StaffelpreisPosition = {
-      id: `staffel-${Date.now()}`,
-      artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
-      artikelBezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
-      einheit: 't',
-      staffeln: [
-        { vonMenge: 0, bisMenge: 50, einzelpreis: defaultArtikel?.einzelpreis || 95.00 },
-        { vonMenge: 50, bisMenge: 100, einzelpreis: (defaultArtikel?.einzelpreis || 95.00) - 5 },
-        { vonMenge: 100, bisMenge: null, einzelpreis: (defaultArtikel?.einzelpreis || 95.00) - 10 },
-      ],
-      bemerkung: '',
-    };
-    setStaffelpreisPositionen(prev => [...prev, neuePosition]);
-    setStaffelpreisExpanded(prev => ({ ...prev, [neuePosition.id]: true }));
+    const stammpreis = defaultArtikel?.einzelpreis || 95.0;
+    setzeStaffelpreisPositionen(prev => {
+      // Eine neue Sorte übernimmt das bestehende Raster; die Preise folgen den
+      // Abständen der Leitsorte (so staffelt das Haus tatsächlich).
+      const leit = prev.length ? prev[waehleLeitIndex(prev)] : undefined;
+      const raster = leit ? leseGrenzen(leit.staffeln) : [];
+      const staffeln =
+        raster.length > 0 && grenzenGekoppeltRef.current
+          ? rasterFuerNeueSorte(raster, stammpreis, preisAbstaende(leit!.staffeln))
+          : [
+              { vonMenge: 0, bisMenge: 50, einzelpreis: stammpreis },
+              { vonMenge: 50, bisMenge: 100, einzelpreis: stammpreis - 5 },
+              { vonMenge: 100, bisMenge: null, einzelpreis: stammpreis - 10 },
+            ];
+      const neuePosition: StaffelpreisPosition = {
+        id: neueStaffelId('staffel'),
+        artikelnummer: defaultArtikel?.artikelnummer || 'TM-ZM-02',
+        artikelBezeichnung: defaultArtikel?.bezeichnung || 'Ziegelmehl 0/2',
+        einheit: 't',
+        staffeln,
+        bemerkung: '',
+      };
+      setStaffelpreisExpanded(vorher => ({ ...vorher, [neuePosition.id]: true }));
+      return [...prev, neuePosition];
+    });
   };
 
   const updateStaffelpreisPosition = (index: number, updates: Partial<StaffelpreisPosition>) => {
-    markiereGeaendert();
-    setStaffelpreisPositionen(prev => {
+    setzeStaffelpreisPositionen(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...updates };
       return updated;
     });
   };
 
-  const updateStaffel = (posIndex: number, staffelIndex: number, updates: Partial<Preisstaffel>) => {
-    markiereGeaendert();
-    setStaffelpreisPositionen(prev => {
-      const updated = [...prev];
-      const pos = { ...updated[posIndex] };
+  /** Preis einer Stufe – bleibt je Sorte verschieden und wird nie gespiegelt. */
+  const updateStaffelPreis = (posIndex: number, staffelIndex: number, preis: number) => {
+    setzeStaffelpreisPositionen(prev => {
+      const pos = prev[posIndex];
+      if (!pos || !pos.staffeln[staffelIndex]) return prev;
       const staffeln = [...pos.staffeln];
-      staffeln[staffelIndex] = { ...staffeln[staffelIndex], ...updates };
-      pos.staffeln = staffeln;
-      updated[posIndex] = pos;
+      staffeln[staffelIndex] = { ...staffeln[staffelIndex], einzelpreis: preis };
+      const updated = [...prev];
+      updated[posIndex] = { ...pos, staffeln };
       return updated;
     });
   };
 
-  const addStaffel = (posIndex: number) => {
-    markiereGeaendert();
-    setStaffelpreisPositionen(prev => {
-      const updated = [...prev];
-      const pos = { ...updated[posIndex] };
-      const staffeln = [...pos.staffeln];
-      const letzte = staffeln[staffeln.length - 1];
-      const neueBis = letzte.bisMenge || letzte.vonMenge + 50;
-      // Letzte Staffel begrenzen
-      staffeln[staffeln.length - 1] = { ...letzte, bisMenge: neueBis };
-      // Neue Staffel hinzufügen
-      staffeln.push({
-        vonMenge: neueBis,
-        bisMenge: null,
-        einzelpreis: letzte.einzelpreis - 5,
+  /**
+   * „ab" der ersten Stufe (Mindestabnahme). Wie beim „unter"-Feld: Tippen
+   * schreibt nur die eigene Zelle, geprüft und gespiegelt wird beim Verlassen.
+   */
+  const tippeUntergrenze = (posIndex: number, menge: number) => {
+    setzeStaffelpreisPositionen(prev => setzeUntergrenze(prev, posIndex, 0, menge));
+  };
+
+  const merkeUntergrenze = (posIndex: number) => {
+    vonVorEingabeRef.current = staffelpreisPositionenRef.current[posIndex]?.staffeln[0]?.vonMenge ?? 0;
+    setGrenzenHinweis(null);
+    setStaffelEingabeAktiv(true);
+  };
+
+  const uebernehmeUntergrenze = (posIndex: number) => {
+    setStaffelEingabeAktiv(false);
+    const pos = staffelpreisPositionenRef.current[posIndex];
+    if (!pos || !pos.staffeln[0]) return;
+    const wert = pos.staffeln[0].vonMenge;
+    if (wert === vonVorEingabeRef.current) {
+      setzeStaffelpreisPositionen(prev => richteAus(prev, posIndex));
+      return;
+    }
+    const pruefung = pruefeUntergrenze(pos.staffeln, 0, wert);
+    if (!pruefung.gueltig) {
+      setGrenzenHinweis({
+        posIndex,
+        stufenIndex: 0,
+        text: `${pruefung.hinweis ?? 'Menge nicht möglich'} – Eingabe verworfen`,
       });
-      pos.staffeln = staffeln;
-      updated[posIndex] = pos;
-      return updated;
-    });
+      setzeStaffelpreisPositionen(prev =>
+        richteAus(setzeUntergrenze(prev, posIndex, 0, vonVorEingabeRef.current), posIndex)
+      );
+      return;
+    }
+    setGrenzenHinweis(null);
+    setzeStaffelpreisPositionen(prev => richteAus(prev, posIndex));
   };
 
-  const removeStaffel = (posIndex: number, staffelIndex: number) => {
-    markiereGeaendert();
-    setStaffelpreisPositionen(prev => {
-      const updated = [...prev];
-      const pos = { ...updated[posIndex] };
-      const staffeln = pos.staffeln.filter((_, i) => i !== staffelIndex);
-      // Letzte Staffel auf unbegrenzt setzen
-      if (staffeln.length > 0) {
-        staffeln[staffeln.length - 1] = { ...staffeln[staffeln.length - 1], bisMenge: null };
-      }
-      pos.staffeln = staffeln;
-      updated[posIndex] = pos;
-      return updated;
-    });
+  /** Tippen im „unter"-Feld: nur die eigene Zelle, damit 3 → 30 → 300 nichts mitreißt. */
+  const tippeObergrenze = (posIndex: number, staffelIndex: number, wert: number | null) => {
+    setzeStaffelpreisPositionen(prev => setzeObergrenze(prev, posIndex, staffelIndex, wert, { koppeln: false }));
+  };
+
+  const merkeObergrenze = (posIndex: number, staffelIndex: number) => {
+    bisVorEingabeRef.current =
+      staffelpreisPositionenRef.current[posIndex]?.staffeln[staffelIndex]?.bisMenge ?? null;
+    setGrenzenHinweis(null);
+    setStaffelEingabeAktiv(true);
+  };
+
+  /**
+   * Verlassen des „unter"-Feldes: Erst hier wird die Grenze übernommen, das „ab"
+   * der Folgestufe nachgezogen und – bei gekoppelten Grenzen – auf alle Sorten
+   * gespiegelt. Eine unmögliche Grenze wird verworfen und sichtbar gemeldet.
+   */
+  const uebernehmeObergrenze = (posIndex: number, staffelIndex: number) => {
+    setStaffelEingabeAktiv(false);
+    const pos = staffelpreisPositionenRef.current[posIndex];
+    if (!pos) return;
+    const wert = pos.staffeln[staffelIndex]?.bisMenge ?? null;
+    // Durchgetabbt, ohne etwas zu ändern: Ein Altbestand mit unmöglicher Grenze
+    // gehört in die Lückenwarnung, nicht in eine Meldung über eine Eingabe,
+    // die es gar nicht gab.
+    if (wert === bisVorEingabeRef.current) {
+      setzeStaffelpreisPositionen(prev => richteAus(prev, posIndex));
+      return;
+    }
+    // Getippte 0 heißt „offen" – als 0 gespeichert zeigt die Maske „0", das PDF
+    // aber „unbegrenzt". Normalisiert wird VOR der Prüfung, nicht an ihr vorbei:
+    // eine offene Stufe in der Mitte bleibt unzulässig.
+    const normiert = wert === 0 ? null : wert;
+    const pruefung = pruefeObergrenze(pos.staffeln, staffelIndex, normiert);
+    if (!pruefung.gueltig) {
+      const zurueck = bisVorEingabeRef.current;
+      setGrenzenHinweis({
+        posIndex,
+        stufenIndex: staffelIndex,
+        text: `${pruefung.hinweis ?? 'Grenze nicht möglich'} – Eingabe verworfen`,
+      });
+      setzeStaffelpreisPositionen(prev => richteAus(setzeObergrenze(prev, posIndex, staffelIndex, zurueck), posIndex));
+      return;
+    }
+    setGrenzenHinweis(null);
+    setzeStaffelpreisPositionen(prev =>
+      richteAus(setzeObergrenze(prev, posIndex, staffelIndex, normiert), posIndex)
+    );
+  };
+
+  /** Stufe anhängen – bei gekoppelten Grenzen in allen Sorten an derselben Grenze. */
+  const stufeHinzufuegen = (posIndex?: number) => {
+    setGrenzenHinweis(null);
+    setStaffelEingabeAktiv(false);
+    setzeStaffelpreisPositionen(prev =>
+      haengeStufeAn(prev, { nurPosition: grenzenGekoppeltRef.current ? undefined : posIndex })
+    );
+  };
+
+  /** Stufe löschen – ihr Mengenbereich schlägt der Stufe darunter zu. */
+  const stufeEntfernen = (staffelIndex: number, posIndex?: number) => {
+    setGrenzenHinweis(null);
+    setStaffelEingabeAktiv(false);
+    setzeStaffelpreisPositionen(prev =>
+      loescheStufe(prev, staffelIndex, { nurPosition: grenzenGekoppeltRef.current ? undefined : posIndex })
+    );
   };
 
   const removeStaffelpreisPosition = (index: number) => {
-    markiereGeaendert();
-    setStaffelpreisPositionen(prev => prev.filter((_, i) => i !== index));
+    setGrenzenHinweis(null);
+    setzeStaffelpreisPositionen(prev => prev.filter((_, i) => i !== index));
   };
+
+  /**
+   * Schalter „Gleiche Staffelgrenzen für alle Sorten".
+   *
+   * Der Schalter schreibt bewusst KEINE Preise um: Laufen die Raster
+   * auseinander, erscheint danach der Angleich-Banner, der vorher zeigt, was
+   * sich ändert, und über `gleicheGrenzenAn` jeder Sorte den Preis gibt, den
+   * sie bei dieser Menge bisher hatte. Ein stilles `spiegleGrenzen` würde die
+   * Preise stattdessen stufenweise verschieben.
+   */
+  const setzeGrenzenKopplung = (aktiv: boolean) => {
+    markiereGeaendert();
+    setStaffelEingabeAktiv(false);
+    setStaffelKonditionen(prev => ({ ...prev, grenzenGekoppelt: aktiv }));
+  };
+
+  /** Altentwurf mit abweichenden Grenzen auf ein Raster bringen (nur auf Klick). */
+  const gleicheAlteGrenzenAn = () => {
+    setGrenzenHinweis(null);
+    setStaffelEingabeAktiv(false);
+    const leitIndex = waehleLeitIndex(staffelpreisPositionenRef.current);
+    setzeStaffelpreisPositionen(prev => gleicheGrenzenAn(prev, leitIndex));
+  };
+
+  // === STAFFEL-KONDITIONEN (Abrechnungsmodell + Hinweistext) ===
+  const updateStaffelKonditionen = (updates: Partial<StaffelKonditionen>) => {
+    markiereGeaendert();
+    setStaffelKonditionen(prev => ({ ...prev, ...updates }));
+  };
+
+  const staffelLeitIndex = waehleLeitIndex(staffelpreisPositionen);
+  const staffelRaster = staffelpreisPositionen[staffelLeitIndex]?.staffeln ?? [];
+  const generierterHinweistext = erzeugeStaffelHinweistext(staffelKonditionen, staffelArtikelFuerText);
+  const hinweistextManuell = !!staffelKonditionen.hinweistext?.trim();
+  // Bleibt als Sicherung für entkoppelte und für fehlerhaft geladene Angebote
+  // stehen, auch wenn sie bei gekoppelten Grenzen konstruktiv nie auslöst.
+  const staffelGrenzenWarnung =
+    staffelKonditionen.mengenbasis === 'gesamt' && !staffelGrenzenIdentisch(staffelArtikelFuerText);
+  // Lücken/Überlappungen (bis 300 t, dann ab 400 t): kein definierter Preis für 350 t
+  const luckenSorten = staffelpreisPositionen
+    .filter(sp => !staffelnLueckenlos(sp.staffeln))
+    .map(sp => sp.artikelBezeichnung || sp.artikelnummer);
+  const staffelLueckenWarnung = luckenSorten.length > 0;
+  const staffelUnstimmig = staffelGrenzenWarnung || staffelLueckenWarnung;
+  const staffelAngleichOffen =
+    grenzenGekoppelt &&
+    staffelpreisPositionen.length > 1 &&
+    !grenzenEinheitlich(staffelpreisPositionen);
+  // Am Button steht sonst nur „gesperrt" – der Grund läge zwei Blöcke weiter oben.
+  const staffelSperrGruende: string[] = [];
+  if (angebotsModus === 'staffelpreis') {
+    if (staffelpreisPositionen.length === 0) staffelSperrGruende.push('Es ist noch keine Sorte angelegt.');
+    if (staffelGrenzenWarnung)
+      staffelSperrGruende.push(
+        'Die Stufengrenzen unterscheiden sich je Sorte, die Einstufung zählt aber alle Sorten zusammen.'
+      );
+    if (staffelLueckenWarnung)
+      staffelSperrGruende.push(
+        `Die Staffeln schließen nicht lückenlos an (${luckenSorten.join(', ')}).`
+      );
+    if (staffelAngleichOffen)
+      staffelSperrGruende.push(
+        'Die Sorten tragen noch unterschiedliche Stufengrenzen – bitte oben angleichen.'
+      );
+  }
+  const offeneAngleichung =
+    grenzenGekoppelt && staffelpreisPositionen.length > 1 && !grenzenEinheitlich(staffelpreisPositionen)
+      ? ermittleAngleichBefunde(staffelpreisPositionen, staffelLeitIndex)
+      : [];
+  // Solange die Sorten unterschiedliche Raster tragen, bleiben Grenzen, Stufen
+  // und Preise gesperrt: Jede Bearbeitung würde die Sorten stillschweigend
+  // vereinheitlichen und dabei die Preise auf andere Mengen schieben. Erst
+  // angleichen (oder die Kopplung ausschalten), dann weiterarbeiten.
+  //
+  // Bewertet wird ausschließlich AUSSERHALB der Eingabe. Während getippt wird,
+  // trägt nur die bearbeitete Sorte den neuen Wert – die Raster weichen dann
+  // zwangsläufig ab, und eine live berechnete Sperre würde genau das Feld
+  // abschalten, in dem der Nutzer gerade tippt.
+  const [angleichNoetig, setAngleichNoetig] = useState(false);
+  useEffect(() => {
+    if (staffelEingabeAktiv) return;
+    setAngleichNoetig(staffelAngleichOffen);
+  }, [staffelAngleichOffen, staffelEingabeAktiv]);
+  // Eine leere Preiszelle fällt in einer Matrix kaum auf – 0,00 €/t wäre der
+  // teuerste denkbare Fehler dieses Moduls.
+  const fehlendePreise = preisLuecken(staffelpreisPositionen);
 
   // === BEDARFSPOSITIONEN-HANDLER ===
   const addBedarfsPosition = () => {
@@ -557,6 +933,48 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       alert('Bitte fügen Sie mindestens eine Staffelpreis-Position hinzu.');
       return;
     }
+    if (angebotsModus === 'staffelpreis' && staffelGrenzenWarnung) {
+      alert(
+        'Die Stufengrenzen unterscheiden sich je Sorte. Bei „Alle Sorten zusammen" ist nicht eindeutig, welche Grenze gilt. ' +
+          'Bitte gleiche Grenzen setzen oder die Einstufung auf „Je Sorte getrennt" umstellen.'
+      );
+      return;
+    }
+    if (angebotsModus === 'staffelpreis' && staffelAngleichOffen) {
+      alert(
+        'Die Sorten tragen noch unterschiedliche Stufengrenzen. Bitte oben auf „Grenzen angleichen" klicken ' +
+          'oder die Kopplung ausschalten.'
+      );
+      return;
+    }
+    if (angebotsModus === 'staffelpreis' && staffelLueckenWarnung) {
+      alert(
+        'Die Staffeln schließen nicht lückenlos aneinander an. „Bis" einer Stufe muss „Von" der nächsten sein, ' +
+          'nur die letzte Stufe darf offen bleiben.'
+      );
+      return;
+    }
+    // Eine Stufe ohne Preis geht sonst mit 0,00 €/t an den Kunden.
+    if (angebotsModus === 'staffelpreis' && fehlendePreise.length > 0) {
+      const liste = fehlendePreise
+        .map(l => `• ${l.bezeichnung} ab ${l.vonMenge.toLocaleString('de-DE')} t`)
+        .join('\n');
+      if (
+        !window.confirm(
+          `Für diese Stufen ist kein Preis hinterlegt (0,00 €/t):\n${liste}\n\nDas Angebot trotzdem so erstellen?`
+        )
+      ) {
+        return;
+      }
+    }
+
+    // Den laufenden Entwurfs-Debounce abbrechen: Er schreibt sonst während des
+    // Erstellens auf dieselbe Projektspalte wie der Dokumentservice.
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
+    }
+    hatGeaendert.current = false;
 
     setSpeichern(true);
     try {
@@ -577,8 +995,13 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         positionsTyp: 'normal' as PositionsTyp,
       }));
 
+      // Sicherheitsnetz: Grenzen ein letztes Mal ausrichten. Im Normalfall ist
+      // das ein Nulldurchlauf – der Klick auf „Angebot erstellen" nimmt dem
+      // bearbeiteten Feld vorher den Fokus, und dessen Blur hat schon gekoppelt.
+      const ausgerichteteStaffeln = richteAus(staffelpreisPositionen, staffelLeitIndex);
+
       // Staffelpreis-Positionen hinzufügen
-      const staffelPositionen: PlatzbauerAngebotPosition[] = staffelpreisPositionen.map(sp => {
+      const staffelPositionen: PlatzbauerAngebotPosition[] = ausgerichteteStaffeln.map(sp => {
         // Beschreibung zusammensetzen aus Lieferregion und Bemerkung
         let beschreibungParts: string[] = [];
         if (sp.lieferregion) {
@@ -602,6 +1025,11 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             staffeln: sp.staffeln,
             basisArtikel: sp.artikelnummer,
             basisBezeichnung: sp.artikelBezeichnung,
+            // Zusätzlich strukturiert, damit das Zurücklesen (AB-Übernahme,
+            // Rehydrierung) nicht auf die Freitext-Heuristik angewiesen ist.
+            // Gedruckt wird weiterhin `beschreibung`.
+            lieferregion: sp.lieferregion,
+            bemerkung: sp.bemerkung,
           },
         };
       });
@@ -623,7 +1051,14 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       }));
 
       // Alle Positionen zusammenführen
-      const allePositionen = [...angebotPositionen, ...zusatzPositionen, ...staffelPositionen, ...bedarfPositionen];
+      // Staffelpositionen nur im Staffelpreis-Modus: Im Standard-Modus sind sie
+      // ausgeblendet und dürfen nicht unsichtbar mit aufs PDF rutschen.
+      const allePositionen = [
+        ...angebotPositionen,
+        ...zusatzPositionen,
+        ...(angebotsModus === 'staffelpreis' ? staffelPositionen : []),
+        ...bedarfPositionen,
+      ];
 
       const formularDaten: PlatzbauerAngebotFormularDaten = {
         angebotsnummer: formData.angebotsnummer,
@@ -644,6 +1079,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           gesamtpreis: v.menge * v.einzelpreis,
         })),
         angebotPositionen: allePositionen,
+        staffelKonditionen,
         zahlungsziel: formData.zahlungsziel,
         zahlungsart: 'Überweisung',
         skontoAktiviert: false,
@@ -662,6 +1098,8 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       alert('Angebot wurde erfolgreich erstellt!');
     } catch (error: any) {
       console.error('Fehler beim Erstellen:', error);
+      // Nach einem Fehlschlag muss der Entwurfs-Debounce wieder greifen.
+      hatGeaendert.current = true;
       alert('Fehler: ' + (error.message || 'Unbekannter Fehler'));
     } finally {
       setSpeichern(false);
@@ -678,18 +1116,8 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
     );
   }
 
-  if (vereinPositionen.length === 0) {
-    return (
-      <div className="bg-white dark:bg-slate-900 rounded-xl p-8 text-center border border-gray-200 dark:border-slate-700">
-        <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Keine Vereine zugeordnet</h3>
-        <p className="text-gray-500 dark:text-gray-400">
-          Diesem Platzbauer-Projekt sind noch keine Vereine zugeordnet.
-        </p>
-      </div>
-    );
-  }
-
+  // Ohne zugeordnete Vereine bleibt der Tab bedienbar: Ein Staffelpreis-Angebot
+  // braucht keine Vereine. Der Hinweis steht stattdessen im Vereine-Abschnitt.
   return (
     <div className="space-y-6">
       {/* Auto-Save Status */}
@@ -788,6 +1216,19 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           </div>
         </div>
 
+        {vereinPositionen.length === 0 && (
+          <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-amber-800 dark:text-amber-300">
+              <p className="font-semibold">Keine Vereine zugeordnet</p>
+              <p>
+                Diesem Platzbauer sind noch keine Vereine zugeordnet. Ein Staffelpreis-Angebot lässt sich trotzdem erstellen,
+                ein Standard-Angebot braucht mindestens einen Verein oder eine Bedarfsposition.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -839,23 +1280,22 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                     )}
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={verein.menge || ''}
-                      onChange={(e) => updateVerein(index, { menge: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={verein.menge}
+                      onChange={(v) => updateVerein(index, { menge: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.1"
                       min="0"
                     />
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={verein.einzelpreis || ''}
-                      onChange={(e) => updateVerein(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={verein.einzelpreis}
+                      onChange={(v) => updateVerein(index, { einzelpreis: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.01"
                       min="0"
+                      dezimalstellen={2}
                     />
                   </td>
                   <td className="py-3 px-2 text-right font-medium text-gray-900 dark:text-white">
@@ -867,6 +1307,24 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           </table>
         </div>
       </div>
+
+      {/* Stand kommt aus dem erstellten Angebot, nicht aus einem Entwurf */}
+      {ausAngebotGeladen && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            Stand aus Angebot {ausAngebotGeladen.nummer}
+            {ausAngebotGeladen.datum ? ` vom ${new Date(ausAngebotGeladen.datum).toLocaleDateString('de-DE')}` : ''}
+            {ausAngebotGeladen.version ? ` (Version ${ausAngebotGeladen.version})` : ''}. Änderungen erzeugen
+            beim Erstellen ein neues Angebot.
+          </p>
+          {ausAngebotGeladen.nichtZugeordnet.length > 0 && (
+            <p className="mt-1 text-sm text-blue-800 dark:text-blue-300">
+              Im Angebot enthalten, dem Platzbauer aber nicht mehr zugeordnet:{' '}
+              {ausAngebotGeladen.nichtZugeordnet.join(', ')}.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Modus-Auswahl */}
       <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
@@ -919,7 +1377,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       {/* Staffelpreise (nur im Staffelpreis-Modus) */}
       {angebotsModus === 'staffelpreis' && (
         <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-amber-200 dark:border-amber-800">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-amber-500" />
               Staffelpreise
@@ -930,9 +1388,26 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
               className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50"
             >
               <Plus className="w-4 h-4" />
-              Staffelpreis hinzufügen
+              Sorte hinzufügen
             </button>
           </div>
+
+          {/* Eine Staffel für alle Sorten (Vorschlag „Automatisierung von Staffelpreisangeboten", 09/2026) */}
+          <label className="flex items-start gap-2 mb-4 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg cursor-pointer">
+            <input
+              type="checkbox"
+              checked={grenzenGekoppelt}
+              onChange={(e) => setzeGrenzenKopplung(e.target.checked)}
+              className="mt-0.5 w-4 h-4 text-amber-600 rounded"
+            />
+            <span className="text-sm">
+              <span className="font-medium text-gray-900 dark:text-white">Gleiche Staffelgrenzen für alle Sorten</span>
+              <span className="block text-gray-600 dark:text-gray-400">
+                Die Mengengrenzen werden einmal gepflegt, die Preise bleiben je Sorte verschieden.
+                Ausschalten nur, wenn eine Sorte ausdrücklich anders gestaffelt ist.
+              </span>
+            </span>
+          </label>
 
           {staffelpreisPositionen.length === 0 ? (
             <div className="text-center py-8 bg-amber-50 dark:bg-amber-900/10 rounded-lg">
@@ -944,7 +1419,184 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                 Staffelpreise bieten Mengenrabatte für größere Bestellungen.
               </p>
             </div>
+          ) : grenzenGekoppelt ? (
+            /* === Preismatrix: Grenzen einmal, Preise je Sorte === */
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border-separate border-spacing-0">
+                  <thead>
+                    <tr className="text-xs font-medium text-gray-500 dark:text-gray-400 text-left">
+                      <th className="pb-2 pr-3 w-12">Stufe</th>
+                      <th className="pb-2 pr-3 w-24">ab (t)</th>
+                      <th className="pb-2 pr-3 w-28">unter (t)</th>
+                      {staffelpreisPositionen.map((sp, posIndex) => (
+                        <th key={sp.id} className="pb-2 pr-3 min-w-[11rem]">
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={sp.artikelnummer}
+                              onChange={(e) => {
+                                const artikel = ziegelmehlArtikel.find(a => a.artikelnummer === e.target.value);
+                                if (artikel) {
+                                  updateStaffelpreisPosition(posIndex, {
+                                    artikelnummer: artikel.artikelnummer,
+                                    artikelBezeichnung: artikel.bezeichnung,
+                                  });
+                                }
+                              }}
+                              className="flex-1 min-w-0 px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-normal"
+                            >
+                              {ziegelmehlArtikel.map(a => (
+                                <option key={a.artikelnummer} value={a.artikelnummer}>
+                                  {a.artikelnummer} - {a.bezeichnung}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => removeStaffelpreisPosition(posIndex)}
+                              title="Sorte entfernen"
+                              className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded flex-shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <span className="block mt-1 font-normal text-gray-500 dark:text-gray-400">Preis/t (€)</span>
+                        </th>
+                      ))}
+                      <th className="pb-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffelRaster.map((stufe, stufenIndex) => (
+                      <tr key={stufenIndex} className="align-top">
+                        <td className="py-1 pr-3 text-gray-500 dark:text-gray-400">{stufenIndex + 1}.</td>
+                        <td className="py-1 pr-3">
+                          {stufenIndex === 0 ? (
+                            <NumberInput
+                              value={stufe.vonMenge}
+                              onChange={(v) => tippeUntergrenze(staffelLeitIndex, v)}
+                              onFocus={() => merkeUntergrenze(staffelLeitIndex)}
+                              onBlur={() => uebernehmeUntergrenze(staffelLeitIndex)}
+                              disabled={angleichNoetig}
+                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                              step="1"
+                              min="0"
+                            />
+                          ) : (
+                            <span
+                              title="Wird aus dem Feld ‚unter‘ der Stufe darüber übernommen – dort ändern."
+                              className="inline-block w-24 px-2 py-1.5 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/60 border border-dashed border-gray-300 dark:border-slate-600 rounded"
+                            >
+                              {stufe.vonMenge.toLocaleString('de-DE')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1 pr-3">
+                          <OptionalNumberInput
+                            value={stufe.bisMenge ?? null}
+                            onChange={(v) => tippeObergrenze(staffelLeitIndex, stufenIndex, v)}
+                            onFocus={() => merkeObergrenze(staffelLeitIndex, stufenIndex)}
+                            onBlur={() => uebernehmeObergrenze(staffelLeitIndex, stufenIndex)}
+                            disabled={angleichNoetig}
+                            placeholder="∞"
+                            className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                            step="1"
+                            min="0"
+                          />
+                          {grenzenHinweis?.stufenIndex === stufenIndex &&
+                            grenzenHinweis.posIndex === staffelLeitIndex && (
+                            <span className="block mt-1 text-xs text-red-600 dark:text-red-400 w-28">
+                              {grenzenHinweis.text}
+                            </span>
+                          )}
+                        </td>
+                        {staffelpreisPositionen.map((sp, posIndex) =>
+                          sp.staffeln[stufenIndex] ? (
+                            <td key={`${sp.id}-${stufenIndex}`} className="py-1 pr-3">
+                              <NumberInput
+                                value={sp.staffeln[stufenIndex].einzelpreis}
+                                onChange={(v) => updateStaffelPreis(posIndex, stufenIndex, v)}
+                                disabled={angleichNoetig}
+                                title={
+                                  angleichNoetig
+                                    ? 'Diese Zeile zeigt die Grenzen der Leitsorte – erst angleichen, dann Preise pflegen.'
+                                    : undefined
+                                }
+                                className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                                step="0.01"
+                                min="0"
+                                dezimalstellen={2}
+                                suffix="€"
+                              />
+                            </td>
+                          ) : (
+                            /* Altentwurf: Diese Sorte kennt die Stufe noch nicht.
+                               Ein Eingabefeld hier würde Eingaben stumm schlucken. */
+                            <td key={`${sp.id}-${stufenIndex}`} className="py-1 pr-3">
+                              <span
+                                title="Diese Sorte hat diese Stufe noch nicht – zuerst die Grenzen angleichen."
+                                className="inline-block w-28 px-2 py-1.5 text-sm text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-800/60 border border-dashed border-gray-300 dark:border-slate-600 rounded"
+                              >
+                                —
+                              </span>
+                            </td>
+                          )
+                        )}
+                        <td className="py-1">
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() => stufeEntfernen(stufenIndex)}
+                            disabled={staffelRaster.length <= 1 || angleichNoetig}
+                            title="Stufe in allen Sorten entfernen – ihr Mengenbereich schlägt der Stufe darunter zu"
+                            className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => stufeHinzufuegen()}
+                disabled={angleichNoetig}
+                className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+                Stufe hinzufügen
+              </button>
+
+              {/* Angaben je Sorte, die nicht in die Matrix gehören */}
+              <div className="pt-3 border-t border-amber-200 dark:border-amber-800 space-y-3">
+                {staffelpreisPositionen.map((sp, posIndex) => (
+                  <div key={sp.id} className="grid grid-cols-1 md:grid-cols-[10rem_1fr_1fr] gap-3 items-center">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                      {sp.artikelBezeichnung}
+                    </span>
+                    <input
+                      type="text"
+                      value={sp.lieferregion || ''}
+                      onChange={(e) => updateStaffelpreisPosition(posIndex, { lieferregion: e.target.value })}
+                      placeholder="Lieferregion, z.B. Bayern, PLZ 8xxxx-9xxxx"
+                      className="w-full px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={sp.bemerkung || ''}
+                      onChange={(e) => updateStaffelpreisPosition(posIndex, { bemerkung: e.target.value })}
+                      placeholder="Bemerkung, z.B. inkl. Fracht, ab Werk"
+                      className="w-full px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
+            /* === Getrennte Staffeln je Sorte (Kopplung ausgeschaltet) === */
             <div className="space-y-4">
               {staffelpreisPositionen.map((sp, posIndex) => (
                 <div key={sp.id} className="border border-amber-200 dark:border-amber-800 rounded-lg overflow-hidden">
@@ -1033,41 +1685,62 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                       {/* Staffeln Tabelle */}
                       <div className="space-y-2">
                         <div className="flex gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-2">
-                          <span className="w-24">Von (t)</span>
-                          <span className="w-24">Bis (t)</span>
+                          <span className="w-24">ab (t)</span>
+                          <span className="w-24">unter (t)</span>
                           <span className="w-28">Preis/t (€)</span>
                           <span className="w-8"></span>
                         </div>
                         {sp.staffeln.map((staffel, staffelIndex) => (
-                          <div key={staffelIndex} className="flex gap-2 items-center">
-                            <input
-                              type="number"
-                              value={staffel.vonMenge}
-                              onChange={(e) => updateStaffel(posIndex, staffelIndex, { vonMenge: parseFloat(e.target.value) || 0 })}
-                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
-                              step="1"
-                              min="0"
-                            />
-                            <input
-                              type="number"
-                              value={staffel.bisMenge || ''}
-                              onChange={(e) => updateStaffel(posIndex, staffelIndex, { bisMenge: e.target.value ? parseFloat(e.target.value) : null })}
-                              placeholder="∞"
-                              className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
-                              step="1"
-                              min="0"
-                            />
-                            <input
-                              type="number"
+                          <div key={staffelIndex} className="flex gap-2 items-start">
+                            {staffelIndex === 0 ? (
+                              <NumberInput
+                                value={staffel.vonMenge}
+                                onChange={(v) => tippeUntergrenze(posIndex, v)}
+                                onFocus={() => merkeUntergrenze(posIndex)}
+                                onBlur={() => uebernehmeUntergrenze(posIndex)}
+                                className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                                step="1"
+                                min="0"
+                              />
+                            ) : (
+                              <span
+                                title="Wird aus dem Feld ‚unter‘ der Stufe darüber übernommen – dort ändern."
+                                className="inline-block w-24 px-2 py-1.5 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/60 border border-dashed border-gray-300 dark:border-slate-600 rounded"
+                              >
+                                {staffel.vonMenge.toLocaleString('de-DE')}
+                              </span>
+                            )}
+                            <div className="w-24">
+                              <OptionalNumberInput
+                                value={staffel.bisMenge ?? null}
+                                onChange={(v) => tippeObergrenze(posIndex, staffelIndex, v)}
+                                onFocus={() => merkeObergrenze(posIndex, staffelIndex)}
+                                onBlur={() => uebernehmeObergrenze(posIndex, staffelIndex)}
+                                placeholder="∞"
+                                className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                                step="1"
+                                min="0"
+                              />
+                              {grenzenHinweis?.stufenIndex === staffelIndex &&
+                                grenzenHinweis.posIndex === posIndex && (
+                                <span className="block mt-1 text-xs text-red-600 dark:text-red-400">
+                                  {grenzenHinweis.text}
+                                </span>
+                              )}
+                            </div>
+                            <NumberInput
                               value={staffel.einzelpreis}
-                              onChange={(e) => updateStaffel(posIndex, staffelIndex, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                              onChange={(v) => updateStaffelPreis(posIndex, staffelIndex, v)}
                               className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                               step="0.01"
                               min="0"
+                              dezimalstellen={2}
                             />
                             <button
                               type="button"
-                              onClick={() => removeStaffel(posIndex, staffelIndex)}
+                              tabIndex={-1}
+                              title="Stufe entfernen – ihr Mengenbereich schlägt der Stufe darunter zu"
+                              onClick={() => stufeEntfernen(staffelIndex, posIndex)}
                               disabled={sp.staffeln.length <= 1}
                               className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
                             >
@@ -1077,7 +1750,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                         ))}
                         <button
                           type="button"
-                          onClick={() => addStaffel(posIndex)}
+                          onClick={() => stufeHinzufuegen(posIndex)}
                           className="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 mt-2"
                         >
                           <Plus className="w-4 h-4" />
@@ -1091,13 +1764,200 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             </div>
           )}
 
-          {/* Info-Box */}
-          <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
-            <div className="flex items-start gap-2">
-              <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                Staffelpreise: Der Preis richtet sich nach der Gesamtabnahmemenge während der Saison.
-                Je höher die Abnahme, desto günstiger der Preis pro Tonne.
+          {/* Altentwurf mit abweichenden Grenzen: nie ungefragt umschreiben */}
+          {angleichNoetig && offeneAngleichung.length > 0 && (
+            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                Dieses Angebot trägt noch unterschiedliche Stufengrenzen je Sorte. Bis zum Angleich sind die
+                Grenzen gesperrt. Angeglichen wird auf das Raster mit den meisten Stufen; jede Sorte behält
+                den Preis, den sie bei dieser Menge bisher hatte:
+              </p>
+              <ul className="mt-2 text-xs text-amber-800 dark:text-amber-300 space-y-0.5">
+                {offeneAngleichung.map(b => (
+                  <li key={b.bezeichnung}>
+                    {b.bezeichnung}: {b.alteGrenzen} → {b.neueGrenzen}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={gleicheAlteGrenzenAn}
+                className="mt-2 px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700"
+              >
+                Grenzen angleichen
+              </button>
+            </div>
+          )}
+
+          {/* 0,00 €/t fällt in einer Matrix kaum auf */}
+          {fehlendePreise.length > 0 && !staffelEingabeAktiv && (
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+              <p className="text-sm text-red-700 dark:text-red-400">
+                Ohne Preis (0,00 €/t):{' '}
+                {fehlendePreise
+                  .map(l => `${l.bezeichnung} ab ${l.vonMenge.toLocaleString('de-DE')} t`)
+                  .join(', ')}
+              </p>
+            </div>
+          )}
+
+          {/* Staffelung & Abrechnung */}
+          <div className="mt-6 pt-6 border-t border-amber-200 dark:border-amber-800 space-y-5">
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Info className="w-4 h-4 text-amber-500" />
+                Staffelung &amp; Abrechnung
+              </h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Legt fest, ob der günstigere Preis rückwirkend gilt und wie die Differenz zum Platzbauer zurückfließt.
+                Daraus entsteht der Hinweistext auf dem Angebot.
+              </p>
+            </div>
+
+            {/* Abrechnungsmodell */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {STAFFEL_MODELLE.map(modell => {
+                const aktiv = staffelKonditionen.abrechnungsmodell === modell.wert;
+                return (
+                  <button
+                    key={modell.wert}
+                    type="button"
+                    onClick={() => {
+                      if (aktiv) return;
+                      // Ein manuell geschriebener Text beschreibt das alte Modell.
+                      // Bleibt er stehen, widersprechen sich Kopfzeile, grüne Box und Hinweis.
+                      const zuruecksetzen =
+                        hinweistextManuell &&
+                        window.confirm(
+                          'Der Hinweistext ist manuell angepasst und beschreibt das bisherige Modell. ' +
+                            'Auf den automatischen Text für das neue Modell zurücksetzen?\n\n' +
+                            'OK = zurücksetzen, Abbrechen = eigenen Text behalten.'
+                        );
+                      updateStaffelKonditionen({
+                        abrechnungsmodell: modell.wert,
+                        ...(zuruecksetzen ? { hinweistext: undefined } : {}),
+                      });
+                    }}
+                    className={`text-left p-3 rounded-lg border-2 transition-all ${
+                      aktiv
+                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`font-semibold text-sm ${aktiv ? 'text-amber-700 dark:text-amber-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                        {modell.titel}
+                      </span>
+                      {modell.empfohlen && (
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                          empfohlen
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{modell.kurz}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mengenbasis, Zeitraum, Zahlungsbedingung */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Einstufung</label>
+                <select
+                  value={staffelKonditionen.mengenbasis}
+                  onChange={(e) => updateStaffelKonditionen({ mengenbasis: e.target.value as StaffelKonditionen['mengenbasis'] })}
+                  className="w-full px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                >
+                  {STAFFEL_MENGENBASEN.map(b => (
+                    <option key={b.wert} value={b.wert}>{b.titel}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Zeitraum von</label>
+                <input
+                  type="date"
+                  value={staffelKonditionen.zeitraumVon || ''}
+                  onChange={(e) => updateStaffelKonditionen({ zeitraumVon: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Stichtag (bis)</label>
+                <input
+                  type="date"
+                  value={staffelKonditionen.zeitraumBis || ''}
+                  onChange={(e) => updateStaffelKonditionen({ zeitraumBis: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-amber-300 dark:border-amber-700 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+              {staffelKonditionen.abrechnungsmodell !== 'stufenpreis' && (
+                <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 md:pt-6">
+                  <input
+                    type="checkbox"
+                    checked={staffelKonditionen.gutschriftNurBeiZahlung}
+                    onChange={(e) => updateStaffelKonditionen({ gutschriftNurBeiZahlung: e.target.checked })}
+                    className="mt-0.5 rounded border-amber-300"
+                  />
+                  <span>Gutschrift nur bei fristgerechter Zahlung</span>
+                </label>
+              )}
+            </div>
+
+            {staffelGrenzenWarnung && !staffelEingabeAktiv && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Die Stufengrenzen unterscheiden sich je Sorte. Bei „Alle Sorten zusammen" ist dann nicht eindeutig,
+                  welche Grenze gilt. Gleiche Grenzen setzen oder auf „Je Sorte getrennt" umstellen.
+                </p>
+              </div>
+            )}
+            {staffelLueckenWarnung && !staffelEingabeAktiv && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Die Staffeln von {luckenSorten.join(', ')} schließen nicht lückenlos aneinander an („Bis" einer Stufe muss „Von" der nächsten sein,
+                  nur die letzte Stufe darf offen bleiben). Sonst gibt es für Mengen dazwischen keinen Preis.
+                </p>
+              </div>
+            )}
+
+            {/* Hinweistext */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Hinweistext auf dem Angebot
+                  <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                    hinweistextManuell
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-400'
+                  }`}>
+                    {hinweistextManuell ? 'manuell angepasst' : 'automatisch aus dem Modell'}
+                  </span>
+                </label>
+                {hinweistextManuell && (
+                  <button
+                    type="button"
+                    onClick={() => updateStaffelKonditionen({ hinweistext: undefined })}
+                    className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300 hover:underline"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Auf automatischen Text zurücksetzen
+                  </button>
+                )}
+              </div>
+              <textarea
+                value={hinweistextManuell ? staffelKonditionen.hinweistext : generierterHinweistext}
+                onChange={(e) => updateStaffelKonditionen({ hinweistext: e.target.value })}
+                rows={12}
+                className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-mono leading-relaxed"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Leerzeile trennt Absätze. Eine kurze Zeile mit Doppelpunkt am Ende wird auf dem PDF fett gesetzt.
+                Das Beispiel rechnet mit den Staffeln der ersten Sorte und aktualisiert sich, solange der Text automatisch ist.
+                Ein manuell angepasster Text folgt Änderungen an Modell, Zeitraum oder Staffeln nicht mehr. Feld komplett leeren = zurück zum automatischen Text.
               </p>
             </div>
           </div>
@@ -1146,10 +2006,9 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Geschätzte Menge</label>
                     <div className="flex">
-                      <input
-                        type="number"
-                        value={bp.geschaetzteMenge || ''}
-                        onChange={(e) => updateBedarfsPosition(index, { geschaetzteMenge: parseFloat(e.target.value) || 0 })}
+                      <NumberInput
+                        value={bp.geschaetzteMenge}
+                        onChange={(v) => updateBedarfsPosition(index, { geschaetzteMenge: v })}
                         className="w-full px-2 py-1.5 border border-teal-300 dark:border-teal-700 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                         step="0.1"
                         min="0"
@@ -1162,13 +2021,13 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Preis/Einheit</label>
                     <div className="flex">
-                      <input
-                        type="number"
-                        value={bp.einzelpreis || ''}
-                        onChange={(e) => updateBedarfsPosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                      <NumberInput
+                        value={bp.einzelpreis}
+                        onChange={(v) => updateBedarfsPosition(index, { einzelpreis: v })}
                         className="w-full px-2 py-1.5 border border-teal-300 dark:border-teal-700 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm"
                         step="0.01"
                         min="0"
+                        dezimalstellen={2}
                       />
                       <span className="px-2 py-1.5 bg-teal-100 dark:bg-teal-800 border border-l-0 border-teal-300 dark:border-teal-700 rounded-r text-teal-700 dark:text-teal-300 text-sm">
                         €
@@ -1253,20 +2112,19 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                     </option>
                   ))}
                 </select>
-                <input
-                  type="number"
-                  value={pos.menge || ''}
-                  onChange={(e) => updateZusatzPosition(index, { menge: parseFloat(e.target.value) || 0 })}
+                <NumberInput
+                  value={pos.menge}
+                  onChange={(v) => updateZusatzPosition(index, { menge: v })}
                   className="w-20 px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   step="0.1"
                 />
                 <span className="text-gray-500 dark:text-gray-400 w-10 text-center">{pos.einheit}</span>
-                <input
-                  type="number"
-                  value={pos.einzelpreis || ''}
-                  onChange={(e) => updateZusatzPosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                <NumberInput
+                  value={pos.einzelpreis}
+                  onChange={(v) => updateZusatzPosition(index, { einzelpreis: v })}
                   className="w-24 px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                   step="0.01"
+                  dezimalstellen={2}
                 />
                 <span className="text-gray-700 dark:text-gray-300 w-24 text-right font-medium">
                   {pos.gesamtpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
@@ -1380,9 +2238,22 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             )}
           </div>
 
+          {staffelSperrGruende.length > 0 && !staffelEingabeAktiv && (
+            <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Angebot noch nicht erstellbar:
+              </p>
+              <ul className="mt-1 text-sm text-amber-800 dark:text-amber-300 list-disc list-inside space-y-0.5">
+                {staffelSperrGruende.map(grund => (
+                  <li key={grund}>{grund}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <button
             onClick={handleAngebotErstellen}
-            disabled={speichern || (angebotsModus === 'standard' && ausgewaehlteVereine.length === 0 && bedarfsPositionen.length === 0) || (angebotsModus === 'staffelpreis' && staffelpreisPositionen.length === 0)}
+            disabled={speichern || (angebotsModus === 'standard' && ausgewaehlteVereine.length === 0 && bedarfsPositionen.length === 0) || (angebotsModus === 'staffelpreis' && (staffelpreisPositionen.length === 0 || staffelUnstimmig || staffelAngleichOffen))}
             className={`w-full py-3 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
               angebotsModus === 'staffelpreis'
                 ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700'
