@@ -241,8 +241,15 @@ export const initialisiereStammdaten = async (): Promise<Stammdaten> => {
     sitzGesellschaft: 'Giebelstadt',
 
     // Steuerdaten
+    // Die USt-IdNr. ist eine öffentliche Pflichtangabe (Impressum, Rechnungen) und
+    // darf deshalb — anders als die Bankverbindung weiter unten — im Repo stehen.
+    // Geprüft am 09.09.2026 gegen den EU-Bestätigungsdienst und die Prüfziffer.
+    // Sie gehört zu HRB 18235; die auf tennismehl.com geführte DE 320 029 255 ist
+    // eine andere Nummer und stammt von der Vorgängerfirma.
+    // Die Steuernummer bleibt leer: sie ist keine Pflichtangabe, solange die
+    // USt-IdNr. angegeben ist, und gehört nicht ins öffentliche Repo.
     steuernummer: '',
-    ustIdNr: '',
+    ustIdNr: 'DE459375853',
 
     // Bankdaten bewusst LEER: dieses Repo ist öffentlich, und die aktive
     // Bankverbindung gehört nicht dauerhaft in die Git-Historie. Sie wird

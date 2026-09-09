@@ -18,41 +18,21 @@ import { FileText, Mail, Phone } from 'lucide-react';
 
 import KundenseiteLayout from '../components/Public/KundenseiteLayout';
 
-/*
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║  TODO — VOR DER VERTEILUNG DES LINKS AUSFÜLLEN                            ║
- * ║                                                                           ║
- * ║  Die Umsatzsteuer-Identifikationsnummer der Tennismehl GmbH ist noch      ║
- * ║  nicht hinterlegt (`ustIdNr` ist auch in den Stammdaten leer).            ║
- * ║                                                                           ║
- * ║  § 5 Abs. 1 Nr. 6 DDG verlangt die Angabe, SOBALD eine USt-IdNr nach      ║
- * ║  § 27 a UStG vorhanden ist. Solange diese Konstante leer ist, fehlt sie   ║
- * ║  im Impressum — und ein unvollständiges Impressum ist abmahnfähig.        ║
- * ║                                                                           ║
- * ║  NICHT "DE 320 029 255" EINTRAGEN, OHNE SIE VORHER ZU PRUEFEN.            ║
- * ║  Diese Nummer steht in tennismehl_website und dachziegelrueckgabe_website ║
- * ║  als vatId — im zweiten Repo aber neben der Anschrift der Vorgaengerfirma ║
- * ║  (Hundsberg 13, Grossrinderfeld). Der Handelsregisterauszug vom 09.09.2026║
- * ║  weist HRB 18235 als NEUGRUENDUNG aus (1 Eintragung, Gesellschaftsvertrag ║
- * ║  vom 02.12.2025) — eine neu gegruendete GmbH fuehrt die USt-IdNr einer    ║
- * ║  anderen Gesellschaft nicht fort. Die Nummer ist beim EU-Dienst gueltig,  ║
- * ║  Deutschland gibt den Inhaber aber nicht preis. Sie gehoert daher         ║
- * ║  vermutlich der Vorgaengerin. Eine fremde USt-IdNr im Impressum ist       ║
- * ║  schlimmer als gar keine: sie gefaehrdet zusaetzlich den Vorsteuerabzug   ║
- * ║  der Kunden.                                                              ║
- * ║                                                                           ║
- * ║  Richtige Quelle: Vergabebescheid des Bundeszentralamts fuer Steuern fuer ║
- * ║  HRB 18235, oder Rueckfrage bei der Kanzlei (Bachmann & Holley).          ║
- * ║                                                                           ║
- * ║  Zum Beheben: die geprüfte Nummer hier eintragen (Format: DE123456789).   ║
- * ║  Der Abschnitt "Umsatzsteuer" erscheint dann automatisch auf der Seite.   ║
- * ║  Solange die Konstante leer ist, bleibt er ausgeblendet.                  ║
- * ║                                                                           ║
- * ║  Hat die GmbH noch KEINE USt-IdNr, ist das Impressum so vollstaendig:     ║
- * ║  § 5 Abs. 1 Nr. 6 DDG verlangt die Angabe nur, sofern eine vorhanden ist. ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
+/**
+ * Umsatzsteuer-Identifikationsnummer der Tennismehl GmbH (HRB 18235).
+ *
+ * Geprüft am 09.09.2026: Prüfziffer nach ISO 7064 MOD 11,10 korrekt und beim
+ * Bestätigungsdienst der EU-Kommission als gültig gemeldet.
+ *
+ * NICHT mit DE 320 029 255 verwechseln. Diese Nummer steht in
+ * tennismehl_website und dachziegelrueckgabe_website als `vatId` — im zweiten
+ * Repo neben der Anschrift der Vorgängerfirma (Hundsberg 13, Großrinderfeld).
+ * Dass die hiesige GmbH eine eigene, andere Nummer hat, bestätigt: HRB 18235
+ * ist laut Handelsregisterauszug eine Neugründung (1 Eintragung,
+ * Gesellschaftsvertrag vom 02.12.2025) und führt die USt-IdNr. der
+ * Vorgängerin nicht fort. Die Website führt damit die falsche Nummer.
  */
-const UST_ID_NR = '';
+const UST_ID_NR = 'DE459375853';
 
 /** Feste Firmenangaben (Quelle: Stammdaten der Tennismehl GmbH) */
 const FIRMA = {
