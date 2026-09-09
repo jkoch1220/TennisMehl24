@@ -55,3 +55,11 @@ scripts/.maps-cache.json
 # Datensicherungen und Kontaktlisten mit echten Kunden-/Firmendaten — Repo ist öffentlich
 zahlungsziele-sicherung-*.json
 scripts/dienstleister-blockliste.json
+
+# Wegwerf-Werkzeuge einzelner Analysen (lesen Zugangsdaten aus .env) und
+# temporaere Pruefausgaben. Das Repo ist oeffentlich.
+tmp-*.cjs
+tmp-*.mjs
+.pruefung-*/
+# Von `netlify dev` erzeugt; das Projekt hat keine Edge Functions.
+deno.lock
