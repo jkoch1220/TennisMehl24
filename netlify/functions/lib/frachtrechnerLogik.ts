@@ -1,15 +1,16 @@
 /**
- * frachtrechnerLogik.ts — Preislogik des Kunden-Frachtkostenrechners
+ * frachtrechnerLogik.ts — Preislogik des öffentlichen Frachtkostenrechners
  *
  * WARUM DIESE DATEI UNTER netlify/functions/lib/ LIEGT UND NICHT UNTER src/:
  * Sie importiert den Raben-Haustarif (src/constants/rabenPricing.ts). Läge sie
  * unter src/ und würde von der öffentlichen Seite importiert, bündelte Vite die
  * kompletten Einkaufskonditionen (1.805 PLZ-Preise + 60 Zonenpreise) in ein
- * Client-Bundle, das jeder Kunde per DevTools auslesen kann. Hier landet der
- * Tarif ausschließlich im Function-Bundle auf dem Server.
+ * Client-Bundle, das jeder auslesen kann. Hier landet der Tarif ausschließlich
+ * im Function-Bundle auf dem Server.
  *
  * Die öffentliche Seite src/pages/Frachtrechner.tsx bekommt NUR Ergebniszahlen —
- * niemals Basispreis, Zone, Gewichtsstufe oder den Namen der Spedition.
+ * niemals Basispreis, Zone, Gewichtsstufe, Aufschlagshöhe oder den Namen der
+ * Spedition.
  *
  * Unterordner lib/ ist bewusst gewählt: Netlify macht nur Top-Level-Dateien in
  * netlify/functions/ zu aufrufbaren Endpunkten, Unterordner sind reine Module.
@@ -33,44 +34,60 @@ export const UST_SATZ = 0.19;
  * Aufschlag auf den Speditions-Basispreis, mit dem aus dem Einkaufstarif ein
  * Verkaufspreis wird. Deckt Handling, Verladung, Avisierung und Frachtrisiko.
  *
+ * Er ist auf einer ÖFFENTLICHEN Seite doppelt wichtig: Ohne ihn wäre die
+ * angezeigte Zahl der nackte Einkaufspreis, und jeder Wettbewerber könnte
+ * unsere Speditionskonditionen abfragen.
+ *
  * ACHTUNG — offene kaufmännische Entscheidung (Julian, 09.09.2026):
- * Die Angebotserstellung rechnet Sackwarenfracht heute ANDERS, nämlich
+ * Die Angebotserstellung rechnet Sackwarenfracht anders, nämlich
  * `berechneSpeditionskosten(plz, 1000) * tonnage` (anfrageVerarbeitungService.ts:987
  * und :1159). Das ignoriert die Mengendegression von Raben und ergibt bei
  * 5 Paletten je nach Zone das 2,2- bis 2,5-fache des echten Frachtpreises.
- * Dieser Rechner nimmt bewusst die ECHTE Staffel plus diesen Aufschlag. Solange
- * die Angebotslogik nicht nachgezogen ist, weicht der Rechner nach unten ab.
+ * Dieser Rechner nimmt bewusst die ECHTE Staffel plus diesen Aufschlag.
  */
 export const FRACHT_AUFSCHLAG_PROZENT_DEFAULT = 15;
 
 /**
- * Dieselpreis-Stand für den ausgewiesenen Dieselzuschlag (ct/L).
+ * Rückfallwert für den Dieselpreis in ct/L, wenn kein tagesaktueller Wert
+ * ermittelt werden kann.
  *
- * Bewusst KEIN Live-Abruf über Tankerkönig: Der Key läge sonst im öffentlichen
- * Bundle, jeder Seitenaufruf löste einen Drittabruf mit der Besucher-IP aus, und
- * src/utils/dieselPreisAPI.ts schreibt Abrufe in die Preishistorie zurück — eine
- * Kundenseite würde damit die interne Historie verfälschen. Der Wert wird
- * stattdessen gepflegt und mit Stand-Datum angezeigt.
+ * Orientiert sich am realen Marktniveau: Eine Live-Abfrage bei Tankerkönig im
+ * Umkreis Marktheidenfeld ergab am 09.09.2026 einen Mittelwert von 231,5 ct/L
+ * über 19 offene Tankstellen (Spanne 224,9 bis 244,9). Der Wert ist bewusst
+ * etwas darunter angesetzt — ein Rückfallwert soll im Zweifel nicht zu hoch
+ * greifen.
  */
-export const DIESEL_STAND_CENT_DEFAULT = 155;
-export const DIESEL_STAND_DATUM_DEFAULT = '09.09.2026';
+export const DIESEL_FALLBACK_CENT = 230;
+
+/**
+ * Plausibilitätsfenster für den Dieselpreis in ct/L.
+ *
+ * Das Fenster ist bewusst WEIT: Es soll ausschließlich echte Datenfehler
+ * abfangen — vor allem den Einheitenfehler, bei dem ein Preis in ct statt in
+ * EUR in der Collection landet und die Umrechnung ihn ein zweites Mal mit 100
+ * multipliziert (aus 2,31 EUR/L würden 23.150 ct/L).
+ *
+ * Es darf NICHT versuchen, den Markt zu beurteilen. Ein erster Entwurf setzte
+ * die Obergrenze auf 220 ct, weil deutscher Diesel „real bei 165 ct" liege —
+ * das war ein veralteter Erfahrungswert. Tatsächlich lag der Preis am
+ * 09.09.2026 bei rund 232 ct/L, sodass genau die korrekten Werte verworfen und
+ * durch einen zu niedrigen Ersatz getauscht worden wären. Der Kunde hätte
+ * dadurch einen zu günstigen Dieselzuschlag gesehen.
+ */
+export const DIESEL_MIN_CENT = 80;
+export const DIESEL_MAX_CENT = 500;
 
 export interface FrachtrechnerPreisbasis {
-  /** Verkaufspreis Sackware ab Werk in €/t (Artikelstamm TM-ZM-02St, Stand 155,00) */
-  preisSackwareProTonne: number;
-  /** Verkaufspreis Einwegpalette je Stück (Artikelstamm TM-PAL); 0 = nicht berechnen */
-  preisPaletteProStueck: number;
   /** Aufschlag auf den Speditions-Basispreis in Prozent */
   frachtAufschlagProzent: number;
-  /** Dieselpreis-Stand in ct/L für den Floater */
-  dieselStandCent: number;
-  /** Anzeigedatum des Dieselpreis-Standes */
-  dieselStandDatum: string;
+  /** Dieselpreis in ct/L für den Floater */
+  dieselCent: number;
+  /** Anzeigetext für die Herkunft des Dieselpreises, z.B. "Stand 09.09.2026" */
+  dieselStand: string;
 }
 
 export interface FrachtrechnerEingabe {
   paletten: number;
-  koernung: '0-2' | '0-3';
   zielPLZ: string;
 }
 
@@ -79,39 +96,30 @@ export interface FrachtrechnerEingabe {
  *
  * Enthält BEWUSST NICHT: Speditions-Basispreis, Frachtzone, DE-Zone,
  * Gewichtsstufe, Aufschlagshöhe, Tarifart oder den Namen der Spedition.
- * Wer hier ein Feld ergänzt, gibt es an jeden Kunden mit gültigem Link weiter.
+ * Wer hier ein Feld ergänzt, gibt es an jeden weiter, der die Seite öffnet.
  */
 export interface FrachtrechnerErgebnis {
   paletten: number;
-  tonnen: number;
-  koernung: '0-2' | '0-3';
-  bezeichnung: string;
-  /** Material: Menge × €/t */
-  materialProTonne: number;
-  materialSumme: number;
-  /** Einwegpaletten (entfällt, wenn der Preis 0 ist) */
-  palettenPreisProStueck: number;
-  palettenSumme: number;
-  /** Fracht inklusive Aufschlag — ohne Dieselzuschlag */
+  gewichtKg: number;
+  zielPLZ: string;
+  /** Fracht inklusive Aufschlag, ohne Dieselzuschlag */
   frachtSumme: number;
   /** Dieselzuschlag auf die Fracht, zum angegebenen Stand */
   dieselzuschlagProzent: number;
   dieselzuschlagSumme: number;
-  dieselStandDatum: string;
+  dieselStand: string;
   nettoSumme: number;
   ustSatzProzent: number;
   ustSumme: number;
   bruttoSumme: number;
+  /** Fracht je Palette — hilft dem Kunden, die Mengenstaffel zu sehen */
+  nettoJePalette: number;
 }
 
 /** Rundet kaufmännisch auf 2 Nachkommastellen (vermeidet 0,1+0,2-Artefakte). */
 const runde = (wert: number): number => Math.round((wert + Number.EPSILON) * 100) / 100;
 
-export type FrachtrechnerFehler =
-  | 'PLZ_UNGUELTIG'
-  | 'PLZ_UNBEKANNT'
-  | 'PALETTEN_UNGUELTIG'
-  | 'KEIN_TARIF';
+export type FrachtrechnerFehler = 'PLZ_UNGUELTIG' | 'PLZ_UNBEKANNT' | 'PALETTEN_UNGUELTIG';
 
 export interface FrachtrechnerAntwort {
   ok: boolean;
@@ -128,6 +136,27 @@ export interface FrachtrechnerAntwort {
  * für Deutschland ("Tarif Deutschland ab 16.01.2026").
  */
 export const istDeutschePLZ = (plz: string): boolean => /^[0-9]{5}$/.test(plz.trim());
+
+/**
+ * Hält einen Dieselpreis im plausiblen Bereich.
+ * Gibt den Fallback zurück, wenn der Wert fehlt oder außerhalb liegt.
+ *
+ * `plausibel: false` heißt „der gelieferte Wert war unbrauchbar" — der
+ * Aufrufer weist dann keinen Datumsstand aus, sondern kennzeichnet die Zahl
+ * als Richtwert.
+ */
+export function pruefeDieselCent(wert: number | null | undefined): {
+  cent: number;
+  plausibel: boolean;
+} {
+  if (typeof wert !== 'number' || !Number.isFinite(wert)) {
+    return { cent: DIESEL_FALLBACK_CENT, plausibel: false };
+  }
+  if (wert < DIESEL_MIN_CENT || wert > DIESEL_MAX_CENT) {
+    return { cent: DIESEL_FALLBACK_CENT, plausibel: false };
+  }
+  return { cent: wert, plausibel: true };
+}
 
 export function berechneKundenFracht(
   eingabe: FrachtrechnerEingabe,
@@ -147,17 +176,19 @@ export function berechneKundenFracht(
     return {
       ok: false,
       fehler: 'PLZ_UNGUELTIG',
-      fehlertext: 'Bitte eine fünfstellige deutsche Postleitzahl eingeben. Für Lieferungen ins Ausland rufen Sie uns bitte an.',
+      fehlertext:
+        'Bitte eine fünfstellige deutsche Postleitzahl eingeben. Für Lieferungen ins Ausland rufen Sie uns bitte an.',
     };
   }
 
   const gewichtKg = paletten * KG_PRO_PALETTE;
-  const rohFracht = berechneRabenFracht(paletten, gewichtKg, plz, basis.dieselStandCent);
+  const rohFracht = berechneRabenFracht(paletten, gewichtKg, plz, basis.dieselCent);
   if (!rohFracht) {
     return {
       ok: false,
       fehler: 'PLZ_UNBEKANNT',
-      fehlertext: 'Für diese Postleitzahl liegt uns kein Tarif vor. Bitte rufen Sie uns an — wir rechnen die Lieferung für Sie durch.',
+      fehlertext:
+        'Für diese Postleitzahl liegt uns kein Tarif vor. Bitte rufen Sie uns an — wir rechnen die Lieferung für Sie durch.',
     };
   }
 
@@ -167,14 +198,10 @@ export function berechneKundenFracht(
   const aufschlagFaktor = 1 + basis.frachtAufschlagProzent / 100;
   const frachtSumme = runde(rohFracht.basispreis * aufschlagFaktor);
 
-  const dieselzuschlagProzent = berechneRabenDieselzuschlag(basis.dieselStandCent);
+  const dieselzuschlagProzent = berechneRabenDieselzuschlag(basis.dieselCent);
   const dieselzuschlagSumme = runde(frachtSumme * (dieselzuschlagProzent / 100));
 
-  const tonnen = gewichtKg / 1000;
-  const materialSumme = runde(tonnen * basis.preisSackwareProTonne);
-  const palettenSumme = runde(paletten * basis.preisPaletteProStueck);
-
-  const nettoSumme = runde(materialSumme + palettenSumme + frachtSumme + dieselzuschlagSumme);
+  const nettoSumme = runde(frachtSumme + dieselzuschlagSumme);
   const ustSumme = runde(nettoSumme * UST_SATZ);
   const bruttoSumme = runde(nettoSumme + ustSumme);
 
@@ -182,21 +209,17 @@ export function berechneKundenFracht(
     ok: true,
     ergebnis: {
       paletten,
-      tonnen,
-      koernung: eingabe.koernung,
-      bezeichnung: `Tennismehl ${eingabe.koernung === '0-2' ? '0/2' : '0/3'} mm gesackt, 25 × 40 kg je Palette`,
-      materialProTonne: basis.preisSackwareProTonne,
-      materialSumme,
-      palettenPreisProStueck: basis.preisPaletteProStueck,
-      palettenSumme,
+      gewichtKg,
+      zielPLZ: plz,
       frachtSumme,
       dieselzuschlagProzent,
       dieselzuschlagSumme,
-      dieselStandDatum: basis.dieselStandDatum,
+      dieselStand: basis.dieselStand,
       nettoSumme,
       ustSatzProzent: UST_SATZ * 100,
       ustSumme,
       bruttoSumme,
+      nettoJePalette: runde(nettoSumme / paletten),
     },
   };
 }

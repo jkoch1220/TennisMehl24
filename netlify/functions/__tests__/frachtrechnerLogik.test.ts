@@ -1,34 +1,43 @@
 /**
- * frachtrechnerLogik.test.ts — die Preislogik hinter dem Kunden-Frachtrechner.
+ * frachtrechnerLogik.test.ts — die Preislogik hinter dem ÖFFENTLICHEN Frachtrechner.
  *
- * Der Rechner zeigt einem Kunden mit gültigem Link eine Zahl, die er für
- * verbindlich hält. Zwei Dinge dürfen deshalb nie unbemerkt kippen:
+ * Seit dem Umbau ist /frachtrechner ein Werkzeug ohne Login, ohne Token und ohne
+ * Kunde: es rechnet ausschließlich Frachtpreise. Kein Material, keine
+ * Einwegpaletten, keine Körnung. Drei Dinge dürfen deshalb nie unbemerkt kippen:
  *
- * 1. **Die Mengendegression.** Raben staffelt: fünf Paletten kosten deutlich
- *    weniger als das Fünffache einer einzelnen. Die Angebotserstellung
- *    (`anfrageVerarbeitungService.ts:987` und `:1159`) rechnet heute
+ * 1. **Die Mengendegression.** Raben staffelt nach Sendungsgröße: fünf Paletten
+ *    kosten deutlich weniger als das Fünffache einer einzelnen. Die
+ *    Angebotserstellung (`anfrageVerarbeitungService.ts:987` und `:1159`) rechnet
  *    `berechneSpeditionskosten(plz, 1000) * tonnage` und verliert genau diese
  *    Eigenschaft. Der Test unten hält sie für den Rechner fest.
- * 2. **Die Verschwiegenheit der Antwort.** Basispreis, Zone, Gewichtsstufe,
- *    Aufschlagshöhe und Speditionsname sind Einkaufskonditionen. Wer ein Feld
- *    ins Ergebnis ergänzt, gibt es an jeden Kunden mit Link weiter — der
+ * 2. **Das Dieselfenster.** Die Appwrite-Historie führte am 09.09.2026 Werte bis
+ *    248 ct/L. Eine Live-Abfrage bei Tankerkönig am 09.09.2026 bestätigte dieses
+ *    Niveau (231,5 ct/L im Mittel) — die Werte sind also ECHT, nicht kaputt.
+ *    Das Plausibilitätsfenster ist deshalb weit gefasst: Es fängt nur noch
+ *    Einheitenfehler ab (EUR-Wert, der ein zweites Mal mit 100 multipliziert
+ *    wird), nicht ein vermeintlich „zu hohes" Marktniveau.
+ * 3. **Die Verschwiegenheit der Antwort.** Basispreis, Zone, Gewichtsstufe,
+ *    Aufschlagshöhe und Speditionsname sind Einkaufskonditionen. Wer ein Feld ins
+ *    Ergebnis ergänzt, gibt es an jeden weiter, der die Seite öffnet — der
  *    Feldtest ganz unten schlägt dann fehl.
  *
- * Die Erwartungswerte sind aus dem echten Tarif ausgerechnet (Raben, "Tarif
- * Deutschland ab 16.01.2026", Ladestelle 97828 Marktheidenfeld) und bewusst als
+ * Die Erwartungswerte stammen aus dem echten Tarif (Raben, "Tarif Deutschland ab
+ * 16.01.2026", Ladestelle 97828 Marktheidenfeld). Die Leitfälle sind bewusst als
  * Literale hinterlegt: eine Tarifänderung soll hier auffallen, nicht stillschweigend
  * mitwandern.
  */
 import { describe, it, expect } from 'vitest';
 import {
   berechneKundenFracht,
+  pruefeDieselCent,
   istDeutschePLZ,
   MAX_PALETTEN,
   KG_PRO_PALETTE,
   UST_SATZ,
   FRACHT_AUFSCHLAG_PROZENT_DEFAULT,
-  DIESEL_STAND_CENT_DEFAULT,
-  DIESEL_STAND_DATUM_DEFAULT,
+  DIESEL_FALLBACK_CENT,
+  DIESEL_MIN_CENT,
+  DIESEL_MAX_CENT,
   type FrachtrechnerPreisbasis,
 } from '../lib/frachtrechnerLogik';
 import {
@@ -39,30 +48,33 @@ import {
 } from '../../../src/constants/rabenPricing';
 
 /**
- * Preisbasis für alle Tests. Die Werte sind fixiert, damit die Erwartungswerte
- * nachrechenbar bleiben, wenn im Artikelstamm die Preise steigen.
+ * Preisbasis für alle Tests. Fixiert, damit die Erwartungswerte nachrechenbar
+ * bleiben, wenn sich der tagesaktuelle Dieselpreis bewegt.
  */
 const BASIS: FrachtrechnerPreisbasis = {
-  preisSackwareProTonne: 155,
-  preisPaletteProStueck: 12.5,
   frachtAufschlagProzent: FRACHT_AUFSCHLAG_PROZENT_DEFAULT,
-  dieselStandCent: DIESEL_STAND_CENT_DEFAULT,
-  dieselStandDatum: DIESEL_STAND_DATUM_DEFAULT,
+  dieselCent: DIESEL_FALLBACK_CENT,
+  dieselStand: '09.09.2026',
 };
 
-/** 97828 Marktheidenfeld — Ladestelle selbst, PLZ-Präfix 97 → Frachtzone 1 */
+/** 97828 Marktheidenfeld — Ladestelle selbst, PLZ-Präfix 97 → Frachtzone 1 / DE97 */
 const PLZ_ZONE_1 = '97828';
+
+/** Kaufmännische Cent-Rundung, identisch zur Logik (vermeidet 0,1+0,2-Artefakte). */
+const aufCent = (wert: number): number => Math.round((wert + Number.EPSILON) * 100) / 100;
 
 const rechne = (
   paletten: number,
   zielPLZ = PLZ_ZONE_1,
   basis: Partial<FrachtrechnerPreisbasis> = {}
-) => berechneKundenFracht({ paletten, koernung: '0-2', zielPLZ }, { ...BASIS, ...basis });
+) => berechneKundenFracht({ paletten, zielPLZ }, { ...BASIS, ...basis });
 
 /** Wirft, wenn die Berechnung fehlschlug — spart in jedem Test das `!`. */
 const ergebnisVon = (...args: Parameters<typeof rechne>) => {
   const antwort = rechne(...args);
-  expect(antwort.ok, `unerwarteter Fehler: ${antwort.fehler} ${antwort.fehlertext ?? ''}`).toBe(true);
+  expect(antwort.ok, `unerwarteter Fehler: ${antwort.fehler} ${antwort.fehlertext ?? ''}`).toBe(
+    true
+  );
   return antwort.ergebnis!;
 };
 
@@ -70,70 +82,60 @@ describe('berechneKundenFracht — gültige Berechnung', () => {
   it('rechnet 1 Palette nach 97828 exakt nach dem Tarif durch', () => {
     const e = ergebnisVon(1);
 
-    // Material: 1 Palette = 1.000 kg = 1 t × 155,00 €/t
-    expect(e.tonnen).toBe(1);
-    expect(e.materialProTonne).toBe(155);
-    expect(e.materialSumme).toBe(155);
-
-    // Einwegpalette: 1 × 12,50 €
-    expect(e.palettenSumme).toBe(12.5);
+    expect(e.paletten).toBe(1);
+    expect(e.gewichtKg).toBe(KG_PRO_PALETTE);
+    expect(e.zielPLZ).toBe(PLZ_ZONE_1);
 
     // Fracht: Zone 1, 1 Palette = 71,44 € Basispreis × 1,15 Aufschlag = 82,156 → 82,16 €
     expect(RABEN_TARIF_BIS_5T[0].preiseNachZone[1]).toBe(71.44);
     expect(e.frachtSumme).toBe(82.16);
 
-    // Dieselfloater bei 155,0 ct/L: Stufe "> 30 %" → 7,5 % auf die VERKAUFSfracht
-    expect(e.dieselzuschlagProzent).toBe(7.5);
-    expect(e.dieselzuschlagSumme).toBe(6.16);
-    expect(e.dieselStandDatum).toBe('09.09.2026');
+    // Dieselfloater bei 230,0 ct/L: Stufe „> 95 %" → 23,75 % auf die VERKAUFSfracht
+    expect(e.dieselzuschlagProzent).toBe(23.75);
+    expect(e.dieselzuschlagSumme).toBe(19.51);
+    expect(e.dieselStand).toBe('09.09.2026');
 
-    // 155,00 + 12,50 + 82,16 + 6,16 = 255,82 netto
-    expect(e.nettoSumme).toBe(255.82);
+    // 82,16 + 19,51 = 101,67 netto
+    expect(e.nettoSumme).toBe(101.67);
     expect(e.ustSatzProzent).toBe(19);
-    expect(e.ustSumme).toBe(48.61);
-    expect(e.bruttoSumme).toBe(304.43);
-  });
-
-  it('leitet die Bezeichnung aus der Körnung ab', () => {
-    expect(ergebnisVon(1).bezeichnung).toBe('Tennismehl 0/2 mm gesackt, 25 × 40 kg je Palette');
-
-    const grob = berechneKundenFracht({ paletten: 1, koernung: '0-3', zielPLZ: PLZ_ZONE_1 }, BASIS);
-    expect(grob.ergebnis?.koernung).toBe('0-3');
-    expect(grob.ergebnis?.bezeichnung).toBe('Tennismehl 0/3 mm gesackt, 25 × 40 kg je Palette');
+    expect(e.ustSumme).toBe(19.32); // 19 % von 101,67 = 19,3173
+    expect(e.bruttoSumme).toBe(120.99);
+    expect(e.nettoJePalette).toBe(101.67);
   });
 
   it('rechnet 1.000 kg je Palette — auch an der Obergrenze', () => {
-    expect(ergebnisVon(MAX_PALETTEN).tonnen).toBe((MAX_PALETTEN * KG_PRO_PALETTE) / 1000);
-    expect(ergebnisVon(MAX_PALETTEN).paletten).toBe(24);
+    const e = ergebnisVon(MAX_PALETTEN);
+    expect(e.paletten).toBe(24);
+    expect(e.gewichtKg).toBe(MAX_PALETTEN * KG_PRO_PALETTE);
   });
 
   it('rechnet den Dieselzuschlag auf die Verkaufsfracht, nicht auf den Einkauf', () => {
     // Sonst bliebe uns der Floater-Anteil auf unserem Aufschlag als Verlust.
     const e = ergebnisVon(7);
-    expect(e.dieselzuschlagSumme).toBe(
-      Math.round(e.frachtSumme * (e.dieselzuschlagProzent / 100) * 100) / 100
-    );
+    expect(e.dieselzuschlagSumme).toBe(aufCent(e.frachtSumme * (e.dieselzuschlagProzent / 100)));
   });
 
   it('lässt den Dieselzuschlag bei niedrigem Dieselstand ganz weg', () => {
-    // ≤ 120,75 ct/L ist die Nullstufe des Raben-Floaters.
-    const e = ergebnisVon(1, PLZ_ZONE_1, { dieselStandCent: 118 });
+    // ≤ 120,75 ct/L ist die Nullstufe des Raben-Floaters — und liegt noch im
+    // Plausibilitätsfenster, wird also nicht durch den Fallback ersetzt.
+    const e = ergebnisVon(1, PLZ_ZONE_1, { dieselCent: 118 });
     expect(e.dieselzuschlagProzent).toBe(0);
     expect(e.dieselzuschlagSumme).toBe(0);
-    expect(e.nettoSumme).toBe(Math.round((155 + 12.5 + e.frachtSumme) * 100) / 100);
+    expect(e.nettoSumme).toBe(e.frachtSumme);
   });
 
   it('wirkt der Frachtaufschlag multiplikativ auf den Basispreis', () => {
     const ohne = ergebnisVon(1, PLZ_ZONE_1, { frachtAufschlagProzent: 0 });
     const mit = ergebnisVon(1, PLZ_ZONE_1, { frachtAufschlagProzent: 30 });
     expect(ohne.frachtSumme).toBe(71.44);
-    expect(mit.frachtSumme).toBe(Math.round(71.44 * 1.3 * 100) / 100);
+    expect(mit.frachtSumme).toBe(aufCent(71.44 * 1.3));
   });
 
-  it('akzeptiert eine PLZ mit umgebenden Leerzeichen', () => {
-    const e = berechneKundenFracht({ paletten: 1, koernung: '0-2', zielPLZ: '  97828 ' }, BASIS);
-    expect(e.ok).toBe(true);
-    expect(e.ergebnis?.frachtSumme).toBe(82.16);
+  it('akzeptiert eine PLZ mit umgebenden Leerzeichen und gibt sie getrimmt zurück', () => {
+    const antwort = berechneKundenFracht({ paletten: 1, zielPLZ: '  97828 ' }, BASIS);
+    expect(antwort.ok).toBe(true);
+    expect(antwort.ergebnis?.zielPLZ).toBe('97828');
+    expect(antwort.ergebnis?.frachtSumme).toBe(82.16);
   });
 });
 
@@ -152,13 +154,6 @@ describe('Mengendegression', () => {
     expect(fuenf).toBeLessThan(einzeln * 5 * 0.5);
   });
 
-  it('sinkt der Frachtpreis je Palette mit jeder weiteren Palette (bis 5 t)', () => {
-    const jePalette = [1, 2, 3, 4, 5].map((p) => ergebnisVon(p).frachtSumme / p);
-    for (let i = 1; i < jePalette.length; i++) {
-      expect(jePalette[i]).toBeLessThan(jePalette[i - 1]);
-    }
-  });
-
   it('bleibt die Degression über alle Frachtzonen erhalten', () => {
     // Ein Tarifpflegefehler in einer einzelnen Zone fiele sonst niemandem auf.
     for (const prefix of Object.keys(PLZ_ZU_FRACHTZONE)) {
@@ -168,6 +163,60 @@ describe('Mengendegression', () => {
       );
     }
   });
+
+  it('sinkt der Frachtpreis je Palette mit jeder weiteren Palette (Zonentarif 1–5)', () => {
+    const jePalette = [1, 2, 3, 4, 5].map((p) => ergebnisVon(p).frachtSumme / p);
+    for (let i = 1; i < jePalette.length; i++) {
+      expect(jePalette[i]).toBeLessThan(jePalette[i - 1]);
+    }
+  });
+
+  it('sinkt der Frachtpreis je Palette auch im PLZ-Tarif (6–24) in jeder Zone', () => {
+    for (const prefix of Object.keys(PLZ_ZU_DEZONE)) {
+      const plz = `${prefix}123`;
+      let vorher = Infinity;
+      for (let p = 6; p <= MAX_PALETTEN; p++) {
+        const jePalette = ergebnisVon(p, plz).frachtSumme / p;
+        expect(jePalette, `${p} Paletten nach ${plz}`).toBeLessThan(vorher);
+        vorher = jePalette;
+      }
+    }
+  });
+});
+
+describe('nettoJePalette', () => {
+  it('ist die auf Cent gerundete Nettosumme je Palette', () => {
+    for (const paletten of [1, 3, 5, 6, 13, 24]) {
+      const e = ergebnisVon(paletten, '10115');
+      expect(e.nettoJePalette, `${paletten} Paletten`).toBe(aufCent(e.nettoSumme / paletten));
+    }
+  });
+
+  it('sinkt innerhalb einer Tarifart mit steigender Palettenzahl', () => {
+    // ACHTUNG: „innerhalb einer Tarifart". Über die 5-t-Grenze hinweg steigt der
+    // Wert — 5 Paletten liegen bei 40,76 €/Pal., 6 Paletten bei 68,55 €/Pal.
+    // Der Sprung ist echt (Zonentarif → PLZ-Tarif) und im Test unten festgehalten.
+    const zonentarif = [1, 2, 3, 4, 5].map((p) => ergebnisVon(p).nettoJePalette);
+    for (let i = 1; i < zonentarif.length; i++) {
+      expect(zonentarif[i]).toBeLessThan(zonentarif[i - 1]);
+    }
+
+    const plzTarif = [6, 9, 12, 18, 24].map((p) => ergebnisVon(p).nettoJePalette);
+    for (let i = 1; i < plzTarif.length; i++) {
+      expect(plzTarif[i]).toBeLessThan(plzTarif[i - 1]);
+    }
+  });
+
+  it('macht den Preissprung an der 5-t-Grenze sichtbar, statt ihn zu glätten', () => {
+    // Die sechste Palette kostet mehr als die fünf davor zusammen. Wer das für
+    // einen Rundungsfehler hält, muss hier vorbei.
+    expect(ergebnisVon(5).nettoJePalette).toBe(40.76);
+    expect(ergebnisVon(6).nettoJePalette).toBe(68.55);
+    // 203,80 € für 5 Paletten, 411,28 € für 6 — die sechste kostet mehr Fracht
+    // als die fünf davor zusammen.
+    expect(ergebnisVon(5).nettoSumme).toBe(203.8);
+    expect(ergebnisVon(6).nettoSumme).toBe(411.28);
+  });
 });
 
 describe('Grenze zwischen Zonentarif (bis 5 t) und PLZ-Tarif (ab 6 t)', () => {
@@ -176,21 +225,27 @@ describe('Grenze zwischen Zonentarif (bis 5 t) und PLZ-Tarif (ab 6 t)', () => {
 
   it('nutzen 5 Paletten den Zonentarif', () => {
     const basispreis = RABEN_TARIF_BIS_5T.find((t) => t.paletten === 5)!.preiseNachZone[zone];
-    expect(ergebnisVon(5).frachtSumme).toBe(Math.round(basispreis * 1.15 * 100) / 100);
+    expect(ergebnisVon(5).frachtSumme).toBe(aufCent(basispreis * 1.15));
   });
 
   it('nutzen 6 Paletten den PLZ-Tarif mit der Gewichtsstufe 6.000 kg', () => {
     const basispreis = RABEN_TARIF_AB_5T[deZone][6000];
-    expect(ergebnisVon(6).frachtSumme).toBe(Math.round(basispreis * 1.15 * 100) / 100);
+    expect(ergebnisVon(6).frachtSumme).toBe(aufCent(basispreis * 1.15));
   });
 
-  it('liefern beide Seiten der Grenze ein vollständiges Ergebnis', () => {
-    for (const paletten of [5, 6]) {
-      const e = ergebnisVon(paletten);
-      expect(e.paletten).toBe(paletten);
+  it('liefern beide Seiten der Grenze ein vollständiges Ergebnis, und 6 kostet mehr als 5', () => {
+    const fuenf = ergebnisVon(5);
+    const sechs = ergebnisVon(6);
+
+    for (const e of [fuenf, sechs]) {
       expect(e.frachtSumme).toBeGreaterThan(0);
+      expect(e.nettoSumme).toBeGreaterThan(0);
       expect(e.bruttoSumme).toBeGreaterThan(e.nettoSumme);
     }
+    expect(fuenf.paletten).toBe(5);
+    expect(sechs.paletten).toBe(6);
+    expect(sechs.frachtSumme).toBeGreaterThan(fuenf.frachtSumme);
+    expect(sechs.nettoSumme).toBeGreaterThan(fuenf.nettoSumme);
   });
 
   it('liefert jede Palettenzahl von 1 bis 24 in jeder bekannten Zone einen Preis', () => {
@@ -205,10 +260,10 @@ describe('Grenze zwischen Zonentarif (bis 5 t) und PLZ-Tarif (ab 6 t)', () => {
 });
 
 describe('PLZ-Prüfung', () => {
-  it.each(['123', '', '   ', '1010', '978281', '9782a', 'ABCDE'])(
+  it.each(['123', '', '   ', '1010', '9040a', '978281', '9782a', 'ABCDE'])(
     'weist "%s" als ungültige PLZ ab',
     (plz) => {
-      const antwort = berechneKundenFracht({ paletten: 1, koernung: '0-2', zielPLZ: plz }, BASIS);
+      const antwort = berechneKundenFracht({ paletten: 1, zielPLZ: plz }, BASIS);
       expect(antwort.ok).toBe(false);
       expect(antwort.fehler).toBe('PLZ_UNGUELTIG');
       expect(antwort.ergebnis).toBeUndefined();
@@ -217,17 +272,18 @@ describe('PLZ-Prüfung', () => {
   );
 
   it('lehnt die vierstellige Wiener 1010 ab, statt sie als Berlin zu berechnen', () => {
-    // berechneRabenFracht nimmt kommentarlos substring(0,2) — "10" wäre DE10.
+    // berechneRabenFracht nimmt kommentarlos substring(0,2) — „10" wäre DE10.
     expect(rechne(1, '1010').fehler).toBe('PLZ_UNGUELTIG');
     expect(istDeutschePLZ('1010')).toBe(false);
     expect(istDeutschePLZ('97828')).toBe(true);
     expect(istDeutschePLZ(' 97828 ')).toBe(true);
+    expect(istDeutschePLZ('9040a')).toBe(false);
   });
 
   it.each([1, 5, 6, 24])(
     'meldet die fünfstellige, aber tariflich unbekannte 05123 bei %i Paletten als PLZ_UNBEKANNT',
     (paletten) => {
-      // Präfix "05" fehlt in beiden Tariftabellen (ebenso 00, 11, 43, 62) —
+      // Präfix „05" fehlt in beiden Tariftabellen (ebenso 00, 11, 43, 62) —
       // die PLZ ist formal gültig, ein Preis liegt uns aber nicht vor.
       expect(PLZ_ZU_FRACHTZONE['05']).toBeUndefined();
       expect(PLZ_ZU_DEZONE['05']).toBeUndefined();
@@ -235,6 +291,7 @@ describe('PLZ-Prüfung', () => {
       const antwort = rechne(paletten, '05123');
       expect(antwort.ok).toBe(false);
       expect(antwort.fehler).toBe('PLZ_UNBEKANNT');
+      expect(antwort.ergebnis).toBeUndefined();
       expect(antwort.fehlertext).toContain('rufen Sie uns an');
     }
   );
@@ -265,54 +322,128 @@ describe('Palettenzahl', () => {
     expect(rechne(MAX_PALETTEN).ok).toBe(true);
     expect(rechne(MAX_PALETTEN + 1).ok).toBe(false);
   });
+
+  it('prüft die Palettenzahl vor der PLZ', () => {
+    // Wer 0 Paletten und eine kaputte PLZ schickt, soll zuerst die Menge
+    // korrigieren — sonst wandert der Nutzer im Kreis.
+    expect(rechne(0, 'ABCDE').fehler).toBe('PALETTEN_UNGUELTIG');
+  });
+});
+
+describe('pruefeDieselCent — Plausibilitätsfenster', () => {
+  it('lässt einen realistischen Dieselpreis durch', () => {
+    expect(pruefeDieselCent(230)).toEqual({ cent: 230, plausibel: true });
+    expect(pruefeDieselCent(DIESEL_FALLBACK_CENT).plausibel).toBe(true);
+  });
+
+  it('lässt 248 ct/L durch — das Marktniveau 2026, kein Datenfehler', () => {
+    // Frühere Fassung verwarf diesen Wert als „Ausreißer". Die Live-Abfrage bei
+    // Tankerkönig (231,5 ct/L am 09.09.2026) zeigt: er ist echt. Ihn zu ersetzen
+    // hätte dem Kunden einen zu niedrigen Dieselzuschlag ausgewiesen.
+    const gepruef = pruefeDieselCent(248);
+    expect(gepruef.plausibel).toBe(true);
+    expect(gepruef.cent).toBe(248);
+  });
+
+  it.each([79.99, 0, -5, 500.01, 23150, 1e6])(
+    'ersetzt den unplausiblen Wert %p durch den Richtwert',
+    (wert) => {
+      expect(pruefeDieselCent(wert)).toEqual({ cent: DIESEL_FALLBACK_CENT, plausibel: false });
+    }
+  );
+
+  it.each([null, undefined, NaN, Infinity, -Infinity])(
+    'fällt bei %p auf den Richtwert zurück',
+    (wert) => {
+      expect(pruefeDieselCent(wert as number | null | undefined)).toEqual({
+        cent: DIESEL_FALLBACK_CENT,
+        plausibel: false,
+      });
+    }
+  );
+
+  it('schließt die Grenzen 80 und 500 ein', () => {
+    expect(pruefeDieselCent(DIESEL_MIN_CENT)).toEqual({ cent: DIESEL_MIN_CENT, plausibel: true });
+    expect(pruefeDieselCent(DIESEL_MAX_CENT)).toEqual({ cent: DIESEL_MAX_CENT, plausibel: true });
+    expect(DIESEL_MIN_CENT).toBe(80);
+    expect(DIESEL_MAX_CENT).toBe(500);
+    expect(pruefeDieselCent(DIESEL_MIN_CENT - 0.01).plausibel).toBe(false);
+    expect(pruefeDieselCent(DIESEL_MAX_CENT + 0.01).plausibel).toBe(false);
+  });
+});
+
+describe('Dieselzuschlag wirkt auf die Summe', () => {
+  it('ergibt ein höherer Dieselstand einen höheren Zuschlag bei gleicher Fracht', () => {
+    const niedrig = ergebnisVon(6, PLZ_ZONE_1, { dieselCent: 130 });
+    const hoch = ergebnisVon(6, PLZ_ZONE_1, { dieselCent: 200 });
+
+    // Die Fracht selbst hängt nicht am Diesel — sonst wäre der Vergleich wertlos.
+    expect(hoch.frachtSumme).toBe(niedrig.frachtSumme);
+    expect(hoch.dieselzuschlagProzent).toBeGreaterThan(niedrig.dieselzuschlagProzent);
+    expect(hoch.dieselzuschlagSumme).toBeGreaterThan(niedrig.dieselzuschlagSumme);
+    expect(hoch.nettoSumme).toBeGreaterThan(niedrig.nettoSumme);
+    expect(hoch.bruttoSumme).toBeGreaterThan(niedrig.bruttoSumme);
+  });
+
+  it('steigt der Zuschlag über das ganze Plausibilitätsfenster monoton', () => {
+    let vorher = -1;
+    for (let cent = DIESEL_MIN_CENT; cent <= DIESEL_MAX_CENT; cent += 5) {
+      const prozent = ergebnisVon(3, PLZ_ZONE_1, { dieselCent: cent }).dieselzuschlagProzent;
+      expect(prozent, `${cent} ct/L`).toBeGreaterThanOrEqual(vorher);
+      vorher = prozent;
+    }
+  });
+
+  it('reicht den Anzeigetext des Dieselstands unverändert durch', () => {
+    expect(ergebnisVon(2, PLZ_ZONE_1, { dieselStand: 'Richtwert' }).dieselStand).toBe('Richtwert');
+  });
 });
 
 describe('Rundung und Summenkonsistenz', () => {
   /**
    * `Number.isInteger(wert * 100)` wäre der naheliegende Test — und er wäre
-   * falsch: 303,65 × 100 ergibt in IEEE-754 30364.999999999996. Über den
-   * gesamten Tarif stolpern so 1.353 von 25.080 korrekt gerundeten Beträgen.
-   * Geprüft wird deshalb, ob ein Betrag seiner eigenen Cent-Rundung entspricht.
+   * falsch: 303,65 × 100 ergibt in IEEE-754 30364.999999999996. Geprüft wird
+   * deshalb, ob ein Betrag seiner eigenen Cent-Rundung entspricht.
    */
   const aufCentGerundet = (wert: number): boolean => Math.round(wert * 100) / 100 === wert;
 
-  const geldfelder = (paletten: number, plz: string) => {
-    const e = ergebnisVon(paletten, plz);
-    return {
-      e,
-      betraege: {
-        materialSumme: e.materialSumme,
-        palettenSumme: e.palettenSumme,
-        frachtSumme: e.frachtSumme,
-        dieselzuschlagSumme: e.dieselzuschlagSumme,
-        nettoSumme: e.nettoSumme,
-        ustSumme: e.ustSumme,
-        bruttoSumme: e.bruttoSumme,
-      },
-    };
-  };
+  const MENGEN = [1, 3, 5, 6, 13, 17, 19, 24];
 
   it('hat jeder Geldbetrag höchstens zwei Nachkommastellen — in jeder Zone, für jede Menge', () => {
     for (const prefix of Object.keys(PLZ_ZU_FRACHTZONE)) {
-      for (const paletten of [1, 3, 5, 6, 13, 17, 19, 24]) {
-        const { betraege } = geldfelder(paletten, `${prefix}123`);
+      for (const paletten of MENGEN) {
+        const e = ergebnisVon(paletten, `${prefix}123`);
+        const betraege = {
+          frachtSumme: e.frachtSumme,
+          dieselzuschlagSumme: e.dieselzuschlagSumme,
+          nettoSumme: e.nettoSumme,
+          ustSumme: e.ustSumme,
+          bruttoSumme: e.bruttoSumme,
+          nettoJePalette: e.nettoJePalette,
+        };
         for (const [feld, betrag] of Object.entries(betraege)) {
-          expect(aufCentGerundet(betrag), `${feld} bei ${paletten} Pal. nach ${prefix}123 = ${betrag}`).toBe(true);
+          expect(
+            aufCentGerundet(betrag),
+            `${feld} bei ${paletten} Pal. nach ${prefix}123 = ${betrag}`
+          ).toBe(true);
         }
       }
     }
   });
 
-  it('ergibt netto exakt Material + Paletten + Fracht + Dieselzuschlag', () => {
+  it('ergibt netto exakt Fracht + Dieselzuschlag und brutto netto + USt', () => {
+    const cent = (w: number) => Math.round(w * 100);
     for (const prefix of Object.keys(PLZ_ZU_FRACHTZONE)) {
       for (const paletten of [1, 5, 6, 24]) {
-        const { e } = geldfelder(paletten, `${prefix}123`);
-        const cent = (w: number) => Math.round(w * 100);
+        const e = ergebnisVon(paletten, `${prefix}123`);
         expect(
-          cent(e.materialSumme) + cent(e.palettenSumme) + cent(e.frachtSumme) + cent(e.dieselzuschlagSumme),
+          cent(e.frachtSumme) + cent(e.dieselzuschlagSumme),
           `Netto bei ${paletten} Pal. nach ${prefix}123`
         ).toBe(cent(e.nettoSumme));
-        expect(cent(e.nettoSumme) + cent(e.ustSumme)).toBe(cent(e.bruttoSumme));
+        expect(
+          cent(e.nettoSumme) + cent(e.ustSumme),
+          `Brutto bei ${paletten} Pal. nach ${prefix}123`
+        ).toBe(cent(e.bruttoSumme));
       }
     }
   });
@@ -320,49 +451,28 @@ describe('Rundung und Summenkonsistenz', () => {
   it('rechnet die Umsatzsteuer mit 19 % auf den Nettobetrag', () => {
     const e = ergebnisVon(9, '10115');
     expect(e.ustSatzProzent).toBe(UST_SATZ * 100);
-    expect(e.ustSumme).toBe(Math.round(e.nettoSumme * UST_SATZ * 100) / 100);
-  });
-});
-
-describe('Palettenpreis 0', () => {
-  it('ergibt eine Palettensumme von 0 — die Seite blendet die Zeile dann aus', () => {
-    const e = ergebnisVon(7, PLZ_ZONE_1, { preisPaletteProStueck: 0 });
-    expect(e.palettenPreisProStueck).toBe(0);
-    expect(e.palettenSumme).toBe(0);
-    expect(e.nettoSumme).toBe(
-      Math.round((e.materialSumme + e.frachtSumme + e.dieselzuschlagSumme) * 100) / 100
-    );
-  });
-
-  it('unterscheidet sich die Nettosumme genau um den Palettenanteil', () => {
-    const mit = ergebnisVon(4);
-    const ohne = ergebnisVon(4, PLZ_ZONE_1, { preisPaletteProStueck: 0 });
-    expect(Math.round((mit.nettoSumme - ohne.nettoSumme) * 100) / 100).toBe(4 * 12.5);
+    expect(e.ustSumme).toBe(aufCent(e.nettoSumme * UST_SATZ));
   });
 });
 
 describe('Verschwiegenheit der Antwort', () => {
   /**
    * Diese Zahlen sind Einkaufskonditionen. Sie gehören in keine Antwort, die
-   * über einen öffentlichen Link abrufbar ist.
+   * über einen öffentlichen Link ohne Login abrufbar ist.
    */
   const ERLAUBTE_FELDER = [
     'paletten',
-    'tonnen',
-    'koernung',
-    'bezeichnung',
-    'materialProTonne',
-    'materialSumme',
-    'palettenPreisProStueck',
-    'palettenSumme',
+    'gewichtKg',
+    'zielPLZ',
     'frachtSumme',
     'dieselzuschlagProzent',
     'dieselzuschlagSumme',
-    'dieselStandDatum',
+    'dieselStand',
     'nettoSumme',
     'ustSatzProzent',
     'ustSumme',
     'bruttoSumme',
+    'nettoJePalette',
   ];
 
   it('enthält das Ergebnis exakt die freigegebenen Felder', () => {
@@ -371,14 +481,28 @@ describe('Verschwiegenheit der Antwort', () => {
 
   it('nennt das Ergebnis weder Basispreis noch Zone, Gewichtsstufe, Aufschlag oder Spedition', () => {
     const serialisiert = JSON.stringify(rechne(6)).toLowerCase();
-    for (const verraeter of ['raben', 'basispreis', 'zone', 'gewichtsstufe', 'aufschlag', 'tarif', 'preisprokg']) {
-      expect(serialisiert, `„${verraeter}" steht in der Kundenantwort`).not.toContain(verraeter);
+    for (const verraeter of [
+      'raben',
+      'basispreis',
+      'zone',
+      'gewichtsstufe',
+      'aufschlag',
+      'tarif',
+      'preisprokg',
+      'preispropalette',
+    ]) {
+      expect(serialisiert, `„${verraeter}" steht in der öffentlichen Antwort`).not.toContain(
+        verraeter
+      );
     }
   });
 
   it('gibt auch der Fehlerfall keinen Tarif preis', () => {
-    const serialisiert = JSON.stringify(rechne(1, '05123')).toLowerCase();
-    expect(serialisiert).not.toContain('raben');
-    expect(serialisiert).not.toContain('zone');
+    for (const antwort of [rechne(1, '05123'), rechne(0), rechne(1, '1010')]) {
+      const serialisiert = JSON.stringify(antwort).toLowerCase();
+      expect(serialisiert).not.toContain('raben');
+      expect(serialisiert).not.toContain('zone');
+      expect(serialisiert).not.toContain('basispreis');
+    }
   });
 });

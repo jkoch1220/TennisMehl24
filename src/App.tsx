@@ -450,9 +450,10 @@ function App() {
                 <Route path="/bestellung/:projektId" element={<Bestellung />} />
 
                 {/* ÖFFENTLICHE Route für den Frachtkostenrechner (Platzbauer, ohne Login!)
-                    Zugriff nur mit gültigem Token — Validierung serverseitig in der Netlify
-                    Function; die Preislogik (Zone, Basispreis, Aufschlag) bleibt dort. */}
-                <Route path="/frachtrechner/:kundeId" element={<Frachtrechner />} />
+                    Frei zugänglich ohne Token und ohne Kundenbezug — der Link darf an jeden
+                    Platzbauer gehen. Die Preislogik (Zone, Basispreis, Aufschlag, Diesel)
+                    bleibt serverseitig in der Netlify Function. */}
+                <Route path="/frachtrechner" element={<Frachtrechner />} />
 
                 {/* ÖFFENTLICHE Pflichtangaben (§ 5 DDG, Art. 13 DSGVO).
                     Müssen ohne Login erreichbar sein — die Fußzeile jeder Kundenseite
