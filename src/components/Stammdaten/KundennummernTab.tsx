@@ -3,6 +3,7 @@ import { Hash, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { kundennummerService } from '../../services/kundennummerService';
 import type { SaisonKunde } from '../../types/saisonplanung';
+import { NumberInput } from '../NumberInput';
 
 const KundennummernTab = () => {
   const [loading, setLoading] = useState(false);
@@ -119,10 +120,10 @@ const KundennummernTab = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Startnummer für neue Kunden
             </label>
-            <input
-              type="number"
+            <NumberInput
+              dezimalstellen={0}
               value={naechsteNummer}
-              onChange={(e) => setNaechsteNummer(parseInt(e.target.value) || 231)}
+              onChange={(v) => setNaechsteNummer(v || 231)}
               disabled={status === 'running'}
               className="w-full md:w-64 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
             />

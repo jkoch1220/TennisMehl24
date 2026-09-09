@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, User, Mail, Phone, Briefcase, Clock } from 'lucide-react';
 import { Mitarbeiter, MITARBEITER_FARBEN } from '../../types/schichtplanung';
+import { NumberInput } from '../NumberInput';
 
 interface MitarbeiterDialogProps {
   mitarbeiter: Mitarbeiter | null;
@@ -165,10 +166,10 @@ export default function MitarbeiterDialog({ mitarbeiter, onSave, onClose }: Mita
                 <Clock className="w-4 h-4 text-gray-400" />
                 Max. Stunden/Woche
               </label>
-              <input
-                type="number"
+              <NumberInput
+                dezimalstellen={0}
                 value={formData.maxStundenProWoche}
-                onChange={(e) => setFormData({ ...formData, maxStundenProWoche: parseInt(e.target.value) || 40 })}
+                onChange={(v) => setFormData({ ...formData, maxStundenProWoche: v || 40 })}
                 min={1}
                 max={168}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"

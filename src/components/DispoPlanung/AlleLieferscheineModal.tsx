@@ -38,6 +38,7 @@ import { holeLiefernachweisUrlFuerProjekt } from '../../services/liefernachweisS
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { projektService } from '../../services/projektService';
 import { einheitenMit } from '../../constants/einheiten';
+import { NumberInput } from '../NumberInput';
 import {
   erkenneSonderPositionen,
   PositionWarning,
@@ -1169,11 +1170,10 @@ const LieferscheinKarte = ({
                           />
                         </td>
                         <td className="px-2 py-1.5">
-                          <input
-                            type="number"
+                          <NumberInput
                             step="0.5"
                             value={pos.menge}
-                            onChange={(e) => onUpdatePosition(idx, 'menge', parseFloat(e.target.value) || 0)}
+                            onChange={(v) => onUpdatePosition(idx, 'menge', v)}
                             className="w-full px-2 py-1 text-xs text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
                           />
                         </td>

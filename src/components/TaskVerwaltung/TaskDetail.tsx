@@ -43,6 +43,7 @@ import {
 import { getCachedUsersList } from '../../services/userCacheService';
 import AutoGrowTextarea from '../Mindmap/AutoGrowTextarea';
 import { istReviewFaellig, istTaskUeberfaellig } from '../Mindmap/mindmapUtils';
+import { NumberInput, OptionalNumberInput } from '../NumberInput';
 
 const TIMER_STORAGE_KEY = 'tm_task_timer';
 
@@ -582,13 +583,13 @@ const TaskDetail = () => {
                   <Hourglass className="h-3.5 w-3.5" />
                   Geschätzter Aufwand (Minuten)
                 </label>
-                <input
-                  type="number"
+                <NumberInput
                   min={0}
                   step={15}
-                  value={geschaetzt || ''}
-                  onChange={(e) =>
-                    patchTask({ geschaetztMinuten: parseInt(e.target.value, 10) || 0 })
+                  dezimalstellen={0}
+                  value={geschaetzt}
+                  onChange={(v) =>
+                    patchTask({ geschaetztMinuten: v })
                   }
                   placeholder="z. B. 120"
                   className={inputClasses}
@@ -656,11 +657,11 @@ const TaskDetail = () => {
 
             {/* Manueller Eintrag */}
             <div className="mb-4 flex gap-2">
-              <input
-                type="number"
+              <OptionalNumberInput
                 min={1}
-                value={zeitMinuten}
-                onChange={(e) => setZeitMinuten(e.target.value)}
+                dezimalstellen={0}
+                value={zeitMinuten === '' ? null : Number(zeitMinuten)}
+                onChange={(v) => setZeitMinuten(v === null ? '' : String(v))}
                 placeholder="Min."
                 className={`${inputClasses} w-20`}
               />

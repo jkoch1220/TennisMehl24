@@ -3,6 +3,7 @@ import { X, Check } from 'lucide-react';
 import { fahrkostenService } from '../../services/fahrkostenService';
 import { DefaultStrecke, Person, Auto, Firma, Fahrt, NeueFahrt } from '../../types/fahrtkosten';
 import { toISODate } from './dateUtils';
+import { NumberInput, OptionalNumberInput } from '../NumberInput';
 
 interface FahrtFormularProps {
   person: Person;
@@ -243,19 +244,15 @@ export default function FahrtFormular({
               Kilometerstand <span className="text-gray-400">(optional)</span>
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={startKm}
-                onChange={e => setStartKm(e.target.value)}
+              <OptionalNumberInput
+                value={startKm === '' ? null : Number(startKm)}
+                onChange={v => setStartKm(v === null ? '' : String(v))}
                 placeholder="Start (z.B. 123450)"
                 className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
               />
-              <input
-                type="text"
-                inputMode="decimal"
-                value={endKm}
-                onChange={e => setEndKm(e.target.value)}
+              <OptionalNumberInput
+                value={endKm === '' ? null : Number(endKm)}
+                onChange={v => setEndKm(v === null ? '' : String(v))}
                 placeholder="Ende (z.B. 123512)"
                 className="w-full px-4 py-3 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
               />
@@ -270,10 +267,9 @@ export default function FahrtFormular({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Gefahrene km (gesamt) <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              value={kmAusStand !== null ? kmAusStand : (kilometer || '')}
-              onChange={e => setKilometer(Number(e.target.value))}
+            <NumberInput
+              value={kmAusStand !== null ? kmAusStand : kilometer}
+              onChange={v => setKilometer(v)}
               readOnly={kmAusStand !== null}
               placeholder="z.B. 90"
               min="0"

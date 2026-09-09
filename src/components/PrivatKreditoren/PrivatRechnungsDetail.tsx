@@ -3,6 +3,7 @@ import { X, Edit, CreditCard, MessageSquare, Loader2 } from 'lucide-react';
 import { OffeneRechnung, Zahlung, RechnungsAktivitaet } from '../../types/kreditor';
 import { usePrivatKreditor } from '../../contexts/PrivatKreditorContext';
 import { ID } from 'appwrite';
+import { NumberInput } from '../NumberInput';
 
 interface PrivatRechnungsDetailProps {
   rechnung: OffeneRechnung;
@@ -281,11 +282,11 @@ const PrivatRechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: PrivatRe
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">Betrag</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="0.01"
-                    value={zahlungsBetrag || ''}
-                    onChange={(e) => setZahlungsBetrag(parseFloat(e.target.value) || 0)}
+                    dezimalstellen={2}
+                    value={zahlungsBetrag}
+                    onChange={(v) => setZahlungsBetrag(v)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg"
                   />
                 </div>

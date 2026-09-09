@@ -10,6 +10,7 @@
 import { Tour } from '../../types/tour';
 import { tourenService } from '../../services/tourenService';
 import { Plus, Minus, Check, Loader2 } from 'lucide-react';
+import { NumberInput } from '../NumberInput';
 
 interface LKWVisualisierungProps {
   tour: Tour;
@@ -199,13 +200,12 @@ export const LKWVisualisierung = ({
               <Minus className="w-5 h-5" />
             </button>
 
-            <input
-              type="number"
+            <NumberInput
               step="0.5"
               min="0.5"
               max={maxTonnen}
               value={tonnenEingabe}
-              onChange={(e) => onTonnenChange(Math.min(parseFloat(e.target.value) || 0, maxTonnen))}
+              onChange={(v) => onTonnenChange(Math.min(v, maxTonnen))}
               className="w-24 px-3 py-2 text-center text-xl font-bold border-2 rounded-lg bg-white dark:bg-slate-800
                 focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                 border-gray-300 dark:border-slate-600"

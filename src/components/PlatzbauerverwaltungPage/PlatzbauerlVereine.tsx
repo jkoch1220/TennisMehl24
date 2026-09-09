@@ -31,6 +31,7 @@ import { NeuesProjekt, Projekt } from '../../types/projekt';
 import { TENNISMEHL_ARTIKEL } from '../../constants/artikelPreise';
 import ExcelJS from 'exceljs';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import { OptionalNumberInput } from '../NumberInput';
 
 // Quick-Edit Typen
 type QuickEditTyp = 'kontakt' | 'email' | 'adresse' | 'menge' | 'lieferwoche' | null;
@@ -219,10 +220,9 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Menge (Vorjahr)</label>
             <div className="flex items-center gap-2">
-              <input
-                type="number"
-                value={menge}
-                onChange={(e) => setMenge(e.target.value)}
+              <OptionalNumberInput
+                value={menge === '' ? null : Number(menge)}
+                onChange={(v) => setMenge(v === null ? '' : String(v))}
                 onKeyDown={handleKeyDown}
                 placeholder="0"
                 min="0"
@@ -240,14 +240,14 @@ const QuickEditPopup = ({ typ, vereinId, kunde, onSave, onClose, position }: Qui
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Gewünschte Lieferwoche</label>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500 dark:text-gray-400">KW</span>
-              <input
-                type="number"
-                value={lieferwoche}
-                onChange={(e) => setLieferwoche(e.target.value)}
+              <OptionalNumberInput
+                value={lieferwoche === '' ? null : Number(lieferwoche)}
+                onChange={(v) => setLieferwoche(v === null ? '' : String(v))}
                 onKeyDown={handleKeyDown}
                 placeholder="z.B. 12"
                 min="1"
                 max="53"
+                dezimalstellen={0}
                 autoFocus
                 className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
               />

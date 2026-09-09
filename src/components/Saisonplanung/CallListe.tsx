@@ -9,6 +9,7 @@ import {
   CallListeFilter,
 } from '../../types/saisonplanung';
 import { saisonplanungService } from '../../services/saisonplanungService';
+import { OptionalNumberInput } from '../NumberInput';
 
 interface CallListeProps {
   kunden: SaisonKundeMitDaten[];
@@ -361,14 +362,13 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                     Angefragte Menge (t)
                   </label>
-                  <input
-                    type="number"
+                  <OptionalNumberInput
                     step="0.1"
-                    value={formData.angefragteMenge || ''}
-                    onChange={(e) =>
+                    value={formData.angefragteMenge ?? null}
+                    onChange={(v) =>
                       setFormData({
                         ...formData,
-                        angefragteMenge: e.target.value ? parseFloat(e.target.value) : undefined,
+                        angefragteMenge: v ?? undefined,
                       })
                     }
                     className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -379,14 +379,14 @@ const CallListe = ({ kunden, saisonjahr, onClose, onUpdate }: CallListeProps) =>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-1">
                     Preis pro Tonne (€)
                   </label>
-                  <input
-                    type="number"
+                  <OptionalNumberInput
                     step="0.01"
-                    value={formData.preisProTonne || ''}
-                    onChange={(e) =>
+                    dezimalstellen={2}
+                    value={formData.preisProTonne ?? null}
+                    onChange={(v) =>
                       setFormData({
                         ...formData,
-                        preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined,
+                        preisProTonne: v ?? undefined,
                       })
                     }
                     className="w-full border border-gray-300 dark:border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"

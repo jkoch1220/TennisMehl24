@@ -3,6 +3,7 @@ import { X, Plus, User, MapPin, Phone, Package, Loader2, Truck, Calendar } from 
 import { saisonplanungService } from '../../services/saisonplanungService';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import { Belieferungsart } from '../../types/saisonplanung';
+import { OptionalNumberInput } from '../NumberInput';
 
 interface VereinSchnellerfassungProps {
   platzbauerId: string;
@@ -246,12 +247,11 @@ const VereinSchnellerfassung = ({
                 Tonnen
               </label>
               <div className="relative">
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.1"
                   min="0"
-                  value={formData.tonnen}
-                  onChange={(e) => handleChange('tonnen', e.target.value)}
+                  value={formData.tonnen === '' ? null : Number(formData.tonnen)}
+                  onChange={(v) => handleChange('tonnen', v === null ? '' : String(v))}
                   placeholder="z.B. 5"
                   className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none"
                 />
@@ -263,12 +263,12 @@ const VereinSchnellerfassung = ({
                 <Calendar className="w-4 h-4" />
                 KW
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 min="1"
                 max="53"
-                value={formData.wunschLieferwoche}
-                onChange={(e) => handleChange('wunschLieferwoche', e.target.value)}
+                dezimalstellen={0}
+                value={formData.wunschLieferwoche === '' ? null : Number(formData.wunschLieferwoche)}
+                onChange={(v) => handleChange('wunschLieferwoche', v === null ? '' : String(v))}
                 placeholder="z.B. 12"
                 className="w-full px-4 py-2.5 border-2 border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 focus:border-amber-500 focus:outline-none"
               />

@@ -215,12 +215,11 @@ const RabenRechner = () => {
 
               {/* Haupteingabe: Gewicht in kg (Master) */}
               <div className="relative">
-                <input
-                  type="number"
-                  value={gewichtKg || ''}
-                  onChange={(e) => handleGewichtChange(parseInt(e.target.value) || 0)}
+                <NumberInput
+                  dezimalstellen={0}
+                  value={gewichtKg}
+                  onChange={(v) => handleGewichtChange(v)}
                   onBlur={handleGewichtBlur}
-                  onWheel={(e) => e.currentTarget.blur()}
                   step={10}
                   min={100}
                   max={24000}

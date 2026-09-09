@@ -28,6 +28,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Tour, TourFahrzeugTyp } from '../../types/tour';
+import { NumberInput } from '../NumberInput';
 import { Projekt } from '../../types/projekt';
 import { tourenService } from '../../services/tourenService';
 import { parseMaterialAufschluesselung, MaterialAufschluesselung } from '../../utils/dispoMaterialParser';
@@ -276,14 +277,13 @@ const TourAuswahlPanel = ({
                   </button>
 
                   <div className="flex-1 relative">
-                    <input
+                    <NumberInput
                       ref={inputRef}
-                      type="number"
                       step="0.5"
                       min="0.5"
                       max={maxTonnen}
                       value={tonnen}
-                      onChange={(e) => setTonnen(Math.min(parseFloat(e.target.value) || 0, maxTonnen))}
+                      onChange={(v) => setTonnen(Math.min(v, maxTonnen))}
                       onKeyDown={handleKeyDown}
                       className="w-full px-4 py-3 text-center text-2xl font-bold border-2 border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />

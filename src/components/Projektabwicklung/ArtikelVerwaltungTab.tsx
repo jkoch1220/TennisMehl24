@@ -12,6 +12,7 @@ import {
   loescheArtikel,
   sucheArtikel,
 } from '../../services/artikelService';
+import { OptionalNumberInput } from '../NumberInput';
 
 type SortField = 'artikelnummer' | 'bezeichnung' | 'einzelpreis';
 
@@ -322,11 +323,11 @@ const ArtikelVerwaltungTab = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Verkaufspreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span>
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
-                value={formData.einzelpreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, einzelpreis: e.target.value ? parseFloat(e.target.value) : null })}
+                dezimalstellen={2}
+                value={formData.einzelpreis ?? null}
+                onChange={(v) => setFormData({ ...formData, einzelpreis: v })}
                 placeholder="Optional - für Angebote auf Anfrage"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -337,11 +338,11 @@ const ArtikelVerwaltungTab = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Einkaufspreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(intern, für DB1)</span>
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
-                value={formData.einkaufspreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, einkaufspreis: e.target.value ? parseFloat(e.target.value) : null })}
+                dezimalstellen={2}
+                value={formData.einkaufspreis ?? null}
+                onChange={(v) => setFormData({ ...formData, einkaufspreis: v })}
                 placeholder="Direkte Kosten für Deckungsbeitrag"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -352,11 +353,11 @@ const ArtikelVerwaltungTab = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Streichpreis (€) <span className="text-gray-400 dark:text-gray-500 text-xs">(optional)</span>
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
-                value={formData.streichpreis ?? ''}
-                onChange={(e) => setFormData({ ...formData, streichpreis: e.target.value ? parseFloat(e.target.value) : null })}
+                dezimalstellen={2}
+                value={formData.streichpreis ?? null}
+                onChange={(v) => setFormData({ ...formData, streichpreis: v })}
                 placeholder="Ursprünglicher Preis bei Rabattaktionen"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -428,11 +429,10 @@ const ArtikelVerwaltungTab = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Gewicht pro Stück (kg) <span className="text-gray-400 dark:text-gray-500 text-xs">(für Stück-Artikel mit Tonnage, z. B. 40-kg-Sack)</span>
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.1"
-                value={formData.gewichtProStueckKg ?? ''}
-                onChange={(e) => setFormData({ ...formData, gewichtProStueckKg: e.target.value ? parseFloat(e.target.value) : null })}
+                value={formData.gewichtProStueckKg ?? null}
+                onChange={(v) => setFormData({ ...formData, gewichtProStueckKg: v })}
                 placeholder="z.B. 40"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />

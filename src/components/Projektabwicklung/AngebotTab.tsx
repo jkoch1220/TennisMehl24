@@ -18,6 +18,7 @@ import {
 import SortablePosition from './SortablePosition';
 import { useCan } from '../../hooks/useCan';
 import NumericInput from '../Shared/NumericInput';
+import { OptionalNumberInput } from '../NumberInput';
 import { AngebotsDaten, Position, GespeichertesDokument } from '../../types/projektabwicklung';
 import { generiereAngebotPDF, berechneAngebotsSummen } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -87,6 +88,7 @@ import { formatiereZahlungsziel, zahlungszielOptionen } from '../../utils/zahlun
 import { summiereTonnage } from '../../utils/angebotsTonnage';
 import { validierePositionen, formatiereWarnungen, kennzeichneAlsFreitext } from '../../utils/positionsValidierung';
 import { erstelleArtikelIndex } from '../../utils/tonnage';
+import { LIEFERUNG } from '../../constants/artikelPreise';
 
 // 'ENTWURF' stammt aus dem Anfragen-Dialog ("Nur Kunde und Projekt anlegen"):
 // dort wurde das Angebot mit diesem Platzhalter statt einer echten Nummer
@@ -817,9 +819,9 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
       setLieferkostenBerechnung(prev => ({ ...prev, isLoading: true, plz, tonnage }));
 
       try {
-        // Fremdlieferung-Stammdaten mit 105€ Stundensatz
+        // Ein Satz für alle Masken — siehe LIEFERUNG in constants/artikelPreise.
         const fremdlieferungStammdaten: FremdlieferungStammdaten = {
-          stundenlohn: 105.0,
+          stundenlohn: LIEFERUNG.FREMDLIEFERUNG_STUNDENSATZ,
           durchschnittsgeschwindigkeit: 60.0,
           beladungszeit: 30,
           abladungszeit: 30,
@@ -2722,6 +2724,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
                             <NumericInput
+                              dezimalstellen={3}
                               value={position.menge}
                               onChange={(val) => handlePositionChange(index, 'menge', val)}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
@@ -2738,11 +2741,11 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Streichpreis (€)</label>
-                            <input
-                              type="number"
+                            <OptionalNumberInput
                               step="0.01"
-                              value={position.streichpreis ?? ''}
-                              onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                              dezimalstellen={2}
+                              value={position.streichpreis ?? null}
+                              onChange={(v) => handlePositionChange(index, 'streichpreis', v ?? undefined)}
                               placeholder="Optional"
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                             />
@@ -2766,6 +2769,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einzelpreis (€)</label>
                             <NumericInput
+                              dezimalstellen={2}
                               value={position.einzelpreis}
                               onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
                               step="0.01"
@@ -2831,6 +2835,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Frachtkosten (€)</label>
               <NumericInput
+                dezimalstellen={2}
                 value={angebotsDaten.frachtkosten || 0}
                 onChange={(val) => handleInputChange('frachtkosten', val)}
                 step="0.01"
@@ -2936,15 +2941,13 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Rabatt (%)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 min={0}
                 max={100}
                 step={0.5}
-                value={angebotsDaten.gesamtrabattProzent ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                value={angebotsDaten.gesamtrabattProzent ?? null}
+                onChange={(v) => {
+                  handleInputChange('gesamtrabattProzent', v === null ? undefined : Math.max(0, Math.min(100, v)));
                 }}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 placeholder="0"
@@ -3194,15 +3197,15 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Raben-Basispreis (EUR netto)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
                 min="0"
-                value={angebotsDaten.rabenBasispreis ?? ''}
-                onChange={(e) =>
+                dezimalstellen={2}
+                value={angebotsDaten.rabenBasispreis ?? null}
+                onChange={(v) =>
                   handleInputChange(
                     'rabenBasispreis',
-                    e.target.value === '' ? undefined : parseFloat(e.target.value)
+                    v ?? undefined
                   )
                 }
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
@@ -3310,6 +3313,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Skonto %</label>
                     <NumericInput
+                      dezimalstellen={2}
                       value={angebotsDaten.skonto?.prozent || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: val,
@@ -3322,6 +3326,7 @@ const AngebotTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: AngebotTabPro
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tage</label>
                     <NumericInput
+                      dezimalstellen={0}
                       value={angebotsDaten.skonto?.tage || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: angebotsDaten.skonto?.prozent || 0,

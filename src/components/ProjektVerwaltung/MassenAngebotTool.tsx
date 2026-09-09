@@ -23,6 +23,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import MassenAngebotKampagnen from './MassenAngebotKampagnen';
 import MassenAngebotZeilenListe from './MassenAngebotZeilenListe';
 import MassenAngebotKundeSuche from './MassenAngebotKundeSuche';
+import { OptionalNumberInput } from '../NumberInput';
 import { massenAngebotKampagnenService } from '../../services/massenAngebotKampagnenService';
 import { MassenAngebotKampagne, MassenAngebotZeile, MASSEN_ANGEBOT_TYP_LABELS, KAMPAGNEN_STATUS_LABELS } from '../../types/massenAngebot';
 import { massenAngebotService } from '../../services/massenAngebotService';
@@ -190,11 +191,21 @@ const MassenAngebotArbeitsflaeche = ({
         onFortschritt: (text, prozent) => setErmittlungsSchritt({ text, prozent }),
       });
       setAusschluesse(ergebnis.ausschlussGruende);
-      toast.success(
+      const bilanz =
         `${ergebnis.aufgenommen} Kunden aufgenommen` +
-          (ergebnis.bereitsVorhanden ? `, ${ergebnis.bereitsVorhanden} standen bereits drin` : '') +
-          (ergebnis.aufgefrischt ? `, ${ergebnis.aufgefrischt} Begründungen aktualisiert` : '')
-      );
+        (ergebnis.bereitsVorhanden ? `, ${ergebnis.bereitsVorhanden} standen bereits drin` : '') +
+        (ergebnis.aufgefrischt ? `, ${ergebnis.aufgefrischt} Begründungen aktualisiert` : '');
+      // Eine unvollständige Kampagne ist kein Erfolg — sie sieht nur so aus.
+      if (ergebnis.nichtGespeichert > 0) {
+        toast.error(
+          `${bilanz}. ${ergebnis.nichtGespeichert} Zeilen konnten nicht gespeichert werden ` +
+          '(Appwrite drosselt). Kurz warten und „Zielgruppe ermitteln" erneut klicken — ' +
+          'vorhandene Zeilen bleiben unberührt, es werden nur die fehlenden nachgetragen.',
+          { duration: 15000 }
+        );
+      } else {
+        toast.success(bilanz);
+      }
       await ladeZeilen();
     } catch (error) {
       toast.error(`Ermittlung fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannt'}`);
@@ -734,9 +745,9 @@ const MassenAngebotArbeitsflaeche = ({
               <label className="text-sm">
                 <span className="block text-gray-600 dark:text-slate-400 mb-1">Preissteigerung zum Vorjahr</span>
                 <div className="flex items-center gap-1.5">
-                  <input
-                    type="number" step="0.1" value={preisProzent}
-                    onChange={(e) => setPreisProzent(e.target.value)}
+                  <OptionalNumberInput
+                    step="0.1" value={preisProzent === '' ? null : Number(preisProzent)}
+                    onChange={(v) => setPreisProzent(v === null ? '' : String(v))}
                     placeholder="z. B. 4"
                     className="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-right"
                   />
@@ -1115,10 +1126,9 @@ const MassenAngebotArbeitsflaeche = ({
                 <option value="prozent">+/− Prozent</option>
                 <option value="fix">fixer €/t</option>
               </select>
-              <input
-                type="number"
-                value={anpassungsWert}
-                onChange={(e) => setAnpassungsWert(e.target.value)}
+              <OptionalNumberInput
+                value={anpassungsWert === '' ? null : Number(anpassungsWert)}
+                onChange={(v) => setAnpassungsWert(v === null ? '' : String(v))}
                 placeholder={anpassungsTyp === 'prozent' ? 'z.B. 5' : 'z.B. 99.50'}
                 className="w-28 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-slate-100"
               />
@@ -1224,11 +1234,11 @@ const MassenAngebotArbeitsflaeche = ({
           <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl p-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 dark:text-slate-400">Stufenweise (Limit):</label>
-              <input
-                type="number"
-                value={limit}
+              <OptionalNumberInput
+                value={limit === '' ? null : Number(limit)}
                 min={0}
-                onChange={(e) => setLimit(e.target.value)}
+                dezimalstellen={0}
+                onChange={(v) => setLimit(v === null ? '' : String(v))}
                 placeholder="alle"
                 className="w-24 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-slate-100"
               />

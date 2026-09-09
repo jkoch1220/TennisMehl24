@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Route, Zap, Trash2, Edit3, Plus, Check } from 'lucide-react';
 import { fahrkostenService } from '../../services/fahrkostenService';
 import { DefaultStrecke, Auto } from '../../types/fahrtkosten';
+import { NumberInput } from '../NumberInput';
 
 interface VorlagenVerwaltungProps {
   strecken: DefaultStrecke[];
@@ -172,10 +173,9 @@ export default function VorlagenVerwaltung({ strecken, autos, personId, direktAn
                   className="px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
                 />
               </div>
-              <input
-                type="number"
-                value={form.kilometer || ''}
-                onChange={e => setForm({ ...form, kilometer: Number(e.target.value) })}
+              <NumberInput
+                value={form.kilometer}
+                onChange={v => setForm({ ...form, kilometer: v })}
                 placeholder="Kilometer gesamt (z.B. Hin + Rück)"
                 min="0"
                 step="0.1"

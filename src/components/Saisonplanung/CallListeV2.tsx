@@ -37,6 +37,7 @@ import { saisonplanungService } from '../../services/saisonplanungService';
 import { formatAdresszeile } from '../../services/pdfHelpers';
 import { projektService } from '../../services/projektService';
 import { NeuesProjekt } from '../../types/projekt';
+import { OptionalNumberInput } from '../NumberInput';
 import { useNavigate } from 'react-router-dom';
 import ProjektDialog from '../Shared/ProjektDialog';
 import { client, SAISON_KUNDEN_COLLECTION_ID, PROJEKTE_COLLECTION_ID } from '../../config/appwrite';
@@ -990,11 +991,10 @@ const ErgebnisModal = ({
                 <Package className="w-4 h-4 inline mr-1.5" />
                 Angefragte Menge (t)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.1"
-                value={formData.angefragteMenge || ''}
-                onChange={(e) => setFormData({ ...formData, angefragteMenge: e.target.value ? parseFloat(e.target.value) : undefined })}
+                value={formData.angefragteMenge ?? null}
+                onChange={(v) => setFormData({ ...formData, angefragteMenge: v ?? undefined })}
                 placeholder="z.B. 5.0"
                 className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
@@ -1019,11 +1019,11 @@ const ErgebnisModal = ({
                 <Euro className="w-4 h-4 inline mr-1.5" />
                 Preis diese Saison (€/t)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
-                value={formData.preisProTonne || ''}
-                onChange={(e) => setFormData({ ...formData, preisProTonne: e.target.value ? parseFloat(e.target.value) : undefined })}
+                dezimalstellen={2}
+                value={formData.preisProTonne ?? null}
+                onChange={(v) => setFormData({ ...formData, preisProTonne: v ?? undefined })}
                 placeholder="Neuen Preis eingeben..."
                 className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 text-lg font-medium"
               />
@@ -1155,13 +1155,13 @@ const ErgebnisModal = ({
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                       Anzahl Plätze *
                     </label>
-                    <input
-                      type="number"
+                    <OptionalNumberInput
                       min="1"
-                      value={formData.anzahlPlaetze || ''}
-                      onChange={(e) => setFormData({
+                      dezimalstellen={0}
+                      value={formData.anzahlPlaetze ?? null}
+                      onChange={(v) => setFormData({
                         ...formData,
-                        anzahlPlaetze: e.target.value ? parseInt(e.target.value) : undefined
+                        anzahlPlaetze: v ?? undefined
                       })}
                       placeholder="z.B. 4"
                       className="w-full border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"

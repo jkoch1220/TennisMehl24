@@ -886,13 +886,13 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Paletten Kosten pro Palette (€/Palette)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.palettenKostenProPalette}
-                    onChange={(e) => updateSackware('palettenKostenProPalette', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('palettenKostenProPalette', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="0.01"
                     min="0"
+                    dezimalstellen={2}
                   />
                   <p className="text-xs font-semibold text-purple-700 mt-1">
                     Jahreskosten: {(ergebnis.anzahlPaletten * input.sackware.palettenKostenProPalette).toFixed(2)} €
@@ -902,13 +902,13 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Säcke Kosten pro Palette (€/Palette)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.saeckeKostenProPalette}
-                    onChange={(e) => updateSackware('saeckeKostenProPalette', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('saeckeKostenProPalette', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="0.01"
                     min="0"
+                    dezimalstellen={2}
                   />
                   <p className="text-xs font-semibold text-purple-700 mt-1">
                     Jahreskosten: {(ergebnis.anzahlPaletten * input.sackware.saeckeKostenProPalette).toFixed(2)} €
@@ -918,13 +918,13 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Schrumpfhauben Kosten pro Palette (€/Palette)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.schrumpfhaubenKostenProPalette}
-                    onChange={(e) => updateSackware('schrumpfhaubenKostenProPalette', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('schrumpfhaubenKostenProPalette', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="0.01"
                     min="0"
+                    dezimalstellen={2}
                   />
                   <p className="text-xs font-semibold text-purple-700 mt-1">
                     Jahreskosten: {(ergebnis.anzahlPaletten * input.sackware.schrumpfhaubenKostenProPalette).toFixed(2)} €
@@ -938,36 +938,35 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Säcke pro Palette
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.saeckeProPalette}
-                    onChange={(e) => updateSackware('saeckeProPalette', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('saeckeProPalette', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="1"
                     min="0"
+                    dezimalstellen={0}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Sackpreis (€/Sack)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.sackpreis}
-                    onChange={(e) => updateSackware('sackpreis', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('sackpreis', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="0.01"
                     min="0"
+                    dezimalstellen={2}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Arbeitszeit Absacken je Sack (Stunden)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.arbeitszeitAbsackenJeSack}
-                    onChange={(e) => updateSackware('arbeitszeitAbsackenJeSack', parseFloat(e.target.value) || 0)}
+                    onChange={(value) => updateSackware('arbeitszeitAbsackenJeSack', value)}
                     className="w-full p-2 border-2 border-purple-200 dark:border-purple-700/50 rounded-lg focus:border-purple-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                     step="0.01"
                     min="0"
@@ -977,12 +976,13 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Kosten pro Sack (€/Sack) - Berechnet
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.sackware.kostenProSack}
+                    onChange={() => {}}
                     readOnly
                     className="w-full p-2 border-2 border-purple-300 dark:border-purple-700/50 rounded-lg bg-purple-50 dark:bg-slate-700 focus:outline-none dark:text-slate-100"
                     step="0.01"
+                    dezimalstellen={2}
                   />
                   <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Sackpreis + (Arbeitszeit × Stundenlohn)
@@ -994,12 +994,13 @@ const VariableKostenRechner = () => {
                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                   Kosten je Tonne (€/t) - Berechnet
                 </label>
-                <input
-                  type="number"
+                <NumberInput
                   value={input.sackware.kostenJeTonne}
+                  onChange={() => {}}
                   readOnly
                   className="w-full md:w-1/3 p-2 border-2 border-purple-300 dark:border-purple-700/50 rounded-lg bg-purple-50 dark:bg-slate-700 focus:outline-none dark:text-slate-100"
                   step="0.01"
+                  dezimalstellen={2}
                 />
                 <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                   Gesamtkosten Sackware / Geplanter Umsatz
@@ -1034,11 +1035,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Geplanter Umsatz (Tonnen) - Berechnet
                   </label>
-                  <input
-                    type="number"
-                    value={ergebnis.geplanterUmsatzBerechnet.toFixed(0)}
+                  <NumberInput
+                    value={ergebnis.geplanterUmsatzBerechnet}
+                    onChange={() => {}}
                     readOnly
                     className="w-full p-2 border-2 border-red-200 dark:border-red-700/50 rounded-lg bg-gray-50 dark:bg-slate-700 text-lg font-bold text-red-700 dark:text-red-400"
+                    dezimalstellen={0}
                   />
                   <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Summe aller Verkaufspreis-Tonnen
@@ -1048,11 +1050,12 @@ const VariableKostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                     Durchschnittlicher Verkaufspreis (€/t) - Berechnet
                   </label>
-                  <input
-                    type="number"
-                    value={ergebnis.durchschnittlicherVerkaufspreisProTonne.toFixed(2)}
+                  <NumberInput
+                    value={ergebnis.durchschnittlicherVerkaufspreisProTonne}
+                    onChange={() => {}}
                     readOnly
                     className="w-full p-2 border-2 border-red-200 dark:border-red-700/50 rounded-lg bg-gray-50 dark:bg-slate-700 text-lg font-bold text-red-700 dark:text-red-400"
+                    dezimalstellen={2}
                   />
                   <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                     Gewichteter Durchschnitt aus allen Verkaufspreisen
@@ -1071,10 +1074,9 @@ const VariableKostenRechner = () => {
                         <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                           Tonnen
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           value={verkaufspreis.tonnen}
-                          onChange={(e) => updateVerkaufspreis(index, 'tonnen', parseFloat(e.target.value) || 0)}
+                          onChange={(value) => updateVerkaufspreis(index, 'tonnen', value)}
                           className="w-full p-2 border-2 border-red-200 dark:border-red-700/50 rounded-lg focus:border-red-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                           min="0"
                           step="0.01"
@@ -1084,13 +1086,13 @@ const VariableKostenRechner = () => {
                         <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-1">
                           Preis pro Tonne (€/t)
                         </label>
-                        <input
-                          type="number"
+                        <NumberInput
                           value={verkaufspreis.preisProTonne}
-                          onChange={(e) => updateVerkaufspreis(index, 'preisProTonne', parseFloat(e.target.value) || 0)}
+                          onChange={(value) => updateVerkaufspreis(index, 'preisProTonne', value)}
                           className="w-full p-2 border-2 border-red-200 dark:border-red-700/50 rounded-lg focus:border-red-400 focus:outline-none bg-white dark:bg-slate-800 dark:text-slate-100"
                           min="0"
                           step="0.01"
+                          dezimalstellen={2}
                         />
                         <p className="text-xs text-gray-600 dark:text-slate-400 mt-1">
                           Gesamt: {(verkaufspreis.tonnen * verkaufspreis.preisProTonne).toFixed(2)} €

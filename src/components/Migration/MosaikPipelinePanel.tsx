@@ -14,6 +14,7 @@ import {
   PipelineBilanz,
   PipelineFortschritt,
 } from '../../services/mosaikPipelineService';
+import { NumberInput } from '../NumberInput';
 
 interface Props {
   bearbeiter?: string;
@@ -106,11 +107,11 @@ export default function MosaikPipelinePanel({ bearbeiter, onFertig }: Props) {
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           Pilot-Limit (0 = alle):
-          <input
-            type="number"
+          <NumberInput
             min={0}
+            dezimalstellen={0}
             value={limit}
-            onChange={(e) => setLimit(parseInt(e.target.value || '0', 10))}
+            onChange={(v) => setLimit(v)}
             disabled={laeuft}
             className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
           />

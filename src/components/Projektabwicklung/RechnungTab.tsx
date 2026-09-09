@@ -18,6 +18,7 @@ import {
 import SortablePosition from './SortablePosition';
 import { useCan } from '../../hooks/useCan';
 import NumericInput from '../Shared/NumericInput';
+import { OptionalNumberInput } from '../NumberInput';
 import { RechnungsDaten, Position, GespeichertesDokument, ProformaRechnungsDaten } from '../../types/projektabwicklung';
 import { generiereRechnungPDF, generiereProformaRechnungPDF, berechneRechnungsSummen } from '../../services/rechnungService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
@@ -2445,17 +2446,12 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                 <label className="block text-xs font-medium text-red-900 dark:text-red-200 mb-1">
                   Raben-Basispreis (EUR netto)
                 </label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
                   min="0"
-                  value={rechnungsDaten.rabenBasispreis ?? ''}
-                  onChange={(e) =>
-                    handleInputChange(
-                      'rabenBasispreis',
-                      e.target.value === '' ? undefined : parseFloat(e.target.value)
-                    )
-                  }
+                  dezimalstellen={2}
+                  value={rechnungsDaten.rabenBasispreis ?? null}
+                  onChange={(v) => handleInputChange('rabenBasispreis', v ?? undefined)}
                   disabled={!!gespeichertesDokument}
                   placeholder="z.B. 181,37"
                   className="px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm disabled:opacity-50 w-44"
@@ -2803,13 +2799,12 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                               <label className="text-sm text-blue-700 dark:text-blue-400">
                                 Entfernung (einfache Strecke):
                               </label>
-                              <input
-                                type="number"
+                              <OptionalNumberInput
                                 min="0"
                                 step="1"
                                 autoFocus
-                                value={entfernungEingabe}
-                                onChange={(e) => setEntfernungEingabe(e.target.value)}
+                                value={entfernungEingabe === '' ? null : Number(entfernungEingabe)}
+                                onChange={(v) => setEntfernungEingabe(v === null ? '' : String(v))}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                     const wert = parseFloat(entfernungEingabe.replace(',', '.'));
@@ -3101,6 +3096,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                               />
                             ) : (
                               <NumericInput
+                                dezimalstellen={3}
                                 value={position.menge}
                                 onChange={(val) => handlePositionChange(index, 'menge', val)}
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
@@ -3125,11 +3121,11 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                           {!istDieselPosition && (
                             <div>
                               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Streichpreis (€)</label>
-                              <input
-                                type="number"
+                              <OptionalNumberInput
                                 step="0.01"
-                                value={position.streichpreis ?? ''}
-                                onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                dezimalstellen={2}
+                                value={position.streichpreis ?? null}
+                                onChange={(v) => handlePositionChange(index, 'streichpreis', v ?? undefined)}
                                 placeholder="Optional"
                                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-dark-text placeholder-gray-400 dark:placeholder-dark-textSubtle focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                               />
@@ -3162,6 +3158,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                               />
                             ) : (
                               <NumericInput
+                                dezimalstellen={2}
                                 value={position.einzelpreis}
                                 onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
                                 step="0.01"
@@ -3310,15 +3307,13 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
               <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Rabatt (%)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 min={0}
                 max={100}
                 step={0.5}
-                value={rechnungsDaten.gesamtrabattProzent ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                value={rechnungsDaten.gesamtrabattProzent ?? null}
+                onChange={(v) => {
+                  handleInputChange('gesamtrabattProzent', v === null ? undefined : Math.max(0, Math.min(100, v)));
                 }}
                 disabled={!!gespeichertesDokument}
                 placeholder="0"
@@ -3421,6 +3416,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Skonto %</label>
                     <NumericInput
+                      dezimalstellen={2}
                       value={rechnungsDaten.skonto?.prozent || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: val,
@@ -3433,6 +3429,7 @@ const RechnungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: RechnungTabP
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tage</label>
                     <NumericInput
+                      dezimalstellen={0}
                       value={rechnungsDaten.skonto?.tage || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: rechnungsDaten.skonto?.prozent || 0,

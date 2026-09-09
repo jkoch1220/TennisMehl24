@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Trash2, Plus, Check, Car, Building2, Users, Edit3 } from 'lucide-react';
 import { fahrkostenService } from '../../services/fahrkostenService';
 import { Person, Auto, Firma } from '../../types/fahrtkosten';
+import { OptionalNumberInput } from '../NumberInput';
 
 type Tab = 'autos' | 'firmen' | 'personen';
 
@@ -143,11 +144,11 @@ function AutoListe({ autos, personId, onUpdate }: { autos: Auto[]; personId: str
           />
           <div>
             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">km-Pauschale (€/km)</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={pauschale}
-              onChange={e => setPauschale(e.target.value)}
+            <OptionalNumberInput
+              value={Number.isFinite(pauschaleNum) ? pauschaleNum : null}
+              onChange={v => setPauschale(v === null ? '' : String(v))}
+              step={0.01}
+              dezimalstellen={2}
               placeholder="0,30"
               className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-white"
             />

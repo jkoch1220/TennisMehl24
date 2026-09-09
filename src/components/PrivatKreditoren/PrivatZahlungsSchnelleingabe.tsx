@@ -3,6 +3,8 @@ import { CreditCard, Loader2 } from 'lucide-react';
 import { OffeneRechnung, Zahlung } from '../../types/kreditor';
 import { usePrivatKreditor } from '../../contexts/PrivatKreditorContext';
 import { ID } from 'appwrite';
+import { NumberInput } from '../NumberInput';
+import { rundeAuf } from '../../utils/zahlenEingabe';
 
 interface PrivatZahlungsSchnelleingabeProps {
   rechnung: OffeneRechnung;
@@ -18,7 +20,9 @@ const PrivatZahlungsSchnelleingabe = ({ rechnung, onUpdate }: PrivatZahlungsSchn
   const [loading, setLoading] = useState(false);
 
   const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
-  const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
+  // Auf Cent runden: der „Voll"-Knopf setzte sonst 234,45999999999992 als
+  // Zahlbetrag in die Datenbank, obwohl daneben „234,46 €" steht.
+  const offenerBetrag = rundeAuf(Math.max(0, rechnung.summe - gesamtBezahlt), 2);
 
   const handleZahlung = async () => {
     if (betrag <= 0) {
@@ -83,12 +87,12 @@ const PrivatZahlungsSchnelleingabe = ({ rechnung, onUpdate }: PrivatZahlungsSchn
             Betrag
           </label>
           <div className="relative">
-            <input
-              type="number"
+            <NumberInput
               step="0.01"
               min="0"
-              value={betrag || ''}
-              onChange={(e) => setBetrag(parseFloat(e.target.value) || 0)}
+              dezimalstellen={2}
+              value={betrag}
+              onChange={(v) => setBetrag(v)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-8"
               placeholder="0,00"
             />

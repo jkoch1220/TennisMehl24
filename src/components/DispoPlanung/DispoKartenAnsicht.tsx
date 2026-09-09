@@ -41,6 +41,7 @@ import { projektService } from '../../services/projektService';
 import { parseMaterialAufschluesselung } from '../../utils/dispoMaterialParser';
 import { geocodeBatchMitGoogle, extrahiereAdresse } from '../../utils/geocoding';
 import { AdressKorrekturModal } from './AdressKorrekturModal';
+import { NumberInput } from '../NumberInput';
 // ZERO API COST - PLZ-basiertes Geocoding!
 import { getKoordinatenFuerPLZ } from '../../data/plzKoordinaten';
 
@@ -2352,12 +2353,11 @@ const DispoKartenAnsicht = ({
                       {/* Tonnen-Eingabe */}
                       <div className="mb-3">
                         <label className="text-xs text-green-700 mb-1 block">Tonnen</label>
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.5"
                           min="0.5"
                           value={buchungsTonnen}
-                          onChange={(e) => setBuchungsTonnen(parseFloat(e.target.value) || 0)}
+                          onChange={(v) => setBuchungsTonnen(v)}
                           className="w-full px-3 py-1.5 border border-green-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>

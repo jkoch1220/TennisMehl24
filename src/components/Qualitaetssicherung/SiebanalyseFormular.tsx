@@ -27,6 +27,7 @@ import {
   HammerStatus,
   HammerInfo,
 } from '../../types/qualitaetssicherung';
+import { NumberInput } from '../NumberInput';
 
 // Berechnet Siebdurchgänge (%) aus Rückständen (g) und Probengewicht
 function berechneSiebdurchgang(probenGewicht: number, rueckstaende: SiebRueckstaende): Siebwerte {
@@ -177,19 +178,17 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
     }
   }, [analyse]);
 
-  const handleSiebwertChange = (sieb: keyof Siebwerte, value: string) => {
-    const numValue = parseFloat(value) || 0;
+  const handleSiebwertChange = (sieb: keyof Siebwerte, value: number) => {
     setSiebwerte((prev) => ({
       ...prev,
-      [sieb]: Math.min(100, Math.max(0, numValue)),
+      [sieb]: Math.min(100, Math.max(0, value)),
     }));
   };
 
-  const handleRueckstandChange = (sieb: keyof SiebRueckstaende, value: string) => {
-    const numValue = parseFloat(value) || 0;
+  const handleRueckstandChange = (sieb: keyof SiebRueckstaende, value: number) => {
     setRueckstaende((prev) => ({
       ...prev,
-      [sieb]: Math.max(0, numValue),
+      [sieb]: Math.max(0, value),
     }));
   };
 
@@ -528,12 +527,11 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
                   Probengewicht (Gesamtgewicht)
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
+                  <NumberInput
                     min="0"
                     step="0.1"
                     value={probenGewicht}
-                    onChange={(e) => setProbenGewicht(parseFloat(e.target.value) || 0)}
+                    onChange={(v) => setProbenGewicht(v)}
                     className="w-32 px-3 py-2 border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono"
                   />
                   <span className="text-blue-700 dark:text-blue-400 font-medium">g</span>
@@ -557,12 +555,11 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
                           {toleranz.label} mm
                         </div>
                         <div className="w-24">
-                          <input
-                            type="number"
+                          <NumberInput
                             min="0"
                             step="0.1"
                             value={rueckstand}
-                            onChange={(e) => handleRueckstandChange(toleranz.sieb, e.target.value)}
+                            onChange={(v) => handleRueckstandChange(toleranz.sieb, v)}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono text-sm"
                           />
                         </div>
@@ -599,12 +596,11 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
                       {'<'}0,063
                     </div>
                     <div className="w-24">
-                      <input
-                        type="number"
+                      <NumberInput
                         min="0"
                         step="0.1"
                         value={rueckstaende.durchgang}
-                        onChange={(e) => handleRueckstandChange('durchgang', e.target.value)}
+                        onChange={(v) => handleRueckstandChange('durchgang', v)}
                         className="w-full px-2 py-1.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 text-right font-mono text-sm"
                       />
                     </div>
@@ -656,13 +652,12 @@ export default function SiebanalyseFormular({ analyse, onSave, onCancel }: Props
                         {toleranz.label} {toleranz.einheit}
                       </div>
                       <div className="flex-1">
-                        <input
-                          type="number"
+                        <NumberInput
                           min="0"
                           max="100"
                           step="0.1"
                           value={wert}
-                          onChange={(e) => handleSiebwertChange(toleranz.sieb, e.target.value)}
+                          onChange={(v) => handleSiebwertChange(toleranz.sieb, v)}
                           disabled={isFixed}
                           className={`w-full px-3 py-2 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 ${
                             isFixed

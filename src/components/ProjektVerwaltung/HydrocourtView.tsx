@@ -37,6 +37,7 @@ import { generiereRechnungPDF } from '../../services/rechnungService';
 import { getStammdatenOderDefault } from '../../services/stammdatenService';
 import { generiereNaechsteDokumentnummer } from '../../services/nummerierungService';
 import TipTapEditor from '../Shared/TipTapEditor';
+import { OptionalNumberInput } from '../NumberInput';
 import { Receipt, GripVertical, MoveHorizontal } from 'lucide-react';
 
 // Hydrocourt-Bestellung Interface
@@ -2031,11 +2032,10 @@ Vielen Dank für Ihren Auftrag!`);
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={rechnungBetrag}
-                    onChange={(e) => setRechnungBetrag(e.target.value)}
+                  <OptionalNumberInput
+                    value={rechnungBetrag.trim() === '' ? null : rechnungBetragWert}
+                    onChange={(v) => setRechnungBetrag(v === null ? '' : String(v))}
+                    dezimalstellen={2}
                     className="w-40 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-semibold text-right focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="0,00"
                   />

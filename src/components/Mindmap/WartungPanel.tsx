@@ -29,6 +29,7 @@ import {
 } from '../../services/mindmapService';
 import { getCachedUsersList } from '../../services/userCacheService';
 import { prozessFaelligkeit } from './mindmapUtils';
+import { NumberInput, OptionalNumberInput } from '../NumberInput';
 
 interface WartungPanelProps {
   board: MindmapBoard;
@@ -278,12 +279,12 @@ const WartungPanel = ({
                   <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-textMuted">
                     Intervall (Stunden)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
-                    value={board.intervallStunden || ''}
-                    onChange={(e) =>
-                      patchBoard({ intervallStunden: parseInt(e.target.value, 10) || 0 })
+                    dezimalstellen={0}
+                    value={board.intervallStunden}
+                    onChange={(v) =>
+                      patchBoard({ intervallStunden: v })
                     }
                     placeholder="z. B. 250"
                     className={inputClasses}
@@ -293,13 +294,13 @@ const WartungPanel = ({
                   <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-textMuted">
                     Fällig bei (Stunden-Stand)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={0}
-                    value={board.faelligBeiStunden || ''}
-                    onChange={(e) =>
+                    dezimalstellen={0}
+                    value={board.faelligBeiStunden}
+                    onChange={(v) =>
                       patchBoard({
-                        faelligBeiStunden: parseInt(e.target.value, 10) || 0,
+                        faelligBeiStunden: v,
                       })
                     }
                     placeholder="z. B. 1400"
@@ -362,11 +363,11 @@ const WartungPanel = ({
                     <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-textMuted">
                       Betriebsstunden-Stand ({geraet.name})
                     </label>
-                    <input
-                      type="number"
+                    <OptionalNumberInput
                       min={0}
-                      value={dfStunden}
-                      onChange={(e) => setDfStunden(e.target.value)}
+                      dezimalstellen={0}
+                      value={dfStunden === '' ? null : Number(dfStunden)}
+                      onChange={(v) => setDfStunden(v === null ? '' : String(v))}
                       className={inputClasses}
                     />
                   </div>
@@ -375,11 +376,11 @@ const WartungPanel = ({
                   <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-dark-textMuted">
                     Zeitaufwand (Minuten)
                   </label>
-                  <input
-                    type="number"
+                  <OptionalNumberInput
                     min={0}
-                    value={dfMinuten}
-                    onChange={(e) => setDfMinuten(e.target.value)}
+                    dezimalstellen={0}
+                    value={dfMinuten === '' ? null : Number(dfMinuten)}
+                    onChange={(v) => setDfMinuten(v === null ? '' : String(v))}
                     placeholder="z. B. 90"
                     className={inputClasses}
                   />

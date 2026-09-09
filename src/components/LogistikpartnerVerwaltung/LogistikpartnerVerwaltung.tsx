@@ -19,6 +19,7 @@ import {
   Building2,
   AlertCircle,
 } from 'lucide-react';
+import { OptionalNumberInput } from '../NumberInput';
 import {
   Logistikpartner,
   NeuerLogistikpartner,
@@ -742,11 +743,10 @@ export default function LogistikpartnerVerwaltung() {
                             onChange={e => updateFahrzeug(fz.id, { kennzeichen: e.target.value })}
                             className="px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                           />
-                          <input
-                            type="number"
+                          <OptionalNumberInput
                             placeholder="Kapazität (Tonnen)"
-                            value={fz.kapazitaetTonnen || ''}
-                            onChange={e => updateFahrzeug(fz.id, { kapazitaetTonnen: Number(e.target.value) || undefined })}
+                            value={fz.kapazitaetTonnen ?? null}
+                            onChange={v => updateFahrzeug(fz.id, { kapazitaetTonnen: v ?? undefined })}
                             className="px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                           />
                         </div>
@@ -833,11 +833,10 @@ export default function LogistikpartnerVerwaltung() {
                           })}
                           className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                         />
-                        <input
-                          type="number"
+                        <OptionalNumberInput
                           placeholder="Max. Entfernung (km)"
-                          value={gebiet.maxEntfernungKm || ''}
-                          onChange={e => updateLiefergebiet(gebiet.id, { maxEntfernungKm: Number(e.target.value) || undefined })}
+                          value={gebiet.maxEntfernungKm ?? null}
+                          onChange={v => updateLiefergebiet(gebiet.id, { maxEntfernungKm: v ?? undefined })}
                           className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                         />
                       </div>
@@ -894,31 +893,31 @@ export default function LogistikpartnerVerwaltung() {
                         <div className="grid grid-cols-3 gap-2">
                           <div>
                             <label className="text-xs text-gray-500">€/km</label>
-                            <input
-                              type="number"
+                            <OptionalNumberInput
                               step="0.01"
-                              value={preis.preisProKm || ''}
-                              onChange={e => updatePreisstruktur(preis.id, { preisProKm: Number(e.target.value) || undefined })}
+                              dezimalstellen={2}
+                              value={preis.preisProKm ?? null}
+                              onChange={v => updatePreisstruktur(preis.id, { preisProKm: v ?? undefined })}
                               className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                             />
                           </div>
                           <div>
                             <label className="text-xs text-gray-500">€/Tonne</label>
-                            <input
-                              type="number"
+                            <OptionalNumberInput
                               step="0.01"
-                              value={preis.preisProTonne || ''}
-                              onChange={e => updatePreisstruktur(preis.id, { preisProTonne: Number(e.target.value) || undefined })}
+                              dezimalstellen={2}
+                              value={preis.preisProTonne ?? null}
+                              onChange={v => updatePreisstruktur(preis.id, { preisProTonne: v ?? undefined })}
                               className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                             />
                           </div>
                           <div>
                             <label className="text-xs text-gray-500">Mindestpreis €</label>
-                            <input
-                              type="number"
+                            <OptionalNumberInput
                               step="0.01"
-                              value={preis.mindestpreis || ''}
-                              onChange={e => updatePreisstruktur(preis.id, { mindestpreis: Number(e.target.value) || undefined })}
+                              dezimalstellen={2}
+                              value={preis.mindestpreis ?? null}
+                              onChange={v => updatePreisstruktur(preis.id, { mindestpreis: v ?? undefined })}
                               className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-sm"
                             />
                           </div>

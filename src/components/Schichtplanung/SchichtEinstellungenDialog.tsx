@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Sunrise, Sun, Moon, Clock, Users } from 'lucide-react';
 import { SchichtEinstellungen, SchichtTyp } from '../../types/schichtplanung';
+import { NumberInput } from '../NumberInput';
 
 interface SchichtEinstellungenDialogProps {
   einstellungen: SchichtEinstellungen;
@@ -105,12 +106,12 @@ export default function SchichtEinstellungenDialog({
                     <Users className="w-3 h-3" />
                     Min. Besetzung
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
+                    dezimalstellen={0}
                     min={1}
                     max={20}
                     value={formData[typ].minBesetzung}
-                    onChange={(e) => updateSchicht(typ, 'minBesetzung', parseInt(e.target.value) || 1)}
+                    onChange={(v) => updateSchicht(typ, 'minBesetzung', v || 1)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-surface text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
                   />
                 </div>

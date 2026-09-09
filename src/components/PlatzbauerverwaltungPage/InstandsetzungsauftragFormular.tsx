@@ -16,6 +16,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { SaisonKunde } from '../../types/saisonplanung';
+import { NumberInput } from '../NumberInput';
 import {
   InstandsetzungsPosition,
   NeuerInstandsetzungsauftrag,
@@ -368,13 +369,13 @@ const InstandsetzungsauftragFormular = ({
                     )}
                   </td>
                   <td className="p-3">
-                    <input
-                      type="number"
+                    <NumberInput
                       min={1}
+                      dezimalstellen={0}
                       value={v.anzahlPlaetze}
-                      onChange={e =>
+                      onChange={wert =>
                         updateVerein(v.vereinId, {
-                          anzahlPlaetze: parseInt(e.target.value) || 1,
+                          anzahlPlaetze: wert || 1,
                         })
                       }
                       disabled={!v.ausgewaehlt}

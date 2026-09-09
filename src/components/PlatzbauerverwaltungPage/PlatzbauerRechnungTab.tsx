@@ -37,14 +37,15 @@ import {
   ladeAktuellesDokument,
   ladeDokumenteNachTyp,
   speicherePlatzbauerStornoRechnung,
+  getFileDownloadUrl,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import PlatzbauerDokumentVerlauf from './PlatzbauerDokumentVerlauf';
 import DokumentAdresseFormular, { DokumentAdresse } from '../Projektabwicklung/DokumentAdresseFormular';
 import { formatAdresszeile } from '../../services/pdfHelpers';
-import { APPWRITE_ENDPOINT, PROJECT_ID, PLATZBAUER_DATEIEN_BUCKET_ID } from '../../config/appwrite';
-import { getBucketId } from '../../config/mockModus';
 import EmailAdressenInput from '../Shared/EmailAdressenInput';
 import { trenneEmailAdressen } from '../../utils/emailAdressen';
+import { NumberInput } from '../NumberInput';
+
 
 interface PlatzbauerRechnungTabProps {
   projekt: PlatzbauerProjekt;
@@ -688,8 +689,9 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                   Abbrechen
                 </button>
                 <a
-                  href={`${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(PLATZBAUER_DATEIEN_BUCKET_ID)}/files/${gespeicherteRechnung.dateiId}/download?project=${PROJECT_ID}`}
+                  href={getFileDownloadUrl(gespeicherteRechnung.dateiId) || undefined}
                   download={gespeicherteRechnung.dateiname}
+                  title={gespeicherteRechnung.dateiId ? undefined : 'Kein PDF vorhanden'}
                   onClick={() => {
                     // Nach kurzer Verzögerung mailto öffnen
                     setTimeout(() => {
@@ -699,7 +701,7 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                       setShowEmailDialog(false);
                     }, 500);
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
+                  className={`px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2${gespeicherteRechnung.dateiId ? '' : ' opacity-40 pointer-events-none'}`}
                 >
                   <Mail className="w-4 h-4" />
                   PDF herunterladen & Mail öffnen
@@ -907,23 +909,22 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                     )}
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={pos.menge || ''}
-                      onChange={(e) => updatePosition(index, { menge: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={pos.menge}
+                      onChange={(v) => updatePosition(index, { menge: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.1"
                       min="0"
                     />
                   </td>
                   <td className="py-3 px-2">
-                    <input
-                      type="number"
-                      value={pos.einzelpreis || ''}
-                      onChange={(e) => updatePosition(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                    <NumberInput
+                      value={pos.einzelpreis}
+                      onChange={(v) => updatePosition(index, { einzelpreis: v })}
                       className="w-full px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                       step="0.01"
                       min="0"
+                      dezimalstellen={2}
                     />
                   </td>
                   <td className="py-3 px-2 text-right font-medium text-gray-900 dark:text-white">
@@ -989,13 +990,13 @@ const PlatzbauerRechnungTab = ({ projekt, platzbauer }: PlatzbauerRechnungTabPro
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Abzugsbetrag (Brutto)
                   </label>
-                  <input
-                    type="number"
-                    value={formData.proformaAbzugBetrag || ''}
-                    onChange={(e) => updateFormData({ proformaAbzugBetrag: parseFloat(e.target.value) || 0 })}
+                  <NumberInput
+                    value={formData.proformaAbzugBetrag}
+                    onChange={(v) => updateFormData({ proformaAbzugBetrag: v })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
                     step="0.01"
                     min="0"
+                    dezimalstellen={2}
                   />
                 </div>
               </div>

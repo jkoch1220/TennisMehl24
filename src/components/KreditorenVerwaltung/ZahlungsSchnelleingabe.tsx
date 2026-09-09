@@ -4,6 +4,8 @@ import { OffeneRechnung, Zahlung } from '../../types/kreditor';
 import { kreditorService } from '../../services/kreditorService';
 import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
+import { OptionalNumberInput } from '../NumberInput';
+import { rundeAuf } from '../../utils/zahlenEingabe';
 
 interface ZahlungsSchnelleingabeProps {
   rechnung: OffeneRechnung;
@@ -20,10 +22,17 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
   const heute = new Date().toISOString().split('T')[0];
 
   const gesamtBezahlt = rechnung.zahlungen?.reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
-  const offenerBetrag = Math.max(0, rechnung.summe - gesamtBezahlt);
+  // Auf Cent runden, bevor irgendwer damit vergleicht: 1234,56 - 1000,10 ergibt
+  // in Gleitkomma 234,45999999999992. Angezeigt wurde „234,46 €", und genau
+  // dieser Betrag wurde beim Speichern als „höher als offen" abgelehnt — die
+  // Restzahlung ließ sich nicht erfassen.
+  const offenerBetrag = rundeAuf(Math.max(0, rechnung.summe - gesamtBezahlt), 2);
   const heuteBezahlt = rechnung.zahlungen?.filter(
     (z) => z.datum && z.datum.split('T')[0] === heute
   ).reduce((sum, z) => sum + (z.betrag || 0), 0) || 0;
+
+  // Hinweis direkt am Feld, solange getippt wird; das Speichern bricht ohnehin ab.
+  const betragUeberOffen = betrag !== '' && rundeAuf(Number(betrag), 2) > offenerBetrag;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +45,7 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
         throw new Error('Bitte geben Sie einen gültigen Betrag größer als 0 ein');
       }
 
-      if (betragNum > offenerBetrag) {
+      if (rundeAuf(betragNum, 2) > offenerBetrag) {
         throw new Error(`Der Betrag darf nicht höher sein als der offene Betrag (${formatCurrency(offenerBetrag)})`);
       }
 
@@ -147,18 +156,27 @@ const ZahlungsSchnelleingabe = ({ rechnung, onUpdate }: ZahlungsSchnelleingabePr
               <label className="block text-xs font-medium text-gray-700 dark:text-slate-400 mb-1">
                 Betrag (€) <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
+              {/* Kein max: Die Komponente würde den Betrag beim Verlassen des Feldes
+                  still auf den offenen Betrag kappen. Aus einem Zahlendreher (5000
+                  statt 500) würde dann unbemerkt eine Zahlung über den Restbetrag,
+                  und die Prüfung in handleSubmit käme nie zum Zug. Zu viel eingeben
+                  darf man tippen — abgefangen wird es beim Speichern. */}
+              <OptionalNumberInput
                 step="0.01"
                 min="0"
-                max={offenerBetrag}
-                value={betrag}
-                onChange={(e) => setBetrag(e.target.value)}
+                dezimalstellen={2}
+                value={betrag === '' ? null : Number(betrag)}
+                onChange={(v) => setBetrag(v === null ? '' : String(v))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder={formatCurrency(offenerBetrag)}
                 required
                 autoFocus
               />
+              {betragUeberOffen && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  Höher als der offene Betrag ({formatCurrency(offenerBetrag)}).
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-slate-400 mb-1">

@@ -7,6 +7,7 @@ import {
   HALBE_PALETTE_AUFSCHLAG_EURO_DEFAULT,
 } from '../../services/stammdatenService';
 import { berechneAktuelleSaison, getAktuelleSaison } from '../../services/nummerierungService';
+import { OptionalNumberInput } from '../NumberInput';
 
 const MONATE = [
   { value: 1, label: 'Januar' },
@@ -371,12 +372,12 @@ const SaisonEinstellungenTab = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Start-Kalenderwoche
             </label>
-            <input
-              type="number"
+            <OptionalNumberInput
               min="1"
               max="52"
-              value={formData.liefersaisonStartKW}
-              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonStartKW: e.target.value }))}
+              dezimalstellen={0}
+              value={formData.liefersaisonStartKW === '' ? null : Number(formData.liefersaisonStartKW)}
+              onChange={(v) => setFormData(prev => ({ ...prev, liefersaisonStartKW: v ?? '' }))}
               placeholder="z.B. 10"
               className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
             />
@@ -387,12 +388,12 @@ const SaisonEinstellungenTab = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               End-Kalenderwoche
             </label>
-            <input
-              type="number"
+            <OptionalNumberInput
               min="1"
               max="52"
-              value={formData.liefersaisonEndKW}
-              onChange={(e) => setFormData(prev => ({ ...prev, liefersaisonEndKW: e.target.value }))}
+              dezimalstellen={0}
+              value={formData.liefersaisonEndKW === '' ? null : Number(formData.liefersaisonEndKW)}
+              onChange={(v) => setFormData(prev => ({ ...prev, liefersaisonEndKW: v ?? '' }))}
               placeholder="z.B. 16"
               className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-dark-bg dark:text-dark-text"
             />
@@ -427,11 +428,10 @@ const SaisonEinstellungenTab = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">
               Saison-Preisanpassung (%)
             </label>
-            <input
-              type="number"
+            <OptionalNumberInput
               step="0.1"
-              value={formData.saisonPreisanpassungProzent}
-              onChange={(e) => setFormData(prev => ({ ...prev, saisonPreisanpassungProzent: e.target.value }))}
+              value={formData.saisonPreisanpassungProzent === '' ? null : Number(formData.saisonPreisanpassungProzent)}
+              onChange={(v) => setFormData(prev => ({ ...prev, saisonPreisanpassungProzent: v === null ? '' : String(v) }))}
               placeholder={`z.B. ${SAISON_PREISANPASSUNG_PROZENT_DEFAULT}`}
               className="w-full px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
             />
@@ -447,12 +447,12 @@ const SaisonEinstellungenTab = () => {
               Aufschlag angebrochene Palette (€)
             </label>
             <div className="relative">
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
                 min="0"
-                value={formData.halbePaletteAufschlagEuro}
-                onChange={(e) => setFormData(prev => ({ ...prev, halbePaletteAufschlagEuro: e.target.value }))}
+                dezimalstellen={2}
+                value={formData.halbePaletteAufschlagEuro === '' ? null : Number(formData.halbePaletteAufschlagEuro)}
+                onChange={(v) => setFormData(prev => ({ ...prev, halbePaletteAufschlagEuro: v === null ? '' : String(v) }))}
                 placeholder="z.B. 25"
                 className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-dark-bg dark:text-dark-text"
               />

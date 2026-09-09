@@ -72,6 +72,7 @@ import { kundenAktivitaetService } from '../../services/kundenAktivitaetService'
 import { KundenAktivitaet } from '../../types/kundenAktivitaet';
 import { useNavigate } from 'react-router-dom';
 import { ID } from 'appwrite';
+import { NumberInput } from '../NumberInput';
 
 // Dispo-relevante Status (Rechnung & Bezahlt sind abgeschlossen und werden nicht mehr angezeigt)
 const DISPO_RELEVANT_STATUS = ['auftragsbestaetigung', 'lieferschein'];
@@ -2153,11 +2154,10 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Plan-Tonnen (beauftragt)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     step="0.1"
                     value={formData.beauftragteTonnen}
-                    onChange={(e) => setFormData({ ...formData, beauftragteTonnen: parseFloat(e.target.value) || 0 })}
+                    onChange={(v) => setFormData({ ...formData, beauftragteTonnen: v })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
                   />
                   {projekt.wiegeschein?.gepruefteMengeTonnen !== undefined && (
@@ -2170,10 +2170,10 @@ const AuftragDetailModal = ({ projekt, kunde, fahrzeuge, onClose, onSave }: Auft
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Anzahl Paletten
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={formData.anzahlPaletten}
-                    onChange={(e) => setFormData({ ...formData, anzahlPaletten: parseInt(e.target.value) || 0 })}
+                    onChange={(v) => setFormData({ ...formData, anzahlPaletten: v })}
+                    dezimalstellen={0}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
                   />
                 </div>

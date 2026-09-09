@@ -12,6 +12,7 @@ import {
   parseVersandcode,
   istSperrgutArtikel,
 } from '../../services/universaArtikelService';
+import { OptionalNumberInput } from '../NumberInput';
 
 interface UniversalArtikelDialogProps {
   open: boolean;
@@ -300,34 +301,34 @@ const UniversalArtikelDialog = ({ open, artikel, onClose, onSaved }: UniversalAr
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={labelCls}>Großhändlerpreis netto *</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
                   min="0"
-                  value={form.grosshaendlerPreisNetto}
-                  onChange={(e) => updateField('grosshaendlerPreisNetto', e.target.value)}
+                  dezimalstellen={2}
+                  value={form.grosshaendlerPreisNetto === '' ? null : Number(form.grosshaendlerPreisNetto)}
+                  onChange={(v) => updateField('grosshaendlerPreisNetto', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
               <div>
                 <label className={labelCls}>Katalogpreis netto *</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
                   min="0"
-                  value={form.katalogPreisNetto}
-                  onChange={(e) => handleNettoChange(e.target.value)}
+                  dezimalstellen={2}
+                  value={form.katalogPreisNetto === '' ? null : Number(form.katalogPreisNetto)}
+                  onChange={(v) => handleNettoChange(v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
               <div>
                 <label className={labelCls}>Katalogpreis brutto *</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
                   min="0"
-                  value={form.katalogPreisBrutto}
-                  onChange={(e) => handleBruttoChange(e.target.value)}
+                  dezimalstellen={2}
+                  value={form.katalogPreisBrutto === '' ? null : Number(form.katalogPreisBrutto)}
+                  onChange={(v) => handleBruttoChange(v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
@@ -389,45 +390,41 @@ const UniversalArtikelDialog = ({ open, artikel, onClose, onSaved }: UniversalAr
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div>
                 <label className={labelCls}>Gewicht (kg)</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.01"
                   min="0"
-                  value={form.gewichtKg}
-                  onChange={(e) => updateField('gewichtKg', e.target.value)}
+                  value={form.gewichtKg === '' ? null : Number(form.gewichtKg)}
+                  onChange={(v) => updateField('gewichtKg', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
               <div>
                 <label className={labelCls}>Länge (cm)</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.1"
                   min="0"
-                  value={form.laengeCm}
-                  onChange={(e) => updateField('laengeCm', e.target.value)}
+                  value={form.laengeCm === '' ? null : Number(form.laengeCm)}
+                  onChange={(v) => updateField('laengeCm', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
               <div>
                 <label className={labelCls}>Breite (cm)</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.1"
                   min="0"
-                  value={form.breiteCm}
-                  onChange={(e) => updateField('breiteCm', e.target.value)}
+                  value={form.breiteCm === '' ? null : Number(form.breiteCm)}
+                  onChange={(v) => updateField('breiteCm', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
               <div>
                 <label className={labelCls}>Höhe (cm)</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   step="0.1"
                   min="0"
-                  value={form.hoeheCm}
-                  onChange={(e) => updateField('hoeheCm', e.target.value)}
+                  value={form.hoeheCm === '' ? null : Number(form.hoeheCm)}
+                  onChange={(v) => updateField('hoeheCm', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>
@@ -488,11 +485,11 @@ const UniversalArtikelDialog = ({ open, artikel, onClose, onSaved }: UniversalAr
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={labelCls}>Seite im Katalog</label>
-                <input
-                  type="number"
+                <OptionalNumberInput
                   min="0"
-                  value={form.seiteKatalog}
-                  onChange={(e) => updateField('seiteKatalog', e.target.value)}
+                  dezimalstellen={0}
+                  value={form.seiteKatalog === '' ? null : Number(form.seiteKatalog)}
+                  onChange={(v) => updateField('seiteKatalog', v === null ? '' : String(v))}
                   className={inputCls}
                 />
               </div>

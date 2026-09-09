@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, Save, AlertCircle, AlertTriangle } from 'lucide-react';
 import { OffeneRechnung, NeueOffeneRechnung, RechnungsStatus, Rechnungskategorie, Prioritaet, Mahnstufe } from '../../types/kreditor';
 import { usePrivatKreditor } from '../../contexts/PrivatKreditorContext';
+import { NumberInput, OptionalNumberInput } from '../NumberInput';
 
 interface PrivatRechnungsFormularProps {
   rechnung?: OffeneRechnung | null;
@@ -272,12 +273,12 @@ const PrivatRechnungsFormular = ({ rechnung, onSave, onCancel }: PrivatRechnungs
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">
                 Summe (€) <span className="text-red-500">*</span>
               </label>
-              <input
-                type="number"
+              <NumberInput
                 step="0.01"
                 min="0"
-                value={formData.summe || ''}
-                onChange={(e) => setFormData({ ...formData, summe: parseFloat(e.target.value) || 0 })}
+                dezimalstellen={2}
+                value={formData.summe}
+                onChange={(v) => setFormData({ ...formData, summe: v })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 required
               />
@@ -288,12 +289,12 @@ const PrivatRechnungsFormular = ({ rechnung, onSave, onCancel }: PrivatRechnungs
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-400 mb-2">
                 Monatliche Rate (€)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
                 min="0"
-                value={formData.monatlicheRate || ''}
-                onChange={(e) => setFormData({ ...formData, monatlicheRate: parseFloat(e.target.value) || undefined })}
+                dezimalstellen={2}
+                value={formData.monatlicheRate ?? null}
+                onChange={(v) => setFormData({ ...formData, monatlicheRate: v || undefined })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="Für Ratenzahlungen"
               />

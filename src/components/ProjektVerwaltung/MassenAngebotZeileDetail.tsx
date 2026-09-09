@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   X, FileText, Loader2, Save, Archive, Truck, PauseCircle, AlertTriangle, MapPin, Warehouse, History, BadgeEuro, ExternalLink, Inbox, Mail as MailIcon, RotateCcw,
   CheckCircle2, Info, Mail, Calendar, Package, Euro, ChevronLeft, ChevronRight, Plus, Trash2, Search,
@@ -20,6 +20,8 @@ import {
   findePrimaerPosition, summiere, setzeMengeAufPrimaer, setzePreisAufPrimaer,
   aenderePositionsWert, round2,
 } from '../../utils/angebotsPositionen';
+import { NumberInput } from '../NumberInput';
+import { LIEFERUNG } from '../../constants/artikelPreise';
 
 /**
  * Detailansicht einer Kampagnen-Zeile.
@@ -142,7 +144,15 @@ export default function MassenAngebotZeileDetail({
   const preis = primaer?.einzelpreis ?? zeile.preisProTonne;
   const summe = summiere(positionen);
 
-  const setzeMenge = (neu: number) => setPositionen((alt) => setzeMengeAufPrimaer(alt, primaerId, neu));
+  // Beim Tippen meldet das Mengenfeld jeden Tastendruck. Würde jeder davon die
+  // Nebenpositionen aus dem BEREITS skalierten Zwischenstand neu hochrechnen,
+  // ginge bei jedem Schritt die Rundung auf 2 Stellen mit ein: „12,5" getippt
+  // ergab über 1 → 12 → 12,5 eine Anbruchmenge von 0,75 t statt 0,69 t. Deshalb
+  // wird der Stand beim Betreten des Feldes festgehalten und immer von dort
+  // gerechnet — das Ergebnis hängt dann an der Zahl, nicht am Tippweg.
+  const mengenBasis = useRef<Position[] | null>(null);
+  const setzeMenge = (neu: number) =>
+    setPositionen((alt) => setzeMengeAufPrimaer(mengenBasis.current ?? alt, primaerId, neu));
   const setzePreis = (neu: number) => setPositionen((alt) => setzePreisAufPrimaer(alt, primaerId, neu));
   const aenderePosition = (id: string, feld: 'menge' | 'einzelpreis', wert: number) =>
     setPositionen((alt) => aenderePositionsWert(alt, id, feld, wert));
@@ -185,7 +195,7 @@ export default function MassenAngebotZeileDetail({
     // Kurz verzögert: Beim Tippen in der Menge sonst eine Routenabfrage je Tastendruck.
     const timer = setTimeout(() => {
       berechneFremdlieferungRoute('97828', zielPlz, {
-        stundenlohn: 105.0, durchschnittsgeschwindigkeit: 60.0,
+        stundenlohn: LIEFERUNG.FREMDLIEFERUNG_STUNDENSATZ, durchschnittsgeschwindigkeit: 60.0,
         beladungszeit: 30, abladungszeit: 30, anzahlAbladestellen: 1,
         pausenzeit: 45, lkwLadungInTonnen: menge,
       })
@@ -643,17 +653,17 @@ export default function MassenAngebotZeileDetail({
                         )}
                       </span>
                       <span className="flex items-center gap-1 whitespace-nowrap text-gray-700 dark:text-slate-300">
-                        <input
-                          type="number" step="0.5" value={p.menge} disabled={gesperrt}
-                          onChange={(e) => aenderePosition(p.id, 'menge', Number(e.target.value))}
+                        <NumberInput
+                          step="0.5" value={p.menge} disabled={gesperrt}
+                          onChange={(v) => aenderePosition(p.id, 'menge', v)}
                           aria-label={`Menge ${p.bezeichnung}`}
                           className="w-16 text-right px-1 py-0.5 rounded bg-transparent border border-transparent hover:border-gray-300 focus:border-gray-400 dark:hover:border-slate-600 dark:focus:border-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none disabled:hover:border-transparent"
                         />
                         <span className="text-gray-400 w-8">{p.einheit}</span>
                         <span className="text-gray-300">·</span>
-                        <input
-                          type="number" step="0.01" value={p.einzelpreis} disabled={gesperrt}
-                          onChange={(e) => aenderePosition(p.id, 'einzelpreis', Number(e.target.value))}
+                        <NumberInput
+                          step="0.01" dezimalstellen={2} value={p.einzelpreis} disabled={gesperrt}
+                          onChange={(v) => aenderePosition(p.id, 'einzelpreis', v)}
                           aria-label={`Einzelpreis ${p.bezeichnung}`}
                           className="w-20 text-right px-1 py-0.5 rounded bg-transparent border border-transparent hover:border-gray-300 focus:border-gray-400 dark:hover:border-slate-600 dark:focus:border-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:outline-none disabled:hover:border-transparent"
                         />
@@ -750,14 +760,16 @@ export default function MassenAngebotZeileDetail({
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-sm">
                     <span className="block text-gray-600 dark:text-slate-400 mb-1">Menge (t)</span>
-                    <input type="number" step="0.5" value={menge} disabled={gesperrt}
-                      onChange={(e) => setzeMenge(Number(e.target.value))}
+                    <NumberInput step="0.5" value={menge} disabled={gesperrt}
+                      onFocus={() => { mengenBasis.current = positionen; }}
+                      onBlur={() => { mengenBasis.current = null; }}
+                      onChange={(v) => setzeMenge(v)}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800" />
                   </label>
                   <label className="text-sm">
                     <span className="block text-gray-600 dark:text-slate-400 mb-1">Preis (€/t)</span>
-                    <input type="number" step="0.01" value={preis} disabled={gesperrt}
-                      onChange={(e) => setzePreis(Number(e.target.value))}
+                    <NumberInput step="0.01" dezimalstellen={2} value={preis} disabled={gesperrt}
+                      onChange={(v) => setzePreis(v)}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800" />
                   </label>
                 </div>

@@ -8,6 +8,7 @@ import {
 import { Konkurrent, KonkurrentFilter, MarktStatistiken, NeuerKonkurrent } from '../../types/konkurrent';
 import { konkurrentService } from '../../services/konkurrentService';
 import DeutschlandKartePro from './DeutschlandKartePro';
+import { OptionalNumberInput } from '../NumberInput';
 
 // Bundesländer für Filter
 const BUNDESLAENDER = [
@@ -468,23 +469,23 @@ const FilterPanel = ({ filter, setFilter, onReset }: FilterPanelProps) => {
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-2">Produktion (t/Jahr)</label>
         <div className="flex gap-2">
-          <input
-            type="number"
+          <OptionalNumberInput
             placeholder="Min"
-            value={filter.produktionsmengeMin || ''}
-            onChange={(e) => setFilter({
+            dezimalstellen={0}
+            value={filter.produktionsmengeMin ?? null}
+            onChange={(v) => setFilter({
               ...filter,
-              produktionsmengeMin: e.target.value ? parseInt(e.target.value) : undefined
+              produktionsmengeMin: v ?? undefined
             })}
             className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded"
           />
-          <input
-            type="number"
+          <OptionalNumberInput
             placeholder="Max"
-            value={filter.produktionsmengeMax || ''}
-            onChange={(e) => setFilter({
+            dezimalstellen={0}
+            value={filter.produktionsmengeMax ?? null}
+            onChange={(v) => setFilter({
               ...filter,
-              produktionsmengeMax: e.target.value ? parseInt(e.target.value) : undefined
+              produktionsmengeMax: v ?? undefined
             })}
             className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded"
           />
@@ -1507,29 +1508,28 @@ const KonkurrentFormular = ({ konkurrent, onClose, onSave }: KonkurrentFormularP
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Produktion (t/Jahr)</label>
-                  <input
-                    type="number"
-                    value={formData.produktionsmenge || ''}
-                    onChange={(e) => setFormData({ ...formData, produktionsmenge: e.target.value ? parseInt(e.target.value) : undefined })}
+                  <OptionalNumberInput
+                    dezimalstellen={0}
+                    value={formData.produktionsmenge ?? null}
+                    onChange={(v) => setFormData({ ...formData, produktionsmenge: v ?? undefined })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Kapazität (t/Jahr)</label>
-                  <input
-                    type="number"
-                    value={formData.produktionskapazitaet || ''}
-                    onChange={(e) => setFormData({ ...formData, produktionskapazitaet: e.target.value ? parseInt(e.target.value) : undefined })}
+                  <OptionalNumberInput
+                    dezimalstellen={0}
+                    value={formData.produktionskapazitaet ?? null}
+                    onChange={(v) => setFormData({ ...formData, produktionskapazitaet: v ?? undefined })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Marktanteil (%)</label>
-                  <input
-                    type="number"
+                  <OptionalNumberInput
                     step="0.1"
-                    value={formData.marktanteil || ''}
-                    onChange={(e) => setFormData({ ...formData, marktanteil: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    value={formData.marktanteil ?? null}
+                    onChange={(v) => setFormData({ ...formData, marktanteil: v ?? undefined })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
                   />
                 </div>
@@ -1549,19 +1549,19 @@ const KonkurrentFormular = ({ konkurrent, onClose, onSave }: KonkurrentFormularP
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Mitarbeiter</label>
-                  <input
-                    type="number"
-                    value={formData.mitarbeiteranzahl || ''}
-                    onChange={(e) => setFormData({ ...formData, mitarbeiteranzahl: e.target.value ? parseInt(e.target.value) : undefined })}
+                  <OptionalNumberInput
+                    dezimalstellen={0}
+                    value={formData.mitarbeiteranzahl ?? null}
+                    onChange={(v) => setFormData({ ...formData, mitarbeiteranzahl: v ?? undefined })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Gründungsjahr</label>
-                  <input
-                    type="number"
-                    value={formData.gruendungsjahr || ''}
-                    onChange={(e) => setFormData({ ...formData, gruendungsjahr: e.target.value ? parseInt(e.target.value) : undefined })}
+                  <OptionalNumberInput
+                    dezimalstellen={0}
+                    value={formData.gruendungsjahr ?? null}
+                    onChange={(v) => setFormData({ ...formData, gruendungsjahr: v ?? undefined })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg"
                   />
                 </div>

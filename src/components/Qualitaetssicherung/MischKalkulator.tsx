@@ -18,6 +18,7 @@ import {
   Save,
   Info,
 } from 'lucide-react';
+import { NumberInput } from '../NumberInput';
 import { Siebanalyse, MischKomponente, MischErgebnis } from '../../types/qualitaetssicherung';
 import { berechneMischung, schlageOptimaleMischungVor, qsService } from '../../services/qsService';
 import DINKoernungslinie from './DINKoernungslinie';
@@ -314,12 +315,12 @@ export default function MischKalkulator({ alleAnalysen, onMischungSpeichern }: P
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <input
-                          type="number"
+                        <NumberInput
+                          dezimalstellen={0}
                           min="0"
                           max="100"
                           value={komponente.anteil}
-                          onChange={(e) => handleAnteilChange(komponente.analyseId, parseInt(e.target.value) || 0)}
+                          onChange={(v) => handleAnteilChange(komponente.analyseId, v)}
                           className="w-20 px-3 py-2 text-center border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-surface text-gray-900 dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-amber-500"
                         />
                         <span className="text-gray-600 dark:text-dark-textMuted">%</span>

@@ -24,6 +24,7 @@ import type { LagerBestand, DashboardStats } from '../../types/dashboard';
 import { useCan } from '../../hooks/useCan';
 import OilBulletinChart from './OilBulletinChart';
 import ShopEinnahmenChart from './ShopEinnahmenChart';
+import { NumberInput } from '../NumberInput';
 
 interface KennzahlKarteProps {
   titel: string;
@@ -379,29 +380,26 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Aktueller Bestand (Tonnen)</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.ziegelschutt}
-                  onChange={(e) => setEditData({ ...editData, ziegelschutt: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, ziegelschutt: v })}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-purple-200 dark:border-purple-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Minimum</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelschuttMin}
-                    onChange={(e) => setEditData({ ...editData, ziegelschuttMin: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelschuttMin: v })}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-purple-200 dark:border-purple-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Maximum</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelschuttMax}
-                    onChange={(e) => setEditData({ ...editData, ziegelschuttMax: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelschuttMax: v })}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-purple-200 dark:border-purple-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
@@ -416,29 +414,26 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Bestand (Tonnen)</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.ziegelmehlSchuettware}
-                  onChange={(e) => setEditData({ ...editData, ziegelmehlSchuettware: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, ziegelmehlSchuettware: v })}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-blue-200 dark:border-blue-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Min</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelmehlSchuettwareMin}
-                    onChange={(e) => setEditData({ ...editData, ziegelmehlSchuettwareMin: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelmehlSchuettwareMin: v })}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-blue-200 dark:border-blue-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Max</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelmehlSchuettwareMax}
-                    onChange={(e) => setEditData({ ...editData, ziegelmehlSchuettwareMax: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelmehlSchuettwareMax: v })}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-blue-200 dark:border-blue-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -453,29 +448,29 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Bestand (Paletten)</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.ziegelmehlSackware}
-                  onChange={(e) => setEditData({ ...editData, ziegelmehlSackware: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, ziegelmehlSackware: v })}
+                  dezimalstellen={0}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-green-200 dark:border-green-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Min</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelmehlSackwareMin}
-                    onChange={(e) => setEditData({ ...editData, ziegelmehlSackwareMin: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelmehlSackwareMin: v })}
+                    dezimalstellen={0}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-green-200 dark:border-green-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Max</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.ziegelmehlSackwareMax}
-                    onChange={(e) => setEditData({ ...editData, ziegelmehlSackwareMax: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, ziegelmehlSackwareMax: v })}
+                    dezimalstellen={0}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-green-200 dark:border-green-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
@@ -490,29 +485,29 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Bestand (Stück)</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.hammerBestand}
-                  onChange={(e) => setEditData({ ...editData, hammerBestand: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, hammerBestand: v })}
+                  dezimalstellen={0}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-orange-200 dark:border-orange-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-5">
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Min</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.hammerBestandMin}
-                    onChange={(e) => setEditData({ ...editData, hammerBestandMin: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, hammerBestandMin: v })}
+                    dezimalstellen={0}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-orange-200 dark:border-orange-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Max</label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={editData.hammerBestandMax}
-                    onChange={(e) => setEditData({ ...editData, hammerBestandMax: Number(e.target.value) })}
+                    onChange={(v) => setEditData({ ...editData, hammerBestandMax: v })}
+                    dezimalstellen={0}
                     className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-orange-200 dark:border-orange-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   />
                 </div>
@@ -527,10 +522,10 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Anzahl Bestellungen</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.anstehendeAuslieferungen}
-                  onChange={(e) => setEditData({ ...editData, anstehendeAuslieferungen: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, anstehendeAuslieferungen: v })}
+                  dezimalstellen={0}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-indigo-200 dark:border-indigo-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
@@ -544,10 +539,9 @@ const Dashboard = () => {
               </h3>
               <div>
                 <label className="block text-sm sm:text-lg font-bold text-gray-700 dark:text-dark-textMuted mb-2 sm:mb-3">Verfügbare Tonnen für aktuelle Saison</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={editData.verfuegbareTonnen || 0}
-                  onChange={(e) => setEditData({ ...editData, verfuegbareTonnen: Number(e.target.value) })}
+                  onChange={(v) => setEditData({ ...editData, verfuegbareTonnen: v })}
                   className="w-full px-3 sm:px-5 py-2 sm:py-3 text-base sm:text-xl border-2 border-red-200 dark:border-red-700 rounded-lg sm:rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-red-500 focus:border-transparent"
                   placeholder="z.B. 5000"
                 />

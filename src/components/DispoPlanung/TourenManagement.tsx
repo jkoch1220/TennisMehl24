@@ -24,6 +24,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { NumberInput } from '../NumberInput';
 import { Tour, TourStop, TourFahrzeugTyp, TourKapazitaet, STANDARD_KAPAZITAETEN } from '../../types/tour';
 import { Projekt } from '../../types/projekt';
 import { tourenService } from '../../services/tourenService';
@@ -229,13 +230,12 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
                   {lkwTyp === 'mit_haenger' ? 'Motorwagen' : 'Gesamtkapazität'}
                 </label>
                 <div className="relative">
-                  <input
-                    type="number"
+                  <NumberInput
                     step="0.5"
                     min="1"
                     max="30"
                     value={motorwagenTonnen}
-                    onChange={(e) => setMotorwagenTonnen(parseFloat(e.target.value) || 14)}
+                    onChange={(v) => setMotorwagenTonnen(v || 14)}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-12"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
@@ -249,13 +249,12 @@ const NeueTourDialog = ({ open, onClose, onSave }: NeueTourDialogProps) => {
                     Hänger
                   </label>
                   <div className="relative">
-                    <input
-                      type="number"
+                    <NumberInput
                       step="0.5"
                       min="1"
                       max="20"
                       value={haengerTonnen}
-                      onChange={(e) => setHaengerTonnen(parseFloat(e.target.value) || 10)}
+                      onChange={(v) => setHaengerTonnen(v || 10)}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-12"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
@@ -462,13 +461,12 @@ const TourBearbeitenDialog = ({ open, tour, onClose, onSave }: TourBearbeitenDia
                   {lkwTyp === 'mit_haenger' ? 'Motorwagen' : 'Gesamtkapazität'}
                 </label>
                 <div className="relative">
-                  <input
-                    type="number"
+                  <NumberInput
                     step="0.5"
                     min="1"
                     max="30"
                     value={motorwagenTonnen}
-                    onChange={(e) => setMotorwagenTonnen(parseFloat(e.target.value) || 14)}
+                    onChange={(v) => setMotorwagenTonnen(v || 14)}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-10"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
@@ -478,13 +476,12 @@ const TourBearbeitenDialog = ({ open, tour, onClose, onSave }: TourBearbeitenDia
                 <div>
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hänger</label>
                   <div className="relative">
-                    <input
-                      type="number"
+                    <NumberInput
                       step="0.5"
                       min="1"
                       max="20"
                       value={haengerTonnen}
-                      onChange={(e) => setHaengerTonnen(parseFloat(e.target.value) || 10)}
+                      onChange={(v) => setHaengerTonnen(v || 10)}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white pr-10"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">t</span>
@@ -730,12 +727,11 @@ const TourZuweisungDialog = ({ open, projekt, touren, onClose, onZuweisen }: Tou
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Liefermenge (Tonnen)
             </label>
-            <input
-              type="number"
+            <NumberInput
               step="0.1"
               min="0.1"
               value={tonnen}
-              onChange={(e) => setTonnen(parseFloat(e.target.value) || 0)}
+              onChange={(v) => setTonnen(v)}
               className="w-full px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
               required
             />

@@ -5,6 +5,7 @@
 
 import { AlertTriangle, Mail, StickyNote, Trash2, X } from 'lucide-react';
 import { MassenAngebotKandidat } from '../../types/massenAngebot';
+import { NumberInput } from '../NumberInput';
 import {
   eur,
   PROFIL_BADGE,
@@ -186,16 +187,15 @@ const MassenAngebotDetailPanel = ({
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       {editierbar ? (
-                        <input
-                          type="number"
-                          value={pos.menge || ''}
+                        <NumberInput
+                          value={pos.menge}
                           min={0}
                           step={0.5}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             onPositionAendern(
                               kandidat.kundeId,
                               pos.id,
-                              Number(e.target.value),
+                              v,
                               pos.einzelpreis ?? 0
                             )
                           }
@@ -208,17 +208,17 @@ const MassenAngebotDetailPanel = ({
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       {editierbar ? (
-                        <input
-                          type="number"
-                          value={pos.einzelpreis || ''}
+                        <NumberInput
+                          value={pos.einzelpreis}
                           min={0}
                           step={0.5}
-                          onChange={(e) =>
+                          dezimalstellen={2}
+                          onChange={(v) =>
                             onPositionAendern(
                               kandidat.kundeId,
                               pos.id,
                               pos.menge ?? 0,
-                              Number(e.target.value)
+                              v
                             )
                           }
                           className={`w-20 ${inputClass}`}

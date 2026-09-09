@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Layers, Building2, MapPin, Calendar, Package, Euro, User, Truck } from 'lucide-react';
 import { NeuesProjekt } from '../../types/projekt';
+import { NumberInput } from '../NumberInput';
 
 interface ProjektDialogProps {
   kundenname: string;
@@ -168,13 +169,14 @@ const ProjektDialog = ({
               <Calendar className="w-4 h-4 inline mr-1" />
               Saisonjahr *
             </label>
-            <input
-              type="number"
+            <NumberInput
+              dezimalstellen={0}
               value={formData.saisonjahr}
-              onChange={(e) => setFormData({ ...formData, saisonjahr: parseInt(e.target.value) })}
+              onChange={(v) => setFormData({ ...formData, saisonjahr: v })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               min="2020"
               max="2099"
+              bereichWarnung
               required
             />
           </div>
@@ -186,11 +188,10 @@ const ProjektDialog = ({
                 <Package className="w-4 h-4 inline mr-1" />
                 Angefragte Menge (Tonnen)
               </label>
-              <input
-                type="number"
+              <NumberInput
                 step="0.1"
                 value={formData.angefragteMenge}
-                onChange={(e) => setFormData({ ...formData, angefragteMenge: parseFloat(e.target.value) || 0 })}
+                onChange={(v) => setFormData({ ...formData, angefragteMenge: v })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="z.B. 5.0"
               />
@@ -200,11 +201,11 @@ const ProjektDialog = ({
                 <Euro className="w-4 h-4 inline mr-1" />
                 Preis pro Tonne (€)
               </label>
-              <input
-                type="number"
+              <NumberInput
                 step="0.01"
+                dezimalstellen={2}
                 value={formData.preisProTonne}
-                onChange={(e) => setFormData({ ...formData, preisProTonne: parseFloat(e.target.value) || 0 })}
+                onChange={(v) => setFormData({ ...formData, preisProTonne: v })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="z.B. 450.00"
               />

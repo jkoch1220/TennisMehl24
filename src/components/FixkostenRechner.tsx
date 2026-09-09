@@ -5,6 +5,7 @@ import { FixkostenInput } from '../types';
 import { berechneFixkosten } from '../utils/fixkostenCalculations';
 import { DEFAULT_FIXKOSTEN } from '../constants/defaultValues';
 import { fixkostenService } from '../services/fixkostenService';
+import { NumberInput } from './NumberInput';
 
 const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4'];
 
@@ -296,10 +297,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Pacht (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.grundstueck.pacht}
-                    onChange={(e) => updateGrundstueck('pacht', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateGrundstueck('pacht', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -307,10 +308,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Steuer (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.grundstueck.steuer}
-                    onChange={(e) => updateGrundstueck('steuer', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateGrundstueck('steuer', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -318,10 +319,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Pflege (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.grundstueck.pflege}
-                    onChange={(e) => updateGrundstueck('pflege', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateGrundstueck('pflege', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -329,10 +330,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Bürocontainer (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.grundstueck.buerocontainer}
-                    onChange={(e) => updateGrundstueck('buerocontainer', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateGrundstueck('buerocontainer', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-green-200 dark:border-green-700/50 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -360,10 +361,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Radlader (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.wartungRadlader}
-                    onChange={(e) => updateMaschinen('wartungRadlader', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('wartungRadlader', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -371,10 +372,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Stapler (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.wartungStapler}
-                    onChange={(e) => updateMaschinen('wartungStapler', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('wartungStapler', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -382,10 +383,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Mühle (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.wartungMuehle}
-                    onChange={(e) => updateMaschinen('wartungMuehle', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('wartungMuehle', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -393,10 +394,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Siebanlage (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.wartungSiebanlage}
-                    onChange={(e) => updateMaschinen('wartungSiebanlage', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('wartungSiebanlage', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -404,10 +405,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Wartung Absackanlage (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.wartungAbsackanlage}
-                    onChange={(e) => updateMaschinen('wartungAbsackanlage', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('wartungAbsackanlage', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -415,10 +416,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Sonstige Wartung (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.sonstigeWartung}
-                    onChange={(e) => updateMaschinen('sonstigeWartung', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('sonstigeWartung', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -426,10 +427,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Grundkosten Maschinen (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.maschinen.grundkostenMaschinen}
-                    onChange={(e) => updateMaschinen('grundkostenMaschinen', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateMaschinen('grundkostenMaschinen', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-blue-200 dark:border-blue-700/50 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -454,10 +455,10 @@ const FixkostenRechner = () => {
                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                   Rücklagen (€)
                 </label>
-                <input
-                  type="number"
+                <NumberInput
                   value={input.ruecklagenErsatzkauf}
-                  onChange={(e) => setInput(prev => prev ? ({ ...prev, ruecklagenErsatzkauf: parseFloat(e.target.value) || 0 }) : prev)}
+                  onChange={(v) => setInput(prev => prev ? ({ ...prev, ruecklagenErsatzkauf: v }) : prev)}
+                  dezimalstellen={2}
                   className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-purple-200 dark:border-purple-700/50 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                 />
               </div>
@@ -475,10 +476,10 @@ const FixkostenRechner = () => {
                 <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                   Sonstige Kosten (€) - Versicherungen, Ämter, Prüfung Anlage
                 </label>
-                <input
-                  type="number"
+                <NumberInput
                   value={input.sonstiges}
-                  onChange={(e) => setInput(prev => prev ? ({ ...prev, sonstiges: parseFloat(e.target.value) || 0 }) : prev)}
+                  onChange={(v) => setInput(prev => prev ? ({ ...prev, sonstiges: v }) : prev)}
+                  dezimalstellen={2}
                   className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-gray-200 dark:border-slate-600 rounded-xl focus:border-gray-500 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                 />
               </div>
@@ -499,10 +500,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     BRZ, Steuerberater (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verwaltung.brzSteuerberater}
-                    onChange={(e) => updateVerwaltung('brzSteuerberater', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateVerwaltung('brzSteuerberater', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -510,10 +511,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Telefon, Cloud, Server (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verwaltung.telefonCloudServer}
-                    onChange={(e) => updateVerwaltung('telefonCloudServer', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateVerwaltung('telefonCloudServer', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -521,10 +522,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     GF Gehalt (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verwaltung.gfGehalt}
-                    onChange={(e) => updateVerwaltung('gfGehalt', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateVerwaltung('gfGehalt', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>
@@ -532,10 +533,10 @@ const FixkostenRechner = () => {
                   <label className="block text-sm font-semibold text-gray-700 dark:text-slate-400 mb-2">
                     Grundsteuer (€)
                   </label>
-                  <input
-                    type="number"
+                  <NumberInput
                     value={input.verwaltung.grundsteuer}
-                    onChange={(e) => updateVerwaltung('grundsteuer', parseFloat(e.target.value) || 0)}
+                    onChange={(v) => updateVerwaltung('grundsteuer', v)}
+                    dezimalstellen={2}
                     className="w-full p-3 bg-white dark:bg-slate-800 dark:text-slate-100 border-2 border-indigo-200 dark:border-indigo-700/50 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition-all duration-200 shadow-sm hover:shadow-md dark:shadow-slate-900/40"
                   />
                 </div>

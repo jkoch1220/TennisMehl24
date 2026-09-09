@@ -62,6 +62,7 @@ import {
   ladeEntwurf,
 } from '../../services/platzbauerprojektabwicklungDokumentService';
 import { useNavigate } from 'react-router-dom';
+import { NumberInput } from '../NumberInput';
 
 interface PlatzbauerlProjektDetailProps {
   projektId: string;
@@ -1200,24 +1201,23 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                         })()}
                       </td>
                       <td className="px-4 py-3">
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.1"
                           min="0"
-                          value={v.menge || ''}
-                          onChange={(e) => updateVereinMitAenderung(index, { menge: parseFloat(e.target.value) || 0 })}
+                          value={v.menge}
+                          onChange={(wert) => updateVereinMitAenderung(index, { menge: wert })}
                           disabled={!v.ausgewaehlt}
                           placeholder="0"
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.01"
                           min="0"
-                          value={v.einzelpreis || ''}
-                          onChange={(e) => updateVereinMitAenderung(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          dezimalstellen={2}
+                          value={v.einzelpreis}
+                          onChange={(wert) => updateVereinMitAenderung(index, { einzelpreis: wert })}
                           disabled={!v.ausgewaehlt}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white disabled:opacity-50"
                         />
@@ -1304,22 +1304,21 @@ const AngebotTab = ({ projekt, platzbauer, positionen, onSave, saving }: Angebot
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.1"
                           min="0"
-                          value={pos.menge || ''}
-                          onChange={(e) => updateZusatzPositionMitAenderung(index, { menge: parseFloat(e.target.value) || 0 })}
+                          value={pos.menge}
+                          onChange={(wert) => updateZusatzPositionMitAenderung(index, { menge: wert })}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          type="number"
+                        <NumberInput
                           step="0.01"
                           min="0"
-                          value={pos.einzelpreis || ''}
-                          onChange={(e) => updateZusatzPositionMitAenderung(index, { einzelpreis: parseFloat(e.target.value) || 0 })}
+                          dezimalstellen={2}
+                          value={pos.einzelpreis}
+                          onChange={(wert) => updateZusatzPositionMitAenderung(index, { einzelpreis: wert })}
                           className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 dark:border-dark-border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
                         />
                       </td>
@@ -1929,17 +1928,19 @@ const LieferscheineTab = ({ projekt, platzbauer, positionen, onCreateLieferschei
                   </div>
                   <div className="flex gap-2">
                     <a
-                      href={platzbauerprojektabwicklungDokumentService.getFileViewUrl(ls.dateiId)}
+                      href={platzbauerprojektabwicklungDokumentService.getFileViewUrl(ls.dateiId) || undefined}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                      title={ls.dateiId ? 'Anzeigen' : 'Kein PDF vorhanden'}
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors${ls.dateiId ? '' : ' opacity-40 pointer-events-none'}`}
                     >
                       <Eye className="w-4 h-4" />
                       Anzeigen
                     </a>
                     <a
-                      href={platzbauerprojektabwicklungDokumentService.getFileDownloadUrl(ls.dateiId)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                      href={platzbauerprojektabwicklungDokumentService.getFileDownloadUrl(ls.dateiId) || undefined}
+                      title={ls.dateiId ? 'Herunterladen' : 'Kein PDF vorhanden'}
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors${ls.dateiId ? '' : ' opacity-40 pointer-events-none'}`}
                     >
                       <Download className="w-4 h-4" />
                     </a>

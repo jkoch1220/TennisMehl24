@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import SortablePosition from './SortablePosition';
 import NumericInput from '../Shared/NumericInput';
+import { OptionalNumberInput } from '../NumberInput';
 import { AuftragsbestaetigungsDaten, Position, GespeichertesDokument, AngebotsDaten } from '../../types/projektabwicklung';
 import { generiereAuftragsbestaetigungPDF, berechneAngebotsSummen } from '../../services/dokumentService';
 import { berechneDokumentSummen } from '../../services/rechnungService';
@@ -1775,6 +1776,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Menge</label>
                             <NumericInput
+                              dezimalstellen={3}
                               value={position.menge}
                               onChange={(val) => handlePositionChange(index, 'menge', val)}
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}
@@ -1793,11 +1795,11 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Streichpreis (€)</label>
-                            <input
-                              type="number"
+                            <OptionalNumberInput
                               step="0.01"
-                              value={position.streichpreis ?? ''}
-                              onChange={(e) => handlePositionChange(index, 'streichpreis', e.target.value ? parseFloat(e.target.value) : undefined)}
+                              dezimalstellen={2}
+                              value={position.streichpreis ?? null}
+                              onChange={(v) => handlePositionChange(index, 'streichpreis', v ?? undefined)}
                               disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                               placeholder="Optional"
                               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100 dark:bg-slate-700 disabled:text-gray-500 dark:text-slate-400"
@@ -1823,6 +1825,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Einzelpreis (€)</label>
                             <NumericInput
+                              dezimalstellen={2}
                               value={position.einzelpreis}
                               onChange={(val) => handlePositionChange(index, 'einzelpreis', val)}
                               step="0.01"
@@ -1885,6 +1888,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Frachtkosten (€)</label>
               <NumericInput
+                dezimalstellen={2}
                 value={auftragsbestaetigungsDaten.frachtkosten || 0}
                 onChange={(val) => handleInputChange('frachtkosten', val)}
                 step="0.01"
@@ -1999,15 +2003,15 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Raben-Basispreis (EUR netto)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 step="0.01"
                 min="0"
-                value={auftragsbestaetigungsDaten.rabenBasispreis ?? ''}
-                onChange={(e) =>
+                dezimalstellen={2}
+                value={auftragsbestaetigungsDaten.rabenBasispreis ?? null}
+                onChange={(v) =>
                   handleInputChange(
                     'rabenBasispreis',
-                    e.target.value === '' ? undefined : parseFloat(e.target.value)
+                    v ?? undefined
                   )
                 }
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
@@ -2118,6 +2122,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Skonto %</label>
                     <NumericInput
+                      dezimalstellen={2}
                       value={auftragsbestaetigungsDaten.skonto?.prozent || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: val,
@@ -2131,6 +2136,7 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-textMuted mb-1">Tage</label>
                     <NumericInput
+                      dezimalstellen={0}
                       value={auftragsbestaetigungsDaten.skonto?.tage || 0}
                       onChange={(val) => handleInputChange('skonto', {
                         prozent: auftragsbestaetigungsDaten.skonto?.prozent || 0,
@@ -2219,15 +2225,13 @@ const AuftragsbestaetigungTab = ({ projekt, kunde: kundeFromProps, kundeInfo }: 
               <label className="block text-xs font-medium text-gray-700 dark:text-dark-textMuted mb-1">
                 Rabatt (%)
               </label>
-              <input
-                type="number"
+              <OptionalNumberInput
                 min={0}
                 max={100}
                 step={0.5}
-                value={auftragsbestaetigungsDaten.gesamtrabattProzent ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  handleInputChange('gesamtrabattProzent', val === '' ? undefined : Math.max(0, Math.min(100, parseFloat(val))));
+                value={auftragsbestaetigungsDaten.gesamtrabattProzent ?? null}
+                onChange={(v) => {
+                  handleInputChange('gesamtrabattProzent', v === null ? undefined : Math.max(0, Math.min(100, v)));
                 }}
                 disabled={!!gespeichertesDokument && !istBearbeitungsModus}
                 placeholder="0"

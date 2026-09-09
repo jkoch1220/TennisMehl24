@@ -27,6 +27,7 @@ import { berechneNaechsteRate } from '../../utils/ratenzahlungCalculations';
 import { ID } from 'appwrite';
 import DokumentVorschau from './DokumentVorschau';
 import KreditorDetail from './KreditorDetail';
+import { OptionalNumberInput } from '../NumberInput';
 
 interface RechnungsDetailProps {
   rechnung: OffeneRechnung;
@@ -586,11 +587,11 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
                   </div>
                   {showRateEdit ? (
                     <div className="mt-2 flex gap-2">
-                      <input
-                        type="number"
+                      <OptionalNumberInput
                         step="0.01"
-                        value={neueRate}
-                        onChange={(e) => setNeueRate(e.target.value)}
+                        dezimalstellen={2}
+                        value={neueRate === '' ? null : Number(neueRate)}
+                        onChange={(v) => setNeueRate(v === null ? '' : String(v))}
                         placeholder="Rate in €"
                         className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm"
                       />
@@ -732,11 +733,11 @@ const RechnungsDetail = ({ rechnung, onClose, onEdit, onUpdate }: RechnungsDetai
 
                 {showAddZahlung && (
                   <div className="mb-4 p-3 bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 space-y-3">
-                    <input
-                      type="number"
+                    <OptionalNumberInput
                       step="0.01"
-                      value={zahlungBetrag}
-                      onChange={(e) => setZahlungBetrag(e.target.value)}
+                      dezimalstellen={2}
+                      value={zahlungBetrag === '' ? null : Number(zahlungBetrag)}
+                      onChange={(v) => setZahlungBetrag(v === null ? '' : String(v))}
                       placeholder="Betrag in €"
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm"
                     />

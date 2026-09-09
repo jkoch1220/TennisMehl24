@@ -36,6 +36,7 @@ import {
   setzeWiegescheinPruefungZurueck,
 } from '../../services/wiegescheinService';
 import { useAuth } from '../../contexts/AuthContext';
+import { OptionalNumberInput } from '../NumberInput';
 
 interface WiegescheinKarteProps {
   projekt: Projekt;
@@ -243,12 +244,10 @@ const WiegescheinKarte = ({ projekt: projektProp, onAktualisiert }: WiegescheinK
                   Nettomenge laut Wiegeschein
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
+                  <OptionalNumberInput
                     id="gepruefteMenge"
-                    type="text"
-                    inputMode="decimal"
-                    value={menge}
-                    onChange={(e) => setMenge(e.target.value)}
+                    value={menge.trim() === '' ? null : mengeAlsZahl}
+                    onChange={(v) => setMenge(v === null ? '' : String(v))}
                     placeholder="z. B. 24,32"
                     disabled={speichert}
                     className="w-40 rounded-lg border border-gray-300 bg-white px-3 py-2 text-lg font-semibold text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"

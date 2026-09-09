@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DebitorView, DebitorStatus, DEBITOR_STATUS_CONFIG, MAHNSTUFEN_CONFIG, MAHN_EMPFEHLUNG_LABEL, istForderungGeschlossen } from '../../types/debitor';
 import { berechneMahnEmpfehlung } from '../../services/debitorService';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
+import { OptionalNumberInput } from '../NumberInput';
 import HerkunftBadges from './HerkunftBadges';
 
 interface DebitorenListeProps {
@@ -484,11 +485,10 @@ const DebitorenListe = ({ debitoren, onOpenDetail, onMarkPaid, onMarkPaidBulk, o
               <label className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                 Erwartet:
               </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={erwartetBetrag}
-                onChange={(e) => setErwartetBetrag(e.target.value)}
+              <OptionalNumberInput
+                value={hatErwarteten ? erwartetNumber : null}
+                onChange={(v) => setErwartetBetrag(v === null ? '' : String(v))}
+                dezimalstellen={2}
                 placeholder="z.B. 1234,56"
                 className="w-32 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-md text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
