@@ -295,6 +295,9 @@ const stammdatenFields = [
   // Telefon-Leitfaden für die Anfragenbearbeitung (als JSON-String)
   { key: 'salesLeitfaden', type: 'string', size: 50000 },
 
+  // Standard-Angebotsartikel für Platzbauer (als JSON-String)
+  { key: 'platzbauerStandardartikel', type: 'string', size: 20000 },
+
   // Vertragsklauseln + AGB-Anhang für Angebote/ABs (als JSON-Strings).
   // Fehlten bis 07/2026 in diesem Skript, wodurch speichereStammdaten sie über
   // den "Unknown attribute"-Fallback stillschweigend verworfen hat.

@@ -7,14 +7,16 @@ import {
   Search,
   HardHat,
   CalendarDays,
+  ListPlus,
 } from 'lucide-react';
 import { PlatzbauermitVereinen, PBVStatistik } from '../../types/platzbauer';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import PlatzbauerlListe from './PlatzbauerlListe';
 import PlatzbauerlStatistik from './PlatzbauerlStatistik';
 import PlatzbauerlDetailPopup from './PlatzbauerlDetailPopup';
+import PlatzbauerStandardartikelTab from './PlatzbauerStandardartikelTab';
 
-type ViewMode = 'liste' | 'statistik';
+type ViewMode = 'liste' | 'statistik' | 'standardartikel';
 
 // Session Storage Keys
 const STORAGE_KEYS = {
@@ -76,7 +78,7 @@ const PlatzbauerverwaltungPage = () => {
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     // Gespeicherte Werte validieren (z.B. entferntes 'kanban' aus alten Sessions)
     const stored = loadSetting<string>(STORAGE_KEYS.viewMode, 'liste');
-    return stored === 'statistik' ? 'statistik' : 'liste';
+    return stored === 'statistik' || stored === 'standardartikel' ? (stored as ViewMode) : 'liste';
   });
   const [saisonjahr, setSaisonjahrState] = useState(() =>
     loadSetting(STORAGE_KEYS.saisonjahr, new Date().getFullYear())
@@ -237,6 +239,18 @@ const PlatzbauerverwaltungPage = () => {
               <BarChart3 className="w-4 h-4" />
               <span className="hidden md:inline">Statistik</span>
             </button>
+            <button
+              onClick={() => setViewMode('standardartikel')}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
+                viewMode === 'standardartikel'
+                  ? 'bg-white dark:bg-dark-bg text-amber-600 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              title="Standard-Angebotsartikel für alle Platzbauer pflegen"
+            >
+              <ListPlus className="w-4 h-4" />
+              <span className="hidden md:inline">Standardartikel</span>
+            </button>
           </div>
         </div>
       </div>
@@ -247,6 +261,8 @@ const PlatzbauerverwaltungPage = () => {
           <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
           <span className="ml-3 text-gray-500 dark:text-gray-400">Lade Platzbauer...</span>
         </div>
+      ) : viewMode === 'standardartikel' ? (
+        <PlatzbauerStandardartikelTab />
       ) : viewMode === 'liste' ? (
         <PlatzbauerlListe
           platzbauer={gefiltertePlatzbauer}

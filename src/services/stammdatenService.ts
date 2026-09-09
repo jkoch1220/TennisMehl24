@@ -215,6 +215,42 @@ export const speichereSalesLeitfaden = async (leitfadenJson: string): Promise<vo
 };
 
 /**
+ * Speichert nur die Standard-Angebotsartikel für Platzbauer. Eigene Funktion
+ * aus demselben Grund wie beim Telefon-Leitfaden: Gepflegt wird die Liste im
+ * Platzbauer-Tool, wo die Firmen-Pflichtfelder von StammdatenInput fehlen.
+ */
+export const speicherePlatzbauerStandardartikel = async (listeJson: string): Promise<void> => {
+  invalidateStammdatenCache();
+  const feld = { platzbauerStandardartikel: listeJson, aktualisiertAm: new Date().toISOString() };
+  try {
+    await databases.updateDocument(
+      DATABASE_ID,
+      STAMMDATEN_COLLECTION_ID,
+      STAMMDATEN_DOCUMENT_ID,
+      feld
+    );
+  } catch (error: any) {
+    if (error?.code === 404) {
+      await initialisiereStammdaten();
+      await databases.updateDocument(
+        DATABASE_ID,
+        STAMMDATEN_COLLECTION_ID,
+        STAMMDATEN_DOCUMENT_ID,
+        feld
+      );
+    } else {
+      throw error;
+    }
+  }
+  auditService.logAktion({
+    action: 'update',
+    entityType: 'stammdaten',
+    entityId: STAMMDATEN_DOCUMENT_ID,
+    summary: 'Standard-Angebotsartikel für Platzbauer bearbeitet',
+  });
+};
+
+/**
  * Initialisiert Stammdaten mit Standardwerten (falls noch keine existieren)
  */
 export const initialisiereStammdaten = async (): Promise<Stammdaten> => {

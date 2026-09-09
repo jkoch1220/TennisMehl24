@@ -73,6 +73,11 @@ import {
 import { SaisonKunde } from '../../types/saisonplanung';
 import { Artikel } from '../../types/artikel';
 import { getAlleArtikel } from '../../services/artikelService';
+import { getStammdatenOderDefault } from '../../services/stammdatenService';
+import {
+  baueStandardPreisliste,
+  leseStandardartikel,
+} from '../../constants/platzbauerStandardartikel';
 import { platzbauerverwaltungService } from '../../services/platzbauerverwaltungService';
 import { frachtrechnerHinweis } from '../../constants/vertragsklauseln';
 import { getPortalPublicUrl } from '../../services/liefernachweisService';
@@ -130,6 +135,8 @@ interface BedarfsPosition {
 interface AngebotEntwurf {
   vereinPositionen: VereinPosition[];
   zusatzPositionen: PlatzbauerAngebotPosition[];
+  /** Standard-Preisliste (Fracht, Verpackung, Schüttstelle, Hydrocourt). */
+  preislistenPositionen?: PlatzbauerAngebotPosition[];
   staffelpreisPositionen?: StaffelpreisPosition[];
   bedarfsPositionen?: BedarfsPosition[];
   angebotsModus?: 'standard' | 'staffelpreis';
@@ -148,6 +155,14 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
   // === STATE ===
   const [vereinPositionen, setVereinPositionen] = useState<VereinPosition[]>([]);
   const [zusatzPositionen, setZusatzPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+  /**
+   * Standard-Preisliste: dieselben Zusatzkonditionen für jeden Platzbauer,
+   * gepflegt im Reiter „Standardartikel". Sie trägt keine Menge und geht nie
+   * in die Angebotssumme — abgerechnet wird pro Lieferung.
+   */
+  const [preislistenPositionen, setPreislistenPositionen] = useState<PlatzbauerAngebotPosition[]>([]);
+  /** Standardartikel, die im Artikelstamm fehlen — sonst verschwänden sie stumm. */
+  const [preislisteFehlend, setPreislisteFehlend] = useState<string[]>([]);
 
   // Staffelpreise & Bedarfspositionen
   const [angebotsModus, setAngebotsModus] = useState<'standard' | 'staffelpreis'>('standard');
@@ -256,6 +271,9 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
           // Entwurf wiederherstellen
           console.log('✅ Stelle gespeicherten Entwurf wieder her mit', gespeicherterEntwurf.vereinPositionen?.length || 0, 'Vereinen');
           setZusatzPositionen(gespeicherterEntwurf.zusatzPositionen || []);
+          if (gespeicherterEntwurf.preislistenPositionen) {
+            setPreislistenPositionen(gespeicherterEntwurf.preislistenPositionen);
+          }
           // Staffelpreise und Bedarfspositionen wiederherstellen
           if (gespeicherterEntwurf.staffelpreisPositionen) {
             setStaffelpreisPositionen(gespeicherterEntwurf.staffelpreisPositionen);
@@ -303,6 +321,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                 );
                 setStaffelKonditionen(prev => ({ ...prev, ...stand.konditionen }));
                 setZusatzPositionen(stand.zusatzPositionen);
+                setPreislistenPositionen(stand.preislistenPositionen);
                 setBedarfsPositionen(stand.bedarfsPositionen);
                 setFormData(prev => ({
                   ...prev,
@@ -314,6 +333,27 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
             }
           } catch (e) {
             console.warn('Angebot konnte nicht zurückgelesen werden:', e);
+          }
+        }
+
+        // Standard-Preisliste: Kommt sie weder aus dem Entwurf noch aus dem
+        // zuletzt erstellten Angebot, wird sie aus der gepflegten Vorlage
+        // aufgebaut. So bekommt jeder Platzbauer dieselben Zusatzkonditionen,
+        // ohne dass sie jemand von Hand zusammenklickt.
+        const hatPreislisteImEntwurf =
+          !!(gespeicherterEntwurf && entwurfHatInhalt && gespeicherterEntwurf.preislistenPositionen);
+        const hatPreislisteImDokument = !!standAusDokument?.preislistenPositionen?.length;
+        if (!hatPreislisteImEntwurf && !hatPreislisteImDokument) {
+          try {
+            const stammdaten = await getStammdatenOderDefault();
+            const { zeilen, fehlend } = baueStandardPreisliste(
+              leseStandardartikel(stammdaten.platzbauerStandardartikel),
+              alleArtikel
+            );
+            setPreislistenPositionen(zeilen);
+            setPreislisteFehlend(fehlend);
+          } catch (e) {
+            console.warn('Standard-Preisliste konnte nicht geladen werden:', e);
           }
         }
 
@@ -403,6 +443,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       const entwurf: AngebotEntwurf = {
         vereinPositionen,
         zusatzPositionen,
+        preislistenPositionen,
         staffelpreisPositionen,
         bedarfsPositionen,
         angebotsModus,
@@ -425,7 +466,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       console.error('❌ Auto-Save Fehler:', error);
       setSpeicherStatus('fehler');
     }
-  }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData]);
+  }, [projekt?.id, initialLaden, vereinPositionen, zusatzPositionen, preislistenPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData]);
 
   // Debounced Auto-Save - reagiert auf Änderungen
   useEffect(() => {
@@ -455,7 +496,7 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [vereinPositionen, zusatzPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData, speichereAutomatisch, initialLaden]);
+  }, [vereinPositionen, zusatzPositionen, preislistenPositionen, staffelpreisPositionen, bedarfsPositionen, angebotsModus, staffelKonditionen, formData, speichereAutomatisch, initialLaden]);
 
   // === CHANGE HANDLER ===
   const markiereGeaendert = () => {
@@ -871,6 +912,35 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
     setBedarfsPositionen(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Standard-Preisliste (Vorlage aus dem Reiter „Standardartikel")
+  const updatePreislistenPosition = (index: number, updates: Partial<PlatzbauerAngebotPosition>) => {
+    markiereGeaendert();
+    setPreislistenPositionen(prev =>
+      prev.map((pos, i) => (i === index ? { ...pos, ...updates } : pos))
+    );
+  };
+
+  const removePreislistenPosition = (index: number) => {
+    markiereGeaendert();
+    setPreislistenPositionen(prev => prev.filter((_, i) => i !== index));
+  };
+
+  /** Vorlage erneut anwenden – z. B. nachdem im Reiter Preise geändert wurden. */
+  const preislisteAusVorlage = async () => {
+    try {
+      const stammdaten = await getStammdatenOderDefault();
+      const { zeilen, fehlend } = baueStandardPreisliste(
+        leseStandardartikel(stammdaten.platzbauerStandardartikel),
+        alleArtikel
+      );
+      markiereGeaendert();
+      setPreislistenPositionen(zeilen);
+      setPreislisteFehlend(fehlend);
+    } catch (e) {
+      console.warn('Standard-Preisliste konnte nicht geladen werden:', e);
+    }
+  };
+
   // Zusatzpositionen
   const addZusatzPosition = () => {
     markiereGeaendert();
@@ -1058,6 +1128,8 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
       const allePositionen = [
         ...angebotPositionen,
         ...zusatzPositionen,
+        // Preisliste: ohne Menge, ohne Summe – siehe platzbauerStandardartikel.ts
+        ...preislistenPositionen,
         ...(angebotsModus === 'staffelpreis' ? staffelPositionen : []),
         ...bedarfPositionen,
       ];
@@ -2065,6 +2137,84 @@ const PlatzbauerAngebotTab = ({ projekt, platzbauer }: PlatzbauerAngebotTabProps
                     placeholder="Notiz (optional)"
                   />
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Standard-Preisliste */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-gray-200 dark:border-slate-700">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <ListPlus className="w-5 h-5 text-slate-500" />
+              Standard-Zusatzleistungen
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Preise je Einheit, ohne Menge und ohne Summe. Stehen so im Angebot und gelten für
+              alle Abrufe. Gepflegt im Reiter „Standardartikel".
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={preislisteAusVorlage}
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
+            title="Vorlage erneut anwenden (überschreibt Änderungen in diesem Angebot)"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Vorlage
+          </button>
+        </div>
+
+        {preislisteFehlend.length > 0 && (
+          <div className="mb-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-sm">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>
+              Nicht im Artikelstamm: <strong>{preislisteFehlend.join(', ')}</strong>. Diese
+              Standardartikel fehlen im Angebot.
+            </span>
+          </div>
+        )}
+
+        {preislistenPositionen.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+            Keine Standard-Zusatzleistungen im Angebot.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {preislistenPositionen.map((pos, index) => (
+              <div
+                key={pos.id}
+                className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-gray-900 dark:text-white truncate">{pos.bezeichnung}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pos.artikelnummer}
+                    {pos.preislisteGruppe ? ` · ${pos.preislisteGruppe}` : ''}
+                    {pos.preislisteHinweis ? ` · ${pos.preislisteHinweis}` : ''}
+                  </p>
+                </div>
+                <span className="text-gray-500 dark:text-gray-400 w-12 text-center">
+                  {pos.einheit}
+                </span>
+                <NumberInput
+                  value={pos.einzelpreis}
+                  onChange={(v) => updatePreislistenPosition(index, { einzelpreis: v })}
+                  className="w-28 px-2 py-1.5 text-right border border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+                  step="0.01"
+                  dezimalstellen={2}
+                />
+                <span className="text-gray-500 dark:text-gray-400 w-6">€</span>
+                <button
+                  type="button"
+                  onClick={() => removePreislistenPosition(index)}
+                  className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                  title="Aus diesem Angebot entfernen"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>

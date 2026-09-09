@@ -165,7 +165,13 @@ export interface StaffelKonditionen {
 }
 
 // Positionstyp: Normal, Staffelpreis oder Bedarf
-export type PositionsTyp = 'normal' | 'staffelpreis' | 'bedarf';
+/**
+ * 'preisliste': Standardkondition ohne Menge und ohne Summe (Fracht, Folie,
+ * Palette, Schüttstelle, Hydrocourt). Steht im Angebot als Preisliste je
+ * Einheit und wird pro Lieferung abgerechnet — siehe
+ * `constants/platzbauerStandardartikel.ts`.
+ */
+export type PositionsTyp = 'normal' | 'staffelpreis' | 'bedarf' | 'preisliste';
 
 // ==================== BEDARFSPOSITIONEN TYPES ====================
 
@@ -191,10 +197,16 @@ export interface PlatzbauerAngebotPosition {
   gesamtpreis: number;           // menge * einzelpreis
 
   // Positionstyp (neu)
-  positionsTyp?: PositionsTyp;   // 'normal' | 'staffelpreis' | 'bedarf'
+  positionsTyp?: PositionsTyp;   // 'normal' | 'staffelpreis' | 'bedarf' | 'preisliste'
 
   // Staffelpreis-Daten (wenn positionsTyp === 'staffelpreis')
   staffelpreise?: StaffelpreisKonfiguration;
+
+  // Preislisten-Daten (wenn positionsTyp === 'preisliste')
+  /** Gruppenüberschrift in der Preisliste, z. B. „Fracht & Verpackung". */
+  preislisteGruppe?: string;
+  /** Erläuterung unter der Zeile, z. B. die Abrechnungsregel. */
+  preislisteHinweis?: string;
 
   // Bedarfsposition-Daten (wenn positionsTyp === 'bedarf')
   bedarfsStatus?: BedarfsStatus; // 'geschaetzt' | 'bestaetigt' | 'storniert'
