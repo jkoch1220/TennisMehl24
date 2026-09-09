@@ -1,1301 +1,656 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Plus, Check, History, TrendingUp, TrendingDown, Trash2, Factory, Calendar,
-  Clock, Package, ChevronLeft, ChevronRight, BarChart3, Target, Award,
-  ArrowUpRight, ArrowDownRight, Minus, Activity, Zap, CalendarDays
-} from 'lucide-react';
-import {
-  BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Area, AreaChart, ComposedChart, Legend, Cell
-} from 'recharts';
-import { produktionService } from '../../services/produktionService';
-import type { ProduktionsVerlauf, ProduktionsEintrag, Koernung } from '../../types/produktion';
-import { KOERNUNGEN } from '../../types/produktion';
-import SwipeWheelPicker, { playTickSound, triggerHaptic } from './SwipeWheelPicker';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, Factory, Loader2, Plus, Sun, X } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useCan } from '../../hooks/useCan';
+import { useIstMobil } from '../../hooks/useIstMobil';
+import type { ProduktionsBuchung } from '../../types/produktion';
+import { getBereich } from '../../types/produktion';
+import { storniereBuchung } from '../../services/produktionService';
+import { auditService } from '../../services/auditService';
 
-// Hook für Mobile Detection
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(false);
+import { useProduktionsDaten } from './useProduktionsDaten';
+import { losesMehlVorrat, useErfassung } from './useErfassung';
+import { useWarteschlange } from './useWarteschlange';
+import {
+  FOKUS,
+  ladeSonnenmodus,
+  PANEL_LABEL,
+  speichereSonnenmodus,
+  STATION,
+} from './produktionUi';
+import { istTonAn, melde, schliesseAudio, setTonAn, weckeAudio } from './feedback';
+import { formatTonnen, heuteDatum, summe } from './statistik';
 
-  useEffect(() => {
-    const checkMobile = () => {
-      const isSmallScreen = window.innerWidth < 768;
-      const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      setIsMobile(isSmallScreen && hasTouch);
+import BereichsLeiste from './BereichsLeiste';
+import WertAnzeige from './WertAnzeige';
+import ErfassungsBlock from './ErfassungsBlock';
+import BuchenTaste, { darfSofortBuchen } from './BuchenTaste';
+import MelderZeile from './MelderZeile';
+import DatumWahl from './DatumWahl';
+import TagesJournal from './TagesJournal';
+import StornoSheet from './StornoSheet';
+import LeitungsPanel from './LeitungsPanel';
+
+/**
+ * Produktionserfassung — Rohmaterial, Mahlen, Abfüllung.
+ * ============================================================================
+ *
+ * Leitidee: das Tool ist kein Formular, sondern ein Wägeterminal. In allen drei
+ * Bereichen steht EINE maßgebliche Zahl an derselben Stelle, in derselben
+ * Größe, mit fester Einheit — und ein Materialstreifen in Stationsfarbe sagt
+ * aus zwei Metern Entfernung, in welchen Bestand gerade gebucht wird.
+ *
+ * Rechte-Staffelung (Schlüssel in constants/sensitiveFields.ts):
+ *   auswertung       → Charts, Trends, Kennzahlen, Prognose
+ *   lagerbestand     → Bestände, Materialbilanz, Bestandsabgleich
+ *   fremde-buchungen → Belege anderer Mitarbeiter
+ *
+ * Die Grenze läuft zwischen BELEG und DEUTUNG. „Was habe ich heute gebucht" ist
+ * kein Report, sondern die Voraussetzung dafür, nicht doppelt zu buchen — die
+ * eigenen Belege samt Zwischensumme sieht deshalb jeder Erfasser. Zeitreihen,
+ * Vergleiche, Bestände und Ausbeute sind Deutung und bleiben der Leitung
+ * vorbehalten.
+ *
+ * Was hier bewusst NICHT passiert (siehe auch die Kommentare in den
+ * Unterkomponenten): kein Eingriff in `document.body` für den Vollbildmodus,
+ * kein Wischen zwischen Bereichen, keine blockierende Quittung, keine
+ * Zählanimation der Ergebniszahl, kein „Bearbeiten" einer Buchung.
+ */
+
+const ProduktionsTracker: React.FC = () => {
+  const { user } = useAuth();
+  const { can, isFieldHidden } = useCan();
+  const istMobil = useIstMobil();
+
+  const zeigeAuswertung = !isFieldHidden('produktion', 'auswertung');
+  const zeigeBestand = !isFieldHidden('produktion', 'lagerbestand');
+  const zeigeFremde = !isFieldHidden('produktion', 'fremde-buchungen');
+  const darfErfassen = can('produktion', 'create');
+  const darfStornieren = can('produktion', 'delete');
+  const darfExportieren = can('produktion', 'export');
+
+  const daten = useProduktionsDaten(user);
+  const warteschlange = useWarteschlange(user, daten.neuLaden);
+
+  const [reiter, setReiter] = useState<'erfassung' | 'auswertung'>('erfassung');
+  const [datumOffen, setDatumOffen] = useState(false);
+  const [journalOffen, setJournalOffen] = useState(false);
+  const [stornoZiel, setStornoZiel] = useState<ProduktionsBuchung | null>(null);
+  const [stornoLaeuft, setStornoLaeuft] = useState(false);
+  const [sonne, setSonne] = useState(ladeSonnenmodus);
+  const [ton, setTon] = useState(istTonAn);
+  const [verworfen, setVerworfen] = useState(false);
+
+  /**
+   * Re-Entrancy-Sperre. Ohne sie erzeugt ein zweiter Tipp auf die Buchen-Taste,
+   * während der erste noch fliegt, eine zweite Buchung — der `disabled`-Zustand
+   * greift erst nach dem nächsten Render.
+   */
+  const buchtGerade = useRef(false);
+
+  /**
+   * Verfügbare Resthöhe der Erfassung am Gerät.
+   *
+   * `h-[100dvh]` allein reicht nicht: die Route liegt im Portal-Rahmen, und der
+   * Kopf der Anwendung steht darüber — der Container ragte damit genau um diese
+   * Kopfhöhe aus dem Bild, und die Buchen-Taste lag unerreichbar darunter.
+   * Dieselbe Lage entsteht auf der öffentlichen Erfassungsseite, die einen
+   * eigenen Kopf mitbringt.
+   *
+   * Der Vorgänger löste das mit `position: fixed` am `document.body` — und
+   * verlor dabei die Scrollposition, sperrte Toasts aus und machte auf der
+   * öffentlichen Seite den Abmelden-Knopf unerreichbar. Hier wird stattdessen
+   * schlicht gemessen, was tatsächlich übrig ist.
+   */
+  const rahmenRef = useRef<HTMLDivElement>(null);
+  const [restHoehe, setRestHoehe] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (!istMobil) {
+      setRestHoehe(null);
+      return;
+    }
+    const messen = () => {
+      const oben = rahmenRef.current?.getBoundingClientRect().top ?? 0;
+      // visualViewport kennt die eingeblendete Bildschirmtastatur; ohne sie
+      // rechnet iOS mit der vollen Höhe weiter.
+      const sichtbar = window.visualViewport?.height ?? window.innerHeight;
+      setRestHoehe(Math.max(320, Math.round(sichtbar - oben)));
     };
+    messen();
+    window.addEventListener('resize', messen);
+    window.addEventListener('orientationchange', messen);
+    window.visualViewport?.addEventListener('resize', messen);
+    return () => {
+      window.removeEventListener('resize', messen);
+      window.removeEventListener('orientationchange', messen);
+      window.visualViewport?.removeEventListener('resize', messen);
+    };
+  }, [istMobil]);
 
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+  const erfassung = useErfassung({
+    buchungenAmTag: useMemo(
+      () => daten.buchungen.filter((b) => !b.storniert),
+      [daten.buchungen]
+    ),
+    eigeneLetzte: daten.eigene,
+    zeigeZahlen: zeigeAuswertung,
+    losesMehlVorrat: useMemo(() => losesMehlVorrat(daten.buchungen), [daten.buchungen]),
+  });
+
+  const { zustand } = erfassung;
+  const stil = STATION[zustand.bereich];
+  const istNachtrag = zustand.datum !== heuteDatum();
+
+  // AudioContext bei der ersten echten Geste wecken — sonst verschluckt der
+  // Browser ausgerechnet den ersten, wichtigsten Ton.
+  useEffect(() => {
+    const wecke = () => weckeAudio();
+    window.addEventListener('pointerdown', wecke, { once: true });
+    window.addEventListener('keydown', wecke, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', wecke);
+      window.removeEventListener('keydown', wecke);
+      schliesseAudio();
+    };
   }, []);
 
-  return isMobile;
-};
+  useEffect(() => {
+    speichereSonnenmodus(sonne);
+  }, [sonne]);
 
-// Erweiterte Statistik-Berechnung
-const calculateExtendedStats = (verlauf: ProduktionsVerlauf) => {
-  const heute = new Date();
-  const eintraege = verlauf.eintraege;
+  const eigeneHeute = useMemo(
+    () => daten.eigene.filter((b) => b.datum === heuteDatum() && !b.storniert),
+    [daten.eigene]
+  );
 
-  // Hilfsfunktionen
-  const getDateStr = (date: Date) => date.toISOString().split('T')[0];
-  const parseDate = (str: string) => new Date(str);
-
-  const getWeekNumber = (date: Date) => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  };
-
-  const getMonthStr = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-  // Gruppiere nach Tag
-  const tagesMap = new Map<string, number>();
-  for (const e of eintraege) {
-    tagesMap.set(e.datum, (tagesMap.get(e.datum) || 0) + e.tonnen);
-  }
-
-  // Letzte 30 Tage für Tagesdiagramm
-  const last30Days: { datum: string; tonnen: number; label: string }[] = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(heute);
-    d.setDate(d.getDate() - i);
-    const dateStr = getDateStr(d);
-    last30Days.push({
-      datum: dateStr,
-      tonnen: tagesMap.get(dateStr) || 0,
-      label: d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-    });
-  }
-
-  // Letzte 12 Wochen
-  const wochenMap = new Map<string, { tonnen: number; tage: number }>();
-  for (const [datum, tonnen] of tagesMap) {
-    const date = parseDate(datum);
-    const weekKey = `${date.getFullYear()}-W${String(getWeekNumber(date)).padStart(2, '0')}`;
-    const existing = wochenMap.get(weekKey) || { tonnen: 0, tage: 0 };
-    wochenMap.set(weekKey, { tonnen: existing.tonnen + tonnen, tage: existing.tage + 1 });
-  }
-
-  const last12Weeks: { woche: string; tonnen: number; durchschnitt: number; label: string }[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(heute);
-    d.setDate(d.getDate() - i * 7);
-    const weekKey = `${d.getFullYear()}-W${String(getWeekNumber(d)).padStart(2, '0')}`;
-    const data = wochenMap.get(weekKey) || { tonnen: 0, tage: 0 };
-    last12Weeks.push({
-      woche: weekKey,
-      tonnen: data.tonnen,
-      durchschnitt: data.tage > 0 ? data.tonnen / data.tage : 0,
-      label: `KW${getWeekNumber(d)}`,
-    });
-  }
-
-  // Letzte 6 Monate
-  const monatsMap = new Map<string, { tonnen: number; tage: number }>();
-  for (const [datum, tonnen] of tagesMap) {
-    const date = parseDate(datum);
-    const monthKey = getMonthStr(date);
-    const existing = monatsMap.get(monthKey) || { tonnen: 0, tage: 0 };
-    monatsMap.set(monthKey, { tonnen: existing.tonnen + tonnen, tage: existing.tage + 1 });
-  }
-
-  const last6Months: { monat: string; tonnen: number; durchschnitt: number; label: string }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(heute.getFullYear(), heute.getMonth() - i, 1);
-    const monthKey = getMonthStr(d);
-    const data = monatsMap.get(monthKey) || { tonnen: 0, tage: 0 };
-    last6Months.push({
-      monat: monthKey,
-      tonnen: data.tonnen,
-      durchschnitt: data.tage > 0 ? data.tonnen / data.tage : 0,
-      label: d.toLocaleDateString('de-DE', { month: 'short' }),
-    });
-  }
-
-  // Heute
-  const heuteDatum = getDateStr(heute);
-  const heuteProduktion = tagesMap.get(heuteDatum) || 0;
-
-  // Diese Woche (Montag bis heute)
-  const montag = new Date(heute);
-  montag.setDate(heute.getDate() - ((heute.getDay() + 6) % 7));
-  let dieseWoche = 0;
-  let dieseWocheTage = 0;
-  for (let d = new Date(montag); d <= heute; d.setDate(d.getDate() + 1)) {
-    const val = tagesMap.get(getDateStr(d)) || 0;
-    if (val > 0) {
-      dieseWoche += val;
-      dieseWocheTage++;
-    }
-  }
-
-  // Letzte Woche
-  const letzterMontag = new Date(montag);
-  letzterMontag.setDate(letzterMontag.getDate() - 7);
-  const letzterSonntag = new Date(montag);
-  letzterSonntag.setDate(letzterSonntag.getDate() - 1);
-  let letzteWoche = 0;
-  let letzteWocheTage = 0;
-  for (let d = new Date(letzterMontag); d <= letzterSonntag; d.setDate(d.getDate() + 1)) {
-    const val = tagesMap.get(getDateStr(d)) || 0;
-    if (val > 0) {
-      letzteWoche += val;
-      letzteWocheTage++;
-    }
-  }
-
-  // Dieser Monat
-  const monatsAnfang = new Date(heute.getFullYear(), heute.getMonth(), 1);
-  let dieserMonat = 0;
-  let dieserMonatTage = 0;
-  for (let d = new Date(monatsAnfang); d <= heute; d.setDate(d.getDate() + 1)) {
-    const val = tagesMap.get(getDateStr(d)) || 0;
-    if (val > 0) {
-      dieserMonat += val;
-      dieserMonatTage++;
-    }
-  }
-
-  // Letzter Monat
-  const letzterMonatsAnfang = new Date(heute.getFullYear(), heute.getMonth() - 1, 1);
-  const letzterMonatsEnde = new Date(heute.getFullYear(), heute.getMonth(), 0);
-  let letzterMonat = 0;
-  let letzterMonatTage = 0;
-  for (let d = new Date(letzterMonatsAnfang); d <= letzterMonatsEnde; d.setDate(d.getDate() + 1)) {
-    const val = tagesMap.get(getDateStr(d)) || 0;
-    if (val > 0) {
-      letzterMonat += val;
-      letzterMonatTage++;
-    }
-  }
-
-  // Durchschnitte
-  const alleTage = Array.from(tagesMap.values());
-  const durchschnittProTag = alleTage.length > 0
-    ? alleTage.reduce((a, b) => a + b, 0) / alleTage.length
-    : 0;
-
-  // Beste/Schlechteste Tage
-  const sortedDays = Array.from(tagesMap.entries())
-    .map(([datum, tonnen]) => ({ datum, tonnen }))
-    .sort((a, b) => b.tonnen - a.tonnen);
-
-  const besterTag = sortedDays[0] || { datum: '-', tonnen: 0 };
-  const schlechtesterTag = sortedDays[sortedDays.length - 1] || { datum: '-', tonnen: 0 };
-
-  // Trend berechnen (letzte 7 Tage vs. 7 Tage davor)
-  let letzten7Tage = 0;
-  let davor7Tage = 0;
-  for (let i = 0; i < 7; i++) {
-    const d1 = new Date(heute);
-    d1.setDate(d1.getDate() - i);
-    const d2 = new Date(heute);
-    d2.setDate(d2.getDate() - i - 7);
-    letzten7Tage += tagesMap.get(getDateStr(d1)) || 0;
-    davor7Tage += tagesMap.get(getDateStr(d2)) || 0;
-  }
-  const trend7Tage = davor7Tage > 0 ? ((letzten7Tage - davor7Tage) / davor7Tage) * 100 : 0;
-
-  // Gleitender Durchschnitt (7 Tage) für Trendlinie
-  const trendData = last30Days.map((day, index) => {
-    let sum = 0;
-    let count = 0;
-    for (let i = Math.max(0, index - 6); i <= index; i++) {
-      sum += last30Days[i].tonnen;
-      count++;
-    }
+  const tagesSummen = useMemo(() => {
+    if (!zeigeFremde) return null;
+    const heute = daten.buchungen.filter((b) => b.datum === heuteDatum() && !b.storniert);
     return {
-      ...day,
-      gleitenderDurchschnitt: count > 0 ? sum / count : 0,
+      rohmaterial: summe(heute.filter((b) => b.bereich === 'rohmaterial')),
+      mahlen: summe(heute.filter((b) => b.bereich === 'mahlen')),
+      abfuellung: summe(heute.filter((b) => b.bereich === 'abfuellung')),
     };
-  });
+  }, [daten.buchungen, zeigeFremde]);
 
-  // Wochentag-Analyse
-  const wochentagMap = new Map<number, { total: number; count: number }>();
-  for (const [datum, tonnen] of tagesMap) {
-    const day = parseDate(datum).getDay();
-    const existing = wochentagMap.get(day) || { total: 0, count: 0 };
-    wochentagMap.set(day, { total: existing.total + tonnen, count: existing.count + 1 });
-  }
+  // ---------------------------------------------------------------------
+  // Buchen
+  // ---------------------------------------------------------------------
 
-  const wochentagNamen = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-  const wochentagStats = wochentagNamen.map((name, i) => {
-    const data = wochentagMap.get(i) || { total: 0, count: 0 };
-    return {
-      name,
-      durchschnitt: data.count > 0 ? data.total / data.count : 0,
-      anzahl: data.count,
-    };
-  });
+  const buchen = useCallback(async () => {
+    if (buchtGerade.current || erfassung.fehlt) return;
+    buchtGerade.current = true;
+    erfassung.setzeTastenZustand('speichert');
 
-  // Prognose für diesen Monat
-  const verbleibendeTageMonat = new Date(heute.getFullYear(), heute.getMonth() + 1, 0).getDate() - heute.getDate();
-  const prognoseMonat = dieserMonat + (dieserMonatTage > 0 ? (dieserMonat / dieserMonatTage) * verbleibendeTageMonat : 0);
+    const eingabe = erfassung.baueEingabe();
+    const menge = erfassung.tonnen;
 
-  // Körnung-Statistik für letzte 30 Tage
-  const koernungMap = new Map<string, number>();
-  const last30DaysStart = new Date(heute);
-  last30DaysStart.setDate(last30DaysStart.getDate() - 30);
+    try {
+      const ergebnis = await warteschlange.buche(eingabe);
 
-  for (const e of eintraege) {
-    const eintragDatum = new Date(e.datum);
-    if (eintragDatum >= last30DaysStart && eintragDatum <= heute) {
-      const koernung = e.koernung || 'mittel'; // Fallback für alte Einträge
-      koernungMap.set(koernung, (koernungMap.get(koernung) || 0) + e.tonnen);
+      if (ergebnis.art === 'gemerkt') {
+        erfassung.setzeTastenZustand('vorgemerkt');
+        melde('wechsel');
+        erfassung.nachBuchung(menge);
+        return;
+      }
+
+      daten.ergaenze(ergebnis.buchung);
+      erfassung.nachBuchung(menge);
+      erfassung.setzeTastenZustand(ergebnis.lagerFehler ? 'fehler' : 'erfolg');
+      melde(ergebnis.lagerFehler ? 'fehler' : 'gebucht');
+
+      auditService.log(user, {
+        action: 'create',
+        entityType: 'produktions_buchung',
+        entityId: ergebnis.buchung.$id,
+        summary: `${formatTonnen(menge, 1)} t ${getBereich(eingabe.bereich).label} gebucht`,
+      });
+    } catch (fehler) {
+      console.error('Buchung fehlgeschlagen:', fehler);
+      // Die Werte bleiben vollständig stehen — wer gerade 24,32 vom
+      // Wiegeschein abgetippt hat, soll das nicht wiederholen müssen.
+      erfassung.setzeTastenZustand('fehler');
+      melde('fehler');
+    } finally {
+      buchtGerade.current = false;
     }
-  }
+  }, [erfassung, warteschlange, daten, user]);
 
-  const gesamtLast30 = Array.from(koernungMap.values()).reduce((a, b) => a + b, 0);
-  const koernungStatistik = Array.from(koernungMap.entries())
-    .map(([koernung, tonnen]) => ({
-      koernung: koernung as Koernung,
-      tonnen,
-      anteil: gesamtLast30 > 0 ? (tonnen / gesamtLast30) * 100 : 0,
-    }))
-    .sort((a, b) => b.tonnen - a.tonnen);
+  const stornieren = useCallback(
+    async (grund: string, korrekturAnlegen: boolean) => {
+      if (!stornoZiel) return;
+      setStornoLaeuft(true);
+      try {
+        const storniert = await storniereBuchung(stornoZiel, grund, user);
+        daten.ersetze(storniert);
+        melde('storno');
 
-  return {
-    heute: heuteProduktion,
-    dieseWoche,
-    dieseWocheDurchschnitt: dieseWocheTage > 0 ? dieseWoche / dieseWocheTage : 0,
-    letzteWoche,
-    letzteWocheDurchschnitt: letzteWocheTage > 0 ? letzteWoche / letzteWocheTage : 0,
-    wocheVergleich: letzteWoche > 0 ? ((dieseWoche - letzteWoche) / letzteWoche) * 100 : 0,
-    dieserMonat,
-    dieserMonatDurchschnitt: dieserMonatTage > 0 ? dieserMonat / dieserMonatTage : 0,
-    letzterMonat,
-    letzterMonatDurchschnitt: letzterMonatTage > 0 ? letzterMonat / letzterMonatTage : 0,
-    monatVergleich: letzterMonat > 0 ? ((dieserMonat - letzterMonat) / letzterMonat) * 100 : 0,
-    durchschnittProTag,
-    besterTag,
-    schlechtesterTag,
-    trend7Tage,
-    last30Days: trendData,
-    last12Weeks,
-    last6Months,
-    wochentagStats,
-    prognoseMonat,
-    gesamtEintraege: eintraege.length,
-    produktiveTage: tagesMap.size,
-    koernungStatistik,
-  };
-};
+        auditService.log(user, {
+          action: 'update',
+          entityType: 'produktions_buchung',
+          entityId: storniert.$id,
+          summary: `${formatTonnen(storniert.tonnen, 1)} t ${getBereich(storniert.bereich).label} storniert — ${grund}`,
+          changes: { storniert: { alt: false, neu: true } },
+        });
 
-// KPI Card Component
-const KPICard: React.FC<{
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  trend?: number;
-  trendLabel?: string;
-  color: string;
-}> = ({ title, value, subtitle, icon, trend, trendLabel, color }) => {
-  const getTrendIcon = () => {
-    if (trend === undefined) return null;
-    if (trend > 0) return <ArrowUpRight className="w-4 h-4 text-green-500" />;
-    if (trend < 0) return <ArrowDownRight className="w-4 h-4 text-red-500" />;
-    return <Minus className="w-4 h-4 text-gray-400" />;
-  };
+        if (korrekturAnlegen) erfassung.uebernehmeAus(storniert);
+        setStornoZiel(null);
+      } catch (fehler) {
+        console.error('Storno fehlgeschlagen:', fehler);
+        melde('fehler');
+      } finally {
+        setStornoLaeuft(false);
+      }
+    },
+    [stornoZiel, user, daten, erfassung]
+  );
 
-  const getTrendColor = () => {
-    if (trend === undefined) return '';
-    if (trend > 0) return 'text-green-600 dark:text-green-400';
-    if (trend < 0) return 'text-red-600 dark:text-red-400';
-    return 'text-gray-500';
-  };
+  /**
+   * Rückgängig im 90-Sekunden-Fenster: eine echte Stornierung, kein lokales
+   * Verwerfen. Der Beleg bleibt im Journal — nur so bleibt nachvollziehbar,
+   * warum ein Bestand kurzzeitig anders stand.
+   */
+  const sofortRuecknahme = useCallback(
+    async (buchung: ProduktionsBuchung) => {
+      const frisch = Date.now() - new Date(buchung.zeitpunkt).getTime() < 90 * 1000;
+      if (!darfStornieren && !(frisch && buchung.erfasstVonId === user?.$id)) return;
+      if (frisch) {
+        const storniert = await storniereBuchung(buchung, 'Sofortkorrektur an der Anlage', user);
+        daten.ersetze(storniert);
+        melde('storno');
+        return;
+      }
+      setStornoZiel(buchung);
+    },
+    [darfStornieren, user, daten]
+  );
 
-  return (
-    <div className="relative group">
-      <div className={`absolute inset-0 bg-gradient-to-br ${color} rounded-2xl blur-lg opacity-30 group-hover:opacity-40 transition-opacity`} />
-      <div className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-5 shadow-lg border border-white/50 dark:border-gray-700/50">
-        <div className="flex items-center justify-between mb-2">
-          <div className={`p-2 rounded-xl bg-gradient-to-br ${color} text-white shadow-lg`}>
-            {icon}
-          </div>
-          {trend !== undefined && (
-            <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor()}`}>
-              {getTrendIcon()}
-              <span>{Math.abs(trend).toFixed(1)}%</span>
-            </div>
-          )}
-        </div>
-        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-3">{title}</p>
-        <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{value}</p>
-        {(subtitle || trendLabel) && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            {subtitle || trendLabel}
-          </p>
-        )}
-      </div>
+  // ---------------------------------------------------------------------
+  // Tastatur (Desktop)
+  // ---------------------------------------------------------------------
+
+  useEffect(() => {
+    if (istMobil) return;
+    /**
+     * Enter bucht NUR im Zustand 'bereit'.
+     *
+     * Vorher stand hier `!erfassung.fehlt` — das prüft bloß die Pflichtangaben
+     * und ließ den Warnzustand durch. Damit hebelte ein Enter am Desktop die
+     * 800-ms-Halteschwelle aus, die genau diesen Fall abfangen soll: Wer sich
+     * bei der Menge um eine Stelle vertippt (250 t statt 25 t), bucht die
+     * Fehlmenge sofort in den Lagerbestand. Die Reibung war auf dem gesamten
+     * Tastaturpfad wirkungslos.
+     *
+     * Im Warnzustand führt der Weg jetzt über die Taste selbst: anfokussieren,
+     * Enter/Space halten (siehe BuchenTaste) — dieselbe Geste wie am Touch.
+     */
+    const aufTaste = (e: KeyboardEvent) => {
+      const ziel = e.target as HTMLElement;
+      const darfSofort = darfSofortBuchen(erfassung.tastenZustand);
+      // Auf der Buchen-Taste selbst hat sie ihre eigene Halte-Behandlung.
+      if (ziel.closest('.pz-taste')) return;
+      if (ziel.tagName === 'INPUT' || ziel.tagName === 'TEXTAREA' || ziel.isContentEditable) {
+        if (e.key === 'Enter' && darfSofort) void buchen();
+        return;
+      }
+      if (e.key === '1') erfassung.setzeBereich('rohmaterial');
+      else if (e.key === '2') erfassung.setzeBereich('mahlen');
+      else if (e.key === '3') erfassung.setzeBereich('abfuellung');
+      else if (e.key.toLowerCase() === 'q') erfassung.setzeKoernung('0-2');
+      else if (e.key.toLowerCase() === 'w') erfassung.setzeKoernung('0-3');
+      else if (e.key === 'Enter' && darfSofort) void buchen();
+    };
+    window.addEventListener('keydown', aufTaste);
+    return () => window.removeEventListener('keydown', aufTaste);
+  }, [istMobil, erfassung, buchen]);
+
+  // ---------------------------------------------------------------------
+  // Darstellung
+  // ---------------------------------------------------------------------
+
+  const sonnenStil = (
+    <style>{`
+      .sonne .pz-zahl   { color: #000 !important; }
+      .sonne .pz-panel  { color: #1f2937 !important; }
+      .sonne .pz-rahmen { border-color: rgba(0,0,0,.34) !important; }
+      .sonne .pz-taste  { font-size: 21px; }
+      .sonne .pz-karte  { box-shadow: none !important; }
+    `}</style>
+  );
+
+  const warnZeile = erfassung.hinweise.filter((h) => h.stufe === 'warnung');
+  const hinweisZeile = erfassung.hinweise.filter((h) => h.stufe === 'hinweis');
+
+  const quittung = (
+    <div id="pz-quittung" role="status" className="min-h-[40px] px-1 py-1.5">
+      <p className="text-sm font-medium text-gray-700 dark:text-slate-300">{erfassung.quittung}</p>
+      {warnZeile.map((h, i) => (
+        <p
+          key={`w${i}`}
+          className="mt-0.5 flex items-start gap-1.5 text-sm font-medium text-amber-700 dark:text-amber-400"
+        >
+          <span aria-hidden>⚠</span>
+          {h.text}
+        </p>
+      ))}
+      {hinweisZeile.map((h, i) => (
+        <p key={`h${i}`} className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+          {h.text}
+        </p>
+      ))}
     </div>
   );
-};
 
-// Chart Tooltip
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
+  const buchenTaste = (
+    <BuchenTaste
+      zustand={erfassung.tastenZustand}
+      beschriftung={erfassung.tastenText}
+      bereich={zustand.bereich}
+      onBuchen={() => void buchen()}
+      ariaLabel={`Buchung speichern: ${erfassung.quittung}`}
+      ariaDescribedBy="pz-quittung"
+    />
+  );
+
+  if (daten.laedt && daten.buchungen.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
-        <p className="font-medium text-gray-900 dark:text-white">{label}</p>
-        {payload.map((p: any, i: number) => (
-          <p key={i} className="text-sm" style={{ color: p.color }}>
-            {p.name}: <span className="font-bold">{p.value?.toFixed(1)}t</span>
-          </p>
-        ))}
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+        <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+        <p className="text-sm font-medium text-gray-500 dark:text-slate-400">
+          Produktionsdaten werden geladen…
+        </p>
       </div>
     );
   }
-  return null;
-};
 
-// Mobile Vollbild-Version
-const MobileProduktionsTracker: React.FC<{
-  tonnen: number;
-  setTonnen: (v: number) => void;
-  koernung: Koernung;
-  setKoernung: (v: Koernung) => void;
-  onSave: () => void;
-  saving: boolean;
-  success: boolean;
-  heuteProduktion: number;
-  statistik: { gesamtTonnen: number; durchschnittProTag: number };
-}> = ({ tonnen, setTonnen, koernung, setKoernung, onSave, saving, success, heuteProduktion, statistik }) => {
+  if (daten.fehler) {
+    return (
+      <div className="mx-auto max-w-lg p-6">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+          <h2 className="text-lg font-bold text-red-900 dark:text-red-200">
+            Produktionsdaten nicht verfügbar
+          </h2>
+          <p className="mt-2 text-sm text-red-800 dark:text-red-300">{daten.fehler}</p>
+          <button
+            type="button"
+            onClick={() => void daten.neuLaden()}
+            className={`mt-4 min-h-[48px] w-full rounded-xl bg-red-600 font-semibold text-white ${FOKUS}`}
+          >
+            Erneut versuchen
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    const originalPosition = document.body.style.position;
-    const originalHeight = document.body.style.height;
-    const originalTouchAction = document.body.style.touchAction;
+  if (!darfErfassen && !zeigeAuswertung) {
+    return (
+      <div className="mx-auto max-w-lg p-6 text-center">
+        <Factory className="mx-auto mb-3 h-12 w-12 text-gray-300 dark:text-slate-700" />
+        <p className="text-gray-600 dark:text-slate-400">
+          Für die Produktionserfassung fehlt die Berechtigung.
+        </p>
+      </div>
+    );
+  }
 
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.height = '100%';
-    document.body.style.touchAction = 'none';
-    document.body.style.width = '100%';
-
-    const preventScroll = (e: TouchEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-wheel-area]')) {
-        e.preventDefault();
-      }
-    };
-
-    document.addEventListener('touchmove', preventScroll, { passive: false });
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.position = originalPosition;
-      document.body.style.height = originalHeight;
-      document.body.style.touchAction = originalTouchAction;
-      document.body.style.width = '';
-      document.removeEventListener('touchmove', preventScroll);
-    };
-  }, []);
-
-  return (
-    <div
-      className="fixed inset-0 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-850 dark:to-gray-800 flex flex-col overflow-hidden"
-      style={{ height: '100dvh', touchAction: 'none' }}
-    >
-      <div className="flex-shrink-0 px-4 pt-4 pb-2 safe-area-inset-top">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg">
-              <Factory className="w-5 h-5" />
-            </div>
-            <span className="text-lg font-bold text-gray-900 dark:text-white">Produktion</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Heute</div>
-              <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{heuteProduktion}t</div>
-            </div>
-            <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
-            <div className="text-right">
-              <div className="text-xs text-gray-500 dark:text-gray-400">Ø/Tag</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">{statistik.durchschnittProTag.toFixed(0)}t</div>
-            </div>
-          </div>
+  const kopfLeiste = (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5">
+        <div className={`rounded-xl p-2 text-white ${stil.taste}`}>
+          <Factory className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-base font-bold text-gray-900 dark:text-slate-50">Produktion</h1>
+          <p className={`pz-panel ${PANEL_LABEL} hidden sm:block`}>
+            Rohmaterial · Mahlen · Abfüllung
+          </p>
         </div>
       </div>
 
-      {/* Körnung Auswahl */}
-      <div className="flex-shrink-0 px-4 py-3">
-        <div className="text-xs text-gray-500 dark:text-gray-400 text-center mb-2 font-medium">Körnung</div>
-        <div className="flex gap-2 justify-center">
-          {KOERNUNGEN.map((k) => (
-            <button
-              key={k.value}
-              onClick={() => {
-                setKoernung(k.value);
-                playTickSound('medium');
-                triggerHaptic('tick');
-              }}
-              className={`
-                px-4 py-2 rounded-xl font-semibold text-sm transition-all
-                ${koernung === k.value
-                  ? `bg-gradient-to-br ${k.color} text-white shadow-lg scale-105`
-                  : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 shadow'
-                }
-              `}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col justify-center px-4" data-wheel-area="true">
-        <SwipeWheelPicker
-          value={tonnen}
-          onChange={setTonnen}
-          min={1}
-          max={500}
-          step={1}
-          unit="Tonnen"
-          quickValues={[5, 10, 25, 50]}
-          sensitivity={18}
-        />
-      </div>
-
-      <div className="flex-shrink-0 px-4 pb-4 safe-area-inset-bottom">
+      <div className="flex items-center gap-1">
+        {zeigeAuswertung && !istMobil && (
+          <div className="mr-2 flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-slate-800">
+            {(
+              [
+                ['erfassung', 'Erfassung', Plus],
+                ['auswertung', 'Auswertung', BarChart3],
+              ] as const
+            ).map(([wert, label, Icon]) => (
+              <button
+                key={wert}
+                type="button"
+                onClick={() => setReiter(wert)}
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${FOKUS} ${
+                  reiter === wert
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-slate-700 dark:text-slate-50'
+                    : 'text-gray-600 dark:text-slate-400'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <button
-          onClick={onSave}
-          disabled={saving}
-          className={`
-            relative w-full py-5 rounded-2xl font-bold text-xl
-            flex items-center justify-center gap-3
-            transition-all duration-300 transform overflow-hidden
-            ${success
-              ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-              : saving
-                ? 'bg-gradient-to-r from-orange-400 to-amber-400'
-                : 'bg-gradient-to-r from-orange-500 via-orange-500 to-amber-500 active:scale-[0.98]'
-            }
-            text-white shadow-2xl
-          `}
+          type="button"
+          onClick={() => setSonne((s) => !s)}
+          aria-pressed={sonne}
+          aria-label="Sonnenmodus: höherer Kontrast für draußen"
+          className={`rounded-lg p-2.5 transition-colors ${FOKUS} ${
+            sonne
+              ? 'bg-amber-500 text-white'
+              : 'text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800'
+          }`}
         >
-          {!saving && !success && (
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-shimmer" />
-          )}
-          {success ? (
-            <>
-              <Check className="w-7 h-7 animate-bounce" />
-              <span>{tonnen}t eingetragen!</span>
-            </>
-          ) : saving ? (
-            <>
-              <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Speichern...</span>
-            </>
-          ) : (
-            <>
-              <Plus className="w-7 h-7" />
-              <span>{tonnen}t eintragen</span>
-            </>
-          )}
+          <Sun className="h-5 w-5" />
         </button>
       </div>
-
-      <style>{`
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer { animation: shimmer 2s infinite; }
-        .safe-area-inset-top { padding-top: max(1rem, env(safe-area-inset-top)); }
-        .safe-area-inset-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
-      `}</style>
     </div>
   );
-};
 
-// Desktop Version mit vollem Statistik-Dashboard
-const DesktopProduktionsTracker: React.FC<{
-  tonnen: number;
-  setTonnen: (v: number) => void;
-  koernung: Koernung;
-  setKoernung: (v: Koernung) => void;
-  onSave: (datum?: string) => void;
-  saving: boolean;
-  success: boolean;
-  verlauf: ProduktionsVerlauf;
-  onDelete: (id: string) => void;
-  deleteId: string | null;
-}> = ({ tonnen, setTonnen, koernung, setKoernung, onSave, saving, success, verlauf, onDelete, deleteId }) => {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [activeTab, setActiveTab] = useState<'erfassen' | 'statistik' | 'verlauf'>('erfassen');
+  const melder = (
+    <MelderZeile
+      online={warteschlange.online}
+      sendet={warteschlange.sendet}
+      wartend={warteschlange.anzahl}
+      datum={zustand.datum}
+      istNachtrag={istNachtrag}
+      tonAn={ton}
+      buchungenHeute={eigeneHeute.length}
+      onWarteschlange={() => void warteschlange.sendeNach()}
+      onDatum={() => setDatumOffen(true)}
+      onTon={() => {
+        const neu = !ton;
+        setTonAn(neu);
+        setTon(neu);
+        if (neu) melde('wechsel');
+      }}
+      onJournal={() => setJournalOffen(true)}
+    />
+  );
 
-  // Erweiterte Statistiken berechnen
-  const stats = useMemo(() => calculateExtendedStats(verlauf), [verlauf]);
+  const journal = (
+    <TagesJournal
+      buchungen={daten.buchungen}
+      wartend={warteschlange.wartend}
+      zeigeFremde={zeigeFremde}
+      darfStornieren={darfStornieren}
+      darfExportieren={darfExportieren}
+      eigeneId={user?.$id ?? null}
+      onStorno={(b) => void sofortRuecknahme(b)}
+      onNochmalSenden={() => void warteschlange.sendeNach()}
+      onVerwerfen={warteschlange.verwirf}
+      fremdaenderungen={daten.fremdaenderungen}
+      onNeuLaden={() => void daten.neuLaden()}
+    />
+  );
 
-  const formatDatum = (datum: string) => {
-    const d = new Date(datum);
-    const heute = new Date();
-    const gestern = new Date(heute);
-    gestern.setDate(gestern.getDate() - 1);
-
-    if (d.toDateString() === heute.toDateString()) return 'Heute';
-    if (d.toDateString() === gestern.toDateString()) return 'Gestern';
-    return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-  };
-
-  const formatZeit = (zeitpunkt: string) => {
-    return new Date(zeitpunkt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const last7Days = useMemo(() => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      days.push(d.toISOString().split('T')[0]);
-    }
-    return days;
-  }, []);
-
-  const entriesForSelectedDay = verlauf.eintraege.filter(e => e.datum === selectedDate);
-
-  const groupedEntries = verlauf.eintraege.slice(0, 100).reduce((acc, entry) => {
-    const date = entry.datum;
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(entry);
-    return acc;
-  }, {} as Record<string, ProduktionsEintrag[]>);
-
-  // Chart Farben
-  const COLORS = ['#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#14b8a6'];
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-850 dark:to-gray-800">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-orange-200/50 dark:border-gray-700/50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-orange-500/40 rounded-xl blur-md" />
-                <div className="relative p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg">
-                  <Factory className="w-7 h-7" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Produktion</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Ziegelmehl-Produktion erfassen & analysieren</p>
-              </div>
-            </div>
-
-            {/* Tab Navigation */}
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
-              {[
-                { id: 'erfassen', label: 'Erfassen', icon: Plus },
-                { id: 'statistik', label: 'Statistik', icon: BarChart3 },
-                { id: 'verlauf', label: 'Verlauf', icon: History },
-              ].map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    setActiveTab(id as any);
-                    playTickSound('medium');
-                  }}
-                  className={`
-                    px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all
-                    ${activeTab === id
-                      ? 'bg-white dark:bg-gray-600 text-orange-600 dark:text-orange-400 shadow-md'
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                    }
-                  `}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+  const dialoge = (
+    <>
+      {datumOffen && (
+        <DatumWahl
+          datum={zustand.datum}
+          onDatum={erfassung.setzeDatum}
+          onSchliessen={() => setDatumOffen(false)}
+        />
+      )}
+      {stornoZiel && (
+        <StornoSheet
+          buchung={stornoZiel}
+          laeuft={stornoLaeuft}
+          onAbbrechen={() => setStornoZiel(null)}
+          onStornieren={(grund, korrektur) => void stornieren(grund, korrektur)}
+        />
+      )}
+      {verworfen && (
+        <div className="pointer-events-none fixed inset-x-4 bottom-24 z-40 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-2xl">
+          Eingabe verworfen
         </div>
-      </div>
+      )}
+    </>
+  );
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* KPI Cards - immer sichtbar */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-          <KPICard
-            title="Heute"
-            value={`${stats.heute}t`}
-            icon={<Calendar className="w-5 h-5" />}
-            color="from-orange-400 to-orange-600"
+  // ------------------------------ MOBIL ------------------------------
+
+  if (istMobil) {
+    return (
+      <div
+        ref={rahmenRef}
+        style={{ height: restHoehe ? `${restHoehe}px` : '100dvh' }}
+        className={`flex min-h-0 flex-col overscroll-contain bg-gray-50 dark:bg-slate-950 ${
+          sonne ? 'sonne' : ''
+        }`}
+      >
+        {sonnenStil}
+
+        <header className="flex-shrink-0 space-y-2 border-b border-gray-200 bg-white px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
+          {kopfLeiste}
+          {melder}
+          <BereichsLeiste
+            wert={zustand.bereich}
+            onWaehle={(b) => {
+              if (erfassung.tonnen > 0) {
+                setVerworfen(true);
+                window.setTimeout(() => setVerworfen(false), 2500);
+              }
+              erfassung.setzeBereich(b);
+            }}
+            tagesSummen={tagesSummen}
           />
-          <KPICard
-            title="Diese Woche"
-            value={`${stats.dieseWoche.toFixed(0)}t`}
-            subtitle={`Ø ${stats.dieseWocheDurchschnitt.toFixed(1)}t/Tag`}
-            icon={<CalendarDays className="w-5 h-5" />}
-            trend={stats.wocheVergleich}
-            color="from-amber-400 to-amber-600"
-          />
-          <KPICard
-            title="Dieser Monat"
-            value={`${stats.dieserMonat.toFixed(0)}t`}
-            subtitle={`Ø ${stats.dieserMonatDurchschnitt.toFixed(1)}t/Tag`}
-            icon={<Package className="w-5 h-5" />}
-            trend={stats.monatVergleich}
-            color="from-yellow-400 to-yellow-600"
-          />
-          <KPICard
-            title="Ø pro Tag"
-            value={`${stats.durchschnittProTag.toFixed(1)}t`}
-            subtitle={`${stats.produktiveTage} Produktionstage`}
-            icon={<Activity className="w-5 h-5" />}
-            color="from-green-400 to-green-600"
-          />
-          <KPICard
-            title="Bester Tag"
-            value={`${stats.besterTag.tonnen}t`}
-            subtitle={formatDatum(stats.besterTag.datum)}
-            icon={<Award className="w-5 h-5" />}
-            color="from-emerald-400 to-emerald-600"
-          />
-          <KPICard
-            title="7-Tage Trend"
-            value={`${stats.trend7Tage > 0 ? '+' : ''}${stats.trend7Tage.toFixed(1)}%`}
-            icon={stats.trend7Tage >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-            color={stats.trend7Tage >= 0 ? "from-green-400 to-emerald-600" : "from-red-400 to-red-600"}
+        </header>
+
+        <div className="flex-shrink-0 px-3 pt-3">
+          <WertAnzeige
+            bereich={zustand.bereich}
+            tonnen={erfassung.tonnen}
+            ableitung={erfassung.ableitung}
+            istNachtrag={istNachtrag}
+            nachtragDatum={zustand.datum.split('-').reverse().slice(0, 2).join('.')}
           />
         </div>
 
-        {/* Tab Content */}
-        {activeTab === 'erfassen' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Date Selection Panel */}
-            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-orange-500" />
-                Datum auswählen
-              </h3>
+        {/* Nur dieser Block scrollt — Kopf, Wertanzeige, Quittung und
+            Buchen-Taste bleiben immer sichtbar. */}
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+          <ErfassungsBlock erfassung={erfassung} lieferanten={daten.lieferanten} mobil />
+        </main>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                {last7Days.map((date) => {
-                  const dayProd = stats.last30Days.find(d => d.datum === date)?.tonnen || 0;
-                  return (
-                    <button
-                      key={date}
-                      onClick={() => {
-                        setSelectedDate(date);
-                        playTickSound('medium');
-                      }}
-                      className={`
-                        px-3 py-2 rounded-xl text-sm font-medium transition-all
-                        ${selectedDate === date
-                          ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }
-                      `}
-                    >
-                      <div>{formatDatum(date)}</div>
-                      {dayProd > 0 && <div className="text-xs opacity-75">{dayProd}t</div>}
-                    </button>
-                  );
-                })}
-              </div>
+        <footer className="flex-shrink-0 border-t border-gray-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 dark:border-slate-800 dark:bg-slate-900">
+          {quittung}
+          {buchenTaste}
+        </footer>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const d = new Date(selectedDate);
-                    d.setDate(d.getDate() - 1);
-                    setSelectedDate(d.toISOString().split('T')[0]);
-                  }}
-                  className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-
-                <input
-                  type="date"
-                  value={selectedDate}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-center font-medium"
-                />
-
-                <button
-                  onClick={() => {
-                    const d = new Date(selectedDate);
-                    d.setDate(d.getDate() + 1);
-                    const max = new Date().toISOString().split('T')[0];
-                    if (d.toISOString().split('T')[0] <= max) {
-                      setSelectedDate(d.toISOString().split('T')[0]);
-                    }
-                  }}
-                  disabled={selectedDate >= new Date().toISOString().split('T')[0]}
-                  className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-
-              {entriesForSelectedDay.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                    Einträge für {formatDatum(selectedDate)}
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {entriesForSelectedDay.map((entry) => {
-                      const koernungInfo = KOERNUNGEN.find(k => k.value === entry.koernung) || KOERNUNGEN[2];
-                      return (
-                        <div
-                          key={entry.id}
-                          className="flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-orange-600 dark:text-orange-400">{entry.tonnen}t</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full bg-gradient-to-r ${koernungInfo.color} text-white`}>
-                              {koernungInfo.label}
-                            </span>
-                            <span className="text-sm text-gray-500">{formatZeit(entry.zeitpunkt)}</span>
-                          </div>
-                          <button
-                            onClick={() => onDelete(entry.id!)}
-                            className="p-1 text-gray-400 hover:text-red-500"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Entry Panel */}
-            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <Plus className="w-5 h-5 text-orange-500" />
-                Eintrag für {formatDatum(selectedDate)}
-              </h3>
-
-              {/* Körnung Auswahl */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Körnung</label>
-                <div className="flex flex-wrap gap-2">
-                  {KOERNUNGEN.map((k) => (
-                    <button
-                      key={k.value}
-                      onClick={() => {
-                        setKoernung(k.value);
-                        playTickSound('medium');
-                      }}
-                      className={`
-                        px-4 py-2 rounded-xl font-semibold transition-all
-                        ${koernung === k.value
-                          ? `bg-gradient-to-br ${k.color} text-white shadow-lg`
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
-                        }
-                      `}
-                    >
-                      {k.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tonnen Auswahl */}
-              <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Menge</label>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {[5, 10, 15, 20, 25, 30, 40, 50].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => {
-                      setTonnen(v);
-                      playTickSound('medium');
-                    }}
-                    className={`
-                      px-4 py-2 rounded-xl font-semibold transition-all
-                      ${tonnen === v
-                        ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
-                      }
-                    `}
-                  >
-                    {v}t
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-4 mb-6">
-                <button
-                  onClick={() => setTonnen(Math.max(1, tonnen - 1))}
-                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-
-                <input
-                  type="number"
-                  value={tonnen}
-                  onChange={(e) => setTonnen(Math.max(1, Math.min(500, parseInt(e.target.value) || 1)))}
-                  className="flex-1 px-6 py-4 rounded-xl border-2 border-orange-300 dark:border-orange-600 bg-white dark:bg-gray-700 text-4xl font-bold text-center text-orange-600 dark:text-orange-400"
-                />
-
-                <button
-                  onClick={() => setTonnen(Math.min(500, tonnen + 1))}
-                  className="p-3 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="text-center text-gray-500 dark:text-gray-400 mb-6">Tonnen</div>
-
+        {journalOffen && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-slate-950">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] dark:border-slate-800">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-50">Buchungen</h2>
               <button
-                onClick={() => onSave(selectedDate)}
-                disabled={saving}
-                className={`
-                  w-full py-4 rounded-2xl font-bold text-lg
-                  flex items-center justify-center gap-3
-                  transition-all duration-300
-                  ${success
-                    ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                    : saving
-                      ? 'bg-gradient-to-r from-orange-400 to-amber-400'
-                      : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600'
-                  }
-                  text-white shadow-xl
-                `}
+                type="button"
+                onClick={() => setJournalOffen(false)}
+                aria-label="Schließen"
+                className={`rounded-lg p-2 text-gray-500 ${FOKUS}`}
               >
-                {success ? (
-                  <><Check className="w-6 h-6" /><span>Eingetragen!</span></>
-                ) : saving ? (
-                  <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Speichern...</span></>
-                ) : (
-                  <><Plus className="w-6 h-6" /><span>{tonnen}t eintragen</span></>
-                )}
+                <X className="h-6 w-6" />
               </button>
             </div>
+            <div className="min-h-0 flex-1 p-4">{journal}</div>
           </div>
         )}
 
-        {activeTab === 'statistik' && (
-          <div className="space-y-6">
-            {/* Tägliche Produktion Chart */}
-            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-orange-500" />
-                Tägliche Produktion (letzte 30 Tage)
-              </h3>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={stats.last30Days}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={2} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey="tonnen" name="Produktion" fill="#f97316" radius={[4, 4, 0, 0]} />
-                    <Line
-                      type="monotone"
-                      dataKey="gleitenderDurchschnitt"
-                      name="Ø 7 Tage"
-                      stroke="#22c55e"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Wochen-Vergleich */}
-              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-amber-500" />
-                  Wochenübersicht (letzte 12 Wochen)
-                </h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.last12Weeks}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="tonnen" name="Wochensumme" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-                        {stats.last12Weeks.map((_, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={index === stats.last12Weeks.length - 1 ? '#f97316' : '#f59e0b'}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Monats-Vergleich */}
-              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-green-500" />
-                  Monatsübersicht (letzte 6 Monate)
-                </h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={stats.last6Months}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey="tonnen"
-                        name="Monatssumme"
-                        stroke="#22c55e"
-                        fill="#22c55e"
-                        fillOpacity={0.3}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Wochentag-Analyse */}
-              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5 text-purple-500" />
-                  Produktion nach Wochentag
-                </h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.wochentagStats}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="durchschnitt" name="Ø Produktion" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
-                        {stats.wochentagStats.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Körnung-Verteilung */}
-              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-orange-500" />
-                  Körnung-Verteilung (letzte 30 Tage)
-                </h3>
-                <div className="space-y-3">
-                  {stats.koernungStatistik && stats.koernungStatistik.length > 0 ? (
-                    stats.koernungStatistik.map((k) => {
-                      const koernungInfo = KOERNUNGEN.find(ki => ki.value === k.koernung) || KOERNUNGEN[2];
-                      return (
-                        <div key={k.koernung} className="space-y-1">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">{koernungInfo.label}</span>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {k.tonnen.toFixed(0)}t ({k.anteil.toFixed(1)}%)
-                            </span>
-                          </div>
-                          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full bg-gradient-to-r ${koernungInfo.color}`}
-                              style={{ width: `${k.anteil}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                      <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>Noch keine Daten vorhanden</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Kennzahlen-Übersicht */}
-              <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-red-500" />
-                  Kennzahlen & Prognose
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Monatsprognose</p>
-                      <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                        ~{stats.prognoseMonat.toFixed(0)}t
-                      </p>
-                    </div>
-                    <Zap className="w-8 h-8 text-orange-500" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl">
-                      <p className="text-xs text-green-600 dark:text-green-400">Bester Tag</p>
-                      <p className="text-lg font-bold text-green-700 dark:text-green-300">{stats.besterTag.tonnen}t</p>
-                      <p className="text-xs text-green-500">{formatDatum(stats.besterTag.datum)}</p>
-                    </div>
-                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
-                      <p className="text-xs text-amber-600 dark:text-amber-400">Letzte Woche</p>
-                      <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{stats.letzteWoche.toFixed(0)}t</p>
-                      <p className="text-xs text-amber-500">Ø {stats.letzteWocheDurchschnitt.toFixed(1)}t/Tag</p>
-                    </div>
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                      <p className="text-xs text-blue-600 dark:text-blue-400">Letzter Monat</p>
-                      <p className="text-lg font-bold text-blue-700 dark:text-blue-300">{stats.letzterMonat.toFixed(0)}t</p>
-                      <p className="text-xs text-blue-500">Ø {stats.letzterMonatDurchschnitt.toFixed(1)}t/Tag</p>
-                    </div>
-                    <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
-                      <p className="text-xs text-purple-600 dark:text-purple-400">Produktionstage</p>
-                      <p className="text-lg font-bold text-purple-700 dark:text-purple-300">{stats.produktiveTage}</p>
-                      <p className="text-xs text-purple-500">{stats.gesamtEintraege} Einträge</p>
-                    </div>
-                  </div>
-
-                  {/* Vergleichsbalken */}
-                  <div className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Diese vs. letzte Woche</span>
-                      <span className={`font-medium ${stats.wocheVergleich >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {stats.wocheVergleich > 0 ? '+' : ''}{stats.wocheVergleich.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${stats.wocheVergleich >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min(100, Math.abs(stats.wocheVergleich) + 50)}%` }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm mt-3">
-                      <span className="text-gray-600 dark:text-gray-400">Dieser vs. letzter Monat</span>
-                      <span className={`font-medium ${stats.monatVergleich >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {stats.monatVergleich > 0 ? '+' : ''}{stats.monatVergleich.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${stats.monatVergleich >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min(100, Math.abs(stats.monatVergleich) + 50)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'verlauf' && (
-          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <History className="w-6 h-6 text-orange-500" />
-                Produktionsverlauf
-              </h2>
-              <span className="px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-sm font-medium">
-                {verlauf.eintraege.length} Einträge
-              </span>
-            </div>
-
-            {verlauf.eintraege.length === 0 ? (
-              <div className="text-center py-16">
-                <Factory className="w-20 h-20 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                <p className="text-lg font-medium text-gray-500 dark:text-gray-400">Noch keine Einträge</p>
-              </div>
-            ) : (
-              <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                {Object.entries(groupedEntries).map(([date, entries]) => (
-                  <div key={date}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="h-px flex-1 bg-gradient-to-r from-orange-300/50 to-transparent" />
-                      <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs font-semibold">
-                        {formatDatum(date)} - {entries.reduce((sum, e) => sum + e.tonnen, 0)}t gesamt
-                      </span>
-                      <div className="h-px flex-1 bg-gradient-to-l from-orange-300/50 to-transparent" />
-                    </div>
-
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {entries.map((eintrag) => {
-                        const koernungInfo = KOERNUNGEN.find(k => k.value === eintrag.koernung) || KOERNUNGEN[2]; // Fallback zu Mittel
-                        return (
-                          <div
-                            key={eintrag.id}
-                            className={`
-                              bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4
-                              flex items-center justify-between
-                              transition-all duration-300
-                              ${deleteId === eintrag.id ? 'opacity-0 scale-95' : 'opacity-100'}
-                            `}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${koernungInfo.color} flex items-center justify-center text-white font-bold shadow-md`}>
-                                {eintrag.tonnen}t
-                              </div>
-                              <div>
-                                <div className="text-xs font-medium text-gray-600 dark:text-gray-300">{koernungInfo.label}</div>
-                                <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 text-sm">
-                                  <Clock className="w-3 h-3" />
-                                  <span>{formatZeit(eintrag.zeitpunkt)}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                if (confirm('Eintrag löschen?')) {
-                                  onDelete(eintrag.id!);
-                                }
-                              }}
-                              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Main Component
-const ProduktionsTracker: React.FC = () => {
-  const isMobile = useIsMobile();
-  const [tonnen, setTonnen] = useState(10);
-  const [koernung, setKoernung] = useState<Koernung>('mittel');
-  const [verlauf, setVerlauf] = useState<ProduktionsVerlauf>({ eintraege: [] });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadVerlauf();
-  }, []);
-
-  const loadVerlauf = async () => {
-    try {
-      setLoading(true);
-      const data = await produktionService.getVerlauf();
-      setVerlauf(data);
-    } catch (error) {
-      console.error('Fehler beim Laden:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async (datum?: string) => {
-    if (saving) return;
-
-    setSaving(true);
-    setSuccess(false);
-
-    try {
-      await produktionService.addEintrag(tonnen, koernung, datum);
-      setSuccess(true);
-
-      playTickSound('success');
-      triggerHaptic('success');
-
-      await loadVerlauf();
-      setTimeout(() => setSuccess(false), 2500);
-    } catch (error) {
-      console.error('Fehler beim Speichern:', error);
-      playTickSound('limit');
-      triggerHaptic('limit');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (eintragId: string) => {
-    try {
-      setDeleteId(eintragId);
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      await produktionService.deleteEintrag(eintragId);
-      playTickSound('medium');
-      triggerHaptic('heavy');
-
-      await loadVerlauf();
-    } catch (error) {
-      console.error('Fehler beim Löschen:', error);
-    } finally {
-      setDeleteId(null);
-    }
-  };
-
-  const statistik = produktionService.getStatistik(verlauf, 30);
-
-  const heuteProduktion = statistik.tagesProduktionen.find(
-    t => t.datum === new Date().toISOString().split('T')[0]
-  )?.tonnen || 0;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-gray-900 dark:via-gray-850 dark:to-gray-800 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="absolute inset-0 bg-orange-500/30 rounded-full blur-xl animate-pulse" />
-            <div className="relative p-4 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-2xl">
-              <Factory className="w-12 h-12 animate-bounce" />
-            </div>
-          </div>
-          <div className="text-orange-600 dark:text-orange-400 font-medium animate-pulse">
-            Lade Produktionsdaten...
-          </div>
-        </div>
+        {dialoge}
       </div>
     );
   }
 
-  if (isMobile) {
-    return (
-      <MobileProduktionsTracker
-        tonnen={tonnen}
-        setTonnen={setTonnen}
-        koernung={koernung}
-        setKoernung={setKoernung}
-        onSave={() => handleSave()}
-        saving={saving}
-        success={success}
-        heuteProduktion={heuteProduktion}
-        statistik={statistik}
-      />
-    );
-  }
+  // ----------------------------- DESKTOP -----------------------------
 
   return (
-    <DesktopProduktionsTracker
-      tonnen={tonnen}
-      setTonnen={setTonnen}
-      koernung={koernung}
-      setKoernung={setKoernung}
-      onSave={handleSave}
-      saving={saving}
-      success={success}
-      verlauf={verlauf}
-      onDelete={handleDelete}
-      deleteId={deleteId}
-    />
+    <div className={`min-h-screen bg-gray-50 dark:bg-slate-950 ${sonne ? 'sonne' : ''}`}>
+      {sonnenStil}
+
+      <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90">
+        <div className="mx-auto max-w-[1400px] px-4 py-3">{kopfLeiste}</div>
+      </div>
+
+      <div className="mx-auto max-w-[1400px] px-4 py-6">
+        {reiter === 'auswertung' && zeigeAuswertung ? (
+          <LeitungsPanel
+            buchungen={daten.buchungen}
+            zeigeBestand={zeigeBestand}
+            fensterTage={daten.fensterTage}
+            onFenster={daten.setzeFenster}
+            onNeuLaden={() => void daten.neuLaden()}
+          />
+        ) : (
+          <div
+            className={`grid gap-6 ${
+              zeigeFremde
+                ? 'grid-cols-1 xl:grid-cols-[minmax(380px,440px)_1fr]'
+                : 'grid-cols-1 lg:grid-cols-[minmax(380px,440px)_1fr]'
+            }`}
+          >
+            <div className="space-y-4 self-start lg:sticky lg:top-24">
+              {melder}
+              <BereichsLeiste
+                wert={zustand.bereich}
+                onWaehle={erfassung.setzeBereich}
+                tagesSummen={tagesSummen}
+              />
+              <WertAnzeige
+                bereich={zustand.bereich}
+                tonnen={erfassung.tonnen}
+                ableitung={erfassung.ableitung}
+                istNachtrag={istNachtrag}
+                nachtragDatum={zustand.datum.split('-').reverse().slice(0, 2).join('.')}
+              />
+              <ErfassungsBlock
+                erfassung={erfassung}
+                lieferanten={daten.lieferanten}
+                mobil={false}
+              />
+              {quittung}
+              {buchenTaste}
+              <p className="text-center text-xs text-gray-400 dark:text-slate-600">
+                Tastatur: 1/2/3 Bereich · Q/W Körnung ·{' '}
+                {erfassung.tastenZustand === 'warnung'
+                  ? 'Enter auf der Taste halten'
+                  : 'Enter buchen'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="h-[calc(100vh-13rem)] min-h-[420px]">{journal}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {dialoge}
+    </div>
   );
 };
 
