@@ -76,7 +76,16 @@ export const SCHICHT_MITARBEITER_COLLECTION_ID = 'schicht_mitarbeiter';
 export const SCHICHT_ZUWEISUNGEN_COLLECTION_ID = 'schicht_zuweisungen';
 
 // Produktion Collection
+/**
+ * @deprecated Altbestand bis 09/2026: EIN Dokument (`produktion_verlauf`) mit
+ * allen Einträgen als JSON-String. Die Zeile ist auf 65.535 Bytes begrenzt,
+ * das lief auf eine stille Obergrenze zu. Neue Buchungen liegen einzeln in
+ * PRODUKTION_BUCHUNGEN_COLLECTION_ID; die Collection bleibt nur als Quelle für
+ * scripts/migriere-produktion-buchungen.mjs stehen.
+ */
 export const PRODUKTION_COLLECTION_ID = 'produktion_eintraege';
+/** Eine Buchung = ein Dokument (Rohmaterial, Mahlen, Abfüllung). */
+export const PRODUKTION_BUCHUNGEN_COLLECTION_ID = 'produktion_buchungen';
 
 // Platzbauer-Verwaltung Collections
 export const PLATZBAUER_PROJEKTE_COLLECTION_ID = 'platzbauer_projekte';
@@ -143,6 +152,18 @@ export const MINDMAP_ZEITEN_COLLECTION_ID = 'mindmap_zeiteintraege';
 // Admin Changelog (privat für Julian - Arbeitsnachweis für Reviews)
 export const ADMIN_CHANGELOG_COLLECTION_ID = 'admin_changelog';
 
+/*
+ * Zeiterfassung (`zeit_events`) steht BEWUSST NICHT hier.
+ *
+ * Die Collection hat ein leeres Permissions-Array und ist vom Client aus nicht
+ * erreichbar — Arbeitszeiten sind personenbezogene Daten, und `documentSecurity=false`
+ * hieße: jeder eingeloggte Nutzer liest die Stempel aller Kollegen. Zugriff läuft
+ * ausschließlich über /.netlify/functions/zeiterfassung, die den Aufrufer per JWT
+ * identifiziert und den Zeitstempel selbst setzt.
+ * Die ID steht in src/types/zeiterfassung.ts; ein Export hier würde einen direkten
+ * Client-Zugriff nahelegen, den es nicht geben darf.
+ */
+
 // Collections Objekt für einfachen Zugriff
 export const COLLECTIONS = {
   FIXKOSTEN: FIXKOSTEN_COLLECTION_ID,
@@ -200,6 +221,7 @@ export const COLLECTIONS = {
   SCHICHT_ZUWEISUNGEN: SCHICHT_ZUWEISUNGEN_COLLECTION_ID,
 // Produktion
   PRODUKTION: PRODUKTION_COLLECTION_ID,
+  PRODUKTION_BUCHUNGEN: PRODUKTION_BUCHUNGEN_COLLECTION_ID,
   // Platzbauer-Verwaltung
   PLATZBAUER_PROJEKTE: PLATZBAUER_PROJEKTE_COLLECTION_ID,
   PROJEKT_ZUORDNUNGEN: PROJEKT_ZUORDNUNGEN_COLLECTION_ID,
@@ -485,13 +507,23 @@ export { client };
  * — und liefen damit am Storage-Proxy vorbei. Im Mock-Modus hätten sie weiter
  * auf den Produktions-Bucket gezeigt. Über `getBucketId()` stimmt das Ziel jetzt
  * in beiden Modi.
+ *
+ * Leere `dateiId` → leerer String, KEINE URL. Ohne diese Prüfung entstünde
+ * `…/files//view`; Appwrite antwortet darauf mit einem 400er JSON-Fehler
+ * ("Invalid `fileId` param"), den der Nutzer als kaputte Seite im neuen Tab
+ * sieht. Aufrufer müssen das leere Ergebnis behandeln (Link deaktivieren,
+ * "kein PDF vorhanden"). Der Normalfall dafür ist die Sandbox: dorthin werden
+ * Dokumentzeilen kopiert, die PDFs aber bewusst nicht (siehe
+ * `scripts/copy-to-mock-db.ts` → `kappeDateiVerweise`).
  */
 export const dateiUrl = (
   bucketId: string,
   dateiId: string,
   modus: 'view' | 'download' = 'view'
 ): string =>
-  `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(bucketId)}/files/${dateiId}/${modus}?project=${PROJECT_ID}`;
+  dateiId
+    ? `${APPWRITE_ENDPOINT}/storage/buckets/${getBucketId(bucketId)}/files/${dateiId}/${modus}?project=${PROJECT_ID}`
+    : '';
 
 // Debug: Zeige Konfiguration in Development
 if (import.meta.env.DEV) {

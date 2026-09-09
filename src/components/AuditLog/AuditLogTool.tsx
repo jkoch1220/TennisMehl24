@@ -37,6 +37,7 @@ const ENTITY_LABELS: Record<string, string> = {
   user: 'Benutzer',
   role: 'Rolle',
   permissions: 'Berechtigungen',
+  produktions_buchung: 'Produktionsbuchung',
 };
 
 const formatZeitpunkt = (iso: string): string => {

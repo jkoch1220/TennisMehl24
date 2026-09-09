@@ -23,6 +23,17 @@ export const KNOWN_SENSITIVE_FIELDS: Record<string, SensitiveFieldDef[]> = {
     { key: 'grosshaendlerPreisNetto', label: 'Großhändler-Preis (Netto)' },
   ],
   dashboard: [{ key: 'db1', label: 'Gewinn / DB1-Kennzahlen' }],
+  /**
+   * Produktion ist gestaffelt: Mitarbeiter an der Anlage erfassen ALLE drei
+   * Bereiche (Rohmaterial, Mahlen, Abfüllung), sehen aber weder Auswertungen
+   * noch Bestände noch die Buchungen der Kollegen. Produktionsleitung und
+   * Admin sehen alles.
+   */
+  produktion: [
+    { key: 'auswertung', label: 'Auswertung (Statistik, Trends, Prognose)' },
+    { key: 'lagerbestand', label: 'Lagerbestand & Materialbilanz' },
+    { key: 'fremde-buchungen', label: 'Buchungen anderer Mitarbeiter' },
+  ],
 };
 
 export const getSensitiveFields = (toolId: string): SensitiveFieldDef[] =>

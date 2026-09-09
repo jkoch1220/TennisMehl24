@@ -97,9 +97,9 @@ export default function PublicProduktion() {
 
   // Authentifiziert - zeige ProduktionsTracker
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-red-50">
+    <div className="flex min-h-[100dvh] flex-col bg-gray-50 dark:bg-slate-950">
       {/* Header mit Logout */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
+      <div className="flex-shrink-0 bg-white shadow-sm border-b border-gray-200 dark:bg-slate-900 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center shadow">
@@ -117,8 +117,10 @@ export default function PublicProduktion() {
         </div>
       </div>
 
-      {/* ProduktionsTracker */}
-      <div className="p-4">
+      {/* Der Tracker bringt seinen eigenen Rahmen mit (100dvh, eigener
+          Scrollbereich) — eine zusätzliche Polsterung würde ihn stauchen und
+          die Buchen-Taste aus dem Bild schieben. */}
+      <div className="min-h-0 flex-1">
         <ProduktionsTracker />
       </div>
     </div>

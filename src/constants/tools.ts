@@ -283,7 +283,7 @@ export const ALL_TOOLS: ToolConfig[] = [
   {
     id: 'produktion',
     name: 'Produktion',
-    description: 'Produzierte Tonnen erfassen mit mobilem Swipe-Picker',
+    description: 'Rohmaterial, Mahlen und Abfüllung erfassen und auswerten',
     href: '/produktion',
     icon: Factory,
     color: 'from-orange-500 to-amber-600',
