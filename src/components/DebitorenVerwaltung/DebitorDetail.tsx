@@ -50,6 +50,7 @@ import { DokumentVerlaufEintrag } from '../../types/projektabwicklung';
 import OpenInNewTabButton from '../Shared/OpenInNewTabButton';
 import BearbeitetVonHinweis from '../Shared/BearbeitetVonHinweis';
 import HerkunftBadges from './HerkunftBadges';
+import { NumberInput } from '../NumberInput';
 
 interface DebitorDetailProps {
   debitor: DebitorView;
@@ -67,7 +68,7 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
   const [loading, setLoading] = useState(false);
 
   // Zahlung Formular State
-  const [zahlungBetrag, setZahlungBetrag] = useState<string>(debitor.offenerBetrag.toFixed(2));
+  const [zahlungBetrag, setZahlungBetrag] = useState<number>(debitor.offenerBetrag);
   const [zahlungDatum, setZahlungDatum] = useState<string>(new Date().toISOString().split('T')[0]);
   const [zahlungNotiz, setZahlungNotiz] = useState<string>('');
   const [zahlungArt, setZahlungArt] = useState<'ueberweisung' | 'bar' | 'lastschrift' | 'scheck'>('ueberweisung');
@@ -142,8 +143,13 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
 
   // Zahlung hinzufügen
   const handleAddZahlung = async () => {
-    const betrag = parseFloat(zahlungBetrag.replace(',', '.'));
-    if (isNaN(betrag) || betrag <= 0) {
+    // Der Betrag kommt als Zahl aus dem Feld. Vorher stand hier
+    // parseFloat(text.replace(',', '.')) – das ersetzte nur das ERSTE Komma und
+    // ließ deutsche Tausenderpunkte stehen: aus „1.234,56" wurde „1.234.56",
+    // und parseFloat las davon 1,234 €. Die Prüfung unten schlug nicht an,
+    // weil 1,234 > 0 ist – die Zahlung wurde still um Faktor 1000 zu klein gebucht.
+    const betrag = zahlungBetrag;
+    if (!Number.isFinite(betrag) || betrag <= 0) {
       alert('Bitte geben Sie einen gültigen Betrag ein');
       return;
     }
@@ -683,7 +689,14 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                     Zahlungen ({debitor.zahlungen.length})
                   </h3>
                   <button
-                    onClick={() => setShowZahlungFormular(!showZahlungFormular)}
+                    onClick={() => {
+                      // Beim Öffnen den aktuell offenen Betrag vorbelegen. Der
+                      // useState-Startwert greift nur beim ersten Rendern; die
+                      // Komponente bleibt nach einer Zahlung montiert und zeigte
+                      // sonst weiter den zuletzt getippten Betrag.
+                      if (!showZahlungFormular) setZahlungBetrag(debitor.offenerBetrag);
+                      setShowZahlungFormular(!showZahlungFormular);
+                    }}
                     className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
                     disabled={loading}
                   >
@@ -700,10 +713,12 @@ const DebitorDetail = ({ debitor, onClose, onUpdate, onOptimisticPatch }: Debito
                         <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
                           Betrag (€)
                         </label>
-                        <input
-                          type="text"
+                        <NumberInput
                           value={zahlungBetrag}
-                          onChange={(e) => setZahlungBetrag(e.target.value)}
+                          onChange={setZahlungBetrag}
+                          dezimalstellen={2}
+                          min={0}
+                          step="0.01"
                           className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 text-sm"
                           placeholder="0,00"
                         />
